@@ -19,9 +19,9 @@ use tor_llcrypto::pk::rsa;
 /// the `build_docs` feature.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 pub struct AuthCertBuilder {
-    /// See [`AuthCert::address`]
+    /// See [`AuthCert::dir_address`]
     address: Option<SocketAddrV4>,
-    /// See [`AuthCert::identity_key`]
+    /// See [`AuthCert::dir_identity_key`]
     identity_key: Option<rsa::PublicKey>,
     /// See [`AuthCert::signing_key`]
     signing_key: Option<rsa::PublicKey>,
@@ -89,28 +89,28 @@ impl AuthCertBuilder {
     ///
     /// You should only use this function for testing.
     pub fn dangerous_testing_cert(&self) -> BuildResult<AuthCert> {
-        let published = self
+        let dir_key_published = self
             .published
             .ok_or(Error::CannotBuild("Missing published time"))?;
-        let expires = self
+        let dir_key_expires = self
             .expires
             .ok_or(Error::CannotBuild("Missing expiration time"))?;
-        if expires < published {
+        if dir_key_expires < dir_key_published {
             return Err(Error::CannotBuild("Expires before published time."));
         }
-        let identity_key = self
+        let dir_identity_key = self
             .identity_key
             .as_ref()
             .ok_or(Error::CannotBuild("Missing identity key."))?
             .clone();
-        let signing_key = self
+        let dir_signing_key = self
             .signing_key
             .as_ref()
             .ok_or(Error::CannotBuild("Missing signing key."))?
             .clone();
 
-        let id_fingerprint = identity_key.to_rsa_identity();
-        let sk_fingerprint = signing_key.to_rsa_identity();
+        let id_fingerprint = dir_identity_key.to_rsa_identity();
+        let sk_fingerprint = dir_signing_key.to_rsa_identity();
 
         let key_ids = AuthCertKeyIds {
             id_fingerprint,
@@ -118,11 +118,11 @@ impl AuthCertBuilder {
         };
 
         Ok(AuthCert {
-            address: self.address,
-            identity_key,
-            signing_key,
-            published,
-            expires,
+            dir_address: self.address,
+            dir_identity_key,
+            dir_signing_key,
+            dir_key_published,
+            dir_key_expires,
             key_ids,
         })
     }

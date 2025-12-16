@@ -79,15 +79,15 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 #[derive(Clone, Debug)]
 pub struct AuthCert {
     /// An IPv4 address for this authority.
-    address: Option<net::SocketAddrV4>,
+    dir_address: Option<net::SocketAddrV4>,
     /// Declared time when this certificate was published
-    published: time::SystemTime,
+    dir_key_published: time::SystemTime,
     /// Declared time when this certificate expires.
-    expires: time::SystemTime,
+    dir_key_expires: time::SystemTime,
     /// The long-term RSA identity key for this authority
-    identity_key: rsa::PublicKey,
+    dir_identity_key: rsa::PublicKey,
     /// The medium-term RSA signing key for this authority
-    signing_key: rsa::PublicKey,
+    dir_signing_key: rsa::PublicKey,
 
     /// Derived field: fingerprints of the certificate's keys
     key_ids: AuthCertKeyIds,
@@ -168,7 +168,7 @@ impl AuthCert {
     */
     /// Return the signing key certified by this certificate.
     pub fn signing_key(&self) -> &rsa::PublicKey {
-        &self.signing_key
+        &self.dir_signing_key
     }
 
     /// Return an AuthCertKeyIds object describing the keys in this
@@ -189,12 +189,12 @@ impl AuthCert {
 
     /// Return the time when this certificate says it was published.
     pub fn published(&self) -> time::SystemTime {
-        self.published
+        self.dir_key_published
     }
 
     /// Return the time when this certificate says it should expire.
     pub fn expires(&self) -> time::SystemTime {
-        self.expires
+        self.dir_key_expires
     }
 
     /// Parse an authority certificate from a reader.
@@ -237,27 +237,27 @@ impl AuthCert {
             return Err(EK::BadDocumentVersion.with_msg(format!("unexpected version {}", version)));
         }
 
-        let signing_key: rsa::PublicKey = body
+        let dir_signing_key: rsa::PublicKey = body
             .required(DIR_SIGNING_KEY)?
             .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
             .check_len(1024..)?
             .check_exponent(65537)?
             .into();
 
-        let identity_key: rsa::PublicKey = body
+        let dir_identity_key: rsa::PublicKey = body
             .required(DIR_IDENTITY_KEY)?
             .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
             .check_len(1024..)?
             .check_exponent(65537)?
             .into();
 
-        let published = body
+        let dir_key_published = body
             .required(DIR_KEY_PUBLISHED)?
             .args_as_str()
             .parse::<Iso8601TimeSp>()?
             .into();
 
-        let expires = body
+        let dir_key_expires = body
             .required(DIR_KEY_EXPIRES)?
             .args_as_str()
             .parse::<Iso8601TimeSp>()?
@@ -267,14 +267,14 @@ impl AuthCert {
             // Check fingerprint for consistency with key.
             let fp_tok = body.required(FINGERPRINT)?;
             let fingerprint: RsaIdentity = fp_tok.args_as_str().parse::<Fingerprint>()?.into();
-            if fingerprint != identity_key.to_rsa_identity() {
+            if fingerprint != dir_identity_key.to_rsa_identity() {
                 return Err(EK::BadArgument
                     .at_pos(fp_tok.pos())
                     .with_msg("fingerprint does not match RSA identity"));
             }
         }
 
-        let address = body
+        let dir_address = body
             .maybe(DIR_ADDRESS)
             .parse_args_as_str::<net::SocketAddrV4>()?;
 
@@ -291,10 +291,10 @@ impl AuthCert {
             }
             let sig = crosscert.obj(tag)?;
 
-            let signed = identity_key.to_rsa_identity();
+            let signed = dir_identity_key.to_rsa_identity();
             // TODO: we need to accept prefixes here. COMPAT BLOCKER.
 
-            rsa::ValidatableRsaSignature::new(&signing_key, &sig, signed.as_bytes())
+            rsa::ValidatableRsaSignature::new(&dir_signing_key, &sig, signed.as_bytes())
         };
 
         // check the signature
@@ -314,11 +314,11 @@ impl AuthCert {
             let sha1 = sha1.finalize();
             // TODO: we need to accept prefixes here. COMPAT BLOCKER.
 
-            rsa::ValidatableRsaSignature::new(&identity_key, &sig, &sha1)
+            rsa::ValidatableRsaSignature::new(&dir_identity_key, &sig, &sha1)
         };
 
-        let id_fingerprint = identity_key.to_rsa_identity();
-        let sk_fingerprint = signing_key.to_rsa_identity();
+        let id_fingerprint = dir_identity_key.to_rsa_identity();
+        let sk_fingerprint = dir_signing_key.to_rsa_identity();
         let key_ids = AuthCertKeyIds {
             id_fingerprint,
             sk_fingerprint,
@@ -334,18 +334,18 @@ impl AuthCert {
         };
 
         let authcert = AuthCert {
-            address,
-            identity_key,
-            signing_key,
-            published,
-            expires,
+            dir_address,
+            dir_identity_key,
+            dir_signing_key,
+            dir_key_published,
+            dir_key_expires,
             key_ids,
         };
 
         let signatures: Vec<Box<dyn pk::ValidatableSignature>> =
             vec![Box::new(v_crosscert), Box::new(v_sig)];
 
-        let timed = timed::TimerangeBound::new(authcert, published..expires);
+        let timed = timed::TimerangeBound::new(authcert, dir_key_published..dir_key_expires);
         let signed = signed::SignatureGated::new(timed, signatures);
         let unchecked = UncheckedAuthCert {
             location,
