@@ -46,7 +46,6 @@ where
     /// Object to build TLS connections.
     tls_connector: <R as TlsProvider<H::Stream>>::Connector,
     /// Outbound channel type this channel builder builds.
-    #[expect(unused)] // TODO(relay): remove this once used.
     outbound_chan_type: ChannelType,
     /// Relay identities needed for relay channels.
     #[cfg(feature = "relay")]
@@ -99,13 +98,34 @@ where
             std::time::Duration::new(10, 0)
         };
 
-        let connect_future = self.connect_no_timeout_client(target, reporter.0, memquota);
-        self.runtime
-            .timeout(delay, connect_future)
-            .await
-            .map_err(|_| Error::ChanTimeout {
-                peer: target.to_logged(),
-            })?
+        match self.outbound_chan_type {
+            ChannelType::ClientInitiator => {
+                self.runtime
+                    .timeout(
+                        delay,
+                        self.connect_no_timeout_client(target, reporter.0, memquota),
+                    )
+                    .await
+            }
+            #[cfg(feature = "relay")]
+            ChannelType::RelayInitiator => {
+                self.runtime
+                    .timeout(
+                        delay,
+                        self.connect_no_timeout_relay(target, reporter.0, memquota),
+                    )
+                    .await
+            }
+            _ => {
+                return Err(Error::Internal(internal!(
+                    "Unusable channel type for outbound: {}",
+                    self.outbound_chan_type
+                )));
+            }
+        }
+        .map_err(|_| Error::ChanTimeout {
+            peer: target.to_logged(),
+        })?
     }
 }
 
@@ -261,7 +281,134 @@ where
             .spawn(async {
                 let _ = reactor.run().await;
             })
-            .map_err(|e| Error::from_spawn("channel reactor", e))?;
+            .map_err(|e| Error::from_spawn("client channel reactor", e))?;
+
+        Ok(chan)
+    }
+
+    /// Perform the work of `connect_via_transport`, but without enforcing a timeout.
+    #[cfg(feature = "relay")]
+    #[instrument(skip_all, level = "trace")]
+    async fn connect_no_timeout_relay(
+        &self,
+        target: &OwnedChanTarget,
+        event_sender: Arc<Mutex<ChanMgrEventSender>>,
+        memquota: ChannelAccount,
+    ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
+        use tor_proto::RelayChannelBuilder;
+        use tor_rtcompat::tls::CertifiedConn;
+
+        {
+            event_sender.lock().expect("Lock poisoned").record_attempt();
+        }
+
+        // 1a. Negotiate the TCP connection or other stream.
+
+        let (using_target, stream) = self.transport.connect(target).await?;
+        let peer = using_target.chan_method().target_addr();
+        let peer_ref = &peer;
+
+        let map_ioe = |action: &'static str| {
+            let peer: Option<BridgeAddr> = peer_ref.as_ref().and_then(|peer| {
+                let peer: Option<BridgeAddr> = peer.clone().into();
+                peer
+            });
+            move |ioe: io::Error| Error::Io {
+                action,
+                peer: peer.map(Into::into),
+                source: ioe.into(),
+            }
+        };
+
+        {
+            // TODO(nickm): At some point, it would be helpful to the
+            // bootstrapping logic if we could distinguish which
+            // transport just succeeded.
+            event_sender
+                .lock()
+                .expect("Lock poisoned")
+                .record_tcp_success();
+        }
+
+        // 1b. Negotiate TLS.
+
+        let hostname = rand_hostname::random_hostname(&mut rand::rng());
+
+        let tls = self
+            .tls_connector
+            .negotiate_unvalidated(stream, hostname.as_str())
+            .await
+            .map_err(map_ioe("TLS negotiation"))?;
+
+        let peer_cert = tls
+            .peer_certificate()
+            .map_err(map_ioe("TLS certs"))?
+            .ok_or_else(|| Error::Internal(internal!("TLS connection with no peer certificate")))?;
+
+        {
+            event_sender
+                .lock()
+                .expect("Lock poisoned")
+                .record_tls_finished();
+        }
+
+        // Get the client specific channel builder.
+        let builder = RelayChannelBuilder::new();
+        let identities = self
+            .identities
+            .as_ref()
+            .ok_or(internal!(
+                "Unable to build relay channel without identities"
+            ))?
+            .clone();
+
+        let chan = builder
+            .launch(
+                tls,
+                self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
+                identities,
+                memquota,
+            )
+            .connect(|| self.runtime.wallclock())
+            .await
+            .map_err(|e| Error::from_proto_no_skew(e, &using_target))?;
+        let clock_skew = Some(chan.clock_skew()); // Not yet authenticated; can't use it till `check` is done.
+        let now = self.runtime.wallclock();
+        let chan = chan
+            .check(target, &peer_cert, Some(now))
+            .map_err(|source| match &source {
+                tor_proto::Error::HandshakeCertsExpired { .. } => {
+                    event_sender
+                        .lock()
+                        .expect("Lock poisoned")
+                        .record_handshake_done_with_skewed_clock();
+                    Error::Proto {
+                        source,
+                        peer: using_target.to_logged(),
+                        clock_skew,
+                    }
+                }
+                _ => Error::from_proto_no_skew(source, &using_target),
+            })?;
+        let (chan, reactor) = chan.finish().await.map_err(|source| Error::Proto {
+            source,
+            peer: target.to_logged(),
+            clock_skew,
+        })?;
+
+        {
+            event_sender
+                .lock()
+                .expect("Lock poisoned")
+                .record_handshake_done();
+        }
+
+        // 3. Launch a task to run the channel reactor.
+        self.runtime
+            .spawn(async {
+                let _ = reactor.run().await;
+            })
+            .map_err(|e| Error::from_spawn("relay channel reactor", e))?;
 
         Ok(chan)
     }
