@@ -80,14 +80,14 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 pub struct AuthCert {
     /// An IPv4 address for this authority.
     address: Option<net::SocketAddrV4>,
-    /// The long-term RSA identity key for this authority
-    identity_key: rsa::PublicKey,
-    /// The medium-term RSA signing key for this authority
-    signing_key: rsa::PublicKey,
     /// Declared time when this certificate was published
     published: time::SystemTime,
     /// Declared time when this certificate expires.
     expires: time::SystemTime,
+    /// The long-term RSA identity key for this authority
+    identity_key: rsa::PublicKey,
+    /// The medium-term RSA signing key for this authority
+    signing_key: rsa::PublicKey,
 
     /// Derived field: fingerprints of the certificate's keys
     key_ids: AuthCertKeyIds,
