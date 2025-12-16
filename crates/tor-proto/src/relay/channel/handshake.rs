@@ -23,7 +23,7 @@ use crate::channel::{Channel, ChannelFrame, Reactor};
 use crate::channel::{ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::relay::channel::RelayIdentities;
-use crate::{Error, Result};
+use crate::{ClockSkew, Error, Result};
 
 // TODO(relay): We should probably get those values from protover crate or some other
 // crate that have all "network parameters" we support?
@@ -255,6 +255,18 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > UnverifiedRelayChannel<T, S>
 {
+    /// Return the reported clock skew from this handshake.
+    ///
+    /// Note that the skew reported by this function might not be "true": the
+    /// relay might have its clock set wrong, or it might be lying to us.
+    ///
+    /// The clock skew reported here is not yet authenticated; if you need to
+    /// make sure that the skew is authenticated, use
+    /// [`Channel::clock_skew`](crate::channel::Channel::clock_skew) instead.
+    pub fn clock_skew(&self) -> ClockSkew {
+        self.inner.clock_skew
+    }
+
     /// Validate the certificates and keys in the relay's handshake.
     ///
     /// 'peer' is the peer that we want to make sure we're connecting to.
