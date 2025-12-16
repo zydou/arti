@@ -74,30 +74,30 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 /// This is the body, not including signatures.
 ///
 /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html>
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct AuthCert {
     /// An IPv4 address for this authority.
-    dir_address: Option<net::SocketAddrV4>,
+    pub dir_address: Option<net::SocketAddrV4>,
 
     /// H(KP_auth_id_rsa)
-    fingerprint: Fingerprint,
+    pub fingerprint: Fingerprint,
 
     /// Declared time when this certificate was published
-    dir_key_published: Iso8601TimeSp,
+    pub dir_key_published: Iso8601TimeSp,
 
     /// Declared time when this certificate expires.
-    dir_key_expires: Iso8601TimeSp,
+    pub dir_key_expires: Iso8601TimeSp,
 
     /// KP_auth_id_rsa
     ///
     /// The long-term RSA identity key for this authority
-    dir_identity_key: rsa::PublicKey,
+    pub dir_identity_key: rsa::PublicKey,
 
     /// KP_auth_sign_rsa
     ///
     /// The medium-term RSA signing key for this authority
-    dir_signing_key: rsa::PublicKey,
+    pub dir_signing_key: rsa::PublicKey,
 }
 
 /// A pair of key identities that identifies a certificate.
