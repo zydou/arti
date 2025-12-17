@@ -26,6 +26,7 @@ use crate::encode::{ItemEncoder, ItemObjectEncodable, NetdocEncodable, NetdocEnc
 use crate::parse2::{
     ArgumentError as P2AE, ArgumentStream, ErrorProblem as P2EP, ItemObjectParseable,
     NetdocParseable, ParseError, ParseInput, UnparsedItem, parse_netdoc, parse_netdoc_multiple,
+    parse_netdoc_multiple_with_offsets,
 };
 use crate::types::{Ignored, NotPresent};
 
@@ -188,7 +189,7 @@ mod needs_with_arg {
     }
 }
 
-/// Test parsing and encoding
+/// Test parsing and encoding of a single-document file
 ///
 /// `doc_spec` is the document to parse.
 /// `exp` is what it should parse as.
@@ -209,6 +210,20 @@ mod needs_with_arg {
 ///    This line eppears only in the re-encoding.
 ///    Prefer `re-encoded later` or `re-encoded:` if possible as they're clearer.
 fn t_ok<D>(doc_spec: &str, exp: &[D]) -> TestResult<()>
+where
+    D: NetdocEncodable + NetdocParseable + Debug + PartialEq,
+{
+    // XXXX take &D not &[D] since there's only one
+    t_ok_multi::<D>(&[], doc_spec, exp)
+}
+
+/// Test parsing and encoding of a multi-document file
+///
+/// The de/re-encoding syntax is as above.
+//
+// It would perhaps be better if `doc_boundaries` were obtained from magic instructions,
+// but there's only one test case with a fragile hardcoded byte offset ATM.
+fn t_ok_multi<D>(doc_boundaries: &[usize], doc_spec: &str, exp: &[D]) -> TestResult<()>
 where
     D: NetdocEncodable + NetdocParseable + Debug + PartialEq,
 {
@@ -293,6 +308,13 @@ where
 
     let got = parse_netdoc_multiple::<D>(&input)?;
     assert_eq!(got, exp, "parse_multiple mismatch");
+
+    let got_with_offsets = parse_netdoc_multiple_with_offsets::<D>(&input)?;
+    for (i, (got, start, end)) in got_with_offsets.iter().enumerate() {
+        assert_eq!(got, &exp[i], "parse_multiple_with_offsets mismatch");
+        assert_eq!(*start, if i == 0 { 0 } else { doc_boundaries[i - 1] });
+        assert_eq!(*end, doc_boundaries.get(i).copied().unwrap_or(doc.len()));
+    }
 
     let reenc = {
         let mut encoder = NetdocEncoder::default();
@@ -871,7 +893,8 @@ aGVsbG8=         @ not re-encoded
         }],
     )?;
 
-    t_ok(
+    t_ok_multi(
+        &[11],
         r#"test-item0
 test-item0
 test-item-rest optional resty rest
