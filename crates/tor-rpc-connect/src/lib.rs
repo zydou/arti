@@ -97,6 +97,23 @@ impl HasClientErrorAction for tor_config_path::addr::CfgAddrError {
         }
     }
 }
+impl HasClientErrorAction for tor_general_addr::general::AddrParseError {
+    fn client_action(&self) -> ClientErrorAction {
+        use ClientErrorAction as A;
+        use tor_general_addr::general::AddrParseError as E;
+        match self {
+            E::UnrecognizedSchema(_) => A::Decline,
+            E::NoSchema => A::Decline,
+            E::InvalidAfUnixAddress(_) => A::Abort,
+            // We might want to turn this into an Abort in the future, but I think that we might
+            // want to allow "auto" as a port format in CfgAddr.
+            E::InvalidInetAddress(_) => A::Decline,
+            // No variants are currently captured in this pattern, but they _could_ be in the future.
+            _ => A::Abort,
+        }
+    }
+}
+
 /// Return the ClientErrorAction for an IO error encountered
 /// while accessing the filesystem.
 ///
