@@ -538,10 +538,14 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                             &relay.rsa_id()
                         );
                     }
-                    errors.push(tor_error::Report(DescriptorError {
-                        hsdir: hsdir_for_error,
-                        error,
-                    }));
+                    errors.push_timed(
+                        tor_error::Report(DescriptorError {
+                            hsdir: hsdir_for_error,
+                            error,
+                        }),
+                        self.runtime.now(),
+                        Some(self.runtime.wallclock()),
+                    );
                 }
             }
         };
@@ -734,7 +738,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .filter_map(|entry| match entry {
                 Ok(y) => Some(y),
                 Err(e) => {
-                    errors.push(e);
+                    errors.push_timed(e, self.runtime.now(), Some(self.runtime.wallclock()));
                     None
                 }
             })
@@ -968,7 +972,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     if let Some(intro_index) = error.intro_index() {
                         store_experience(intro_index, Err(error.retry_time()));
                     }
-                    errors.push(error);
+                    errors.push_timed(error, self.runtime.now(), Some(self.runtime.wallclock()));
 
                     // If we are using proof-of-work DoS mitigation, try harder next time
                     pow_client.increase_effort();

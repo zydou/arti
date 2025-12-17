@@ -47,6 +47,7 @@
 use std::error::Error;
 use std::fmt::{self, Debug, Display, Error as FmtError, Formatter};
 use std::iter;
+use std::time::{Duration, Instant, SystemTime};
 
 /// An error type for use when we're going to do something a few times,
 /// and they might all fail.
@@ -56,17 +57,34 @@ use std::iter;
 /// fails, use [`RetryError::push()`] to add a new error to the list
 /// of errors.  If the operation fails too many times, you can use
 /// RetryError as an [`Error`] itself.
+///
+/// This type now tracks timestamps for each error occurrence, allowing
+/// users to see when errors occurred and how long the retry process took.
 #[derive(Debug, Clone)]
 pub struct RetryError<E> {
     /// The operation we were trying to do.
     doing: String,
     /// The errors that we encountered when doing the operation.
-    errors: Vec<(Attempt, E)>,
+    errors: Vec<(Attempt, E, Instant)>,
     /// The total number of errors we encountered.
     ///
     /// This can differ from errors.len() if the errors have been
     /// deduplicated.
     n_errors: usize,
+    /// The wall-clock time when the first error occurred.
+    ///
+    /// This is used for human-readable display of absolute timestamps.
+    ///
+    /// We store both types because they serve different purposes:
+    /// - `Instant` (in the errors vec): Monotonic clock for reliable duration calculations.
+    ///   Immune to clock adjustments, but can't be displayed as wall-clock time.
+    /// - `SystemTime` (here): Wall-clock time for displaying when the first error occurred
+    ///   in a human-readable format (e.g., "2025-12-09T10:24:02Z").
+    ///
+    /// We only store `SystemTime` for the first error to show users *when* the problem
+    /// started. Subsequent errors are displayed relative to the first ("+2m 30s"),
+    /// using the reliable `Instant` timestamps.
+    first_error_at: Option<SystemTime>,
 }
 
 /// Represents which attempts, in sequence, failed to complete.
@@ -98,27 +116,64 @@ impl<E> RetryError<E> {
             doing: doing.into(),
             errors: Vec::new(),
             n_errors: 0,
+            first_error_at: None,
         }
     }
-    /// Add an error to this RetryError.
+    /// Add an error to this RetryError with explicit timestamps.
     ///
     /// You should call this method when an attempt at the underlying operation
     /// has failed.
-    pub fn push<T>(&mut self, err: T)
+    ///
+    /// The `instant` parameter should be the monotonic time when the error
+    /// occurred, typically obtained from a runtime's `now()` method.
+    ///
+    /// The `wall_clock` parameter is the wall-clock time when the error occurred,
+    /// used for human-readable display. Pass `None` to skip wall-clock tracking,
+    /// or `Some(SystemTime::now())` for the current time.
+    ///
+    /// # Example
+    /// ```
+    /// # use retry_error::RetryError;
+    /// # use std::time::{Instant, SystemTime};
+    /// let mut retry_err: RetryError<&str> = RetryError::in_attempt_to("connect");
+    /// let now = Instant::now();
+    /// retry_err.push_timed("connection failed", now, Some(SystemTime::now()));
+    /// ```
+    pub fn push_timed<T>(&mut self, err: T, instant: Instant, wall_clock: Option<SystemTime>)
     where
         T: Into<E>,
     {
         if self.n_errors < usize::MAX {
             self.n_errors += 1;
             let attempt = Attempt::Single(self.n_errors);
-            self.errors.push((attempt, err.into()));
+
+            if self.first_error_at.is_none() {
+                self.first_error_at = wall_clock;
+            }
+
+            self.errors.push((attempt, err.into(), instant));
         }
+    }
+
+    /// Add an error to this RetryError using the current time.
+    ///
+    /// You should call this method when an attempt at the underlying operation
+    /// has failed.
+    ///
+    /// This is a convenience wrapper around [`push_timed()`](Self::push_timed)
+    /// that uses `Instant::now()` and `SystemTime::now()` for the timestamps.
+    /// For code that needs mockable time (such as in tests), prefer `push_timed()`.
+    pub fn push<T>(&mut self, err: T)
+    where
+        T: Into<E>,
+    {
+        self.push_timed(err, Instant::now(), Some(SystemTime::now()));
     }
 
     /// Return an iterator over all of the reasons that the attempt
     /// behind this RetryError has failed.
     pub fn sources(&self) -> impl Iterator<Item = &E> {
-        self.errors.iter().map(|(_, e)| e)
+        self.errors.iter().map(|(.., e, _)| e)
     }
 
     /// Return the number of underlying errors.
@@ -129,6 +184,29 @@ impl<E> RetryError<E> {
     /// Return true if no underlying errors have been added.
     pub fn is_empty(&self) -> bool {
         self.errors.is_empty()
+    }
+
+    /// Add multiple errors to this RetryError using the current time.
+    ///
+    /// This method uses [`push()`](Self::push) internally, which captures
+    /// `SystemTime::now()`. For code that needs mockable time (such as in tests),
+    /// iterate manually and call [`push_timed()`](Self::push_timed) instead.
+    ///
+    /// # Example
+    /// ```
+    /// # use retry_error::RetryError;
+    /// let mut err: RetryError<anyhow::Error> = RetryError::in_attempt_to("parse");
+    /// let errors = vec!["error1", "error2"].into_iter().map(anyhow::Error::msg);
+    /// err.extend(errors);
+    /// ```
+    #[allow(clippy::disallowed_methods)] // This method intentionally uses push()
+    pub fn extend<T>(&mut self, iter: impl IntoIterator<Item = T>)
+    where
+        T: Into<E>,
+    {
+        for item in iter {
+            self.push(item);
+        }
     }
 
     /// Group up consecutive errors of the same kind, for easier display.
@@ -142,16 +220,50 @@ impl<E> RetryError<E> {
         let mut old_errs = Vec::new();
         std::mem::swap(&mut old_errs, &mut self.errors);
 
-        for (attempt, err) in old_errs {
-            if let Some((last_attempt, last_err)) = self.errors.last_mut() {
+        for (attempt, err, timestamp) in old_errs {
+            if let Some((last_attempt, last_err, ..)) = self.errors.last_mut() {
                 if same_err(last_err, &err) {
                     last_attempt.grow();
                 } else {
-                    self.errors.push((attempt, err));
+                    self.errors.push((attempt, err, timestamp));
                 }
             } else {
-                self.errors.push((attempt, err));
+                self.errors.push((attempt, err, timestamp));
             }
+        }
+    }
+
+    /// Add multiple errors to this RetryError, preserving their original timestamps.
+    ///
+    /// The errors from other will be added to this RetryError, with their original
+    /// timestamps retained. The `Attempt` counters will be updated to continue from
+    /// the current state of this RetryError. `Attempt::Range` entries are preserved as ranges
+    pub fn extend_from_retry_error(&mut self, other: RetryError<E>) {
+        if self.first_error_at.is_none() {
+            self.first_error_at = other.first_error_at;
+        }
+
+        for (attempt, err, timestamp) in other.errors {
+            let new_attempt = match attempt {
+                Attempt::Single(_) => {
+                    let Some(new_n_errors) = self.n_errors.checked_add(1) else {
+                        break;
+                    };
+                    self.n_errors = new_n_errors;
+                    Attempt::Single(new_n_errors)
+                }
+                Attempt::Range(first, last) => {
+                    let count = last - first + 1;
+                    let Some(new_n_errors) = self.n_errors.checked_add(count) else {
+                        break;
+                    };
+                    let start = self.n_errors + 1;
+                    self.n_errors = new_n_errors;
+                    Attempt::Range(start, new_n_errors)
+                }
+            };
+
+            self.errors.push((new_attempt, err, timestamp));
         }
     }
 }
@@ -174,20 +286,6 @@ impl Attempt {
     }
 }
 
-impl<E, T> Extend<T> for RetryError<E>
-where
-    T: Into<E>,
-{
-    fn extend<C>(&mut self, iter: C)
-    where
-        C: IntoIterator<Item = T>,
-    {
-        for item in iter.into_iter() {
-            self.push(item);
-        }
-    }
-}
-
 impl<E> IntoIterator for RetryError<E> {
     type Item = E;
     type IntoIter = std::vec::IntoIter<E>;
@@ -197,8 +295,11 @@ impl<E> IntoIterator for RetryError<E> {
     // `type IntoIter = impl Iterator<Item=E>` then we fix the code
     // and turn the Clippy warning back on.
     fn into_iter(self) -> Self::IntoIter {
-        let v: Vec<_> = self.errors.into_iter().map(|x| x.1).collect();
-        v.into_iter()
+        self.errors
+            .into_iter()
+            .map(|(.., e, _)| e)
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 
@@ -213,10 +314,27 @@ impl Display for Attempt {
 
 impl<E: AsRef<dyn Error>> Display for RetryError<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), FmtError> {
+        let show_timestamps = f.alternate();
+
         match self.n_errors {
             0 => write!(f, "Unable to {}. (No errors given)", self.doing),
             1 => {
-                write!(f, "Unable to {}: ", self.doing)?;
+                write!(f, "Unable to {}", self.doing)?;
+
+                if show_timestamps {
+                    if let (Some((.., timestamp)), Some(first_at)) =
+                        (self.errors.first(), self.first_error_at)
+                    {
+                        write!(
+                            f,
+                            " at {} ({})",
+                            humantime::format_rfc3339(first_at),
+                            FormatTimeAgo(timestamp.elapsed())
+                        )?;
+                    }
+                }
+
+                write!(f, ": ")?;
                 fmt_error_with_sources(self.errors[0].1.as_ref(), f)
             }
             n => {
@@ -226,12 +344,105 @@ impl<E: AsRef<dyn Error>> Display for RetryError<E> {
                     self.doing, n
                 )?;
 
-                for (attempt, e) in &self.errors {
-                    write!(f, "\n{}: ", attempt)?;
+                if show_timestamps {
+                    if let (Some(first_at), Some((.., first_ts)), Some((.., last_ts))) =
+                        (self.first_error_at, self.errors.first(), self.errors.last())
+                    {
+                        let duration = last_ts.saturating_duration_since(*first_ts);
+
+                        write!(f, " (from {} ", humantime::format_rfc3339(first_at))?;
+
+                        if duration.as_secs() > 0 {
+                            write!(f, "to {}", humantime::format_rfc3339(first_at + duration))?;
+                        }
+
+                        write!(f, ", {})", FormatTimeAgo(last_ts.elapsed()))?;
+                    }
+                }
+
+                let first_ts = self.errors.first().map(|(.., ts)| ts);
+                for (attempt, e, timestamp) in &self.errors {
+                    write!(f, "\n{}", attempt)?;
+
+                    if show_timestamps {
+                        if let Some(first_ts) = first_ts {
+                            let offset = timestamp.saturating_duration_since(*first_ts);
+                            if offset.as_secs() > 0 {
+                                write!(f, " (+{})", FormatDuration(offset))?;
+                            }
+                        }
+                    }
+
+                    write!(f, ": ")?;
                     fmt_error_with_sources(e.as_ref(), f)?;
                 }
                 Ok(())
             }
+        }
+    }
+}
+
+/// A wrapper for formatting a [`Duration`] in a human-readable way.
+/// Produces output like "2m 30s", "5h 12m", "45s", "500ms".
+///
+/// We use this instead of `humantime::format_duration` because humantime tends to produce overly verbose output.
+struct FormatDuration(Duration);
+
+impl Display for FormatDuration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt_duration_impl(self.0, f)
+    }
+}
+
+/// A wrapper for formatting a [`Duration`] with "ago" suffix.
+struct FormatTimeAgo(Duration);
+
+impl Display for FormatTimeAgo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let secs = self.0.as_secs();
+        let millis = self.0.as_millis();
+
+        // Special case: very recent times show as "just now" rather than "0s ago" or "0ms ago"
+        if secs == 0 && millis == 0 {
+            return write!(f, "just now");
+        }
+
+        fmt_duration_impl(self.0, f)?;
+        write!(f, " ago")
+    }
+}
+
+/// Internal helper to format a duration.
+///
+/// This function contains the actual formatting logic to avoid duplication
+/// between `FormatDuration` and `FormatTimeAgo`.
+fn fmt_duration_impl(duration: Duration, f: &mut Formatter<'_>) -> fmt::Result {
+    let secs = duration.as_secs();
+
+    if secs == 0 {
+        let millis = duration.as_millis();
+        if millis == 0 {
+            write!(f, "0s")
+        } else {
+            write!(f, "{}ms", millis)
+        }
+    } else if secs < 60 {
+        write!(f, "{}s", secs)
+    } else if secs < 3600 {
+        let mins = secs / 60;
+        let rem_secs = secs % 60;
+        if rem_secs == 0 {
+            write!(f, "{}m", mins)
+        } else {
+            write!(f, "{}m {}s", mins, rem_secs)
+        }
+    } else {
+        let hours = secs / 3600;
+        let mins = (secs % 3600) / 60;
+        if mins == 0 {
+            write!(f, "{}h", hours)
+        } else {
+            write!(f, "{}h {}m", hours, mins)
         }
     }
 }
@@ -314,6 +525,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::disallowed_methods)]
     use super::*;
     use derive_more::From;
 
@@ -329,6 +541,7 @@ mod test {
         if let Err(e) = "the_g1b50n".parse::<std::net::IpAddr>() {
             err.push(e);
         }
+
         let disp = format!("{}", err);
         assert_eq!(
             disp,
@@ -338,6 +551,10 @@ Attempt 1: provided string was not `true` or `false`
 Attempt 2: invalid digit found in string
 Attempt 3: invalid IP address syntax"
         );
+
+        let disp_alt = format!("{:#}", err);
+        assert!(disp_alt.contains("Tried to convert some things 3 times, but all attempts failed"));
+        assert!(disp_alt.contains("(from 20")); // Year prefix for timestamp
     }
 
     #[test]
@@ -363,6 +580,10 @@ Attempt 3: invalid IP address syntax"
             disp,
             "Unable to connect to torproject.org: invalid IP address syntax"
         );
+
+        let disp_alt = format!("{:#}", err);
+        assert!(disp_alt.contains("Unable to connect to torproject.org at 20")); // Year prefix
+        assert!(disp_alt.contains("invalid IP address syntax"));
     }
 
     #[test]
@@ -396,6 +617,7 @@ Attempt 3: invalid IP address syntax"
         }
 
         err.dedup();
+
         let disp = format!("{}", err);
         assert_eq!(
             disp,
@@ -403,6 +625,10 @@ Attempt 3: invalid IP address syntax"
 Tried to parse some integers 3 times, but all attempts failed
 Attempts 1..3: invalid digit found in string"
         );
+
+        let disp_alt = format!("{:#}", err);
+        assert!(disp_alt.contains("Tried to parse some integers 3 times, but all attempts failed"));
+        assert!(disp_alt.contains("(from 20")); // Year prefix for timestamp
     }
 
     #[test]
@@ -419,6 +645,7 @@ Attempts 1..3: invalid digit found in string"
         err.errors.push((
             Attempt::Range(1, err.n_errors),
             errors.pop().expect("parser did not fail"),
+            Instant::now(),
         ));
         assert!(err.n_errors == usize::MAX);
         assert!(err.len() == 1);
@@ -426,5 +653,71 @@ Attempts 1..3: invalid digit found in string"
         err.push(errors.pop().expect("parser did not fail"));
         assert!(err.n_errors == usize::MAX);
         assert!(err.len() == 1);
+    }
+
+    #[test]
+    fn extend_from_retry_preserve_timestamps() {
+        let n1 = Instant::now();
+        let n2 = n1 + Duration::from_secs(10);
+        let n3 = n1 + Duration::from_secs(20);
+
+        let mut err1: RetryError<anyhow::Error> = RetryError::in_attempt_to("do first thing");
+        let mut err2: RetryError<anyhow::Error> = RetryError::in_attempt_to("do second thing");
+
+        err2.push_timed(anyhow::Error::msg("e1"), n1, None);
+        err2.push_timed(anyhow::Error::msg("e2"), n2, None);
+
+        // err1 is empty initially
+        assert!(err1.first_error_at.is_none());
+
+        err1.extend_from_retry_error(err2);
+
+        assert_eq!(err1.len(), 2);
+        // The timestamps should be preserved
+        assert_eq!(err1.errors[0].2, n1);
+        assert_eq!(err1.errors[1].2, n2);
+
+        // Add another error to err1 to ensure mixed sources work
+        err1.push_timed(anyhow::Error::msg("e3"), n3, None);
+        assert_eq!(err1.len(), 3);
+        assert_eq!(err1.errors[2].2, n3);
+    }
+
+    #[test]
+    fn extend_from_retry_preserve_ranges() {
+        let n1 = Instant::now();
+        let mut err1: RetryError<anyhow::Error> = RetryError::in_attempt_to("do thing 1");
+
+        // Push 2 errors
+        err1.push(anyhow::Error::msg("e1"));
+        err1.push(anyhow::Error::msg("e2"));
+        assert_eq!(err1.n_errors, 2);
+
+        let mut err2: RetryError<anyhow::Error> = RetryError::in_attempt_to("do thing 2");
+        // Push 3 identical errors to create a range
+        let _err_msg = anyhow::Error::msg("repeated");
+        err2.push_timed(anyhow::Error::msg("repeated"), n1, None);
+        err2.push_timed(anyhow::Error::msg("repeated"), n1, None);
+        err2.push_timed(anyhow::Error::msg("repeated"), n1, None);
+
+        // Dedup err2 so it has a range
+        err2.dedup_by(|e1, e2| e1.to_string() == e2.to_string());
+        assert_eq!(err2.len(), 1); // collapsed to 1 entry
+        match err2.errors[0].0 {
+            Attempt::Range(1, 3) => {}
+            _ => panic!("Expected range 1..3"),
+        }
+
+        // Extend err1 with err2
+        err1.extend_from_retry_error(err2);
+
+        assert_eq!(err1.len(), 3); // 2 singles + 1 range
+        assert_eq!(err1.n_errors, 5); // 2 + 3 = 5 total attempts
+
+        // Check the range indices
+        match err1.errors[2].0 {
+            Attempt::Range(3, 5) => {}
+            ref x => panic!("Expected range 3..5, got {:?}", x),
+        }
     }
 }

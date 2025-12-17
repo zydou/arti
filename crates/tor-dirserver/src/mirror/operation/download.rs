@@ -15,7 +15,7 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_basic_utils::retry::RetryDelay;
 use tor_dirclient::request::Requestable;
 use tor_error::internal;
-use tor_rtcompat::PreferredRuntime;
+use tor_rtcompat::{PreferredRuntime, SleepProvider};
 use tracing::{debug, warn};
 
 use crate::err::AuthorityCommunicationError;
@@ -180,7 +180,7 @@ impl<'a, 'b> ConsensusBoundDownloader<'a, 'b> {
                     let delay = retry_delay.next_delay(rng);
                     debug!("request {req:?} to {endpoints:?} failed: {e}");
                     debug!("retrying in {}s", delay.as_secs());
-                    err.push(e);
+                    err.push_timed(e, self.rt.now(), Some(self.rt.wallclock()));
                     tokio::time::sleep(delay).await;
                 }
             }
