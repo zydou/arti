@@ -202,7 +202,7 @@ pub fn parse_netdoc<D: NetdocParseable>(input: &ParseInput<'_>) -> Result<D, Par
     })
 }
 
-/// Parse a network document - **toplevel entrypoint**
+/// Parse multiple concatenated network documents - **toplevel entrypoint**
 pub fn parse_netdoc_multiple<D: NetdocParseable>(
     input: &ParseInput<'_>,
 ) -> Result<Vec<D>, ParseError> {
