@@ -20,6 +20,8 @@ use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 use tor_config::{ConfigBuildError, impl_standard_builder, mistrust::BuilderExt};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
+use tor_dircommon::fallback::FallbackList;
+use tor_guardmgr::bridge::BridgeConfig;
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 use tracing::metadata::Level;
 use tracing_subscriber::filter::EnvFilter;
@@ -149,6 +151,28 @@ impl_standard_builder! { TorRelayConfig: !Default }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
     type Builder = TorRelayConfigBuilder;
+}
+
+// Needed to implement `GuardMgrConfig`.
+impl AsRef<FallbackList> for TorRelayConfig {
+    fn as_ref(&self) -> &FallbackList {
+        self.tor_network.fallback_caches()
+    }
+}
+
+// Needed to implement `GuardMgrConfig`.
+impl AsRef<[BridgeConfig]> for TorRelayConfig {
+    fn as_ref(&self) -> &[BridgeConfig] {
+        // Relays don't use bridges.
+        &[]
+    }
+}
+
+impl tor_guardmgr::GuardMgrConfig for TorRelayConfig {
+    fn bridges_enabled(&self) -> bool {
+        // Relays don't use bridges.
+        false
+    }
 }
 
 /// Configuration for the "relay" part of the relay.

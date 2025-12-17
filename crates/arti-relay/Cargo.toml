@@ -53,6 +53,7 @@ tor-config-path = { path = "../tor-config-path", version = "0.37.0" }
 tor-dircommon = { version = "0.37.0", path = "../tor-dircommon" }
 tor-error = { path = "../tor-error", version = "0.37.0" }
 tor-general-addr = { path = "../tor-general-addr", version = "0.37.0" }
+tor-guardmgr = { version = "0.37.0", path = "../tor-guardmgr" }
 tor-keymgr = { path = "../tor-keymgr", version = "0.37.0", features = ["keymgr", "ephemeral-keystore"] }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.37.0" }
 tor-memquota = { version = "0.37.0", path = "../tor-memquota" }

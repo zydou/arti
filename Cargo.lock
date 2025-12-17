@@ -392,6 +392,7 @@ dependencies = [
  "tor-dircommon",
  "tor-error",
  "tor-general-addr",
+ "tor-guardmgr",
  "tor-keymgr",
  "tor-llcrypto",
  "tor-memquota",
