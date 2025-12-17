@@ -189,10 +189,17 @@ impl<'s> ItemStream<'s> {
 
     /// Obtain the body so far, suitable for hashing for a Regular signature
     pub fn body_sofar_for_signature(&self) -> SignedDocumentBody<'s> {
-        let body = self
-            .whole_for_signatures
-            .strip_end_counted(self.lines.remaining().len());
+        let body = &self.whole_for_signatures[0..self.byte_position()];
         SignedDocumentBody { body }
+    }
+
+    /// Byte position, pointing to the start of the next item to yield
+    ///
+    /// Offset in bytes from the start of the original input string
+    /// to the "current" position,
+    /// ie to just after the item we yielded and just before the next item (or EOF).
+    pub fn byte_position(&self) -> usize {
+        self.whole_for_signatures.len() - self.lines.remaining().len()
     }
 
     /// Parse a (sub-)document with its own signatures
