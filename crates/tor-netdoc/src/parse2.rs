@@ -215,3 +215,24 @@ pub fn parse_netdoc_multiple<D: NetdocParseable>(
         Ok(docs)
     })
 }
+
+/// Parse multiple network documents, also returning their offsets  - **toplevel entrypoint**
+///
+/// Each returned document is accompanied by the byte offsets of its start and end.
+///
+/// (The netdoc metaformat does not allow anything in between subsequent documents in a file,
+/// so the end of one document is the start of the next.)
+pub fn parse_netdoc_multiple_with_offsets<D: NetdocParseable>(
+    input: &ParseInput<'_>,
+) -> Result<Vec<(D, usize, usize)>, ParseError> {
+    parse_internal::<_, D>(input, |items| {
+        let mut docs = vec![];
+        while items.peek_keyword()?.is_some() {
+            let start_pos = items.byte_position();
+            let doc = D::from_items(items, StopAt(false))?;
+            let end_pos = items.byte_position();
+            docs.push((doc, start_pos, end_pos));
+        }
+        Ok(docs)
+    })
+}
