@@ -9,7 +9,7 @@ use tokio::task::JoinSet;
 use tracing::{debug, warn};
 
 use fs_mistrust::Mistrust;
-use tor_chanmgr::Dormancy;
+use tor_chanmgr::{ChanMgr, Dormancy};
 use tor_circmgr::CircMgr;
 use tor_config_path::CfgPathResolver;
 use tor_dirmgr::{DirMgr, DirMgrConfig, DirMgrStore, DirProvider};
@@ -151,6 +151,8 @@ impl InertTorRelay {
             .context("Failed to build the 'KeyMgr'")?;
         let keymgr = Arc::new(keymgr);
 
+        // TODO: support C-tor keystore
+
         Ok(keymgr)
     }
 
@@ -194,7 +196,7 @@ pub(crate) struct TorRelay<R: Runtime> {
     memquota: Arc<MemoryQuotaTracker>,
 
     /// Channel manager, used by circuits etc.
-    chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
+    chanmgr: Arc<ChanMgr<R>>,
 
     /// Guard manager.
     #[expect(unused)] // TODO RELAY remove
@@ -209,7 +211,7 @@ pub(crate) struct TorRelay<R: Runtime> {
     #[expect(unused)] // TODO RELAY remove
     dirmgr: Arc<dyn DirProvider>,
 
-    /// Key manager holding all relay keys and certificates.
+    /// See [`InertTorRelay::keymgr`].
     #[expect(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
 
@@ -225,7 +227,7 @@ impl<R: Runtime> TorRelay<R> {
         let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
             .context("Failed to initialize memquota tracker")?;
 
-        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
+        let chanmgr = Arc::new(ChanMgr::new(
             runtime.clone(),
             &inert.config.channel,
             Dormancy::Active,
