@@ -48,9 +48,11 @@ strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1.7", features = ["signal"] }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.37.0", features = ["relay"] }
+tor-circmgr = { version = "0.37.0", path = "../tor-circmgr" }
 tor-config = { path = "../tor-config", version = "0.37.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.37.0" }
 tor-dircommon = { version = "0.37.0", path = "../tor-dircommon" }
+tor-dirmgr = { path = "../tor-dirmgr", version = "0.37.0" }
 tor-error = { path = "../tor-error", version = "0.37.0" }
 tor-general-addr = { path = "../tor-general-addr", version = "0.37.0" }
 tor-guardmgr = { version = "0.37.0", path = "../tor-guardmgr" }

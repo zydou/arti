@@ -17,11 +17,13 @@ use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
-use tor_config::{ConfigBuildError, impl_standard_builder, mistrust::BuilderExt};
+use tor_circmgr::{CircuitTiming, PathConfig, PreemptiveCircuitConfig};
+use tor_config::{ConfigBuildError, ExplicitOrAuto, impl_standard_builder, mistrust::BuilderExt};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
 use tor_dircommon::fallback::FallbackList;
 use tor_guardmgr::bridge::BridgeConfig;
+use tor_guardmgr::{VanguardConfig, VanguardConfigBuilder, VanguardMode};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 use tracing::metadata::Level;
 use tracing_subscriber::filter::EnvFilter;
@@ -146,12 +148,54 @@ pub(crate) struct TorRelayConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
+
+    /// Information about how to build paths through the network.
+    // We don't expose this field in the config.
+    #[builder(setter(skip))]
+    #[builder_field_attr(serde(skip))]
+    #[builder(default)]
+    // Needed to implement `CircMgrConfig`.
+    #[as_ref]
+    pub(crate) path_rules: PathConfig,
+
+    /// Information about vanguards.
+    // We don't expose this field in the config.
+    #[builder(setter(skip))]
+    #[builder_field_attr(serde(skip))]
+    #[builder(default = r#"
+        VanguardConfigBuilder::default()
+            .mode(ExplicitOrAuto::Explicit(VanguardMode::Disabled))
+            .build()
+            .expect("Could not build a disabled `VanguardConfig`")"#)]
+    // Needed to implement `CircMgrConfig`.
+    #[as_ref]
+    pub(crate) vanguards: VanguardConfig,
+
+    /// Information about how to retry and expire circuits and request for circuits.
+    // We don't expose this field in the config.
+    #[builder(setter(skip))]
+    #[builder_field_attr(serde(skip))]
+    #[builder(default)]
+    // Needed to implement `CircMgrConfig`.
+    #[as_ref]
+    pub(crate) circuit_timing: CircuitTiming,
+
+    /// Information about preemptive circuits.
+    // We don't expose this field in the config.
+    #[builder(setter(skip))]
+    #[builder_field_attr(serde(skip))]
+    #[builder(default)]
+    // Needed to implement `CircMgrConfig`.
+    #[as_ref]
+    pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
 }
 impl_standard_builder! { TorRelayConfig: !Default }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
     type Builder = TorRelayConfigBuilder;
 }
+
+impl tor_circmgr::CircMgrConfig for TorRelayConfig {}
 
 // Needed to implement `GuardMgrConfig`.
 impl AsRef<FallbackList> for TorRelayConfig {
