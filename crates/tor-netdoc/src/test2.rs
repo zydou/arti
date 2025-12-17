@@ -871,6 +871,23 @@ aGVsbG8=         @ not re-encoded
         }],
     )?;
 
+    t_ok(
+        r#"test-item0
+test-item0
+test-item-rest optional resty rest
+"#,
+        &[
+            TopMinimal::default(),
+            TopMinimal {
+                test_item_rest: Some(TestItemRest {
+                    optional: Some("optional".into()),
+                    rest: "resty rest".into(),
+                }),
+                ..default()
+            },
+        ],
+    )?;
+
     t_err::<TopMinimal>(
         r#"test-item0 wrong # too many arguments @12
 "#,
