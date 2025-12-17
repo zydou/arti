@@ -263,6 +263,9 @@ the corresponding entry is *declined*.
    or a file that the connect point mentions,
    contains a shell expansion string
    with a variable that does not exist.
+ - The connect file contains an address with an unrecognized schema.
+ - The connect file contains an address that cannot be parsed.
+   (*Note: We may change this to abort in the future.*)
  - A `socket` IP address in a connect point is not localhost.
 
 The following errors are not tolerated;
