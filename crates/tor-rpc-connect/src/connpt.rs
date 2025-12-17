@@ -6,7 +6,7 @@ use tor_config_path::{
     CfgPath, CfgPathError, CfgPathResolver,
     addr::{CfgAddr, CfgAddrError},
 };
-use tor_general_addr::general;
+use tor_general_addr::general::{self, AddrParseError};
 
 use crate::HasClientErrorAction;
 
@@ -90,6 +90,9 @@ pub enum ResolveError {
     /// There was a path in the connect point that we couldn't resolve.
     #[error("Unable to resolve variables in path")]
     InvalidPath(#[from] CfgPathError),
+    ///  There was an address in the connect point that we couldn't parse.
+    #[error("Unable to parse address")]
+    UnparseableAddr(#[from] AddrParseError),
     /// There was an address in the connect point that we couldn't resolve.
     #[error("Unable to resolve variables in address")]
     InvalidAddr(#[from] CfgAddrError),
@@ -119,6 +122,7 @@ impl HasClientErrorAction for ResolveError {
         use crate::ClientErrorAction as A;
         match self {
             ResolveError::InvalidPath(e) => e.client_action(),
+            ResolveError::UnparseableAddr(e) => e.client_action(),
             ResolveError::InvalidAddr(e) => e.client_action(),
             ResolveError::PathNotString => A::Decline,
             ResolveError::AddressNotLoopback => A::Decline,
@@ -340,7 +344,7 @@ impl Auth<Resolved> {
 #[derive(Clone, Debug)]
 struct Unresolved;
 impl Addresses for Unresolved {
-    type SocketAddr = CfgAddr;
+    type SocketAddr = String;
     type Path = CfgPath;
 }
 
@@ -383,13 +387,14 @@ where
         self.string.as_str()
     }
 }
-impl AddrWithStr<CfgAddr> {
-    /// Convert an `AddrWithStr<CfgAddr>` into its substituted form.
+impl AddrWithStr<String> {
+    /// Convert an `AddrWithStr<String>` into its substituted form.
     pub(crate) fn resolve(
         &self,
         resolver: &CfgPathResolver,
     ) -> Result<AddrWithStr<general::SocketAddr>, ResolveError> {
         let AddrWithStr { string, addr } = self;
+        let addr: CfgAddr = addr.parse()?;
         let substituted = addr.substitutions_will_apply();
         let addr = addr.address(resolver)?;
         let string = if substituted {
