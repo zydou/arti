@@ -50,6 +50,7 @@ tokio = { version = "1.7", features = ["signal"] }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.37.0", features = ["relay"] }
 tor-config = { path = "../tor-config", version = "0.37.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.37.0" }
+tor-dircommon = { version = "0.37.0", path = "../tor-dircommon" }
 tor-error = { path = "../tor-error", version = "0.37.0" }
 tor-general-addr = { path = "../tor-general-addr", version = "0.37.0" }
 tor-keymgr = { path = "../tor-keymgr", version = "0.37.0", features = ["keymgr", "ephemeral-keystore"] }

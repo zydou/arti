@@ -19,6 +19,7 @@ use std::sync::LazyLock;
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 use tor_config::{ConfigBuildError, impl_standard_builder, mistrust::BuilderExt};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
+use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 use tracing::metadata::Level;
 use tracing_subscriber::filter::EnvFilter;
@@ -118,6 +119,11 @@ pub(crate) struct TorRelayConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) relay: RelayConfig,
+
+    /// Information about the Tor network we want to connect to.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) tor_network: NetworkConfig,
 
     /// Logging configuration
     #[builder(sub_builder)]

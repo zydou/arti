@@ -389,6 +389,7 @@ dependencies = [
  "tor-chanmgr",
  "tor-config",
  "tor-config-path",
+ "tor-dircommon",
  "tor-error",
  "tor-general-addr",
  "tor-keymgr",
