@@ -244,6 +244,9 @@ pub(crate) struct StorageConfig {
     /// in it may be deleted outside of the control of Arti,
     /// and Arti will continue to function properly.
     /// It is also fine to delete the directory as a whole, while Arti is not running.
+    ///
+    /// Should be accessed through the `cache_dir()` getter to provide better error messages when
+    /// resolving the path.
     //
     // Usage note, for implementations of Arti components:
     //
@@ -288,12 +291,20 @@ impl StorageConfig {
         &self.permissions
     }
 
-    /// Return the fully expanded path of the cache directory.
+    /// Return the fully expanded path of the state directory.
     pub(crate) fn state_dir(
         &self,
         resolver: &CfgPathResolver,
     ) -> Result<PathBuf, ConfigBuildError> {
         resolve_cfg_path(&self.state_dir, "state_dir", resolver)
+    }
+
+    /// Return the fully expanded path of the cache directory.
+    pub(crate) fn cache_dir(
+        &self,
+        resolver: &CfgPathResolver,
+    ) -> Result<PathBuf, ConfigBuildError> {
+        resolve_cfg_path(&self.cache_dir, "cache_dir", resolver)
     }
 }
 
