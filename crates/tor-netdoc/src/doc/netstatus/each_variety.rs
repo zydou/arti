@@ -37,14 +37,27 @@ ns_use_this_variety! {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Preamble {
+    /// Consensus methods supported by this voter.
+    pub consensus_methods: ns_type!( NotPresent, NotPresent, ConsensusMethods ),
+
+    /// What "method" was used to produce this consensus?  (A
+    /// consensus method is a version number used by authorities to
+    /// upgrade the consensus algorithm.)
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    pub consensus_method: ns_type!( u32, u32, NotPresent ),
+
+    /// Publication time (of a vote)
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    pub published: ns_type!( NotPresent, NotPresent, Iso8601TimeSp ),
+
     /// Over what time is this consensus valid?  (For votes, this is
     /// the time over which the voted-upon consensus should be valid.)
     #[cfg_attr(feature = "parse2", deftly(netdoc(flatten)))]
     pub lifetime: Lifetime,
 
-    /// Publication time (of a vote)
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    pub published: ns_type!( NotPresent, NotPresent, Iso8601TimeSp ),
+    /// How long in seconds should voters wait for votes and
+    /// signatures (respectively) to propagate?
+    pub voting_delay: Option<(u32, u32)>,
 
     /// List of recommended Tor client versions.
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
@@ -53,6 +66,9 @@ pub struct Preamble {
     /// List of recommended Tor relay versions.
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub server_versions: Vec<String>,
+
+    // TODO DIRAUTH missing field: known-flags (in consensuses too, not just votes)
+    // TODO DIRAUTH missing field: flag-thresholds (in votes)
 
     /// Lists of recommended and required subprotocols.
     ///
@@ -65,19 +81,6 @@ pub struct Preamble {
     /// whatnot; some features things on and off.
     pub params: NetParams<i32>,
 
-    /// How long in seconds should voters wait for votes and
-    /// signatures (respectively) to propagate?
-    pub voting_delay: Option<(u32, u32)>,
-
-    /// What "method" was used to produce this consensus?  (A
-    /// consensus method is a version number used by authorities to
-    /// upgrade the consensus algorithm.)
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    pub consensus_method: ns_type!( u32, u32, NotPresent ),
-
-    /// Consensus methods supported by this voter.
-    pub consensus_methods: ns_type!( NotPresent, NotPresent, ConsensusMethods ),
-
     /// Global shared-random value for the previous shared-random period.
     // TODO DIRAUTH in votes, is in the authority section
     pub shared_rand_previous_value: Option<SharedRandStatus>,
@@ -86,9 +89,6 @@ pub struct Preamble {
     // TODO DIRAUTH in votes, is in the authority section
     pub shared_rand_current_value: Option<SharedRandStatus>,
 
-    // TODO DIRAUTH missing fields which will be needed for voting:
-    // known-flags (in consensuses too)
-    // flag-thresholds
-    // bandwidth-file-headers
-    // bandwidth-file-digest
+    // TODO DIRAUTH missing field: bandwidth-file-headers (in votes)
+    // TODO DIRAUTH missing field: bandwidth-file-digest (in votes)
 }
