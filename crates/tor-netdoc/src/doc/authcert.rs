@@ -79,24 +79,35 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 /// This is the body, not including signatures.
 ///
 /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html>
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[cfg_attr(
+    feature = "parse2",
+    derive_deftly(NetdocParseable, NetdocSigned),
+)]
+// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
+#[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
 #[non_exhaustive]
 pub struct AuthCert {
     /// Intro line
     ///
     /// Currently must be version 3.
+    #[deftly(netdoc(single_arg))]
     pub dir_key_certificate_version: AuthCertVersion,
 
     /// An IPv4 address for this authority.
+    #[deftly(netdoc(single_arg))]
     pub dir_address: Option<net::SocketAddrV4>,
 
     /// H(KP_auth_id_rsa)
+    #[deftly(netdoc(single_arg))]
     pub fingerprint: Fingerprint,
 
     /// Declared time when this certificate was published
+    #[deftly(netdoc(single_arg))]
     pub dir_key_published: Iso8601TimeSp,
 
     /// Declared time when this certificate expires.
+    #[deftly(netdoc(single_arg))]
     pub dir_key_expires: Iso8601TimeSp,
 
     /// KP_auth_id_rsa

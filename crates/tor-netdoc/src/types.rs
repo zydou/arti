@@ -25,3 +25,4 @@ use crate::NormalItemArgument;
 
 impl NormalItemArgument for std::net::Ipv4Addr {}
 impl NormalItemArgument for std::net::SocketAddr {}
+impl NormalItemArgument for std::net::SocketAddrV4 {}
