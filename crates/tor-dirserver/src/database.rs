@@ -61,11 +61,27 @@ use saturating_time::SaturatingTime;
 use sha2::Digest;
 use strum::IntoEnumIterator;
 
-use crate::{err::DatabaseError, http::ContentEncoding};
+use crate::err::DatabaseError;
 
 /// Representation of a Sha256 hash in hexadecimal (upper-case)
 // TODO: Make this a real type that actually enforces the constraints.
 pub(crate) type Sha256 = String;
+
+/// The supported content encodings.
+#[derive(Debug, Clone, Copy, PartialEq, strum::EnumString, strum::Display, strum::EnumIter)]
+#[strum(serialize_all = "kebab-case", ascii_case_insensitive)]
+pub(crate) enum ContentEncoding {
+    /// RFC2616 section 3.5.
+    Identity,
+    /// RFC2616 section 3.5.
+    Deflate,
+    /// RFC2616 section 3.5.
+    Gzip,
+    /// The zstandard compression algorithm (www.zstd.net).
+    XZstd,
+    /// The lzma compression algorithm with a "present" value no higher than 6.
+    XTorLzma,
+}
 
 /// A wrapper around [`SystemTime`] with convenient features.
 ///
