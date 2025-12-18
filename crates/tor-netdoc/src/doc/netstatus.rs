@@ -1239,7 +1239,7 @@ impl Signature {
     /// Return true if this signature has the identity key and signing key
     /// that match a given cert.
     fn matches_cert(&self, cert: &AuthCert) -> bool {
-        cert.key_ids() == &self.key_ids
+        cert.key_ids() == self.key_ids
     }
 
     /// If possible, find the right certificate for checking this signature
@@ -1405,7 +1405,7 @@ mod test {
             let cert = cert?.check_signature()?.dangerously_assume_timely();
             certs.push(cert);
         }
-        let auth_ids: Vec<_> = certs.iter().map(|c| &c.key_ids().id_fingerprint).collect();
+        let auth_ids: Vec<_> = certs.iter().map(|c| c.id_fingerprint()).collect();
 
         assert_eq!(certs.len(), 3);
 
@@ -1471,7 +1471,7 @@ mod test {
             let cert = cert?.check_signature()?.dangerously_assume_timely();
             certs.push(cert);
         }
-        let auth_ids: Vec<_> = certs.iter().map(|c| &c.key_ids().id_fingerprint).collect();
+        let auth_ids: Vec<_> = certs.iter().map(|c| c.id_fingerprint()).collect();
         assert_eq!(certs.len(), 4);
 
         let (_, _, consensus) = PlainConsensus::parse(PLAIN_CONSENSUS)?;

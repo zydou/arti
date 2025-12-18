@@ -113,7 +113,7 @@ impl AuthCertMeta {
 
     /// Construct a new AuthCertMeta from a certificate.
     pub(crate) fn from_authcert(cert: &AuthCert) -> Self {
-        AuthCertMeta::new(*cert.key_ids(), cert.published(), cert.expires())
+        AuthCertMeta::new(cert.key_ids(), cert.published(), cert.expires())
     }
 
     /// Return the key IDs for this certificate

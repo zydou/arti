@@ -180,8 +180,8 @@ impl AuthCert {
 
     /// Return an AuthCertKeyIds object describing the keys in this
     /// certificate.
-    pub fn key_ids(&self) -> &AuthCertKeyIds {
-        &self.key_ids
+    pub fn key_ids(&self) -> AuthCertKeyIds {
+        self.key_ids
     }
 
     /// Return an RsaIdentity for this certificate's identity key.

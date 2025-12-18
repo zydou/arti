@@ -611,7 +611,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                 let parsed = AuthCert::parse(text);
                 match self.check_parsed_certificate(parsed, &source, text) {
                     Ok((cert, _text)) => {
-                        self.missing_certs.remove(cert.key_ids());
+                        self.missing_certs.remove(&cert.key_ids());
                         self.certs.push(cert);
                         *changed = true;
                     }
@@ -657,7 +657,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
         // Now discard any certs we didn't ask for.
         let len_orig = newcerts.len();
-        newcerts.retain(|(cert, _)| asked_for.contains(cert.key_ids()));
+        newcerts.retain(|(cert, _)| asked_for.contains(&cert.key_ids()));
         if newcerts.len() != len_orig {
             warn!(
                 "Discarding certificates from {} that we didn't ask for.",
@@ -685,8 +685,8 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         // from our list of missing certs.
         for (cert, _) in newcerts {
             let ids = cert.key_ids();
-            if self.missing_certs.contains(ids) {
-                self.missing_certs.remove(ids);
+            if self.missing_certs.contains(&ids) {
+                self.missing_certs.remove(&ids);
                 self.certs.push(cert);
                 *changed = true;
             }
