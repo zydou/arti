@@ -80,10 +80,7 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 ///
 /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html>
 #[derive(Clone, Debug, Deftly)]
-#[cfg_attr(
-    feature = "parse2",
-    derive_deftly(NetdocParseable, NetdocSigned),
-)]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable, NetdocSigned))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -715,7 +712,10 @@ mod test {
 
     #[cfg(feature = "parse2")]
     mod parse2_test {
-        use super::{AuthCert, AuthCertVersion, AuthCertSigned, AuthCertSignature, AuthCertSignatures, CrossCert, CrossCertObject};
+        use super::{
+            AuthCert, AuthCertSignature, AuthCertSignatures, AuthCertSigned, AuthCertVersion,
+            CrossCert, CrossCertObject,
+        };
 
         use std::{
             fs::File,
