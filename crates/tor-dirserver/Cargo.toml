@@ -48,6 +48,7 @@ tor-basic-utils = { version = "0.38.0", path = "../tor-basic-utils" }
 tor-dirclient = { version = "0.38.0", path = "../tor-dirclient" }
 tor-dircommon = { version = "0.38.0", path = "../tor-dircommon" }
 tor-error = { version = "0.38.0", path = "../tor-error" }
+tor-llcrypto = { version = "0.38.0", path = "../tor-llcrypto" }
 tor-netdoc = { version = "0.38.0", path = "../tor-netdoc", features = ["full", "experimental"] }
 tor-rtcompat = { version = "0.38.0", path = "../tor-rtcompat", features = [ "tokio", "native-tls", "rustls" ] }
 tracing = "0.1.41"
@@ -59,4 +60,3 @@ http-body-util = "0.1.3"
 lazy_static = "1.5.0"
 tempfile = "3.23.0"
 tokio-stream = { version = "0.1.17", features = ["full"] }
-tor-llcrypto = { version = "0.37.0", path = "../tor-llcrypto" }

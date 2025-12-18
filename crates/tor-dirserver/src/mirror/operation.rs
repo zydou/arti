@@ -22,11 +22,13 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::{named_params, params, OptionalExtension, Transaction};
 use tor_basic_utils::RngExt;
+use tor_dirclient::request::AuthCertRequest;
 use tor_dircommon::{
     authority::AuthorityContacts,
     config::{DirTolerance, DownloadScheduleConfig},
 };
 use tor_error::internal;
+use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::{
     doc::{
         authcert::{AuthCert, AuthCertKeyIds, AuthCertSigned},
@@ -37,7 +39,8 @@ use tor_netdoc::{
 
 use crate::{
     database::{self, sql, Timestamp},
-    err::{DatabaseError, FatalError},
+    err::{DatabaseError, FatalError, NetdocRequestError},
+    mirror::operation::download::ConsensusBoundDownloader,
 };
 
 mod download;
@@ -233,6 +236,122 @@ fn get_recent_authority_certificates(
     Ok((found, missing))
 }
 
+/// Downloads (missing) directory authority certificates from an authority.
+///
+/// The key pairs (identity and signing keys) are specified in `missing`.
+/// This function will then utilize a [`ConsensusBoundDownloader`] to download
+/// the missing certificates from a directory authority.
+async fn download_authority_certificates<'a, 'b, R: Rng>(
+    missing: &[AuthCertKeyIds],
+    downloader: &mut ConsensusBoundDownloader<'a, 'b>,
+    rng: &mut R,
+) -> Result<String, NetdocRequestError> {
+    let mut requ = AuthCertRequest::new();
+    missing.iter().for_each(|kp| requ.push(*kp));
+
+    let resp = downloader
+        .download(&requ, rng)
+        .await
+        .map_err(NetdocRequestError::Download)?;
+    let resp = String::from_utf8(resp)?;
+
+    Ok(resp)
+}
+
+/// Parses multiple raw directory authority certificates.
+///
+/// Returns the parsed [`AuthCertSigned`] alongside their raw plain-text
+/// representation.
+fn parse_authority_certificates<'a>(
+    certs: &'a str,
+) -> Result<Vec<(AuthCertSigned, &'a str)>, parse2::ParseError> {
+    parse2::parse_netdoc_multiple_with_offsets::<AuthCertSigned>(&ParseInput::new(certs, ""))?
+        .into_iter()
+        // Creating the slice is fine, parse2 guarantees it is in-bounds.
+        .map(|(cert, start, end)| Ok((cert, &certs[start..end])))
+        .collect()
+}
+
+/// Verifies multiple raw directory authority certificates.
+///
+/// Returns the verified [`AuthCertSigned`] values as [`AuthCert`] values.
+/// The [`str`] slice will remain unmodified, meaning that it will still include
+/// the signature parts in plain-text.
+/// This function is mostly used in conjunction with
+/// [`parse_authority_certificates()`] in order to ensure its outputs were
+/// correct.
+fn verify_authority_certificates<'a>(
+    certs: Vec<(AuthCertSigned, &'a str)>,
+    v3idents: &[RsaIdentity],
+    tolerance: &DirTolerance,
+    now: Timestamp,
+) -> Result<Vec<(AuthCert, &'a str)>, parse2::VerifyFailed> {
+    certs
+        .into_iter()
+        .map(|(cert, raw)| {
+            cert.verify_self_signed(
+                v3idents,
+                tolerance.pre_valid_tolerance(),
+                tolerance.post_valid_tolerance(),
+                now.into(),
+            )
+            .map(|cert| (cert, raw))
+        })
+        .collect()
+}
+
+/// Inserts the verified certificates into the database.
+///
+/// This function is mostly used in conjunction with
+/// [`verify_authority_certificates()`] in order to make the data persistent
+/// to disk.
+fn insert_authority_certificates(
+    tx: &Transaction,
+    certs: &[(AuthCert, &str)],
+) -> Result<(), DatabaseError> {
+    // Inserts an authority certificate into the meta table.
+    //
+    // Parameters:
+    // :sha256 - The SHA256 as found in the store table.
+    // :id_rsa - The identity key fingerprint.
+    // :sign_rsa - The signing key fingerprint.
+    // :published - The published timestamp.
+    // :expires - The expires timestamp.
+    let mut stmt = tx.prepare_cached(sql!(
+        "
+        INSERT INTO authority_key_certificate
+          (sha256, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1, dir_key_published, dir_key_expires)
+        VALUES
+          (:sha256, :id_rsa, :sign_rsa, :published, :expires)
+        "
+    ))?;
+
+    // Compress and insert all certificates into the store within the context of
+    // our (still pending) transaction.  Keep track of the uncompressed sha256
+    // too.
+    let certs = certs
+        .iter()
+        .map(|(cert, raw)| {
+            let sha256 = database::store_insert(tx, raw.as_bytes())?;
+            Ok::<_, DatabaseError>((sha256, cert))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Insert every certificate, after it has been inserted into the store, into
+    // the authority certificates meta table.
+    for (sha256, cert) in certs {
+        stmt.execute(named_params! {
+            ":sha256": sha256,
+            ":id_rsa": cert.fingerprint.as_hex_upper(),
+            ":sign_rsa": cert.dir_signing_key.to_rsa_identity().as_hex_upper(),
+            ":published": Timestamp::from(cert.dir_key_published.0),
+            ":expires": Timestamp::from(cert.dir_key_expires.0),
+        })?;
+    }
+
+    Ok(())
+}
+
 /// Calculates the [`Duration`] to wait before querying the authorities again.
 ///
 /// This function accepts a `fresh-until` and `valid-until`, both hopefully
@@ -388,9 +507,14 @@ mod test {
 
     use super::*;
     use lazy_static::lazy_static;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_dircommon::config::DirToleranceBuilder;
+    use tor_dircommon::{authority::AuthorityContactsBuilder, config::DirToleranceBuilder};
     use tor_llcrypto::pk::rsa::RsaIdentity;
+    use tor_rtcompat::PreferredRuntime;
 
     lazy_static! {
     /// Wed Jan 01 2020 00:00:00 GMT+0000
@@ -664,5 +788,139 @@ mod test {
         .unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(missing.len(), 2);
+    }
+
+    /// Tests the combination of the following functions:
+    ///
+    /// * [`download_authority_certificates()`]
+    /// * [`verify_authority_certificates()`]
+    /// * [`insert_authority_certificates()`]
+    #[tokio::test]
+    async fn missing_certificates() {
+        // Don't use the dummy db because we will download.
+        let pool = database::open("").unwrap();
+
+        // Create server.
+        let listener = TcpListener::bind("[::]:0").await.unwrap();
+        let sa = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let raw_cert = include_str!("../../testdata/authcert-longclaw");
+            let resp = format!(
+                "HTTP/1.1 200 Ok\r\nContent-Length: {}\r\n\r\n{raw_cert}",
+                raw_cert.len()
+            )
+            .as_bytes()
+            .to_vec();
+
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0; 1024];
+            let _ = stream.read(&mut buf).await.unwrap();
+            stream.write_all(&resp).await.unwrap();
+            stream.flush().await.unwrap();
+        });
+
+        let mut authorities = AuthorityContactsBuilder::default();
+        authorities.set_v3idents(vec![RsaIdentity::from_hex(
+            "49015F787433103580E3B66A1707A00E60F2D15B",
+        )
+        .unwrap()]);
+        authorities.set_uploads(vec![]);
+        authorities.set_downloads(vec![vec![sa]]);
+        let authorities = authorities.build().unwrap();
+
+        // Download certificate.
+        let rt = PreferredRuntime::current().unwrap();
+        let mut downloader = ConsensusBoundDownloader::new(authorities.downloads(), &rt);
+        let certs_raw = download_authority_certificates(
+            &[AuthCertKeyIds {
+                id_fingerprint: RsaIdentity::from_hex("49015F787433103580E3B66A1707A00E60F2D15B")
+                    .unwrap(),
+                sk_fingerprint: RsaIdentity::from_hex("C5D153A6F0DA7CC22277D229DCBBF929D0589FE0")
+                    .unwrap(),
+            }],
+            &mut downloader,
+            &mut testing_rng(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(certs_raw, include_str!("../../testdata/authcert-longclaw"));
+
+        // Parse certificate.
+        let certs = parse_authority_certificates(&certs_raw).unwrap();
+        assert_eq!(certs[0].1, certs_raw);
+
+        // Verify certificate.
+        let certs = verify_authority_certificates(
+            certs,
+            authorities.v3idents(),
+            &DirTolerance::default(),
+            (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
+        )
+        .unwrap();
+        assert_eq!(certs.len(), 1);
+        assert_eq!(
+            certs[0].0.fingerprint.0,
+            RsaIdentity::from_hex("49015F787433103580E3B66A1707A00E60F2D15B").unwrap()
+        );
+        assert_eq!(
+            certs[0].0.dir_signing_key.to_rsa_identity(),
+            RsaIdentity::from_hex("C5D153A6F0DA7CC22277D229DCBBF929D0589FE0").unwrap()
+        );
+
+        // Insert the stuff into the database.
+        database::rw_tx(&pool, |tx| insert_authority_certificates(tx, &certs))
+            .unwrap()
+            .unwrap();
+
+        // Verify it is actually there.
+        let (id_rsa, sign_rsa, published, expires, raw) = database::read_tx(&pool, |tx| {
+            tx.query_one(
+                sql!(
+                    "
+                    SELECT
+                      a.kp_auth_id_rsa_sha1, a.kp_auth_sign_rsa_sha1, a.dir_key_published, a.dir_key_expires, s.content
+                    FROM
+                      authority_key_certificate AS a
+                    INNER JOIN
+                      store AS s ON a.sha256 = s.sha256
+                    "
+                ),
+                params![],
+                |row| Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Timestamp>(2)?,
+                    row.get::<_, Timestamp>(3)?,
+                    row.get::<_, Vec<u8>>(4)?,
+                )),
+            )
+        })
+        .unwrap().unwrap();
+
+        assert_eq!(id_rsa, certs[0].0.fingerprint.as_hex_upper());
+        assert_eq!(
+            sign_rsa,
+            certs[0].0.dir_signing_key.to_rsa_identity().as_hex_upper()
+        );
+        assert_eq!(published, certs[0].0.dir_key_published.0.into());
+        assert_eq!(expires, certs[0].0.dir_key_expires.0.into());
+        assert_eq!(raw, include_bytes!("../../testdata/authcert-longclaw"));
+
+        // Now (just to be sure) verify that compressed stuff also exists.
+        let count = database::read_tx(&pool, |tx| {
+            tx.query_one(
+                sql!(
+                    "
+                    SELECT COUNT(*)
+                    FROM compressed_document
+                    "
+                ),
+                params![],
+                |row| row.get::<_, i64>(0),
+            )
+        })
+        .unwrap()
+        .unwrap();
+        assert_eq!(count, 4);
     }
 }
