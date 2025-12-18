@@ -578,62 +578,62 @@ impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAut
 }
 
 #[cfg(feature = "parse2")]
-    impl AuthCertSigned {
-        /// Verifies the signature of a [`DirAuthKeyCert`].
-        ///
-        /// # Algorithm
-        ///
-        /// 1. Check whether this comes from a valid authority in `v3idents`.
-        /// 2. Check whether the timestamps are valid (± tolerance).
-        /// 3. Check whether the fingerprint and long-term identity key match.
-        /// 4. Check the cross-certificate (proof-of-ownership of signing key).
-        /// 5. Check the outer certificate (proof-of-ownership of identity key).
-        ///
-        /// TODO: Replace `pre_tolerance` and `post_tolerance` with
-        /// `tor_dircommon::config::DirTolerance` which is not possible at the
-        /// moment due to a circular dependency of `tor-dircommon` depending
-        /// upon `tor-netdoc`.
-        ///
-        /// TODO: Consider whether to try to deduplicate this signature checking
-        /// somehow, wrt to [`super::UncheckedAuthCert`].
-        pub fn verify_self_signed(
-            self,
-            v3idents: &[RsaIdentity],
-            pre_tolerance: Duration,
-            post_tolerance: Duration,
-            now: SystemTime,
-        ) -> StdResult<AuthCert, parse2::VerifyFailed> {
-            let (body, signatures) = (self.body, self.signatures);
+impl AuthCertSigned {
+    /// Verifies the signature of a [`DirAuthKeyCert`].
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Check whether this comes from a valid authority in `v3idents`.
+    /// 2. Check whether the timestamps are valid (± tolerance).
+    /// 3. Check whether the fingerprint and long-term identity key match.
+    /// 4. Check the cross-certificate (proof-of-ownership of signing key).
+    /// 5. Check the outer certificate (proof-of-ownership of identity key).
+    ///
+    /// TODO: Replace `pre_tolerance` and `post_tolerance` with
+    /// `tor_dircommon::config::DirTolerance` which is not possible at the
+    /// moment due to a circular dependency of `tor-dircommon` depending
+    /// upon `tor-netdoc`.
+    ///
+    /// TODO: Consider whether to try to deduplicate this signature checking
+    /// somehow, wrt to [`super::UncheckedAuthCert`].
+    pub fn verify_self_signed(
+        self,
+        v3idents: &[RsaIdentity],
+        pre_tolerance: Duration,
+        post_tolerance: Duration,
+        now: SystemTime,
+    ) -> StdResult<AuthCert, parse2::VerifyFailed> {
+        let (body, signatures) = (self.body, self.signatures);
 
-            // (1) Check whether this comes from a valid authority in `v3idents`.
-            if !v3idents.contains(&body.fingerprint.0) {
-                return Err(parse2::VerifyFailed::InsufficientTrustedSigners);
-            }
-
-            // (2) Check whether the timestamps are valid (± tolerance).
-            let validity = *body.dir_key_published..=*body.dir_key_expires;
-            parse2::check_validity_time_tolerance(now, validity, pre_tolerance, post_tolerance)?;
-
-            // (3) Check whether the fingerprint and long-term identity key match.
-            if body.dir_identity_key.to_rsa_identity() != *body.fingerprint {
-                return Err(parse2::VerifyFailed::Inconsistent);
-            }
-
-            // (4) Check the cross-certificate (proof-of-ownership of signing key).
-            body.dir_signing_key.verify(
-                body.fingerprint.0.as_bytes(),
-                &body.dir_key_crosscert.signature,
-            )?;
-
-            // (5) Check the outer certificate (proof-of-ownership of identity key).
-            body.dir_identity_key.verify(
-                &signatures.dir_key_certification.hash,
-                &signatures.dir_key_certification.signature,
-            )?;
-
-            Ok(body)
+        // (1) Check whether this comes from a valid authority in `v3idents`.
+        if !v3idents.contains(&body.fingerprint.0) {
+            return Err(parse2::VerifyFailed::InsufficientTrustedSigners);
         }
+
+        // (2) Check whether the timestamps are valid (± tolerance).
+        let validity = *body.dir_key_published..=*body.dir_key_expires;
+        parse2::check_validity_time_tolerance(now, validity, pre_tolerance, post_tolerance)?;
+
+        // (3) Check whether the fingerprint and long-term identity key match.
+        if body.dir_identity_key.to_rsa_identity() != *body.fingerprint {
+            return Err(parse2::VerifyFailed::Inconsistent);
+        }
+
+        // (4) Check the cross-certificate (proof-of-ownership of signing key).
+        body.dir_signing_key.verify(
+            body.fingerprint.0.as_bytes(),
+            &body.dir_key_crosscert.signature,
+        )?;
+
+        // (5) Check the outer certificate (proof-of-ownership of identity key).
+        body.dir_identity_key.verify(
+            &signatures.dir_key_certification.hash,
+            &signatures.dir_key_certification.signature,
+        )?;
+
+        Ok(body)
     }
+}
 
 #[cfg(test)]
 mod test {
