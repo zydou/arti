@@ -483,10 +483,10 @@ pub struct CrossCert {
 #[non_exhaustive]
 pub struct CrossCertObject(pub Vec<u8>);
 
-/// Signatures for [`DirAuthKeyCert`].
+/// Signatures for [`AuthCert`]
 ///
-/// Signed by [`DirAuthKeyCert::dir_identity_key`] in order to prove ownership.
-/// Can be seen as the opposite of [`DirAuthKeyCert::dir_key_crosscert`].
+/// Signed by [`AuthCert::dir_identity_key`] in order to prove ownership.
+/// Can be seen as the opposite of [`AuthCert::dir_key_crosscert`].
 ///
 /// # Syntax
 ///
@@ -509,11 +509,11 @@ pub struct CrossCertObject(pub Vec<u8>);
 )]
 #[non_exhaustive]
 pub struct AuthCertSignatures {
-    /// Contains the actual signature, see [`DirAuthKeyCertSignatures`].
+    /// Contains the actual signature, see [`AuthCertSignatures`].
     pub dir_key_certification: AuthCertSignature,
 }
 
-/// RSA signature for data in [`DirAuthKeyCert`] and related structures.
+/// RSA signature for data in [`AuthCert`] and related structures
 ///
 /// # Syntax
 ///
@@ -529,7 +529,7 @@ pub struct AuthCertSignatures {
 ///
 /// # Caveats
 ///
-/// This type **MUST NOT** be used for [`DirAuthKeyCert::dir_key_crosscert`]
+/// This type **MUST NOT** be used for [`AuthCert::dir_key_crosscert`]
 /// because its set of object labels is a strict superset of the object
 /// labels used by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
@@ -578,7 +578,7 @@ impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAut
 
 #[cfg(feature = "parse2")]
 impl AuthCertSigned {
-    /// Verifies the signature of a [`DirAuthKeyCert`].
+    /// Verifies the signature of a [`AuthCert`]
     ///
     /// # Algorithm
     ///
@@ -594,7 +594,7 @@ impl AuthCertSigned {
     /// upon `tor-netdoc`.
     ///
     /// TODO: Consider whether to try to deduplicate this signature checking
-    /// somehow, wrt to [`super::UncheckedAuthCert`].
+    /// somehow, wrt to [`UncheckedAuthCert`].
     pub fn verify_self_signed(
         self,
         v3idents: &[RsaIdentity],
