@@ -15,6 +15,7 @@
 
 use std::fmt::{self, Debug};
 use std::mem;
+use std::slice;
 
 use anyhow::Context as _;
 use derive_deftly::Deftly;
@@ -26,6 +27,7 @@ use crate::encode::{ItemEncoder, ItemObjectEncodable, NetdocEncodable, NetdocEnc
 use crate::parse2::{
     ArgumentError as P2AE, ArgumentStream, ErrorProblem as P2EP, ItemObjectParseable,
     NetdocParseable, ParseError, ParseInput, UnparsedItem, parse_netdoc, parse_netdoc_multiple,
+    parse_netdoc_multiple_with_offsets,
 };
 use crate::types::{Ignored, NotPresent};
 
@@ -188,7 +190,7 @@ mod needs_with_arg {
     }
 }
 
-/// Test parsing and encoding
+/// Test parsing and encoding of a single-document file
 ///
 /// `doc_spec` is the document to parse.
 /// `exp` is what it should parse as.
@@ -208,7 +210,20 @@ mod needs_with_arg {
 ///  * **`@ re-encoded only`:
 ///    This line eppears only in the re-encoding.
 ///    Prefer `re-encoded later` or `re-encoded:` if possible as they're clearer.
-fn t_ok<D>(doc_spec: &str, exp: &[D]) -> TestResult<()>
+fn t_ok<D>(doc_spec: &str, exp: &D) -> TestResult<()>
+where
+    D: NetdocEncodable + NetdocParseable + Debug + PartialEq,
+{
+    t_ok_multi::<D>(&[], doc_spec, slice::from_ref(exp))
+}
+
+/// Test parsing and encoding of a multi-document file
+///
+/// The de/re-encoding syntax is as above.
+//
+// It would perhaps be better if `doc_boundaries` were obtained from magic instructions,
+// but there's only one test case with a fragile hardcoded byte offset ATM.
+fn t_ok_multi<D>(doc_boundaries: &[usize], doc_spec: &str, exp: &[D]) -> TestResult<()>
 where
     D: NetdocEncodable + NetdocParseable + Debug + PartialEq,
 {
@@ -293,6 +308,13 @@ where
 
     let got = parse_netdoc_multiple::<D>(&input)?;
     assert_eq!(got, exp, "parse_multiple mismatch");
+
+    let got_with_offsets = parse_netdoc_multiple_with_offsets::<D>(&input)?;
+    for (i, (got, start, end)) in got_with_offsets.iter().enumerate() {
+        assert_eq!(got, &exp[i], "parse_multiple_with_offsets mismatch");
+        assert_eq!(*start, if i == 0 { 0 } else { doc_boundaries[i - 1] });
+        assert_eq!(*end, doc_boundaries.get(i).copied().unwrap_or(doc.len()));
+    }
 
     let reenc = {
         let mut encoder = NetdocEncoder::default();
@@ -447,11 +469,11 @@ flat-arg-defaulted 0                    @ re-encoded only
 flat-with-needed normal
 sub4-intro                              @ re-encoded only
 "#,
-        &[Top {
+        &Top {
             needed: val("N"),
             sub1: sub1_minimal.clone(),
             ..default()
-        }],
+        },
     )?;
 
     t_ok(
@@ -472,13 +494,13 @@ sub3-intro
 sub3-intro
 sub4-intro
 "#,
-        &[Top {
+        &Top {
             needed: val("N"),
             sub1: sub1_minimal.clone(),
             sub2: Some(sub2_minimal.clone()),
             sub3: vec![default(); 2],
             ..default()
-        }],
+        },
     )?;
 
     t_ok(
@@ -530,7 +552,7 @@ sub3-field C2
 sub4-intro
 sub4-field D
 "#,
-        &[Top {
+        &Top {
             needed: val("N"),
             optional: sval("O"),
             several: ["1", "2"].map(val).into(),
@@ -580,7 +602,7 @@ sub4-field D
                 ..default()
             },
             ..default()
-        }],
+        },
     )?;
 
     t_err_raw::<Top>(0, None, "empty document", r#""#)?;
@@ -801,7 +823,7 @@ fn various_items() -> TestResult<()> {
     t_ok(
         r#"test-item0
 "#,
-        &[TopMinimal { ..default() }],
+        &TopMinimal { ..default() },
     )?;
 
     t_ok(
@@ -811,10 +833,10 @@ test-item N
 aGVsbG8=
 -----END TEST OBJECT-----
 "#,
-        &[TopMinimal {
+        &TopMinimal {
             test_item: Some(test_item_minimal.clone()),
             ..default()
-        }],
+        },
     )?;
 
     t_ok(
@@ -824,13 +846,13 @@ test-item N arg
 aGVsbG8=
 -----END TEST OBJECT-----
 "#,
-        &[TopMinimal {
+        &TopMinimal {
             test_item: Some(TestItem {
                 optional: Some(NeedsWith),
                 ..test_item_minimal.clone()
             }),
             ..default()
-        }],
+        },
     )?;
 
     t_ok(
@@ -852,7 +874,7 @@ test-item-object-ignored
 aGVsbG8=         @ not re-encoded
 -----END TEST OBJECT-----                       @ not re-encoded
 "#,
-        &[TopMinimal {
+        &TopMinimal {
             test_item0: TestItem0 {
                 object: Some("hello".into()),
             },
@@ -868,7 +890,25 @@ aGVsbG8=         @ not re-encoded
             test_item_rest_with: Some(TestItemRestWith { rest: NeedsWith }),
             test_item_object_not_present: Some(TestItemObjectNotPresent { object: NotPresent }),
             test_item_object_ignored: Some(TestItemObjectIgnored { object: Ignored }),
-        }],
+        },
+    )?;
+
+    t_ok_multi(
+        &[11],
+        r#"test-item0
+test-item0
+test-item-rest optional resty rest
+"#,
+        &[
+            TopMinimal::default(),
+            TopMinimal {
+                test_item_rest: Some(TestItemRest {
+                    optional: Some("optional".into()),
+                    rest: "resty rest".into(),
+                }),
+                ..default()
+            },
+        ],
     )?;
 
     t_err::<TopMinimal>(

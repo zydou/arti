@@ -202,7 +202,7 @@ pub fn parse_netdoc<D: NetdocParseable>(input: &ParseInput<'_>) -> Result<D, Par
     })
 }
 
-/// Parse a network document - **toplevel entrypoint**
+/// Parse multiple concatenated network documents - **toplevel entrypoint**
 pub fn parse_netdoc_multiple<D: NetdocParseable>(
     input: &ParseInput<'_>,
 ) -> Result<Vec<D>, ParseError> {
@@ -211,6 +211,32 @@ pub fn parse_netdoc_multiple<D: NetdocParseable>(
         while items.peek_keyword()?.is_some() {
             let doc = D::from_items(items, StopAt(false))?;
             docs.push(doc);
+        }
+        Ok(docs)
+    })
+}
+
+/// Parse multiple network documents, also returning their offsets  - **toplevel entrypoint**
+///
+/// Each returned document is accompanied by the byte offsets of its start and end.
+///
+/// (The netdoc metaformat does not allow anything in between subsequent documents in a file,
+/// so the end of one document is the start of the next.)
+//
+// This returns byte offsets rather than string slices,
+// because the caller can always convert the offsets into string slices,
+// but it is not straightforward to convert string slices borrowed from some input string
+// into offsets, in a way that is obviously correct without nightly `str::substr_range`.
+pub fn parse_netdoc_multiple_with_offsets<D: NetdocParseable>(
+    input: &ParseInput<'_>,
+) -> Result<Vec<(D, usize, usize)>, ParseError> {
+    parse_internal::<_, D>(input, |items| {
+        let mut docs = vec![];
+        while items.peek_keyword()?.is_some() {
+            let start_pos = items.byte_position();
+            let doc = D::from_items(items, StopAt(false))?;
+            let end_pos = items.byte_position();
+            docs.push((doc, start_pos, end_pos));
         }
         Ok(docs)
     })
