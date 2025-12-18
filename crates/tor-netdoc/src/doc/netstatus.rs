@@ -1085,7 +1085,7 @@ mod parse2_impls {
     macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
         #[derive(Deftly)]
         #[derive_deftly(NetdocParseableFields)]
-        // Only ProtoStatusesParseNetdocParseAccumulatro is exposed.
+        // Only ProtoStatusesParseNetdocParseAccumulator is exposed.
         #[allow(unreachable_pub)]
         pub struct ProtoStatusesParseHelper {
             $(
