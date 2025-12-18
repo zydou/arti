@@ -20,8 +20,10 @@ use tor_llcrypto::{d, pk, pk::rsa::RsaIdentity};
 
 use std::sync::LazyLock;
 
+use std::result::Result as StdResult;
 use std::{net, time};
 
+use derive_deftly::Deftly;
 use digest::Digest;
 
 #[cfg(feature = "build_docs")]
@@ -29,6 +31,9 @@ mod build;
 
 #[cfg(feature = "build_docs")]
 pub use build::AuthCertBuilder;
+
+#[cfg(feature = "parse2")]
+use crate::parse2::{self, ItemObjectParseable};
 
 decl_keyword! {
     pub(crate) AuthCertKwd {
@@ -375,6 +380,87 @@ impl AuthCert {
     }
 }
 
+/// Pseudo-Signature of the long-term identity key by the medium-term key.
+///
+/// This type does not implement `SignatureItemParseable` because this type
+/// is reserved for full-body signatures, such as [`DirKeyCertification`].
+/// As this types does not sign a full document, it has to implement
+/// `ItemValueParseable` only instead.
+///
+/// This means that **signature validation must be done with extra care**!
+/// In other words, the structure storing the (SHA1 hash of the) long-term
+/// identity key alongside the [`DirKeyCrossCert`] must perform proper
+/// steps to hold the signature contained in this structure against the data
+/// that is certified by it.
+///
+/// # See More
+///
+/// See [`DirAuthKeyCert::dir_key_crosscert`] for the syntax and the specs.
+#[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+#[cfg_attr(
+    feature = "parse2",
+    derive_deftly(ItemValueParseable),
+    deftly(netdoc(no_extra_args)),
+)]
+// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
+#[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
+#[non_exhaustive]
+pub struct CrossCert {
+    /// The bytes of the signature (base64-decoded).
+    #[deftly(netdoc(object))]
+    pub signature: CrossCertObject,
+}
+
+/// Wrapper around [`Vec<u8>`] implementing [`ItemObjectParseable`] properly.
+///
+/// Unfortunately, this wrapper is necessary, because the specification
+/// demands that these certificate objects must accept two labels:
+/// `SIGNATURE` and `ID SIGNATURE`.  Because the deftly template for
+/// `ItemValueParseable` only allows for a single label
+/// (`#[deftly(netdoc(object(label = "LABEL")))]`), we must implement this
+/// trait ourselves in order to allow multiple ones.
+///
+/// TODO: In the future, it might be nice to let the respective fmeta
+/// accept a pattern, as pattern matching would allow trivially for one
+/// to infinity different combinations.
+///
+/// # Syntax
+///
+/// Version 1:
+/// ```text
+/// -----BEGIN ID SIGNATURE-----
+/// <Base64 encoded RSA signature of SHA1(DER(kp_auth_id_rsa))>
+/// -----END ID SIGNATURE-----
+/// ```
+///
+/// Version 2:
+/// ```text
+/// -----BEGIN SIGNATURE-----
+/// <Base64 encoded RSA signature of SHA1(DER(kp_auth_id_rsa))>
+/// -----END SIGNATURE-----
+/// ```
+///
+/// # Specifications
+///
+/// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Deref)]
+#[non_exhaustive]
+pub struct CrossCertObject(pub Vec<u8>);
+
+#[cfg(feature = "parse2")]
+impl ItemObjectParseable for CrossCertObject {
+    fn check_label(label: &str) -> StdResult<(), parse2::EP> {
+        match label {
+            "SIGNATURE" | "ID SIGNATURE" => Ok(()),
+            _ => Err(parse2::EP::ObjectIncorrectLabel),
+        }
+    }
+
+    fn from_bytes(input: &[u8]) -> StdResult<Self, parse2::EP> {
+        Ok(Self(input.to_vec()))
+    }
+}
+
 impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAuthCert {
     type Error = signature::Error;
 
@@ -391,7 +477,7 @@ impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAut
 /// Eventually, those will get merged into the main module.
 #[cfg(feature = "parse2")]
 pub mod tmp {
-    use super::AuthCertVersion;
+    pub(super) use super::{AuthCertVersion, CrossCert};
 
     use std::time::{Duration, SystemTime};
 
@@ -399,7 +485,7 @@ pub mod tmp {
 
     use crate::{
         parse2::{
-            ErrorProblem, ItemObjectParseable, SignatureHashInputs, VerifyFailed,
+            SignatureHashInputs, VerifyFailed,
             check_validity_time_tolerance,
         },
         types::{self, Iso8601TimeSp},
@@ -534,7 +620,7 @@ pub mod tmp {
         /// # Specifications
         ///
         /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
-        pub dir_key_crosscert: DirKeyCrossCert,
+        pub dir_key_crosscert: CrossCert,
     }
 
     /// Signatures for [`DirAuthKeyCert`].
@@ -597,68 +683,6 @@ pub mod tmp {
         pub hash: [u8; 20],
     }
 
-    /// Pseudo-Signature of the long-term identity key by the medium-term key.
-    ///
-    /// This type does not implement `SignatureItemParseable` because this type
-    /// is reserved for full-body signatures, such as [`DirKeyCertification`].
-    /// As this types does not sign a full document, it has to implement
-    /// `ItemValueParseable` only instead.
-    ///
-    /// This means that **signature validation must be done with extra care**!
-    /// In other words, the structure storing the (SHA1 hash of the) long-term
-    /// identity key alongside the [`DirKeyCrossCert`] must perform proper
-    /// steps to hold the signature contained in this structure against the data
-    /// that is certified by it.
-    ///
-    /// # See More
-    ///
-    /// See [`DirAuthKeyCert::dir_key_crosscert`] for the syntax and the specs.
-    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-    #[derive_deftly(ItemValueParseable)]
-    #[deftly(netdoc(no_extra_args))]
-    #[non_exhaustive]
-    pub struct DirKeyCrossCert {
-        /// The bytes of the signature (base64-decoded).
-        #[deftly(netdoc(object))]
-        pub signature: DirKeyCrossCertObject,
-    }
-
-    /// Wrapper around [`Vec<u8>`] implementing [`ItemObjectParseable`] properly.
-    ///
-    /// Unfortunately, this wrapper is necessary, because the specification
-    /// demands that these certificate objects must accept two labels:
-    /// `SIGNATURE` and `ID SIGNATURE`.  Because the deftly template for
-    /// `ItemValueParseable` only allows for a single label
-    /// (`#[deftly(netdoc(object(label = "LABEL")))]`), we must implement this
-    /// trait ourselves in order to allow multiple ones.
-    ///
-    /// TODO: In the future, it might be nice to let the respective fmeta
-    /// accept a pattern, as pattern matching would allow trivially for one
-    /// to infinity different combinations.
-    ///
-    /// # Syntax
-    ///
-    /// Version 1:
-    /// ```text
-    /// -----BEGIN ID SIGNATURE-----
-    /// <Base64 encoded RSA signature of SHA1(DER(kp_auth_id_rsa))>
-    /// -----END ID SIGNATURE-----
-    /// ```
-    ///
-    /// Version 2:
-    /// ```text
-    /// -----BEGIN SIGNATURE-----
-    /// <Base64 encoded RSA signature of SHA1(DER(kp_auth_id_rsa))>
-    /// -----END SIGNATURE-----
-    /// ```
-    ///
-    /// # Specifications
-    ///
-    /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
-    #[derive(Debug, Clone, PartialEq, Eq, derive_more::Deref)]
-    #[non_exhaustive]
-    pub struct DirKeyCrossCertObject(pub Vec<u8>);
-
     impl DirAuthKeyCertSigned {
         /// Verifies the signature of a [`DirAuthKeyCert`].
         ///
@@ -713,19 +737,6 @@ pub mod tmp {
             )?;
 
             Ok(body)
-        }
-    }
-
-    impl ItemObjectParseable for DirKeyCrossCertObject {
-        fn check_label(label: &str) -> Result<(), ErrorProblem> {
-            match label {
-                "SIGNATURE" | "ID SIGNATURE" => Ok(()),
-                _ => Err(ErrorProblem::ObjectIncorrectLabel),
-            }
-        }
-
-        fn from_bytes(input: &[u8]) -> Result<Self, ErrorProblem> {
-            Ok(Self(input.to_vec()))
         }
     }
 }
@@ -846,7 +857,7 @@ mod test {
 
     #[cfg(feature = "parse2")]
     mod tmp {
-        use super::AuthCertVersion;
+        use super::{AuthCertVersion, CrossCertObject};
 
         use std::{
             fs::File,
@@ -901,7 +912,7 @@ mod test {
             #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
             #[derive_deftly(NetdocParseable)]
             struct Dummy {
-                dir_key_crosscert: DirKeyCrossCert,
+                dir_key_crosscert: CrossCert,
             }
 
             let (encoded, decoded) = read_b64("testdata2/authcert-longclaw-crosscert-b64");
@@ -914,8 +925,8 @@ mod test {
             assert_eq!(
                 res,
                 Dummy {
-                    dir_key_crosscert: DirKeyCrossCert {
-                        signature: DirKeyCrossCertObject(decoded.clone())
+                    dir_key_crosscert: CrossCert {
+                        signature: CrossCertObject(decoded.clone())
                     }
                 }
             );
@@ -928,8 +939,8 @@ mod test {
             assert_eq!(
                 res,
                 Dummy {
-                    dir_key_crosscert: DirKeyCrossCert {
-                        signature: DirKeyCrossCertObject(decoded.clone())
+                    dir_key_crosscert: CrossCert {
+                        signature: CrossCertObject(decoded.clone())
                     }
                 }
             );
@@ -1047,8 +1058,8 @@ mod test {
                         "../../testdata2/authcert-longclaw-sign-rsa"
                     )))
                     .unwrap(),
-                    dir_key_crosscert: DirKeyCrossCert {
-                        signature: DirKeyCrossCertObject(
+                    dir_key_crosscert: CrossCert {
+                        signature: CrossCertObject(
                             read_b64("testdata2/authcert-longclaw-crosscert-b64").1
                         )
                     }
