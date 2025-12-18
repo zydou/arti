@@ -17,8 +17,13 @@ use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
-use tor_config::{ConfigBuildError, impl_standard_builder, mistrust::BuilderExt};
+use tor_circmgr::{CircuitTiming, PathConfig, PreemptiveCircuitConfig};
+use tor_config::{ConfigBuildError, ExplicitOrAuto, impl_standard_builder, mistrust::BuilderExt};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
+use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
+use tor_dircommon::fallback::FallbackList;
+use tor_guardmgr::bridge::BridgeConfig;
+use tor_guardmgr::{VanguardConfig, VanguardConfigBuilder, VanguardMode};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 use tracing::metadata::Level;
 use tracing_subscriber::filter::EnvFilter;
@@ -119,6 +124,11 @@ pub(crate) struct TorRelayConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) relay: RelayConfig,
 
+    /// Information about the Tor network we want to connect to.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) tor_network: NetworkConfig,
+
     /// Logging configuration
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
@@ -138,11 +148,75 @@ pub(crate) struct TorRelayConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
+
+    /// Information about how to build paths through the network.
+    // We don't expose this field in the config.
+    #[builder(setter(skip))]
+    #[builder_field_attr(serde(skip))]
+    #[builder(default)]
+    // Needed to implement `CircMgrConfig`.
+    #[as_ref]
+    pub(crate) path_rules: PathConfig,
+
+    /// Information about vanguards.
+    // We don't expose this field in the config.
+    #[builder(setter(skip))]
+    #[builder_field_attr(serde(skip))]
+    #[builder(default = r#"
+        VanguardConfigBuilder::default()
+            .mode(ExplicitOrAuto::Explicit(VanguardMode::Disabled))
+            .build()
+            .expect("Could not build a disabled `VanguardConfig`")"#)]
+    // Needed to implement `CircMgrConfig`.
+    #[as_ref]
+    pub(crate) vanguards: VanguardConfig,
+
+    /// Information about how to retry and expire circuits and request for circuits.
+    // We don't expose this field in the config.
+    #[builder(setter(skip))]
+    #[builder_field_attr(serde(skip))]
+    #[builder(default)]
+    // Needed to implement `CircMgrConfig`.
+    #[as_ref]
+    pub(crate) circuit_timing: CircuitTiming,
+
+    /// Information about preemptive circuits.
+    // We don't expose this field in the config.
+    #[builder(setter(skip))]
+    #[builder_field_attr(serde(skip))]
+    #[builder(default)]
+    // Needed to implement `CircMgrConfig`.
+    #[as_ref]
+    pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
 }
 impl_standard_builder! { TorRelayConfig: !Default }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
     type Builder = TorRelayConfigBuilder;
+}
+
+impl tor_circmgr::CircMgrConfig for TorRelayConfig {}
+
+// Needed to implement `GuardMgrConfig`.
+impl AsRef<FallbackList> for TorRelayConfig {
+    fn as_ref(&self) -> &FallbackList {
+        self.tor_network.fallback_caches()
+    }
+}
+
+// Needed to implement `GuardMgrConfig`.
+impl AsRef<[BridgeConfig]> for TorRelayConfig {
+    fn as_ref(&self) -> &[BridgeConfig] {
+        // Relays don't use bridges.
+        &[]
+    }
+}
+
+impl tor_guardmgr::GuardMgrConfig for TorRelayConfig {
+    fn bridges_enabled(&self) -> bool {
+        // Relays don't use bridges.
+        false
+    }
 }
 
 /// Configuration for the "relay" part of the relay.
@@ -244,6 +318,9 @@ pub(crate) struct StorageConfig {
     /// in it may be deleted outside of the control of Arti,
     /// and Arti will continue to function properly.
     /// It is also fine to delete the directory as a whole, while Arti is not running.
+    ///
+    /// Should be accessed through the `cache_dir()` getter to provide better error messages when
+    /// resolving the path.
     //
     // Usage note, for implementations of Arti components:
     //
@@ -288,12 +365,20 @@ impl StorageConfig {
         &self.permissions
     }
 
-    /// Return the fully expanded path of the cache directory.
+    /// Return the fully expanded path of the state directory.
     pub(crate) fn state_dir(
         &self,
         resolver: &CfgPathResolver,
     ) -> Result<PathBuf, ConfigBuildError> {
         resolve_cfg_path(&self.state_dir, "state_dir", resolver)
+    }
+
+    /// Return the fully expanded path of the cache directory.
+    pub(crate) fn cache_dir(
+        &self,
+        resolver: &CfgPathResolver,
+    ) -> Result<PathBuf, ConfigBuildError> {
+        resolve_cfg_path(&self.cache_dir, "cache_dir", resolver)
     }
 }
 

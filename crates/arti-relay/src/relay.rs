@@ -9,8 +9,11 @@ use tokio::task::JoinSet;
 use tracing::{debug, warn};
 
 use fs_mistrust::Mistrust;
-use tor_chanmgr::Dormancy;
+use tor_chanmgr::{ChanMgr, Dormancy};
+use tor_circmgr::CircMgr;
 use tor_config_path::CfgPathResolver;
+use tor_dirmgr::{DirMgr, DirMgrConfig, DirMgrStore, DirProvider};
+use tor_guardmgr::GuardMgr;
 use tor_keymgr::{
     ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
 };
@@ -48,6 +51,9 @@ pub(crate) struct InertTorRelay {
     /// The configuration options for the relay.
     config: TorRelayConfig,
 
+    /// The configuration options for the [`DirMgr`].
+    dirmgr_config: DirMgrConfig,
+
     /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
     #[expect(unused)] // TODO RELAY remove
     path_resolver: CfgPathResolver,
@@ -64,7 +70,6 @@ pub(crate) struct InertTorRelay {
     state_dir: StateDirectory,
 
     /// Location on disk where we store persistent data.
-    #[expect(unused)] // TODO RELAY remove
     state_mgr: FsStateMgr,
 
     /// Key manager holding all relay keys and certificates.
@@ -78,6 +83,8 @@ impl InertTorRelay {
         path_resolver: CfgPathResolver,
     ) -> anyhow::Result<Self> {
         let state_path = config.storage.state_dir(&path_resolver)?;
+        let cache_path = config.storage.cache_dir(&path_resolver)?;
+
         let state_dir = StateDirectory::new(&state_path, config.storage.permissions())
             .context("Failed to create `StateDirectory`")?;
         let state_mgr =
@@ -94,8 +101,19 @@ impl InertTorRelay {
         let keymgr = Self::create_keymgr(&state_path, config.storage.permissions())
             .context("Failed to create key manager")?;
 
+        let dirmgr_config = DirMgrConfig {
+            cache_dir: cache_path,
+            cache_trust: config.storage.permissions().clone(),
+            network: config.tor_network.clone(),
+            schedule: Default::default(),
+            tolerance: Default::default(),
+            override_net_params: Default::default(),
+            extensions: Default::default(),
+        };
+
         Ok(Self {
             config,
+            dirmgr_config,
             path_resolver,
             state_path,
             state_dir,
@@ -132,6 +150,8 @@ impl InertTorRelay {
             .build()
             .context("Failed to build the 'KeyMgr'")?;
         let keymgr = Arc::new(keymgr);
+
+        // TODO: support C-tor keystore
 
         Ok(keymgr)
     }
@@ -176,9 +196,22 @@ pub(crate) struct TorRelay<R: Runtime> {
     memquota: Arc<MemoryQuotaTracker>,
 
     /// Channel manager, used by circuits etc.
-    chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
+    chanmgr: Arc<ChanMgr<R>>,
 
-    /// Key manager holding all relay keys and certificates.
+    /// Guard manager.
+    #[expect(unused)] // TODO RELAY remove
+    guardmgr: GuardMgr<R>,
+
+    /// Circuit manager for keeping our circuits up to date and building
+    /// them on-demand.
+    #[expect(unused)] // TODO RELAY remove
+    circmgr: Arc<CircMgr<R>>,
+
+    /// Directory manager for keeping our directory material up to date.
+    #[expect(unused)] // TODO RELAY remove
+    dirmgr: Arc<dyn DirProvider>,
+
+    /// See [`InertTorRelay::keymgr`].
     #[expect(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
 
@@ -194,7 +227,7 @@ impl<R: Runtime> TorRelay<R> {
         let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
             .context("Failed to initialize memquota tracker")?;
 
-        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
+        let chanmgr = Arc::new(ChanMgr::new(
             runtime.clone(),
             &inert.config.channel,
             Dormancy::Active,
@@ -202,6 +235,56 @@ impl<R: Runtime> TorRelay<R> {
             memquota.clone(),
             Some(inert.keymgr.clone()),
         ));
+
+        // TODO: We probably don't want a guard manager for relays,
+        // unless we plan to build anonymous circuits.
+        // See https://gitlab.torproject.org/tpo/core/arti/-/issues/1737.
+        // If we do want a guard manager and anonymous circuits,
+        // we should think more about whether our anonymous circuits can be differentiated from
+        // other circuits, and make sure that we're not closing channels for "client reasons" as
+        // these channels will also be used by the relay for relaying Tor user traffic.
+        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3552#note_3313591.
+        let guardmgr = GuardMgr::new(runtime.clone(), inert.state_mgr.clone(), &inert.config)
+            .context("Failed to initialize the guard manager")?;
+
+        // TODO: We might not want a circuit manager for relays,
+        // but we will probably want its path construction logic.
+        // We need to be able to build circuits for reachability testing and bandwidth measurement.
+        let circmgr = Arc::new(
+            CircMgr::new(
+                &inert.config,
+                inert.state_mgr.clone(),
+                &runtime,
+                Arc::clone(&chanmgr),
+                &guardmgr,
+            )
+            .context("Failed to initialize the circuit manager")?,
+        );
+
+        let dirmgr_store = DirMgrStore::new(
+            &inert.dirmgr_config,
+            runtime.clone(),
+            /* offline= */ false,
+        )
+        .context("Failed to initialize directory store")?;
+
+        // TODO: We want to use tor-dirserver as a `NetDirProvider` in the future if possible to
+        // avoid having two document downloaders, and so that we can download documents over direct
+        // TCP connections rather than over circuits.
+        let dirmgr = Arc::new(
+            DirMgr::create_unbootstrapped(
+                inert.dirmgr_config,
+                runtime.clone(),
+                dirmgr_store,
+                Arc::clone(&circmgr),
+            )
+            .context("Failed to initialize the directory manager")?,
+        );
+
+        dirmgr
+            .bootstrap()
+            .await
+            .context("Failed to bootstrap the directory manager")?;
 
         // An iterator of `listen()` futures with some extra error handling.
         let or_listeners = inert.config.relay.listen.addrs().map(async |addr| {
@@ -256,6 +339,9 @@ impl<R: Runtime> TorRelay<R> {
             runtime,
             memquota,
             chanmgr,
+            guardmgr,
+            circmgr,
+            dirmgr,
             keymgr: inert.keymgr,
             or_listeners,
         })
