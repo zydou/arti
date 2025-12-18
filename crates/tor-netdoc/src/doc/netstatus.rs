@@ -59,6 +59,11 @@ use {
     crate::parse2::{self, ArgumentStream}, //
 };
 
+#[cfg(feature = "parse2")]
+pub use {
+    parse2_impls::ProtoStatusesNetdocParseAccumulator, //
+};
+
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
@@ -425,7 +430,7 @@ impl HasKind for ProtocolSupportError {
 /// Represents the collection of four items: `{recommended,required}-{client,relay}-protocols`.
 ///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:required-relay-protocols>
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProtoStatuses {
     /// Lists of recommended and required subprotocol versions for clients
     client: ProtoStatus,
@@ -1063,7 +1068,77 @@ mod parse2_impls {
     use parse2::ArgumentError as AE;
     use parse2::ErrorProblem as EP;
     use parse2::{ArgumentStream, ItemArgumentParseable, ItemValueParseable};
+    use parse2::{KeywordRef, NetdocParseableFields, UnparsedItem};
+    use paste::paste;
     use std::result::Result;
+
+    /// Implements `NetdocParseableFields` for `ProtoStatuses`
+    ///
+    /// We have this macro so that it's impossible to write things like
+    /// ```text
+    ///      ProtoStatuses {
+    ///          client: ProtoStatus {
+    ///              recommended: something something recommended_relay_versions something,
+    /// ```
+    ///
+    /// (The structure of `ProtoStatuses` means the normal parse2 derive won't work for it.
+    /// Note the bug above: the recommended *relay* version info is put in the *client* field.
+    /// Preventing this bug must involve: avoiding writing twice the field name elements,
+    /// such as `relay` and `client`, during this kind of construction/conversion.)
+    macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocParseableFields)]
+        // Only ProtoStatusesParseNetdocParseAccumulator is exposed.
+        #[allow(unreachable_pub)]
+        pub struct ProtoStatusesParseHelper {
+            $(
+                #[deftly(netdoc(default))]
+                [<$rr _ $cr _protocols>]: Protocols,
+            )*
+        }
+
+        /// Partially parsed `ProtoStatuses`
+        pub use ProtoStatusesParseHelperNetdocParseAccumulator
+            as ProtoStatusesNetdocParseAccumulator;
+
+        impl NetdocParseableFields for ProtoStatuses {
+            type Accumulator = ProtoStatusesNetdocParseAccumulator;
+            fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
+                ProtoStatusesParseHelper::is_item_keyword(kw)
+            }
+            fn accumulate_item(
+                acc: &mut Self::Accumulator,
+                item: UnparsedItem<'_>,
+            ) -> Result<(), EP> {
+                ProtoStatusesParseHelper::accumulate_item(acc, item)
+            }
+            fn finish(acc: Self::Accumulator) -> Result<Self, EP> {
+                let parse = ProtoStatusesParseHelper::finish(acc)?;
+                let mut out = ProtoStatuses::default();
+                $(
+                    out.$cr.$rr = parse.[< $rr _ $cr _protocols >];
+                )*
+                Ok(out)
+            }
+        }
+    } } }
+
+    impl_proto_statuses! {
+        required client;
+        required relay;
+        recommended client;
+        recommended relay;
+    }
+
+    impl ItemValueParseable for NetParams<i32> {
+        fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+            item.check_no_object()?;
+            item.args_copy()
+                .into_remaining()
+                .parse()
+                .map_err(item.invalid_argument_handler("parameters"))
+        }
+    }
 
     impl ItemValueParseable for RelayWeight {
         fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {

@@ -127,7 +127,7 @@ define_derive_deftly_module! {
     // Type into which we accumulate value(s) of this field
     ${define F_ACCUMULATE_TYPE {
         ${if F_FLATTEN {
-            <$ftype as NetdocParseableFields>::Accumulator
+            <$ftype as $P::NetdocParseableFields>::Accumulator
         } else {
             Option::<$F_EFFECTIVE_TYPE>
         }

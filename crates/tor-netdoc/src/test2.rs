@@ -25,8 +25,7 @@ use tor_error::{Bug, ErrorReport as _};
 use crate::encode::{ItemEncoder, ItemObjectEncodable, NetdocEncodable, NetdocEncoder};
 use crate::parse2::{
     ArgumentError as P2AE, ArgumentStream, ErrorProblem as P2EP, ItemObjectParseable,
-    NetdocParseable, NetdocParseableFields, ParseError, ParseInput, UnparsedItem, parse_netdoc,
-    parse_netdoc_multiple,
+    NetdocParseable, ParseError, ParseInput, UnparsedItem, parse_netdoc, parse_netdoc_multiple,
 };
 use crate::types::{Ignored, NotPresent};
 
