@@ -238,11 +238,18 @@ impl<R: Runtime> TorRelay<R> {
 
         // TODO: We probably don't want a guard manager for relays,
         // unless we plan to build anonymous circuits.
+        // See https://gitlab.torproject.org/tpo/core/arti/-/issues/1737.
+        // If we do want a guard manager and anonymous circuits,
+        // we should think more about whether our anonymous circuits can be differentiated from
+        // other circuits, and make sure that we're not closing channels for "client reasons" as
+        // these channels will also be used by the relay for relaying Tor user traffic.
+        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3552#note_3313591.
         let guardmgr = GuardMgr::new(runtime.clone(), inert.state_mgr.clone(), &inert.config)
             .context("Failed to initialize the guard manager")?;
 
         // TODO: We might not want a circuit manager for relays,
         // but we will probably want its path construction logic.
+        // We need to be able to build circuits for reachability testing and bandwidth measurement.
         let circmgr = Arc::new(
             CircMgr::new(
                 &inert.config,
