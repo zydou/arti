@@ -996,8 +996,8 @@ mod test {
             );
             let hash: [u8; 20] = Sha1::digest("dir-key-certification\n").into();
 
-            let res = parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, ""))
-                .unwrap();
+            let res =
+                parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, "")).unwrap();
             assert_eq!(
                 res,
                 AuthCertSignatures {
