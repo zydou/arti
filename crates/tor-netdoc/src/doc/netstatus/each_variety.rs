@@ -41,40 +41,51 @@ pub struct Preamble {
     /// the time over which the voted-upon consensus should be valid.)
     #[cfg_attr(feature = "parse2", deftly(netdoc(flatten)))]
     pub lifetime: Lifetime,
+
     /// Publication time (of a vote)
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub published: ns_type!( NotPresent, NotPresent, Iso8601TimeSp ),
+
     /// List of recommended Tor client versions.
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub client_versions: Vec<String>,
+
     /// List of recommended Tor relay versions.
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub server_versions: Vec<String>,
+
     /// Lists of recommended and required subprotocols.
     ///
     /// **`{recommended,required}-{client,relay}-protocols`**
     #[cfg_attr(feature = "parse2", deftly(netdoc(flatten)))]
     pub proto_statuses: Arc<ProtoStatuses>,
+
     /// Declared parameters for tunable settings about how to the
     /// network should operator. Some of these adjust timeouts and
     /// whatnot; some features things on and off.
     pub params: NetParams<i32>,
+
     /// How long in seconds should voters wait for votes and
     /// signatures (respectively) to propagate?
     pub voting_delay: Option<(u32, u32)>,
+
     /// What "method" was used to produce this consensus?  (A
     /// consensus method is a version number used by authorities to
     /// upgrade the consensus algorithm.)
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub consensus_method: ns_type!( u32, u32, NotPresent ),
+
     /// Consensus methods supported by this voter.
     pub consensus_methods: ns_type!( NotPresent, NotPresent, ConsensusMethods ),
+
     /// Global shared-random value for the previous shared-random period.
     // TODO DIRAUTH in votes, is in the authority section
     pub shared_rand_previous_value: Option<SharedRandStatus>,
+
     /// Global shared-random value for the current shared-random period.
     // TODO DIRAUTH in votes, is in the authority section
     pub shared_rand_current_value: Option<SharedRandStatus>,
+
     // TODO DIRAUTH missing fields which will be needed for voting:
     // known-flags (in consensuses too)
     // flag-thresholds
