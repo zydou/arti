@@ -419,20 +419,17 @@ impl AuthCert {
 
 /// Pseudo-Signature of the long-term identity key by the medium-term key.
 ///
-/// This type does not implement `SignatureItemParseable` because this type
-/// is reserved for full-body signatures, such as [`DirKeyCertification`].
-/// As this types does not sign a full document, it has to implement
-/// `ItemValueParseable` only instead.
+/// This type does not implement `SignatureItemParseable` because that trait
+/// is reserved for signatures on *netdocs*, such as [`AuthCertSignature`].
+/// As `CrossCert` does not sign a full document, it implements only
+/// `ItemValueParseable`, instead.
 ///
-/// This means that **signature validation must be done with extra care**!
-/// In other words, the structure storing the (SHA1 hash of the) long-term
-/// identity key alongside the [`DirKeyCrossCert`] must perform proper
-/// steps to hold the signature contained in this structure against the data
-/// that is certified by it.
-///
-/// # See More
-///
-/// See [`DirAuthKeyCert::dir_key_crosscert`] for the syntax and the specs.
+/// Verification of this signature is done in `AuthCertSigned::verify_self_signed`,
+/// and during parsing by the old parser.
+/// So a `CrossCert` in [`AuthCert::dir_key_crosscert`] in a bare `AuthCert` has been validated.
+//
+// TODO SPEC (Diziet): it is far from clear to me that this cert serves any useful purpose.
+// However, we are far too busy now with rewriting the universe to consider transitioning it away.
 #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
 #[cfg_attr(
     feature = "parse2",
@@ -460,6 +457,8 @@ pub struct CrossCert {
 /// TODO: In the future, it might be nice to let the respective fmeta
 /// accept a pattern, as pattern matching would allow trivially for one
 /// to infinity different combinations.
+/// TODO SPEC: Alternatively we could abolish the wrong labels,
+/// or we could abolish Objects completely and just have long lines.
 ///
 /// # Syntax
 ///
