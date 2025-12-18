@@ -750,7 +750,7 @@ mod test {
     }
 
     #[cfg(feature = "parse2")]
-    mod tmp {
+    mod parse2_test {
         use super::{AuthCert, AuthCertVersion, AuthCertSigned, AuthCertSignature, AuthCertSignatures, CrossCert, CrossCertObject};
 
         use std::{
