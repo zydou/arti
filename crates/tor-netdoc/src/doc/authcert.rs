@@ -21,7 +21,7 @@ use tor_llcrypto::{d, pk, pk::rsa::RsaIdentity};
 use std::sync::LazyLock;
 
 use std::result::Result as StdResult;
-use std::{net, time};
+use std::{net, time, time::Duration, time::SystemTime};
 
 use derive_deftly::Deftly;
 use digest::Digest;
@@ -577,133 +577,8 @@ impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAut
     }
 }
 
-/// Temporary module to gradually implement types using `parse2`.
-///
-/// Eventually, those will get merged into the main module.
 #[cfg(feature = "parse2")]
-pub mod tmp {
-    pub(super) use super::{AuthCertVersion, CrossCert};
-
-    use std::time::{Duration, SystemTime};
-
-    use derive_deftly::Deftly;
-
-    use crate::{
-        parse2::{
-            VerifyFailed,
-            check_validity_time_tolerance,
-        },
-        types::{self, Iso8601TimeSp},
-    };
-
-    use tor_llcrypto::pk::rsa::{self, RsaIdentity};
-
-    /// The body of a directory authority key certificate.
-    ///
-    /// Directory authorities create key certificates to certify their
-    /// medium-term signing keys with their long-term authority identity key.
-    ///
-    /// # Specifications
-    ///
-    /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html>
-    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-    #[derive_deftly(NetdocParseable, NetdocSigned)]
-    #[non_exhaustive]
-    pub struct DirAuthKeyCert {
-        /// Introduces an authority key certificate.
-        ///
-        /// At the moment, the version **MUST** be `3`.
-        /// Implementations **MUST** reject formats they do not understand.
-        ///
-        /// # Syntax
-        ///
-        /// * `dir-key-certificate-version <version>`
-        /// * At start, exactly once.
-        #[deftly(netdoc(single_arg))]
-        pub dir_key_certificate_version: AuthCertVersion,
-
-        /// Uppercase base16 SHA-1 hash (fingerprint) of the long-term identity key.
-        ///
-        /// # Syntax
-        ///
-        /// * `fingerprint <SHA1(DER(kp_auth_id_rsa))>`
-        /// * Exactly once.
-        #[deftly(netdoc(single_arg))]
-        pub fingerprint: types::Fingerprint,
-
-        /// Certifies the generation time of the certificate in ISO-8601.
-        ///
-        /// Implementations **SHOULD** reject certificates too far in the future.
-        ///
-        /// # Syntax
-        ///
-        /// * `dir-key-published <ISO8601>`
-        /// * Exactly once.
-        #[deftly(netdoc(single_arg))]
-        pub dir_key_published: Iso8601TimeSp,
-
-        /// Certifies the expiration time of the certificate in ISO-8601.
-        ///
-        /// Implementations **SHOULD** reject expired certificates.
-        ///
-        /// # Syntax
-        ///
-        /// * `dir-key-expires <ISO8601>`
-        /// * Exactly once.
-        #[deftly(netdoc(single_arg))]
-        pub dir_key_expires: Iso8601TimeSp,
-
-        /// Certifies the long-term authority identity key.
-        ///
-        /// # Syntax
-        ///
-        /// ```text
-        /// dir-identity-key
-        /// -----BEGIN RSA PUBLIC KEY-----
-        /// <DER PKCS#1 RSA Public Key>
-        /// -----END RSA PUBLIC KEY-----
-        /// ```
-        ///
-        /// Exactly once.
-        pub dir_identity_key: rsa::PublicKey,
-
-        /// Certifies the medium-term authority signing key.
-        ///
-        /// This is in fact the most critical piece of the certificate as it
-        /// contains the only real data the client was not previously aware of.
-        ///
-        /// # Syntax
-        ///
-        /// ```text
-        /// dir-signing-key
-        /// -----BEGIN RSA PUBLIC KEY-----
-        /// <DER PKCS#1 RSA Public Key>
-        /// -----END RSA PUBLIC KEY-----
-        /// ```
-        ///
-        /// Exactly once.
-        pub dir_signing_key: rsa::PublicKey,
-
-        /// Certifies ownership of the medium-term signing key.
-        ///
-        /// This certificate represents a signature made using `kp_auth_sign_rsa`
-        /// of `h_kp_auth_id_rsa`.
-        ///
-        /// # Syntax
-        ///
-        /// ```text
-        /// dir-key-crosscert
-        /// -----BEGIN ID SIGNATURE-----
-        /// <Base64 encoded RSA signature of SHA1(DER(kp_auth_id_rsa))>
-        /// -----END ID SIGNATURE-----
-        /// ```
-        pub dir_key_crosscert: CrossCert,
-    }
-
-    /// XXXX remove
-    use super::AuthCertSignatures as DirAuthKeyCertSignatures;
-
-    impl DirAuthKeyCertSigned {
+    impl AuthCertSigned {
         /// Verifies the signature of a [`DirAuthKeyCert`].
         ///
         /// # Algorithm
@@ -727,21 +602,21 @@ pub mod tmp {
             pre_tolerance: Duration,
             post_tolerance: Duration,
             now: SystemTime,
-        ) -> Result<DirAuthKeyCert, VerifyFailed> {
+        ) -> StdResult<AuthCert, parse2::VerifyFailed> {
             let (body, signatures) = (self.body, self.signatures);
 
             // (1) Check whether this comes from a valid authority in `v3idents`.
             if !v3idents.contains(&body.fingerprint.0) {
-                return Err(VerifyFailed::InsufficientTrustedSigners);
+                return Err(parse2::VerifyFailed::InsufficientTrustedSigners);
             }
 
             // (2) Check whether the timestamps are valid (± tolerance).
             let validity = *body.dir_key_published..=*body.dir_key_expires;
-            check_validity_time_tolerance(now, validity, pre_tolerance, post_tolerance)?;
+            parse2::check_validity_time_tolerance(now, validity, pre_tolerance, post_tolerance)?;
 
             // (3) Check whether the fingerprint and long-term identity key match.
             if body.dir_identity_key.to_rsa_identity() != *body.fingerprint {
-                return Err(VerifyFailed::Inconsistent);
+                return Err(parse2::VerifyFailed::Inconsistent);
             }
 
             // (4) Check the cross-certificate (proof-of-ownership of signing key).
@@ -759,7 +634,6 @@ pub mod tmp {
             Ok(body)
         }
     }
-}
 
 #[cfg(test)]
 mod test {
@@ -877,7 +751,7 @@ mod test {
 
     #[cfg(feature = "parse2")]
     mod tmp {
-        use super::{AuthCertSignature, AuthCertSignatures, AuthCertVersion, CrossCertObject};
+        use super::{AuthCert, AuthCertVersion, AuthCertSigned, AuthCertSignature, AuthCertSignatures, CrossCert, CrossCertObject};
 
         use std::{
             fs::File,
@@ -892,7 +766,6 @@ mod test {
             types::{self, Iso8601TimeSp},
         };
 
-        use super::super::tmp::*;
         use base64ct::{Base64, Encoding};
         use derive_deftly::Deftly;
         use digest::Digest;
@@ -1060,11 +933,12 @@ mod test {
                 .read_to_string(&mut input)
                 .unwrap();
 
-            let res = parse2::parse_netdoc::<DirAuthKeyCert>(&ParseInput::new(&input, "")).unwrap();
+            let res = parse2::parse_netdoc::<AuthCert>(&ParseInput::new(&input, "")).unwrap();
             assert_eq!(
                 res,
-                DirAuthKeyCert {
+                AuthCert {
                     dir_key_certificate_version: AuthCertVersion::V3,
+                    dir_address: None,
                     fingerprint: types::Fingerprint(
                         RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()
                     ),
@@ -1089,7 +963,7 @@ mod test {
 
         #[test]
         fn dir_auth_signature() {
-            let res = parse2::parse_netdoc::<DirAuthKeyCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full"),
                 "",
             ))
@@ -1241,7 +1115,7 @@ mod test {
                 .unwrap();
 
             // Check with non-matching fingerprint and long-term identity key.
-            let res = parse2::parse_netdoc::<DirAuthKeyCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full-invalid-id-rsa"),
                 "",
             ))
@@ -1260,7 +1134,7 @@ mod test {
             );
 
             // Check invalid cross-cert.
-            let res = parse2::parse_netdoc::<DirAuthKeyCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full-invalid-cross"),
                 "",
             ))
@@ -1279,7 +1153,7 @@ mod test {
             );
 
             // Check outer signature.
-            let res = parse2::parse_netdoc::<DirAuthKeyCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full-invalid-certification"),
                 "",
             ))
