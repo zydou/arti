@@ -189,11 +189,6 @@ impl AuthCert {
         &self.key_ids.id_fingerprint
     }
 
-    /// Return an RsaIdentity for this certificate's signing key.
-    pub fn sk_fingerprint(&self) -> &rsa::RsaIdentity {
-        &self.key_ids.sk_fingerprint
-    }
-
     /// Return the time when this certificate says it was published.
     pub fn published(&self) -> time::SystemTime {
         self.dir_key_published
@@ -775,7 +770,7 @@ mod test {
             "$ed03bb616eb2f60bec80151114bb25cef515b226"
         );
         assert_eq!(
-            cert.sk_fingerprint().to_string(),
+            cert.key_ids().sk_fingerprint.to_string(),
             "$c4f720e2c59f9ddd4867fff465ca04031e35648f"
         );
 
