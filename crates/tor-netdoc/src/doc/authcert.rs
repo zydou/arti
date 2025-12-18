@@ -33,7 +33,7 @@ mod build;
 pub use build::AuthCertBuilder;
 
 #[cfg(feature = "parse2")]
-use crate::parse2::{self, ItemObjectParseable};
+use crate::parse2::{self, ItemObjectParseable, SignatureHashInputs};
 
 decl_keyword! {
     pub(crate) AuthCertKwd {
@@ -400,7 +400,7 @@ impl AuthCert {
 #[cfg_attr(
     feature = "parse2",
     derive_deftly(ItemValueParseable),
-    deftly(netdoc(no_extra_args)),
+    deftly(netdoc(no_extra_args))
 )]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
@@ -447,6 +447,74 @@ pub struct CrossCert {
 #[non_exhaustive]
 pub struct CrossCertObject(pub Vec<u8>);
 
+/// Signatures for [`DirAuthKeyCert`].
+///
+/// Signed by [`DirAuthKeyCert::dir_identity_key`] in order to prove ownership.
+/// Can be seen as the opposite of [`DirAuthKeyCert::dir_key_crosscert`].
+///
+/// # Syntax
+///
+/// ```text
+/// dir-key-certification
+/// -----BEGIN SIGNATURE-----
+/// <Base64 encoded RSA signature of SHA1(PKCS_1_1_5(version to crosscert))>
+/// -----END SIGNATURE-----
+/// ```
+///
+/// # Specifications
+///
+/// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certification>
+/// * <https://spec.torproject.org/dir-spec/netdoc.html#signing>
+#[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+#[cfg_attr(
+    feature = "parse2",
+    derive_deftly(NetdocParseable),
+    deftly(netdoc(signatures))
+)]
+#[non_exhaustive]
+pub struct AuthCertSignatures {
+    /// Contains the actual signature, see [`DirAuthKeyCertSignatures`].
+    pub dir_key_certification: AuthCertSignature,
+}
+
+/// RSA signature for data in [`DirAuthKeyCert`] and related structures.
+///
+/// # Syntax
+///
+/// ```text
+/// -----BEGIN SIGNATURE-----
+/// <Base64 encoded RSA signature of something depending on the item>
+/// -----END SIGNATURE-----
+/// ```
+///
+/// # Specifications
+///
+/// * <https://spec.torproject.org/dir-spec/netdoc.html#signing>
+///
+/// # Caveats
+///
+/// This type **MUST NOT** be used for [`DirAuthKeyCert::dir_key_crosscert`]
+/// because its set of object labels is a strict superset of the object
+/// labels used by this type.
+#[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+#[cfg_attr(
+    feature = "parse2",
+    derive_deftly(ItemValueParseable),
+    deftly(netdoc(no_extra_args))
+)]
+// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
+#[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
+#[non_exhaustive]
+pub struct AuthCertSignature {
+    /// The bytes of the signature (base64-decoded).
+    #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::parse2::raw_data_object"))]
+    pub signature: Vec<u8>,
+
+    /// The SHA1 hash of the document.
+    #[deftly(netdoc(sig_hash = "whole_keyword_line_sha1"))]
+    pub hash: [u8; 20],
+}
+
 #[cfg(feature = "parse2")]
 impl ItemObjectParseable for CrossCertObject {
     fn check_label(label: &str) -> StdResult<(), parse2::EP> {
@@ -485,7 +553,7 @@ pub mod tmp {
 
     use crate::{
         parse2::{
-            SignatureHashInputs, VerifyFailed,
+            VerifyFailed,
             check_validity_time_tolerance,
         },
         types::{self, Iso8601TimeSp},
@@ -623,65 +691,8 @@ pub mod tmp {
         pub dir_key_crosscert: CrossCert,
     }
 
-    /// Signatures for [`DirAuthKeyCert`].
-    ///
-    /// Signed by [`DirAuthKeyCert::dir_identity_key`] in order to prove ownership.
-    /// Can be seen as the opposite of [`DirAuthKeyCert::dir_key_crosscert`].
-    ///
-    /// # Syntax
-    ///
-    /// ```text
-    /// dir-key-certification
-    /// -----BEGIN SIGNATURE-----
-    /// <Base64 encoded RSA signature of SHA1(PKCS_1_1_5(version to crosscert))>
-    /// -----END SIGNATURE-----
-    /// ```
-    ///
-    /// # Specifications
-    ///
-    /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certification>
-    /// * <https://spec.torproject.org/dir-spec/netdoc.html#signing>
-    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-    #[derive_deftly(NetdocParseable)]
-    #[deftly(netdoc(signatures))]
-    #[non_exhaustive]
-    pub struct DirAuthKeyCertSignatures {
-        /// Contains the actual signature, see [`DirAuthKeyCertSignatures`].
-        pub dir_key_certification: DirKeyCertification,
-    }
-
-    /// RSA signature for data in [`DirAuthKeyCert`] and related structures.
-    ///
-    /// # Syntax
-    ///
-    /// ```text
-    /// -----BEGIN SIGNATURE-----
-    /// <Base64 encoded RSA signature of something depending on the item>
-    /// -----END SIGNATURE-----
-    /// ```
-    ///
-    /// # Specifications
-    ///
-    /// * <https://spec.torproject.org/dir-spec/netdoc.html#signing>
-    ///
-    /// # Caveats
-    ///
-    /// This type **MUST NOT** be used for [`DirAuthKeyCert::dir_key_crosscert`]
-    /// because its set of object labels is a strict superset of the object
-    /// labels used by this type.
-    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-    #[derive_deftly(ItemValueParseable)]
-    #[deftly(netdoc(no_extra_args))]
-    #[non_exhaustive]
-    pub struct DirKeyCertification {
-        /// The bytes of the signature (base64-decoded).
-        #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::parse2::raw_data_object"))]
-        pub signature: Vec<u8>,
-
-        /// The SHA1 hash of the document.
-        #[deftly(netdoc(sig_hash = "whole_keyword_line_sha1"))]
-        pub hash: [u8; 20],
-    }
+    /// XXXX remove
+    use super::AuthCertSignatures as DirAuthKeyCertSignatures;
 
     impl DirAuthKeyCertSigned {
         /// Verifies the signature of a [`DirAuthKeyCert`].
@@ -857,7 +868,7 @@ mod test {
 
     #[cfg(feature = "parse2")]
     mod tmp {
-        use super::{AuthCertVersion, CrossCertObject};
+        use super::{AuthCertSignature, AuthCertSignatures, AuthCertVersion, CrossCertObject};
 
         use std::{
             fs::File,
@@ -985,12 +996,12 @@ mod test {
             );
             let hash: [u8; 20] = Sha1::digest("dir-key-certification\n").into();
 
-            let res = parse2::parse_netdoc::<DirAuthKeyCertSignatures>(&ParseInput::new(&cert, ""))
+            let res = parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, ""))
                 .unwrap();
             assert_eq!(
                 res,
-                DirAuthKeyCertSignatures {
-                    dir_key_certification: DirKeyCertification {
+                AuthCertSignatures {
+                    dir_key_certification: AuthCertSignature {
                         signature: decoded.clone(),
                         hash
                     }
@@ -1001,7 +1012,7 @@ mod test {
             let cert = format!(
                 "dir-key-certification\n-----BEGIN ID SIGNATURE-----\n{encoded}\n-----END ID SIGNATURE-----"
             );
-            let res = parse2::parse_netdoc::<DirAuthKeyCertSignatures>(&ParseInput::new(&cert, ""));
+            let res = parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, ""));
             match res {
                 Err(ParseError {
                     problem: ErrorProblem::ObjectIncorrectLabel,
@@ -1017,7 +1028,7 @@ mod test {
             let cert = format!(
                 "dir-key-certification arg1\n-----BEGIN SIGNATURE-----\n{encoded}\n-----END SIGNATURE-----"
             );
-            let res = parse2::parse_netdoc::<DirAuthKeyCertSignatures>(&ParseInput::new(&cert, ""));
+            let res = parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, ""));
             match res {
                 Err(ParseError {
                     problem: ErrorProblem::UnexpectedArgument { column: 23 },
