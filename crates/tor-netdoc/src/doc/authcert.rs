@@ -91,6 +91,8 @@ pub struct AuthCert {
     /// Intro line
     ///
     /// Currently must be version 3.
+    ///
+    /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certificate-version>
     #[deftly(netdoc(single_arg))]
     pub dir_key_certificate_version: AuthCertVersion,
 
@@ -100,27 +102,39 @@ pub struct AuthCert {
 
     /// H(KP_auth_id_rsa)
     #[deftly(netdoc(single_arg))]
+    ///
+    /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:fingerprint>
     pub fingerprint: Fingerprint,
 
     /// Declared time when this certificate was published
+    ///
+    /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:fingerprint>
     #[deftly(netdoc(single_arg))]
     pub dir_key_published: Iso8601TimeSp,
 
     /// Declared time when this certificate expires.
+    ///
+    /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-expires>
     #[deftly(netdoc(single_arg))]
     pub dir_key_expires: Iso8601TimeSp,
 
     /// KP_auth_id_rsa
     ///
     /// The long-term RSA identity key for this authority
+    ///
+    /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-identity-key>
     pub dir_identity_key: rsa::PublicKey,
 
     /// KP_auth_sign_rsa
     ///
     /// The medium-term RSA signing key for this authority
+    ///
+    /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-signing-key>
     pub dir_signing_key: rsa::PublicKey,
 
     /// SHA1(DER(KP_auth_id_rsa)) signed by KP_auth_sign_rsa
+    ///
+    /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
     pub dir_key_crosscert: CrossCert,
 }
 
@@ -604,10 +618,6 @@ pub mod tmp {
         ///
         /// * `dir-key-certificate-version <version>`
         /// * At start, exactly once.
-        ///
-        /// # Specifications
-        ///
-        /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certificate-version>
         #[deftly(netdoc(single_arg))]
         pub dir_key_certificate_version: AuthCertVersion,
 
@@ -617,10 +627,6 @@ pub mod tmp {
         ///
         /// * `fingerprint <SHA1(DER(kp_auth_id_rsa))>`
         /// * Exactly once.
-        ///
-        /// # Specifications
-        ///
-        /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:fingerprint>
         #[deftly(netdoc(single_arg))]
         pub fingerprint: types::Fingerprint,
 
@@ -632,10 +638,6 @@ pub mod tmp {
         ///
         /// * `dir-key-published <ISO8601>`
         /// * Exactly once.
-        ///
-        /// # Specifications
-        ///
-        /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:fingerprint>
         #[deftly(netdoc(single_arg))]
         pub dir_key_published: Iso8601TimeSp,
 
@@ -647,10 +649,6 @@ pub mod tmp {
         ///
         /// * `dir-key-expires <ISO8601>`
         /// * Exactly once.
-        ///
-        /// # Specifications
-        ///
-        /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-expires>
         #[deftly(netdoc(single_arg))]
         pub dir_key_expires: Iso8601TimeSp,
 
@@ -666,10 +664,6 @@ pub mod tmp {
         /// ```
         ///
         /// Exactly once.
-        ///
-        /// # Specifications
-        ///
-        /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-identity-key>
         pub dir_identity_key: rsa::PublicKey,
 
         /// Certifies the medium-term authority signing key.
@@ -687,10 +681,6 @@ pub mod tmp {
         /// ```
         ///
         /// Exactly once.
-        ///
-        /// # Specifications
-        ///
-        /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-signing-key>
         pub dir_signing_key: rsa::PublicKey,
 
         /// Certifies ownership of the medium-term signing key.
@@ -706,10 +696,6 @@ pub mod tmp {
         /// <Base64 encoded RSA signature of SHA1(DER(kp_auth_id_rsa))>
         /// -----END ID SIGNATURE-----
         /// ```
-        ///
-        /// # Specifications
-        ///
-        /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
         pub dir_key_crosscert: CrossCert,
     }
 
