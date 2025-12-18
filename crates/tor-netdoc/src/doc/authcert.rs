@@ -80,6 +80,9 @@ pub struct AuthCert {
     /// An IPv4 address for this authority.
     dir_address: Option<net::SocketAddrV4>,
 
+    /// H(KP_auth_id_rsa)
+    fingerprint: Fingerprint,
+
     /// Declared time when this certificate was published
     dir_key_published: time::SystemTime,
 
@@ -95,9 +98,6 @@ pub struct AuthCert {
     ///
     /// The medium-term RSA signing key for this authority
     dir_signing_key: rsa::PublicKey,
-
-    /// Derived field: fingerprints of the certificate's keys
-    key_ids: AuthCertKeyIds,
 }
 
 /// A pair of key identities that identifies a certificate.
@@ -181,12 +181,15 @@ impl AuthCert {
     /// Return an AuthCertKeyIds object describing the keys in this
     /// certificate.
     pub fn key_ids(&self) -> AuthCertKeyIds {
-        self.key_ids
+        AuthCertKeyIds {
+            id_fingerprint: self.fingerprint.0,
+            sk_fingerprint: self.dir_signing_key.to_rsa_identity(),
+        }
     }
 
     /// Return an RsaIdentity for this certificate's identity key.
     pub fn id_fingerprint(&self) -> &rsa::RsaIdentity {
-        &self.key_ids.id_fingerprint
+        &self.fingerprint
     }
 
     /// Return the time when this certificate says it was published.
@@ -320,11 +323,6 @@ impl AuthCert {
         };
 
         let id_fingerprint = dir_identity_key.to_rsa_identity();
-        let sk_fingerprint = dir_signing_key.to_rsa_identity();
-        let key_ids = AuthCertKeyIds {
-            id_fingerprint,
-            sk_fingerprint,
-        };
 
         let location = {
             let start_idx = start_pos.offset_within(s);
@@ -341,7 +339,7 @@ impl AuthCert {
             dir_signing_key,
             dir_key_published,
             dir_key_expires,
-            key_ids,
+            fingerprint: Fingerprint(id_fingerprint),
         };
 
         let signatures: Vec<Box<dyn pk::ValidatableSignature>> =

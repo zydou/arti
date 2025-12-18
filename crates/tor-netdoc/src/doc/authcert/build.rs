@@ -3,7 +3,7 @@
 //! (These are only for testing right now, since we don't yet
 //! support signing or encoding.)
 
-use super::{AuthCert, AuthCertKeyIds};
+use super::{AuthCert};
 
 use crate::{BuildError as Error, BuildResult};
 use std::net::SocketAddrV4;
@@ -110,12 +110,6 @@ impl AuthCertBuilder {
             .clone();
 
         let id_fingerprint = dir_identity_key.to_rsa_identity();
-        let sk_fingerprint = dir_signing_key.to_rsa_identity();
-
-        let key_ids = AuthCertKeyIds {
-            id_fingerprint,
-            sk_fingerprint,
-        };
 
         Ok(AuthCert {
             dir_address: self.address,
@@ -123,7 +117,7 @@ impl AuthCertBuilder {
             dir_signing_key,
             dir_key_published,
             dir_key_expires,
-            key_ids,
+            fingerprint: crate::types::Fingerprint(id_fingerprint),
         })
     }
 }
