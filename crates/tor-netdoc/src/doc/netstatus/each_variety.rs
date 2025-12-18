@@ -26,7 +26,9 @@ ns_use_this_variety! {
 /// `parse2` doesn't (currently) support subdocuments which contain the parent's intro item
 /// (ie, `#[deftly(netdoc(flatten))]` is not supported on the first field.)
 //
-// TODO the *contents* of this struct is still wrong for votes.
+// TODO DIRAUTH the *contents* of this struct is still wrong for votes,
+// and is missing some consensus fields that need to be manipulated by dirauths;
+// there are individual TODO comments about each such defect.
 #[cfg_attr(
     feature = "parse2",
     derive(Deftly),
@@ -68,7 +70,14 @@ pub struct Preamble {
     /// Consensus methods supported by this voter.
     pub consensus_methods: ns_type!( NotPresent, NotPresent, ConsensusMethods ),
     /// Global shared-random value for the previous shared-random period.
+    // TODO DIRAUTH in votes, is in the authority section
     pub shared_rand_previous_value: Option<SharedRandStatus>,
     /// Global shared-random value for the current shared-random period.
+    // TODO DIRAUTH in votes, is in the authority section
     pub shared_rand_current_value: Option<SharedRandStatus>,
+    // TODO DIRAUTH missing fields which will be needed for voting:
+    // known-flags
+    // flag-thresholds
+    // bandwidth-file-headers
+    // bandwidth-file-digest
 }
