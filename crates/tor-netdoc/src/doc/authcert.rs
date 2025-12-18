@@ -86,6 +86,7 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 )]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[non_exhaustive]
 pub struct AuthCert {
     /// Intro line
