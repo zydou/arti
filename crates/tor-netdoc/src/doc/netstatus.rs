@@ -1081,7 +1081,10 @@ mod parse2_impls {
     ///              recommended: something something recommended_relay_versions something,
     /// ```
     ///
-    /// (The structure of `ProtoStatuses` means the normal parse2 derive won't work for it.)
+    /// (The structure of `ProtoStatuses` means the normal parse2 derive won't work for it.
+    /// Note the bug above: the recommended *relay* version info is put in the *client* field.
+    /// Preventing this bug must involve: avoiding writing twice the field name elements,
+    /// such as `relay` and `client`, during this kind of construction/conversion.)
     macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
         #[derive(Deftly)]
         #[derive_deftly(NetdocParseableFields)]
