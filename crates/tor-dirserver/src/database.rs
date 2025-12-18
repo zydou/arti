@@ -319,7 +319,8 @@ CREATE TABLE compressed_document(
     compressed_sha256   TEXT NOT NULL,
     FOREIGN KEY(identity_sha256) REFERENCES store(sha256),
     FOREIGN KEY(compressed_sha256) REFERENCES store(sha256),
-    UNIQUE(algorithm, identity_sha256)
+    UNIQUE(algorithm, identity_sha256),
+    CHECK(algorithm IN ('deflate', 'gzip', 'x-tor-lzma', 'x-zstd'))
 ) STRICT;
 
 -- Stores the N:M cardinality of which router descriptors are contained in which
@@ -858,7 +859,7 @@ mod test {
     fn compress() {
         /// Asserts that `res` contains `encoding`.
         fn contains(encoding: ContentEncoding, res: &[(ContentEncoding, Vec<u8>)]) {
-            assert!(res.iter().find(|x| x.0 == encoding).is_some());
+            assert!(res.iter().any(|x| x.0 == encoding));
         }
 
         const INPUT: &[u8] = "foobar".as_bytes();
