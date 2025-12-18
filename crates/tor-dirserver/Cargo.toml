@@ -25,17 +25,21 @@ full = [
 
 [dependencies]
 bytes = "1.10.1"
+flate2 = "1.1.5"
 futures = "0.3.31"
+hex = "0.4.3"
 http = "1.3.1"
 http-body = "1.0.1"
 hyper = { version = "1.7.0", default-features = false, features = ["server", "http1"] }
 hyper-util = { version = "0.1.16", features = ["full"] }
+lzma-rs = "0.3.0"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.32.0"
 rand = "0.9.2"
 retry-error = { version = "0.10.0", path = "../retry-error" }
 rusqlite = "0.38.0"
 saturating-time = "0.3.0"
+sha2 = "0.10.9"
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full", "test-util"] }
@@ -48,15 +52,11 @@ tor-netdoc = { version = "0.38.0", path = "../tor-netdoc", features = ["full", "
 tor-rtcompat = { version = "0.38.0", path = "../tor-rtcompat", features = [ "tokio", "native-tls", "rustls" ] }
 tracing = "0.1.41"
 weak-table = "0.3.2"
+zstd = "0.13.3"
 
 [dev-dependencies]
-flate2 = "1.1.2"
-hex = "0.4.3"
 http-body-util = "0.1.3"
 lazy_static = "1.5.0"
-lzma-rs = "0.3.0"
-sha2 = "0.10.9"
 tempfile = "3.23.0"
 tokio-stream = { version = "0.1.17", features = ["full"] }
 tor-llcrypto = { version = "0.37.0", path = "../tor-llcrypto" }
-zstd = "0.13.3"

@@ -38,23 +38,30 @@
 //! eventually resulting in a calling a synchronous function taking the
 //! transaction handle to perform the lion's share of the operation.
 
+// TODO DIRMIRROR: This could benefit from methods by wrapping the pool into a
+// custom type.
+
 use std::{
+    io::{Cursor, Write},
     num::NonZero,
     ops::{Add, Sub},
     path::Path,
     time::{Duration, SystemTime},
 };
 
+use flate2::write::{DeflateEncoder, GzEncoder};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{
-    params,
+    named_params, params,
     types::{FromSql, FromSqlResult, ToSqlOutput, ValueRef},
     ToSql, Transaction, TransactionBehavior,
 };
 use saturating_time::SaturatingTime;
+use sha2::Digest;
+use strum::IntoEnumIterator;
 
-use crate::err::DatabaseError;
+use crate::{err::DatabaseError, http::ContentEncoding};
 
 /// Representation of a Sha256 hash in hexadecimal (upper-case)
 // TODO: Make this a real type that actually enforces the constraints.
@@ -461,6 +468,105 @@ where
     Ok(res)
 }
 
+/// Inserts `data` into store while also compressing it.
+///
+/// Returns the sha256 of `data` in uppercase hex.
+///
+/// This function inserts `data` into store and also compresses it into all
+/// supported compression formats we support.
+pub(crate) fn store_insert(tx: &Transaction, data: &[u8]) -> Result<Sha256, DatabaseError> {
+    // The statement to insert some data into the store.
+    //
+    // Parameters:
+    // :sha256 - The SHA256 sum in uppercase hex of the data.
+    // :content - The binary data.
+    let mut store_stmt = tx.prepare_cached(sql!(
+        "
+        INSERT INTO store (sha256, content)
+        VALUES
+        (:sha256, :content)
+        "
+    ))?;
+
+    // The statement to insert a compressed document into the metatable.
+    //
+    // Parameters:
+    // :algorithm - The name of the encoding algorithm.
+    // :identity_sha256 - The sha256 of the plain-text document in the store.
+    // :compressed_sha256 - The sha256 of the encoded document in the store.
+    let mut compressed_stmt = tx.prepare_cached(sql!(
+        "
+        INSERT INTO compressed_document (algorithm, identity_sha256, compressed_sha256)
+        VALUES
+        (:algorithm, :identity_sha256, :compressed_sha256)
+        "
+    ))?;
+
+    // Insert the plain document into the store.
+    let identity_sha256 = hex::encode_upper(sha2::Sha256::digest(data));
+    store_stmt.execute(named_params! {
+        ":sha256": identity_sha256,
+        ":content": data
+    })?;
+
+    // Compress it into all formats and insert it into store and compressed.
+    //
+    // Maybe it is better to do the insertion already in compress(), so we don't
+    // have to keep it in memory, but I think it is already because network
+    // documents are not super large either.
+    for (encoding, compressed) in compress(data).map_err(DatabaseError::Compression)? {
+        let compressed_sha256 = hex::encode_upper(sha2::Sha256::digest(&compressed));
+        store_stmt.execute(named_params! {
+            ":sha256": compressed_sha256,
+            ":content": compressed,
+        })?;
+        compressed_stmt.execute(named_params! {
+            ":algorithm": encoding.to_string(),
+            ":identity_sha256": identity_sha256,
+            ":compressed_sha256": compressed_sha256
+        })?;
+    }
+
+    Ok(identity_sha256)
+}
+
+/// Compresses data into all existing [`ContentEncoding`] formats.
+///
+/// Returns a [`Vec`] containing a tuple of [`ContentEncoding`] and the
+/// respective binary data.
+///
+/// Keep in mind that [`ContentEncoding::Identity`] is ignored, you will not
+/// find it in the resulting [`Vec`].
+fn compress(data: &[u8]) -> Result<Vec<(ContentEncoding, Vec<u8>)>, std::io::Error> {
+    let mut res = Vec::new();
+
+    for encoding in ContentEncoding::iter() {
+        let compressed = match encoding {
+            // Identity is special, we do not consider it an encoding.
+            ContentEncoding::Identity => continue,
+            ContentEncoding::Deflate => {
+                let mut w = DeflateEncoder::new(Vec::new(), Default::default());
+                w.write_all(data)?;
+                w.finish()
+            }
+            ContentEncoding::Gzip => {
+                let mut w = GzEncoder::new(Vec::new(), Default::default());
+                w.write_all(data)?;
+                w.finish()
+            }
+            ContentEncoding::XZstd => zstd::encode_all(data, Default::default()),
+            ContentEncoding::XTorLzma => {
+                let mut res = Vec::new();
+                lzma_rs::lzma_compress(&mut Cursor::new(data), &mut res)?;
+                Ok(res)
+            }
+        }?;
+        res.push((encoding, compressed));
+    }
+
+    Ok(res)
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -476,8 +582,14 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use std::sync::{Arc, Once};
+    use std::{
+        collections::HashSet,
+        io::Read,
+        sync::{Arc, Once},
+        time::Duration,
+    };
 
+    use flate2::read::{DeflateDecoder, GzDecoder};
     use rusqlite::Connection;
     use tempfile::tempdir;
 
@@ -670,5 +782,105 @@ mod test {
         println!("t2 gave up on acquiring write lock");
         t2_gave_up.call_once(|| ());
         t1.join().unwrap();
+    }
+
+    #[test]
+    fn store_insert() {
+        let db_dir = tempdir().unwrap();
+        let db_path = db_dir.path().join("db");
+
+        super::open(&db_path).unwrap();
+        let mut conn = Connection::open(&db_path).unwrap();
+        let tx = conn.transaction().unwrap();
+
+        let sha256 = super::store_insert(&tx, "foobar".as_bytes()).unwrap();
+        assert_eq!(
+            sha256,
+            "C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2"
+        );
+
+        let res = tx
+            .query_one(
+                sql!(
+                    "
+                    SELECT content
+                    FROM store
+                    WHERE sha256 = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
+                    "
+                ),
+                params![],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .unwrap();
+        assert_eq!(res, "foobar".as_bytes());
+
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            SELECT algorithm
+            FROM compressed_document
+            WHERE identity_sha256 = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
+            "
+        )).unwrap();
+
+        let algorithms = stmt
+            .query_map(params![], |row| row.get::<_, String>(0))
+            .unwrap();
+
+        let algorithms = algorithms.map(|x| x.unwrap()).collect::<HashSet<_>>();
+        assert_eq!(
+            algorithms,
+            HashSet::from([
+                "deflate".to_string(),
+                "gzip".to_string(),
+                "x-zstd".to_string(),
+                "x-tor-lzma".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn compress() {
+        /// Asserts that `res` contains `encoding`.
+        fn contains(encoding: ContentEncoding, res: &[(ContentEncoding, Vec<u8>)]) {
+            assert!(res.iter().find(|x| x.0 == encoding).is_some());
+        }
+
+        const INPUT: &[u8] = "foobar".as_bytes();
+
+        // Check whether everything was encoded.
+        let res = super::compress(INPUT).unwrap();
+        assert_eq!(res.len(), 4);
+        contains(ContentEncoding::Deflate, &res);
+        contains(ContentEncoding::Gzip, &res);
+        contains(ContentEncoding::XTorLzma, &res);
+        contains(ContentEncoding::XZstd, &res);
+
+        // Check if we can decode it.
+        for (encoding, compressed) in res {
+            let mut decompressed = Vec::new();
+
+            match encoding {
+                ContentEncoding::Deflate => {
+                    DeflateDecoder::new(Cursor::new(compressed))
+                        .read_to_end(&mut decompressed)
+                        .unwrap();
+                }
+                ContentEncoding::Gzip => {
+                    GzDecoder::new(Cursor::new(compressed))
+                        .read_to_end(&mut decompressed)
+                        .unwrap();
+                }
+                ContentEncoding::XTorLzma => {
+                    lzma_rs::lzma_decompress(&mut Cursor::new(compressed), &mut decompressed)
+                        .unwrap();
+                }
+                ContentEncoding::XZstd => {
+                    decompressed = zstd::decode_all(Cursor::new(compressed)).unwrap();
+                }
+                _ => unreachable!(),
+            }
+
+            assert_eq!(decompressed, INPUT);
+        }
     }
 }

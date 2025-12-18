@@ -72,9 +72,10 @@ type EndpointFn = fn(
 ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>;
 
 /// Representation of the encoding of the network document the client has requested.
-#[derive(Debug, Clone, Copy, PartialEq, EnumString, strum::Display)]
+// TODO: Maybe this is off better in the database module?
+#[derive(Debug, Clone, Copy, PartialEq, EnumString, strum::Display, strum::EnumIter)]
 #[strum(serialize_all = "kebab-case", ascii_case_insensitive)]
-enum ContentEncoding {
+pub(crate) enum ContentEncoding {
     /// RFC2616 section 3.5.
     Identity,
     /// RFC2616 section 3.5.
