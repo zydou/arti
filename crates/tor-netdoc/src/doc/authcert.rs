@@ -460,25 +460,9 @@ pub struct CrossCert {
 /// TODO SPEC: Alternatively we could abolish the wrong labels,
 /// or we could abolish Objects completely and just have long lines.
 ///
-/// # Syntax
-///
-/// Version 1:
-/// ```text
-/// -----BEGIN ID SIGNATURE-----
-/// <Base64 encoded RSA signature of SHA1(DER(kp_auth_id_rsa))>
-/// -----END ID SIGNATURE-----
-/// ```
-///
-/// Version 2:
-/// ```text
-/// -----BEGIN SIGNATURE-----
-/// <Base64 encoded RSA signature of SHA1(DER(kp_auth_id_rsa))>
-/// -----END SIGNATURE-----
-/// ```
-///
 /// # Specifications
 ///
-/// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
+/// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Deref)]
 #[non_exhaustive]
 pub struct CrossCertObject(pub Vec<u8>);
@@ -487,15 +471,6 @@ pub struct CrossCertObject(pub Vec<u8>);
 ///
 /// Signed by [`AuthCert::dir_identity_key`] in order to prove ownership.
 /// Can be seen as the opposite of [`AuthCert::dir_key_crosscert`].
-///
-/// # Syntax
-///
-/// ```text
-/// dir-key-certification
-/// -----BEGIN SIGNATURE-----
-/// <Base64 encoded RSA signature of SHA1(PKCS_1_1_5(version to crosscert))>
-/// -----END SIGNATURE-----
-/// ```
 ///
 /// # Specifications
 ///
@@ -515,17 +490,7 @@ pub struct AuthCertSignatures {
 
 /// RSA signature for data in [`AuthCert`] and related structures
 ///
-/// # Syntax
-///
-/// ```text
-/// -----BEGIN SIGNATURE-----
-/// <Base64 encoded RSA signature of something depending on the item>
-/// -----END SIGNATURE-----
-/// ```
-///
-/// # Specifications
-///
-/// * <https://spec.torproject.org/dir-spec/netdoc.html#signing>
+/// <https://spec.torproject.org/dir-spec/netdoc.html#signing>
 ///
 /// # Caveats
 ///
