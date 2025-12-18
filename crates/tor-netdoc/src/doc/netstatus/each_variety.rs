@@ -76,7 +76,7 @@ pub struct Preamble {
     // TODO DIRAUTH in votes, is in the authority section
     pub shared_rand_current_value: Option<SharedRandStatus>,
     // TODO DIRAUTH missing fields which will be needed for voting:
-    // known-flags
+    // known-flags (in consensuses too)
     // flag-thresholds
     // bandwidth-file-headers
     // bandwidth-file-digest
