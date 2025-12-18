@@ -3,7 +3,7 @@
 //! (These are only for testing right now, since we don't yet
 //! support signing or encoding.)
 
-use super::{AuthCert, AuthCertVersion};
+use super::{AuthCert, AuthCertVersion, CrossCert, CrossCertObject};
 
 use crate::{BuildError as Error, BuildResult};
 use std::net::SocketAddrV4;
@@ -113,6 +113,11 @@ impl AuthCertBuilder {
 
         let id_fingerprint = dir_identity_key.to_rsa_identity();
 
+        // This is a nonsense value, but the tests don't look at it.
+        let dir_key_crosscert = CrossCert {
+            signature: CrossCertObject(vec![]),
+        };
+
         Ok(AuthCert {
             dir_address: self.address,
             dir_identity_key,
@@ -121,6 +126,7 @@ impl AuthCertBuilder {
             dir_key_expires,
             fingerprint: crate::types::Fingerprint(id_fingerprint),
             dir_key_certificate_version: AuthCertVersion::V3,
+            dir_key_crosscert,
         })
     }
 }

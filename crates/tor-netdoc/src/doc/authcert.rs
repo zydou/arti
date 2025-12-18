@@ -108,6 +108,9 @@ pub struct AuthCert {
     ///
     /// The medium-term RSA signing key for this authority
     pub dir_signing_key: rsa::PublicKey,
+
+    /// SHA1(DER(KP_auth_id_rsa)) signed by KP_auth_sign_rsa
+    pub dir_key_crosscert: CrossCert,
 }
 
 /// Represents the version of an [`AuthCert`].
@@ -308,6 +311,7 @@ impl AuthCert {
             .parse_args_as_str::<net::SocketAddrV4>()?;
 
         // check crosscert
+        let dir_key_crosscert;
         let v_crosscert = {
             let crosscert = body.required(DIR_KEY_CROSSCERT)?;
             // Unwrap should be safe because `.parse()` and `required()` would
@@ -323,7 +327,13 @@ impl AuthCert {
             let signed = dir_identity_key.to_rsa_identity();
             // TODO: we need to accept prefixes here. COMPAT BLOCKER.
 
-            rsa::ValidatableRsaSignature::new(&dir_signing_key, &sig, signed.as_bytes())
+            let v = rsa::ValidatableRsaSignature::new(&dir_signing_key, &sig, signed.as_bytes());
+
+            dir_key_crosscert = CrossCert {
+                signature: CrossCertObject(sig),
+            };
+
+            v
         };
 
         // check the signature
@@ -364,6 +374,7 @@ impl AuthCert {
             dir_signing_key,
             dir_key_published,
             dir_key_expires,
+            dir_key_crosscert,
             fingerprint: Fingerprint(id_fingerprint),
         };
 
