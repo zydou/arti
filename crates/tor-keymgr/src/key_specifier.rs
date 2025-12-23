@@ -908,27 +908,34 @@ KeyPathInfo {
         );
     }
 
-    #[test]
-    fn define_key_specifier_ctor_path() {
-        #[derive(Deftly, Debug, Eq, PartialEq)]
-        #[derive_deftly(KeySpecifier)]
-        #[deftly(prefix = "p")]
-        #[deftly(role = "r")]
-        #[deftly(ctor_path = "Self::ctp")]
-        #[deftly(summary = "test key")]
-        struct TestSpecifier {
-            i: usize,
-        }
+    #[derive(Deftly, Debug, Eq, PartialEq)]
+    #[derive_deftly(KeySpecifier)]
+    #[deftly(prefix = "p")]
+    #[deftly(role = "r")]
+    #[deftly(ctor_path(with = "test_specifier_ctor_path"))]
+    #[deftly(summary = "test key")]
+    struct TestSpecifier {
+        i: usize,
+    }
 
-        impl TestSpecifier {
-            fn ctp(&self) -> CTorPath {
-                CTorPath::Service {
-                    nickname: HsNickname::from_str("allium-cepa").unwrap(),
-                    path: CTorServicePath::PublicKey,
-                }
+    mod test_specifier_ctor_path {
+        use super::*;
+        use crate::CTorServicePath;
+
+        pub(super) fn ctor_path(_: &TestSpecifier) -> CTorPath {
+            CTorPath::Service {
+                nickname: HsNickname::from_str("allium-cepa").unwrap(),
+                path: CTorServicePath::PublicKey,
             }
         }
 
+        pub(super) fn from_ctor_path(_: &CTorPath) -> Option<TestSpecifier> {
+            None
+        }
+    }
+
+    #[test]
+    fn define_key_specifier_ctor_path() {
         let spec = TestSpecifier { i: 42 };
 
         check_key_specifier(&spec, "p/42/r");
