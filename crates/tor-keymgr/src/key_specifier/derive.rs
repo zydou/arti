@@ -367,10 +367,16 @@ define_derive_deftly! {
     ///    Designates a field that should be represented
     ///    in the key file leafname, after the role.
     ///
-    ///  * **`#[deftly(ctor_path = "expression")]`** (toplevel):
+    ///  * **`#[deftly(ctor_path (with = "module"))]`** (toplevel):
     ///    Specifies that this kind of key has a representation in C Tor keystores,
-    ///    and provides an expression for computing the path.
-    ///    The expression should have type `impl Fn(&Self) -> CTorPath`.
+    ///    and provides a module for computing the path,
+    ///    and for converting a `CTorPath` into the key specifier type:
+    ///
+    ///      - `<module>::ctor_path()` should have type `impl Fn(&Self) -> CTorPath`
+    ///      - `<module>::from_ctor_path()` should have type
+    ///      `impl Fn(&CTorPath) -> Option<Self>`
+    ///      (XXX: conceivably, this should return Result<Self, KeyPathError>,
+    ///      but we don't currently have a suitable error type for this)
     ///
     ///    If not specified, the generated [`KeySpecifier::ctor_path`]
     ///    implementation will always return `None`.
@@ -495,8 +501,8 @@ define_derive_deftly! {
         }
 
         fn ctor_path(&self) -> Option<$crate::CTorPath> {
-            ${if tmeta(ctor_path) {
-                Some( ${tmeta(ctor_path) as token_stream} (self) )
+            ${if tmeta(ctor_path(with)) {
+                Some( ${tmeta(ctor_path(with)) as path} :: ctor_path (self) )
             } else {
                 None
             }}
@@ -617,10 +623,8 @@ define_derive_deftly! {
                     )?;
                 },
                 $crate::KeyPath::CTor(path) => {
-                    // XXX: it would be nicer if the to/from conversions
-                    // were specified as a module (like serde(with = "..."))
-                    ${if tmeta(from_ctor_path) {
-                        let res = ${tmeta(from_ctor_path) as token_stream} (path);
+                    ${if tmeta(ctor_path(with)) {
+                        let res = ${tmeta(ctor_path(with)) as path} :: from_ctor_path (path);
 
                         match res {
                             Some(spec) => return Ok(spec),

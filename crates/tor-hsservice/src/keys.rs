@@ -46,36 +46,38 @@ define_derive_deftly! {
 #[deftly(role = "KP_hs_id")]
 #[deftly(summary = "Public part of the identity key")]
 #[deftly(keypair_specifier = "HsIdKeypairSpecifier")]
-#[deftly(
-    ctor_path = "hsid_public_key_specifier_ctor_path",
-    from_ctor_path = "hsid_public_key_specifier_from_ctor_path"
-)]
+#[deftly(ctor_path(with = "hs_id_pub_ctor_path"))]
 /// The public part of the identity key of the service.
 pub struct HsIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
     nickname: HsNickname,
 }
 
-/// The `CTorPath` of HsIdPublicKeySpecifier
-fn hsid_public_key_specifier_ctor_path(spec: &HsIdPublicKeySpecifier) -> CTorPath {
-    CTorPath::Service {
-        nickname: spec.nickname.clone(),
-        path: CTorServicePath::PublicKey,
-    }
-}
+/// [`CTorPath`] conversion functions for [`HsIdPublicKeySpecifier`].
+mod hs_id_pub_ctor_path {
+    use super::*;
 
-/// Try to convert a `CTorPath` to an `HsIdPublicKeySpecifier`.
-///
-/// Returns `None` if the `CTorPath` is not the path of the public part of an identity keypair.
-fn hsid_public_key_specifier_from_ctor_path(path: &CTorPath) -> Option<HsIdPublicKeySpecifier> {
-    match path {
+    /// The `CTorPath` of HsIdPublicKeySpecifier
+    pub(super) fn ctor_path(spec: &HsIdPublicKeySpecifier) -> CTorPath {
         CTorPath::Service {
-            nickname,
+            nickname: spec.nickname.clone(),
             path: CTorServicePath::PublicKey,
-        } => Some(HsIdPublicKeySpecifier {
-            nickname: nickname.clone(),
-        }),
-        _ => None,
+        }
+    }
+
+    /// Try to convert a `CTorPath` to an `HsIdPublicKeySpecifier`.
+    ///
+    /// Returns `None` if the `CTorPath` is not the path of the public part of an identity keypair.
+    pub(super) fn from_ctor_path(path: &CTorPath) -> Option<HsIdPublicKeySpecifier> {
+        match path {
+            CTorPath::Service {
+                nickname,
+                path: CTorServicePath::PublicKey,
+            } => Some(HsIdPublicKeySpecifier {
+                nickname: nickname.clone(),
+            }),
+            _ => None,
+        }
     }
 }
 
@@ -84,10 +86,7 @@ fn hsid_public_key_specifier_from_ctor_path(path: &CTorPath) -> Option<HsIdPubli
 #[deftly(prefix = "hss")]
 #[deftly(role = "KS_hs_id")]
 #[deftly(summary = "Long-term identity keypair")]
-#[deftly(
-    ctor_path = "hsid_keypair_key_specifier_ctor_path",
-    from_ctor_path = "hsid_keypair_key_specifier_from_ctor_path"
-)]
+#[deftly(ctor_path(with = "hs_id_ctor_path"))]
 /// The long-term identity keypair of the service.
 pub struct HsIdKeypairSpecifier {
     /// The nickname of the  hidden service.
@@ -100,26 +99,31 @@ impl From<&HsIdPublicKeySpecifier> for HsIdKeypairSpecifier {
     }
 }
 
-/// The `CTorPath` of HsIdKeypairKeySpecifier
-fn hsid_keypair_key_specifier_ctor_path(spec: &HsIdKeypairSpecifier) -> CTorPath {
-    CTorPath::Service {
-        nickname: spec.nickname.clone(),
-        path: CTorServicePath::PrivateKey,
-    }
-}
+/// [`CTorPath`] conversion functions for [`HsIdKeypairSpecifier`].
+mod hs_id_ctor_path {
+    use super::*;
 
-/// Try to convert a `CTorPath` to an `HsIdKeypairKeySpecifier`.
-///
-/// Returns `None` if the `CTorPath` is not the path of an HsId keypair.
-fn hsid_keypair_key_specifier_from_ctor_path(path: &CTorPath) -> Option<HsIdKeypairSpecifier> {
-    match path {
+    /// The `CTorPath` of HsIdKeypairKeySpecifier
+    pub(super) fn ctor_path(spec: &HsIdKeypairSpecifier) -> CTorPath {
         CTorPath::Service {
-            nickname,
+            nickname: spec.nickname.clone(),
             path: CTorServicePath::PrivateKey,
-        } => Some(HsIdKeypairSpecifier {
-            nickname: nickname.clone(),
-        }),
-        _ => None,
+        }
+    }
+
+    /// Try to convert a `CTorPath` to an `HsIdPublicKeySpecifier`.
+    ///
+    /// Returns `None` if the `CTorPath` is not the path of an HsId keypair.
+    pub(super) fn from_ctor_path(path: &CTorPath) -> Option<HsIdKeypairSpecifier> {
+        match path {
+            CTorPath::Service {
+                nickname,
+                path: CTorServicePath::PrivateKey,
+            } => Some(HsIdKeypairSpecifier {
+                nickname: nickname.clone(),
+            }),
+            _ => None,
+        }
     }
 }
 
