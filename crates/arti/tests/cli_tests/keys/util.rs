@@ -42,17 +42,17 @@ const UNRECOGNIZED_PATH: &str =
     " Unrecognized path herba-spontanea/ks_hs_id.ed25519_expanded_private";
 
 /// The secret key of an `CTorServiceKeystore`
-const CTOR_SECRET: &str = " CTor service key
- Hidden service nickname: allium-cepa
- Keystore ID: ctor
+const CTOR_SECRET: &str = "Keystore ID: ctor
+ Role: ks_hs_id
+ Summary: Long-term identity keypair
  KeystoreItemType: Ed25519ExpandedKeypair
  Location: hs_ed25519_secret_key
 ";
 
 /// The public key of a `CTorServiceKeystore`
-const CTOR_PUBLIC: &str = " CTor service key
- Hidden service nickname: allium-cepa
- Keystore ID: ctor
+const CTOR_PUBLIC: &str = "Keystore ID: ctor
+ Role: kp_hs_id
+ Summary: Public part of the identity key
  KeystoreItemType: Ed25519PublicKey
  Location: hs_ed25519_public_key
 ";
