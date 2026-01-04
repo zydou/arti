@@ -643,6 +643,7 @@ define_derive_deftly! {
                         return Err(internal!("Not a C Tor path").into());
                     }}
                 },
+                #[allow(unreachable_patterns)] // This is reachable if used outside of tor-keymgr
                 &_ => {
                     return Err(internal!("unrecognized key path?!").into());
                 }
