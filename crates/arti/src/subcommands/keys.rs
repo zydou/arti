@@ -137,7 +137,24 @@ pub(crate) fn run<R: Runtime>(
 
 /// Print information about a keystore entry.
 fn display_entry(entry: &KeystoreEntry, keymgr: &KeyMgr) {
-    display_arti_entry(entry, keymgr);
+    let raw_entry = entry.raw_entry();
+    match keymgr.describe(entry.key_path()) {
+        Ok(e) => {
+            println!(" Keystore ID: {}", entry.keystore_id());
+            println!(" Role: {}", e.role());
+            println!(" Summary: {}", e.summary());
+            println!(" KeystoreItemType: {:?}", entry.key_type());
+            println!(" Location: {}", raw_entry.raw_id());
+            let extra_info = e.extra_info();
+            println!(" Extra info:");
+            for (key, value) in extra_info {
+                println!(" - {key}: {value}");
+            }
+        }
+        Err(_) => {
+            println!(" Unrecognized path {}", raw_entry.raw_id());
+        }
+    }
     println!("\n {}", "-".repeat(LINE_LEN));
 }
 
@@ -367,28 +384,6 @@ fn display_keystore_entries(
             Err(entry) => {
                 display_unrecognized_entry(entry);
             }
-        }
-    }
-}
-
-/// Displays an Arti native keystore entry.
-fn display_arti_entry(entry: &KeystoreEntry, keymgr: &KeyMgr) {
-    let raw_entry = entry.raw_entry();
-    match keymgr.describe(entry.key_path()) {
-        Ok(e) => {
-            println!(" Keystore ID: {}", entry.keystore_id());
-            println!(" Role: {}", e.role());
-            println!(" Summary: {}", e.summary());
-            println!(" KeystoreItemType: {:?}", entry.key_type());
-            println!(" Location: {}", raw_entry.raw_id());
-            let extra_info = e.extra_info();
-            println!(" Extra info:");
-            for (key, value) in extra_info {
-                println!(" - {key}: {value}");
-            }
-        }
-        Err(_) => {
-            println!(" Unrecognized path {}", raw_entry.raw_id());
         }
     }
 }
