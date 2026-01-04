@@ -254,10 +254,6 @@ impl KeyMgr {
     /// and checks if its contents are valid (i.e. that the key can be parsed).
     /// The [`KeyPath`] of the entry is further validated using [`describe`](KeyMgr::describe).
     ///
-    /// NOTE: Currently, ctor entries cannot be validated using [`describe`](KeyMgr::describe), so they
-    /// are considered valid if the manager successfully retrieves the corresponding keys,
-    /// but are otherwise not validated by this procedure.
-    ///
     /// Returns `Ok(())` if the specified keystore entry is valid, and `Err` otherwise.
     ///
     /// NOTE: If the specified entry does not exist, this will only validate its [`KeyPath`].
@@ -268,14 +264,11 @@ impl KeyMgr {
         // Ignore the parsed key, only checking if it parses correctly
         let _ = store.get(entry.key_path(), entry.key_type())?;
 
-        // TODO: Implement `describe()` support for CTor keystore entries
-        if !matches!(entry.key_path(), KeyPath::CTor(_)) {
-            // Ignore the result, just checking if the path is recognized
-            let _ = self
-                .describe(entry.key_path())
-                // TODO: `Error::Corruption` might not be the best fit for this situation.
-                .map_err(|e| Error::Corruption(e.into()))?;
-        }
+        // Ignore the result, just checking if the path is recognized
+        let _ = self
+            .describe(entry.key_path())
+            // TODO: `Error::Corruption` might not be the best fit for this situation.
+            .map_err(|e| Error::Corruption(e.into()))?;
 
         Ok(())
     }
