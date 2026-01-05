@@ -85,6 +85,8 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[non_exhaustive]
+// TODO DIRAUTH make a way to construct this! and deprecate the old builder
+// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3555#note_3320387
 pub struct AuthCert {
     /// Intro line
     ///
