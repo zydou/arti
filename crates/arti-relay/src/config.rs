@@ -58,8 +58,6 @@ pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {
 ///     An arti-specific cache directory.
 ///   - `ARTI_RELAY_CONFIG`:
 ///     An arti-specific configuration directory.
-///   - `ARTI_RELAY_SHARED_DATA`:
-///     An arti-specific directory in the user's "shared data" space.
 ///   - `ARTI_RELAY_LOCAL_DATA`:
 ///     An arti-specific directory in the user's "local data" space.
 ///   - `PROGRAM_DIR`:
@@ -72,10 +70,15 @@ pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {
 /// and so should use appropriate system-specific overrides under the hood.
 /// (Some of those overrides are based on environment variables.)
 /// For more information, see that crate's documentation.
+//
+// NOTE: We intentionally don't expose an `ARTI_RELAY_SHARED_DATA`
+// (analogous to `ARTI_SHARED_DATA` in arti).
+// This is almost certainly never intended over `ARTI_RELAY_LOCAL_DATA`,
+// so by removing it we don't need to worry about bugs from mixing them up.
+// We can introduce it later if really needed.
 pub(crate) fn base_resolver() -> CfgPathResolver {
     let arti_relay_cache = project_dirs().map(|x| Cow::Owned(x.cache_dir().to_owned()));
     let arti_relay_config = project_dirs().map(|x| Cow::Owned(x.config_dir().to_owned()));
-    let arti_relay_shared_data = project_dirs().map(|x| Cow::Owned(x.data_dir().to_owned()));
     let arti_relay_local_data = project_dirs().map(|x| Cow::Owned(x.data_local_dir().to_owned()));
     let program_dir = get_program_dir().map(Cow::Owned);
     let user_home = tor_config_path::home().map(Cow::Borrowed);
@@ -84,7 +87,6 @@ pub(crate) fn base_resolver() -> CfgPathResolver {
 
     resolver.set_var("ARTI_RELAY_CACHE", arti_relay_cache);
     resolver.set_var("ARTI_RELAY_CONFIG", arti_relay_config);
-    resolver.set_var("ARTI_RELAY_SHARED_DATA", arti_relay_shared_data);
     resolver.set_var("ARTI_RELAY_LOCAL_DATA", arti_relay_local_data);
     resolver.set_var("PROGRAM_DIR", program_dir);
     resolver.set_var("USER_HOME", user_home);
@@ -440,7 +442,6 @@ mod test {
         let list = [
             ("ARTI_RELAY_CACHE", project_dirs.cache_dir()),
             ("ARTI_RELAY_CONFIG", project_dirs.config_dir()),
-            ("ARTI_RELAY_SHARED_DATA", project_dirs.data_dir()),
             ("ARTI_RELAY_LOCAL_DATA", project_dirs.data_local_dir()),
             ("PROGRAM_DIR", &get_program_dir().unwrap()),
             ("USER_HOME", tor_config_path::home().unwrap()),
