@@ -275,8 +275,7 @@ pub fn describe_via_components(
         let value = KeySpecifierComponentPrettyHelper(*value).to_string();
         info.extra_info(*key, value);
     }
-    info
-        .build()
+    info.build()
         .map_err(into_internal!("failed to build KeyPathInfo"))
 }
 
