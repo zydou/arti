@@ -246,12 +246,7 @@ pub fn parse_arti_path(
     }
 
     extract(path, '/', path_parsers, &mut keys)?;
-    extract(
-        Some(leaf),
-        DENOTATOR_SEP,
-        leaf_parsers,
-        &mut keys,
-    )?;
+    extract(Some(leaf), DENOTATOR_SEP, leaf_parsers, &mut keys)?;
     Ok(())
 }
 
