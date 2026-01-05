@@ -220,7 +220,7 @@ pub enum CTorPathError {
 ///
 /// Currently this error contains little information,
 /// but the context and value are provided in
-/// [`KeyPathError::InvalidKeyPathComponentValue`].
+/// [`ArtiPathError::InvalidKeyPathComponentValue`].
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 pub enum InvalidKeyPathComponentValue {
@@ -231,7 +231,7 @@ pub enum InvalidKeyPathComponentValue {
     /// (keystore corruption errors are reported using higher level
     /// [`KeystoreCorruptionError`s](crate::KeystoreCorruptionError)),
     /// or where the information came from (the context is encoded in the
-    /// enclosing [`KeyPathError::InvalidKeyPathComponentValue`] error).
+    /// enclosing [`ArtiPathError::InvalidKeyPathComponentValue`] error).
     #[error("{0}")]
     Slug(String),
 

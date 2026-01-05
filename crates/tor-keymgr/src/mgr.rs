@@ -280,8 +280,8 @@ impl KeyMgr {
     ///
     /// On success, this function returns the newly generated key.
     ///
-    /// Returns [`Error::KeyAlreadyExists`] if the key already exists in the specified
-    /// key store and `overwrite` is `false`.
+    /// Returns [`Error::KeyAlreadyExists`](crate::Error::KeyAlreadyExists)
+    /// if the key already exists in the specified key store and `overwrite` is `false`.
     ///
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
