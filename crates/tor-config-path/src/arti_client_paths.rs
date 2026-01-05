@@ -24,7 +24,7 @@ use crate::{CfgPathError, CfgPathResolver};
 ///   - `ARTI_CACHE`: an arti-specific cache directory.
 ///   - `ARTI_CONFIG`: an arti-specific configuration directory.
 ///   - `ARTI_SHARED_DATA`: an arti-specific directory in the user's "shared
-///     data" space.
+///     data" space. **Note:** Prefer `ARTI_LOCAL_DATA` (see comment below).
 ///   - `ARTI_LOCAL_DATA`: an arti-specific directory in the user's "local
 ///     data" space.
 ///   - `PROGRAM_DIR`: the directory of the currently executing binary.
@@ -35,6 +35,11 @@ use crate::{CfgPathError, CfgPathResolver};
 /// so should use appropriate system-specific overrides under the
 /// hood. (Some of those overrides are based on environment variables.)
 /// For more information, see that crate's documentation.
+///
+/// If in doubt, use `ARTI_LOCAL_DATA` rather than `ARTI_SHARED_DATA`.
+/// These are equivalent on Linux/MacOS, but are different on Windows.
+/// We should use `ARTI_LOCAL_DATA` for consistency with existing Arti config options,
+/// unless there's a specific need for roaming data on Windows.
 pub fn arti_client_base_resolver() -> CfgPathResolver {
     let arti_cache = project_dirs().map(|x| Cow::Owned(x.cache_dir().to_owned()));
     let arti_config = project_dirs().map(|x| Cow::Owned(x.config_dir().to_owned()));
