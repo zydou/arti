@@ -11,7 +11,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::raw::RawKeystoreEntry;
-use crate::{KeyPathError, KeystoreId};
+use crate::{KeyPath, KeyPathError, KeystoreId};
 
 /// An Error type for this crate.
 #[derive(thiserror::Error, Debug, Clone)]
@@ -106,6 +106,10 @@ pub enum KeystoreCorruptionError {
     /// A keystore contains a key that has an invalid [`KeyPath`](crate::KeyPath).
     #[error("{0}")]
     KeyPath(#[from] KeyPathError),
+
+    /// A keystore contains an unrecognized [`KeyPath`](crate::KeyPath).
+    #[error("Unrecognized key path {0}")]
+    Unrecognized(KeyPath),
 
     /// Missing certificate for key.
     #[error("Missing certificate for key")]

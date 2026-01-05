@@ -139,7 +139,7 @@ pub(crate) fn run<R: Runtime>(
 fn display_entry(entry: &KeystoreEntry, keymgr: &KeyMgr) {
     let raw_entry = entry.raw_entry();
     match keymgr.describe(entry.key_path()) {
-        Ok(e) => {
+        Some(e) => {
             println!(" Keystore ID: {}", entry.keystore_id());
             println!(" Role: {}", e.role());
             println!(" Summary: {}", e.summary());
@@ -151,7 +151,7 @@ fn display_entry(entry: &KeystoreEntry, keymgr: &KeyMgr) {
                 println!(" - {key}: {value}");
             }
         }
-        Err(_) => {
+        None => {
             println!(" Unrecognized path {}", raw_entry.raw_id());
         }
     }

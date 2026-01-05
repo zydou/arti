@@ -139,7 +139,7 @@ pub trait KeySpecifierPattern {
 /// See also `crate::keystore::arti::MalformedPathError`,
 /// which occurs at a lower level.
 ///
-// Note: Currently, all KeyPathErrors (except Unrecognized and Bug) are only returned from
+// Note: Currently, all KeyPathErrors (except Bug) are only returned from
 // functions that parse ArtiPaths and/or ArtiPath denotators, so their context contains an
 // `ArtiPath` rather than a `KeyPath` (i.e. PatternNotMatched, InvalidArtiPath,
 // InvalidKeyPathComponent value can only happen if we're dealing with an ArtiPath).
@@ -154,13 +154,6 @@ pub enum KeyPathError {
     /// The path did not match the expected pattern.
     #[error("Path does not match expected pattern")]
     PatternNotMatched(ArtiPath),
-
-    /// The path is not recognized.
-    ///
-    /// Returned by [`KeyMgr::describe`](crate::KeyMgr::describe) when none of its
-    /// [`KeyPathInfoExtractor`]s is able to parse the specified [`KeyPath`].
-    #[error("Unrecognized path: {0}")]
-    Unrecognized(KeyPath),
 
     /// Found an invalid [`ArtiPath`], which is syntactically invalid on its face
     #[error("ArtiPath {path} is invalid")]

@@ -4,7 +4,7 @@
 
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    ArtiPath, BoxedKeystore, Error, KeyCertificateSpecifier, KeyPath, KeyPathError, KeyPathInfo,
+    ArtiPath, BoxedKeystore, KeyCertificateSpecifier, KeyPath, KeyPathInfo,
     KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeystoreCorruptionError,
     KeystoreEntryResult, KeystoreId, KeystoreSelector, Result,
 };
@@ -264,11 +264,11 @@ impl KeyMgr {
         // Ignore the parsed key, only checking if it parses correctly
         let _ = store.get(entry.key_path(), entry.key_type())?;
 
+        let path = entry.key_path();
         // Ignore the result, just checking if the path is recognized
         let _ = self
-            .describe(entry.key_path())
-            // TODO: `Error::Corruption` might not be the best fit for this situation.
-            .map_err(|e| Error::Corruption(e.into()))?;
+            .describe(path)
+            .ok_or_else(|| KeystoreCorruptionError::Unrecognized(path.clone().into()))?;
 
         Ok(())
     }
@@ -452,20 +452,20 @@ impl KeyMgr {
 
     /// Describe the specified key.
     ///
-    /// Returns [`KeyPathError::Unrecognized`] if none of the registered
+    /// Returns `None` if none of the registered
     /// [`KeyPathInfoExtractor`]s is able to parse the specified [`KeyPath`].
     ///
     /// This function uses the [`KeyPathInfoExtractor`]s registered using
     /// [`register_key_info_extractor`](crate::register_key_info_extractor),
     /// or by [`DefaultKeySpecifier`](crate::derive_deftly_template_KeySpecifier).
-    pub fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError> {
+    pub fn describe(&self, path: &KeyPath) -> Option<KeyPathInfo> {
         for info_extractor in &self.key_info_extractors {
             if let Ok(info) = info_extractor.describe(path) {
-                return Ok(info);
+                return Some(info);
             }
         }
 
-        Err(KeyPathError::Unrecognized(path.clone()))
+        None
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.
