@@ -21,15 +21,15 @@ use crate::{CfgPathError, CfgPathResolver};
 /// resolver-agnostic way (shouldn't rely on resolving `ARTI_CONFIG` for example).
 ///
 /// The supported variables are:
-///   * `ARTI_CACHE`: an arti-specific cache directory.
-///   * `ARTI_CONFIG`: an arti-specific configuration directory.
-///   * `ARTI_SHARED_DATA`: an arti-specific directory in the user's "shared
+///   - `ARTI_CACHE`: an arti-specific cache directory.
+///   - `ARTI_CONFIG`: an arti-specific configuration directory.
+///   - `ARTI_SHARED_DATA`: an arti-specific directory in the user's "shared
 ///     data" space.
-///   * `ARTI_LOCAL_DATA`: an arti-specific directory in the user's "local
+///   - `ARTI_LOCAL_DATA`: an arti-specific directory in the user's "local
 ///     data" space.
-///   * `PROGRAM_DIR`: the directory of the currently executing binary.
+///   - `PROGRAM_DIR`: the directory of the currently executing binary.
 ///     See documentation for [`std::env::current_exe`] for security notes.
-///   * `USER_HOME`: the user's home directory.
+///   - `USER_HOME`: the user's home directory.
 ///
 /// These variables are implemented using the [`directories`] crate, and
 /// so should use appropriate system-specific overrides under the
