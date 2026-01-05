@@ -218,26 +218,22 @@ pub fn parse_arti_path(
         ) {
             let EitherOrBoth::Both(comp, parser) = ent else {
                 // wrong number of components
-                return Err(ArtiPathError::PatternNotMatched(arti_path.clone()));
+                return Err(ArtiPathError::PatternNotMatched);
             };
 
             // TODO would be nice to avoid allocating again here,
             // but I think that needs an `SlugRef`.
             let comp = Slug::new(comp.to_owned())
                 .map_err(ArtiPathSyntaxError::Slug)
-                .map_err(|error| ArtiPathError::InvalidArtiPath {
-                    error,
-                    path: arti_path.clone(),
-                })?;
+                .map_err(|error| ArtiPathError::InvalidArtiPath(error))?;
 
             let missing_keys = || internal!("keys list too short, bad args to parse_arti_path");
 
             match parser.parse(&comp) {
-                RCPR::PatternNotMatched => Err(ArtiPathError::PatternNotMatched(arti_path.clone())),
+                RCPR::PatternNotMatched => Err(ArtiPathError::PatternNotMatched),
                 RCPR::Invalid(error) => Err(ArtiPathError::InvalidKeyPathComponentValue {
                     error,
                     key: keys.first().ok_or_else(missing_keys)?.to_string(),
-                    path: arti_path.clone(),
                     value: comp,
                 }),
                 RCPR::ParsedField => {

@@ -158,15 +158,13 @@ impl RendRequestContext {
 
         let tp = (|| {
             let slug =
-                Slug::new(denotator.to_string()).map_err(|e| ArtiPathError::InvalidArtiPath {
-                    path: path.clone(),
-                    error: e.into(),
-                })?;
+                Slug::new(denotator.to_string()).map_err(|e| ArtiPathError::InvalidArtiPath(
+                    e.into()
+                ))?;
 
             TimePeriod::from_slug(&slug).map_err(|error| {
                 ArtiPathError::InvalidKeyPathComponentValue {
                     key: "time_period".to_owned(),
-                    path: path.clone(),
                     value: slug.clone(),
                     error,
                 }

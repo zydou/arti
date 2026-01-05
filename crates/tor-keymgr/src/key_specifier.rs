@@ -156,25 +156,16 @@ pub enum KeyPathError {
 }
 
 /// An error while attempting to extract information from an [`ArtiPath`].
-///
-/// XXX: remove the ArtiPath from error context
-/// (it's already included in KeyPathError::Arti)
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum ArtiPathError {
     /// The path did not match the expected pattern.
     #[error("Path does not match expected pattern")]
-    PatternNotMatched(ArtiPath),
+    PatternNotMatched,
 
     /// Found an invalid [`ArtiPath`], which is syntactically invalid on its face
-    #[error("ArtiPath {path} is invalid")]
-    InvalidArtiPath {
-        /// What was wrong with the value
-        #[source]
-        error: ArtiPathSyntaxError,
-        /// The offending `ArtiPath`.
-        path: ArtiPath,
-    },
+    #[error("ArtiPath is invalid")]
+    InvalidArtiPath(ArtiPathSyntaxError),
 
     /// An invalid key path component value string was encountered
     ///
@@ -192,8 +183,6 @@ pub enum ArtiPathError {
         ///
         /// Should be valid Rust identifier syntax.
         key: String,
-        /// The `ArtiPath` of the key.
-        path: ArtiPath,
         /// The substring of the `ArtiPath` that couldn't be parsed.
         value: Slug,
     },
