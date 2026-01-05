@@ -274,7 +274,7 @@ pub fn describe_via_components(
     role: &dyn RawKeySpecifierComponent,
     extra_keys: &&[&str],
     extra_info: &[&dyn KeySpecifierComponent],
-) -> Result<KeyPathInfo, KeyPathError> {
+) -> Result<KeyPathInfo, Bug> {
     let mut info = KeyPathInfoBuilder::default();
     info.summary(summary.to_string());
     info.role({
