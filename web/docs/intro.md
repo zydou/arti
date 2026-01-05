@@ -15,7 +15,8 @@ If you are interested in the old Arti website, please have a look
 :::
 
 :::info
-Arti is not yet ready for production use, but it is ready for testing and experimentation.
+Arti's proxy and onion service support are ready for use,
+but not all features of C Tor are available in Arti.
 :::
 
 ### Getting started
