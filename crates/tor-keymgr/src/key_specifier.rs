@@ -138,19 +138,30 @@ pub trait KeySpecifierPattern {
 ///
 /// See also `crate::keystore::arti::MalformedPathError`,
 /// which occurs at a lower level.
-///
-// Note: Currently, all KeyPathErrors (except Bug) are only returned from
-// functions that parse ArtiPaths and/or ArtiPath denotators, so their context contains an
-// `ArtiPath` rather than a `KeyPath` (i.e. PatternNotMatched, InvalidArtiPath,
-// InvalidKeyPathComponent value can only happen if we're dealing with an ArtiPath).
-//
-// For now this is alright, but we might want to rethink this error enum (for example, a better
-// idea might be to create an ArtiPathError { path: ArtiPath, kind: ArtiPathErrorKind } error type
-// and move PatternNotMatched, InvalidArtiPath, InvalidKeyPathComponentValue to the new
-// ArtiPathErrorKind enum.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyPathError {
+    /// An error while trying to extract information from an [`ArtiPath`].
+    #[error("{err}")]
+    Arti {
+        /// The path that caused the error.
+        path: ArtiPath,
+        /// The underlying error
+        err: ArtiPathError,
+    },
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+/// An error while attempting to extract information from an [`ArtiPath`].
+///
+/// XXX: remove the ArtiPath from error context
+/// (it's already included in KeyPathError::Arti)
+#[derive(Debug, Clone, thiserror::Error)]
+#[non_exhaustive]
+pub enum ArtiPathError {
     /// The path did not match the expected pattern.
     #[error("Path does not match expected pattern")]
     PatternNotMatched(ArtiPath),

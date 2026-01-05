@@ -142,7 +142,7 @@ impl RendRequestContext {
         path: &ArtiPath,
         captures: &[ArtiPathRange],
     ) -> Result<TimePeriod, tor_keymgr::Error> {
-        use tor_keymgr::{KeyPathError, KeystoreCorruptionError as KCE};
+        use tor_keymgr::{ArtiPathError, KeyPathError, KeystoreCorruptionError as KCE};
 
         let [denotator] = captures else {
             return Err(internal!(
@@ -156,19 +156,24 @@ impl RendRequestContext {
             return Err(internal!("captured substring out of range?!").into());
         };
 
+        let tp = (|| {
         let slug = Slug::new(denotator.to_string()).map_err(|e| {
-            KCE::KeyPath(KeyPathError::InvalidArtiPath {
+            ArtiPathError::InvalidArtiPath {
                 path: path.clone(),
                 error: e.into(),
-            })
+            }
         })?;
-        let tp = TimePeriod::from_slug(&slug).map_err(|error| {
-            KCE::KeyPath(KeyPathError::InvalidKeyPathComponentValue {
+
+        TimePeriod::from_slug(&slug).map_err(|error| {
+            ArtiPathError::InvalidKeyPathComponentValue {
                 key: "time_period".to_owned(),
                 path: path.clone(),
-                value: slug,
+                value: slug.clone(),
                 error,
-            })
+            }
+        })
+        })().map_err(|err| {
+            KCE::KeyPath(KeyPathError::Arti { path: path.clone(), err })
         })?;
 
         Ok(tp)

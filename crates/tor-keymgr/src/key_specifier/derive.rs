@@ -123,7 +123,7 @@ pub enum RawComponentParseResult {
     ParsedField,
     /// This was a literal, and it matched
     MatchedLiteral,
-    /// Becomes [`KeyPathError::PatternNotMatched`]
+    /// Becomes [`ArtiPathError::PatternNotMatched`]
     PatternNotMatched,
     /// `InvalidKeyPathComponentValue`
     Invalid(InvalidKeyPathComponentValue),
@@ -194,7 +194,7 @@ pub fn parse_arti_path(
     keys: &&[&str],
     path_parsers: &mut Parsers,
     leaf_parsers: &mut Parsers,
-) -> Result<(), KeyPathError> {
+) -> Result<(), ArtiPathError> {
     let path = arti_path.as_str();
 
     let (path, leaf) = match path.rsplit_once('/') {
@@ -211,21 +211,21 @@ pub fn parse_arti_path(
         delim: char,
         parsers: &mut Parsers,
         keys: &mut &[&str],
-    ) -> Result<(), KeyPathError> {
+    ) -> Result<(), ArtiPathError> {
         for ent in Itertools::zip_longest(
             input.map(|input| input.split(delim)).into_iter().flatten(),
             parsers,
         ) {
             let EitherOrBoth::Both(comp, parser) = ent else {
                 // wrong number of components
-                return Err(KeyPathError::PatternNotMatched(arti_path.clone()));
+                return Err(ArtiPathError::PatternNotMatched(arti_path.clone()));
             };
 
             // TODO would be nice to avoid allocating again here,
             // but I think that needs an `SlugRef`.
             let comp = Slug::new(comp.to_owned())
                 .map_err(ArtiPathSyntaxError::Slug)
-                .map_err(|error| KeyPathError::InvalidArtiPath {
+                .map_err(|error| ArtiPathError::InvalidArtiPath {
                     error,
                     path: arti_path.clone(),
                 })?;
@@ -233,8 +233,8 @@ pub fn parse_arti_path(
             let missing_keys = || internal!("keys list too short, bad args to parse_arti_path");
 
             match parser.parse(&comp) {
-                RCPR::PatternNotMatched => Err(KeyPathError::PatternNotMatched(arti_path.clone())),
-                RCPR::Invalid(error) => Err(KeyPathError::InvalidKeyPathComponentValue {
+                RCPR::PatternNotMatched => Err(ArtiPathError::PatternNotMatched(arti_path.clone())),
+                RCPR::Invalid(error) => Err(ArtiPathError::InvalidKeyPathComponentValue {
                     error,
                     key: keys.first().ok_or_else(missing_keys)?.to_string(),
                     path: arti_path.clone(),
@@ -585,7 +585,7 @@ define_derive_deftly! {
                     $ARTI_PATH_COMPONENTS
                     $ARTI_LEAF_COMPONENTS
                 ],
-            )
+            ).map_err($crate::KeyPathError::Bug)
         }
     }
 
@@ -620,7 +620,7 @@ define_derive_deftly! {
                         &FIELD_KEYS,
                         &mut [ $ARTI_PATH_COMPONENTS ],
                         &mut [ $ARTI_LEAF_COMPONENTS ],
-                    )?;
+                    ).map_err(|err| $crate::KeyPathError::Arti { path: path.clone(), err })?;
                 },
                 $crate::KeyPath::CTor(path) => {
                     ${if tmeta(ctor_path(with)) {
