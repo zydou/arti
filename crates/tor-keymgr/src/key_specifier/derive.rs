@@ -206,7 +206,6 @@ pub fn parse_arti_path(
 
     /// Split a string into components and parse each one
     fn extract(
-        arti_path: &ArtiPath,
         input: Option<&str>,
         delim: char,
         parsers: &mut Parsers,
@@ -246,9 +245,8 @@ pub fn parse_arti_path(
         Ok(())
     }
 
-    extract(arti_path, path, '/', path_parsers, &mut keys)?;
+    extract(path, '/', path_parsers, &mut keys)?;
     extract(
-        arti_path,
         Some(leaf),
         DENOTATOR_SEP,
         leaf_parsers,
