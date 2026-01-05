@@ -108,7 +108,7 @@ pub struct AuthCert {
 
     /// Declared time when this certificate was published
     ///
-    /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:fingerprint>
+    /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-published>
     #[deftly(netdoc(single_arg))]
     pub dir_key_published: Iso8601TimeSp,
 
