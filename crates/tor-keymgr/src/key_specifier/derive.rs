@@ -618,18 +618,19 @@ define_derive_deftly! {
                         match res {
                             Some(spec) => return Ok(spec),
                             None => {
-                                // XXX: internal! isn't right, use a proper error type
-                                return Err(
-                                    internal!(
-                                        "C Tor key cannot be converted to type {}",
-                                        stringify!($tname)
-                                    ).into()
-                                );
+                                let spec = stringify!($tname.into()).to_string();
+                                return Err($crate::KeyPathError::CTor {
+                                    path: path.clone(),
+                                    err: $crate::CTorPathError::KeySpecifierMismatch(spec),
+                                });
                             }
                         }
                     } else {
-                        // XXX: internal! isn't right, use a proper error type
-                        return Err(internal!("Not a C Tor path").into());
+                        let spec = stringify!($tname.into()).to_string();
+                        return Err($crate::KeyPathError::CTor {
+                            path: path.clone(),
+                            err: $crate::CTorPathError::MissingCTorPath(spec),
+                        });
                     }}
                 },
                 #[allow(unreachable_patterns)] // This is reachable if used outside of tor-keymgr

@@ -150,6 +150,15 @@ pub enum KeyPathError {
         err: ArtiPathError,
     },
 
+    /// An error while trying to extract information from an [`CTorPath`].
+    #[error("{err}")]
+    CTor {
+        /// The path that caused the error.
+        path: CTorPath,
+        /// The underlying error
+        err: CTorPathError,
+    },
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -190,6 +199,21 @@ pub enum ArtiPathError {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+/// An error while attempting to convert a [`CTorPath`]
+/// to its corresponding key specifier type.
+#[derive(Debug, Clone, thiserror::Error)]
+#[non_exhaustive]
+pub enum CTorPathError {
+    /// Attempted to convert a C Tor path to a mismatched specifier kind.
+    #[error("C Tor path cannot be converted to {0}")]
+    KeySpecifierMismatch(String),
+
+    /// Attempted to convert a C Tor path to a key specifier
+    /// that does not have a C Tor path.
+    #[error("Key specifier {0} does not have a C Tor path")]
+    MissingCTorPath(String),
 }
 
 /// Error to be returned by `KeySpecifierComponent::from_slug` implementations
