@@ -69,6 +69,14 @@ Make sure you're building just the Arti binary, and not the whole workspace; to 
 $ cargo build -p arti --no-default-features --features async-std,native-tls
 ```
 
+:::warning
+While the above command will indeed use the correct runtime, it disables arti's default features.
+These default features contain important functionality and security features.
+For example at the time of writing: the `harden` feature, `vanguards` feature, etc.
+You should also look through the default features of `crates/arti/Cargo.toml` and enable any that seem important/relevant.
+Unfortunately limitations of the Cargo build system prevent us from providing a better experience.
+:::
+
 You can verify which runtime is being used by passing `--version` to Arti, e.g.
 ```
 $ target/release/arti --version
