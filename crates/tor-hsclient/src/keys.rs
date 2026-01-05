@@ -162,6 +162,8 @@ pub struct HsClientDescEncKeypairSpecifier {
 mod desc_enc_ctor_path {
     use super::*;
 
+    use tor_keymgr::CTorPathError;
+
     /// The `CTorPath` of HsClientDescEncKeypairSpecifier
     pub(super) fn ctor_path(spec: &HsClientDescEncKeypairSpecifier) -> CTorPath {
         CTorPath::ClientHsDescEncKey(spec.hs_id)
@@ -169,13 +171,17 @@ mod desc_enc_ctor_path {
 
     /// Try to convert a `CTorPath` to an `HsClientDescEncKeypairSpecifier`.
     ///
-    /// Returns `None` if the `CTorPath` is not the path of a `HsClientDescEncKeypair`.
-    pub(super) fn from_ctor_path(path: &CTorPath) -> Option<HsClientDescEncKeypairSpecifier> {
+    /// Returns an error if the `CTorPath` is not the path of a `HsClientDescEncKeypair`.
+    pub(super) fn from_ctor_path(
+        path: &CTorPath,
+    ) -> Result<HsClientDescEncKeypairSpecifier, CTorPathError> {
         match path {
             CTorPath::ClientHsDescEncKey(hs_id) => {
-                Some(HsClientDescEncKeypairSpecifier { hs_id: *hs_id })
+                Ok(HsClientDescEncKeypairSpecifier { hs_id: *hs_id })
             }
-            _ => None,
+            _ => Err(CTorPathError::KeySpecifierMismatch(
+                "HsClientDescEncKeypairSpecifier".into(),
+            )),
         }
     }
 }

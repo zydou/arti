@@ -946,8 +946,8 @@ KeyPathInfo {
             }
         }
 
-        pub(super) fn from_ctor_path(_: &CTorPath) -> Option<TestSpecifier> {
-            None
+        pub(super) fn from_ctor_path(_: &CTorPath) -> StdResult<TestSpecifier, CTorPathError> {
+            Err(CTorPathError::MissingCTorPath("TestSpecifier".into()))
         }
     }
 

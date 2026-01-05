@@ -363,9 +363,7 @@ define_derive_deftly! {
     ///
     ///      - `<module>::ctor_path()` should have type `impl Fn(&Self) -> CTorPath`
     ///      - `<module>::from_ctor_path()` should have type
-    ///      `impl Fn(&CTorPath) -> Option<Self>`
-    ///      (XXX: conceivably, this should return Result<Self, KeyPathError>,
-    ///      but we don't currently have a suitable error type for this)
+    ///      `impl Fn(&CTorPath) -> Result<Self, CTorPathError>`
     ///
     ///    If not specified, the generated [`KeySpecifier::ctor_path`]
     ///    implementation will always return `None`.
@@ -613,18 +611,13 @@ define_derive_deftly! {
                 },
                 $crate::KeyPath::CTor(path) => {
                     ${if tmeta(ctor_path(with)) {
-                        let res = ${tmeta(ctor_path(with)) as path} :: from_ctor_path (path);
-
-                        match res {
-                            Some(spec) => return Ok(spec),
-                            None => {
-                                let spec = stringify!($tname.into()).to_string();
-                                return Err($crate::KeyPathError::CTor {
+                        return ${tmeta(ctor_path(with)) as path} :: from_ctor_path (path)
+                            .map_err(|err| {
+                                $crate::KeyPathError::CTor {
                                     path: path.clone(),
-                                    err: $crate::CTorPathError::KeySpecifierMismatch(spec),
-                                });
-                            }
-                        }
+                                    err,
+                                }
+                            });
                     } else {
                         let spec = stringify!($tname.into()).to_string();
                         return Err($crate::KeyPathError::CTor {

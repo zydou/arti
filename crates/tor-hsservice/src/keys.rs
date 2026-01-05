@@ -57,6 +57,8 @@ pub struct HsIdPublicKeySpecifier {
 mod hs_id_pub_ctor_path {
     use super::*;
 
+    use tor_keymgr::CTorPathError;
+
     /// The `CTorPath` of HsIdPublicKeySpecifier
     pub(super) fn ctor_path(spec: &HsIdPublicKeySpecifier) -> CTorPath {
         CTorPath::Service {
@@ -67,16 +69,18 @@ mod hs_id_pub_ctor_path {
 
     /// Try to convert a `CTorPath` to an `HsIdPublicKeySpecifier`.
     ///
-    /// Returns `None` if the `CTorPath` is not the path of the public part of an identity keypair.
-    pub(super) fn from_ctor_path(path: &CTorPath) -> Option<HsIdPublicKeySpecifier> {
+    /// Returns an error if the `CTorPath` is not the path of the public part of an identity keypair.
+    pub(super) fn from_ctor_path(path: &CTorPath) -> Result<HsIdPublicKeySpecifier, CTorPathError> {
         match path {
             CTorPath::Service {
                 nickname,
                 path: CTorServicePath::PublicKey,
-            } => Some(HsIdPublicKeySpecifier {
+            } => Ok(HsIdPublicKeySpecifier {
                 nickname: nickname.clone(),
             }),
-            _ => None,
+            _ => Err(CTorPathError::KeySpecifierMismatch(
+                "HsIdPublicKeySpecifier".into(),
+            )),
         }
     }
 }
@@ -103,6 +107,8 @@ impl From<&HsIdPublicKeySpecifier> for HsIdKeypairSpecifier {
 mod hs_id_ctor_path {
     use super::*;
 
+    use tor_keymgr::CTorPathError;
+
     /// The `CTorPath` of HsIdKeypairKeySpecifier
     pub(super) fn ctor_path(spec: &HsIdKeypairSpecifier) -> CTorPath {
         CTorPath::Service {
@@ -113,16 +119,18 @@ mod hs_id_ctor_path {
 
     /// Try to convert a `CTorPath` to an `HsIdPublicKeySpecifier`.
     ///
-    /// Returns `None` if the `CTorPath` is not the path of an HsId keypair.
-    pub(super) fn from_ctor_path(path: &CTorPath) -> Option<HsIdKeypairSpecifier> {
+    /// Returns an error if the `CTorPath` is not the path of an HsId keypair.
+    pub(super) fn from_ctor_path(path: &CTorPath) -> Result<HsIdKeypairSpecifier, CTorPathError> {
         match path {
             CTorPath::Service {
                 nickname,
                 path: CTorServicePath::PrivateKey,
-            } => Some(HsIdKeypairSpecifier {
+            } => Ok(HsIdKeypairSpecifier {
                 nickname: nickname.clone(),
             }),
-            _ => None,
+            _ => Err(CTorPathError::KeySpecifierMismatch(
+                "HsIdKeypairSpecifier".into(),
+            )),
         }
     }
 }
