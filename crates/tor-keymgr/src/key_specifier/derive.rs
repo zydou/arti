@@ -224,7 +224,7 @@ pub fn parse_arti_path(
             // but I think that needs an `SlugRef`.
             let comp = Slug::new(comp.to_owned())
                 .map_err(ArtiPathSyntaxError::Slug)
-                .map_err(|error| ArtiPathError::InvalidArtiPath(error))?;
+                .map_err(ArtiPathError::InvalidArtiPath)?;
 
             let missing_keys = || internal!("keys list too short, bad args to parse_arti_path");
 
@@ -275,9 +275,9 @@ pub fn describe_via_components(
         let value = KeySpecifierComponentPrettyHelper(*value).to_string();
         info.extra_info(*key, value);
     }
-    Ok(info
+    info
         .build()
-        .map_err(into_internal!("failed to build KeyPathInfo"))?)
+        .map_err(into_internal!("failed to build KeyPathInfo"))
 }
 
 define_derive_deftly! {

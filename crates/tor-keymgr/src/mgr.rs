@@ -268,7 +268,7 @@ impl KeyMgr {
         // Ignore the result, just checking if the path is recognized
         let _ = self
             .describe(path)
-            .ok_or_else(|| KeystoreCorruptionError::Unrecognized(path.clone().into()))?;
+            .ok_or_else(|| KeystoreCorruptionError::Unrecognized(path.clone()))?;
 
         Ok(())
     }
