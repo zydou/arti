@@ -6,7 +6,9 @@ title: Capability and Limitations
 
 Our eventual goal with Arti is to provide a complete, full-featured implementation of the Tor network in Rust. We have completed some of the necessary features. However, many other important features are pending.
 
-Here is a summary of Arti's current capabilities and limitations as of November 2023.
+:::warning
+This page has not been updated since 2023 and some of the details are out of date.
+:::
 
 ## Current Capabilities
 

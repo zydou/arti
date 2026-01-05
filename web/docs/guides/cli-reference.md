@@ -8,7 +8,7 @@ The Arti CLI commands support a number [flags](#flags) that can be used to confi
 If you are running Arti through `cargo`, the flags are specified using the format:
 
 ```bash
-cargo run -p arti --all-features <subcommand> -- <flags>
+cargo run -p arti -- <subcommand> <flags>
 ```
 
 Alternatively, if you have already compiled the binary, you can pass the flags directly to the `arti` command using:

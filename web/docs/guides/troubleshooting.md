@@ -60,7 +60,7 @@ You must choose:
 
 Pass these in with the `--features` argument when compiling (e.g. `--features tokio,native-tls`).
 
-Note that Arti configures Tokio and native-tls by default, so if you're gettnig this error, you probably tried to do some extra setup with `--no-default-features`.
+Note that Arti configures Tokio and native-tls by default, so if you're getting this error, you probably tried to do some extra setup with `--no-default-features`.
 
 ### Arti isn't respecting my custom runtime choice!
 
@@ -68,6 +68,14 @@ Make sure you're building just the Arti binary, and not the whole workspace; to 
 ```
 $ cargo build -p arti --no-default-features --features async-std,native-tls
 ```
+
+:::warning
+While the above command will indeed use the correct runtime, it disables arti's default features.
+These default features contain important functionality and security features.
+For example at the time of writing: the `harden` feature, `vanguards` feature, etc.
+You should also look through the default features of `crates/arti/Cargo.toml` and enable any that seem important/relevant.
+Unfortunately limitations of the Cargo build system prevent us from providing a better experience.
+:::
 
 You can verify which runtime is being used by passing `--version` to Arti, e.g.
 ```
