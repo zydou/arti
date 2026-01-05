@@ -60,7 +60,7 @@ You must choose:
 
 Pass these in with the `--features` argument when compiling (e.g. `--features tokio,native-tls`).
 
-Note that Arti configures Tokio and native-tls by default, so if you're gettnig this error, you probably tried to do some extra setup with `--no-default-features`.
+Note that Arti configures Tokio and native-tls by default, so if you're getting this error, you probably tried to do some extra setup with `--no-default-features`.
 
 ### Arti isn't respecting my custom runtime choice!
 
