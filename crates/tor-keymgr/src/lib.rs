@@ -72,7 +72,7 @@ pub use err::{
     UnrecognizedEntry, UnrecognizedEntryError,
 };
 pub use key_specifier::{
-    ArtiPathError, ArtiPathRange, ArtiPathUnavailableError, CTorPath, CTorPathError,
+    ArtiPathError, ArtiPathRange, ArtiPathUnavailableError, CTorPath, CTorKeySpecifier, CTorPathError,
     InvalidKeyPathComponentValue, KeyCertificateSpecifier, KeyPath, KeyPathError, KeyPathInfo,
     KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeySpecifierComponent,
     KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,

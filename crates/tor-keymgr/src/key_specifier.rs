@@ -633,6 +633,23 @@ pub trait KeyCertificateSpecifier {
     fn subject_key_specifier(&self) -> &dyn KeySpecifier;
 }
 
+/// A trait for converting key specifiers to and from [`CTorPath`].
+///
+/// Important: this trait should not be implemented by hand.
+/// It is auto-implemented for types that derive [`KeySpecifier`].
+pub trait CTorKeySpecifier: KeySpecifier + Sized {
+    /// The location of the key in the C Tor key store (if supported).
+    ///
+    /// See [`KeySpecifier::ctor_path`].
+    fn ctor_path(&self) -> Option<CTorPath>;
+
+    /// Try to convert `path` to a specifier of this kind.
+    ///
+    /// Returns an error if the `CTorPath` is not the path of a key of this type,
+    /// or if this type does not have a `CTorPath`.
+    fn from_ctor_path(path: CTorPath) -> Result<Self, CTorPathError>;
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
