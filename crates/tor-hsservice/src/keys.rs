@@ -9,8 +9,6 @@
 //! For TP-based keys, that involves deriving [`HsTimePeriodKeySpecifier`]
 //! and adding a call to `remove_if_expired!` in [`expire_publisher_keys`].
 
-use tor_keymgr::CTorPath;
-
 use crate::{internal_prelude::*, list_expired_keys_for_service};
 
 /// Keys that are used by publisher, which relate to our HS and a TP
@@ -53,34 +51,6 @@ pub struct HsIdPublicKeySpecifier {
     nickname: HsNickname,
 }
 
-/// [`CTorPath`] conversion functions for [`HsIdPublicKeySpecifier`].
-mod hs_id_pub_ctor_path {
-    use super::*;
-
-    use tor_keymgr::CTorPathError;
-
-    /// The `CTorPath` of HsIdPublicKeySpecifier
-    pub(super) fn ctor_path(spec: &HsIdPublicKeySpecifier) -> CTorPath {
-        CTorPath::HsIdPublicKey {
-            nickname: spec.nickname.clone(),
-        }
-    }
-
-    /// Try to convert a `CTorPath` to an `HsIdPublicKeySpecifier`.
-    ///
-    /// Returns an error if the `CTorPath` is not the path of the public part of an identity keypair.
-    pub(super) fn from_ctor_path(path: &CTorPath) -> Result<HsIdPublicKeySpecifier, CTorPathError> {
-        match path {
-            CTorPath::HsIdPublicKey { nickname } => Ok(HsIdPublicKeySpecifier {
-                nickname: nickname.clone(),
-            }),
-            _ => Err(CTorPathError::KeySpecifierMismatch(
-                "HsIdPublicKeySpecifier".into(),
-            )),
-        }
-    }
-}
-
 #[derive(Deftly, PartialEq, Debug, Constructor)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "hss")]
@@ -96,34 +66,6 @@ pub struct HsIdKeypairSpecifier {
 impl From<&HsIdPublicKeySpecifier> for HsIdKeypairSpecifier {
     fn from(hs_id_public_key_specifier: &HsIdPublicKeySpecifier) -> HsIdKeypairSpecifier {
         HsIdKeypairSpecifier::new(hs_id_public_key_specifier.nickname.clone())
-    }
-}
-
-/// [`CTorPath`] conversion functions for [`HsIdKeypairSpecifier`].
-mod hs_id_ctor_path {
-    use super::*;
-
-    use tor_keymgr::CTorPathError;
-
-    /// The `CTorPath` of HsIdKeypairKeySpecifier
-    pub(super) fn ctor_path(spec: &HsIdKeypairSpecifier) -> CTorPath {
-        CTorPath::HsIdKeypair {
-            nickname: spec.nickname.clone(),
-        }
-    }
-
-    /// Try to convert a `CTorPath` to an `HsIdPublicKeySpecifier`.
-    ///
-    /// Returns an error if the `CTorPath` is not the path of an HsId keypair.
-    pub(super) fn from_ctor_path(path: &CTorPath) -> Result<HsIdKeypairSpecifier, CTorPathError> {
-        match path {
-            CTorPath::HsIdKeypair { nickname } => Ok(HsIdKeypairSpecifier {
-                nickname: nickname.clone(),
-            }),
-            _ => Err(CTorPathError::KeySpecifierMismatch(
-                "HsIdKeypairSpecifier".into(),
-            )),
-        }
     }
 }
 

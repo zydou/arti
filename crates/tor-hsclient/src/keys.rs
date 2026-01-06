@@ -12,7 +12,7 @@ use std::sync::Arc;
 #[allow(deprecated)]
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
-use tor_keymgr::{CTorPath, derive_deftly_template_KeySpecifier};
+use tor_keymgr::derive_deftly_template_KeySpecifier;
 
 use derive_deftly::Deftly;
 use derive_more::Constructor;
@@ -156,32 +156,4 @@ impl HsClientSecretKeysBuilder {
 pub struct HsClientDescEncKeypairSpecifier {
     /// The hidden service this authorization key is for.
     pub(crate) hs_id: HsId,
-}
-
-/// [`CTorPath`] conversion functions for [`HsClientDescEncKeypairSpecifier`].
-mod desc_enc_ctor_path {
-    use super::*;
-
-    use tor_keymgr::CTorPathError;
-
-    /// The `CTorPath` of HsClientDescEncKeypairSpecifier
-    pub(super) fn ctor_path(spec: &HsClientDescEncKeypairSpecifier) -> CTorPath {
-        CTorPath::HsClientDescEncKeypair { hs_id: spec.hs_id }
-    }
-
-    /// Try to convert a `CTorPath` to an `HsClientDescEncKeypairSpecifier`.
-    ///
-    /// Returns an error if the `CTorPath` is not the path of a `HsClientDescEncKeypair`.
-    pub(super) fn from_ctor_path(
-        path: &CTorPath,
-    ) -> Result<HsClientDescEncKeypairSpecifier, CTorPathError> {
-        match path {
-            CTorPath::HsClientDescEncKeypair { hs_id } => {
-                Ok(HsClientDescEncKeypairSpecifier { hs_id: *hs_id })
-            }
-            _ => Err(CTorPathError::KeySpecifierMismatch(
-                "HsClientDescEncKeypairSpecifier".into(),
-            )),
-        }
-    }
 }
