@@ -52,8 +52,7 @@ define_derive_deftly! {
     ///
     /// # Example
     ///
-    // XXXX implement!
-    /// ```rust,ignore
+    /// ```
     /// use derive_deftly::Deftly;
     /// use tor_netdoc::derive_deftly_template_Constructor;
     ///
@@ -91,7 +90,59 @@ define_derive_deftly! {
     /// ```
     ///
     /// # Note
-    export Constructor:
+    export Constructor for struct, beta_deftly:
+
+    ${define CONSTRUCTOR_NAME $<$tname Constructor>}
+    ${define CONSTRUCTOR $<$ttype Constructor>}
+
+    ${defcond F_DEFAULT_EXPR fmeta(constructor(default))}
+    ${defcond F_DEFAULT_TRAIT not(fmeta(constructor))}
+    ${defcond F_REQUIRED not(any(F_DEFAULT_EXPR, F_DEFAULT_TRAIT))}
+
+    #[doc = ${concat "Constructor (required fields) for " $tname}]
+    ///
+    #[doc = ${concat "See [`" $tname "`]."}]
+    ///
+    /// This constructor struct contains precisely the required fields.
+    #[doc = ${concat "You can make a `" $tname
+              "` out of it with [`.construct()`](" $CONSTRUCTOR_NAME "::construct),"}]
+    /// or the `From` impl,
+    /// and use the result as a basis for further modifications.
+    #[allow(clippy::exhaustive_structs)]
+    $tvis struct $CONSTRUCTOR_NAME<$tdefgens> where $twheres { $(
+        ${when F_REQUIRED}
+
+        ${fattrs doc}
+        $fdefvis $fname: $ftype,
+    ) }
+
+    impl<$tgens> $CONSTRUCTOR where $twheres {
+        #[doc = ${concat "Construct a minimal [`" $tname "`]"}]
+        ///
+        #[doc = ${concat "In the returned " $tname ","}]
+        /// optional fields all get the default values.
+        $tvis fn construct(self) -> $ttype {
+            $tname { $(
+                $fname: ${select1
+                    F_REQUIRED {
+                        self.$fname
+                    }
+                    F_DEFAULT_TRAIT {
+                        ::std::default::Default::default()
+                    }
+                    F_DEFAULT_EXPR {
+                        ${fmeta(constructor(default)) as expr}
+                    }
+                },
+            ) }
+        }
+    }
+
+    impl<$tgens> From<$CONSTRUCTOR> for $ttype where $twheres {
+        fn from(constructor: $CONSTRUCTOR) -> $ttype {
+            constructor.construct()
+        }
+    }
 }
 
 /// Macro to help check that netdoc items in a derive input are in the right order
