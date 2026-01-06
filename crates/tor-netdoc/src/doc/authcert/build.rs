@@ -2,6 +2,7 @@
 //!
 //! (These are only for testing right now, since we don't yet
 //! support signing or encoding.)
+#![allow(deprecated)]
 
 use super::{AuthCert, AuthCertVersion, CrossCert, CrossCertObject};
 
@@ -17,6 +18,7 @@ use tor_llcrypto::pk::rsa;
 ///
 /// This facility is only enabled when the crate is built with
 /// the `build_docs` feature.
+#[deprecated = "use AuthCertConstructor instead"]
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 pub struct AuthCertBuilder {
     /// See [`AuthCert::dir_address`]

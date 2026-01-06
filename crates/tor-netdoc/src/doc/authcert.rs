@@ -30,6 +30,7 @@ use digest::Digest;
 mod build;
 
 #[cfg(feature = "build_docs")]
+#[allow(deprecated)]
 pub use build::AuthCertBuilder;
 
 #[cfg(feature = "parse2")]
@@ -202,6 +203,8 @@ impl AuthCert {
     /// Make an [`AuthCertBuilder`] object that can be used to
     /// construct authority certificates for testing.
     #[cfg(feature = "build_docs")]
+    #[deprecated = "use AuthCertConstructor instead"]
+    #[allow(deprecated)]
     pub fn builder() -> AuthCertBuilder {
         AuthCertBuilder::new()
     }

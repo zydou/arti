@@ -6,3 +6,4 @@ ADDED: `parse2::parse_netdoc_multiple_with_offsets`
 BREAKING: `AuthCert::key_ids` returns an owned `AuthCertKeyIds`
 BREAKING: `AuthCert::sk_fingerprint` removed.  Use `key_ids()`.
 ADDED: `AuithCertConstructor`
+DEPRECATED: `AuithCertBuilder` and `AuthCert::builder`
