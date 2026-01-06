@@ -399,7 +399,9 @@ mod tests {
     #[test]
     fn get() {
         let (keystore, _keystore_dir) = init_keystore("foo");
-        let path = CTorPath::HsClientDescEncKeypair { hs_id: HsId::from_str(HSID).unwrap() };
+        let path = CTorPath::HsClientDescEncKeypair {
+            hs_id: HsId::from_str(HSID).unwrap(),
+        };
 
         // Not found!
         assert_found!(
@@ -413,7 +415,9 @@ mod tests {
             // Extract the HsId associated with this key.
             let onion = hsid.split(":").next().unwrap();
             let hsid = HsId::from_str(&format!("{onion}.onion")).unwrap();
-            let path = CTorPath::HsClientDescEncKeypair { hs_id: hsid.clone() };
+            let path = CTorPath::HsClientDescEncKeypair {
+                hs_id: hsid.clone(),
+            };
 
             // Found!
             assert_found!(
@@ -440,7 +444,9 @@ mod tests {
     #[test]
     fn unsupported_operation() {
         let (keystore, _keystore_dir) = init_keystore("foo");
-        let path = CTorPath::HsClientDescEncKeypair { hs_id: HsId::from_str(HSID).unwrap() };
+        let path = CTorPath::HsClientDescEncKeypair {
+            hs_id: HsId::from_str(HSID).unwrap(),
+        };
 
         let err = keystore
             .remove(
@@ -461,7 +467,9 @@ mod tests {
     #[test]
     fn wrong_keytype() {
         let (keystore, _keystore_dir) = init_keystore("foo");
-        let path = CTorPath::HsClientDescEncKeypair { hs_id: HsId::from_str(HSID).unwrap() };
+        let path = CTorPath::HsClientDescEncKeypair {
+            hs_id: HsId::from_str(HSID).unwrap(),
+        };
 
         let err = keystore
             .get(

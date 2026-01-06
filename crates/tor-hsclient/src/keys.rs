@@ -166,7 +166,7 @@ mod desc_enc_ctor_path {
 
     /// The `CTorPath` of HsClientDescEncKeypairSpecifier
     pub(super) fn ctor_path(spec: &HsClientDescEncKeypairSpecifier) -> CTorPath {
-        CTorPath::HsClientDescEncKeypair { hs_id : spec.hs_id }
+        CTorPath::HsClientDescEncKeypair { hs_id: spec.hs_id }
     }
 
     /// Try to convert a `CTorPath` to an `HsClientDescEncKeypairSpecifier`.

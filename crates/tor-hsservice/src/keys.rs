@@ -71,9 +71,7 @@ mod hs_id_pub_ctor_path {
     /// Returns an error if the `CTorPath` is not the path of the public part of an identity keypair.
     pub(super) fn from_ctor_path(path: &CTorPath) -> Result<HsIdPublicKeySpecifier, CTorPathError> {
         match path {
-            CTorPath::HsIdPublicKey {
-                nickname,
-            } => Ok(HsIdPublicKeySpecifier {
+            CTorPath::HsIdPublicKey { nickname } => Ok(HsIdPublicKeySpecifier {
                 nickname: nickname.clone(),
             }),
             _ => Err(CTorPathError::KeySpecifierMismatch(
@@ -119,9 +117,7 @@ mod hs_id_ctor_path {
     /// Returns an error if the `CTorPath` is not the path of an HsId keypair.
     pub(super) fn from_ctor_path(path: &CTorPath) -> Result<HsIdKeypairSpecifier, CTorPathError> {
         match path {
-            CTorPath::HsIdKeypair {
-                nickname,
-            } => Ok(HsIdKeypairSpecifier {
+            CTorPath::HsIdKeypair { nickname } => Ok(HsIdKeypairSpecifier {
                 nickname: nickname.clone(),
             }),
             _ => Err(CTorPathError::KeySpecifierMismatch(

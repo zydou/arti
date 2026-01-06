@@ -373,7 +373,7 @@ pub enum CTorPath {
     HsIdKeypair {
         /// The nickname of the service,
         nickname: HsNickname,
-    }
+    },
 }
 
 /// The "specifier" of a key, which identifies an instance of a key.

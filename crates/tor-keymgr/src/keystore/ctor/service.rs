@@ -8,8 +8,7 @@ use crate::keystore::fs_utils::{FilesystemAction, FilesystemError, checked_op};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore, KeystoreId};
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    CTorPath, KeyPath, KeystoreEntry, KeystoreEntryResult, Result,
-    UnrecognizedEntryError,
+    CTorPath, KeyPath, KeystoreEntry, KeystoreEntryResult, Result, UnrecognizedEntryError,
 };
 
 use fs_mistrust::Mistrust;
@@ -88,8 +87,8 @@ impl CTorServiceKeystore {
 /// If `res` is `None`, return `ret`.
 macro_rules! rel_path_if_supported {
     ($self:expr, $spec:expr, $ret:expr, $item_type:expr) => {{
-        use KeystoreItemType::*;
         use CTorPath::*;
+        use KeystoreItemType::*;
 
         // If the key specifier doesn't have a CTorPath,
         // we can't possibly handle this key.
@@ -109,7 +108,9 @@ macro_rules! rel_path_if_supported {
             return $ret;
         };
 
-        let relpath = $self.keystore.rel_path(PathBuf::from(ctor_path.to_string()));
+        let relpath = $self
+            .keystore
+            .rel_path(PathBuf::from(ctor_path.to_string()));
         match ($item_type, &ctor_path) {
             (Key(KeyType::Ed25519ExpandedKeypair), HsIdKeypair { .. })
             | (Key(KeyType::Ed25519PublicKey), HsIdPublicKey { .. }) => Ok(()),
