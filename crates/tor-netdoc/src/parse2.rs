@@ -224,11 +224,15 @@ pub fn parse_netdoc_multiple<D: NetdocParseable>(
 ///
 /// (The netdoc metaformat does not allow anything in between subsequent documents in a file,
 /// so the end of one document is the start of the next.)
-//
-// This returns byte offsets rather than string slices,
-// because the caller can always convert the offsets into string slices,
-// but it is not straightforward to convert string slices borrowed from some input string
-// into offsets, in a way that is obviously correct without nightly `str::substr_range`.
+///
+/// This returns byte offsets rather than string slices,
+/// because the caller can always convert the offsets into string slices,
+/// but it is not straightforward to convert string slices borrowed from some input string
+/// into offsets, in a way that is obviously correct without nightly `str::substr_range`.
+///
+/// Interfacing code can assume that slicing the input string with the returned
+/// [`usize`] values will not cause an out-of-bounds error, meaning runtime
+/// checks are not necessary there.
 pub fn parse_netdoc_multiple_with_offsets<D: NetdocParseable>(
     input: &ParseInput<'_>,
 ) -> Result<Vec<(D, usize, usize)>, ParseError> {
@@ -238,6 +242,12 @@ pub fn parse_netdoc_multiple_with_offsets<D: NetdocParseable>(
             let start_pos = items.byte_position();
             let doc = D::from_items(items, StopAt(false))?;
             let end_pos = items.byte_position();
+
+            // Check start_pos and end_pos are in range.
+            if input.input.get(start_pos..end_pos).is_none() {
+                return Err(ErrorProblem::Other("out-of-bounds bug?"));
+            }
+
             docs.push((doc, start_pos, end_pos));
         }
         Ok(docs)
