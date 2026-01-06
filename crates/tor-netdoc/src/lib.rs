@@ -47,7 +47,6 @@
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
-#[cfg(any(feature = "encode", feature = "parse2"))]
 #[macro_use]
 mod derive_common;
 #[cfg(feature = "parse2")]

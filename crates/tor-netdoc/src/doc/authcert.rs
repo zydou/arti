@@ -79,7 +79,10 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 /// This is the body, not including signatures.
 ///
 /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html>
+///
+/// To make a fresh `AuthCert`, use [`AuthCertConstructor`].
 #[derive(Clone, Debug, Deftly)]
+#[derive_deftly(Constructor)]
 #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable, NetdocSigned))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
@@ -93,6 +96,7 @@ pub struct AuthCert {
     /// Currently must be version 3.
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certificate-version>
+    #[deftly(constructor(default = "AuthCertVersion::V3"))]
     #[deftly(netdoc(single_arg))]
     pub dir_key_certificate_version: AuthCertVersion,
 
@@ -103,18 +107,21 @@ pub struct AuthCert {
     /// H(KP_auth_id_rsa)
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:fingerprint>
+    #[deftly(constructor)]
     #[deftly(netdoc(single_arg))]
     pub fingerprint: Fingerprint,
 
     /// Declared time when this certificate was published
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-published>
+    #[deftly(constructor)]
     #[deftly(netdoc(single_arg))]
     pub dir_key_published: Iso8601TimeSp,
 
     /// Declared time when this certificate expires.
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-expires>
+    #[deftly(constructor)]
     #[deftly(netdoc(single_arg))]
     pub dir_key_expires: Iso8601TimeSp,
 
@@ -123,6 +130,7 @@ pub struct AuthCert {
     /// The long-term RSA identity key for this authority
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-identity-key>
+    #[deftly(constructor)]
     pub dir_identity_key: rsa::PublicKey,
 
     /// KP_auth_sign_rsa
@@ -130,11 +138,13 @@ pub struct AuthCert {
     /// The medium-term RSA signing key for this authority
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-signing-key>
+    #[deftly(constructor)]
     pub dir_signing_key: rsa::PublicKey,
 
     /// SHA1(DER(KP_auth_id_rsa)) signed by KP_auth_sign_rsa
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
+    #[deftly(constructor)]
     pub dir_key_crosscert: CrossCert,
 }
 
