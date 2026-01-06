@@ -3,7 +3,7 @@
 //! (These are only for testing right now, since we don't yet
 //! support signing or encoding.)
 
-use super::{AuthCert, AuthCertKeyIds};
+use super::{AuthCert, AuthCertVersion, CrossCert, CrossCertObject};
 
 use crate::{BuildError as Error, BuildResult};
 use std::net::SocketAddrV4;
@@ -19,9 +19,9 @@ use tor_llcrypto::pk::rsa;
 /// the `build_docs` feature.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 pub struct AuthCertBuilder {
-    /// See [`AuthCert::address`]
+    /// See [`AuthCert::dir_address`]
     address: Option<SocketAddrV4>,
-    /// See [`AuthCert::identity_key`]
+    /// See [`AuthCert::dir_identity_key`]
     identity_key: Option<rsa::PublicKey>,
     /// See [`AuthCert::signing_key`]
     signing_key: Option<rsa::PublicKey>,
@@ -89,41 +89,44 @@ impl AuthCertBuilder {
     ///
     /// You should only use this function for testing.
     pub fn dangerous_testing_cert(&self) -> BuildResult<AuthCert> {
-        let published = self
+        let dir_key_published = self
             .published
-            .ok_or(Error::CannotBuild("Missing published time"))?;
-        let expires = self
+            .ok_or(Error::CannotBuild("Missing published time"))?
+            .into();
+        let dir_key_expires = self
             .expires
-            .ok_or(Error::CannotBuild("Missing expiration time"))?;
-        if expires < published {
+            .ok_or(Error::CannotBuild("Missing expiration time"))?
+            .into();
+        if dir_key_expires < dir_key_published {
             return Err(Error::CannotBuild("Expires before published time."));
         }
-        let identity_key = self
+        let dir_identity_key = self
             .identity_key
             .as_ref()
             .ok_or(Error::CannotBuild("Missing identity key."))?
             .clone();
-        let signing_key = self
+        let dir_signing_key = self
             .signing_key
             .as_ref()
             .ok_or(Error::CannotBuild("Missing signing key."))?
             .clone();
 
-        let id_fingerprint = identity_key.to_rsa_identity();
-        let sk_fingerprint = signing_key.to_rsa_identity();
+        let id_fingerprint = dir_identity_key.to_rsa_identity();
 
-        let key_ids = AuthCertKeyIds {
-            id_fingerprint,
-            sk_fingerprint,
+        // This is a nonsense value, but the tests don't look at it.
+        let dir_key_crosscert = CrossCert {
+            signature: CrossCertObject(vec![]),
         };
 
         Ok(AuthCert {
-            address: self.address,
-            identity_key,
-            signing_key,
-            published,
-            expires,
-            key_ids,
+            dir_address: self.address,
+            dir_identity_key,
+            dir_signing_key,
+            dir_key_published,
+            dir_key_expires,
+            fingerprint: crate::types::Fingerprint(id_fingerprint),
+            dir_key_certificate_version: AuthCertVersion::V3,
+            dir_key_crosscert,
         })
     }
 }

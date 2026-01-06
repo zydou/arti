@@ -118,6 +118,8 @@ pub use traits::{
 #[doc(hidden)]
 pub use derive::netdoc_parseable_derive_debug;
 
+pub(crate) use internal_prelude::EP;
+
 //---------- input ----------
 
 /// Options for parsing
