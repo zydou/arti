@@ -1,6 +1,98 @@
 //! Common macro elements for deriving parsers and encoders
 
-use derive_deftly::define_derive_deftly_module;
+use derive_deftly::{define_derive_deftly, define_derive_deftly_module};
+
+define_derive_deftly! {
+    /// Defines a constructor struct and method
+    //
+    // TODO maybe move this out of tor-netdoc, to a lower-level dependency
+    ///
+    /// "Constructor" is a more lightweight alternative to the builder pattern.
+    ///
+    /// # Comparison to builders
+    ///
+    ///  * Suitable for transparent, rather than opaque, structs.
+    ///  * Missing fields during construction are detected at compile-time.
+    ///  * Construction is infallible at runtime.
+    ///  * Making a previously-required field optional is an API break.
+    ///
+    /// # Input
+    ///
+    ///  * `struct Thing`.  (enums and unions are not supported.)
+    ///
+    ///  * Each field must impl `Default` or be annotated `#[deftly(constructor)]`
+    ///
+    ///  * `Thing` should contain `#[doc(hidden)] __non_exhaustive: ()`
+    ///    rather than being `#[non_exhaustive]`.
+    ///    (Because struct literal syntax is not available otherwise.)
+    ///
+    /// # Generated items
+    ///
+    ///  * **`pub struct ThingConstructor`**:
+    ///    contains all the required (non-optional) fields from `Thing`.
+    ///    `ThingConstructor` is `exhaustive`.
+    ///
+    ///  * **`fn ThingConstructor::construct(self) -> Thing`**:
+    ///    fills in all the default values.
+    ///
+    ///  * `impl From<ThingConstructor> for Thing`
+    ///
+    /// # Attributes
+    ///
+    /// ## Field attributes
+    ///
+    ///  * **`#[deftly(constructor)]`**:
+    ///    Include this field in `ThingConstructor`.
+    ///    The caller must provide a value.
+    ///
+    ///  * **`#[deftly(constructor(default = "EXPR"))]`**:
+    ///    Instead of `Default::default()`, the default value is EXPR.
+    ///    EXPR cannot refer to anything in `ThingConstructor`.
+    //     If we want that we would need to invent a feature for it.
+    ///
+    /// # Example
+    ///
+    // XXXX implement!
+    /// ```rust,ignore
+    /// use derive_deftly::Deftly;
+    /// use tor_netdoc::derive_deftly_template_Constructor;
+    ///
+    /// #[derive(Deftly, PartialEq, Debug)]
+    /// #[derive_deftly(Constructor)]
+    /// #[non_exhaustive]
+    /// pub struct Thing {
+    ///     /// Required field
+    ///     #[deftly(constructor)]
+    ///     pub required: i32,
+    ///
+    ///     /// Optional field
+    ///     pub optional: Option<i32>,
+    ///
+    ///     /// Optional field with fixed default
+    ///     #[deftly(constructor(default = "7"))]
+    ///     pub defaulted: i32,
+    /// }
+    ///
+    /// let thing = Thing {
+    ///     optional: Some(23),
+    ///     ..ThingConstructor {
+    ///         required: 12,
+    ///     }.construct()
+    /// };
+    ///
+    /// assert_eq!(
+    ///     thing,
+    ///     Thing {
+    ///         required: 12,
+    ///         optional: Some(23),
+    ///         defaulted: 7,
+    ///     }
+    /// );
+    /// ```
+    ///
+    /// # Note
+    export Constructor:
+}
 
 /// Macro to help check that netdoc items in a derive input are in the right order
 ///
