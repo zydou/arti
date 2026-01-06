@@ -101,9 +101,9 @@ pub struct AuthCert {
     pub dir_address: Option<net::SocketAddrV4>,
 
     /// H(KP_auth_id_rsa)
-    #[deftly(netdoc(single_arg))]
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:fingerprint>
+    #[deftly(netdoc(single_arg))]
     pub fingerprint: Fingerprint,
 
     /// Declared time when this certificate was published
