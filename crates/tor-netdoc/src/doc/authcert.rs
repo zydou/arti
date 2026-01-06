@@ -88,7 +88,7 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-#[non_exhaustive]
+#[allow(clippy::manual_non_exhaustive)]
 pub struct AuthCert {
     /// Intro line
     ///
@@ -145,6 +145,10 @@ pub struct AuthCert {
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
     #[deftly(constructor)]
     pub dir_key_crosscert: CrossCert,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    __non_exhaustive: (),
 }
 
 /// Represents the version of an [`AuthCert`].
@@ -412,6 +416,7 @@ impl AuthCert {
             dir_key_expires,
             dir_key_crosscert,
             fingerprint: Fingerprint(id_fingerprint),
+            __non_exhaustive: (),
         };
 
         let signatures: Vec<Box<dyn pk::ValidatableSignature>> =
@@ -933,7 +938,8 @@ mod test {
                         signature: CrossCertObject(
                             read_b64("testdata2/authcert-longclaw-crosscert-b64").1
                         )
-                    }
+                    },
+                    __non_exhaustive: (),
                 }
             );
         }

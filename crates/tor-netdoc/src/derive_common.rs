@@ -58,7 +58,7 @@ define_derive_deftly! {
     ///
     /// #[derive(Deftly, PartialEq, Debug)]
     /// #[derive_deftly(Constructor)]
-    /// #[non_exhaustive]
+    /// #[allow(clippy::manual_non_exhaustive)]
     /// pub struct Thing {
     ///     /// Required field
     ///     #[deftly(constructor)]
@@ -70,6 +70,9 @@ define_derive_deftly! {
     ///     /// Optional field with fixed default
     ///     #[deftly(constructor(default = "7"))]
     ///     pub defaulted: i32,
+    ///
+    ///     #[doc(hidden)]
+    ///     __non_exhaustive: (),
     /// }
     ///
     /// let thing = Thing {
@@ -85,6 +88,7 @@ define_derive_deftly! {
     ///         required: 12,
     ///         optional: Some(23),
     ///         defaulted: 7,
+    ///         __non_exhaustive: (),
     ///     }
     /// );
     /// ```
