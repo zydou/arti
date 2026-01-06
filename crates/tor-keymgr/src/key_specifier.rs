@@ -138,39 +138,43 @@ pub trait KeySpecifierPattern {
 ///
 /// See also `crate::keystore::arti::MalformedPathError`,
 /// which occurs at a lower level.
-///
-// Note: Currently, all KeyPathErrors (except Unrecognized and Bug) are only returned from
-// functions that parse ArtiPaths and/or ArtiPath denotators, so their context contains an
-// `ArtiPath` rather than a `KeyPath` (i.e. PatternNotMatched, InvalidArtiPath,
-// InvalidKeyPathComponent value can only happen if we're dealing with an ArtiPath).
-//
-// For now this is alright, but we might want to rethink this error enum (for example, a better
-// idea might be to create an ArtiPathError { path: ArtiPath, kind: ArtiPathErrorKind } error type
-// and move PatternNotMatched, InvalidArtiPath, InvalidKeyPathComponentValue to the new
-// ArtiPathErrorKind enum.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyPathError {
+    /// An error while trying to extract information from an [`ArtiPath`].
+    #[error("{err}")]
+    Arti {
+        /// The path that caused the error.
+        path: ArtiPath,
+        /// The underlying error
+        err: ArtiPathError,
+    },
+
+    /// An error while trying to extract information from an [`CTorPath`].
+    #[error("{err}")]
+    CTor {
+        /// The path that caused the error.
+        path: CTorPath,
+        /// The underlying error
+        err: CTorPathError,
+    },
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+/// An error while attempting to extract information from an [`ArtiPath`].
+#[derive(Debug, Clone, thiserror::Error)]
+#[non_exhaustive]
+pub enum ArtiPathError {
     /// The path did not match the expected pattern.
     #[error("Path does not match expected pattern")]
-    PatternNotMatched(ArtiPath),
-
-    /// The path is not recognized.
-    ///
-    /// Returned by [`KeyMgr::describe`](crate::KeyMgr::describe) when none of its
-    /// [`KeyPathInfoExtractor`]s is able to parse the specified [`KeyPath`].
-    #[error("Unrecognized path: {0}")]
-    Unrecognized(KeyPath),
+    PatternNotMatched,
 
     /// Found an invalid [`ArtiPath`], which is syntactically invalid on its face
-    #[error("ArtiPath {path} is invalid")]
-    InvalidArtiPath {
-        /// What was wrong with the value
-        #[source]
-        error: ArtiPathSyntaxError,
-        /// The offending `ArtiPath`.
-        path: ArtiPath,
-    },
+    #[error("ArtiPath is invalid")]
+    InvalidArtiPath(ArtiPathSyntaxError),
 
     /// An invalid key path component value string was encountered
     ///
@@ -188,8 +192,6 @@ pub enum KeyPathError {
         ///
         /// Should be valid Rust identifier syntax.
         key: String,
-        /// The `ArtiPath` of the key.
-        path: ArtiPath,
         /// The substring of the `ArtiPath` that couldn't be parsed.
         value: Slug,
     },
@@ -199,11 +201,26 @@ pub enum KeyPathError {
     Bug(#[from] tor_error::Bug),
 }
 
+/// An error while attempting to convert a [`CTorPath`]
+/// to its corresponding key specifier type.
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum CTorPathError {
+    /// Attempted to convert a C Tor path to a mismatched specifier kind.
+    #[error("C Tor path cannot be converted to {0}")]
+    KeySpecifierMismatch(String),
+
+    /// Attempted to convert a C Tor path to a key specifier
+    /// that does not have a C Tor path.
+    #[error("Key specifier {0} does not have a C Tor path")]
+    MissingCTorPath(String),
+}
+
 /// Error to be returned by `KeySpecifierComponent::from_slug` implementations
 ///
 /// Currently this error contains little information,
 /// but the context and value are provided in
-/// [`KeyPathError::InvalidKeyPathComponentValue`].
+/// [`ArtiPathError::InvalidKeyPathComponentValue`].
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 pub enum InvalidKeyPathComponentValue {
@@ -214,7 +231,7 @@ pub enum InvalidKeyPathComponentValue {
     /// (keystore corruption errors are reported using higher level
     /// [`KeystoreCorruptionError`s](crate::KeystoreCorruptionError)),
     /// or where the information came from (the context is encoded in the
-    /// enclosing [`KeyPathError::InvalidKeyPathComponentValue`] error).
+    /// enclosing [`ArtiPathError::InvalidKeyPathComponentValue`] error).
     #[error("{0}")]
     Slug(String),
 
@@ -340,40 +357,23 @@ pub enum CTorPath {
     /// (we'd need to read and parse each file from `ClientOnionAuthDir` to find out).
     //
     // TODO: Perhaps we should redact this sometimes.
-    #[display("ClientHsDescEncKey({})", _0.display_unredacted())]
-    ClientHsDescEncKey(HsId),
-    /// A service key path.
-    #[display("{path}")]
-    Service {
-        /// The nickname of the service,
-        nickname: HsNickname,
-        /// The relative path of this key.
-        path: CTorServicePath,
+    #[display("HsClientDescEncKeypair({})", hs_id.display_unredacted())]
+    HsClientDescEncKeypair {
+        /// The hidden service this restricted discovery keypair is for.
+        hs_id: HsId,
     },
-}
-
-/// The relative path in a C Tor key store.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, derive_more::Display)] //
-#[non_exhaustive]
-pub enum CTorServicePath {
     /// C Tor's `HiddenServiceDirectory/hs_ed25519_public_key`.
     #[display("hs_ed25519_public_key")]
-    PublicKey,
+    HsIdPublicKey {
+        /// The nickname of the service,
+        nickname: HsNickname,
+    },
     /// C Tor's `HiddenServiceDirectory/hs_ed25519_secret_key`.
     #[display("hs_ed25519_secret_key")]
-    PrivateKey,
-}
-
-impl CTorPath {
-    /// Create a CTorPath that represents a service key.
-    pub fn service(nickname: HsNickname, path: CTorServicePath) -> Self {
-        Self::Service { nickname, path }
-    }
-
-    /// Create a CTorPath that represents a client authorization key.
-    pub fn client(hsid: HsId) -> Self {
-        Self::ClientHsDescEncKey(hsid)
-    }
+    HsIdKeypair {
+        /// The nickname of the service,
+        nickname: HsNickname,
+    },
 }
 
 /// The "specifier" of a key, which identifies an instance of a key.
@@ -633,6 +633,23 @@ pub trait KeyCertificateSpecifier {
     fn subject_key_specifier(&self) -> &dyn KeySpecifier;
 }
 
+/// A trait for converting key specifiers to and from [`CTorPath`].
+///
+/// Important: this trait should not be implemented by hand.
+/// It is auto-implemented for types that derive [`KeySpecifier`].
+pub trait CTorKeySpecifier: KeySpecifier + Sized {
+    /// The location of the key in the C Tor key store (if supported).
+    ///
+    /// See [`KeySpecifier::ctor_path`].
+    fn ctor_path(&self) -> Option<CTorPath>;
+
+    /// Try to convert `path` to a specifier of this kind.
+    ///
+    /// Returns an error if the `CTorPath` is not the path of a key of this type,
+    /// or if this type does not have a `CTorPath`.
+    fn from_ctor_path(path: CTorPath) -> Result<Self, CTorPathError>;
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -834,7 +851,14 @@ KeyPathInfo {
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
-        assert_eq!(key_spec.ctor_path(), None);
+        let ctor_path = CTorPath::HsIdPublicKey {
+            nickname: HsNickname::from_str("foo").unwrap(),
+        };
+
+        assert_eq!(
+            TestSpecifier::from_ctor_path(ctor_path).unwrap_err(),
+            CTorPathError::MissingCTorPath("TestSpecifier".into()),
+        );
     }
 
     #[test]
@@ -914,32 +938,49 @@ KeyPathInfo {
         #[derive_deftly(KeySpecifier)]
         #[deftly(prefix = "p")]
         #[deftly(role = "r")]
-        #[deftly(ctor_path = "Self::ctp")]
+        #[deftly(ctor_path = "HsIdPublicKey")]
         #[deftly(summary = "test key")]
         struct TestSpecifier {
-            i: usize,
+            nickname: HsNickname,
         }
 
-        impl TestSpecifier {
-            fn ctp(&self) -> CTorPath {
-                CTorPath::Service {
-                    nickname: HsNickname::from_str("allium-cepa").unwrap(),
-                    path: CTorServicePath::PublicKey,
-                }
-            }
-        }
-
-        let spec = TestSpecifier { i: 42 };
+        let spec = TestSpecifier {
+            nickname: HsNickname::from_str("42").unwrap(),
+        };
 
         check_key_specifier(&spec, "p/42/r");
 
+        let ctor_path = KeySpecifier::ctor_path(&spec);
+
         assert_eq!(
-            spec.ctor_path(),
-            Some(CTorPath::Service {
-                nickname: HsNickname::from_str("allium-cepa").unwrap(),
-                path: CTorServicePath::PublicKey,
+            ctor_path,
+            Some(CTorPath::HsIdPublicKey {
+                nickname: HsNickname::from_str("42").unwrap(),
             }),
         );
+
+        assert_eq!(
+            TestSpecifier::from_ctor_path(ctor_path.unwrap()).unwrap(),
+            spec,
+        );
+
+        /// An .onion address to put for test client CTorPaths.
+        const HSID: &str = "yc6v7oeksrbech4ctv53di7rfjuikjagkyfrwu3yclzkfyv5haay6mqd.onion";
+        let wrong_paths = &[
+            CTorPath::HsClientDescEncKeypair {
+                hs_id: HsId::from_str(HSID).unwrap(),
+            },
+            CTorPath::HsIdKeypair {
+                nickname: HsNickname::from_str("42").unwrap(),
+            },
+        ];
+
+        for path in wrong_paths {
+            assert_eq!(
+                TestSpecifier::from_ctor_path(path.clone()).unwrap_err(),
+                CTorPathError::KeySpecifierMismatch("TestSpecifier".into()),
+            );
+        }
     }
 
     #[test]

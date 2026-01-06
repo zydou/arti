@@ -72,10 +72,10 @@ pub use err::{
     UnrecognizedEntry, UnrecognizedEntryError,
 };
 pub use key_specifier::{
-    ArtiPathRange, ArtiPathUnavailableError, CTorPath, CTorServicePath,
-    InvalidKeyPathComponentValue, KeyCertificateSpecifier, KeyPath, KeyPathError, KeyPathInfo,
-    KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeySpecifierComponent,
-    KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
+    ArtiPathError, ArtiPathRange, ArtiPathUnavailableError, CTorKeySpecifier, CTorPath,
+    CTorPathError, InvalidKeyPathComponentValue, KeyCertificateSpecifier, KeyPath, KeyPathError,
+    KeyPathInfo, KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeySpecifier,
+    KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
 };
 #[cfg(feature = "onion-service-cli-extra")]
 pub use raw::{RawEntryId, RawKeystoreEntry};

@@ -286,7 +286,6 @@ fn migrate_ctor_keys(
             // and using it here.
             keymgr
                 .describe(k.key_path())
-                .ok()
                 .is_some_and(|info| info.role() == "ks_hs_id")
         });
         if let Some(arti_id_entry) = arti_id_entry_opt {

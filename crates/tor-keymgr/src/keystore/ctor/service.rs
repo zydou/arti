@@ -8,8 +8,7 @@ use crate::keystore::fs_utils::{FilesystemAction, FilesystemError, checked_op};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore, KeystoreId};
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    CTorPath, CTorServicePath, KeyPath, KeystoreEntry, KeystoreEntryResult, Result,
-    UnrecognizedEntryError,
+    CTorPath, KeyPath, KeystoreEntry, KeystoreEntryResult, Result, UnrecognizedEntryError,
 };
 
 use fs_mistrust::Mistrust;
@@ -37,8 +36,8 @@ use walkdir::WalkDir;
 ///
 /// This keystore can be used to read the `HiddenServiceDirectory/private_key`
 /// and `HiddenServiceDirectory/public_key` C Tor keys, specified by
-/// [`CTorServicePath::PrivateKey`] (with [`KeyType::Ed25519ExpandedKeypair`])
-/// and [`CTorServicePath::PublicKey`] (with [`KeyType::Ed25519PublicKey`]),
+/// [`CTorPath::HsIdKeypair`] (with [`KeyType::Ed25519ExpandedKeypair`])
+/// and [`CTorPath::HsIdPublicKey`] (with [`KeyType::Ed25519PublicKey`]),
 /// respectively. Any other files stored in `HiddenServiceDirectory` will be ignored.
 ///
 /// The only supported [`Keystore`] operations are [`contains`](Keystore::contains),
@@ -47,11 +46,15 @@ use walkdir::WalkDir;
 ///
 /// This keystore implementation uses the [`CTorPath`] of the requested [`KeySpecifier`]
 /// and the [`KeystoreItemType`] to identify the appropriate key.
-/// If the requested `CTorPath` is not [`Service`](CTorPath::Service),
+/// If the requested `CTorPath` is not
+/// [`HsIdPublicKey`](CTorPath::HsIdPublicKey) or
+/// [`HsIdKeypair`](CTorPath::HsIdKeypair),
 /// or if the [`HsNickname`] specified in the `CTorPath` does not match the nickname of this store,
 /// the key will be declared not found.
-/// If the requested `CTorPath` is [`Service`](CTorPath::Service),
-/// but the `ItemType` and [`CTorServicePath`] are mismatched,
+/// If the requested `CTorPath` is
+/// [`HsIdPublicKey`](CTorPath::HsIdPublicKey) or
+/// [`HsIdKeypair`](CTorPath::HsIdKeypair),
+/// but the `ItemType` and [`CTorPath`] are mismatched,
 /// an error is returned.
 pub struct CTorServiceKeystore {
     /// The underlying keystore
@@ -84,6 +87,7 @@ impl CTorServiceKeystore {
 /// If `res` is `None`, return `ret`.
 macro_rules! rel_path_if_supported {
     ($self:expr, $spec:expr, $ret:expr, $item_type:expr) => {{
+        use CTorPath::*;
         use KeystoreItemType::*;
 
         // If the key specifier doesn't have a CTorPath,
@@ -93,20 +97,23 @@ macro_rules! rel_path_if_supported {
         };
 
         // This keystore only deals with service keys...
-        let CTorPath::Service { path, nickname } = ctor_path else {
-            return $ret;
+        let nickname = match &ctor_path {
+            HsClientDescEncKeypair { .. } => return $ret,
+            HsIdKeypair { nickname } | HsIdPublicKey { nickname } => nickname,
         };
 
         // ...more specifically, it has the service keys of a *particular* service
         // (identified by nickname).
-        if nickname != $self.nickname {
+        if nickname != &$self.nickname {
             return $ret;
         };
 
-        let relpath = $self.keystore.rel_path(PathBuf::from(path.to_string()));
-        match ($item_type, &path) {
-            (Key(KeyType::Ed25519ExpandedKeypair), CTorServicePath::PrivateKey)
-            | (Key(KeyType::Ed25519PublicKey), CTorServicePath::PublicKey) => Ok(()),
+        let relpath = $self
+            .keystore
+            .rel_path(PathBuf::from(ctor_path.to_string()));
+        match ($item_type, &ctor_path) {
+            (Key(KeyType::Ed25519ExpandedKeypair), HsIdKeypair { .. })
+            | (Key(KeyType::Ed25519PublicKey), HsIdPublicKey { .. }) => Ok(()),
             _ => Err(CTorKeystoreError::InvalidKeystoreItemType {
                 item_type: $item_type.clone(),
                 item: format!("key {}", relpath.rel_path_unchecked().display_lossy()),
@@ -219,22 +226,18 @@ impl Keystore for CTorServiceKeystore {
     }
 
     fn list(&self) -> Result<Vec<KeystoreEntryResult<KeystoreEntry>>> {
-        use crate::CTorServicePath::*;
-
         // This keystore can contain at most 2 keys (the public and private
         // keys of the service)
         let all_keys = [
             (
-                CTorPath::Service {
+                CTorPath::HsIdPublicKey {
                     nickname: self.nickname.clone(),
-                    path: PublicKey,
                 },
                 KeyType::Ed25519PublicKey,
             ),
             (
-                CTorPath::Service {
+                CTorPath::HsIdKeypair {
                     nickname: self.nickname.clone(),
-                    path: PrivateKey,
                 },
                 KeyType::Ed25519ExpandedKeypair,
             ),
@@ -425,7 +428,6 @@ mod tests {
     use std::fs;
     use tempfile::{TempDir, tempdir};
 
-    use crate::CTorServicePath;
     use crate::test_utils::{DummyKey, TestCTorSpecifier, assert_found};
 
     const PUBKEY: &[u8] = include_bytes!("../../../testdata/tor-service/hs_ed25519_public_key");
@@ -467,9 +469,8 @@ mod tests {
         let (keystore, _keystore_dir) = init_keystore("foo", "allium-cepa");
 
         let unk_nickname = HsNickname::new("acutus-cepa".into()).unwrap();
-        let path = CTorPath::Service {
+        let path = CTorPath::HsIdPublicKey {
             nickname: unk_nickname.clone(),
-            path: CTorServicePath::PublicKey,
         };
 
         // Not found!
@@ -482,9 +483,8 @@ mod tests {
 
         // But if we use the right nickname (i.e. the one matching the keystore's nickname),
         // the key is found.
-        let path = CTorPath::Service {
+        let path = CTorPath::HsIdPublicKey {
             nickname: keystore.nickname.clone(),
-            path: CTorServicePath::PublicKey,
         };
         assert_found!(
             keystore,
@@ -493,9 +493,8 @@ mod tests {
             true
         );
 
-        let path = CTorPath::Service {
+        let path = CTorPath::HsIdKeypair {
             nickname: keystore.nickname.clone(),
-            path: CTorServicePath::PrivateKey,
         };
         assert_found!(
             keystore,
@@ -508,9 +507,8 @@ mod tests {
     #[test]
     fn unsupported_operation() {
         let (keystore, _keystore_dir) = init_keystore("foo", "allium-cepa");
-        let path = CTorPath::Service {
+        let path = CTorPath::HsIdPublicKey {
             nickname: keystore.nickname.clone(),
-            path: CTorServicePath::PublicKey,
         };
 
         let err = keystore
@@ -533,9 +531,8 @@ mod tests {
     fn wrong_keytype() {
         let (keystore, _keystore_dir) = init_keystore("foo", "allium-cepa");
 
-        let path = CTorPath::Service {
+        let path = CTorPath::HsIdPublicKey {
             nickname: keystore.nickname.clone(),
-            path: CTorServicePath::PublicKey,
         };
 
         let err = keystore

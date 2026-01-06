@@ -119,11 +119,11 @@ pub enum RawComponentParseResult {
     /// This was a field
     ///
     /// The `Option` has been filled with the actual value.
-    /// It has an entry in the `keys` argument to [`parse_key_path`].
+    /// It has an entry in the `keys` argument to [`parse_arti_path`].
     ParsedField,
     /// This was a literal, and it matched
     MatchedLiteral,
-    /// Becomes [`KeyPathError::PatternNotMatched`]
+    /// Becomes [`ArtiPathError::PatternNotMatched`]
     PatternNotMatched,
     /// `InvalidKeyPathComponentValue`
     Invalid(InvalidKeyPathComponentValue),
@@ -131,7 +131,7 @@ pub enum RawComponentParseResult {
 
 use RawComponentParseResult as RCPR;
 
-/// Trait for parsing a path component, used by [`parse_key_path`]
+/// Trait for parsing a path component, used by [`parse_arti_path`]
 ///
 /// Implemented for `Option<impl KeySpecifierComponent>`,
 /// and guarantees to fill in the Option if it succeeds.
@@ -189,19 +189,13 @@ type Parsers<'p> = [&'p mut dyn RawKeySpecifierComponentParser];
 /// We also need the key names for error reporting.
 /// We pass this as a *single* array, and a double-reference to the slice,
 /// since that resolves to one pointer to a static structure.
-pub fn parse_key_path(
-    path: &KeyPath,
+pub fn parse_arti_path(
+    arti_path: &ArtiPath,
     keys: &&[&str],
     path_parsers: &mut Parsers,
     leaf_parsers: &mut Parsers,
-) -> Result<(), KeyPathError> {
-    let (path, arti_path) = match path {
-        KeyPath::Arti(path) => (path.as_str(), path),
-        KeyPath::CTor(_path) => {
-            // TODO (#858): support ctor stores
-            return Err(internal!("not implemented").into());
-        }
-    };
+) -> Result<(), ArtiPathError> {
+    let path = arti_path.as_str();
 
     let (path, leaf) = match path.rsplit_once('/') {
         Some((path, leaf)) => (Some(path), leaf),
@@ -212,38 +206,33 @@ pub fn parse_key_path(
 
     /// Split a string into components and parse each one
     fn extract(
-        arti_path: &ArtiPath,
         input: Option<&str>,
         delim: char,
         parsers: &mut Parsers,
         keys: &mut &[&str],
-    ) -> Result<(), KeyPathError> {
+    ) -> Result<(), ArtiPathError> {
         for ent in Itertools::zip_longest(
             input.map(|input| input.split(delim)).into_iter().flatten(),
             parsers,
         ) {
             let EitherOrBoth::Both(comp, parser) = ent else {
                 // wrong number of components
-                return Err(KeyPathError::PatternNotMatched(arti_path.clone()));
+                return Err(ArtiPathError::PatternNotMatched);
             };
 
             // TODO would be nice to avoid allocating again here,
             // but I think that needs an `SlugRef`.
             let comp = Slug::new(comp.to_owned())
                 .map_err(ArtiPathSyntaxError::Slug)
-                .map_err(|error| KeyPathError::InvalidArtiPath {
-                    error,
-                    path: arti_path.clone(),
-                })?;
+                .map_err(ArtiPathError::InvalidArtiPath)?;
 
-            let missing_keys = || internal!("keys list too short, bad args to parse_key_path");
+            let missing_keys = || internal!("keys list too short, bad args to parse_arti_path");
 
             match parser.parse(&comp) {
-                RCPR::PatternNotMatched => Err(KeyPathError::PatternNotMatched(arti_path.clone())),
-                RCPR::Invalid(error) => Err(KeyPathError::InvalidKeyPathComponentValue {
+                RCPR::PatternNotMatched => Err(ArtiPathError::PatternNotMatched),
+                RCPR::Invalid(error) => Err(ArtiPathError::InvalidKeyPathComponentValue {
                     error,
                     key: keys.first().ok_or_else(missing_keys)?.to_string(),
-                    path: arti_path.clone(),
                     value: comp,
                 }),
                 RCPR::ParsedField => {
@@ -256,14 +245,8 @@ pub fn parse_key_path(
         Ok(())
     }
 
-    extract(arti_path, path, '/', path_parsers, &mut keys)?;
-    extract(
-        arti_path,
-        Some(leaf),
-        DENOTATOR_SEP,
-        leaf_parsers,
-        &mut keys,
-    )?;
+    extract(path, '/', path_parsers, &mut keys)?;
+    extract(Some(leaf), DENOTATOR_SEP, leaf_parsers, &mut keys)?;
     Ok(())
 }
 
@@ -280,7 +263,7 @@ pub fn describe_via_components(
     role: &dyn RawKeySpecifierComponent,
     extra_keys: &&[&str],
     extra_info: &[&dyn KeySpecifierComponent],
-) -> Result<KeyPathInfo, KeyPathError> {
+) -> Result<KeyPathInfo, Bug> {
     let mut info = KeyPathInfoBuilder::default();
     info.summary(summary.to_string());
     info.role({
@@ -292,9 +275,8 @@ pub fn describe_via_components(
         let value = KeySpecifierComponentPrettyHelper(*value).to_string();
         info.extra_info(*key, value);
     }
-    Ok(info
-        .build()
-        .map_err(into_internal!("failed to build KeyPathInfo"))?)
+    info.build()
+        .map_err(into_internal!("failed to build KeyPathInfo"))
 }
 
 define_derive_deftly! {
@@ -373,10 +355,16 @@ define_derive_deftly! {
     ///    Designates a field that should be represented
     ///    in the key file leafname, after the role.
     ///
-    ///  * **`#[deftly(ctor_path = "expression")]`** (toplevel):
+    ///  * **`#[deftly(ctor_path = "<variant>")]`** (toplevel):
     ///    Specifies that this kind of key has a representation in C Tor keystores,
-    ///    and provides an expression for computing the path.
-    ///    The expression should have type `impl Fn(&Self) -> CTorPath`.
+    ///    and provides the appropriate [`CTorPath`] variant in `<variant>`.
+    ///
+    ///    Used for implementing [`CTorKeySpecifier`].
+    ///
+    ///    If specified, the generated [`KeySpecifier::ctor_path`] implementation
+    ///    will return [`CTorPath`]::`<variant>` populated with the fields extracted
+    ///    from this type. Therefore, your type **must** have exactly the same fields
+    ///    as the specified `CTorPath` variant.
     ///
     ///    If not specified, the generated [`KeySpecifier::ctor_path`]
     ///    implementation will always return `None`.
@@ -501,11 +489,7 @@ define_derive_deftly! {
         }
 
         fn ctor_path(&self) -> Option<$crate::CTorPath> {
-            ${if tmeta(ctor_path) {
-                Some( ${tmeta(ctor_path) as token_stream} (self) )
-            } else {
-                None
-            }}
+            <Self as $crate::CTorKeySpecifier>::ctor_path(self)
         }
 
         fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
@@ -585,7 +569,7 @@ define_derive_deftly! {
                     $ARTI_PATH_COMPONENTS
                     $ARTI_LEAF_COMPONENTS
                 ],
-            )
+            ).map_err($crate::KeyPathError::Bug)
         }
     }
 
@@ -612,12 +596,25 @@ define_derive_deftly! {
             ${define DO_FIELD { &mut builder.$fname, }}
             ${define DO_LITERAL { &mut $LIT, }}
 
-            parse_key_path(
-                path,
-                &FIELD_KEYS,
-                &mut [ $ARTI_PATH_COMPONENTS ],
-                &mut [ $ARTI_LEAF_COMPONENTS ],
-            )?;
+            #[allow(unused_variables)] // CTorPath is only used with ctor_path(..)
+            match path {
+                $crate::KeyPath::Arti(path) => {
+                    parse_arti_path(
+                        path,
+                        &FIELD_KEYS,
+                        &mut [ $ARTI_PATH_COMPONENTS ],
+                        &mut [ $ARTI_LEAF_COMPONENTS ],
+                    ).map_err(|err| $crate::KeyPathError::Arti { path: path.clone(), err })?;
+                },
+                $crate::KeyPath::CTor(path) => {
+                    return <Self as $crate::CTorKeySpecifier>::from_ctor_path(path.clone())
+                        .map_err(|err| $crate::KeyPathError::CTor { path: path.clone(), err });
+                },
+                #[allow(unreachable_patterns)] // This is reachable if used outside of tor-keymgr
+                &_ => {
+                    return Err(internal!("unrecognized key path?!").into());
+                }
+            };
 
             #[allow(unused_variables)] // not needed if there are no fields
             let handle_none = || internal!("bad RawKeySpecifierComponentParser impl");
@@ -627,6 +624,49 @@ define_derive_deftly! {
             ) })
         }
     }
+
+    ${if tmeta(ctor_path) {
+
+    ${define CTOR_PATH_VARIANT ${tmeta(ctor_path) as path}}
+
+    impl<$tgens> $crate::CTorKeySpecifier for $ttype
+    where $twheres
+    {
+        fn ctor_path(&self) -> Option<$crate::CTorPath> {
+            Some($crate::CTorPath :: $CTOR_PATH_VARIANT {
+                $( $fname: self.$fname.clone(), )
+            })
+        }
+
+        fn from_ctor_path(
+            path: $crate::CTorPath
+        ) -> std::result::Result<Self, $crate::CTorPathError> {
+
+            match path {
+                $crate::CTorPath :: $CTOR_PATH_VARIANT { $( $fname, )} => {
+                    Ok( Self { $( $fname, ) })
+                },
+                _ => Err($crate::CTorPathError::KeySpecifierMismatch(stringify!($tname).into())),
+            }
+        }
+    }
+
+    } else {
+    impl<$tgens> $crate::CTorKeySpecifier for $ttype
+    where $twheres
+    {
+        fn ctor_path(&self) -> Option<$crate::CTorPath> {
+            None
+        }
+
+        fn from_ctor_path(
+            _: $crate::CTorPath
+        ) -> std::result::Result<Self, $crate::CTorPathError> {
+            Err($crate::CTorPathError::MissingCTorPath(stringify!($tname).to_string()))
+        }
+    }
+
+    }}
 
     // Register the info extractor with `KeyMgr`.
     $crate::inventory::submit!(&$< $tname InfoExtractor > as &dyn $crate::KeyPathInfoExtractor);

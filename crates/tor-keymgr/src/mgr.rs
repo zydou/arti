@@ -4,9 +4,9 @@
 
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    ArtiPath, BoxedKeystore, Error, KeyCertificateSpecifier, KeyPath, KeyPathError, KeyPathInfo,
-    KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeystoreCorruptionError,
-    KeystoreEntryResult, KeystoreId, KeystoreSelector, Result,
+    ArtiPath, BoxedKeystore, KeyCertificateSpecifier, KeyPath, KeyPathInfo, KeyPathInfoExtractor,
+    KeyPathPattern, KeySpecifier, KeystoreCorruptionError, KeystoreEntryResult, KeystoreId,
+    KeystoreSelector, Result,
 };
 
 use itertools::Itertools;
@@ -254,10 +254,6 @@ impl KeyMgr {
     /// and checks if its contents are valid (i.e. that the key can be parsed).
     /// The [`KeyPath`] of the entry is further validated using [`describe`](KeyMgr::describe).
     ///
-    /// NOTE: Currently, ctor entries cannot be validated using [`describe`](KeyMgr::describe), so they
-    /// are considered valid if the manager successfully retrieves the corresponding keys,
-    /// but are otherwise not validated by this procedure.
-    ///
     /// Returns `Ok(())` if the specified keystore entry is valid, and `Err` otherwise.
     ///
     /// NOTE: If the specified entry does not exist, this will only validate its [`KeyPath`].
@@ -268,14 +264,11 @@ impl KeyMgr {
         // Ignore the parsed key, only checking if it parses correctly
         let _ = store.get(entry.key_path(), entry.key_type())?;
 
-        // TODO: Implement `describe()` support for CTor keystore entries
-        if !matches!(entry.key_path(), KeyPath::CTor(_)) {
-            // Ignore the result, just checking if the path is recognized
-            let _ = self
-                .describe(entry.key_path())
-                // TODO: `Error::Corruption` might not be the best fit for this situation.
-                .map_err(|e| Error::Corruption(e.into()))?;
-        }
+        let path = entry.key_path();
+        // Ignore the result, just checking if the path is recognized
+        let _ = self
+            .describe(path)
+            .ok_or_else(|| KeystoreCorruptionError::Unrecognized(path.clone()))?;
 
         Ok(())
     }
@@ -287,8 +280,8 @@ impl KeyMgr {
     ///
     /// On success, this function returns the newly generated key.
     ///
-    /// Returns [`Error::KeyAlreadyExists`] if the key already exists in the specified
-    /// key store and `overwrite` is `false`.
+    /// Returns [`Error::KeyAlreadyExists`](crate::Error::KeyAlreadyExists)
+    /// if the key already exists in the specified key store and `overwrite` is `false`.
     ///
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
@@ -459,20 +452,20 @@ impl KeyMgr {
 
     /// Describe the specified key.
     ///
-    /// Returns [`KeyPathError::Unrecognized`] if none of the registered
+    /// Returns `None` if none of the registered
     /// [`KeyPathInfoExtractor`]s is able to parse the specified [`KeyPath`].
     ///
     /// This function uses the [`KeyPathInfoExtractor`]s registered using
     /// [`register_key_info_extractor`](crate::register_key_info_extractor),
     /// or by [`DefaultKeySpecifier`](crate::derive_deftly_template_KeySpecifier).
-    pub fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError> {
+    pub fn describe(&self, path: &KeyPath) -> Option<KeyPathInfo> {
         for info_extractor in &self.key_info_extractors {
             if let Ok(info) = info_extractor.describe(path) {
-                return Ok(info);
+                return Some(info);
             }
         }
 
-        Err(KeyPathError::Unrecognized(path.clone()))
+        None
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.
