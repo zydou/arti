@@ -386,12 +386,12 @@ fn read_ctor_keys<'a>(
 ) -> Result<HashMap<HsId, KeystoreEntry<'a>>> {
     let mut ctor_client_entries = HashMap::new();
     for entry in entries.iter().flatten() {
-        if let KeyPath::CTor(CTorPath::ClientHsDescEncKey(hsid)) = entry.key_path() {
-            match ctor_client_entries.entry(*hsid) {
+        if let KeyPath::CTor(CTorPath::HsClientDescEncKeypair { hs_id }) = entry.key_path() {
+            match ctor_client_entries.entry(*hs_id) {
                 Entry::Occupied(_) => {
                     return Err(anyhow!(
                         "Invalid C Tor keystore (multiple keys exist for service {})",
-                        hsid.display_redacted()
+                        hs_id.display_redacted()
                     ));
                 }
                 Entry::Vacant(v) => {

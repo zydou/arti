@@ -9,7 +9,7 @@
 //! For TP-based keys, that involves deriving [`HsTimePeriodKeySpecifier`]
 //! and adding a call to `remove_if_expired!` in [`expire_publisher_keys`].
 
-use tor_keymgr::{CTorPath, CTorServicePath};
+use tor_keymgr::CTorPath;
 
 use crate::{internal_prelude::*, list_expired_keys_for_service};
 
@@ -61,9 +61,8 @@ mod hs_id_pub_ctor_path {
 
     /// The `CTorPath` of HsIdPublicKeySpecifier
     pub(super) fn ctor_path(spec: &HsIdPublicKeySpecifier) -> CTorPath {
-        CTorPath::Service {
+        CTorPath::HsIdPublicKey {
             nickname: spec.nickname.clone(),
-            path: CTorServicePath::PublicKey,
         }
     }
 
@@ -72,9 +71,8 @@ mod hs_id_pub_ctor_path {
     /// Returns an error if the `CTorPath` is not the path of the public part of an identity keypair.
     pub(super) fn from_ctor_path(path: &CTorPath) -> Result<HsIdPublicKeySpecifier, CTorPathError> {
         match path {
-            CTorPath::Service {
+            CTorPath::HsIdPublicKey {
                 nickname,
-                path: CTorServicePath::PublicKey,
             } => Ok(HsIdPublicKeySpecifier {
                 nickname: nickname.clone(),
             }),
@@ -111,9 +109,8 @@ mod hs_id_ctor_path {
 
     /// The `CTorPath` of HsIdKeypairKeySpecifier
     pub(super) fn ctor_path(spec: &HsIdKeypairSpecifier) -> CTorPath {
-        CTorPath::Service {
+        CTorPath::HsIdKeypair {
             nickname: spec.nickname.clone(),
-            path: CTorServicePath::PrivateKey,
         }
     }
 
@@ -122,9 +119,8 @@ mod hs_id_ctor_path {
     /// Returns an error if the `CTorPath` is not the path of an HsId keypair.
     pub(super) fn from_ctor_path(path: &CTorPath) -> Result<HsIdKeypairSpecifier, CTorPathError> {
         match path {
-            CTorPath::Service {
+            CTorPath::HsIdKeypair {
                 nickname,
-                path: CTorServicePath::PrivateKey,
             } => Ok(HsIdKeypairSpecifier {
                 nickname: nickname.clone(),
             }),

@@ -166,7 +166,7 @@ mod desc_enc_ctor_path {
 
     /// The `CTorPath` of HsClientDescEncKeypairSpecifier
     pub(super) fn ctor_path(spec: &HsClientDescEncKeypairSpecifier) -> CTorPath {
-        CTorPath::ClientHsDescEncKey(spec.hs_id)
+        CTorPath::HsClientDescEncKeypair { hs_id : spec.hs_id }
     }
 
     /// Try to convert a `CTorPath` to an `HsClientDescEncKeypairSpecifier`.
@@ -176,7 +176,7 @@ mod desc_enc_ctor_path {
         path: &CTorPath,
     ) -> Result<HsClientDescEncKeypairSpecifier, CTorPathError> {
         match path {
-            CTorPath::ClientHsDescEncKey(hs_id) => {
+            CTorPath::HsClientDescEncKeypair { hs_id } => {
                 Ok(HsClientDescEncKeypairSpecifier { hs_id: *hs_id })
             }
             _ => Err(CTorPathError::KeySpecifierMismatch(

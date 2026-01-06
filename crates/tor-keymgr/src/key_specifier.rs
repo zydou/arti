@@ -357,39 +357,22 @@ pub enum CTorPath {
     /// (we'd need to read and parse each file from `ClientOnionAuthDir` to find out).
     //
     // TODO: Perhaps we should redact this sometimes.
-    #[display("ClientHsDescEncKey({})", _0.display_unredacted())]
-    ClientHsDescEncKey(HsId),
-    /// A service key path.
-    #[display("{path}")]
-    Service {
-        /// The nickname of the service,
-        nickname: HsNickname,
-        /// The relative path of this key.
-        path: CTorServicePath,
+    #[display("HsClientDescEncKeypair({})", hs_id.display_unredacted())]
+    HsClientDescEncKeypair {
+        /// The hidden service this restricted discovery keypair is for.
+        hs_id: HsId,
     },
-}
-
-/// The relative path in a C Tor key store.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, derive_more::Display)] //
-#[non_exhaustive]
-pub enum CTorServicePath {
     /// C Tor's `HiddenServiceDirectory/hs_ed25519_public_key`.
     #[display("hs_ed25519_public_key")]
-    PublicKey,
+    HsIdPublicKey {
+        /// The nickname of the service,
+        nickname: HsNickname,
+    },
     /// C Tor's `HiddenServiceDirectory/hs_ed25519_secret_key`.
     #[display("hs_ed25519_secret_key")]
-    PrivateKey,
-}
-
-impl CTorPath {
-    /// Create a CTorPath that represents a service key.
-    pub fn service(nickname: HsNickname, path: CTorServicePath) -> Self {
-        Self::Service { nickname, path }
-    }
-
-    /// Create a CTorPath that represents a client authorization key.
-    pub fn client(hsid: HsId) -> Self {
-        Self::ClientHsDescEncKey(hsid)
+    HsIdKeypair {
+        /// The nickname of the service,
+        nickname: HsNickname,
     }
 }
 
@@ -937,12 +920,10 @@ KeyPathInfo {
 
     mod test_specifier_ctor_path {
         use super::*;
-        use crate::CTorServicePath;
 
         pub(super) fn ctor_path(_: &TestSpecifier) -> CTorPath {
-            CTorPath::Service {
+            CTorPath::HsIdPublicKey {
                 nickname: HsNickname::from_str("allium-cepa").unwrap(),
-                path: CTorServicePath::PublicKey,
             }
         }
 
@@ -959,9 +940,8 @@ KeyPathInfo {
 
         assert_eq!(
             spec.ctor_path(),
-            Some(CTorPath::Service {
+            Some(CTorPath::HsIdPublicKey {
                 nickname: HsNickname::from_str("allium-cepa").unwrap(),
-                path: CTorServicePath::PublicKey,
             }),
         );
     }

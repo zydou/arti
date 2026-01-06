@@ -73,7 +73,7 @@ pub use err::{
 };
 pub use key_specifier::{
     ArtiPathError, ArtiPathRange, ArtiPathUnavailableError, CTorPath, CTorPathError,
-    CTorServicePath, InvalidKeyPathComponentValue, KeyCertificateSpecifier, KeyPath, KeyPathError,
+    InvalidKeyPathComponentValue, KeyCertificateSpecifier, KeyPath, KeyPathError,
     KeyPathInfo, KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeySpecifier,
     KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
 };
