@@ -937,7 +937,9 @@ KeyPathInfo {
             nickname: HsNickname,
         }
 
-        let spec = TestSpecifier { nickname: HsNickname::from_str("42").unwrap() };
+        let spec = TestSpecifier {
+            nickname: HsNickname::from_str("42").unwrap(),
+        };
 
         check_key_specifier(&spec, "p/42/r");
 
