@@ -355,14 +355,16 @@ define_derive_deftly! {
     ///    Designates a field that should be represented
     ///    in the key file leafname, after the role.
     ///
-    ///  * **`#[deftly(ctor_path (with = "module"))]`** (toplevel):
+    ///  * **`#[deftly(ctor_path = "<variant>")]`** (toplevel):
     ///    Specifies that this kind of key has a representation in C Tor keystores,
-    ///    and provides a module for computing the path,
-    ///    and for converting a `CTorPath` into the key specifier type:
+    ///    and provides the appropriate [`CTorPath`] variant in `<variant>`.
     ///
-    ///      - `<module>::ctor_path()` should have type `impl Fn(&Self) -> CTorPath`
-    ///      - `<module>::from_ctor_path()` should have type
-    ///      `impl Fn(&CTorPath) -> Result<Self, CTorPathError>`
+    ///    Used for implementing [`CTorKeySpecifier`].
+    ///
+    ///    If specified, the generated [`KeySpecifier::ctor_path`] implementation
+    ///    will return [`CTorPath`]::`<variant>` populated with the fields extracted
+    ///    from this type. Therefore, your type **must** have exactly the same fields
+    ///    as the specified `CTorPath` variant.
     ///
     ///    If not specified, the generated [`KeySpecifier::ctor_path`]
     ///    implementation will always return `None`.
@@ -487,11 +489,7 @@ define_derive_deftly! {
         }
 
         fn ctor_path(&self) -> Option<$crate::CTorPath> {
-            ${if tmeta(ctor_path(with)) {
-                Some( ${tmeta(ctor_path(with)) as path} :: ctor_path (self) )
-            } else {
-                None
-            }}
+            <Self as $crate::CTorKeySpecifier>::ctor_path(self)
         }
 
         fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
@@ -609,21 +607,8 @@ define_derive_deftly! {
                     ).map_err(|err| $crate::KeyPathError::Arti { path: path.clone(), err })?;
                 },
                 $crate::KeyPath::CTor(path) => {
-                    ${if tmeta(ctor_path(with)) {
-                        return ${tmeta(ctor_path(with)) as path} :: from_ctor_path (path)
-                            .map_err(|err| {
-                                $crate::KeyPathError::CTor {
-                                    path: path.clone(),
-                                    err,
-                                }
-                            });
-                    } else {
-                        let spec = stringify!($tname.into()).to_string();
-                        return Err($crate::KeyPathError::CTor {
-                            path: path.clone(),
-                            err: $crate::CTorPathError::MissingCTorPath(spec),
-                        });
-                    }}
+                    return <Self as $crate::CTorKeySpecifier>::from_ctor_path(path.clone())
+                        .map_err(|err| $crate::KeyPathError::CTor { path: path.clone(), err });
                 },
                 #[allow(unreachable_patterns)] // This is reachable if used outside of tor-keymgr
                 &_ => {
@@ -639,6 +624,49 @@ define_derive_deftly! {
             ) })
         }
     }
+
+    ${if tmeta(ctor_path) {
+
+    ${define CTOR_PATH_VARIANT ${tmeta(ctor_path) as path}}
+
+    impl<$tgens> $crate::CTorKeySpecifier for $ttype
+    where $twheres
+    {
+        fn ctor_path(&self) -> Option<$crate::CTorPath> {
+            Some($crate::CTorPath :: $CTOR_PATH_VARIANT {
+                $( $fname: self.$fname.clone(), )
+            })
+        }
+
+        fn from_ctor_path(
+            path: $crate::CTorPath
+        ) -> std::result::Result<Self, $crate::CTorPathError> {
+
+            match path {
+                $crate::CTorPath :: $CTOR_PATH_VARIANT { $( $fname, )} => {
+                    Ok( Self { $( $fname: $fname, ) })
+                },
+                _ => Err($crate::CTorPathError::KeySpecifierMismatch(stringify!($tname).into())),
+            }
+        }
+    }
+
+    } else {
+    impl<$tgens> $crate::CTorKeySpecifier for $ttype
+    where $twheres
+    {
+        fn ctor_path(&self) -> Option<$crate::CTorPath> {
+            None
+        }
+
+        fn from_ctor_path(
+            _: $crate::CTorPath
+        ) -> std::result::Result<Self, $crate::CTorPathError> {
+            Err($crate::CTorPathError::MissingCTorPath(stringify!($tname).to_string()))
+        }
+    }
+
+    }}
 
     // Register the info extractor with `KeyMgr`.
     $crate::inventory::submit!(&$< $tname InfoExtractor > as &dyn $crate::KeyPathInfoExtractor);
