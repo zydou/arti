@@ -474,3 +474,28 @@ impl<R: Runtime> ChanMgr<R> {
         }
     }
 }
+
+#[cfg(feature = "relay")]
+#[async_trait]
+impl<R: Runtime> ChannelProvider for ChanMgr<R> {
+    type BuildSpec = OwnedChanTarget;
+
+    async fn get_or_launch_relay(
+        &self,
+        _circ_id: tor_proto::circuit::UniqId,
+        target: Self::BuildSpec,
+        tx: tor_proto::relay::channel_provider::OutboundChanSender,
+    ) -> tor_proto::Result<()> {
+        debug!("Get or launch relay channel to {target}");
+
+        let r = self
+            .mgr
+            .get_or_launch(target, ChannelUsage::UserTraffic)
+            .await
+            .map_err(|e| tor_proto::Error::ChanProto(e.to_string())); // Is it a ChanProto?
+
+        // Send back the channel.
+        tx.send(r.map(|(chan, _)| chan));
+        Ok(())
+    }
+}

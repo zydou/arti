@@ -6,6 +6,7 @@ use crate::Result;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 
+use async_trait::async_trait;
 use futures::channel::mpsc;
 
 use std::sync::Arc;
@@ -52,6 +53,7 @@ impl OutboundChanSender {
 /// number of outbound channels that can be opened on a given circuit.
 #[allow(unreachable_pub)] // TODO(#1447): impl this for ChanMgr
 #[allow(unused)]
+#[async_trait]
 pub trait ChannelProvider {
     /// Type that explains how to build an outgoing channel.
     type BuildSpec: HasRelayIds;
@@ -60,10 +62,10 @@ pub trait ChannelProvider {
     /// for the circuit with the specified `circ_id`.
     ///
     /// Returns the requested channel via the specified [`OutboundChanSender`].
-    fn get_or_launch_relay(
+    async fn get_or_launch_relay(
         &self,
         circ_id: UniqId,
-        target: &Self::BuildSpec,
+        target: Self::BuildSpec,
         tx: OutboundChanSender,
     ) -> Result<()>;
 }
