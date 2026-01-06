@@ -108,6 +108,17 @@ define_derive_deftly! {
               "` out of it with [`.construct()`](" $CONSTRUCTOR_NAME "::construct),"}]
     /// or the `From` impl,
     /// and use the result as a basis for further modifications.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    #[doc = ${concat "let " ${snake_case $tname} " = " $tname "{"}]
+    #[doc = ${concat "    /* optional field values go here */"}]
+    #[doc = ${concat "    .." $CONSTRUCTOR_NAME " {"}]
+    #[doc = ${concat "        /* required field values go here */"}]
+    #[doc = ${concat "    }.construct()"}]
+    #[doc = ${concat "};"}]
+    /// ```
     #[allow(clippy::exhaustive_structs)]
     $tvis struct $CONSTRUCTOR_NAME<$tdefgens> where $twheres { $(
         ${when F_REQUIRED}
