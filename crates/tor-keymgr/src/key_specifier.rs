@@ -203,7 +203,7 @@ pub enum ArtiPathError {
 
 /// An error while attempting to convert a [`CTorPath`]
 /// to its corresponding key specifier type.
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum CTorPathError {
     /// Attempted to convert a C Tor path to a mismatched specifier kind.
