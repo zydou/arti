@@ -851,7 +851,7 @@ KeyPathInfo {
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
-        assert_eq!(key_spec.ctor_path(), None);
+        assert_eq!(KeySpecifier::ctor_path(&key_spec), None);
     }
 
     #[test]
@@ -925,40 +925,26 @@ KeyPathInfo {
         );
     }
 
-    #[derive(Deftly, Debug, Eq, PartialEq)]
-    #[derive_deftly(KeySpecifier)]
-    #[deftly(prefix = "p")]
-    #[deftly(role = "r")]
-    #[deftly(ctor_path(with = "test_specifier_ctor_path"))]
-    #[deftly(summary = "test key")]
-    struct TestSpecifier {
-        i: usize,
-    }
-
-    mod test_specifier_ctor_path {
-        use super::*;
-
-        pub(super) fn ctor_path(_: &TestSpecifier) -> CTorPath {
-            CTorPath::HsIdPublicKey {
-                nickname: HsNickname::from_str("allium-cepa").unwrap(),
-            }
-        }
-
-        pub(super) fn from_ctor_path(_: &CTorPath) -> StdResult<TestSpecifier, CTorPathError> {
-            Err(CTorPathError::MissingCTorPath("TestSpecifier".into()))
-        }
-    }
-
     #[test]
     fn define_key_specifier_ctor_path() {
-        let spec = TestSpecifier { i: 42 };
+        #[derive(Deftly, Debug, Eq, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "p")]
+        #[deftly(role = "r")]
+        #[deftly(ctor_path = "HsIdPublicKey")]
+        #[deftly(summary = "test key")]
+        struct TestSpecifier {
+            nickname: HsNickname,
+        }
+
+        let spec = TestSpecifier { nickname: HsNickname::from_str("42").unwrap() };
 
         check_key_specifier(&spec, "p/42/r");
 
         assert_eq!(
-            spec.ctor_path(),
+            KeySpecifier::ctor_path(&spec),
             Some(CTorPath::HsIdPublicKey {
-                nickname: HsNickname::from_str("allium-cepa").unwrap(),
+                nickname: HsNickname::from_str("42").unwrap(),
             }),
         );
     }
