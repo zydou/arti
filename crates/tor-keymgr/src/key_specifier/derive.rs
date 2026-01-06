@@ -644,7 +644,7 @@ define_derive_deftly! {
 
             match path {
                 $crate::CTorPath :: $CTOR_PATH_VARIANT { $( $fname, )} => {
-                    Ok( Self { $( $fname: $fname, ) })
+                    Ok( Self { $( $fname, ) })
                 },
                 _ => Err($crate::CTorPathError::KeySpecifierMismatch(stringify!($tname).into())),
             }
