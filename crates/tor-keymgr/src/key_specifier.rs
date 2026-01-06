@@ -851,7 +851,14 @@ KeyPathInfo {
             KeyPathPattern::Arti("encabulator/logarithmic/prefabulating/fan".into())
         );
 
-        assert_eq!(KeySpecifier::ctor_path(&key_spec), None);
+        let ctor_path = CTorPath::HsIdPublicKey {
+            nickname: HsNickname::from_str("foo").unwrap(),
+        };
+
+        assert_eq!(
+            TestSpecifier::from_ctor_path(ctor_path).unwrap_err(),
+            CTorPathError::MissingCTorPath("TestSpecifier".into()),
+        );
     }
 
     #[test]
@@ -943,12 +950,37 @@ KeyPathInfo {
 
         check_key_specifier(&spec, "p/42/r");
 
+        let ctor_path = KeySpecifier::ctor_path(&spec);
+
         assert_eq!(
-            KeySpecifier::ctor_path(&spec),
+            ctor_path,
             Some(CTorPath::HsIdPublicKey {
                 nickname: HsNickname::from_str("42").unwrap(),
             }),
         );
+
+        assert_eq!(
+            TestSpecifier::from_ctor_path(ctor_path.unwrap()).unwrap(),
+            spec,
+        );
+
+        /// An .onion address to put for test client CTorPaths.
+        const HSID: &str = "yc6v7oeksrbech4ctv53di7rfjuikjagkyfrwu3yclzkfyv5haay6mqd.onion";
+        let wrong_paths = &[
+            CTorPath::HsClientDescEncKeypair {
+                hs_id: HsId::from_str(HSID).unwrap(),
+            },
+            CTorPath::HsIdKeypair {
+                nickname: HsNickname::from_str("42").unwrap(),
+            },
+        ];
+
+        for path in wrong_paths {
+            assert_eq!(
+                TestSpecifier::from_ctor_path(path.clone()).unwrap_err(),
+                CTorPathError::KeySpecifierMismatch("TestSpecifier".into()),
+            );
+        }
     }
 
     #[test]
