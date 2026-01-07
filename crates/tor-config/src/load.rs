@@ -32,7 +32,8 @@
 //!  * Defines a configuration structure `EmbedderConfig`,
 //!    for additional configuration settings for the added features.
 //!  * Establishes some configuration sources
-//!    (the trivial empty `ConfigSources`, to avoid clutter in the example)
+//!    (the trivial empty [`ConfigurationSources`](crate::ConfigurationSources),
+//!    to avoid clutter in the example)
 //!  * Reads those sources into a single configuration taxonomy [`ConfigurationTree`].
 //!  * Processes that configuration into a 3-tuple of configuration
 //!    structs for the three components, namely:
