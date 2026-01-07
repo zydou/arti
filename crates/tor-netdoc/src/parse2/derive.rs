@@ -63,7 +63,7 @@ define_derive_deftly_module! {
     // Provide `$<selector_ $fname>` for every (suitable) field.
     ${define ITEM_SET_SELECTORS {
         $(
-          ${when not(any(F_FLATTEN))}
+          ${when not(any(F_FLATTEN, F_SKIP))}
 
           // See `mod multiplicity`.
         ${if not(all(F_INTRO, fmeta(netdoc(with)))) {
@@ -81,7 +81,7 @@ define_derive_deftly_module! {
     // Check that every field type implements the necessary trait.
     ${define CHECK_FIELD_TYPES_PARSEABLE {
         $(
-          ${when not(any(F_FLATTEN))}
+          ${when not(any(F_FLATTEN, F_SKIP))}
 
           // Expands to `selector_FIELD.check_SOMETHING();`
           //
@@ -149,7 +149,7 @@ define_derive_deftly_module! {
     // so if `f_INTRO` is not trivially false, must be expanded within a field loop.
     ${define NONSTRUCTURAL_ACCUMULATE_ELSE {
         ${for fields {
-          ${when not(any(F_FLATTEN, F_SUBDOC))}
+          ${when not(any(F_FLATTEN, F_SUBDOC, F_SKIP))}
 
           if kw == $F_KEYWORD {
             ${select1
@@ -207,10 +207,14 @@ define_derive_deftly_module! {
               F_SUBDOC {
                   let $fpatname = $F_SELECTOR.finish_subdoc($fpatname)?;
               }
+              F_SKIP {
+                  #[allow(non_snake_case)]
+                  let $fpatname = Default::default();
+              }
             }
         }}
         $(
-            ${when not(F_INTRO)}
+            ${when not(any(F_INTRO, F_SKIP))}
             // These conditions are mirrored in NetdocSomeItemsEncodableCommon,
             // which is supposed to recognise netdoc(default) precisely when we do.
           ${if fmeta(netdoc(default)) {
@@ -335,6 +339,12 @@ define_derive_deftly! {
     ///   outer document in any order, interspersed with other normal fields.
     ///
     ///   The field type must implement [`NetdocParseableFields`].
+    ///
+    /// * **`#[deftly(netdoc(skip))]`**:
+    ///
+    ///   This field doesn't really appear in the network document.
+    ///   It won't be recognised during parsing.
+    ///   Instead, `Default::default()` will be used for the field value.
     ///
     /// * **`#[deftly(netdoc(subdoc))]`**:
     ///
@@ -511,6 +521,8 @@ define_derive_deftly! {
                 Err(EP::WrongDocumentType)?;
             }
             let $fpatname: $ftype = $ITEM_VALUE_FROM_UNPARSED;
+
+          } F_SKIP {
 
           } else {
 
