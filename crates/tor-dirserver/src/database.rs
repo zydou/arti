@@ -65,6 +65,7 @@ use crate::err::DatabaseError;
 
 /// Representation of a Sha256 hash in hexadecimal (upper-case)
 // TODO: Make this a real type that actually enforces the constraints.
+// TODO: Change this to DocumentId.
 pub(crate) type Sha256 = String;
 
 /// The supported content encodings.
