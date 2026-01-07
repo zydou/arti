@@ -141,12 +141,14 @@ fn get_recent_consensus(
 ///
 /// # Performance
 ///
-/// This function has `O(n)` performance because it performs `signatories.len()`
-/// database queries, which should not be a problem however, given that this
-/// respective value is oftentimes fairly small.  However, interfacing code
-/// shall ensure that it is not **too big** either, because a mitm may add lots
-/// of garbage signature, just to make this larger, as it is usually called
-/// within the context of obtaining the certificates for a given consensus.
+/// This function has a performance between `O(n * log n)` and `O(n^2)` because
+/// it performs `signatories.len()` database queries, which each database query
+/// potentially taking something between `O(log n)` to `O(n)` to execute.
+/// However, given that this respective value is oftentimes fairly small, it
+/// should not be much of a big concern.  However, interfacing code shall ensure
+/// that it is not **too big** either, because a MITM may add lots of garbage
+/// signatures, just to make this larger, as it is usually called within the
+/// context of obtaining the certificates for a given consensus.
 ///
 /// Because the database has the invariance that all entires inside are
 /// valid, we do not bother about validating the signatures there again, hence
