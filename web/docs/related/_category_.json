@@ -1,0 +1,10 @@
+{
+  "label": "Related Projects",
+  "position": 9,
+  "link": {
+    "type": "generated-index",
+    "description": "Projects related to the Arti ecosystem.",
+    "slug": "/related"
+  }
+}
+

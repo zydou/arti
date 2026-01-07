@@ -80,6 +80,11 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'Related Projects',
+      items: [ 'related/oniux' ]
+    },
+    {
+      type: 'category',
       label: 'Resources',
       items: [
         {
