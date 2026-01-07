@@ -36,6 +36,7 @@ use tor_netdoc::{
     },
     parse2::{self, NetdocSigned, ParseInput},
 };
+use tracing::warn;
 
 use crate::{
     database::{self, sql, Timestamp},
@@ -225,14 +226,27 @@ fn get_recent_authority_certificates(
             }
         };
 
-        // Parse the raw certificate and validate it.  Failures here should not
-        // happen because the entries within the database are assumed to be
-        // valid forever (except timestamp bounds of course).
-        let cert = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(&raw_cert, ""))
-            .map_err(|e| internal!("invalid authcert in database? {e}"))?
-            .unwrap_unverified()
-            .0;
-        found.push(cert);
+        // This match statement is a bit tricky, but important.
+        //
+        // In the case that some newer version of arti may not be able to parse
+        // an older certificate, such as due to missing a field or an older
+        // version having inserted it because not knowing about it, we must not
+        // fail.  Instead, we mark the certificate as missing, because it is
+        // not usable for us.
+        let cert = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(&raw_cert, ""));
+        match cert {
+            Ok(cert) => {
+                // Mark the cert as found.
+                // We assume all certificates in the database to be
+                // cryptographically valid, hence why we use unwrap_unverified.
+                found.push(cert.unwrap_unverified().0);
+            }
+            Err(e) => {
+                warn!("invalid authcert found in database? {e}");
+                missing.push(*kp);
+                continue;
+            }
+        }
     }
 
     Ok((found, missing))
@@ -790,6 +804,53 @@ mod test {
         .unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(missing.len(), 2);
+
+        // Now make one invalid and see that it will get set to missing.
+        pool.get()
+            .unwrap()
+            .execute(
+                sql!(
+                    "
+                    UPDATE store
+                    SET content = X'61'
+                    WHERE sha256 = (SELECT sha256 FROM authority_key_certificate)
+                    "
+                ),
+                params![],
+            )
+            .unwrap();
+        let (found, missing) = database::read_tx(&pool, |tx| {
+            get_recent_authority_certificates(
+                tx,
+                &[
+                    // Found one.
+                    AuthCertKeyIds {
+                        id_fingerprint: RsaIdentity::from_hex(
+                            "49015F787433103580E3B66A1707A00E60F2D15B",
+                        )
+                        .unwrap(),
+                        sk_fingerprint: RsaIdentity::from_hex(
+                            "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
+                        )
+                        .unwrap(),
+                    },
+                ],
+                &DirTolerance::default(),
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
+            )
+        })
+        .unwrap()
+        .unwrap();
+        assert!(found.is_empty());
+        assert_eq!(
+            missing[0],
+            AuthCertKeyIds {
+                id_fingerprint: RsaIdentity::from_hex("49015F787433103580E3B66A1707A00E60F2D15B",)
+                    .unwrap(),
+                sk_fingerprint: RsaIdentity::from_hex("C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",)
+                    .unwrap(),
+            }
+        );
     }
 
     /// Tests the combination of the following functions:
