@@ -239,7 +239,7 @@ fn get_recent_authority_certificates(
 /// Downloads (missing) directory authority certificates from an authority.
 ///
 /// The key pairs (identity and signing keys) are specified in `missing`.
-/// This function will then utilize a [`ConsensusBoundDownloader`] to download
+/// This function will then use the [`ConsensusBoundDownloader`] to download
 /// the missing certificates from a directory authority.
 async fn download_authority_certificates<'a, 'b, R: Rng>(
     missing: &[AuthCertKeyIds],
