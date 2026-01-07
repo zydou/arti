@@ -738,7 +738,6 @@ mod test {
     use crate::timeouts::TimeoutEstimator;
     use futures::FutureExt;
     use std::sync::Mutex;
-    use tor_chanmgr::ChannelConfig;
     use tor_chanmgr::ChannelUsage as CU;
     use tor_linkspec::ChanTarget;
     use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
