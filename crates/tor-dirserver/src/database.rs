@@ -59,7 +59,6 @@ use rusqlite::{
 };
 use saturating_time::SaturatingTime;
 use sha2::Digest;
-use strum::IntoEnumIterator;
 
 use crate::err::DatabaseError;
 
@@ -485,13 +484,17 @@ where
     Ok(res)
 }
 
-/// Inserts `data` into store while also compressing it.
+/// Inserts `data` into store while also compressing it with given encodings.
 ///
 /// Returns the sha256 of `data` in uppercase hex.
 ///
 /// This function inserts `data` into store and also compresses it into all
-/// supported compression formats we support.
-pub(crate) fn store_insert(tx: &Transaction, data: &[u8]) -> Result<Sha256, DatabaseError> {
+/// given compression formats.
+pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
+    tx: &Transaction,
+    data: &[u8],
+    encodings: I,
+) -> Result<Sha256, DatabaseError> {
     // The statement to insert some data into the store.
     //
     // Parameters:
@@ -527,11 +530,13 @@ pub(crate) fn store_insert(tx: &Transaction, data: &[u8]) -> Result<Sha256, Data
     })?;
 
     // Compress it into all formats and insert it into store and compressed.
-    //
-    // Maybe it is better to do the insertion already in compress(), so we don't
-    // have to keep it in memory, but I think it is already because network
-    // documents are not super large either.
-    for (encoding, compressed) in compress(data).map_err(DatabaseError::Compression)? {
+    for encoding in encodings {
+        if encoding == ContentEncoding::Identity {
+            // Ignore identity because we inserted that above.
+            continue;
+        }
+
+        let compressed = compress(data, encoding).map_err(|e| DatabaseError::Compression(e))?;
         let compressed_sha256 = hex::encode_upper(sha2::Sha256::digest(&compressed));
         store_stmt.execute(named_params! {
             ":sha256": compressed_sha256,
@@ -540,48 +545,36 @@ pub(crate) fn store_insert(tx: &Transaction, data: &[u8]) -> Result<Sha256, Data
         compressed_stmt.execute(named_params! {
             ":algorithm": encoding.to_string(),
             ":identity_sha256": identity_sha256,
-            ":compressed_sha256": compressed_sha256
+            ":compressed_sha256": compressed_sha256,
         })?;
     }
 
     Ok(identity_sha256)
 }
 
-/// Compresses data into all existing [`ContentEncoding`] formats.
+/// Compresses `data` into a specified [`ContentEncoding`].
 ///
-/// Returns a [`Vec`] containing a tuple of [`ContentEncoding`] and the
-/// respective binary data.
-///
-/// Keep in mind that [`ContentEncoding::Identity`] is ignored, you will not
-/// find it in the resulting [`Vec`].
-fn compress(data: &[u8]) -> Result<Vec<(ContentEncoding, Vec<u8>)>, std::io::Error> {
-    let mut res = Vec::new();
-
-    for encoding in ContentEncoding::iter() {
-        let compressed = match encoding {
-            // Identity is special, we do not consider it an encoding.
-            ContentEncoding::Identity => continue,
-            ContentEncoding::Deflate => {
-                let mut w = DeflateEncoder::new(Vec::new(), Default::default());
-                w.write_all(data)?;
-                w.finish()
-            }
-            ContentEncoding::Gzip => {
-                let mut w = GzEncoder::new(Vec::new(), Default::default());
-                w.write_all(data)?;
-                w.finish()
-            }
-            ContentEncoding::XZstd => zstd::encode_all(data, Default::default()),
-            ContentEncoding::XTorLzma => {
-                let mut res = Vec::new();
-                lzma_rs::lzma_compress(&mut Cursor::new(data), &mut res)?;
-                Ok(res)
-            }
-        }?;
-        res.push((encoding, compressed));
+/// Returns a [`Vec`] containing the encoded data.
+fn compress(data: &[u8], encoding: ContentEncoding) -> Result<Vec<u8>, std::io::Error> {
+    match encoding {
+        ContentEncoding::Identity => Ok(data.to_vec()),
+        ContentEncoding::Deflate => {
+            let mut w = DeflateEncoder::new(Vec::new(), Default::default());
+            w.write_all(data)?;
+            w.finish()
+        }
+        ContentEncoding::Gzip => {
+            let mut w = GzEncoder::new(Vec::new(), Default::default());
+            w.write_all(data)?;
+            w.finish()
+        }
+        ContentEncoding::XZstd => zstd::encode_all(data, Default::default()),
+        ContentEncoding::XTorLzma => {
+            let mut res = Vec::new();
+            lzma_rs::lzma_compress(&mut Cursor::new(data), &mut res)?;
+            Ok(res)
+        }
     }
-
-    Ok(res)
 }
 
 #[cfg(test)]
@@ -608,6 +601,7 @@ mod test {
 
     use flate2::read::{DeflateDecoder, GzDecoder};
     use rusqlite::Connection;
+    use strum::IntoEnumIterator;
     use tempfile::tempdir;
 
     use super::*;
@@ -810,7 +804,8 @@ mod test {
         let mut conn = Connection::open(&db_path).unwrap();
         let tx = conn.transaction().unwrap();
 
-        let sha256 = super::store_insert(&tx, "foobar".as_bytes()).unwrap();
+        let sha256 =
+            super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
         assert_eq!(
             sha256,
             "C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2"
@@ -865,8 +860,11 @@ mod test {
         const INPUT: &[u8] = "foobar".as_bytes();
 
         // Check whether everything was encoded.
-        let res = super::compress(INPUT).unwrap();
-        assert_eq!(res.len(), 4);
+        let res = ContentEncoding::iter()
+            .map(|encoding| (encoding, super::compress(INPUT, encoding).unwrap()))
+            .collect::<Vec<_>>();
+        assert_eq!(res.len(), 5);
+        contains(ContentEncoding::Identity, &res);
         contains(ContentEncoding::Deflate, &res);
         contains(ContentEncoding::Gzip, &res);
         contains(ContentEncoding::XTorLzma, &res);
@@ -877,6 +875,7 @@ mod test {
             let mut decompressed = Vec::new();
 
             match encoding {
+                ContentEncoding::Identity => decompressed = compressed,
                 ContentEncoding::Deflate => {
                     DeflateDecoder::new(Cursor::new(compressed))
                         .read_to_end(&mut decompressed)
@@ -894,7 +893,6 @@ mod test {
                 ContentEncoding::XZstd => {
                     decompressed = zstd::decode_all(Cursor::new(compressed)).unwrap();
                 }
-                _ => unreachable!(),
             }
 
             assert_eq!(decompressed, INPUT);

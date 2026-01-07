@@ -21,6 +21,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::{named_params, params, OptionalExtension, Transaction};
+use strum::IntoEnumIterator;
 use tor_basic_utils::RngExt;
 use tor_dirclient::request::AuthCertRequest;
 use tor_dircommon::{
@@ -39,7 +40,7 @@ use tor_netdoc::{
 use tracing::warn;
 
 use crate::{
-    database::{self, sql, Timestamp},
+    database::{self, sql, ContentEncoding, Timestamp},
     err::{DatabaseError, FatalError, NetdocRequestError},
     mirror::operation::download::ConsensusBoundDownloader,
 };
@@ -348,7 +349,12 @@ fn insert_authority_certificates(
     let certs = certs
         .iter()
         .map(|(cert, raw)| {
-            let sha256 = database::store_insert(tx, raw.as_bytes())?;
+            // For now, we encode the authcerts in all encodings.
+            // TODO: This is probably not a good idea, but it will also not be
+            // the end of the world if we change this later -- at worst, clients
+            // will simply get it in a different encoding they prefer less, but
+            // that should not be super critical.
+            let sha256 = database::store_insert(tx, raw.as_bytes(), ContentEncoding::iter())?;
             Ok::<_, DatabaseError>((sha256, cert))
         })
         .collect::<Result<Vec<_>, _>>()?;
