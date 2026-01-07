@@ -320,8 +320,7 @@ CREATE TABLE compressed_document(
     compressed_sha256   TEXT NOT NULL,
     FOREIGN KEY(identity_sha256) REFERENCES store(sha256),
     FOREIGN KEY(compressed_sha256) REFERENCES store(sha256),
-    UNIQUE(algorithm, identity_sha256),
-    CHECK(algorithm IN ('deflate', 'gzip', 'x-tor-lzma', 'x-zstd'))
+    UNIQUE(algorithm, identity_sha256)
 ) STRICT;
 
 -- Stores the N:M cardinality of which router descriptors are contained in which
