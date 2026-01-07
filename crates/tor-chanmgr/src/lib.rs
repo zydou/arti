@@ -58,8 +58,6 @@ pub(crate) mod util;
 use cfg_if::cfg_if;
 use futures::StreamExt;
 use futures::select_biased;
-#[cfg(feature = "relay")]
-use safelog::Sensitive;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -75,6 +73,12 @@ use tor_rtcompat::SpawnExt;
 use tracing::debug;
 use tracing::instrument;
 use void::{ResultVoidErrExt, Void};
+
+#[cfg(feature = "relay")]
+use {
+    async_trait::async_trait, safelog::Sensitive,
+    tor_proto::relay::channel_provider::ChannelProvider,
+};
 
 pub use err::Error;
 
