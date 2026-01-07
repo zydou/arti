@@ -162,6 +162,10 @@ where
     /// make sure that the skew is authenticated, use
     /// [`Channel::clock_skew`](crate::channel::Channel::clock_skew) instead.
     fn clock_skew(&self) -> ClockSkew;
+
+    /// Return the link protocol version of this channel.
+    #[cfg(test)]
+    fn link_protocol(&self) -> u16;
 }
 
 /// A finalizable channel trait used to yield a Channel.

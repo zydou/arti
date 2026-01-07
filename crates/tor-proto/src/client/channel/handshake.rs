@@ -163,18 +163,6 @@ struct UnverifiedClientChannel<
 impl<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
-> UnverifiedClientChannel<T, S>
-{
-    /// Return the link protocol version of this channel.
-    #[cfg(test)]
-    pub(crate) fn link_protocol(&self) -> u16 {
-        self.inner.link_protocol
-    }
-}
-
-impl<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
-    S: CoarseTimeProvider + SleepProvider,
 > VerifiableChannel<T, S> for UnverifiedClientChannel<T, S>
 {
     fn clock_skew(&self) -> ClockSkew {
@@ -190,6 +178,12 @@ impl<
     ) -> Result<Box<dyn FinalizableChannel<T, S>>> {
         let inner = self.inner.check(peer, peer_cert, now)?;
         Ok(Box::new(VerifiedClientChannel { inner }))
+    }
+
+    /// Return the link protocol version of this channel.
+    #[cfg(test)]
+    fn link_protocol(&self) -> u16 {
+        self.inner.link_protocol
     }
 }
 

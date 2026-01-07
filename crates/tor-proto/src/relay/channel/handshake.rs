@@ -303,6 +303,12 @@ impl<
             auth_data,
         }))
     }
+
+    /// Return the link protocol version of this channel.
+    #[cfg(test)]
+    fn link_protocol(&self) -> u16 {
+        self.inner.link_protocol
+    }
 }
 
 /// A verified relay channel on which versions have been negotiated, the handshake has been read,
