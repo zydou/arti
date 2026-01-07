@@ -245,7 +245,7 @@ pub fn parse_netdoc_multiple_with_offsets<D: NetdocParseable>(
 
             // Check start_pos and end_pos are in range.
             if input.input.get(start_pos..end_pos).is_none() {
-                return Err(ErrorProblem::Other("out-of-bounds bug?"));
+                return Err(ErrorProblem::Internal("out-of-bounds bug?"));
             }
 
             docs.push((doc, start_pos, end_pos));

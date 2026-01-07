@@ -14,11 +14,8 @@
 use super::super::*;
 
 /// Toplevel document string for error reporting
-const TOPLEVEL_DOCTYPE_FOR_ERROR: &str = ns_expr!(
-    "NetworkStatusVote",
-    "NetworkStatusNs",
-    "NetworkStatusMd",
-);
+const TOPLEVEL_DOCTYPE_FOR_ERROR: &str =
+    ns_expr!("NetworkStatusVote", "NetworkStatusNs", "NetworkStatusMd",);
 
 /// The real router status entry type.
 pub type Router = ns_type!(
@@ -43,10 +40,7 @@ pub struct NetworkStatus {
     pub vote_status: NdiVoteStatus,
 
     /// `published`
-    pub published: ns_type!(
-        (NdaSystemTimeDeprecatedSyntax,),
-        Option<Void>,
-    ),
+    pub published: ns_type!((NdaSystemTimeDeprecatedSyntax,), Option<Void>,),
 
     /// `valid-after`
     pub valid_after: (NdaSystemTimeDeprecatedSyntax,),
@@ -111,13 +105,13 @@ pub struct NdaNetworkStatusVersionFlavour {}
 const NDA_NETWORK_STATUS_VERSION_FLAVOUR: Option<&str> = ns_expr!(None, None, Some("microdesc"));
 
 impl ItemArgumentParseable for NdaNetworkStatusVersionFlavour {
-    fn from_args<'s>(args: &mut ArgumentStream<'s>)
-                     -> Result<Self, AE>
-    {
+    fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, AE> {
         let exp: Option<&str> = NDA_NETWORK_STATUS_VERSION_FLAVOUR;
         if let Some(exp) = exp {
             let got = args.next().ok_or(AE::Missing)?;
-            if got != exp { return Err(AE::Invalid) };
+            if got != exp {
+                return Err(AE::Invalid);
+            };
         } else {
             // NS consensus, or vote.  Reject additional arguments, since they
             // might be an unknown flavour.  See
@@ -137,7 +131,7 @@ impl FromStr for NdaVoteStatus {
         if s == NDA_VOTE_STATUS {
             Ok(Self {})
         } else {
-            Err(InvalidNetworkStatusVoteStatus { })
+            Err(InvalidNetworkStatusVoteStatus {})
         }
     }
 }
@@ -296,7 +290,7 @@ ns_choose! { (
                         let item = input.next().expect("just peeked")?;
                         let entry = NdiAuthorityDirSource::from_unparsed(item)?;
                         if !entry.nickname.as_str().ends_with("-legacy") {
-                            return Err(EP::Other(
+                            return Err(EP::OtherBadDocument(
  "authority entry lacks mandatory fields (eg `contact`) so is not a proper (non-superseded) entry, but nickname lacks `-legacy` suffix so is not a superseded entry"
                             ))
                         }
@@ -308,7 +302,7 @@ ns_choose! { (
             if !authorities.is_sorted_by_key(
                 |entry| matches!(entry, NddAuthorityEntryOrSuperseded::Superseded(_))
             ) {
-                return Err(EP::Other(
+                return Err(EP::OtherBadDocument(
  "normal (non-superseded) authority entry follows superseded authority key entry"
                 ))
             }

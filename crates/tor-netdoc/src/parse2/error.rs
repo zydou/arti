@@ -156,7 +156,13 @@ pub enum ErrorProblem {
     ObjectInvalidData,
     /// Other parsing proble
     #[error("other problem: {0}")]
-    Other(&'static str),
+    OtherBadDocument(&'static str),
+    /// Internal error in document parser
+    #[error("internal error in document parser: {0}")]
+    Internal(&'static str),
+    /// Invalid API usage
+    #[error("document parsing API misused: {0}")]
+    BadApiUsage(&'static str),
 }
 
 /// Problem found when parsing an individual argument in a netdoc keyword item
