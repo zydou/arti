@@ -490,6 +490,9 @@ where
 ///
 /// This function inserts `data` into store and also compresses it into all
 /// given compression formats.
+///
+/// Duplicates get re-encoded and replaced in the database, including
+/// [`ContentEncoding::Identity`].
 pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     tx: &Transaction,
     data: &[u8],
@@ -502,7 +505,7 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     // :content - The binary data.
     let mut store_stmt = tx.prepare_cached(sql!(
         "
-        INSERT INTO store (sha256, content)
+        INSERT OR REPLACE INTO store (sha256, content)
         VALUES
         (:sha256, :content)
         "
@@ -516,7 +519,7 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     // :compressed_sha256 - The sha256 of the encoded document in the store.
     let mut compressed_stmt = tx.prepare_cached(sql!(
         "
-        INSERT INTO compressed_document (algorithm, identity_sha256, compressed_sha256)
+        INSERT OR REPLACE INTO compressed_document (algorithm, identity_sha256, compressed_sha256)
         VALUES
         (:algorithm, :identity_sha256, :compressed_sha256)
         "
@@ -838,6 +841,44 @@ mod test {
             .query_map(params![], |row| row.get::<_, String>(0))
             .unwrap();
 
+        let algorithms = algorithms.map(|x| x.unwrap()).collect::<HashSet<_>>();
+        assert_eq!(
+            algorithms,
+            HashSet::from([
+                "deflate".to_string(),
+                "gzip".to_string(),
+                "x-zstd".to_string(),
+                "x-tor-lzma".to_string()
+            ])
+        );
+
+        // Now insert the same thing a second time again and see whether the
+        // ON CONFLICT magic works.
+        let sha256_second =
+            super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
+        assert_eq!(sha256, sha256_second);
+
+        // Remove a few compressed entries and get them again.
+        let n = tx
+            .execute(
+                sql!(
+                    "
+                    DELETE FROM
+                    compressed_document
+                    WHERE algorithm IN ('deflate', 'x-zstd')
+                    "
+                ),
+                params![],
+            )
+            .unwrap();
+        assert_eq!(n, 2);
+
+        let sha256_third =
+            super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
+        assert_eq!(sha256, sha256_third);
+        let algorithms = stmt
+            .query_map(params![], |row| row.get::<_, String>(0))
+            .unwrap();
         let algorithms = algorithms.map(|x| x.unwrap()).collect::<HashSet<_>>();
         assert_eq!(
             algorithms,
