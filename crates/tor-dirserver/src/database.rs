@@ -539,7 +539,7 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
             continue;
         }
 
-        let compressed = compress(data, encoding).map_err(|e| DatabaseError::Compression(e))?;
+        let compressed = compress(data, encoding).map_err(DatabaseError::Compression)?;
         let compressed_sha256 = hex::encode_upper(sha2::Sha256::digest(&compressed));
         store_stmt.execute(named_params! {
             ":sha256": compressed_sha256,
