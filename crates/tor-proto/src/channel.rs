@@ -127,11 +127,19 @@ use crate::channel::unique_id::CircUniqIdContext;
 
 use kist::KistParams;
 
+/// Module to seal traits in order to not allow implementation outside this crate.
+///
+/// This is used by VerifiableChannel and FinalizableChannel.
+pub(crate) mod seal {
+    /// Hidden trait to seal other traits.
+    pub trait Sealed {}
+}
+
 /// An verifiable channel trait which is public outside this crate.
 ///
 /// An open channel that has not been verified as in the certificates and keys have not been
 /// validated yet. Upon successful validation, a boxed [`FinalizableChannel`] is returned.
-pub trait VerifiableChannel<T, S>
+pub trait VerifiableChannel<T, S>: seal::Sealed
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
@@ -177,7 +185,7 @@ where
 /// the final cells have not been sent. Once finalized, a [`Channel`] and its [`Reactor`] are
 /// returned.
 #[async_trait]
-pub trait FinalizableChannel<T, S>
+pub trait FinalizableChannel<T, S>: seal::Sealed
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,

@@ -187,6 +187,13 @@ impl<
     }
 }
 
+impl<T, S> crate::channel::seal::Sealed for UnverifiedClientChannel<T, S>
+where
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+{
+}
+
 /// A client channel on which versions have been negotiated, relay's handshake has been read, but
 /// the client has not yet finished the handshake.
 ///
@@ -223,4 +230,11 @@ impl<
         // Finish the channel to get a reactor.
         self.inner.finish().await
     }
+}
+
+impl<T, S> crate::channel::seal::Sealed for VerifiedClientChannel<T, S>
+where
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+{
 }
