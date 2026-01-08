@@ -137,9 +137,8 @@ pub struct ChanMgr<R: Runtime> {
     /// Stream of [`ConnStatus`] events.
     bootstrap_status: event::ConnStatusEvents,
 
-    /// This currently isn't actually used, but we're keeping a PhantomData here
-    /// since probably we'll want it again, sooner or later.
-    runtime: std::marker::PhantomData<fn(R) -> R>,
+    /// The runtime. Needed to possibly spawn tasks.
+    runtime: R,
 }
 
 /// Description of how we got a channel.
@@ -237,7 +236,7 @@ impl<R: Runtime> ChanMgr<R> {
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let reporter = BootstrapReporter(sender);
         let transport = transport::DefaultTransport::new(runtime.clone());
-        let builder = builder::ChanBuilder::new(runtime, transport);
+        let builder = builder::ChanBuilder::new(runtime.clone(), transport);
 
         // Set relay identity keys if we have any. Remember, bridges are relays but will be acting
         // as a client when establishing channels.
@@ -258,7 +257,7 @@ impl<R: Runtime> ChanMgr<R> {
         ChanMgr {
             mgr,
             bootstrap_status: receiver,
-            runtime: std::marker::PhantomData,
+            runtime,
         }
     }
 
@@ -482,22 +481,29 @@ impl<R: Runtime> ChanMgr<R> {
 impl<R: Runtime> ChannelProvider for ChanMgr<R> {
     type BuildSpec = OwnedChanTarget;
 
-    async fn get_or_launch_relay(
-        &self,
-        _circ_id: tor_proto::circuit::UniqId,
+    async fn get_or_launch(
+        self: Arc<Self>,
+        reactor_id: tor_proto::circuit::UniqId,
         target: Self::BuildSpec,
         tx: tor_proto::relay::channel_provider::OutboundChanSender,
     ) -> tor_proto::Result<()> {
-        debug!("Get or launch relay channel to {target}");
+        use tor_error::into_internal;
 
-        let r = self
-            .mgr
-            .get_or_launch(target, ChannelUsage::UserTraffic)
-            .await
-            .map_err(|e| tor_proto::Error::ChanProto(e.to_string())); // Is it a ChanProto?
+        debug!("Get or launch channel to {target} for circuit reactor {reactor_id}");
 
-        // Send back the channel.
-        tx.send(r.map(|(chan, _)| chan));
+        let chanmgr = self.clone();
+        self.runtime
+            .spawn(async move {
+                let r = chanmgr
+                    .mgr
+                    .get_or_launch(target, ChannelUsage::UserTraffic)
+                    .await
+                    .map_err(|e| tor_proto::Error::ChanProto(e.to_string())); // Is it a ChanProto?
+                // Send back the channel.
+                tx.send(r.map(|(chan, _)| chan));
+            })
+            .map_err(into_internal!("Failed to launch channel provider task"))?;
+
         Ok(())
     }
 }

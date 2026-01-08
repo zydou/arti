@@ -51,20 +51,18 @@ impl OutboundChanSender {
 ///
 /// The implementor is responsible for imposing a limit on the
 /// number of outbound channels that can be opened on a given circuit.
-#[allow(unreachable_pub)] // TODO(#1447): impl this for ChanMgr
-#[allow(unused)]
 #[async_trait]
 pub trait ChannelProvider {
     /// Type that explains how to build an outgoing channel.
     type BuildSpec: HasRelayIds;
 
-    /// Get a channel corresponding to the identities of `target`,
-    /// for the circuit with the specified `circ_id`.
+    /// Get a channel corresponding to the identities of `target`, for the circuit reactor with the
+    /// specified `reactor_id` which should only be used for logging purposes.
     ///
     /// Returns the requested channel via the specified [`OutboundChanSender`].
-    async fn get_or_launch_relay(
-        &self,
-        circ_id: UniqId,
+    async fn get_or_launch(
+        self: Arc<Self>,
+        reactor_id: UniqId,
         target: Self::BuildSpec,
         tx: OutboundChanSender,
     ) -> Result<()>;
