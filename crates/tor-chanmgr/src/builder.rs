@@ -45,8 +45,6 @@ where
     transport: H,
     /// Object to build TLS connections.
     tls_connector: <R as TlsProvider<H::Stream>>::Connector,
-    /// Outbound channel type this channel builder builds.
-    outbound_chan_type: ChannelType,
     /// Relay identities needed for relay channels.
     #[cfg(feature = "relay")]
     identities: Option<Arc<RelayIdentities>>,
@@ -57,13 +55,12 @@ where
     R: TlsProvider<H::Stream>,
 {
     /// Construct a new ChanBuilder.
-    pub fn new(runtime: R, transport: H, outbound_chan_type: ChannelType) -> Self {
+    pub fn new(runtime: R, transport: H) -> Self {
         let tls_connector = <R as TlsProvider<H::Stream>>::tls_connector(&runtime);
         ChanBuilder {
             runtime,
             transport,
             tls_connector,
-            outbound_chan_type,
             #[cfg(feature = "relay")]
             identities: None,
         }
@@ -75,7 +72,24 @@ where
         self.identities = Some(ids);
         self
     }
+
+    /// Return the outbound channel type of this config.
+    ///
+    /// The channel type is used when creating outbound channels. Relays always initiate channels
+    /// as "relay initiator" while client and bridges behave like a "client initiator".
+    ///
+    /// Important: The wrong channel type is returned if this is called before `with_identities()`
+    /// is called.
+    fn outbound_chan_type(&self) -> ChannelType {
+        #[cfg(feature = "relay")]
+        if self.identities.is_some() {
+            return ChannelType::RelayInitiator;
+        }
+        // No relay built in, always client.
+        ChannelType::ClientInitiator
+    }
 }
+
 #[async_trait]
 impl<R: Runtime, H: TransportImplHelper> ChannelFactory for ChanBuilder<R, H>
 where
@@ -211,7 +225,9 @@ where
                 .record_tls_finished();
         }
 
-        let chan = match self.outbound_chan_type {
+        // Store this so we can log it in case we don't recognize it.
+        let outbound_chan_type = self.outbound_chan_type();
+        let chan = match outbound_chan_type {
             ChannelType::ClientInitiator => {
                 // Get the client specific channel builder.
                 let mut builder = tor_proto::ClientChannelBuilder::new();
@@ -251,8 +267,7 @@ where
             }
             _ => {
                 return Err(Error::Internal(internal!(
-                    "Unusable channel type for outbound: {}",
-                    self.outbound_chan_type
+                    "Unusable channel type for outbound: {outbound_chan_type}",
                 )));
             }
         };
@@ -402,7 +417,7 @@ mod test {
 
             // Create the channel builder that we want to test.
             let transport = crate::transport::DefaultTransport::new(client_rt.clone());
-            let builder = ChanBuilder::new(client_rt, transport, ChannelType::ClientInitiator);
+            let builder = ChanBuilder::new(client_rt, transport);
 
             let (r1, r2): (Result<Arc<Channel>>, Result<LocalStream>) = futures::join!(
                 async {
