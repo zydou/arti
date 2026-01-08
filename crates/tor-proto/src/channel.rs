@@ -128,6 +128,9 @@ use crate::channel::unique_id::CircUniqIdContext;
 use kist::KistParams;
 
 /// An verifiable channel trait which is public outside this crate.
+///
+/// An open channel that has not been verified as in the certificates and keys have not been
+/// validated yet. Upon successful validation, a boxed [`FinalizableChannel`] is returned.
 pub trait VerifiableChannel<T, S>
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
@@ -169,6 +172,10 @@ where
 }
 
 /// A finalizable channel trait used to yield a Channel.
+///
+/// It represents a channel that has been verified but the handshake has not been finalized as in
+/// the final cells have not been sent. Once finalized, a [`Channel`] and its [`Reactor`] are
+/// returned.
 #[async_trait]
 pub trait FinalizableChannel<T, S>
 where
