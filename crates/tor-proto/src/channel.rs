@@ -182,7 +182,7 @@ where
 /// A finalizable channel trait used to yield a Channel.
 ///
 /// It represents a channel that has been verified but the handshake has not been finalized as in
-/// the final cells have not been sent. Once finalized, a [`Channel`] and its [`Reactor`] are
+/// the final cells have not been sent. Once finalized, a [`Channel`] and its Reactor are
 /// returned.
 #[async_trait]
 pub trait FinalizableChannel<T, S>: seal::Sealed

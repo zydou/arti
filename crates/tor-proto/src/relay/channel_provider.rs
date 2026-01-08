@@ -17,7 +17,7 @@ use tor_linkspec::HasRelayIds;
 pub type ChannelResult = Result<Arc<Channel>>;
 
 /// A sender for returning an outgoing relay channel
-/// requested via [`ChannelProvider::get_or_launch_relay`].
+/// requested via [`ChannelProvider::get_or_launch`].
 //
 // Note: this channel is unbounded, because the limit should be imposed
 // by the [`ChannelProvider`].
@@ -38,7 +38,7 @@ impl OutboundChanSender {
 
     /// Send the specified channel result to the requester.
     ///
-    /// See [`ChannelProvider::get_or_launch_relay`].
+    /// See [`ChannelProvider::get_or_launch`].
     #[allow(dead_code)] // TODO(relay)
     pub fn send(self, result: ChannelResult) {
         // Don't care if the receiver goes away

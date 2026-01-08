@@ -237,7 +237,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
             Err(e) => {
                 warn_report!(e, "Failed to launch outgoing channel");
                 // Note: retries are handled within
-                // get_or_launch_relay(), so if we receive an
+                // get_or_launch(), so if we receive an
                 // error at this point, we need to bail
 
                 // TODO(relay): we need to update our state
