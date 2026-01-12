@@ -113,9 +113,19 @@ define_derive_deftly! {
     ///
     /// ```rust,ignore
     #[doc = ${concat "let " ${snake_case $tname} " = " $tname "{"}]
-    #[doc = ${concat "    /* optional field values go here */"}]
+    #[doc = ${concat ${for fields {
+        ${if any(fmeta(constructor(default)), not(fmeta(constructor))) {
+            "    " $fname ": /* optional field value */,\n"
+        } else {
+        }}
+    }}}]
     #[doc = ${concat "    .." $CONSTRUCTOR_NAME " {"}]
-    #[doc = ${concat "        /* required field values go here */"}]
+    #[doc = ${concat ${for fields {
+        ${if not(any(fmeta(constructor(default)), not(fmeta(constructor)))) {
+            "        " $fname ": /* required field value */,\n"
+        } else {
+        }}
+    }}}]
     #[doc = ${concat "    }.construct()"}]
     #[doc = ${concat "};"}]
     /// ```
