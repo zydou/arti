@@ -77,7 +77,7 @@ that the contents are suitable according to the rules in the spec.
 The conditions in the spec are:
 
  * The lack of items that are structural for a netstatus
- * That every item keyword starts `dir-`
+ * That every item keyword starts `dir-` (or is `fingerprint`)
  * That it is properly framed with one `dir-key-certificate-version`
    and one `dir-key-certification`.
 
