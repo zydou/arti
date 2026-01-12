@@ -2,49 +2,48 @@
 
 ## Requirements
 
-Network status documents (netstatuses) can contain "authority key
-certificates" (authcerts).
+Votes can contain "authority key certificates" (authcerts).
 
 Unlike most sub-documents found within netdocs, an authcert is a
 signed document.  We expect to be able to copy an authcert into a
-nestatus, encode, convey and parse the netstatus, and extract the
+vote, encode, convey and parse the vote, and extract the
 authcert, and verify the authcert's signature.
 
 Additionally, the fact that authcerts have their own signatures means
 that they need to be constructed separately from the surrounding
 document, and then embedded in it later.
 
-When parsing a netstatus, we need to be able to see *which parts* are
-the netstatus, and we need to be able to extract the specific document
-text, but we maybe don't want to parse the netstatus.
+When parsing a vote, we need to be able to see *which parts* are
+the authcert, and we need to be able to extract the specific document
+text, but we maybe don't want to parse the authcert.
 
 ## Representation must include a document string
 
 The requirement to convey the signed authcert without breaking the
-signature means that the representation of an authcert within a netstatus needs
+signature means that the representation of an authcert within a vote needs
 include its encoded form, with all its signatures.
 
 ## Representation containing the parsed authcert is not very useful
 
 Conversely, signature verification of authcerts during decoding of a
-netstatus is fairly complex.  We don't want to do signature
+vote is fairly complex.  We don't want to do signature
 verification during parsing, because signature verification involves
 the time, and we don't want parsing to need to know the time.
 
 We don't want to make the Rust type of the authcert field within a
-netstatus struct different before and after verification.  That would
-involve adding generics to the netstatus.
+vote struct different before and after verification.  That would
+involve adding generics to the vote.
 
-Therefore the existence of a parsed netstatus struct does not imply
+Therefore the existence of a parsed vote struct does not imply
 that the authcerts within have had their signature validity checked.
 
-So *if* the parsed netstatus contains parsed data fields from the
+So *if* the parsed vote contains parsed data fields from the
 authcert, access to the authcert fields needs to be gated by
 `.inspect_unverified()` or some such.
 
 ## Basic conclusion
 
-Each authcert within a netstatus will be represented as a newtype
+Each authcert within a vote will be represented as a newtype
 around a `String`, which is the authcert document (including its
 intro item, all signatures, and trailing newline).
 
