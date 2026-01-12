@@ -45,7 +45,7 @@ authcert, access to the authcert fields needs to be gated by
 ## Basic conclusion
 
 Each authcert within a netstatus will be represented as a newtype
-around a `String`, which is the authcert document (iincluding its
+around a `String`, which is the authcert document (including its
 intro item, all signatures, and trailing newline).
 
 This newtype will be transparently accessible - `.as_str()` will be
