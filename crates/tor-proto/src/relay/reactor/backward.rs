@@ -20,7 +20,7 @@ use crate::streammap;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
 use crate::util::poll_all::PollAll;
-use crate::{Error, Result};
+use crate::{Error, HopNum, Result};
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::{
@@ -133,6 +133,10 @@ type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;
 pub(super) struct IncomingStreamRequestHandler {
     /// A sender for sharing information about an incoming stream request.
     pub(super) incoming_sender: StreamReqSender,
+    /// The hop to expect incoming stream requests from.
+    ///
+    /// Set to `None` if we are a relay.
+    pub(super) hop_num: Option<HopNum>,
     /// A [`CmdChecker`](crate::stream::cmdcheck::CmdChecker) for validating incoming streams.
     pub(super) cmd_checker: AnyCmdChecker,
     /// An [`IncomingStreamRequestFilter`] for checking whether the user wants

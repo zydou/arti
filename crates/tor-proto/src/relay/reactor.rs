@@ -496,6 +496,7 @@ fn prepare_incoming_stream<'a, R: Runtime>(
     let incoming = IncomingStreamRequestHandler {
         incoming_sender,
         cmd_checker,
+        hop_num: None,
         filter,
     };
 
