@@ -8,10 +8,11 @@ title: oniux
 > It begins with understanding the unique threats you face and how you can
 > counter those threats.
 
-*oniux* is a tool that utilizes various Linux `namespaces(7)` in order to
-isolate an arbitrary application over the Tor network.  To achieve this, it
-makes heavy use of *arti* and *onionmasq*, the latter offering a TUN device to
-tunnel Tor traffic through.
+*oniux* is a tool that utilizes various Linux `namespaces(7)` features in order
+to isolate an arbitrary application over the Tor network.  To achieve this, it
+makes heavy use of *arti* and
+[*onionmasq*](https://gitlab.torproject.org/tpo/core/onionmasq), the
+latter offering a TUN device to tunnel Tor traffic through.
 
 The *oniux* repository is available on
 [GitLab](https://gitlab.torproject.org/tpo/core/oniux).
