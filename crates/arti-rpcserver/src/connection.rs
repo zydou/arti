@@ -344,7 +344,6 @@ impl Connection {
                         // The future for some request has sent a response (success,
                         // failure, or update), so we can inform the client.
                         let update = r.expect("Somehow, tx_update got closed.");
-                        debug_assert!(! update.body.is_final());
                         // Calling `await` here (and below) is deliberate: we _want_
                         // to stop reading the client's requests if the client is
                         // not reading their responses (or not) reading them fast

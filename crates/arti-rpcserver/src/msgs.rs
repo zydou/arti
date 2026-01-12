@@ -137,6 +137,7 @@ pub(crate) enum ResponseBody {
 impl ResponseBody {
     /// Return true if this body type indicates that no future responses will be
     /// sent for this request.
+    #[cfg(test)]
     pub(crate) fn is_final(&self) -> bool {
         match self {
             ResponseBody::Error(_) | ResponseBody::Success(_) => true,
