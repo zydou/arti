@@ -30,7 +30,7 @@ import logging
 import os
 import socket
 import sys
-from ctypes import POINTER, byref, c_int, _Pointer as Ptr
+from ctypes import POINTER, byref, _Pointer as Ptr
 from enum import Enum
 import arti_rpc.ffi
 from arti_rpc.ffi import (
@@ -40,6 +40,7 @@ from arti_rpc.ffi import (
     ArtiRpcConn as FfiConn,
     ArtiRpcConnBuilder as FfiBuilder,
     _ArtiRpcStatus as FfiStatus,
+    _ArtiRpcRawSocket as FfiSocket,
 )
 from typing import (
     Optional,
@@ -356,7 +357,7 @@ class ArtiRpcConn(_RpcBase):
             stream_id_ptr = byref(stream_id)
         else:
             stream_id_ptr = None
-        sock_cint = c_int(arti_rpc.ffi.INVALID_SOCKET)
+        sock_cint = FfiSocket(arti_rpc.ffi.INVALID_SOCKET)
         error = POINTER(arti_rpc.ffi.ArtiRpcError)()
 
         rv = self._rpc.arti_rpc_conn_open_stream(
