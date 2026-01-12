@@ -13,8 +13,7 @@ use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::client::circuit::padding::{
     self, PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
 };
-use crate::client::circuit::{ClientCircChanMsg, MutableState};
-use crate::client::circuit::{TimeoutEstimator, path};
+use crate::client::circuit::{ClientCircChanMsg, MutableState, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::congestion::CongestionSignals;
 use crate::congestion::sendme;
@@ -37,6 +36,7 @@ use crate::streammap;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
+use crate::util::timeout::TimeoutEstimator;
 use crate::{ClockSkew, Error, Result};
 
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
