@@ -78,7 +78,7 @@ The conditions in the spec are:
 
  * The lack of items that are structural for a netstatus
  * That every item keyword starts `dir-`
- * That it is properly framed with one `dir-key-certification`
+ * That it is properly framed with one `dir-key-certificate-version`
    and one `dir-key-certification`.
 
 ## Proposal
@@ -93,7 +93,7 @@ We make an ad-hoc type specially for an encoded authcert.
 /// Non-invariant: signature and timeliness has not been checked.
 ///
 /// Implements `NetdocParseable`:
-/// parser matches `dir-key-certification` and `dir-key-certification`,
+/// parser matches `dir-key-certificate-version` and `dir-key-certification`,
 /// but also calls `Bug` if the caller's `stop_at`
 /// reports that this keyword is structural for its container.
 /// (This could happen if an `EncodedAuthCert` existedd in some other
