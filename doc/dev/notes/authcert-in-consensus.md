@@ -72,63 +72,85 @@ forbidden items appear.  We want to be able to tell *which* authcert
 was involved, and we don't want to entangle this with the encoder,
 probably.
 
-So we want the type of an authcert within a netstatus
-struct to imply that this structural keyword property has been
-checked.
-I.e. the type of the authcert *within a netstatus* must have the
-invariant that the string doesn't contain any keywords that are
-structural *within a netstatus*.
+Therefore the type of an authcert within a netstatus should have an invariant
+that the contents are suitable according to the rules in the spec.
+The conditions in the spec are:
+
+ * The lack of items that are structural for a netstatus
+ * That every item keyword starts `dir-`
+ * That it is properly framed with one `dir-key-certification`
+   and one `dir-key-certification`.
 
 ## Proposal
+
+We make an ad-hoc type specially for an encoded authcert.
+
+```
+/// Entire authority key certificate, encoded and signed
+///
+/// (Invariants as above)
+///
+/// Non-invariant: signature and timeliness has not been checked.
+///
+/// Implements `NetdocParseable`:
+/// parser matches `dir-key-certification` and `dir-key-certification`,
+/// but also calls `Bug` if the caller's `stop_at`
+/// reports that this keyword is structural for its container.
+/// (This could happen if an `EncodedAuthCert` existedd in some other
+/// document but a vote.  We do not check this property during encoding.)
+///
+/// Implements `TryFrom<String>` and `FromStr`.
+pub struct EncodedAuthCert(String);
+```
+
+The handwritten implementation of `EncodedAuthCert`'s parser
+needs a list of the structural keywords for votes.
+We enhance the `NetdocParseable` trait:
+
+```
+pub trait NetdocParseable {
+    // extend this existing trait with this new function:
+
+	/// Is `Keyword` a structural keyword for this kind of document?
+	///
+	/// Returns true for:
+	///   - this type's intro item keyword (`is_intro_item_keyword`)
+	///   - the intro items or structural items for any of its sub-documents and sections
+	///     `#[deftly(netdoc(subdoc))]`
+	///
+	/// (This means it returns true for *any* item in a signatures subdocument
+	/// ie any field in a struct decorated `#[deftly(netdoc(signatures))]`
+	/// since those are considered intro items.)
+	//
+	// `EncodedAuthCert`s item checker contains calls to
+	// `NetworkStatusVote::is_structural_keyword` and
+	// `NetworkStatusSignaturesVote::is_structural_keyword`.
+	//
+    fn is_structural_keyword(kw: KeywordRef<'_>) -> bool;
+}
+```
+
+We should also have some tests that try to smuggle so as to produce
+misframed documents.
+
+## Generics (possible future expansion)
+
+If we discover other similar document nestings we could genericise things:
 
 ```
 /// Invariant:
 ///
 ///  * Can be lexed as a netdoc
-///  * First item is `Y:is_intro_item`
+///  * First item is `Y:is_intro_item_keyword`
+///  * Last item is (one) `YS:is_intro_item_keyword`
 ///  * No other item is any `N::is_structual_item_keyword`
 ///
-pub struct EncodedNetdoc<Y, (N0, N1 ..)>(String);
+pub struct EncodedNetdoc<Y, YS, (N0, N1 ..)>(String);
 
 pub type EncodedAuthCert = EncodedNetdoc<
-    AuthCert,
-	(NetStatusConsensus, NetStatusVote, NetStatusAuthoritySection, etc.)
+    AuthCert, AuthCertSignatures,
+	(NetworkStatusVote, NetworkStatusSignaturesVote)
 >;
 ```
 
-When we encode a `NetStatus`, we end up encoding a
-`NetStatusAuthoritySection` sub-document.  Within the
-`NetStatusAuthoritySection` we find an `EncodedAuthCert`.
-
-The derived encoder impl for `NetStatusAuthoritySection` consults its
-own type `TypeId` and that for `NetStatus` (which was passed in via
-its arguments) and checks that they are all included in the `N`s.
-That demonstrates that there are no keywords in the document that
-would mess up the parsing of the surrounding documents.
-
-If any `TypeId` in the dynamic context are missing, it's a `Bug`: this
-shows that the wrong type was provided.  (Sadly we can detect this
-only at runtime, unless we want to make the encode method generic -
-but this error would be detected every time this type was encoded, not
-only when encoding erroneous documents, so the bug couldn't easily
-survive testing.)
-
-We should probably also do a runtime check during encoding where we
-pass the structural keywords callback down to the next encoder and
-report a `Bug` if we get something untoward.
-
-We should also have some tests that try to smuggle so as to produce
-miframed documents.
-
-```
-pub trait NetdocSomething {
-    /// New function, exposing `is_subdoc_kw` from the middle of `from_items`
-	///
-	/// Returns true for this type's intro item keyword,
-	/// and for the intro items for any of its sub-documents and sections
-	/// `#[deftly(netdoc(subdoc))]`
-	///
-	/// But it adds up the number of true's
-    fn is_structural_keyword(kw: KeywordRef<'_>) -> bool;
-}
-```
+Details TBD.
