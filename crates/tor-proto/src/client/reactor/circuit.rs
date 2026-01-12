@@ -840,7 +840,8 @@ impl Circuit {
         use tor_error::into_internal;
         use tor_log_ratelim::log_ratelim;
 
-        use crate::client::{circuit::CIRCUIT_BUFFER_SIZE, reactor::StreamReqInfo};
+        use crate::client::circuit::CIRCUIT_BUFFER_SIZE;
+        use crate::stream::incoming::StreamReqInfo;
 
         // We need to construct this early so that we don't double-borrow &mut self
 
@@ -850,10 +851,15 @@ impl Circuit {
             ));
         };
 
-        if hop_num != handler.hop_num {
+        // The handler's hop_num is only ever set to None for relays.
+        let expected_hop_num = handler
+            .hop_num
+            .ok_or_else(|| internal!("Handler HopNum is None in client impl?!"))?;
+
+        if hop_num != expected_hop_num {
             return Err(Error::CircProto(format!(
                 "Expecting incoming streams from {}, but received {} cell from unexpected hop {}",
-                handler.hop_num.display(),
+                expected_hop_num.display(),
                 msg.cmd(),
                 hop_num.display()
             )));

@@ -9,18 +9,18 @@ use crate::memquota::SpecificAccount as _;
 use crate::relay::RelayCircChanMsg;
 use crate::relay::channel_provider::ChannelResult;
 use crate::stream::CloseStreamBehavior;
-use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
+use crate::stream::cmdcheck::StreamStatus;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::incoming::{
     InboundDataCmdChecker, IncomingStreamRequest, IncomingStreamRequestContext,
-    IncomingStreamRequestDisposition, IncomingStreamRequestFilter, StreamReqInfo,
+    IncomingStreamRequestDisposition, IncomingStreamRequestHandler, StreamReqInfo,
 };
 use crate::stream::queue::stream_queue;
 use crate::streammap;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
 use crate::util::poll_all::PollAll;
-use crate::{Error, HopNum, Result};
+use crate::{Error, Result};
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::{
@@ -37,7 +37,7 @@ use tor_cell::relaycell::msg::{AnyRelayMsg, Begin, End, EndReason, Sendme, Sendm
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{internal, into_internal, trace_report};
 use tor_log_ratelim::log_ratelim;
-use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
+use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 use tor_rtcompat::{DynTimeProvider, Runtime, SleepProvider as _};
 
 use futures::SinkExt;
@@ -118,31 +118,6 @@ pub(super) struct BackwardReactor {
     /// [`Reactor`](super::Reactor) or
     /// [`ForwardReactor`](super::ForwardReactor) are dropped.
     shutdown_rx: broadcast::Receiver<void::Void>,
-}
-
-/// MPSC queue containing stream requests
-//
-// TODO(relay): duplicates client impl
-type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;
-
-/// Data required for handling an incoming stream request.
-///
-// TODO(relay): duplicates client impl
-#[derive(educe::Educe)]
-#[educe(Debug)]
-pub(super) struct IncomingStreamRequestHandler {
-    /// A sender for sharing information about an incoming stream request.
-    pub(super) incoming_sender: StreamReqSender,
-    /// The hop to expect incoming stream requests from.
-    ///
-    /// Set to `None` if we are a relay.
-    pub(super) hop_num: Option<HopNum>,
-    /// A [`CmdChecker`](crate::stream::cmdcheck::CmdChecker) for validating incoming streams.
-    pub(super) cmd_checker: AnyCmdChecker,
-    /// An [`IncomingStreamRequestFilter`] for checking whether the user wants
-    /// this request, or wants to reject it immediately.
-    #[educe(Debug(ignore))]
-    pub(super) filter: Box<dyn IncomingStreamRequestFilter>,
 }
 
 // TODO(relay): consider moving some of the BackwardReactor fields

@@ -158,7 +158,9 @@ use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::stream::incoming::IncomingStreamRequestFilter;
-use crate::stream::incoming::{IncomingCmdChecker, IncomingStream, StreamReqInfo};
+use crate::stream::incoming::{
+    IncomingCmdChecker, IncomingStream, IncomingStreamRequestHandler, StreamReqInfo,
+};
 use crate::stream::{RECV_WINDOW_INIT, StreamComponents, StreamTarget, Tunnel};
 use crate::util::err::ReactorError;
 
@@ -167,7 +169,7 @@ use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 
 use crate::client::stream::StreamReceiver;
 
-use backward::{BackwardReactor, IncomingStreamRequestHandler};
+use backward::BackwardReactor;
 use forward::ForwardReactor;
 
 /// A message telling the reactor to do something.

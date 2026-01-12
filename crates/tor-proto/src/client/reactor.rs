@@ -31,7 +31,6 @@ use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::CircuitAccount;
 use crate::stream::CloseStreamBehavior;
-use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::streammap;
 use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
@@ -66,13 +65,12 @@ use derive_more::From;
 use smallvec::smallvec;
 use tor_cell::chancell::CircId;
 use tor_llcrypto::pk;
-use tor_memquota::mq_queue::{self, MpscSpec};
 use tracing::{debug, info, instrument, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
 
 #[cfg(feature = "hs-service")]
-use {crate::client::stream::IncomingStreamRequestFilter, crate::stream::incoming::StreamReqInfo};
+use crate::stream::incoming::IncomingStreamRequestHandler;
 
 #[cfg(feature = "conflux")]
 use {
@@ -96,10 +94,6 @@ pub(super) type ConfluxHandshakeResult = Vec<StdResult<(), ConfluxHandshakeError
 /// to link in the tunnel.
 #[cfg(feature = "conflux")]
 pub(super) type ConfluxLinkResultChannel = ReactorResultChannel<ConfluxHandshakeResult>;
-
-/// MPSC queue containing stream requests
-#[cfg(feature = "hs-service")]
-type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;
 
 /// A handshake type, to be used when creating circuit hops.
 #[derive(Clone, Debug)]
@@ -623,23 +617,6 @@ struct CellHandlers {
     /// A handler for incoming stream requests.
     #[cfg(feature = "hs-service")]
     incoming_stream_req_handler: Option<IncomingStreamRequestHandler>,
-}
-
-/// Data required for handling an incoming stream request.
-#[cfg(feature = "hs-service")]
-#[derive(educe::Educe)]
-#[educe(Debug)]
-struct IncomingStreamRequestHandler {
-    /// A sender for sharing information about an incoming stream request.
-    incoming_sender: StreamReqSender,
-    /// A [`AnyCmdChecker`] for validating incoming stream requests.
-    cmd_checker: AnyCmdChecker,
-    /// The hop to expect incoming stream requests from.
-    hop_num: HopNum,
-    /// An [`IncomingStreamRequestFilter`] for checking whether the user wants
-    /// this request, or wants to reject it immediately.
-    #[educe(Debug(ignore))]
-    filter: Box<dyn IncomingStreamRequestFilter>,
 }
 
 impl Reactor {
