@@ -18,6 +18,9 @@ full = [
     "tor-basic-utils/full",
     "tor-dircommon/full",
     "tor-netdoc/full",
+    "retry-error/full",
+    "tor-dirclient/full",
+    "tor-rtcompat/full",
 ]
 
 [dependencies]

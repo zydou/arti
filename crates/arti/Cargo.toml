@@ -70,6 +70,7 @@ full = [
     "tor-hsclient?/full",
     "tor-proto?/full",
     "futures-copy/full",
+    "tor-general-addr/full",
 ]
 
 async-std = [
