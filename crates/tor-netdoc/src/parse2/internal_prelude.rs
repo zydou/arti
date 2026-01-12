@@ -40,6 +40,7 @@ pub use super::{
     },
     structural::{StopAt, StopPredicate},
     traits::{
+        IsStructural,
         ItemArgumentParseable, ItemValueParseable, NetdocParseable, NetdocParseableFields,
         NetdocSigned,
     },

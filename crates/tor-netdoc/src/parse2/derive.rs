@@ -68,7 +68,7 @@ define_derive_deftly_module! {
           // See `mod multiplicity`.
         ${if not(all(F_INTRO, fmeta(netdoc(with)))) {
           // If the intro it has `with`, we don't check its trait impl, and this ends up unused
-          let $<selector_ $fname> = MultiplicitySelector::<$F_EFFECTIVE_TYPE>::default();
+          let $<selector_ $fname> = $F_SELECTOR_VALUE;
         }}
         )
     }}
@@ -77,7 +77,9 @@ define_derive_deftly_module! {
     // because the identifier `selector_` has different macro_rules hygiene here vs there!
     // TODO derive-deftly#130
     ${define F_SELECTOR $<selector_ $fname>}
-
+    // The selector value for this field.  Used where we don't want to bind a selector
+    // for every field with $ITEM_SET_SELECTORS (and within $ITEM_SET_SELECTORS).
+    ${define F_SELECTOR_VALUE {( MultiplicitySelector::<$F_EFFECTIVE_TYPE>::default() )}}
     // Check that every field type implements the necessary trait.
     ${define CHECK_FIELD_TYPES_PARSEABLE {
         $(
@@ -435,6 +437,24 @@ define_derive_deftly! {
             }}
         }
 
+        fn is_structural_keyword(kw: $P::KeywordRef<'_>) -> Option<$P::IsStructural> {
+            #[allow(unused_imports)] // not used if there are no subdocs
+            use $P::*;
+
+            if Self::is_intro_item_keyword(kw) {
+                return Some(IsStructural)
+            }
+
+            ${for fields {
+                ${when F_SUBDOC}
+                if let y @ Some(_) = $F_SELECTOR_VALUE.is_structural_keyword(kw) {
+                    return y;
+                }
+            }}
+
+            None
+        }
+
         //##### main parsing function #####
 
         #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
@@ -756,6 +776,11 @@ define_derive_deftly! {
 
         fn is_intro_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
             $ttype::is_intro_item_keyword(kw)
+        }
+
+        fn is_structural_keyword(kw: $P::KeywordRef<'_>) -> Option<$P::IsStructural> {
+            $ttype::is_structural_keyword(kw)
+                .or_else(|| $SIGS_TYPE::is_structural_keyword(kw))
         }
 
         fn from_items<'s>(

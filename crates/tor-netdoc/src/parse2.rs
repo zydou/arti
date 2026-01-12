@@ -111,6 +111,7 @@ pub use signatures::{
 };
 pub use structural::{StopAt, StopPredicate};
 pub use traits::{
+    IsStructural,
     ItemArgumentParseable, ItemObjectParseable, ItemValueParseable, NetdocParseable,
     NetdocParseableFields, NetdocSigned,
 };

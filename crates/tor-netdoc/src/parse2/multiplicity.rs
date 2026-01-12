@@ -108,6 +108,14 @@ pub trait ItemSetMethods: Copy + Sized {
         Self::Each::is_intro_item_keyword(kw)
     }
 
+    /// If the contained type is a sub-document, call its `is_structural_keyword`.
+    fn is_structural_keyword(self, kw: KeywordRef<'_>) -> Option<IsStructural>
+    where
+        Self::Each: NetdocParseable,
+    {
+        Self::Each::is_structural_keyword(kw)
+    }
+
     /// `finish` for if the contained type is a wsub-document
     ///
     /// Obtain the sub-document's intro keyword from its `doctype_for_error`.

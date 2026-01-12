@@ -201,6 +201,10 @@ ns_choose! { (
             fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
                 NddAuthorityEntry::is_intro_item_keyword(kw)
             }
+            fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
+                NddAuthorityEntry::is_structural_keyword(kw)
+                    .or_else(|| authcert::DirAuthKeyCertSigned::is_structural_keyword(kw))
+            }
             fn from_items<'s>(
                 input: &mut ItemStream<'s>,
                 stop_outer: stop_at!(),
@@ -268,6 +272,9 @@ ns_choose! { (
         }
         fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
             NddAuthorityEntry::is_intro_item_keyword(kw)
+        }
+        fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
+            NddAuthorityEntry::is_structural_keyword(kw)
         }
         fn from_items(
             input: &mut ItemStream<'_>,
