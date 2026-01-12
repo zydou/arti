@@ -11,6 +11,7 @@ semipublic_mod! {
     pub(crate) mod port_info;
 }
 
+use futures::FutureExt as _;
 use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, Error as IoError};
 use futures::stream::StreamExt;
 use std::net::IpAddr;
@@ -355,7 +356,7 @@ pub(crate) async fn launch_proxy<R: Runtime>(
         None => (None, None),
     };
     #[cfg(not(feature = "rpc"))]
-    let rpc_mgr = None;
+    let (rpc_mgr, rpc_state_sender) = (None, None::<()>);
 
     if !listen.is_loopback_only() {
         warn!(
@@ -426,7 +427,12 @@ pub(crate) async fn launch_proxy<R: Runtime>(
         .collect();
 
     Ok((
-        run_proxy_with_listeners(tor_client, listeners, rpc_mgr),
+        run_proxy_with_listeners(tor_client, listeners, rpc_mgr).map(move |r| {
+            // Ensure that rpc_state_sender lasts as long the future.
+            #[cfg_attr(not(feature = "rpc"), allow(dropping_copy_types))]
+            drop(rpc_state_sender);
+            r
+        }),
         ports,
     ))
 }
