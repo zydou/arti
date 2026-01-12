@@ -29,6 +29,10 @@ full = [
     "tor-llcrypto/full",
     "tor-persist/full",
     "tor-general-addr/full",
+    "tor-circmgr/full",
+    "tor-dircommon/full",
+    "tor-dirmgr/full",
+    "tor-guardmgr/full",
 ]
 
 [dependencies]
