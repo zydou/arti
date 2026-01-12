@@ -55,25 +55,21 @@ the keywords within, but not anything about the signatures.
 
 ## Structural confusion hazard
 
-Consider the following program:
+See
+<https://spec.torproject.org/dir-spec/creating-key-certificates.html#nesting>.
+
+We need to be able to prevent the authcert author from
+smuggling confusing keywords through us.
+Specifically, consider the following program:
 
  * We obtain an authcert from somewhere
  * We parse the authcert and verify its signature and we think it's OK
  * We copy the authcert into a netstatus
  * We encode the netstatus
 
-The authcert might contain items that are structural for a netstatus,
-so that when we embed it into the netstatus, we get an unintended framing.
-This would perhaps be a vulnerability.
-
-What keywords are structural depends on the surrounding document.
-And we must ignore unknown keywords when parsing.
-So parsing an authcert in isolation doesn't assure us that there is no
-such problem!
-
-When constructing and encoding, we want to be able to tell when this
-problem is happening.  We want to be able to tell *which* authcert was
-involved, and we don't want to entangle this with the encoder,
+When constructing and encoding, we want to be able to tell when
+forbidden items appear.  We want to be able to tell *which* authcert
+was involved, and we don't want to entangle this with the encoder,
 probably.
 
 So we want the type of an authcert within a netstatus
