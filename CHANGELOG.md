@@ -13,8 +13,6 @@ and a configuration option for controlling which onion services to launch.
 As usual, there are also various under-the-hood improvements and bug fixes,
 which are documented below.
 
-<!-- Up to date as of [f57f44a5]. -->
-
 ### Breaking changes
 
 - In `arti-client`, `TorClient::launch_onion_service()` and
