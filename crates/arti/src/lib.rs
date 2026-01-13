@@ -148,7 +148,7 @@ use clap::Subcommand as _;
 
 #[cfg(feature = "experimental-api")]
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
-pub use subcommands::proxy::run_proxy as run; // XXXX un-rename.
+pub use subcommands::proxy::run_proxy;
 
 /// Create a runtime for Arti to use.
 fn create_runtime() -> std::io::Result<impl ToplevelRuntime> {
