@@ -3,6 +3,263 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+
+# Arti 1.9.0 — 13 January 2026
+
+Arti 1.9.0 continues some behind-the-scenes work on relay and directory authority development,
+and adds improved support for running with dynamically assigned ports.
+For example Arti now accepts `proxy.socks_listen = "auto"` to
+configure its SOCKS proxy with an operating-system-assigned port,
+and writes the assigned port to a structured JSON file in Arti's data directory.
+
+As usual, there are also various under-the-hood improvements and bug fixes,
+which are documented below.
+
+### Major features
+
+- A value of "auto" can now be provided for Arti's listening port configuration,
+  which allows listening on an operating-system-assigned SOCKS port.
+  For example `proxy.socks_listen = "auto"` or `proxy.dns_listen = "127.0.0.1:auto"`.
+  ([!3548])
+- Arti's SOCKS and DNS listening ports are now published to `${ARTI_LOCAL_DATA}/public/port_info.json`.
+  This is useful when using an "auto" port in Arti's configuration.
+  The path to the file used to store these ports can be adjusted with the
+  [`storage.port_info_file` configuration option][port_info_file].
+  The format of this file is described in [`crates/arti/src/proxy/port_info.rs`][port_info_rs].
+  ([!3548])
+
+### Deprecated functionality
+
+- Providing a listening port of "0" in Arti's configuration is now deprecated.
+  To use an operating-system-assigned port, a value of "auto" is preferred.
+  For example, `proxy.socks_listen = "127.0.0.1:0"` should be updated to `proxy.socks_listen = "127.0.0.1:auto"`.
+  Note that a standalone value of "0" is still supported and means "disable"; for example `proxy.socks_listen = 0`.
+  ([!3548])
+- The `tor_config::Listen::is_localhost_only()` method is now deprecated.
+  The new replacement is `is_loopback_only()`.
+  ([!3469])
+- The `tor_config::Listen::localhost_port_legacy()` method is now deprecated.
+  ([!3548])
+
+### Breaking changes in lower-level crates
+
+- The `retry_error::RetryError` error type no longer implements the `Extend` trait.
+  It now has an inherent `extend()` method instead.
+  ([!3506])
+- The `tor_config::InvalidListen` type is no longer public.
+  ([!3469])
+- The `tor_hsclient::InvalidTarget::{InvalidChanTargetInfo, ImpossibleRelayIds}` enum variants have been removed.
+  ([!3530])
+- The `tor_hsservice::EstablishSessionError::{ImpossibleIds,UnsupportedOnionKey}` enum variants have been removed.
+  ([!3530])
+- Various changes to types in tor-keymgr,
+  including the removal of `KeyPathError::Unrecognized` and `CTorServicePath`,
+  updates to `KeyMgr::describe()` and `CTorPath`,
+  and the movement of most of `KeyPathError` into a new `ArtiPathError`.
+  ([!3557])
+- Various changes to types in tor-netdoc,
+  including to `AuthCert` and `ItemValueParseable`.
+  ([!3555], [!3502])
+
+### Onion service development
+
+- `TorClient` now has an experimental `KeyMgr` accessor, intended for use by Arti's key management CLI.
+  ([!3442])
+- Extended the `KeySpecifier` macro to implement `KeyPathInfoExtractor::describe()` for `CTorPath`s,
+  and refactored some of Arti's key manager error handling.
+  ([!3557])
+- Refactored and deduplicated code that constructs a `CircTarget` in tor-hsservice and tor-hsclient.
+  ([!3530])
+
+### Relay development
+
+- The relay circuit reactor can now handle incoming data stream requests.
+  ([!3487])
+- The `relay.advertise` fields can now accept multiple IP addresses.
+  ([!3538])
+- Refactored some message passing in tor-proto to allow `Channel`s to communicate with relay-specific circuit reactors.
+  ([!3536])
+- The developer documentation now includes design notes on Arti's relay circuit reactor and
+  how it can support [conflux][conflux] in the future.
+  ([!3533])
+- Relays now initialize guard, circuit, and directory managers.
+  These can be used to build circuits and download directory documents.
+  ([!3552])
+- Removed the `ARTI_RELAY_SHARED_DATA` configuration variable for arti-relay.
+  ([!3558])
+
+### Directory authority development
+
+- Refactored some network document types and APIs.
+  ([!3502], [!3511], [!3522])
+- Experimental support for directory authority certificates has been added to tor-netdoc.
+  ([!3462])
+- Added download functionality to tor-dirserver.
+  ([!3434])
+- Added a derive-based network document encoder to tor-netdoc.
+  ([!3535])
+- Added some changes towards parsing the network status document preamble.
+  ([!3550], [!3554])
+- Replaced `tor_netdoc::doc::authcert::AuthCert` with a newer version.
+  ([!3555])
+
+### RPC development
+
+- Arti now builds `arti-rpc-client-core` as a static library, in addition to the existing rust library and dynamic library.
+  ([!3523])
+- Fixed a JSON request example in the RPC book.
+  ([!3527])
+- When the RPC system encounters a connect file that cannot be parsed or has an unrecognized schema,
+  the connect point is now declined rather than causing the connect attempt to abort.
+  ([!3553])
+- Fixed two RPC-related bugs: a spurious debug assertion failure in the RPC server,
+  and an early dropped value that would prevent `get_proxy_info()` from working.
+  ([!3575])
+
+### Documentation
+
+- The semantic versioning policy document now describes Arti's experimental features,
+  namely that breaking API changes may be made without bumping the major or minor version number.
+  ([!3545])
+- Updated Arti's website with various small improvements.
+  ([!3559])
+- Fixed small typos.
+  ([!3564])
+- Fixed source code reference in Arti's example configuration file.
+  ([!3577])
+
+### Infrastructure
+
+- Reduced some logging in the CI environment.
+  ([!3496])
+- Tweaked the required success thresholds for [Shadow] tests in the CI environment to reduce CI flakiness.
+  ([!3515])
+- Fixed the `maint/extract-md-links` script to work correctly with newer versions of the mistune library.
+  ([!3517])
+- Updated comment about the license of `priority-queue`.
+  ([!3509])
+- Generated rust documentation is now stored as a CI artifact for 1 week to work around a rustdoc performance issue.
+  ([!3537])
+- Arti's website is now automatically deployed to <https://arti.torproject.org> as part of the nightly CI pipeline.
+  ([!3547])
+- Removed a "stallout" timeout from onion client [tgen] streams in [Shadow] simulations to mitigate flaky CI tests.
+  ([!3529])
+- The "pages" job in the CI environment now always runs, even if other jobs fail.
+  ([!3549])
+- The RUSTSEC-2025-0141 advisory,
+  which is only an info-level "unmaintained" notice,
+  is now ignored in the `maint/cargo_audit` script.
+  ([!3568])
+
+### Cleanups, minor features, and bugfixes
+
+- Updated dependencies.
+  ([!3521], [!3525], [!3528])
+- Refactored the `tor_config::Listen` type so that we can reuse its logic in the future for Arti relays.
+  ([!3469])
+- The `Bug` error type in tor-error can now be given additional context text using `Bug::bug_context()`.
+  ([!3512])
+- Changed an info-level "Spawning reactor..." log message to debug-level.
+  ([!3526])
+- The `tor_protover::Protocols` type is now inherently interned as an optimization.
+  A `Protocols` is now cheap to clone.
+  ([!3524])
+- Removed some `doc(cfg(...))` attributes that are no longer needed.
+  ([!3294], [!3531])
+- Fixed a build failure on 32-bit platforms due to a compile-time integer overflow in tor-memquota.
+  ([!3532])
+- Fixed a build failure when tor-proto is built with the "relay" feature but not the "hs-service" feature.
+  ([!3534])
+- Designed and implemented a new derive-deftly-based approach to specifying configuration options in Arti.
+  Only a few existing options have been updated to use this new approach so far,
+  but it's expected that this will make it simpler to add new configuration options and maintain existing ones.
+  ([!3513], [!3472])
+- Added a default ring crypto provider in arti-relay to match arti.
+  This fixed a warning, but should be functionally the same.
+  ([!3539])
+- Removed the 'rustls/tls12' feature from the arti crate.
+  This should not cause any behaviour change as this feature is already enabled by tor-rtcompat.
+  ([!3540])
+- Reduced the log level of a message containing the keystore filesystem path from info-level to debug-level
+  to match our safe-logging guidelines.
+  ([!3546])
+- A `retry_error::RetryError` now records the time that each attempt failed,
+  and when displayed shows the time elapsed since the error occurred.
+  ([!3506])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Benjamin Erhart, Jérôme Charaoui, Neel Chauhan, Nihal, Pier Angelo Vendrame, Yaksh Bariya, hjrgrn, and tla.
+
+Also, our deep thanks to
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+[!3294]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3294
+[!3434]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3434
+[!3442]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3442
+[!3462]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3462
+[!3469]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3469
+[!3472]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3472
+[!3487]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3487
+[!3496]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3496
+[!3502]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3502
+[!3506]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3506
+[!3509]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3509
+[!3511]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3511
+[!3512]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3512
+[!3513]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3513
+[!3515]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3515
+[!3517]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3517
+[!3521]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3521
+[!3522]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3522
+[!3523]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3523
+[!3524]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3524
+[!3525]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3525
+[!3526]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3526
+[!3527]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3527
+[!3528]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3528
+[!3529]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3529
+[!3530]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3530
+[!3531]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3531
+[!3532]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3532
+[!3533]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3533
+[!3534]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3534
+[!3535]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3535
+[!3536]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3536
+[!3537]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3537
+[!3538]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3538
+[!3539]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3539
+[!3540]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3540
+[!3545]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3545
+[!3546]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3546
+[!3547]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3547
+[!3548]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3548
+[!3549]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3549
+[!3550]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3550
+[!3552]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3552
+[!3553]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3553
+[!3554]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3554
+[!3555]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3555
+[!3557]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3557
+[!3558]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3558
+[!3559]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3559
+[!3564]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3564
+[!3568]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3568
+[!3575]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3575
+[!3577]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3577
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[Shadow]: https://shadow.github.io
+[conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[port_info_file]: https://gitlab.torproject.org/tpo/core/arti/-/blob/f4de92cd4cfb8343a2cf8bc3fc62fde461bedba3/crates/arti/src/arti-example-config.toml#L174
+[port_info_rs]: https://gitlab.torproject.org/tpo/core/arti/-/blob/f4de92cd4cfb8343a2cf8bc3fc62fde461bedba3/crates/arti/src/proxy/port_info.rs#L4
+[tgen]: https://github.com/shadow/tgen
+
+
+
 # Arti 1.8.0 — 1 December 2025
 
 Arti 1.8.0 continues work on relay and directory authority development.
@@ -12,8 +269,6 @@ and a configuration option for controlling which onion services to launch.
 
 As usual, there are also various under-the-hood improvements and bug fixes,
 which are documented below.
-
-<!-- Up to date as of [f57f44a5]. -->
 
 ### Breaking changes
 
