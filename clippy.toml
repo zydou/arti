@@ -12,4 +12,12 @@ disallowed-methods = [
     { path = "std::path::Path::exists", reason = "Prefer using std::Path::try_exists or std::fs::exists" },
     { path = "retry_error::RetryError::push", reason = "Use push_timed with mockable time sources instead of push which calls SystemTime::now" },
     { path = "retry_error::RetryError::extend", reason = "Use push_timed in a loop with mockable time sources instead of extend which calls push internally" },
+    # This appears to be a fairly ugly bug, and since `weak_table` appears to be unmaintained, let's try to catch this early.
+    { path = "weak_table::WeakHashSet::retain", reason = "`WeakHashSet::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
+    { path = "weak_table::PtrWeakHashSet::retain", reason = "`PtrWeakHashSet::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
+    { path = "weak_table::PtrWeakKeyHashMap::retain", reason = "`PtrWeakKeyHashMap::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
+    { path = "weak_table::PtrWeakWeakHashMap::retain", reason = "`PtrWeakWeakHashMap::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
+    { path = "weak_table::WeakKeyHashMap::retain", reason = "`WeakKeyHashMap::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
+    { path = "weak_table::WeakValueHashMap::retain", reason = "`WeakValueHashMap::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
+    { path = "weak_table::WeakWeakHashMap::retain", reason = "`WeakWeakHashMap::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
 ]
