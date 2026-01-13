@@ -92,8 +92,16 @@ fn get_recent_consensus(
             params![
                 flavor.name(),
                 now,
-                tolerance.pre_valid_tolerance().as_secs(),
-                tolerance.post_valid_tolerance().as_secs()
+                tolerance
+                    .pre_valid_tolerance()
+                    .as_secs()
+                    .try_into()
+                    .unwrap_or(i64::MAX),
+                tolerance
+                    .post_valid_tolerance()
+                    .as_secs()
+                    .try_into()
+                    .unwrap_or(i64::MAX)
             ],
             |row| {
                 Ok((
