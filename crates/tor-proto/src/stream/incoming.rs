@@ -298,7 +298,7 @@ pub(crate) struct StreamReqInfo {
     pub(crate) req: IncomingStreamRequest,
     /// The ID of the stream being requested.
     pub(crate) stream_id: StreamId,
-    /// The [`HopNum`](crate::HopNum).
+    /// The [`HopNum`].
     ///
     /// Set to `None` if we are an exit relay.
     //
@@ -343,7 +343,7 @@ pub(crate) struct IncomingStreamRequestHandler {
     ///
     /// Set to `None` if we are a relay.
     pub(crate) hop_num: Option<HopNum>,
-    /// A [`CmdChecker`](crate::stream::cmdcheck::CmdChecker) for validating incoming streams.
+    /// A [`CmdChecker`] for validating incoming streams.
     pub(crate) cmd_checker: AnyCmdChecker,
     /// An [`IncomingStreamRequestFilter`] for checking whether the user wants
     /// this request, or wants to reject it immediately.
