@@ -10,6 +10,7 @@ use tor_cell::relaycell::{RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
+use tor_memquota::mq_queue::{self, MpscSpec};
 use tor_rtcompat::DynTimeProvider;
 
 use crate::circuit::CircSyncView;
@@ -18,14 +19,15 @@ use crate::stream::{CloseStreamBehavior, StreamComponents};
 use crate::{Error, Result};
 
 // TODO(relay): move these to a shared module
-use crate::HopLocation;
 use crate::client::stream::DataStream;
+
 use crate::memquota::StreamAccount;
 use crate::stream::StreamMpscSender;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::StreamQueueReceiver;
 use crate::util::notify::NotifyReceiver;
+use crate::{HopLocation, HopNum};
 
 use std::mem::size_of;
 
@@ -296,7 +298,7 @@ pub(crate) struct StreamReqInfo {
     pub(crate) req: IncomingStreamRequest,
     /// The ID of the stream being requested.
     pub(crate) stream_id: StreamId,
-    /// The [`HopNum`](crate::HopNum).
+    /// The [`HopNum`].
     ///
     /// Set to `None` if we are an exit relay.
     //
@@ -324,6 +326,29 @@ pub(crate) struct StreamReqInfo {
     /// The memory quota account to be used for this stream
     #[deftly(has_memory_cost(indirect_size = "0"))] // estimate (it contains an Arc)
     pub(crate) memquota: StreamAccount,
+}
+
+/// MPSC queue containing stream requests
+#[cfg(any(feature = "hs-service", feature = "relay"))]
+pub(crate) type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;
+
+/// Data required for handling an incoming stream request.
+#[derive(educe::Educe)]
+#[educe(Debug)]
+#[cfg(any(feature = "hs-service", feature = "relay"))]
+pub(crate) struct IncomingStreamRequestHandler {
+    /// A sender for sharing information about an incoming stream request.
+    pub(crate) incoming_sender: StreamReqSender,
+    /// The hop to expect incoming stream requests from.
+    ///
+    /// Set to `None` if we are a relay.
+    pub(crate) hop_num: Option<HopNum>,
+    /// A [`CmdChecker`] for validating incoming streams.
+    pub(crate) cmd_checker: AnyCmdChecker,
+    /// An [`IncomingStreamRequestFilter`] for checking whether the user wants
+    /// this request, or wants to reject it immediately.
+    #[educe(Debug(ignore))]
+    pub(crate) filter: Box<dyn IncomingStreamRequestFilter>,
 }
 
 #[cfg(test)]

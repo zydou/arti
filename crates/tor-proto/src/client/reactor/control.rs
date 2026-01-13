@@ -35,8 +35,8 @@ use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage};
 use tracing::{debug, trace};
 #[cfg(feature = "hs-service")]
 use {
-    super::StreamReqSender, crate::client::reactor::IncomingStreamRequestHandler,
-    crate::client::stream::IncomingStreamRequestFilter,
+    crate::client::reactor::IncomingStreamRequestHandler,
+    crate::client::stream::IncomingStreamRequestFilter, crate::stream::incoming::StreamReqSender,
 };
 
 #[cfg(test)]
@@ -699,7 +699,7 @@ impl<'a> ControlHandler<'a> {
                 let handler = IncomingStreamRequestHandler {
                     incoming_sender,
                     cmd_checker,
-                    hop_num,
+                    hop_num: Some(hop_num),
                     filter,
                 };
 
