@@ -177,7 +177,7 @@
 # which ports were automatically chosen.
 #
 # The format of this JSON is documented in the Arti source,
-# in `crates/arti/src/proxy/proxy_info.rs`. (TODO: Replace with link.)
+# in `crates/arti/src/proxy/port_info.rs`. (TODO: Replace with link.)
 #port_info_file = "${ARTI_LOCAL_DATA}/public/port_info.json"
 
 #[storage.keystore]
