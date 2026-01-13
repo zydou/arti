@@ -36,6 +36,11 @@ pub use build::AuthCertBuilder;
 #[cfg(feature = "parse2")]
 use crate::parse2::{self, ItemObjectParseable, SignatureHashInputs};
 
+#[cfg(feature = "parse2")]
+mod encoded;
+#[cfg(feature = "parse2")]
+pub use encoded::EncodedAuthCert;
+
 decl_keyword! {
     pub(crate) AuthCertKwd {
         "dir-key-certificate-version" => DIR_KEY_CERTIFICATE_VERSION,
