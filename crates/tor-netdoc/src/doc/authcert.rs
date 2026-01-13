@@ -30,6 +30,7 @@ use digest::Digest;
 mod build;
 
 #[cfg(feature = "build_docs")]
+#[allow(deprecated)]
 pub use build::AuthCertBuilder;
 
 #[cfg(feature = "parse2")]
@@ -79,20 +80,22 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 /// This is the body, not including signatures.
 ///
 /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html>
+///
+/// To make a fresh `AuthCert`, use [`AuthCertConstructor`].
 #[derive(Clone, Debug, Deftly)]
+#[derive_deftly(Constructor)]
 #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable, NetdocSigned))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[non_exhaustive]
-// TODO DIRAUTH make a way to construct this! and deprecate the old builder
-// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3555#note_3320387
 pub struct AuthCert {
     /// Intro line
     ///
     /// Currently must be version 3.
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certificate-version>
+    #[deftly(constructor(default = "AuthCertVersion::V3"))]
     #[deftly(netdoc(single_arg))]
     pub dir_key_certificate_version: AuthCertVersion,
 
@@ -101,20 +104,23 @@ pub struct AuthCert {
     pub dir_address: Option<net::SocketAddrV4>,
 
     /// H(KP_auth_id_rsa)
-    #[deftly(netdoc(single_arg))]
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:fingerprint>
+    #[deftly(constructor)]
+    #[deftly(netdoc(single_arg))]
     pub fingerprint: Fingerprint,
 
     /// Declared time when this certificate was published
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-published>
+    #[deftly(constructor)]
     #[deftly(netdoc(single_arg))]
     pub dir_key_published: Iso8601TimeSp,
 
     /// Declared time when this certificate expires.
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-expires>
+    #[deftly(constructor)]
     #[deftly(netdoc(single_arg))]
     pub dir_key_expires: Iso8601TimeSp,
 
@@ -123,6 +129,7 @@ pub struct AuthCert {
     /// The long-term RSA identity key for this authority
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-identity-key>
+    #[deftly(constructor)]
     pub dir_identity_key: rsa::PublicKey,
 
     /// KP_auth_sign_rsa
@@ -130,11 +137,13 @@ pub struct AuthCert {
     /// The medium-term RSA signing key for this authority
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-signing-key>
+    #[deftly(constructor)]
     pub dir_signing_key: rsa::PublicKey,
 
     /// SHA1(DER(KP_auth_id_rsa)) signed by KP_auth_sign_rsa
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
+    #[deftly(constructor)]
     pub dir_key_crosscert: CrossCert,
 }
 
@@ -192,6 +201,8 @@ impl AuthCert {
     /// Make an [`AuthCertBuilder`] object that can be used to
     /// construct authority certificates for testing.
     #[cfg(feature = "build_docs")]
+    #[deprecated = "use AuthCertConstructor instead"]
+    #[allow(deprecated)]
     pub fn builder() -> AuthCertBuilder {
         AuthCertBuilder::new()
     }

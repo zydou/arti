@@ -1,6 +1,170 @@
 //! Common macro elements for deriving parsers and encoders
 
-use derive_deftly::define_derive_deftly_module;
+use derive_deftly::{define_derive_deftly, define_derive_deftly_module};
+
+define_derive_deftly! {
+    /// Defines a constructor struct and method
+    //
+    // TODO maybe move this out of tor-netdoc, to a lower-level dependency
+    ///
+    /// "Constructor" is a more lightweight alternative to the builder pattern.
+    ///
+    /// # Comparison to builders
+    ///
+    ///  * Suitable for transparent, rather than opaque, structs.
+    ///  * Missing fields during construction are detected at compile-time.
+    ///  * Construction is infallible at runtime.
+    ///  * Making a previously-required field optional is an API break.
+    ///
+    /// # Input
+    ///
+    ///  * `struct Thing`.  (enums and unions are not supported.)
+    ///
+    ///  * Each field must impl `Default` or be annotated `#[deftly(constructor)]`
+    ///
+    ///  * `Thing` should contain `#[doc(hidden)] __non_exhaustive: ()`
+    ///    rather than being `#[non_exhaustive]`.
+    ///    (Because struct literal syntax is not available otherwise.)
+    ///
+    /// # Generated items
+    ///
+    ///  * **`pub struct ThingConstructor`**:
+    ///    contains all the required (non-optional) fields from `Thing`.
+    ///    `ThingConstructor` is `exhaustive`.
+    ///
+    ///  * **`fn ThingConstructor::construct(self) -> Thing`**:
+    ///    fills in all the default values.
+    ///
+    ///  * `impl From<ThingConstructor> for Thing`
+    ///
+    /// # Attributes
+    ///
+    /// ## Field attributes
+    ///
+    ///  * **`#[deftly(constructor)]`**:
+    ///    Include this field in `ThingConstructor`.
+    ///    The caller must provide a value.
+    ///
+    ///  * **`#[deftly(constructor(default = "EXPR"))]`**:
+    ///    Instead of `Default::default()`, the default value is EXPR.
+    ///    EXPR cannot refer to anything in `ThingConstructor`.
+    //     If we want that we would need to invent a feature for it.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use derive_deftly::Deftly;
+    /// use tor_netdoc::derive_deftly_template_Constructor;
+    ///
+    /// #[derive(Deftly, PartialEq, Debug)]
+    /// #[derive_deftly(Constructor)]
+    /// #[non_exhaustive]
+    /// pub struct Thing {
+    ///     /// Required field
+    ///     #[deftly(constructor)]
+    ///     pub required: i32,
+    ///
+    ///     /// Optional field
+    ///     pub optional: Option<i32>,
+    ///
+    ///     /// Optional field with fixed default
+    ///     #[deftly(constructor(default = "7"))]
+    ///     pub defaulted: i32,
+    /// }
+    ///
+    /// let thing = Thing {
+    ///     optional: Some(23),
+    ///     ..ThingConstructor {
+    ///         required: 12,
+    ///     }.construct()
+    /// };
+    ///
+    /// assert_eq!(
+    ///     thing,
+    ///     Thing {
+    ///         required: 12,
+    ///         optional: Some(23),
+    ///         defaulted: 7,
+    ///     }
+    /// );
+    /// ```
+    ///
+    /// # Note
+    export Constructor for struct, beta_deftly:
+
+    ${define CONSTRUCTOR_NAME $<$tname Constructor>}
+    ${define CONSTRUCTOR $<$ttype Constructor>}
+
+    ${defcond F_DEFAULT_EXPR fmeta(constructor(default))}
+    ${defcond F_DEFAULT_TRAIT not(fmeta(constructor))}
+    ${defcond F_REQUIRED not(any(F_DEFAULT_EXPR, F_DEFAULT_TRAIT))}
+
+    #[doc = ${concat "Constructor (required fields) for " $tname}]
+    ///
+    #[doc = ${concat "See [`" $tname "`]."}]
+    ///
+    /// This constructor struct contains precisely the required fields.
+    #[doc = ${concat "You can make a `" $tname
+              "` out of it with [`.construct()`](" $CONSTRUCTOR_NAME "::construct),"}]
+    /// or the `From` impl,
+    /// and use the result as a basis for further modifications.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    #[doc = ${concat "let " ${snake_case $tname} " = " $tname "{"}]
+    #[doc = ${concat ${for fields {
+        ${if any(fmeta(constructor(default)), not(fmeta(constructor))) {
+            "    " $fname ": /* optional field value */,\n"
+        } else {
+        }}
+    }}}]
+    #[doc = ${concat "    .." $CONSTRUCTOR_NAME " {"}]
+    #[doc = ${concat ${for fields {
+        ${if not(any(fmeta(constructor(default)), not(fmeta(constructor)))) {
+            "        " $fname ": /* required field value */,\n"
+        } else {
+        }}
+    }}}]
+    #[doc = ${concat "    }.construct()"}]
+    #[doc = ${concat "};"}]
+    /// ```
+    #[allow(clippy::exhaustive_structs)]
+    $tvis struct $CONSTRUCTOR_NAME<$tdefgens> where $twheres { $(
+        ${when F_REQUIRED}
+
+        ${fattrs doc}
+        $fdefvis $fname: $ftype,
+    ) }
+
+    impl<$tgens> $CONSTRUCTOR where $twheres {
+        #[doc = ${concat "Construct a minimal [`" $tname "`]"}]
+        ///
+        #[doc = ${concat "In the returned " $tname ","}]
+        /// optional fields all get the default values.
+        $tvis fn construct(self) -> $ttype {
+            $tname { $(
+                $fname: ${select1
+                    F_REQUIRED {
+                        self.$fname
+                    }
+                    F_DEFAULT_TRAIT {
+                        ::std::default::Default::default()
+                    }
+                    F_DEFAULT_EXPR {
+                        ${fmeta(constructor(default)) as expr}
+                    }
+                },
+            ) }
+        }
+    }
+
+    impl<$tgens> From<$CONSTRUCTOR> for $ttype where $twheres {
+        fn from(constructor: $CONSTRUCTOR) -> $ttype {
+            constructor.construct()
+        }
+    }
+}
 
 /// Macro to help check that netdoc items in a derive input are in the right order
 ///
