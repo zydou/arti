@@ -123,6 +123,10 @@ which are documented below.
   ([!3545])
 - Updated Arti's website with various small improvements.
   ([!3559])
+- Fixed small typos.
+  ([!3564])
+- Fixed source code reference in Arti's example configuration file.
+  ([!3577])
 
 ### Infrastructure
 
@@ -132,6 +136,8 @@ which are documented below.
   ([!3515])
 - Fixed the `maint/extract-md-links` script to work correctly with newer versions of the mistune library.
   ([!3517])
+- Updated comment about the license of `priority-queue`.
+  ([!3509])
 - Generated rust documentation is now stored as a CI artifact for 1 week to work around a rustdoc performance issue.
   ([!3537])
 - Arti's website is now automatically deployed to <https://arti.torproject.org> as part of the nightly CI pipeline.
@@ -159,7 +165,7 @@ which are documented below.
   A `Protocols` is now cheap to clone.
   ([!3524])
 - Removed some `doc(cfg(...))` attributes that are no longer needed.
-  ([!3294])
+  ([!3294], [!3531])
 - Fixed a build failure on 32-bit platforms due to a compile-time integer overflow in tor-memquota.
   ([!3532])
 - Fixed a build failure when tor-proto is built with the "relay" feature but not the "hs-service" feature.
@@ -201,6 +207,7 @@ for funding the development of Arti!
 [!3496]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3496
 [!3502]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3502
 [!3506]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3506
+[!3509]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3509
 [!3511]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3511
 [!3512]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3512
 [!3513]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3513
@@ -216,6 +223,7 @@ for funding the development of Arti!
 [!3528]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3528
 [!3529]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3529
 [!3530]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3530
+[!3531]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3531
 [!3532]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3532
 [!3533]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3533
 [!3534]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3534
@@ -238,8 +246,10 @@ for funding the development of Arti!
 [!3557]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3557
 [!3558]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3558
 [!3559]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3559
+[!3564]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3564
 [!3568]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3568
 [!3575]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3575
+[!3577]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3577
 [Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
 [Shadow]: https://shadow.github.io
 [conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
