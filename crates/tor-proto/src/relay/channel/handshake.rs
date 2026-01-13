@@ -1,5 +1,6 @@
 //! Implementations for the relay channel handshake
 
+use async_trait::async_trait;
 use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
 use rand::Rng;
@@ -10,7 +11,7 @@ use tor_error::internal;
 use tracing::{instrument, trace};
 
 use tor_cell::chancell::msg;
-use tor_linkspec::{ChanTarget, ChannelMethod};
+use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_llcrypto::pk::ed25519::Ed25519SigningKey;
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
@@ -19,11 +20,11 @@ use crate::channel::handshake::{
     ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, VerifiedChannel,
     unauthenticated_clock_skew,
 };
-use crate::channel::{Channel, ChannelFrame, Reactor};
+use crate::channel::{Channel, ChannelFrame, FinalizableChannel, Reactor, VerifiableChannel};
 use crate::channel::{ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::relay::channel::RelayIdentities;
-use crate::{Error, Result};
+use crate::{ClockSkew, Error, Result};
 
 // TODO(relay): We should probably get those values from protover crate or some other
 // crate that have all "network parameters" we support?
@@ -101,7 +102,7 @@ impl<
     ///
     /// Takes a function that reports the current time.  In theory, this can just be
     /// `SystemTime::now()`.
-    pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedRelayChannel<T, S>>
+    pub async fn connect<F>(mut self, now_fn: F) -> Result<Box<dyn VerifiableChannel<T, S>>>
     where
         F: FnOnce() -> SystemTime,
     {
@@ -128,7 +129,7 @@ impl<
             versions_flushed_wallclock,
         );
 
-        Ok(UnverifiedRelayChannel {
+        Ok(Box::new(UnverifiedRelayChannel {
             inner: UnverifiedChannel {
                 channel_type: ChannelType::RelayInitiator,
                 link_protocol,
@@ -143,7 +144,7 @@ impl<
             auth_challenge_cell,
             netinfo_cell,
             identities: self.identities,
-        })
+        }))
     }
 }
 
@@ -235,7 +236,7 @@ impl ChannelAuthenticationData {
 ///
 /// This is used for both initiator and responder channels.
 #[expect(unused)] // TODO(relay). remove
-pub struct UnverifiedRelayChannel<
+struct UnverifiedRelayChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
@@ -253,28 +254,19 @@ pub struct UnverifiedRelayChannel<
 impl<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
-> UnverifiedRelayChannel<T, S>
+> VerifiableChannel<T, S> for UnverifiedRelayChannel<T, S>
 {
-    /// Validate the certificates and keys in the relay's handshake.
-    ///
-    /// 'peer' is the peer that we want to make sure we're connecting to.
-    ///
-    /// 'peer_cert' is the x.509 certificate that the peer presented during
-    /// its TLS handshake (ServerHello).
-    ///
-    /// 'now' is the time at which to check that certificates are
-    /// valid.  `None` means to use the current time. It can be used
-    /// for testing to override the current view of the time.
-    ///
-    /// This is a separate function because it's likely to be somewhat
-    /// CPU-intensive.
+    fn clock_skew(&self) -> ClockSkew {
+        self.inner.clock_skew
+    }
+
     #[instrument(skip_all, level = "trace")]
-    pub fn check<U: ChanTarget + ?Sized>(
-        self,
-        peer: &U,
+    fn check(
+        self: Box<Self>,
+        peer: &OwnedChanTarget,
         peer_cert: &[u8],
         now: Option<std::time::SystemTime>,
-    ) -> Result<VerifiedRelayChannel<T, S>> {
+    ) -> Result<Box<dyn FinalizableChannel<T, S>>> {
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.check(peer, peer_cert, now)?;
 
@@ -306,11 +298,24 @@ impl<
             None
         };
 
-        Ok(VerifiedRelayChannel {
+        Ok(Box::new(VerifiedRelayChannel {
             inner: verified,
             auth_data,
-        })
+        }))
     }
+
+    /// Return the link protocol version of this channel.
+    #[cfg(test)]
+    fn link_protocol(&self) -> u16 {
+        self.inner.link_protocol
+    }
+}
+
+impl<T, S> crate::channel::seal::Sealed for UnverifiedRelayChannel<T, S>
+where
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+{
 }
 
 /// A verified relay channel on which versions have been negotiated, the handshake has been read,
@@ -319,7 +324,7 @@ impl<
 /// This type is separate from UnverifiedRelayChannel, since finishing the handshake requires a
 /// bunch of CPU, and you might want to do it as a separate task or after a yield.
 #[expect(unused)] // TODO(relay). remove
-pub struct VerifiedRelayChannel<
+struct VerifiedRelayChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
@@ -330,19 +335,14 @@ pub struct VerifiedRelayChannel<
     auth_data: Option<ChannelAuthenticationData>,
 }
 
+#[async_trait]
 impl<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
-> VerifiedRelayChannel<T, S>
+> FinalizableChannel<T, S> for VerifiedRelayChannel<T, S>
 {
-    /// Send a 'Netinfo' message to the relay to finish the handshake,
-    /// and create an open channel and reactor.
-    ///
-    /// The channel is used to send cells, and to create outgoing circuits.
-    /// The reactor is used to route incoming messages to their appropriate
-    /// circuit.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
+    async fn finish(mut self: Box<Self>) -> Result<(Arc<Channel>, Reactor<S>)> {
         let peer_ip = self
             .inner
             .target_method
@@ -381,4 +381,11 @@ impl<
 
         self.inner.finish().await
     }
+}
+
+impl<T, S> crate::channel::seal::Sealed for VerifiedRelayChannel<T, S>
+where
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+{
 }

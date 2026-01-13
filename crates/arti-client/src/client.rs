@@ -15,6 +15,7 @@ use crate::config::{
 };
 use safelog::{Sensitive, sensitive};
 use tor_async_utils::{DropNotifyWatchSender, PostageWatchSenderExt};
+use tor_chanmgr::ChanMgrConfig;
 use tor_circmgr::ClientDataTunnel;
 use tor_circmgr::isolation::{Isolation, StreamIsolation};
 use tor_circmgr::{IsolationToken, TargetPort, isolation::StreamIsolationBuilder};
@@ -907,11 +908,10 @@ impl<R: Runtime> TorClient<R> {
         };
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
             runtime.clone(),
-            &config.channel,
+            ChanMgrConfig::new(config.channel.clone()),
             dormant.into(),
             &NetParameters::from_map(&config.override_net_params),
             memquota.clone(),
-            None,
         ));
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), statemgr.clone(), config)
             .map_err(ErrorDetail::GuardMgrSetup)?;

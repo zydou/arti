@@ -6,6 +6,7 @@ use crate::Result;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 
+use async_trait::async_trait;
 use futures::channel::mpsc;
 
 use std::sync::Arc;
@@ -16,7 +17,7 @@ use tor_linkspec::HasRelayIds;
 pub type ChannelResult = Result<Arc<Channel>>;
 
 /// A sender for returning an outgoing relay channel
-/// requested via [`ChannelProvider::get_or_launch_relay`].
+/// requested via [`ChannelProvider::get_or_launch`].
 //
 // Note: this channel is unbounded, because the limit should be imposed
 // by the [`ChannelProvider`].
@@ -37,7 +38,7 @@ impl OutboundChanSender {
 
     /// Send the specified channel result to the requester.
     ///
-    /// See [`ChannelProvider::get_or_launch_relay`].
+    /// See [`ChannelProvider::get_or_launch`].
     #[allow(dead_code)] // TODO(relay)
     pub fn send(self, result: ChannelResult) {
         // Don't care if the receiver goes away
@@ -50,20 +51,19 @@ impl OutboundChanSender {
 ///
 /// The implementor is responsible for imposing a limit on the
 /// number of outbound channels that can be opened on a given circuit.
-#[allow(unreachable_pub)] // TODO(#1447): impl this for ChanMgr
-#[allow(unused)]
+#[async_trait]
 pub trait ChannelProvider {
     /// Type that explains how to build an outgoing channel.
     type BuildSpec: HasRelayIds;
 
-    /// Get a channel corresponding to the identities of `target`,
-    /// for the circuit with the specified `circ_id`.
+    /// Get a channel corresponding to the identities of `target`, for the circuit reactor with the
+    /// specified `reactor_id` which should only be used for logging purposes.
     ///
     /// Returns the requested channel via the specified [`OutboundChanSender`].
-    fn get_or_launch_relay(
-        &self,
-        circ_id: UniqId,
-        target: &Self::BuildSpec,
+    async fn get_or_launch(
+        self: Arc<Self>,
+        reactor_id: UniqId,
+        target: Self::BuildSpec,
         tx: OutboundChanSender,
     ) -> Result<()>;
 }

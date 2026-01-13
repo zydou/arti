@@ -198,7 +198,7 @@ async fn case(
 
     let chanmgr = AbstractChanMgr::new(
         factory,
-        &cconfig,
+        cconfig,
         dormancy,
         &netparams,
         BootstrapReporter::fake(),

@@ -1280,11 +1280,10 @@ mod test {
     ) -> Arc<CircMgrInner<crate::build::TunnelBuilder<R>, R>> {
         let chanmgr = tor_chanmgr::ChanMgr::new(
             runtime.clone(),
-            &Default::default(),
+            Default::default(),
             tor_chanmgr::Dormancy::Dormant,
             &Default::default(),
             ToplevelAccount::new_noop(),
-            None,
         );
         let guardmgr = tor_guardmgr::GuardMgr::new(
             runtime.clone(),

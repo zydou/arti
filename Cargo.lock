@@ -6489,6 +6489,7 @@ version = "0.38.0"
 dependencies = [
  "async-trait",
  "caret",
+ "cfg-if",
  "derive_builder_fork_arti",
  "derive_more",
  "educe",
@@ -7390,6 +7391,7 @@ dependencies = [
  "aes",
  "amplify",
  "assert_matches",
+ "async-trait",
  "asynchronous-codec",
  "bitvec",
  "bytes",
@@ -7493,6 +7495,7 @@ dependencies = [
  "tor-config-path",
  "tor-error",
  "tor-linkspec",
+ "tor-proto",
  "tor-rtcompat",
  "tor-socksproto",
  "tracing",

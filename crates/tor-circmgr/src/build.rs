@@ -738,7 +738,6 @@ mod test {
     use crate::timeouts::TimeoutEstimator;
     use futures::FutureExt;
     use std::sync::Mutex;
-    use tor_chanmgr::ChannelConfig;
     use tor_chanmgr::ChannelUsage as CU;
     use tor_linkspec::ChanTarget;
     use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
@@ -1083,11 +1082,10 @@ mod test {
     ) -> (Result<FakeCirc>, Vec<(bool, u8, Duration)>) {
         let chanmgr = Arc::new(ChanMgr::new(
             rt.clone(),
-            &ChannelConfig::default(),
+            Default::default(),
             Default::default(),
             &Default::default(),
             ToplevelAccount::new_noop(),
-            None,
         ));
         // always has 3 second timeout, 100 second abandon.
         let timeouts = match advance_on_timeout {

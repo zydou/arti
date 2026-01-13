@@ -76,7 +76,7 @@ pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
 
 pub use channel::params::ChannelPaddingInstructions;
-pub use client::{ClientTunnel, HopLocation, TargetHop};
+pub use client::{ClientTunnel, HopLocation, TargetHop, channel::ClientChannelBuilder};
 pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
 pub use stream::flow_ctrl::params::{CellCount, FlowCtrlParameters};

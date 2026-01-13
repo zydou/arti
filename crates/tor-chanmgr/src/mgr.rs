@@ -1,15 +1,13 @@
 //! Abstract implementation of a channel manager
 
+use crate::factory::BootstrapReporter;
 use crate::mgr::state::{ChannelForTarget, PendingChannelHandle};
 use crate::util::defer::Defer;
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
-use crate::factory::BootstrapReporter;
 use async_trait::async_trait;
 use futures::future::Shared;
 use oneshot_fused_workaround as oneshot;
-#[cfg(feature = "relay")]
-use safelog::Sensitive;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,6 +18,9 @@ use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount};
 use tracing::{instrument, trace};
+
+#[cfg(feature = "relay")]
+use {safelog::Sensitive, tor_proto::RelayIdentities};
 
 mod select;
 mod state;
@@ -98,6 +99,35 @@ pub(crate) trait AbstractChannelFactory {
     ) -> Result<Arc<Self::Channel>>;
 }
 
+/// This is the configuration for a [`ChanMgr`](crate::ChanMgr) given to the constructor.
+#[derive(Default)]
+pub struct ChanMgrConfig {
+    /// Channel configuration which usually comes from a configuration file.
+    pub(crate) cfg: ChannelConfig,
+    /// Relay identities needed for relay channels.
+    #[cfg(feature = "relay")]
+    pub(crate) identities: Option<Arc<RelayIdentities>>,
+    // TODO: Would be good to add more things such as NetParameters and Dormancy maybe?
+}
+
+impl ChanMgrConfig {
+    /// Constructor.
+    pub fn new(cfg: ChannelConfig) -> Self {
+        Self {
+            cfg,
+            #[cfg(feature = "relay")]
+            identities: None,
+        }
+    }
+
+    /// Set the relay identities and return itself.
+    #[cfg(feature = "relay")]
+    pub fn with_identities(mut self, ids: Arc<RelayIdentities>) -> Self {
+        self.identities = Some(ids);
+        self
+    }
+}
+
 /// A type- and network-agnostic implementation for [`ChanMgr`](crate::ChanMgr).
 ///
 /// This type does the work of keeping track of open channels and pending
@@ -132,14 +162,14 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     /// Make a new empty channel manager.
     pub(crate) fn new(
         connector: CF,
-        config: &ChannelConfig,
+        config: ChannelConfig,
         dormancy: Dormancy,
         netparams: &NetParameters,
         reporter: BootstrapReporter,
         memquota: ToplevelAccount,
     ) -> Self {
         AbstractChanMgr {
-            channels: state::MgrState::new(connector, config.clone(), dormancy, netparams),
+            channels: state::MgrState::new(connector, config, dormancy, netparams),
             reporter,
             memquota,
         }
@@ -545,7 +575,7 @@ mod test {
         let cf = FakeChannelFactory::new(runtime);
         AbstractChanMgr::new(
             cf,
-            &ChannelConfig::default(),
+            Default::default(),
             Default::default(),
             &Default::default(),
             BootstrapReporter::fake(),

@@ -7,21 +7,21 @@ use crate::factory::{BootstrapReporter, ChannelFactory, IncomingChannelFactory};
 use crate::transport::TransportImplHelper;
 use crate::{Error, event::ChanMgrEventSender};
 
-#[cfg(feature = "relay")]
-use safelog::Sensitive;
+use async_trait::async_trait;
 use std::time::Duration;
 use tor_basic_utils::rand_hostname;
 use tor_error::internal;
-use tor_keymgr::KeyMgr;
 use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
+use tor_proto::channel::ChannelType;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::ChannelAccount;
+use tor_rtcompat::SpawnExt;
 use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
 use tracing::instrument;
 
-use async_trait::async_trait;
-use tor_rtcompat::SpawnExt;
+#[cfg(feature = "relay")]
+use {safelog::Sensitive, tor_proto::RelayIdentities};
 
 /// TLS-based channel builder.
 ///
@@ -45,9 +45,9 @@ where
     transport: H,
     /// Object to build TLS connections.
     tls_connector: <R as TlsProvider<H::Stream>>::Connector,
-    /// Relay only: Key manager to get keys for channel authentication.
-    #[expect(dead_code)]
-    keymgr: Option<Arc<KeyMgr>>,
+    /// Relay identities needed for relay channels.
+    #[cfg(feature = "relay")]
+    identities: Option<Arc<RelayIdentities>>,
 }
 
 impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
@@ -55,16 +55,41 @@ where
     R: TlsProvider<H::Stream>,
 {
     /// Construct a new ChanBuilder.
-    pub fn new(runtime: R, transport: H, keymgr: Option<Arc<KeyMgr>>) -> Self {
+    pub fn new(runtime: R, transport: H) -> Self {
         let tls_connector = <R as TlsProvider<H::Stream>>::tls_connector(&runtime);
         ChanBuilder {
             runtime,
             transport,
             tls_connector,
-            keymgr,
+            #[cfg(feature = "relay")]
+            identities: None,
         }
     }
+
+    /// Set the relay identities and return itself.
+    #[cfg(feature = "relay")]
+    pub fn with_identities(mut self, ids: Arc<RelayIdentities>) -> Self {
+        self.identities = Some(ids);
+        self
+    }
+
+    /// Return the outbound channel type of this config.
+    ///
+    /// The channel type is used when creating outbound channels. Relays always initiate channels
+    /// as "relay initiator" while client and bridges behave like a "client initiator".
+    ///
+    /// Important: The wrong channel type is returned if this is called before `with_identities()`
+    /// is called.
+    fn outbound_chan_type(&self) -> ChannelType {
+        #[cfg(feature = "relay")]
+        if self.identities.is_some() {
+            return ChannelType::RelayInitiator;
+        }
+        // No relay built in, always client.
+        ChannelType::ClientInitiator
+    }
 }
+
 #[async_trait]
 impl<R: Runtime, H: TransportImplHelper> ChannelFactory for ChanBuilder<R, H>
 where
@@ -87,9 +112,8 @@ where
             std::time::Duration::new(10, 0)
         };
 
-        let connect_future = self.connect_no_timeout(target, reporter.0, memquota);
         self.runtime
-            .timeout(delay, connect_future)
+            .timeout(delay, self.connect_no_timeout(target, reporter.0, memquota))
             .await
             .map_err(|_| Error::ChanTimeout {
                 peer: target.to_logged(),
@@ -135,6 +159,8 @@ where
     H: Send + Sync,
 {
     /// Perform the work of `connect_via_transport`, but without enforcing a timeout.
+    ///
+    /// Return a [`Channel`](tor_proto::channel::Channel) on success.
     #[instrument(skip_all, level = "trace")]
     async fn connect_no_timeout(
         &self,
@@ -142,7 +168,6 @@ where
         event_sender: Arc<Mutex<ChanMgrEventSender>>,
         memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
-        use tor_proto::channel::ChannelBuilder;
         use tor_rtcompat::tls::CertifiedConn;
 
         {
@@ -153,7 +178,7 @@ where
 
         let (using_target, stream) = self.transport.connect(target).await?;
         let using_method = using_target.chan_method();
-        let peer = using_target.chan_method().target_addr();
+        let peer = using_method.target_addr();
         let peer_ref = &peer;
 
         let map_ioe = |action: &'static str| {
@@ -200,18 +225,53 @@ where
                 .record_tls_finished();
         }
 
-        // 2. Set up the channel.
-        let mut builder = ChannelBuilder::new();
-        builder.set_declared_method(using_method);
-        let chan = builder
-            .launch_client(
-                tls,
-                self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
-                memquota,
-            )
-            .connect(|| self.runtime.wallclock())
-            .await
-            .map_err(|e| Error::from_proto_no_skew(e, &using_target))?;
+        // Store this so we can log it in case we don't recognize it.
+        let outbound_chan_type = self.outbound_chan_type();
+        let chan = match outbound_chan_type {
+            ChannelType::ClientInitiator => {
+                // Get the client specific channel builder.
+                let mut builder = tor_proto::ClientChannelBuilder::new();
+                builder.set_declared_method(target.chan_method());
+
+                builder
+                    .launch(
+                        tls,
+                        self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
+                        memquota,
+                    )
+                    .connect(|| self.runtime.wallclock())
+                    .await
+                    .map_err(|e| Error::from_proto_no_skew(e, target))?
+            }
+            #[cfg(feature = "relay")]
+            ChannelType::RelayInitiator => {
+                let builder = tor_proto::RelayChannelBuilder::new();
+                let identities = self
+                    .identities
+                    .as_ref()
+                    .ok_or(internal!(
+                        "Unable to build relay channel without identities"
+                    ))?
+                    .clone();
+
+                builder
+                    .launch(
+                        tls,
+                        self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
+                        identities,
+                        memquota,
+                    )
+                    .connect(|| self.runtime.wallclock())
+                    .await
+                    .map_err(|e| Error::from_proto_no_skew(e, &using_target))?
+            }
+            _ => {
+                return Err(Error::Internal(internal!(
+                    "Unusable channel type for outbound: {outbound_chan_type}",
+                )));
+            }
+        };
+
         let clock_skew = Some(chan.clock_skew()); // Not yet authenticated; can't use it till `check` is done.
         let now = self.runtime.wallclock();
         let chan = chan
@@ -249,6 +309,7 @@ where
                 let _ = reactor.run().await;
             })
             .map_err(|e| Error::from_spawn("channel reactor", e))?;
+
         Ok(chan)
     }
 }
@@ -356,7 +417,7 @@ mod test {
 
             // Create the channel builder that we want to test.
             let transport = crate::transport::DefaultTransport::new(client_rt.clone());
-            let builder = ChanBuilder::new(client_rt, transport, None);
+            let builder = ChanBuilder::new(client_rt, transport);
 
             let (r1, r2): (Result<Arc<Channel>>, Result<LocalStream>) = futures::join!(
                 async {
