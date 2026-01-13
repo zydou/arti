@@ -42,7 +42,7 @@ __is_experimental = []
 derive-deftly = { version = "~1.6.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 futures = "0.3.14"
-futures-copy = { version = "0.2.1", path = "../futures-copy" }
+futures-copy = { version = "0.2.2", path = "../futures-copy" }
 # postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 itertools = "0.14.0"
 metrics = { version = "0.24.1", optional = true }
