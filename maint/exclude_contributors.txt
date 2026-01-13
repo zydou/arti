@@ -1,6 +1,7 @@
 #0 Contributors to exclude when running maint/thanks.
 #1 Include employees and contractors of the Tor Project here.
-#2 WARNING: This file MUST be sorted.
+#2 WARNING: This file MUST be sorted according to `LC_COLLATE=C.UTF-8`.
+#3 Example: `LC_COLLATE=C.UTF-8 sort -o exclude_contributors.txt exclude_contributors.txt`
 Alexander Færøy
 Alexander Hansen Færøy
 Clara Engler
