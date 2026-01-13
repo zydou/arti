@@ -1,6 +1,6 @@
 [package]
 name = "arti-relay"
-version = "0.37.0"
+version = "0.38.0"
 authors = ["The Tor Project, Inc."]
 edition = "2024"
 rust-version = "1.86"
@@ -51,24 +51,24 @@ serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1.7", features = ["signal"] }
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.37.0", features = ["relay"] }
-tor-circmgr = { version = "0.37.0", path = "../tor-circmgr" }
-tor-config = { path = "../tor-config", version = "0.37.0" }
-tor-config-path = { path = "../tor-config-path", version = "0.37.0" }
-tor-dircommon = { version = "0.37.0", path = "../tor-dircommon" }
-tor-dirmgr = { path = "../tor-dirmgr", version = "0.37.0" }
-tor-error = { path = "../tor-error", version = "0.37.0" }
-tor-general-addr = { path = "../tor-general-addr", version = "0.37.0" }
-tor-guardmgr = { version = "0.37.0", path = "../tor-guardmgr" }
-tor-keymgr = { path = "../tor-keymgr", version = "0.37.0", features = ["keymgr", "ephemeral-keystore"] }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.37.0" }
-tor-memquota = { version = "0.37.0", path = "../tor-memquota" }
-tor-netdir = { path = "../tor-netdir", version = "0.37.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.37.0" }
-tor-persist = { path = "../tor-persist", version = "0.37.0", features = ["state-dir"] }
-tor-proto = { path = "../tor-proto", version = "0.37.0", features = ["tokio"] }
-tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.37.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.37.0", features = ["rustls", "tokio"] }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.38.0", features = ["relay"] }
+tor-circmgr = { version = "0.38.0", path = "../tor-circmgr" }
+tor-config = { path = "../tor-config", version = "0.38.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.38.0" }
+tor-dircommon = { version = "0.38.0", path = "../tor-dircommon" }
+tor-dirmgr = { path = "../tor-dirmgr", version = "0.38.0" }
+tor-error = { path = "../tor-error", version = "0.38.0" }
+tor-general-addr = { path = "../tor-general-addr", version = "0.38.0" }
+tor-guardmgr = { version = "0.38.0", path = "../tor-guardmgr" }
+tor-keymgr = { path = "../tor-keymgr", version = "0.38.0", features = ["keymgr", "ephemeral-keystore"] }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.38.0" }
+tor-memquota = { version = "0.38.0", path = "../tor-memquota" }
+tor-netdir = { path = "../tor-netdir", version = "0.38.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.38.0" }
+tor-persist = { path = "../tor-persist", version = "0.38.0", features = ["state-dir"] }
+tor-proto = { path = "../tor-proto", version = "0.38.0", features = ["tokio"] }
+tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.38.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.38.0", features = ["rustls", "tokio"] }
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 void = "1"
