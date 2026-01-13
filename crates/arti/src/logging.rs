@@ -30,7 +30,9 @@ mod time;
 #[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
 #[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
-pub struct LoggingConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr>
     ///
@@ -116,7 +118,8 @@ impl_standard_builder! { LoggingConfig }
 
 impl LoggingConfigBuilder {
     /// Build the [`LoggingConfig`].
-    pub fn build(&self) -> Result<LoggingConfig, ConfigBuildError> {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn build(&self) -> Result<LoggingConfig, ConfigBuildError> {
         let config = self.build_unvalidated()?;
 
         #[cfg(not(feature = "tokio-console"))]
@@ -164,7 +167,9 @@ define_list_builder_accessors! {
 #[derive(Debug, Builder, Clone, Eq, PartialEq)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
-pub struct LogfileConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct LogfileConfig {
     /// How often to rotate the file?
     #[builder(default)]
     rotate: LogRotation,
@@ -180,7 +185,8 @@ impl_standard_builder! { LogfileConfig: !Default }
 #[derive(Debug, Default, Clone, Serialize, Deserialize, Copy, Eq, PartialEq)]
 #[non_exhaustive]
 #[serde(rename_all = "lowercase")]
-pub enum LogRotation {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) enum LogRotation {
     /// Rotate logs daily
     Daily,
     /// Rotate logs hourly
@@ -194,7 +200,9 @@ pub enum LogRotation {
 #[derive(Debug, Builder, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
-pub struct OpentelemetryConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct OpentelemetryConfig {
     /// Write spans to a file in OTLP JSON format.
     #[builder(default)]
     file: Option<OpentelemetryFileExporterConfig>,
@@ -208,7 +216,9 @@ impl_standard_builder! { OpentelemetryConfig }
 #[derive(Debug, Builder, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
-pub struct OpentelemetryHttpExporterConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct OpentelemetryHttpExporterConfig {
     /// HTTP(S) endpoint to send spans to.
     ///
     /// For Jaeger, this should be something like: `http://localhost:4318/v1/traces`
@@ -232,7 +242,9 @@ impl_standard_builder! { OpentelemetryHttpExporterConfig: !Default }
 #[derive(Debug, Builder, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
-pub struct OpentelemetryFileExporterConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct OpentelemetryFileExporterConfig {
     /// The path to write the JSON file to.
     path: CfgPath,
     /// Configuration for how to batch writes.
@@ -247,7 +259,9 @@ impl_standard_builder! { OpentelemetryFileExporterConfig: !Default }
 #[derive(Debug, Builder, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
-pub struct OpentelemetryBatchConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct OpentelemetryBatchConfig {
     /// Maximum queue size. See [`opentelemetry_sdk::trace::BatchConfig::max_queue_size`].
     #[builder(default)]
     max_queue_size: Option<usize>,
@@ -293,7 +307,9 @@ impl From<OpentelemetryBatchConfig> for opentelemetry_sdk::trace::BatchConfig {
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[cfg(feature = "tokio-console")]
-pub struct TokioConsoleConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct TokioConsoleConfig {
     /// If true, the tokio console subscriber should be enabled.
     ///
     /// This requires that tokio (and hence arti) is built with `--cfg tokio_unstable`

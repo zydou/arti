@@ -28,7 +28,8 @@ use crate::{LoggingConfig, LoggingConfigBuilder};
 ///
 /// The options in this example file are all commented out;
 /// the actual defaults are done via builder attributes in all the Rust config structs.
-pub const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-example-config.toml"));
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-example-config.toml"));
 
 /// Test case file for the oldest version of the config we still support.
 ///
@@ -53,7 +54,9 @@ const OLDEST_SUPPORTED_CONFIG: &str = concat!(include_str!("./oldest-supported-c
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
-pub struct ApplicationConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct ApplicationConfig {
     /// If true, we should watch our configuration files for changes, and reload
     /// our configuration when they change.
     ///
@@ -121,7 +124,9 @@ macro_rules! resolve_listen_port {
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[allow(clippy::option_option)] // Builder port fields: Some(None) = specified to disable
-pub struct ProxyConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct ProxyConfig {
     /// Addresses to listen on for incoming SOCKS connections.
     //
     // TODO: Once http-connect is non-experimental, we should rename this option in a backward-compatible way.
@@ -170,7 +175,9 @@ impl_standard_builder! { ProxyConfig }
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
-pub struct ArtiStorageConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct ArtiStorageConfig {
     /// A file in which to write information about the ports we're listening on.
     #[builder(setter(into), default = "default_port_info_file()")]
     pub(crate) port_info_file: CfgPath,
@@ -199,7 +206,9 @@ fn default_port_info_file() -> CfgPath {
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
-pub struct SystemConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct SystemConfig {
     /// Maximum number of file descriptors we should launch with
     #[builder(setter(into), default = "default_max_files()")]
     pub(crate) max_files: u64,
@@ -228,7 +237,9 @@ fn default_max_files() -> u64 {
 #[derive(Debug, Builder, Clone, Eq, PartialEq)]
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
-pub struct ArtiConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct ArtiConfig {
     /// Configuration for application behavior.
     #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
@@ -305,7 +316,8 @@ impl_standard_builder! { ArtiConfig }
 
 impl ArtiConfigBuilder {
     /// Build the [`ArtiConfig`].
-    pub fn build(&self) -> Result<ArtiConfig, ConfigBuildError> {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn build(&self) -> Result<ArtiConfig, ConfigBuildError> {
         #[cfg_attr(not(feature = "onion-service-service"), allow(unused_mut))]
         let mut config = self.build_unvalidated()?;
         #[cfg(feature = "onion-service-service")]
@@ -340,13 +352,16 @@ define_list_builder_accessors! {
 /// Convenience alias for the config for a whole `arti` program
 ///
 /// Used primarily as a type parameter on calls to [`tor_config::resolve`]
-pub type ArtiCombinedConfig = (ArtiConfig, TorClientConfig);
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) type ArtiCombinedConfig = (ArtiConfig, TorClientConfig);
 
 /// Configuration for exporting metrics (eg, perf data)
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
-pub struct MetricsConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct MetricsConfig {
     /// Where to listen for incoming HTTP connections.
     #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
@@ -359,7 +374,9 @@ impl_standard_builder! { MetricsConfig }
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[allow(clippy::option_option)] // Builder port fields: Some(None) = specified to disable
-pub struct PrometheusConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", builder(public))]
+pub(crate) struct PrometheusConfig {
     /// Port on which to establish a Prometheus scrape endpoint
     ///
     /// We listen here for incoming HTTP connections.
@@ -376,28 +393,34 @@ impl_standard_builder! { PrometheusConfig }
 
 impl ArtiConfig {
     /// Return the [`ApplicationConfig`] for this configuration.
-    pub fn application(&self) -> &ApplicationConfig {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn application(&self) -> &ApplicationConfig {
         &self.application
     }
 
     /// Return the [`LoggingConfig`] for this configuration.
-    pub fn logging(&self) -> &LoggingConfig {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn logging(&self) -> &LoggingConfig {
         &self.logging
     }
 
     /// Return the [`ProxyConfig`] for this configuration.
-    pub fn proxy(&self) -> &ProxyConfig {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn proxy(&self) -> &ProxyConfig {
         &self.proxy
     }
 
     /// Return the [`ArtiStorageConfig`] for this configuration.
-    pub fn storage(&self) -> &ArtiStorageConfig {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    ///
+    pub(crate) fn storage(&self) -> &ArtiStorageConfig {
         &self.storage
     }
 
     /// Return the [`RpcConfig`] for this configuration.
     #[cfg(feature = "rpc")]
-    pub fn rpc(&self) -> &RpcConfig {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn rpc(&self) -> &RpcConfig {
         &self.rpc
     }
 }
