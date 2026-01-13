@@ -526,6 +526,7 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     ))?;
 
     // Insert the plain document into the store.
+    // TODO DIRMIRROR: Move this into a single call-site with DocumentId.
     let identity_sha256 = hex::encode_upper(sha2::Sha256::digest(data));
     store_stmt.execute(named_params! {
         ":sha256": identity_sha256,
@@ -540,6 +541,7 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
         }
 
         let compressed = compress(data, encoding).map_err(DatabaseError::Compression)?;
+        // TODO DIRMIRROR: Move this into a single call-site with DocumentId.
         let compressed_sha256 = hex::encode_upper(sha2::Sha256::digest(&compressed));
         store_stmt.execute(named_params! {
             ":sha256": compressed_sha256,
