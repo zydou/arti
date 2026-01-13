@@ -356,24 +356,21 @@ A socket-connection table has the following members.
  - `auth`: a TOML value describing how to authenticate to the Arti RPC server.
    (Required.)
 
+- `socket_stored_in_file`: a string containing a path to a location on disk.
+  Required when `socket` begins with `inet-auto`;
+  forbidden otherwise.
+  See "Implementing inet-auto" below.
 
 The `socket` members must be in a form accepted by
-[`general::SocketAddr::from_str`](https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2519).
-
-> TODO: Fix that above link once !2519 is merged.
-
-> These formats are, roughly:
->  - A TCP socket address, optionally prefixed with `inet:`.
->    (Examples: `127.0.0.1:9999`, `[::1]:9999`, `inet:[::1]:9999`.)
->  - An AF_UNIX socket address, prefixed with `unix:`.
->    (Example: `unix:/var/run/arti/rpc_socket`)
+[`general::SocketAddr::from_str`](https://docs.rs/tor-general-addr/latest/tor_general_addr/general/enum.SocketAddr.html#string-representation)
+_or_ in the `inet-auto` format, containing the prefix `inet-auto:` followed by
+a TCP address, or by the string "auto".
 
 If the `socket` member
-has a schema prefix other than `inet:` or `unix:`
+has a schema prefix other than `inet-auto:`, `inet:` or `unix:`
 then the connection attempt is *declined*.
 If it is a relative `unix:` path,
 then the connection attempt *aborts*.
-
 
 Currently recognized `auth` members are in one of these forms:
   - The string `"none"`.
@@ -386,6 +383,28 @@ the connection attempt is *declined*.
 `socket_canonical` field unless you have some way to guarantee
 that an attacker cannot bind to the address specified in the `socket`
 field.
+
+#### Implementing inet-auto
+
+The `inet-auto:` socket address type is used for the case where we want the
+OS to pick an unused TCP port.
+Its address part must be a loopback IP address, or a string "auto"
+(indicating any loopback address).
+If another address type or format is given,
+then the connect point must be *declined*.
+
+Having bound to a port, the RPC server writes write a file containing a single
+JSON object to the filename in the `socket_stored_in_file` field.
+This JSON object must contain these fields:
+
+- `address` - The actual address to which the RPC server is bound.
+
+This location may be readable by others, but must be writable only by users
+trusted by the RPC server.  Clients should *decline* if the file is
+world-writable.
+
+The address used in this file is the one to which the client should connect,
+and which the client should use in its "cookie" authentication.
 
 #### Authentication type "none"
 
@@ -748,3 +767,4 @@ What does the cookie authentication look like?
 [XDG-user]: https://www.freedesktop.org/wiki/Software/xdg-user-dirs/
 [`tor_config::CfgPath`]: https://docs.rs/tor-config/latest/tor_config/struct.CfgPath.html
 [arti#1521]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1521
+[`general::SocketAddr::from_str`]: https://docs.rs/tor-general-addr/latest/tor_general_addr/general/enum.SocketAddr.html#string-representation
