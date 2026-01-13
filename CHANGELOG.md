@@ -254,8 +254,8 @@ for funding the development of Arti!
 [Shadow]: https://shadow.github.io
 [conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
 [other sponsors]: https://www.torproject.org/about/sponsors/
-[port_info_file]: https://gitlab.torproject.org/tpo/core/arti/-/blob/f4de92cd4cfb8343a2cf8bc3fc62fde461bedba3/crates/arti/src/arti-example-config.toml#L174
-[port_info_rs]: https://gitlab.torproject.org/tpo/core/arti/-/blob/f4de92cd4cfb8343a2cf8bc3fc62fde461bedba3/crates/arti/src/proxy/port_info.rs#L4
+[port_info_file]: https://gitlab.torproject.org/tpo/core/arti/-/blob/1ee7a6d7e95a08228eb0ff9e364ff4ca8c61cf9c/crates/arti/src/arti-example-config.toml#L174
+[port_info_rs]: https://gitlab.torproject.org/tpo/core/arti/-/blob/1ee7a6d7e95a08228eb0ff9e364ff4ca8c61cf9c/crates/arti/src/proxy/port_info.rs#L4
 [tgen]: https://github.com/shadow/tgen
 
 
