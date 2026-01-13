@@ -172,16 +172,18 @@ implementation with another.
  versions.
 
 * `experimental-api` -- build with experimental, unstable API support.
-  (Right now, most APIs in the `arti` crate are experimental, since this
-  crate was originally written to run as a binary only.)
-* `experimental` -- Build with all experimental features above, along with
-  all experimental features from other arti crates.
+  (Right now, APIs in the `arti` crate are experimental, since this
+  crate was originally written to run as a binary only.
+  We will, most likely, lower any of these APIs to other crates before we
+  make them public by default.)
 * `metrics` -- Build support for exporting metrics (to Prometheus).
   support. Restricted discovery support will become non-experimental
   once [#1795] is closed.
 * `onion-service-cli-extra` -- build with additional key and state management
   command-line functionalities.
 * `tokio-console` -- build with support for the `tokio-console` debugging tool.
+* `experimental` -- Build with all experimental features above, along with
+  all experimental features from other arti crates.
 
 [^1]: Remember, semantic versioning is what makes various `cargo` features
 work reliably. To be explicit, if you want `cargo update` to _only_ make
