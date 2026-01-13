@@ -50,8 +50,6 @@
 #![allow(clippy::print_stderr)]
 #![allow(clippy::print_stdout)]
 
-pub mod cfg;
-pub mod logging;
 #[cfg(not(feature = "onion-service-service"))]
 mod onion_proxy_disabled;
 
@@ -83,10 +81,29 @@ macro_rules! semipublic_mod {
     }
 }
 
+/// Helper:
+/// Import a set of items as public if experimental_api is set,
+/// and as non-public otherwise.
+macro_rules! semipublic_use {
+    {
+        $dflt_vis:vis use $($tok:tt)+
+    } => {
+        cfg_if::cfg_if! {
+            if #[cfg(feature="experimental-api")] {
+                pub use $($tok)+
+            } else {
+                $dflt_vis use $($tok)+
+            }
+        }
+    }
+}
+
 semipublic_mod! {
+    mod cfg;
     #[cfg(feature = "dns-proxy")]
     mod dns;
     mod exit;
+    mod logging;
     #[cfg(feature="onion-service-service")]
     mod onion_proxy;
     mod process;
@@ -99,12 +116,16 @@ mod rpc;
 use std::ffi::OsString;
 use std::fmt::Write;
 
-pub use cfg::{
-    ARTI_EXAMPLE_CONFIG, ApplicationConfig, ApplicationConfigBuilder, ArtiCombinedConfig,
-    ArtiConfig, ArtiConfigBuilder, ProxyConfig, ProxyConfigBuilder, SystemConfig,
-    SystemConfigBuilder,
-};
-pub use logging::{LoggingConfig, LoggingConfigBuilder};
+semipublic_use! {
+    use cfg::{
+        ARTI_EXAMPLE_CONFIG, ApplicationConfig, ApplicationConfigBuilder, ArtiCombinedConfig,
+        ArtiConfig, ArtiConfigBuilder, ProxyConfig, ProxyConfigBuilder, SystemConfig,
+        SystemConfigBuilder,
+    };
+}
+semipublic_use! {
+    use logging::{LoggingConfig, LoggingConfigBuilder};
+}
 
 use arti_client::TorClient;
 use arti_client::config::default_config_files;
@@ -127,7 +148,7 @@ use clap::Subcommand as _;
 
 #[cfg(feature = "experimental-api")]
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
-pub use subcommands::proxy::run_proxy as run;
+pub use subcommands::proxy::run_proxy as run; // XXXX un-rename.
 
 /// Create a runtime for Arti to use.
 fn create_runtime() -> std::io::Result<impl ToplevelRuntime> {

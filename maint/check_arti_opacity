@@ -9,47 +9,7 @@ set -eou pipefail
 
 EXPECTED_PUBLIC_MEMBERS=$(cat <<EOF
 arti
-arti.cfg
-arti.cfg.ApplicationConfig
-arti.cfg.ApplicationConfigBuilder
-arti.cfg.ArtiCombinedConfig
-arti.cfg.ArtiConfig
-arti.cfg.ArtiConfigBuilder
-arti.cfg.ARTI_EXAMPLE_CONFIG
-arti.cfg.ArtiStorageConfig
-arti.cfg.ArtiStorageConfigBuilder
-arti.cfg.MetricsConfig
-arti.cfg.MetricsConfigBuilder
-arti.cfg.PrometheusConfig
-arti.cfg.PrometheusConfigBuilder
-arti.cfg.ProxyConfig
-arti.cfg.ProxyConfigBuilder
-arti.cfg.SystemConfig
-arti.cfg.SystemConfigBuilder
-arti.logging
-arti.logging.LogfileConfig
-arti.logging.LogfileConfigBuilder
-arti.logging.LoggingConfig
-arti.logging.LoggingConfigBuilder
-arti.logging.LogRotation
-arti.logging.LogRotation.Daily
-arti.logging.LogRotation.Hourly
-arti.logging.LogRotation.Never
-arti.logging.OpentelemetryBatchConfig
-arti.logging.OpentelemetryBatchConfigBuilder
-arti.logging.OpentelemetryConfig
-arti.logging.OpentelemetryConfigBuilder
-arti.logging.OpentelemetryFileExporterConfig
-arti.logging.OpentelemetryFileExporterConfigBuilder
-arti.logging.OpentelemetryHttpExporterConfig
-arti.logging.OpentelemetryHttpExporterConfigBuilder
 arti.main
-arti.onion_proxy.OnionServiceProxyConfig
-arti.onion_proxy.OnionServiceProxyConfigBuilder
-arti.onion_proxy.OnionServiceProxyConfigMapBuilder
-arti.rpc.ListenDefaultsBuilder
-arti.rpc.RpcConfig
-arti.rpc.RpcConfigBuilder
 EOF
 )
 
