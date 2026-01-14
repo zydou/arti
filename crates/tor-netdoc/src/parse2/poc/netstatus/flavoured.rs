@@ -235,7 +235,7 @@ ns_choose! { (
         /// Authority entry
         pub authority: NddAuthorityEntry,
         /// Authority key certificate
-        pub cert: authcert::DirAuthKeyCertSigned,
+        pub cert: crate::doc::authcert::EncodedAuthCert,
     }
 )(
     /// An authority section in a consensus
@@ -340,8 +340,7 @@ ns_choose! { (
             let validity = *self.body.published.0 ..= *self.body.valid_until.0;
             check_validity_time(now, validity)?;
 
-            let cert = self.body.authority.cert.clone();
-            let cert = cert.verify_selfcert(now)?;
+            let cert = self.body.parse_authcert()?.verify_selfcert(now)?;
 
             netstatus::verify_general_timeless(
                 slice::from_ref(&self.signatures.directory_signature),
@@ -355,6 +354,15 @@ ns_choose! { (
     }
 
     impl NetworkStatus {
+        /// Parse the embedded authcert
+        fn parse_authcert(&self) -> Result<crate::doc::authcert::AuthCertSigned, EP> {
+            let cert_input = ParseInput::new(
+                self.authority.cert.as_str(),
+                "<embedded auth cert>",
+            );
+            parse_netdoc(&cert_input).map_err(|e| e.problem)
+        }
+
         /// Voter identity
         ///
         /// # Security considerations
@@ -365,10 +373,11 @@ ns_choose! { (
         /// It is up to the caller to decide whether this identity is actually
         /// a voter, count up votes, etc.
         pub fn h_kp_auth_id_rsa(&self) -> pk::rsa::RsaIdentity {
-            *self.authority.cert
+            *self.parse_authcert()
                 // SECURITY: if the user calls this function, they have a bare
-                // NetworkStatus, not a NetworkStatusSigned,
-                // so verification has already been done in verify_selfcert above.
+                // NetworkStatus, not a NetworkStatusSigned, so parsing
+                // and verification has already been done in verify_selfcert above.
+                .expect("was verified already!")
                 .inspect_unverified()
                 .0
                 .fingerprint
