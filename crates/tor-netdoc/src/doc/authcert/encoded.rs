@@ -40,6 +40,26 @@ use crate::parse2::poc::netstatus::NetworkStatusVote; // TODO DIRAUTH abolish po
 /// (This could happen if an `EncodedAuthCert` existedd in some other
 /// document but a vote.  We do not check this property during encoding.)
 ///
+/// # Rationale
+///
+/// Unlike most sub-documents found within netdocs, an authcert is a
+/// signed document.  We expect to be able to copy an authcert into a
+/// vote, encode, convey and parse the vote, and extract the
+/// authcert, and verify the authcert's signature.
+///
+/// Additionally, the fact that authcerts have their own signatures means
+/// that they need to be constructed separately from the surrounding
+/// document, and then embedded in it later.
+///
+/// When parsing a vote, we need to be able to see *which parts* are
+/// the authcert, and we need to be able to extract the specific document
+/// text, but we maybe don't want to parse the authcert.
+///
+/// Conversely, signature verification of authcerts during decoding of a
+/// vote is fairly complex.  We don't want to do signature
+/// verification during parsing, because signature verification involves
+/// the time, and we don't want parsing to need to know the time.
+///
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, derive_more::AsRef)]
 pub struct EncodedAuthCert(#[as_ref(str)] String);
 
