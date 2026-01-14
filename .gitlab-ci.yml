@@ -194,7 +194,7 @@ rust-checks:
     - cargo fmt -- --check
     - ./maint/check_licenses
     - ./maint/check_msrv
-    - ./maint/cargo_sort
+    - ./maint/cargo-sort
     - ./maint/check_tree
     - ./maint/check_all_lockfiles
     - ./maint/check_wildcard
@@ -214,7 +214,7 @@ cargo-audit:
   script:
     - rustup show
     - ./maint/common/via-cargo-install-in-ci cargo-audit
-    - ./maint/cargo_audit
+    - ./maint/cargo-audit
   cache:
     paths:
       - cache
