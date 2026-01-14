@@ -221,8 +221,7 @@ impl<'s> ItemStream<'s> {
         outer_stop: stop_at!(),
     ) -> Result<O, EP> {
         let mut input = ItemStream {
-            whole_input: &self.whole_input
-                [self.whole_input.len() - self.lines.remaining().len()..],
+            whole_input: &self.whole_input[self.whole_input.len() - self.lines.remaining().len()..],
             ..self.clone()
         };
         let r = (|| {
