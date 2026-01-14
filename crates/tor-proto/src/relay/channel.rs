@@ -28,7 +28,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::ClockSkew;
 use crate::channel::handshake::{UnverifiedChannel, VerifiedChannel};
-use crate::channel::{Channel, FinalizableChannel, Reactor, VerifiableChannel};
+use crate::channel::{Channel, ChannelType, FinalizableChannel, Reactor, VerifiableChannel};
 use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 
 // TODO(relay): We should probably get those values from protover crate or some other
@@ -374,4 +374,50 @@ where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 {
+}
+
+/// Helper: Build a [`msg::Certs`] cell for the given relay identities and channel type.
+///
+/// Both relay initiator and responder handshake use this.
+pub(crate) fn build_certs_cell(
+    identities: &Arc<RelayIdentities>,
+    _chan_type: ChannelType,
+) -> msg::Certs {
+    let mut certs = msg::Certs::new_empty();
+    // Push into the cell the CertType 2 RSA
+    certs.push_cert_body(
+        tor_cert::CertType::RSA_ID_X509,
+        identities.cert_id_x509_rsa.clone(),
+    );
+    /* TODO(relay): Need to push these into the CERTS. The current types in RelayIdentities are
+     * wrong as they are not encodable. The types returned by the KeyMgr has encodable cert types
+     * so we'll use then when addressing this.
+
+    // Push into the cell the CertType 7 RSA
+    certs.push_cert_body(
+        self.identities.cert_id_rsa.cert_type(),
+        &self.identities.cert_id_rsa,
+    );
+
+    // Push into the cell the CertType 4 Ed25519
+    certs.push_cert_body(
+        self.identities.cert_id_sign_ed.cert_type(),
+        &self.identities.cert_id_sign_ed,
+    );
+    // Push into the cell the CertType 5/6 Ed25519
+    if chan_type.is_responder() {
+        // Responder has CertType 5
+        certs.push_cert_body(
+            self.identities.cert_sign_tls_ed.cert_type(),
+            &self.identities.cert_sign_tls_ed,
+        );
+    } else {
+        // Initiator has CertType 6
+        certs.push_cert_body(
+            self.identities.cert_sign_link_auth_ed.cert_type(),
+            &self.identities.cert_sign_link_auth_ed,
+        );
+    }
+    */
+    certs
 }
