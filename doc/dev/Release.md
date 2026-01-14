@@ -55,7 +55,7 @@ to make sure we aren't going to break our users.
    (There are exceptions in
    `maint/cargo-audit`
    and
-   `check_licenses`.)
+   `maint/check-licenses`.)
 
 4. [ ] Do we have any open [issues] or [merge requests] tagged "Blocker"?
 

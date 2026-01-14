@@ -134,14 +134,14 @@ maint-checks:
   stage: build
   script:
     - maint/common/apt-install git python3-toml python3-requests python3-mistune
-    - ./maint/check_toposort
+    - ./maint/check-toposort
     - ./maint/add_warning --check
     - ./maint/common/forbid-absolute-shebangs
     - ./maint/common/forbid-script-extensions
     - ./maint/common/update-shell-includes --check --all
     - ./maint/cargo-check-publishable
-    - ./maint/check_case_sensitive
-    - ./maint/check_instrument_macros
+    - ./maint/check-case-sensitive
+    - ./maint/check-instrument-macros
     - git fetch --unshallow $ORIGIN
     - ./maint/update-md-links --check CHANGELOG.md
 
@@ -192,11 +192,11 @@ rust-checks:
     - ./maint/common/via-cargo-install-in-ci cargo-sort --version 2.0.1
     - ./maint/common/via-cargo-install-in-ci cargo-license --version 0.7.0
     - cargo fmt -- --check
-    - ./maint/check_licenses
-    - ./maint/check_msrv
+    - ./maint/check-licenses
+    - ./maint/check-msrv
     - ./maint/cargo-sort
     - ./maint/check-cargo-tree
-    - ./maint/check_all_lockfiles
+    - ./maint/check-all-lockfiles
     - ./maint/check-wildcard-deps
     - ./maint/common/forbid-hard-tabs
   cache:
