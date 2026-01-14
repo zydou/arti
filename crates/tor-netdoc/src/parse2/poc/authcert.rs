@@ -23,8 +23,7 @@ impl DirAuthKeyCertSigned {
 
         let validity = body.dir_key_published.0..=body.dir_key_expires.0;
         check_validity_time(now, validity)?;
-        body
-            .dir_identity_key
+        body.dir_identity_key
             .verify(&hash, &self.signatures.dir_key_certification.signature)?;
 
         // double-check the id hash
@@ -36,8 +35,7 @@ impl DirAuthKeyCertSigned {
         let h_kp_auth_id_rsa: DirKeyCertificateHash =
             tor_llcrypto::d::Sha1::digest(body.dir_identity_key.to_der()).into();
         // Cross-cert has no timestamp.  Whatever.
-        body
-            .dir_signing_key
+        body.dir_signing_key
             .verify(&h_kp_auth_id_rsa, &body.dir_key_crosscert.signature)?;
 
         Ok(self.unwrap_unverified().0)

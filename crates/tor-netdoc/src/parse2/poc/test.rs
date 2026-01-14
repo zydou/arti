@@ -40,10 +40,7 @@ fn parse_consensus_ns() -> anyhow::Result<()> {
 
     let doc = doc.verify(
         now,
-        &certs
-            .iter()
-            .map(|cert| *cert.fingerprint)
-            .collect_vec(),
+        &certs.iter().map(|cert| *cert.fingerprint).collect_vec(),
         &certs.iter().collect_vec(),
     )?;
 
