@@ -203,6 +203,203 @@ impl NetdocParseable for EncodedAuthCert {
 
         extra_lexical_checks(text)?;
 
+        if let Some(next_item) = input.peek_keyword()? {
+            if !stop_at.stop_at(next_item) {
+                return Err(EP::Other("unexpected loose items after embedded authcert"));
+            }
+        }
+
         Ok(EncodedAuthCert(text.to_string()))
+    }
+}
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use crate::parse2::parse_netdoc;
+    use derive_deftly::Deftly;
+    use std::fmt::{Debug, Display};
+
+    #[derive(Debug, Deftly)]
+    #[derive_deftly(NetdocParseable /* [dbg] XXXX */ )]
+    #[allow(unused)]
+    struct Embeds {
+        e_intro: (),
+        #[deftly(netdoc(subdoc))]
+        cert: EncodedAuthCert,
+        #[deftly(netdoc(subdoc))]
+        subdocs: Vec<Subdoc>,
+    }
+    #[derive(Debug, Deftly)]
+    #[derive_deftly(NetdocParseable)]
+    #[allow(unused)]
+    struct Subdoc {
+        dir_e_subdoc: (),
+    }
+
+    fn chk(exp_sole: Result<(), &str>, exp_embed: Result<(), &str>, doc: &str) {
+        fn chk1<T: Debug, E: Debug + tor_error::ErrorReport + Display>(
+            exp: Result<(), &str>,
+            doc: &str,
+            what: &str,
+            got: Result<T, E>,
+        ) {
+            eprintln!("==========\n---- {what} 8<- ----\n{doc}---- ->8 {what} ----\n");
+            match got {
+                Err(got_e) => {
+                    let got_m = got_e.report().to_string();
+                    eprintln!("{what}, got error: {got_e:?}");
+                    eprintln!("{what}, got error: {got_m:?}");
+                    let exp_m = exp.expect_err("expected success!");
+                    assert!(
+                        got_m.contains(exp_m),
+                        "{what}, expected different error: {exp_m:?}"
+                    );
+                }
+                y @ Ok(_) => {
+                    eprintln!("got {y:?}");
+                    assert!(exp.is_ok(), "{what}, unexpected success; expected: {exp:?}");
+                }
+            }
+        }
+        chk1(exp_sole, doc, "from_str", EncodedAuthCert::from_str(doc));
+        chk1(
+            exp_sole,
+            doc,
+            "From<String>",
+            EncodedAuthCert::try_from(doc.to_owned()),
+        );
+        let embeds = format!(
+            r"e-intro
+ignored
+{doc}dir-e-subdoc
+dir-ignored-2
+"
+        );
+        let parse_input = ParseInput::new(&embeds, "<embeds>");
+        chk1(
+            exp_embed,
+            &embeds,
+            "embedded",
+            parse_netdoc::<Embeds>(&parse_input),
+        );
+    }
+
+    #[test]
+    fn bad_authcerts() {
+        NetworkStatusVote::is_structural_keyword(KeywordRef::new("dir-source").unwrap())
+            .expect("structural dir-source");
+
+        // These documents are all very skeleton: none of the items have arguments, or objects.
+        // It works anyway because we don't actually parse as an authcert, when reading an
+        // EncodedAuthCert.  We just check the item keyword sequence.
+
+        chk(
+            Err("missing final newline"),
+            Err("missing item encoded authority key certificate"),
+            r"",
+        );
+        chk(
+            Err("authcert loose body item or missing intro keyword"),
+            Err("missing item encoded authority key certificate"),
+            r"wrong-intro
+",
+        );
+        chk(
+            Err("missing final newline"),
+            Err("missing item dir-key-certification"),
+            r"dir-key-certificate-version
+dir-missing-nl",
+        );
+        chk(
+            Err("authcert bad structure"),
+            Err("authcert bad structure"),
+            r"dir-key-certificate-version
+dir-key-certificate-version
+",
+        );
+        chk(
+            Err("authcert body keyword not dir- or fingerprint"),
+            Err("authcert body keyword not dir- or fingerprint"),
+            r"dir-key-certificate-version
+wrong-item
+dir-key-certification
+",
+        );
+        chk(
+            Err("authcert with vote structural keyword"),
+            Err("authcert with vote structural keyword"),
+            r"dir-key-certificate-version
+r
+dir-key-certification
+",
+        );
+        chk(
+            Err("authcert with vote structural keyword"),
+            Err("authcert with vote structural keyword"),
+            r"dir-key-certificate-version
+dir-source
+dir-key-certification
+",
+        );
+        chk(
+            Ok(()), // Simulate bug where EncodedAuthCert doesn't know about our dir-e-subdoc
+            Err("bug! parent document structural keyword found"),
+            r"dir-key-certificate-version
+dir-e-subdoc
+dir-key-certification
+",
+        );
+        chk(
+            Err("authcert with vote structural keyword"),
+            Err("authcert with vote structural keyword"),
+            r"dir-key-certificate-version
+dir-example-item
+r
+",
+        );
+        chk(
+            Err("authcert loose body item or missing intro keyword"),
+            Err("unexpected loose items after embedded authcert"),
+            r"dir-key-certificate-version
+dir-example-item
+dir-key-certification
+dir-extra-item
+r
+",
+        );
+        chk(
+            Err("authcert bad structure"),
+            Err("authcert bad structure"),
+            r"dir-key-certificate-version
+dir-key-certificate-version
+dir-example-item
+dir-key-certification
+dir-key-certification
+r
+",
+        );
+        chk(
+            Err("authcert bad structure"),
+            Err("unexpected loose items after embedded authcert"),
+            r"dir-key-certificate-version
+dir-example-item
+dir-key-certification
+dir-key-certification
+r
+",
+        );
     }
 }
