@@ -218,7 +218,7 @@ define_derive_deftly! {
     /// * **`#[deftly(netdoc(skip))]`**:
     ///
     ///   This field doesn't really appear in the network document.
-    ///   It will be ignored during encoing.
+    ///   It will be ignored during encoding.
     ///
     /// * **`#[deftly(netdoc(subdoc))]`**:
     ///
