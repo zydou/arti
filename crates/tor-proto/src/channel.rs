@@ -224,6 +224,13 @@ pub enum ChannelType {
     },
 }
 
+impl ChannelType {
+    /// Return true iff we are a relay responder.
+    pub(crate) fn is_responder(&self) -> bool {
+        matches!(self, Self::RelayResponder { .. })
+    }
+}
+
 /// A channel cell frame used for sending and receiving cells on a channel. The handler takes care
 /// of the cell codec transition depending in which state the channel is.
 ///

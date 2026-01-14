@@ -139,7 +139,7 @@ impl<
                 channel_type: ChannelType::ClientInitiator,
                 link_protocol,
                 framed_tls: self.framed_tls,
-                certs_cell,
+                certs_cell: Some(certs_cell),
                 clock_skew,
                 target_method: self.target_method.take(),
                 unique_id: self.unique_id,

@@ -122,7 +122,7 @@ impl<
                 target_method: None, // TODO(relay): We might use it for NETINFO canonicity.
                 unique_id: self.unique_id,
                 sleep_prov: self.sleep_prov.clone(),
-                certs_cell,
+                certs_cell: Some(certs_cell),
             },
             auth_challenge_cell,
             netinfo_cell,

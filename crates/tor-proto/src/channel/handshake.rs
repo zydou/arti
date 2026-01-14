@@ -219,8 +219,8 @@ pub(crate) struct UnverifiedChannel<
     pub(crate) link_protocol: u16,
     /// The Source+Sink on which we're reading and writing cells.
     pub(crate) framed_tls: ChannelFrame<T>,
-    /// The certs cell that we got from the relay.
-    pub(crate) certs_cell: msg::Certs,
+    /// The certs cell that we might have got during the handshake.
+    pub(crate) certs_cell: Option<msg::Certs>,
     /// Declared target method for this channel, if any.
     pub(crate) target_method: Option<ChannelMethod>,
     /// How much clock skew did we detect in this handshake?
@@ -259,11 +259,11 @@ pub(crate) struct VerifiedChannel<
     /// Logging identifier for this stream.  (Used for logging only.)
     pub(crate) unique_id: UniqId,
     /// Validated Ed25519 identity for this peer.
-    pub(crate) ed25519_id: Ed25519Identity,
+    pub(crate) ed25519_id: Option<Ed25519Identity>,
     /// Validated RSA identity for this peer.
-    pub(crate) rsa_id: RsaIdentity,
+    pub(crate) rsa_id: Option<RsaIdentity>,
     /// Peer verified RSA cert digest.
-    pub(crate) rsa_cert_digest: [u8; 32],
+    pub(crate) rsa_cert_digest: Option<[u8; 32]>,
     /// Peer TLS certificate digest
     pub(crate) peer_cert_digest: [u8; 32],
     /// Authenticated clock skew for this peer.
@@ -351,7 +351,33 @@ impl<
         //    the RSA->Ed25519 crosscert (type 7), which signs...
         //    peer.ed_identity().
 
-        let c = &self.certs_cell;
+        // Evidently, if no CERTS cell it means no authentication. This is only possible if we are
+        // a relay responder and a client/bridge is connecting to us. They don't authenticate.
+        let c = match (self.certs_cell.as_ref(), self.channel_type.is_responder()) {
+            (Some(c), _) => c,
+            (None, false) => {
+                return Err(Error::from(internal!(
+                    "No CERTS cell and not a relay responder"
+                )));
+            }
+            (None, true) => {
+                return Ok(VerifiedChannel {
+                    channel_type: self.channel_type,
+                    link_protocol: self.link_protocol,
+                    framed_tls: self.framed_tls,
+                    unique_id: self.unique_id,
+                    target_method: self.target_method,
+                    ed25519_id: None,
+                    rsa_id: None,
+                    rsa_cert_digest: None,
+                    peer_cert_digest,
+                    clock_skew: self.clock_skew,
+                    sleep_prov: self.sleep_prov,
+                    memquota: self.memquota,
+                });
+            }
+        };
+
         /// Helper: get a cert from a Certs cell, and convert errors appropriately.
         fn get_cert(
             certs: &tor_cell::chancell::msg::Certs,
@@ -509,9 +535,9 @@ impl<
             framed_tls: self.framed_tls,
             unique_id: self.unique_id,
             target_method: self.target_method,
-            ed25519_id: *identity_key,
-            rsa_id,
-            rsa_cert_digest: *rsa_cert.digest(),
+            ed25519_id: Some(*identity_key),
+            rsa_id: Some(rsa_id),
+            rsa_cert_digest: Some(*rsa_cert.digest()),
             peer_cert_digest,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
@@ -548,7 +574,7 @@ impl<
 
         debug!(
             stream_id = %self.unique_id,
-            "Completed handshake with {} [{}]",
+            "Completed handshake with {:?} [{:?}]",
             self.ed25519_id, self.rsa_id
         );
 
@@ -568,9 +594,15 @@ impl<
             }
             peer_builder.method(target_method);
         }
+        // Non authenticating channels won't have these identities. This is possible as a relay
+        // responder handling an incoming channel from a client/bridge.
+        if let Some(ed25519_id) = self.ed25519_id {
+            peer_builder.ed_identity(ed25519_id);
+        }
+        if let Some(rsa_id) = self.rsa_id {
+            peer_builder.rsa_identity(rsa_id);
+        }
         let peer_id = peer_builder
-            .ed_identity(self.ed25519_id)
-            .rsa_identity(self.rsa_id)
             .build()
             .expect("OwnedChanTarget builder failed");
 
@@ -838,7 +870,7 @@ pub(super) mod test {
             channel_type: ChannelType::ClientInitiator,
             link_protocol: 4,
             framed_tls,
-            certs_cell: certs,
+            certs_cell: Some(certs),
             clock_skew,
             target_method: None,
             unique_id: UniqId::new(),
@@ -1101,8 +1133,8 @@ pub(super) mod test {
     #[test]
     fn test_finish() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let ed25519_id = [3_u8; 32].into();
-            let rsa_id = [4_u8; 20].into();
+            let ed25519_id = Some([3_u8; 32].into());
+            let rsa_id = Some([4_u8; 20].into());
             let peer_addr = "127.1.1.2:443".parse().unwrap();
             let mut framed_tls = new_frame(MsgBuf::new(&b""[..]), ChannelType::ClientInitiator);
             let _ = framed_tls.codec_mut().set_link_version(4);
@@ -1114,7 +1146,7 @@ pub(super) mod test {
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
                 ed25519_id,
                 rsa_id,
-                rsa_cert_digest: [0; 32],
+                rsa_cert_digest: Some([0; 32]),
                 peer_cert_digest: [0; 32],
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,

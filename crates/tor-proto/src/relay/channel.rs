@@ -12,11 +12,11 @@ use rand::Rng;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
-use tor_error::internal;
 use tracing::{instrument, trace};
 
 use tor_cell::chancell::msg;
 use tor_cert::{Ed25519Cert, rsa::RsaCrosscert};
+use tor_error::internal;
 use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{
@@ -259,9 +259,16 @@ impl<
             // Having a AUTH_CHALLENGE implies we are the initiator as it is the responder that
             // sends that message. Thus the ordering of these keys is for the initiator.
             let cid = self.identities.rsa_x509_digest();
-            let sid = verified.rsa_cert_digest;
+            let sid = verified.rsa_cert_digest.ok_or(Error::from(internal!(
+                "AUTH_CHALLENGE cell without RSA identity"
+            )))?;
             let cid_ed = self.identities.ed_id_bytes();
-            let sid_ed = verified.ed25519_id.into();
+            let sid_ed = verified
+                .ed25519_id
+                .ok_or(Error::from(internal!(
+                    "AUTH_CHALLENGE cell without ed25519 identity"
+                )))?
+                .into();
 
             Some(ChannelAuthenticationData {
                 link_auth,
