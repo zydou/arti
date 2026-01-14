@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use digest::Digest;
 use futures::{AsyncRead, AsyncWrite, SinkExt};
 use rand::Rng;
+use safelog::Sensitive;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
@@ -29,6 +30,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::ClockSkew;
 use crate::channel::handshake::{UnverifiedChannel, VerifiedChannel};
 use crate::channel::{Channel, ChannelType, FinalizableChannel, Reactor, VerifiableChannel};
+use crate::relay::channel::handshake::RelayResponderHandshake;
 use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 
 // TODO(relay): We should probably get those values from protover crate or some other
@@ -124,6 +126,23 @@ impl RelayChannelBuilder {
         S: CoarseTimeProvider + SleepProvider,
     {
         RelayInitiatorHandshake::new(tls, sleep_prov, identities, memquota)
+    }
+
+    /// Accept a new handshake over a TLS stream.
+    pub fn accept<T, S>(
+        self,
+        peer: Sensitive<std::net::SocketAddr>,
+        my_addrs: Vec<IpAddr>,
+        tls: T,
+        sleep_prov: S,
+        identities: Arc<RelayIdentities>,
+        memquota: ChannelAccount,
+    ) -> RelayResponderHandshake<T, S>
+    where
+        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+        S: CoarseTimeProvider + SleepProvider,
+    {
+        RelayResponderHandshake::new(peer, my_addrs, tls, sleep_prov, identities, memquota)
     }
 }
 
@@ -281,6 +300,8 @@ impl<
                 scert: verified.peer_cert_digest,
             })
         } else {
+            // TODO(relay) Without an AUTH_CHALLENGE, we are the responder so build the
+            // ChannelAuthenticationData accordingly.
             None
         };
 
