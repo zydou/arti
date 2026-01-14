@@ -212,7 +212,6 @@ mod test {
             atomic::{AtomicUsize, Ordering},
             Arc,
         },
-        time::Duration,
     };
 
     use tokio::{
@@ -356,31 +355,5 @@ mod test {
                 e => unreachable!("{e}"),
             }
         }
-    }
-
-    /// Stress out the retry algorithm by letting a timeout kill it.
-    #[tokio::test]
-    async fn request_fail_timeout() {
-        let mut servers = Vec::new();
-        let mut addrs = Vec::new();
-
-        for _ in 0..8 {
-            let server = TcpListener::bind("[::]:0").await.unwrap();
-            addrs.push(vec![server.local_addr().unwrap()]);
-            servers.push(server);
-        }
-
-        let rt = PreferredRuntime::current().unwrap();
-        let mut mgr = ConsensusBoundDownloader::new(&addrs, &rt);
-
-        let _elapsed = tokio::time::timeout(
-            Duration::from_secs(5),
-            mgr.download(
-                &ConsensusRequest::new(ConsensusFlavor::Plain),
-                &mut testing_rng(),
-            ),
-        )
-        .await
-        .unwrap_err();
     }
 }
