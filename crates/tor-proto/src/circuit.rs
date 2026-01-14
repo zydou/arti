@@ -28,6 +28,9 @@ pub(crate) type CircuitRxSender = mq_queue::Sender<AnyChanMsg, MpscSpec>;
 /// MPSC queue for inbound data on its way from channel to circuit, receiver
 pub(crate) type CircuitRxReceiver = mq_queue::Receiver<AnyChanMsg, MpscSpec>;
 
+/// Estimated upper bound for the likely number of hops.
+pub(crate) const HOPS: usize = 6;
+
 /// Description of the network's current rules for building circuits.
 ///
 /// This type describes rules derived from the consensus,
