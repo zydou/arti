@@ -10,6 +10,8 @@
 # This rule only applies to *executable* files, which can be invoked
 # by their name.  Script modules or fragments which are to be included
 # are fine, since their language is part of their API.
+#
+# Exceptions are supported, by passing !<FILENAME> or !<GLOB> as argument(s).
 
 set -euo pipefail
 
@@ -19,12 +21,22 @@ common_dir=$(dirname "$common_dir")
 # shellcheck source=maint/common/bash-utils.sh
 . "$common_dir"/bash-utils.sh
 
-reject_all_arguments
+reject_options
+
+exception_args=()
+for arg in "$@"; do
+    case "$arg" in
+	!*) exception_args+=(! -wholename "./${arg#!}") ;;
+	*)
+	    fail 'non-option arguments msut be !FILE to allow FILE as an exception'
+	    ;;
+    esac
+done
 
 wrong=$(
     # shellcheck disable=SC2086
     find -H . -xdev \( -name .git -prune \) -o \( \
-	 -type f -name '*.*' \! -name '*~' -perm /111 \
+	 -type f -name '*.*' \! -name '*~' "${exception_args[@]}" -perm /111 \
 	 -ls \
     \)
 )
