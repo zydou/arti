@@ -142,6 +142,9 @@ maint-checks:
     - ./maint/cargo-check-publishable
     - ./maint/check-case-sensitive
     - ./maint/check-instrument-macros
+    # TODO rename maint/add_warning (textually large diff)
+    # TODO rename *coverage* (might need changes in another repo?)
+    - ./maint/common/forbid-script-underscores !maint/add_\* !*coverage*
     - git fetch --unshallow $ORIGIN
     - ./maint/update-md-links --check CHANGELOG.md
 
