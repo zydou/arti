@@ -395,6 +395,9 @@ then the connect point must be *declined*.
 
 Having bound to a port, the RPC server writes write a file containing a single
 JSON object to the filename in the `socket_stored_in_file` field.
+The file must be (over)written by writing to a temporary file,
+and renaming it into place,
+so that clients never see a partial file (which would be a syntax error).
 This JSON object must contain these fields:
 
 - `address` - The actual address to which the RPC server is bound.
@@ -405,6 +408,26 @@ world-writable.
 
 The address used in this file is the one to which the client should connect,
 and which the client should use in its "cookie" authentication.
+
+`inet-auto:` has an inherent error handling limitation:
+because a local port number may be reused after the server terminates,
+the `address` might reasonably refer to a completely other process
+speaking a different protocol,
+or even, theoretically, a second RPC server (if there is more than one)
+(for example, if the intended RPC server is not running or is still starting up).
+Such a situation should not cause an abort, but merely a decline.
+
+Therefore when connecting to an `inet-auto:` socket,
+all errors resulting from peer behaviour (or failure to connect)
+between starting to attempt to connect to the socket,
+and the completion of successful authentication,
+must be treated as *declined*, not aborted.
+
+Additionally, when connecting to an `inet-auto:` socket,
+the client should impose a short timeout (5 seconds, say)
+in case the port has been reused by a service
+which expects the client to speak first.
+(Again, a timeout must be treated as *declined*.)
 
 #### Authentication type "none"
 
