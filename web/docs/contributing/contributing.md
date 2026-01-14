@@ -72,7 +72,7 @@ You'll need to have a working Rust environment to build the code, and a working 
 
 - SQLite 3 development files (e.g. available via `apt install libsqlite3-dev`)
 
-- For git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing) used in [`maint/shellcheck_all`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/maint/shellcheck_all)
+- For git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing) used in [`maint/shellcheck_all`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/maint/common/shellcheck-all)
 
 ### (Optional) install development dependencies
 

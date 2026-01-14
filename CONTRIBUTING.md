@@ -58,7 +58,7 @@ the SQLite 3 development files and shellcheck to successfully run git hooks.
   ```
   
 - For git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing)
-  (used in [`maint/shellcheck_all`](./maint/common/shellcheck-all))
+  (used in [`maint/common/shellcheck_all`](./maint/common/shellcheck-all))
 
 **(Optional) install development dependencies**
 
