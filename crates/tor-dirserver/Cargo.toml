@@ -31,10 +31,10 @@ http-body = "1.0.1"
 hyper = { version = "1.7.0", default-features = false, features = ["server", "http1"] }
 hyper-util = { version = "0.1.16", features = ["full"] }
 r2d2 = "0.8.10"
-r2d2_sqlite = "0.31.0"
+r2d2_sqlite = "0.32.0"
 rand = "0.9.2"
 retry-error = { version = "0.10.0", path = "../retry-error" }
-rusqlite = "0.37.0"
+rusqlite = "0.38.0"
 saturating-time = "0.3.0"
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2.0.16"
