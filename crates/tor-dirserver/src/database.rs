@@ -467,10 +467,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use std::{
-        sync::{Arc, Once},
-        time::Duration,
-    };
+    use std::sync::{Arc, Once};
 
     use rusqlite::Connection;
     use tempfile::tempdir;
@@ -572,74 +569,97 @@ mod test {
         .unwrap();
     }
 
+    /// Tests whether our SQLite busy error handling works in normal situations.
+    ///
+    /// A normal situations means a situation where a lock is never held for
+    /// more than 1000ms.  In our case, we will work with two threads.
+    /// t1 will acquire an exclusive lock and inform t2 about it.  t2 waits
+    /// until t1 has acquired this lock and then immediately informs t1, that
+    /// it will now wait for a lock too.  Now, t1 will immediately terminate,
+    /// thereby releasing the lock and leading t2 to eventually acquire it.
     #[test]
     fn rw_tx_busy_timeout_working() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
-        let writer_acquired = Arc::new(Once::new());
         let pool = super::open(db_path).unwrap();
+
+        // t2 will wait on this before it starts doing stuff.
+        let t1_acquired_lock = Arc::new(Once::new());
+        // t1 will wait on this in order to terminate properly.
+        let t2_is_waiting = Arc::new(Once::new());
 
         let t1 = std::thread::spawn({
             let pool = pool.clone();
-            let writer_acquired = writer_acquired.clone();
+            let t1_acquired_lock = t1_acquired_lock.clone();
+            let t2_is_waiting = t2_is_waiting.clone();
             move || {
                 super::rw_tx(&pool, move |_tx| {
+                    // Inform t2 we have write lock.
+                    t1_acquired_lock.call_once(|| ());
                     println!("t1 acquired write lock");
-                    writer_acquired.call_once(|| ());
-                    std::thread::sleep(Duration::from_millis(500));
-                    println!("t2 released write lock");
+
+                    // Wait for t2 to start waiting.
+                    t2_is_waiting.wait();
                 })
+                .unwrap();
+                println!("t2 released write lock");
             }
         });
 
-        let t2 = std::thread::spawn(move || {
-            println!("t2 waits for t1 to acquire write lock");
-            writer_acquired.wait();
-            println!("t2 realized that t1 has acquired write lock");
-
-            super::rw_tx(&pool, move |_tx| {
-                println!("t2 acquired write lock");
-                std::thread::sleep(Duration::from_millis(500));
-                println!("t2 released write lock");
-            })
-        });
-
-        t1.join().unwrap().unwrap();
-        t2.join().unwrap().unwrap();
+        println!("t2 waits for t1 to acquire write lock");
+        t1_acquired_lock.wait();
+        t2_is_waiting.call_once(|| ());
+        super::rw_tx(&pool, |_| ()).unwrap();
+        println!("t2 acquired and released write lock");
+        t1.join().unwrap();
     }
 
+    /// Tests whether our SQLite busy error handlings fails as expected.
+    ///
+    /// We configure SQLite to fail after 1000ms.  This test works with two
+    /// threads.  t1 will acquire an exclusive lock on the database and will
+    /// inform t2 about it, which itself will wait until t1 has acquired the
+    /// lock.  t2 will then immediately try to also obtain an exclusive lock,
+    /// which should fail after about 1000ms.  After the failure, t2 informs
+    /// t1 that it has failed, causing t1 to terminate.
     #[test]
     fn rw_tx_busy_timeout_busy() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
-        let writer_acquired = Arc::new(Once::new());
         let pool = super::open(db_path).unwrap();
+
+        // t2 will wait on this before it starts doing stuff.
+        let t1_acquired_lock = Arc::new(Once::new());
+        // t1 will wait on this in order to terminate properly.
+        let t2_gave_up = Arc::new(Once::new());
 
         let t1 = std::thread::spawn({
             let pool = pool.clone();
-            let writer_acquired = writer_acquired.clone();
+            let t1_acquired_lock = t1_acquired_lock.clone();
+            let t2_gave_up = t2_gave_up.clone();
+
             move || {
                 super::rw_tx(&pool, move |_tx| {
+                    // Inform t2 we have the write lock.
+                    t1_acquired_lock.call_once(|| ());
                     println!("t1 acquired write lock");
-                    writer_acquired.call_once(|| ());
-                    std::thread::sleep(Duration::from_millis(1500));
-                    println!("t2 released write lock");
+                    // Wait for t2 to give up before we release (how mean from us).
+                    t2_gave_up.wait();
                 })
+                .unwrap();
+                println!("t1 released write lock");
             }
         });
 
-        let t2 = std::thread::spawn(move || {
-            println!("t2 waits for t1 to acquire write lock");
-            writer_acquired.wait();
-            println!("t2 realized that t1 has acquired write lock");
-
-            super::rw_tx(&pool, |_tx| unreachable!())
-        });
-
-        t1.join().unwrap().unwrap();
+        println!("t2 waits for t1 to acquire write lock");
+        t1_acquired_lock.wait();
+        let e = super::rw_tx(&pool, |_| ()).unwrap_err();
         assert_eq!(
-            t2.join().unwrap().unwrap_err().to_string(),
+            e.to_string(),
             "low-level rusqlite error: database is locked"
         );
+        println!("t2 gave up on acquiring write lock");
+        t2_gave_up.call_once(|| ());
+        t1.join().unwrap();
     }
 }
