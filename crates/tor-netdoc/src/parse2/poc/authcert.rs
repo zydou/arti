@@ -91,27 +91,28 @@ impl DirAuthKeyCertSigned {
     pub fn verify_selfcert(self, now: SystemTime) -> Result<DirAuthKeyCert, VF> {
         // verify main document signature (and timestamp)
         let hash = self.signatures.dir_key_certification.hash;
+        let body = &self.inspect_unverified().0;
 
-        let validity = *self.body.dir_key_published.0..=*self.body.dir_key_expires.0;
+        let validity = *body.dir_key_published.0..=*body.dir_key_expires.0;
         check_validity_time(now, validity)?;
-        self.body
+        body
             .kp_auth_id_rsa
             .verify(&hash, &self.signatures.dir_key_certification.signature)?;
 
         // double-check the id hash
-        if *self.body.h_kp_auth_id_rsa.0 != self.body.kp_auth_id_rsa.to_rsa_identity() {
+        if *body.h_kp_auth_id_rsa.0 != body.kp_auth_id_rsa.to_rsa_identity() {
             return Err(VF::Inconsistent);
         }
 
         // verify cross-cert
         let h_kp_auth_id_rsa: DirKeyCertificateHash =
-            tor_llcrypto::d::Sha1::digest(self.body.kp_auth_id_rsa.to_der()).into();
+            tor_llcrypto::d::Sha1::digest(body.kp_auth_id_rsa.to_der()).into();
         // Cross-cert has no timestamp.  Whatever.
-        self.body
+        body
             .kp_auth_sign_rsa
-            .verify(&h_kp_auth_id_rsa, &self.body.dir_key_crosscert.signature)?;
+            .verify(&h_kp_auth_id_rsa, &body.dir_key_crosscert.signature)?;
 
-        Ok(self.body)
+        Ok(self.unwrap_unverified().0)
     }
 }
 
