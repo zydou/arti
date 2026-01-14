@@ -6,10 +6,12 @@ use std::{io, net::TcpStream};
 use std::os::unix::net::UnixStream;
 
 use fs_mistrust::Mistrust;
+use tor_general_addr::general;
 
 use crate::{
     ConnectError, ResolvedConnectPoint,
     auth::{RpcAuth, RpcCookieSource, cookie::CookieLocation},
+    connpt::AddrWithStr,
 };
 
 /// Information about an initial connection to a connect point.
@@ -47,33 +49,51 @@ impl crate::connpt::Builtin {
     }
 }
 impl crate::connpt::Connect<crate::connpt::Resolved> {
+    /// Return the address that we should actually try to connect to, with its string representation
+    /// set to the canonical address.
+    #[allow(clippy::unnecessary_wraps)] //XXXX
+    fn find_connect_address(&self) -> Result<AddrWithStr<general::SocketAddr>, ConnectError> {
+        use crate::connpt::ConnectAddress::*;
+
+        // Find the target address.
+        let mut addr = match &self.socket {
+            InetAuto(_) => {
+                todo!() // XXXX load from disk.
+            }
+            Socket(addr) => addr.clone(),
+        };
+        // Override the string if needed.
+        if let Some(canon) = &self.socket_canonical {
+            addr.set_string_from(canon);
+        }
+        Ok(addr)
+    }
+
     /// Try to connect on a "Connect" connect point.
     fn do_connect(&self, mistrust: &Mistrust) -> Result<Connection, ConnectError> {
         use crate::connpt::Auth;
         use tor_general_addr::general::SocketAddr as SA;
+        let connect_to_address = self.find_connect_address()?;
         let auth = match &self.auth {
             Auth::None => RpcAuth::Inherent,
-            Auth::Cookie { path } => {
-                let canonical_addr = self.socket_canonical.as_ref().unwrap_or(&self.socket);
-                RpcAuth::Cookie {
-                    secret: RpcCookieSource::Unloaded(CookieLocation {
-                        path: path.clone(),
-                        mistrust: mistrust.clone(),
-                    }),
-                    server_address: canonical_addr.as_str().to_string(),
-                }
-            }
+            Auth::Cookie { path } => RpcAuth::Cookie {
+                secret: RpcCookieSource::Unloaded(CookieLocation {
+                    path: path.clone(),
+                    mistrust: mistrust.clone(),
+                }),
+                server_address: connect_to_address.as_str().to_string(),
+            },
             // This is unreachable, but harmless:
             Auth::Unrecognized(_) => return Err(ConnectError::UnsupportedAuthType),
         };
-        if let Some(sock_parent_dir) = crate::socket_parent_path(self.socket.as_ref()) {
+        if let Some(sock_parent_dir) = crate::socket_parent_path(connect_to_address.as_ref()) {
             mistrust.check_directory(sock_parent_dir)?;
         }
         // TODO: we currently use try_clone() to get separate reader and writer instances.
         // conceivably, we could instead create something like the `Split` implementation that
         // exists for `AsyncRead + AsyncWrite` objects in futures::io.
         let (reader, writer): (Box<dyn io::Read + Send>, Box<dyn io::Write + Send>) =
-            match self.socket.as_ref() {
+            match connect_to_address.as_ref() {
                 SA::Inet(addr) => {
                     let socket = TcpStream::connect(addr)?;
                     (Box::new(socket.try_clone()?), Box::new(socket))

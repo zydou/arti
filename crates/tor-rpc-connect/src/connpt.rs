@@ -1,7 +1,13 @@
 //! Connect point types, and the code to parse them and resolve them.
 
 use serde::Deserialize;
-use std::{fmt::Debug, path::PathBuf, str::FromStr};
+use serde_with::DeserializeFromStr;
+use std::{
+    fmt::Debug,
+    net::{self, IpAddr},
+    path::PathBuf,
+    str::FromStr,
+};
 use tor_config_path::{
     CfgPath, CfgPathError, CfgPathResolver,
     addr::{CfgAddr, CfgAddrError},
@@ -113,6 +119,9 @@ pub enum ResolveError {
     /// (This can only happen if somebody adds new variants to `general::SocketAddr`.)
     #[error("Address type not recognized")]
     AddressTypeNotRecognized,
+    /// The address was incompatible with the presence or absence of socket_address_file.
+    #[error("inet-auto without socket_address_file, or vice versa")]
+    AutoIncompatibleWithSocketFile,
     /// The name of a file or AF_UNIX socket address was a relative path.
     #[error("Path was not absolute")]
     PathNotAbsolute,
@@ -130,6 +139,7 @@ impl HasClientErrorAction for ResolveError {
             ResolveError::AuthNotRecognized => A::Decline,
             ResolveError::AddressTypeNotRecognized => A::Decline,
             ResolveError::PathNotAbsolute => A::Abort,
+            ResolveError::AutoIncompatibleWithSocketFile => A::Abort,
         }
     }
 }
@@ -220,13 +230,13 @@ pub(crate) enum BuiltinVariant {
     Abort,
 }
 
+/// Information for a connect point that is implemented by making a socket connection to an address.
 #[derive(Deserialize, Clone, Debug)]
 #[serde(bound = "R::Path : Deserialize<'de>, AddrWithStr<R::SocketAddr> : Deserialize<'de>")]
-#[allow(clippy::missing_docs_in_private_items)]
 pub(crate) struct Connect<R: Addresses> {
     /// The address of the socket at which the client should try to reach the RPC server,
     /// and which the RPC server should bind.
-    pub(crate) socket: AddrWithStr<R::SocketAddr>,
+    pub(crate) socket: ConnectAddress<R>,
     /// The address of the socket which the RPC server believes it is actually listening at.
     ///
     /// If absent, defaults to `socket`.
@@ -238,6 +248,94 @@ pub(crate) struct Connect<R: Addresses> {
     /// The authentication that the client should try to use,
     /// and which the server should require.
     pub(crate) auth: Auth<R>,
+    /// A file in which the actual value of an `inet-auto` address should be stored.
+    pub(crate) socket_address_file: Option<R::Path>,
+}
+
+/// A target of a [`Connect`] connpt.
+///
+/// Can be either a socket address, or an inet-auto address.
+#[derive(Deserialize, Clone, Debug)]
+#[serde(bound = "R::Path : Deserialize<'de>, AddrWithStr<R::SocketAddr> : Deserialize<'de>")]
+#[serde(untagged, expecting = "a network schema and address")]
+pub(crate) enum ConnectAddress<R: Addresses> {
+    /// A socket address with an unspecified port.
+    InetAuto(InetAutoAddress),
+    /// A specified socket address.
+    Socket(AddrWithStr<R::SocketAddr>),
+}
+
+/// Instructions to bind to an address chosen by the OS.
+#[derive(Clone, Debug, DeserializeFromStr)]
+pub(crate) struct InetAutoAddress {
+    /// The address that the relay should bind to, or None if any loopback address is okay.
+    ///
+    /// Must be a loopback address.
+    bind: Option<IpAddr>,
+}
+impl std::fmt::Display for InetAutoAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.bind {
+            Some(a) => write!(f, "inet-auto:{a}"),
+            None => write!(f, "inet-auto:auto"),
+        }
+    }
+}
+impl FromStr for InetAutoAddress {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let Some(addr_part) = s.strip_prefix("inet-auto:") else {
+            return Err(ParseError::UnrecognizedFormat);
+        };
+        if addr_part == "auto" {
+            return Ok(InetAutoAddress { bind: None });
+        }
+        let Ok(addr) = IpAddr::from_str(addr_part) else {
+            return Err(ParseError::UnrecognizedFormat);
+        };
+        if addr.is_loopback() {
+            Ok(InetAutoAddress { bind: Some(addr) })
+        } else {
+            Err(ParseError::UnrecognizedFormat)
+        }
+    }
+}
+
+impl<R: Addresses> ConnectAddress<R> {
+    /// Return true if this is an inet-auto address.
+    fn is_auto(&self) -> bool {
+        matches!(self, ConnectAddress::InetAuto { .. })
+    }
+}
+impl ConnectAddress<Unresolved> {
+    /// Convert all symbolic paths within this ConnectAddress to their symbolic forms.
+    fn resolve(
+        &self,
+        resolver: &CfgPathResolver,
+    ) -> Result<ConnectAddress<Resolved>, ResolveError> {
+        use ConnectAddress::*;
+        match self {
+            InetAuto(a) => Ok(InetAuto(a.clone())),
+            Socket(s) => Ok(Socket(s.resolve(resolver)?)),
+        }
+    }
+}
+impl ConnectAddress<Resolved> {
+    /// Return a list of addresses to bind to.
+    fn bind_to_addresses(&self) -> Vec<general::SocketAddr> {
+        use ConnectAddress::*;
+        match self {
+            InetAuto(InetAutoAddress { bind: None }) => vec![
+                net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 0).into(),
+                net::SocketAddr::new(net::Ipv6Addr::LOCALHOST.into(), 0).into(),
+            ],
+            InetAuto(InetAutoAddress { bind: Some(ip) }) => {
+                vec![net::SocketAddr::new(*ip, 0).into()]
+            }
+            Socket(a) => vec![a.as_ref().clone()],
+        }
+    }
 }
 
 impl Connect<Unresolved> {
@@ -250,10 +348,16 @@ impl Connect<Unresolved> {
             .map(|sc| sc.resolve(resolver))
             .transpose()?;
         let auth = self.auth.resolve(resolver)?;
+        let socket_address_file = self
+            .socket_address_file
+            .as_ref()
+            .map(|p| p.path(resolver))
+            .transpose()?;
         Connect {
             socket,
             socket_canonical,
             auth,
+            socket_address_file,
         }
         .validate()
     }
@@ -263,27 +367,41 @@ impl Connect<Resolved> {
     /// Return this `Connect` only if its parts are valid and compatible.
     fn validate(self) -> Result<Self, ResolveError> {
         use general::SocketAddr::{Inet, Unix};
-        match (self.socket.as_ref(), &self.auth) {
-            (Inet(addr), _) if !addr.ip().is_loopback() => {
-                return Err(ResolveError::AddressNotLoopback);
-            }
-            (Inet(_), Auth::None) => return Err(ResolveError::AuthNotCompatible),
-            (_, Auth::Unrecognized(_)) => return Err(ResolveError::AuthNotRecognized),
-            (Inet(_), Auth::Cookie { .. }) => {}
-            (Unix(_), _) => {}
-            (_, _) => return Err(ResolveError::AddressTypeNotRecognized),
-        };
+        for bind_addr in self.socket.bind_to_addresses() {
+            match (bind_addr, &self.auth) {
+                (Inet(addr), _) if !addr.ip().is_loopback() => {
+                    return Err(ResolveError::AddressNotLoopback);
+                }
+                (Inet(_), Auth::None) => return Err(ResolveError::AuthNotCompatible),
+                (_, Auth::Unrecognized(_)) => return Err(ResolveError::AuthNotRecognized),
+                (Inet(_), Auth::Cookie { .. }) => {}
+                (Unix(_), _) => {}
+                (_, _) => return Err(ResolveError::AddressTypeNotRecognized),
+            };
+        }
+        if self.socket.is_auto() != self.socket_address_file.is_some() {
+            return Err(ResolveError::AutoIncompatibleWithSocketFile);
+        }
         self.check_absolute_paths()?;
         Ok(self)
     }
 
     /// Return an error if some path in this `Connect` is not absolute.
     fn check_absolute_paths(&self) -> Result<(), ResolveError> {
-        sockaddr_check_absolute(self.socket.as_ref())?;
+        for bind_addr in self.socket.bind_to_addresses() {
+            sockaddr_check_absolute(&bind_addr)?;
+        }
         if let Some(sa) = &self.socket_canonical {
             sockaddr_check_absolute(sa.as_ref())?;
         }
         self.auth.check_absolute_paths()?;
+        if self
+            .socket_address_file
+            .as_ref()
+            .is_some_and(|p| !p.is_absolute())
+        {
+            return Err(ResolveError::PathNotAbsolute);
+        }
         Ok(())
     }
 }
@@ -385,6 +503,11 @@ where
     /// for use in the authentication handshake.
     pub(crate) fn as_str(&self) -> &str {
         self.string.as_str()
+    }
+
+    /// Replace the string representation of this address with the one in `other`.
+    pub(crate) fn set_string_from<B: Clone + Debug>(&mut self, other: &AddrWithStr<B>) {
+        self.string = other.string.clone();
     }
 }
 impl AddrWithStr<String> {
