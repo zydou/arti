@@ -173,12 +173,12 @@ maint-check-cbindgen:
 
 # This should always be in the last testing stage, so that if it fails all the other steps still run
 # But it should run before any deployument.
-blocking-todos:
+check-blocking-todos:
   stage: test
   needs: []
   script:
     - maint/common/apt-install git
-    - ./maint/check_todos
+    - ./maint/check-blocking-todos
 
 rust-checks:
   needs: []
