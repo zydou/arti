@@ -259,6 +259,7 @@ dependencies = [
  "tor-hsservice",
  "tor-key-forge",
  "tor-keymgr",
+ "tor-log-ratelim",
  "tor-memquota",
  "tor-proto",
  "tor-rpc-connect",

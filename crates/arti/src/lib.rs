@@ -204,9 +204,13 @@ where
         write!(config_file_help, " Defaults to {:?}", default).expect("Can't write to string");
     }
 
-    // We create the runtime now so that we can use its `Debug` impl to describe it for
-    // the version string.
     let runtime = create_runtime()?;
+
+    // Configure tor-log-ratelim early before we begin logging.
+    tor_log_ratelim::install_runtime(runtime.clone())
+        .context("Failed to initialze tor-log-ratelim")?;
+
+    // Use the runtime's `Debug` impl to describe it for the version string.
     let features = list_enabled_features();
     let long_version = format!(
         "{}\nusing runtime: {:?}\noptional features: {}",
