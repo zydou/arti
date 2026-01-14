@@ -21,7 +21,7 @@ use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
 use tracing::instrument;
 
 #[cfg(feature = "relay")]
-use {safelog::Sensitive, tor_proto::RelayIdentities};
+use {safelog::Sensitive, std::net::IpAddr, tor_proto::RelayIdentities};
 
 /// TLS-based channel builder.
 ///
@@ -133,6 +133,7 @@ where
     async fn accept_from_transport(
         &self,
         peer: Sensitive<std::net::SocketAddr>,
+        _my_addrs: Vec<IpAddr>,
         stream: Self::Stream,
         _memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {

@@ -46,8 +46,6 @@ impl<T: Clone> NonEmptyList<T> {
     /// Get the items in the list.
     ///
     /// Is guaranteed to have at least one item.
-    // TODO: Expect that we'll use this at some point when we actually need to get the values out.
-    #[expect(dead_code)]
     pub(crate) fn iter(&self) -> impl Iterator<Item = &T> {
         Some(&self.0).into_iter().chain(&self.1)
     }
