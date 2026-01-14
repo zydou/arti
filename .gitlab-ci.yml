@@ -145,7 +145,7 @@ maint-checks:
     - git fetch --unshallow $ORIGIN
     - ./maint/update-md-links --check CHANGELOG.md
 
-maint-check-ownership:
+cargo-crate-owners:
   stage: test
   allow_failure: true
   script:
