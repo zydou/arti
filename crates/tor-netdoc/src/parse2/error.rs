@@ -213,6 +213,9 @@ pub enum VerifyFailed {
     /// document has inconsistent content
     #[error("document has inconsistent content")]
     Inconsistent,
+    /// inner parse failure
+    #[error("parsing problem in embedded document")]
+    ParseEmbedded(#[from] ErrorProblem),
     /// Something else is wrong
     #[error("document has uncategorised problem found during verification")]
     Other,
