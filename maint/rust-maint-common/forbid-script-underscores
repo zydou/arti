@@ -32,7 +32,10 @@ shopt -s nullglob
 
 wrong=()
 
-for f in maint/*_*; do
+# git shell escapes things by default, see git-ls-files(1) and git-config(1) core.quotepath
+files=$(git ls-files ':maint/*_*')
+
+for f in $files; do
     case "$f" in
 	*.py) ;;
 	*)
