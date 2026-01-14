@@ -356,7 +356,7 @@ A socket-connection table has the following members.
  - `auth`: a TOML value describing how to authenticate to the Arti RPC server.
    (Required.)
 
-- `socket_stored_in_file`: a string containing a path to a location on disk.
+- `socket_address_file`: a string containing a path to a location on disk.
   Required when `socket` begins with `inet-auto`;
   forbidden otherwise.
   See "Implementing inet-auto" below.
@@ -394,7 +394,7 @@ If another address type or format is given,
 then the connect point must be *declined*.
 
 Having bound to a port, the RPC server writes write a file containing a single
-JSON object to the filename in the `socket_stored_in_file` field.
+JSON object to the filename in the `socket_address_file` field.
 The file must be (over)written by writing to a temporary file,
 and renaming it into place,
 so that clients never see a partial file (which would be a syntax error).
