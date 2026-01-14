@@ -4,7 +4,7 @@
 #
 #   maint/update-md-links CHANGELOG.md
 #
-# Updates a markdown file, merging/inserting links from `gen_md_links`
+# Updates a markdown file, merging/inserting links from `gen-md-links`
 #
 # New links are added to the next to the first place in the file
 # where links are defined.
@@ -25,7 +25,7 @@
 #     - for each anchor, locations of relevant defs in this section
 #   - targets for some anchors
 #
-# Feed each section separately to gen_md_links
+# Feed each section separately to gen-md-links
 # This gives us
 #   - for each section, needed anchor set
 #   - targets, for some anchors
@@ -93,7 +93,7 @@ Source = str
 
 # One definition, of `t`, with human-readable source `source`, at md line `md_i`
 #
-# The link definition might be from maint/gen_md_links, in which case `md_i` is `None`.
+# The link definition might be from maint/gen-md-links, in which case `md_i` is `None`.
 Def = collections.namedtuple("Def", ["t", "source", "md_i"])
 
 Defs = dict[Anchor, list[Def]]
@@ -223,7 +223,7 @@ def scan_sections(sections: list[Section]) -> Defs:
 
         `source` and `md_i` are as for `Def`.
 
-        `t` may be the empty string (and for output from `gen_md_links`, often is).
+        `t` may be the empty string (and for output from `gen-md-links`, often is).
         """
         link_defs.setdefault(a, []).append(Def(t, source, md_i))
 
@@ -239,7 +239,7 @@ def scan_sections(sections: list[Section]) -> Defs:
                 record_link_def(a, t, "%s:%d" % (args.filename, lno), i)
                 s.defs_t2i.setdefault(t, []).append(i)
 
-        # ---------- for each section, run gen_md_links ----------
+        # ---------- for each section, run gen-md-links ----------
 
         text_file = tempfile.TemporaryFile(mode="w+", buffering=True)
         for i in range(s.start, s.end):
@@ -247,7 +247,7 @@ def scan_sections(sections: list[Section]) -> Defs:
         text_file.flush()
         text_file.seek(0, 0)
         gen_links_output = subprocess.Popen(
-            ["maint/gen_md_links", "--", "-"],
+            ["maint/gen-md-links", "--", "-"],
             stdin=text_file,
             stdout=subprocess.PIPE,
             encoding="utf-8",
@@ -260,13 +260,13 @@ def scan_sections(sections: list[Section]) -> Defs:
             at = is_link_def(line)
             if at is None:
                 print(
-                    "gen_md_links produced bad output line %s (for %s:%d..%d)"
+                    "gen-md-links produced bad output line %s (for %s:%d..%d)"
                     % (repr(line), args.filename, s.start + 1, s.end),
                     file=sys.stderr,
                 )
                 sys.exit(12)
             a, t = at
-            record_link_def(a, t, "gen_md_links", None)
+            record_link_def(a, t, "gen-md-links", None)
             s.a_needed[a] = True
 
         gen_links_output.wait()

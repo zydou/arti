@@ -29,7 +29,7 @@ If these are not real todos, but literals, consider the following workarounds:
    example: maint/fixup-features/src/main.rs, const COMPLAINT
 
  - In a shell script, interject or add redundant quoting
-   examples: maint/check_todos; maint/binary_size, call to mktemp
+   examples: maint/check_todos; maint/binary-size, call to mktemp
 
  - In a regexp, use the "extended" format and insert spaces
    example: maint/check_todos, head comment

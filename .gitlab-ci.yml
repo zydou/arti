@@ -519,7 +519,7 @@ minimal-versions:
   needs: []
   script:
     - rustup install nightly
-    - ./maint/downgrade_dependencies
+    - ./maint/downgrade-dependencies
     - cargo test --target x86_64-unknown-linux-gnu --all-features
 
 .build-repro-template:
@@ -822,7 +822,7 @@ matrix-test-cfg:
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
-    - ./maint/matrix_test_cfg
+    - ./maint/matrix-test-cfg
 
 # TODO: consider removing this in favor of cli-test
 cli-help:
@@ -846,7 +846,7 @@ fuzz-check:
     - ./maint/common/apt-install libclang-dev
     - rustup show
     - ./maint/common/via-cargo-install-in-ci cargo-fuzz --version 0.13.1
-    - ./maint/fuzz_it_all -c
+    - ./maint/fuzz-it-all -c
   cache:
     paths:
       - cache
