@@ -79,25 +79,3 @@ pub trait NetdocParseable {
 
 We should also have some tests that try to smuggle so as to produce
 misframed documents.
-
-## Generics (possible future expansion)
-
-If we discover other similar document nestings we could genericise things:
-
-```
-/// Invariant:
-///
-///  * Can be lexed as a netdoc
-///  * First item is `Y:is_intro_item_keyword`
-///  * Last item is (one) `YS:is_intro_item_keyword`
-///  * No other item is any `N::is_structual_item_keyword`
-///
-pub struct EncodedNetdoc<Y, YS, (N0, N1 ..)>(String);
-
-pub type EncodedAuthCert = EncodedNetdoc<
-    AuthCert, AuthCertSignatures,
-	(NetworkStatusVote, NetworkStatusSignaturesVote)
->;
-```
-
-Details TBD.

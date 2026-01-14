@@ -60,6 +60,28 @@ use crate::parse2::poc::netstatus::NetworkStatusVote; // TODO DIRAUTH abolish po
 /// verification during parsing, because signature verification involves
 /// the time, and we don't want parsing to need to know the time.
 ///
+// ## Generics (possible future expansion)
+//
+// If we discover other similar document nestings we could genericise things:
+//
+// ```
+// /// Invariant:
+// ///
+// ///  * Can be lexed as a netdoc
+// ///  * First item is `Y:is_intro_item_keyword`
+// ///  * Last item is (one) `YS:is_intro_item_keyword`
+// ///  * No other item is any `N::is_structual_item_keyword`
+// ///
+// pub struct EncodedNetdoc<Y, YS, (N0, N1 ..)>(String);
+//
+// pub type EncodedAuthCert = EncodedNetdoc<
+//     AuthCert, AuthCertSignatures,
+// 	(NetworkStatusVote, NetworkStatusSignaturesVote)
+// >;
+// ```
+//
+// Details TBD.
+//
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, derive_more::AsRef)]
 pub struct EncodedAuthCert(#[as_ref(str)] String);
 
