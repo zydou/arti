@@ -888,13 +888,13 @@ coverage-aggregated:
   tags:
     - ipv6
 
-check-targets:
+cargo-check-targets:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
-    - ./maint/cargo_check_target -il
+    - ./maint/cargo-check-targets -il
 
 # build the website
 website:
