@@ -210,7 +210,7 @@ before you continue!
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
-   `maint/list_crates --version  | grep -P '^tor|^arti'`
+   `maint/list-crates --version  | grep -P '^tor|^arti'`
    will show you the existing versions,
    which should usually all be the same.
    Pick the next minor version, and, for each such crate:
@@ -293,7 +293,7 @@ before you continue!
 
    To do this, run
    `maint/tag-arti-release ${THIS_VERSION}`
-   (which will include the output of `maint/list_crates --version`).
+   (which will include the output of `maint/list-crates --version`).
 
    (Note to self: if you find that gpg can't find your yubikey,
    you'll need to run

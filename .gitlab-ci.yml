@@ -137,7 +137,7 @@ maint-checks:
     - ./maint/check-toposort
     - ./maint/add_warning --check
     - ./maint/common/forbid-absolute-shebangs
-    - ./maint/common/forbid-script-extensions
+    - ./maint/common/forbid-script-extensions !maint/list_crates.py
     - ./maint/common/update-shell-includes --check --all
     - ./maint/cargo-check-publishable
     - ./maint/check-case-sensitive
