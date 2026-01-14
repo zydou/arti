@@ -197,7 +197,7 @@ rust-checks:
     - ./maint/cargo-sort
     - ./maint/check_tree
     - ./maint/check_all_lockfiles
-    - ./maint/check_wildcard
+    - ./maint/check-wildcard-deps
     - ./maint/common/forbid-hard-tabs
   cache:
     paths:
