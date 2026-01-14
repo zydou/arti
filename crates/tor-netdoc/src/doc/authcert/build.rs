@@ -129,6 +129,7 @@ impl AuthCertBuilder {
             fingerprint: crate::types::Fingerprint(id_fingerprint),
             dir_key_certificate_version: AuthCertVersion::V3,
             dir_key_crosscert,
+            __non_exhaustive: (),
         })
     }
 }

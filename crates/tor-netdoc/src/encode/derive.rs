@@ -119,6 +119,8 @@ define_derive_deftly_module! {
                                 .$BUG_CONTEXT?;
                         }
               }
+              F_SKIP {
+              }
             }
                     } // field block.
           }} // ${for fields ..}
@@ -212,6 +214,11 @@ define_derive_deftly! {
     ///   outer document here, so interspersed with other normal fields.
     ///
     ///   The field type must implement [`NetdocEncodableFields`].
+    ///
+    /// * **`#[deftly(netdoc(skip))]`**:
+    ///
+    ///   This field doesn't really appear in the network document.
+    ///   It will be ignored during encoding.
     ///
     /// * **`#[deftly(netdoc(subdoc))]`**:
     ///

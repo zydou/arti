@@ -58,7 +58,7 @@ define_derive_deftly! {
     ///
     /// #[derive(Deftly, PartialEq, Debug)]
     /// #[derive_deftly(Constructor)]
-    /// #[non_exhaustive]
+    /// #[allow(clippy::manual_non_exhaustive)]
     /// pub struct Thing {
     ///     /// Required field
     ///     #[deftly(constructor)]
@@ -70,6 +70,9 @@ define_derive_deftly! {
     ///     /// Optional field with fixed default
     ///     #[deftly(constructor(default = "7"))]
     ///     pub defaulted: i32,
+    ///
+    ///     #[doc(hidden)]
+    ///     __non_exhaustive: (),
     /// }
     ///
     /// let thing = Thing {
@@ -85,6 +88,7 @@ define_derive_deftly! {
     ///         required: 12,
     ///         optional: Some(23),
     ///         defaulted: 7,
+    ///         __non_exhaustive: (),
     ///     }
     /// );
     /// ```
@@ -238,7 +242,7 @@ define_derive_deftly_module! {
     ///  * **`F_INTRO`**, **`F_SUBDOC`**, **`F_SIGNATURE`**
     ///    conditions for the fundamental field kinds which aren't supported everywhere.
     ///
-    ///    The `F_FLATTEN` and `F_NORMAL` field type conditions are defined here.
+    ///    The `F_FLATTEN`, `F_SKIP`, `F_NORMAL` field type conditions are defined here.
     ///
     /// Importer must also import `NetdocDeriveAnyCommon`.
     //
@@ -251,18 +255,20 @@ define_derive_deftly_module! {
 
     // Is this field `flatten`?
     ${defcond F_FLATTEN fmeta(netdoc(flatten))}
+    // Is this field `skip`?
+    ${defcond F_SKIP fmeta(netdoc(skip))}
     // Is this field normal (non-structural)?
-    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC))}
+    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC, F_SKIP))}
 
     // Field keyword as `&str`
     ${define F_KEYWORD_STR { ${concat
-        ${if any(F_FLATTEN, F_SUBDOC) {
+        ${if any(F_FLATTEN, F_SUBDOC, F_SKIP) {
           ${if F_INTRO {
-            ${error "#[deftly(netdoc(subdoc))] and (flatten) not supported for intro items"}
+            ${error "#[deftly(netdoc(subdoc))] (flatten) and (skip) not supported for intro items"}
           } else {
             // Sub-documents and flattened fields have their keywords inside;
             // if we ask for the field-based keyword name for one of those then that's a bug.
-            ${error "internal error, subdoc KeywordRef"}
+            ${error "internal error, subdoc or skip KeywordRef"}
           }}
         }}
         ${fmeta(netdoc(keyword)) as str,
@@ -270,7 +276,7 @@ define_derive_deftly_module! {
     }}}
     // Field keyword as `&str` for debugging and error reporting
     ${define F_KEYWORD_REPORT ${concat
-        ${if any(F_FLATTEN, F_SUBDOC) { $fname }
+        ${if any(F_FLATTEN, F_SUBDOC, F_SKIP) { $fname }
              else { $F_KEYWORD_STR }}
     }}
     // Field keyword as `KeywordRef`
@@ -298,6 +304,8 @@ define_derive_deftly_module! {
         ${if not(T_SIGNATURES) { // signatures structs have only signature fields
           netdoc_ordering_check! {
             $(
+                ${when not(F_SKIP)}
+
                 ${select1
                   F_INTRO     { intro     }
                   F_NORMAL    { normal    }
@@ -333,6 +341,7 @@ define_derive_deftly_module! {
         ///    `#[deftly(netdoc(single_arg))]`
         ///    `#[deftly(netdoc(with = "MODULE"))]`
         ///    `#[deftly(netdoc(flatten))]`
+        ///    `#[deftly(netdoc(skip))]`
     }}
 }
 

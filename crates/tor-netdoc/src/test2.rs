@@ -718,6 +718,8 @@ struct TopMinimal {
     test_item_rest_with: Option<TestItemRestWith>,
     test_item_object_not_present: Option<TestItemObjectNotPresent>,
     test_item_object_ignored: Option<TestItemObjectIgnored>,
+    #[deftly(netdoc(skip))]
+    __test_skip: (),
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
@@ -890,6 +892,7 @@ aGVsbG8=         @ not re-encoded
             test_item_rest_with: Some(TestItemRestWith { rest: NeedsWith }),
             test_item_object_not_present: Some(TestItemObjectNotPresent { object: NotPresent }),
             test_item_object_ignored: Some(TestItemObjectIgnored { object: Ignored }),
+            __test_skip: (),
         },
     )?;
 
