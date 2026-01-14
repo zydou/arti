@@ -51,6 +51,6 @@ RUN rustup target add $TARGETS
 RUN cargo install bindgen-cli --version 0.71.1 # from onionmasq install-toolchains.sh
 RUN cargo install cargo-ndk
 
-# handle docker_reproducible_build's call to alpine's apk to add bash with a NOP
+# handle docker-reproducible-build's call to alpine's apk to add bash with a NOP
 RUN echo "#!/bin/sh" > /usr/bin/apk \
     && chmod a+x /usr/bin/apk

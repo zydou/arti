@@ -528,12 +528,12 @@ minimal-versions:
   variables:
     # To be overridden in template instantiations
     TARGET: UNDEFINED--BUG-IN-CI-YAML
-  # If you upgrade this image, also change the one in docker_reproducible_build.
+  # If you upgrade this image, also change the one in docker-reproducible-build.
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: docker.io/amd64/rust:1.91.0-alpine3.22
   script:
     - apk add bash
-    - ./maint/reproducible_build $TARGET
+    - ./maint/reproducible-build $TARGET
   # no after_script:, we don't build in the project dir
   # TODO #1410: Maybe there is something we _can_ remove though?
   artifacts:
