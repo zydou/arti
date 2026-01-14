@@ -167,6 +167,9 @@ maint-check-cbindgen:
     - ./maint/common/apt-install python3-toml
     - ./maint/common/via-cargo-install-in-ci cbindgen --version 0.28.0
     - ./maint/cbindgen --check
+  cache:
+    paths:
+      - cache
 
 # This should always be in the last testing stage, so that if it fails all the other steps still run
 # But it should run before any deployument.
@@ -844,6 +847,9 @@ fuzz-check:
     - rustup show
     - ./maint/common/via-cargo-install-in-ci cargo-fuzz --version 0.13.1
     - ./maint/fuzz_it_all -c
+  cache:
+    paths:
+      - cache
 
 # TODO: this should be folded in one of the other test jobs.
 #
