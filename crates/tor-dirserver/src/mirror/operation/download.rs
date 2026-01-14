@@ -256,11 +256,11 @@ mod test {
     }
 
     /// Testing for a request that initially fails by returning a 404 but later succeeds.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn request_fail_but_succeed() {
         let mut server_addrs = Vec::new();
         let requ_counter = Arc::new(AtomicUsize::new(0));
-        for _ in 0..2 {
+        for _ in 0..8 {
             let server = TcpListener::bind("[::]:0").await.unwrap();
             let server_addr = server.local_addr().unwrap();
             let requ_counter = requ_counter.clone();
@@ -278,18 +278,16 @@ mod test {
 
                     let cur_req = requ_counter.fetch_add(1, Ordering::AcqRel);
 
-                    if cur_req == 0 {
+                    if cur_req < 7 {
                         // Send a failure.
                         conn.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n")
                             .await
                             .unwrap();
-                    } else if cur_req == 1 {
+                    } else {
                         // Send a success.
                         conn.write_all(b"HTTP/1.0 200 OK\r\nContent-Length: 3\r\n\r\nfoo")
                             .await
                             .unwrap();
-                    } else {
-                        unreachable!()
                     }
                 }
             });
@@ -311,10 +309,10 @@ mod test {
     }
 
     /// Request that fails all the time.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn request_fail_ultimately() {
         let mut server_addrs = Vec::new();
-        for _ in 0..2 {
+        for _ in 0..8 {
             let server = TcpListener::bind("[::]:0").await.unwrap();
             let server_addr = server.local_addr().unwrap();
             server_addrs.push(vec![server_addr]);
