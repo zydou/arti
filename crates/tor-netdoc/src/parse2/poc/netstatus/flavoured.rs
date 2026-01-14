@@ -338,7 +338,7 @@ ns_choose! { (
 
             netstatus::verify_general_timeless(
                 slice::from_ref(&self.signatures.directory_signature),
-                &[*cert.h_kp_auth_id_rsa.0],
+                &[*cert.fingerprint],
                 &[&cert],
                 1,
             )?;
@@ -364,7 +364,7 @@ ns_choose! { (
                 // so verification has already been done in verify_selfcert above.
                 .inspect_unverified()
                 .0
-                .h_kp_auth_id_rsa.0
+                .fingerprint
         }
     }
 ) (
