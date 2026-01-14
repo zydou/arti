@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use digest::Digest;
 use futures::{AsyncRead, AsyncWrite, SinkExt};
 use rand::Rng;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 use tracing::{instrument, trace};
@@ -337,23 +337,12 @@ impl<
             .and_then(|addrs| addrs.first())
             .map(SocketAddr::ip);
 
-        // Unix timestamp but over 32bit. This will be sad in 2038 but proposal 338 addresses this
-        // issue with a change to 64bit.
-        let timestamp = self
-            .inner
-            .sleep_prov
-            .wallclock()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| internal!("Wallclock may have gone backwards: {e}"))?
-            .as_secs()
-            .try_into()
-            .map_err(|e| internal!("Wallclock secs fail to convert to 32bit: {e}"))?;
         // TODO(relay): Get our IP address(es) either directly or take them from the
         // VerifiedRelayChannel values?
         let my_addrs = Vec::new();
 
         // Send the NETINFO message.
-        let netinfo = msg::Netinfo::from_relay(timestamp, peer_ip, my_addrs);
+        let netinfo = build_netinfo_cell(peer_ip, my_addrs, &self.inner.sleep_prov)?;
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 
@@ -420,4 +409,27 @@ pub(crate) fn build_certs_cell(
     }
     */
     certs
+}
+
+/// Build a [`msg::Netinfo`] cell from the given peer IPs and our advertised addresses.
+///
+/// Both relay initiator and responder handshake use this.
+pub(crate) fn build_netinfo_cell<S>(
+    peer_ip: Option<IpAddr>,
+    my_addrs: Vec<IpAddr>,
+    sleep_prov: &S,
+) -> Result<msg::Netinfo>
+where
+    S: CoarseTimeProvider + SleepProvider,
+{
+    // Unix timestamp but over 32bit. This will be sad in 2038 but proposal 338 addresses this
+    // issue with a change to 64bit.
+    let timestamp = sleep_prov
+        .wallclock()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| internal!("Wallclock may have gone backwards: {e}"))?
+        .as_secs()
+        .try_into()
+        .map_err(|e| internal!("Wallclock secs fail to convert to 32bit: {e}"))?;
+    Ok(msg::Netinfo::from_relay(timestamp, peer_ip, my_addrs))
 }
