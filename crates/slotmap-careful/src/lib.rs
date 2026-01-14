@@ -107,7 +107,7 @@ impl<V> Entry<V> {
 
 /// Helper: Define a wrapper for a single SlotMap type.
 ///
-/// This works for SlotMap, DenseSlotMap, and HopSlotMap.
+/// This works for SlotMap, and DenseSlotMap.
 ///
 /// (The alternative to using a macro here would be to define a new trait
 /// implemented by all of the SlotMaps, and then to define our own SlotMap as a wrapper around an
@@ -609,8 +609,6 @@ define_implementation! { SlotMap }
 
 define_implementation! { DenseSlotMap }
 
-define_implementation! { HopSlotMap }
-
 /// Return true if this key is apparently valid.
 ///
 /// We should use debug_assert! to test this on every new key, every time an entry is inserted.
@@ -986,5 +984,4 @@ mod test {
 
     tests_for! {SlotMap}
     tests_for! {DenseSlotMap}
-    tests_for! {HopSlotMap}
 }
