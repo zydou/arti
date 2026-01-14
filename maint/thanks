@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# maint/exclude_contributors.txt is currently sorted in a locale-specific way
+# maint/exclude-contributors.txt is currently sorted in a locale-specific way
 export LC_COLLATE=C.UTF-8
 
 if [ -z "${1-}" ]; then
@@ -14,7 +14,7 @@ fi
 function join_by { local d=${1-} f=${2-}; if shift 2; then printf %s "$f" "${@/#/$d}"; fi; }
 
 TEMPDIR=$(mktemp -d)
-TO_EXCLUDE="$(dirname "$0")/exclude_contributors.txt"
+TO_EXCLUDE="$(dirname "$0")/exclude-contributors.txt"
 LAST_REV=$1
 
 WE_CREDIT=(
