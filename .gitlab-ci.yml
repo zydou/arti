@@ -37,7 +37,7 @@ default:
       platform: linux/amd64
   before_script:
     # get section_start and section_end bash functions
-    - source maint/ci_log_span_fns.sh
+    - source maint/ci-log-span-fns.sh
     # gitlab fetch strategy doesn't reset permissions
     - (while [ "$PWD" != / ]; do chmod go-w . && cd ..; done)
     # verify that we're running in a container built for amd64.
