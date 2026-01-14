@@ -398,6 +398,7 @@ dependencies = [
  "tor-guardmgr",
  "tor-keymgr",
  "tor-llcrypto",
+ "tor-log-ratelim",
  "tor-memquota",
  "tor-netdir",
  "tor-netdoc",
