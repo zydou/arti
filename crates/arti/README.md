@@ -218,7 +218,12 @@ a more complete list of missing features.
 ## Library for building command-line client
 
 This library crate contains code useful for making a command-line program
-similar to `arti`. The API should not be considered stable.
+similar to `arti`. This code is currently behind the `experimental-api`
+feature flag, and should not be considered stable.
+
+If you find yourself using this code in practice, please consider opening a ticket,
+so we know what APIs you find useful, and so we can consider moving them to a place
+where they can stabilize. 
 
 License: MIT OR Apache-2.0
 
