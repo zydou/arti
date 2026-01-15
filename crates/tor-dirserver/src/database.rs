@@ -255,13 +255,10 @@ macro_rules! sql {
 pub(crate) use sql;
 
 /// Version 1 of the database schema.
-///
-/// TODO DIRMIRROR: Should we rename arti_dirmirror_schema_version to say
-/// dirserver or something more generic?
 const V1_SCHEMA: &str = sql!(
     "
 -- Meta table to store the current schema version.
-CREATE TABLE arti_dirmirror_schema_version(
+CREATE TABLE arti_dirserver_schema_version(
     version TEXT NOT NULL -- currently, always `1`
 ) STRICT;
 
@@ -414,7 +411,7 @@ CREATE TABLE consensus_authority_voter(
     FOREIGN KEY(authority_rowid) REFERENCES authority_key_certificate(rowid)
 ) STRICT;
 
-INSERT INTO arti_dirmirror_schema_version VALUES ('1');
+INSERT INTO arti_dirserver_schema_version VALUES ('1');
 "
 );
 
@@ -467,13 +464,13 @@ pub(crate) fn open<P: AsRef<Path>>(
         // 1. Checking the database schema.
         // 2. Upgrading (in future) or initializing the database schema (if empty).
 
-        let has_arti_dirmirror_schema_version = match tx.query_one(
+        let has_arti_dirserver_schema_version = match tx.query_one(
             sql!(
                 "
                 SELECT name
                 FROM sqlite_master
                   WHERE type = 'table'
-                    AND name = 'arti_dirmirror_schema_version'
+                    AND name = 'arti_dirserver_schema_version'
                 "
             ),
             params![],
@@ -484,9 +481,9 @@ pub(crate) fn open<P: AsRef<Path>>(
             Err(e) => return Err(DatabaseError::LowLevel(e)),
         };
 
-        if has_arti_dirmirror_schema_version {
+        if has_arti_dirserver_schema_version {
             let version = tx.query_one(
-                sql!("SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1"),
+                sql!("SELECT version FROM arti_dirserver_schema_version WHERE rowid = 1"),
                 params![],
                 |row| row.get::<_, String>(0),
             )?;
@@ -687,7 +684,7 @@ mod test {
         // Check if the version was initialized properly.
         let version = conn
             .query_one(
-                "SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1",
+                "SELECT version FROM arti_dirserver_schema_version WHERE rowid = 1",
                 params![],
                 |row| row.get::<_, String>(0),
             )
@@ -696,7 +693,7 @@ mod test {
 
         // Set the version to something unknown.
         conn.execute(
-            "UPDATE arti_dirmirror_schema_version SET version = 42",
+            "UPDATE arti_dirserver_schema_version SET version = 42",
             params![],
         )
         .unwrap();
@@ -717,11 +714,11 @@ mod test {
 
         // Do a write transaction despite forbidden.
         super::read_tx(&pool, |tx| {
-            tx.execute_batch("DELETE FROM arti_dirmirror_schema_version")
+            tx.execute_batch("DELETE FROM arti_dirserver_schema_version")
                 .unwrap();
             let e = tx
                 .query_one(
-                    sql!("SELECT version FROM arti_dirmirror_schema_version"),
+                    sql!("SELECT version FROM arti_dirserver_schema_version"),
                     params![],
                     |row| row.get::<_, String>(0),
                 )
@@ -733,7 +730,7 @@ mod test {
         // Normal check.
         let version: String = super::read_tx(&pool, |tx| {
             tx.query_one(
-                sql!("SELECT version FROM arti_dirmirror_schema_version"),
+                sql!("SELECT version FROM arti_dirserver_schema_version"),
                 params![],
                 |row| row.get(0),
             )
@@ -752,7 +749,7 @@ mod test {
 
         // Do a write transaction.
         super::rw_tx(&pool, |tx| {
-            tx.execute_batch("DELETE FROM arti_dirmirror_schema_version")
+            tx.execute_batch("DELETE FROM arti_dirserver_schema_version")
                 .unwrap();
         })
         .unwrap();
@@ -761,7 +758,7 @@ mod test {
         super::read_tx(&pool, |tx| {
             let e = tx
                 .query_one(
-                    sql!("SELECT version FROM arti_dirmirror_schema_version"),
+                    sql!("SELECT version FROM arti_dirserver_schema_version"),
                     params![],
                     |row| row.get::<_, String>(0),
                 )
