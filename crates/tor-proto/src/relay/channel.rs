@@ -233,7 +233,6 @@ impl ChannelAuthenticationData {
 /// unverified.
 ///
 /// This is used for both initiator and responder channels.
-#[expect(unused)] // TODO(relay). remove
 struct UnverifiedRelayChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
@@ -252,6 +251,91 @@ struct UnverifiedRelayChannel<
 impl<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
+> UnverifiedRelayChannel<T, S>
+{
+    /// Build the [`ChannelAuthenticationData`] given a [`VerifiedChannel`].
+    ///
+    /// We should never check or build authentication data if the channel is not verified thus the
+    /// requirement to pass the verified channel to this function.
+    ///
+    /// Both initiator and responder handshake build this data in order to authenticate.
+    fn build_auth_data(
+        auth_challenge_cell: &Option<msg::AuthChallenge>,
+        identities: &Arc<RelayIdentities>,
+        verified: &mut VerifiedChannel<T, S>,
+    ) -> Result<ChannelAuthenticationData> {
+        // Are we a relay Responder or Initiator?
+        let is_responder = verified.channel_type.is_responder();
+
+        // Safety check. Only the initiator has an AUTH_CHALLENGE.
+        if is_responder && auth_challenge_cell.is_some() {
+            return Err(Error::from(internal!(
+                "Relay responder has a AUTH_CHALLENGE"
+            )));
+        }
+
+        // Without an AUTH_CHALLENGE, we use our known link protocol value.
+        let link_auth = *LINK_AUTH
+            .iter()
+            .filter(|m| auth_challenge_cell.is_some_and(|cell| cell.methods().contains(m)))
+            .max()
+            .ok_or(Error::BadCellAuth)?;
+        // The ordering matter based on if initiator or responder.
+        let cid = identities.rsa_x509_digest();
+        let sid = verified.rsa_cert_digest.ok_or(Error::from(internal!(
+            "AUTH_CHALLENGE cell without RSA identity"
+        )))?;
+        let cid_ed = identities.ed_id_bytes();
+        let sid_ed = verified
+            .ed25519_id
+            .ok_or(Error::from(internal!(
+                "Verified channel without an ed25519 identity"
+            )))?
+            .into();
+        let clog = verified.framed_tls.codec_mut().get_clog_digest()?;
+        let slog = verified.framed_tls.codec_mut().get_slog_digest()?;
+
+        let (cid, sid, cid_ed, sid_ed) = if is_responder {
+            // Reverse when responder as in CID becomes SID, and so on.
+            (sid, cid, sid_ed, cid_ed)
+        } else {
+            // Keep it that way if we are initiator.
+            (cid, sid, cid_ed, sid_ed)
+        };
+
+        let (clog, slog) = if is_responder {
+            // Reverse as the SLOG is the responder log digest meaning the clog as a responder.
+            (slog, clog)
+        } else {
+            // Keep ordering.
+            (clog, slog)
+        };
+
+        let scert = if is_responder {
+            // TODO(relay): This is the peer certificate but as a responder, we need our
+            // certificate which requires lot more work and a rustls provider configured as a
+            // server side. See arti#2316.
+            todo!()
+        } else {
+            verified.peer_cert_digest
+        };
+
+        Ok(ChannelAuthenticationData {
+            link_auth,
+            cid,
+            sid,
+            cid_ed,
+            sid_ed,
+            clog,
+            slog,
+            scert,
+        })
+    }
+}
+
+impl<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
 > VerifiableChannel<T, S> for UnverifiedRelayChannel<T, S>
 {
     fn clock_skew(&self) -> ClockSkew {
@@ -265,49 +349,25 @@ impl<
         peer_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<Box<dyn FinalizableChannel<T, S>>> {
+        // Get these object out as we consume "self" in the inner check().
+        let identities = self.identities;
+        let auth_challenge_cell = self.auth_challenge_cell;
+        let netinfo_cell = self.netinfo_cell;
+
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.check(peer, peer_cert, now)?;
 
-        let auth_data = if let Some(auth_challenge_cell) = self.auth_challenge_cell {
-            // Validate our link authentication protocol version.
-            let link_auth = *LINK_AUTH
-                .iter()
-                .filter(|m| auth_challenge_cell.methods().contains(m))
-                .max()
-                .ok_or(Error::BadCellAuth)?;
-            // Having a AUTH_CHALLENGE implies we are the initiator as it is the responder that
-            // sends that message. Thus the ordering of these keys is for the initiator.
-            let cid = self.identities.rsa_x509_digest();
-            let sid = verified.rsa_cert_digest.ok_or(Error::from(internal!(
-                "AUTH_CHALLENGE cell without RSA identity"
-            )))?;
-            let cid_ed = self.identities.ed_id_bytes();
-            let sid_ed = verified
-                .ed25519_id
-                .ok_or(Error::from(internal!(
-                    "AUTH_CHALLENGE cell without ed25519 identity"
-                )))?
-                .into();
-
-            Some(ChannelAuthenticationData {
-                link_auth,
-                cid,
-                sid,
-                cid_ed,
-                sid_ed,
-                clog: verified.framed_tls.codec_mut().get_clog_digest()?,
-                slog: verified.framed_tls.codec_mut().get_slog_digest()?,
-                scert: verified.peer_cert_digest,
-            })
-        } else {
-            // TODO(relay) Without an AUTH_CHALLENGE, we are the responder so build the
-            // ChannelAuthenticationData accordingly.
-            None
-        };
+        let auth_data = Some(Self::build_auth_data(
+            &auth_challenge_cell,
+            &identities,
+            &mut verified,
+        )?);
 
         Ok(Box::new(VerifiedRelayChannel {
             inner: verified,
             auth_data,
+            identities,
+            netinfo_cell,
         }))
     }
 
@@ -340,6 +400,10 @@ struct VerifiedRelayChannel<
     /// Authentication data for the [msg::Authenticate] cell. It is sent during the finalization
     /// process because the channel needs to be verified before this is sent.
     auth_data: Option<ChannelAuthenticationData>,
+    /// Relay identities.
+    identities: Arc<RelayIdentities>,
+    /// The netinfo cell that we got from the relay.
+    netinfo_cell: msg::Netinfo,
 }
 
 #[async_trait]
