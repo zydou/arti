@@ -196,6 +196,10 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
     tracing::dispatcher::with_default(&logger, || {
         let runtime = init_runtime().context("Failed to initialize the runtime")?;
 
+        // Configure tor-log-ratelim early before we begin logging.
+        tor_log_ratelim::install_runtime(runtime.clone())
+            .context("Failed to initialze tor-log-ratelim")?;
+
         let path_resolver = base_resolver();
         let relay =
             InertTorRelay::new(config, path_resolver).context("Failed to initialize the relay")?;

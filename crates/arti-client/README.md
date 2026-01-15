@@ -62,6 +62,11 @@ This state gets persisted to the locations specified in the
 (This method requires you to initialize the client in an `async fn`.
 Consider using the builder method, below, if that doesn't work for you.)
 
+Note that it's recommended (but not required) to initialize Arti's rate-limited
+logging before constructing and using a `TorClient`.
+See [the instructions below](#initializing-artis-rate-limited-logging)
+for details.
+
 ```rust,ignore
 // The client configuration describes how to connect to the Tor network,
 // and what directories to use for storing persistent state.
@@ -124,6 +129,26 @@ stream.read_to_end(&mut buf).await?;
 
 println!("{}", String::from_utf8_lossy(&buf));
 #
+```
+
+### Initializing Arti's rate-limited logging
+
+Arti uses the
+[tor-log-ratelim](crates/tor-log-ratelim/README.md)
+library to rate limit some of its log messages.
+If you'd like these improved error messages,
+and to avoid flooding your applications logs with repetitive messages,
+you can initialize tor-log-ratelim using the following:
+
+```rust,ignore
+// Initialize a runtime.
+let runtime = tor_rtcompat::PreferredRuntime::current()?;
+
+// Register our runtime with the tor-log-ratelim library.
+tor_log_ratelim::install_runtime(runtime.clone())?;
+
+// Create and bootstrap a Tor client.
+let tor_client = TorClient::with_runtime(runtime).create_bootstrapped()?;
 ```
 
 ### Bridge usage
