@@ -276,7 +276,7 @@ where
         let clock_skew = Some(chan.clock_skew()); // Not yet authenticated; can't use it till `check` is done.
         let now = self.runtime.wallclock();
         let chan = chan
-            .check(target, &peer_cert, Some(now))
+            .check(target, &peer_cert, Some(now)).await
             .map_err(|source| match &source {
                 tor_proto::Error::HandshakeCertsExpired { .. } => {
                     event_sender
