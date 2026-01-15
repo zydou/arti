@@ -195,7 +195,7 @@ fn verify_general_timeless(
                 let Some(cert) = ({
                     certs
                         .iter()
-                        .find(|cert| cert.kp_auth_sign_rsa.to_rsa_identity() == *h_kp_auth_sign_rsa)
+                        .find(|cert| cert.dir_signing_key.to_rsa_identity() == *h_kp_auth_sign_rsa)
                 }) else {
                     // no cert for this kp_auth_sign_rsa, ignore it
                     continue;
@@ -203,7 +203,7 @@ fn verify_general_timeless(
 
                 let h = hash.hash_slice_for_verification();
 
-                let () = cert.kp_auth_sign_rsa.verify(h, rsa_signature)?;
+                let () = cert.dir_signing_key.verify(h, rsa_signature)?;
 
                 ok.insert(*authority);
             }

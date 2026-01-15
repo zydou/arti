@@ -31,6 +31,39 @@ pub trait NetdocParseable: Sized {
     /// Must check whether the first item is this document's `is_intro_item_keyword`,
     /// and error if not.
     fn from_items(input: &mut ItemStream<'_>, stop_at: stop_at!()) -> Result<Self, ErrorProblem>;
+
+    /// Is `Keyword` a structural keyword for this kind of document?
+    ///
+    /// Returns `Some(IsStructural)` for:
+    ///   - this type's intro item keyword (`is_intro_item_keyword`)
+    ///   - the intro items or structural items for any of its sub-documents and sections
+    ///     `#[deftly(netdoc(subdoc))]`
+    ///
+    /// (This means it returns true for *any* item in a signatures subdocument
+    /// ie any field in a struct decorated `#[deftly(netdoc(signatures))]`
+    /// since those are considered intro items.)
+    ///
+    /// Used for avoiding parsing ambiguity when a netdoc from a semi-trusted source
+    /// is embedded into another netdoc.
+    /// See <https://spec.torproject.org/dir-spec/creating-key-certificates.html#nesting>.
+    ///
+    /// # Return type and relationship to `is_intro_item_keyword`
+    ///
+    /// Returns `Option<IsStructural>`
+    /// so that it has a different type to [`NetdocParseable::is_intro_item_keyword`],
+    /// preventing accidental confusion between the two kinds of keyword property enquiry.
+    ///
+    /// Our parsing algorithms actually only care about *intro keywords* for sub-documents.
+    /// We don't need to worry about anything else;
+    /// notably, we don't need to care about other structural items within those sub-documents.
+    ///
+    /// Except for authcerts in votes,, which are nested documents
+    /// with partially trusted content.
+    /// That is what this method is for.
+    ///
+    /// So, we privilege `is_intro_item_keyword` by having it return `bool`
+    /// and by the affordances in [`StopAt`].
+    fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural>;
 }
 
 /// A collection of fields that can be parsed within a section
@@ -133,6 +166,13 @@ pub trait ItemObjectParseable: Sized {
     fn from_bytes(input: &[u8]) -> Result<Self, ErrorProblem>;
 }
 
+/// Token indicating that a keyword is structural
+///
+/// Returned by [`NetdocParseable::is_structural_keyword`]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[allow(clippy::exhaustive_structs)]
+pub struct IsStructural;
+
 //---------- provided blanket impls ----------
 
 impl<T: NormalItemArgument> ItemArgumentParseable for T {
@@ -158,6 +198,9 @@ impl<T: NetdocParseable> NetdocParseable for Arc<T> {
     }
     fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
         T::is_intro_item_keyword(kw)
+    }
+    fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
+        T::is_structural_keyword(kw)
     }
     fn from_items(input: &mut ItemStream<'_>, stop_at: stop_at!()) -> Result<Self, EP> {
         T::from_items(input, stop_at).map(Arc::new)

@@ -82,7 +82,7 @@ impl<'s> KeywordRef<'s> {
     }
 
     /// Obtain the `Keyword` as a `str`
-    fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         self.0
     }
     /// Obtain the `Keyword`'s length
@@ -95,5 +95,16 @@ impl<'s> KeywordRef<'s> {
 impl<'s> AsRef<str> for KeywordRef<'s> {
     fn as_ref(&self) -> &str {
         self.as_str()
+    }
+}
+
+// We could implement `PartialEq<str>` instead but that leads to unnatural code like
+//
+//   let kw: KeywordRef<'_> = ...;
+//   if kw == *"expected" { ...
+//
+impl PartialEq<&str> for KeywordRef<'_> {
+    fn eq(&self, s: &&str) -> bool {
+        self.as_str() == *s
     }
 }

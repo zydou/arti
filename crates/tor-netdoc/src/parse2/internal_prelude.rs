@@ -40,8 +40,8 @@ pub use super::{
     },
     structural::{StopAt, StopPredicate},
     traits::{
-        ItemArgumentParseable, ItemValueParseable, NetdocParseable, NetdocParseableFields,
-        NetdocSigned,
+        IsStructural, ItemArgumentParseable, ItemValueParseable, NetdocParseable,
+        NetdocParseableFields, NetdocSigned,
     },
 };
 pub use crate::types::Unknown;

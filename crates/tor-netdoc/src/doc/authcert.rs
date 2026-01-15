@@ -36,6 +36,12 @@ pub use build::AuthCertBuilder;
 #[cfg(feature = "parse2")]
 use crate::parse2::{self, ItemObjectParseable, SignatureHashInputs};
 
+// TODO DIRAUTH untangle these feature(s)
+#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+mod encoded;
+#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+pub use encoded::EncodedAuthCert;
+
 decl_keyword! {
     pub(crate) AuthCertKwd {
         "dir-key-certificate-version" => DIR_KEY_CERTIFICATE_VERSION,

@@ -32,8 +32,8 @@ define_derive_deftly! {
 #[derive(Debug, Clone, Deftly)]
 #[derive_deftly(ParseOptions)]
 pub struct ItemStream<'s> {
-    /// The whole document.  Used for signature hashing.
-    whole_for_signatures: &'s str,
+    /// The whole input document.
+    whole_input: &'s str,
     /// Remaining document, as a stream of lines
     lines: Lines<'s>,
     /// If we have peeked ahead, what we discovered
@@ -128,7 +128,7 @@ impl<'s> ItemStream<'s> {
     /// Start reading a network document as a series of Items
     pub fn new(input: &'s ParseInput<'s>) -> Result<Self, ParseError> {
         Ok(ItemStream {
-            whole_for_signatures: input.input,
+            whole_input: input.input,
             lines: Lines::new(input.input),
             peeked: PeekState::None {
                 yielded_item_lno: 0,
@@ -189,7 +189,7 @@ impl<'s> ItemStream<'s> {
 
     /// Obtain the body so far, suitable for hashing for a Regular signature
     pub fn body_sofar_for_signature(&self) -> SignedDocumentBody<'s> {
-        let body = &self.whole_for_signatures[0..self.byte_position()];
+        let body = &self.whole_input[0..self.byte_position()];
         SignedDocumentBody { body }
     }
 
@@ -199,7 +199,16 @@ impl<'s> ItemStream<'s> {
     /// to the "current" position,
     /// ie to just after the item we yielded and just before the next item (or EOF).
     pub fn byte_position(&self) -> usize {
-        self.whole_for_signatures.len() - self.lines.remaining().len()
+        self.whole_input.len() - self.lines.remaining().len()
+    }
+
+    /// Access for the entire input string
+    ///
+    /// The original `input: &str` argument to [`ParseInput::new`].
+    ///
+    /// Includes both yielded and unyielded items.
+    pub fn whole_input(&self) -> &'s str {
+        self.whole_input
     }
 
     /// Parse a (sub-)document with its own signatures
@@ -212,8 +221,7 @@ impl<'s> ItemStream<'s> {
         outer_stop: stop_at!(),
     ) -> Result<O, EP> {
         let mut input = ItemStream {
-            whole_for_signatures: &self.whole_for_signatures
-                [self.whole_for_signatures.len() - self.lines.remaining().len()..],
+            whole_input: &self.whole_input[self.whole_input.len() - self.lines.remaining().len()..],
             ..self.clone()
         };
         let r = (|| {
@@ -225,7 +233,7 @@ impl<'s> ItemStream<'s> {
         })(); // don't exit here
 
         *self = ItemStream {
-            whole_for_signatures: self.whole_for_signatures,
+            whole_input: self.whole_input,
             ..input
         };
 
