@@ -536,9 +536,9 @@ impl HttpServer {
 
         let mut stmt = tx.prepare_cached(sql!(
             "
-            SELECT compressed_sha256
+            SELECT compressed_docid
             FROM compressed_document
-              WHERE identity_sha256 = ?1
+              WHERE identity_docid = ?1
                 AND algorithm = ?2
             "
         ))?;
@@ -653,7 +653,7 @@ pub(in crate::http) mod test {
         tx.execute(
             sql!(
                 "
-                INSERT INTO store(sha256, content) VALUES
+                INSERT INTO store(docid, content) VALUES
                 (?1, ?2), -- identity
                 (?3, ?4), -- deflate
                 (?5, ?6), -- gzip
@@ -679,7 +679,7 @@ pub(in crate::http) mod test {
         tx.execute(
             sql!(
                 "
-                INSERT INTO compressed_document(algorithm, identity_sha256, compressed_sha256) VALUES
+                INSERT INTO compressed_document(algorithm, identity_docid, compressed_docid) VALUES
                 ('deflate', ?1, ?2),
                 ('gzip', ?1, ?3),
                 ('x-zstd', ?1, ?4),

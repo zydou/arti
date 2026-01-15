@@ -87,7 +87,7 @@ impl StoreCache {
 
     /// Obtains a [`DocumentId`] from the database without consulting the cache first.
     fn get_db(tx: &Transaction, doc_id: DocumentId) -> Result<Arc<[u8]>, DatabaseError> {
-        let mut stmt = tx.prepare_cached(sql!("SELECT content FROM store WHERE sha256 = ?1"))?;
+        let mut stmt = tx.prepare_cached(sql!("SELECT content FROM store WHERE docid = ?1"))?;
         let document: Vec<u8> = stmt.query_one(params![doc_id], |row| row.get(0))?;
         Ok(Arc::from(document))
     }

@@ -269,7 +269,7 @@ CREATE TABLE arti_dirserver_schema_version(
 -- http://<hostname>/tor/status-vote/current/consensus-<FLAVOR>/diff/<HASH>/<FPRLIST>
 CREATE TABLE consensus(
     rowid               INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256              TEXT NOT NULL UNIQUE,
+    docid               TEXT NOT NULL UNIQUE,
     -- Required for consensus diffs.
     -- https://spec.torproject.org/dir-spec/directory-cache-operation.html#diff-format
     unsigned_sha3_256   TEXT NOT NULL UNIQUE,
@@ -277,7 +277,7 @@ CREATE TABLE consensus(
     valid_after         INTEGER NOT NULL,
     fresh_until         INTEGER NOT NULL,
     valid_until         INTEGER NOT NULL,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     CHECK(GLOB('*[^0-9A-F]*', unsigned_sha3_256) == 0),
     CHECK(LENGTH(unsigned_sha3_256) == 64),
     CHECK(flavor IN ('ns', 'md')),
@@ -293,10 +293,10 @@ CREATE TABLE consensus(
 -- http://<hostname>/tor/status-vote/current/consensus-<FLAVOR>/diff/<HASH>/<FPRLIST>
 CREATE TABLE consensus_diff(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256                  TEXT NOT NULL UNIQUE,
+    docid                   TEXT NOT NULL UNIQUE,
     old_consensus_rowid     INTEGER NOT NULL,
     new_consensus_rowid     INTEGER NOT NULL,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     FOREIGN KEY(old_consensus_rowid) REFERENCES consensus(rowid),
     FOREIGN KEY(new_consensus_rowid) REFERENCES consensus(rowid)
 ) STRICT;
@@ -309,12 +309,12 @@ CREATE TABLE consensus_diff(
 -- http://<hostname>/tor/server/all
 CREATE TABLE router_descriptor(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256                  TEXT NOT NULL UNIQUE,
+    docid                   TEXT NOT NULL UNIQUE,
     sha1                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     flavor                  TEXT NOT NULL,
     router_extra_info_rowid  INTEGER,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     FOREIGN KEY(router_extra_info_rowid) REFERENCES router_extra_info(rowid),
     CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
@@ -331,10 +331,10 @@ CREATE TABLE router_descriptor(
 -- http://<hostname>/tor/extra/authority
 CREATE TABLE router_extra_info(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256                  TEXT NOT NULL UNIQUE,
+    docid                   TEXT NOT NULL UNIQUE,
     sha1                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
     CHECK(LENGTH(sha1) == 40),
@@ -351,12 +351,12 @@ CREATE TABLE router_extra_info(
 -- http://<hostname>/tor/keys/sk/<F>-<S>
 CREATE TABLE authority_key_certificate(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256                  TEXT NOT NULL UNIQUE,
+    docid                   TEXT NOT NULL UNIQUE,
     kp_auth_id_rsa_sha1     TEXT NOT NULL,
     kp_auth_sign_rsa_sha1   TEXT NOT NULL,
     dir_key_published       INTEGER NOT NULL,
     dir_key_expires         INTEGER NOT NULL,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_id_rsa_sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_sign_rsa_sha1) == 0),
     CHECK(LENGTH(kp_auth_id_rsa_sha1) == 40),
@@ -370,21 +370,21 @@ CREATE TABLE authority_key_certificate(
 -- Content addressable storage, storing all contents.
 CREATE TABLE store(
     rowid   INTEGER PRIMARY KEY AUTOINCREMENT, -- hex uppercase
-    sha256  TEXT NOT NULL UNIQUE,
+    docid   TEXT NOT NULL UNIQUE,
     content BLOB NOT NULL,
-    CHECK(GLOB('*[^0-9A-F]*', sha256) == 0),
-    CHECK(LENGTH(sha256) == 64)
+    CHECK(GLOB('*[^0-9A-F]*', docid) == 0),
+    CHECK(LENGTH(docid) == 64)
 ) STRICT;
 
 -- Stores compressed network documents.
 CREATE TABLE compressed_document(
     rowid               INTEGER PRIMARY KEY AUTOINCREMENT,
     algorithm           TEXT NOT NULL,
-    identity_sha256     TEXT NOT NULL,
-    compressed_sha256   TEXT NOT NULL,
-    FOREIGN KEY(identity_sha256) REFERENCES store(sha256),
-    FOREIGN KEY(compressed_sha256) REFERENCES store(sha256),
-    UNIQUE(algorithm, identity_sha256)
+    identity_docid      TEXT NOT NULL,
+    compressed_docid   TEXT NOT NULL,
+    FOREIGN KEY(identity_docid) REFERENCES store(docid),
+    FOREIGN KEY(compressed_docid) REFERENCES store(docid),
+    UNIQUE(algorithm, identity_docid)
 ) STRICT;
 
 -- Stores the N:M cardinality of which router descriptors are contained in which
@@ -566,13 +566,13 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     // The statement to insert some data into the store.
     //
     // Parameters:
-    // :sha256 - The SHA256 sum in uppercase hex of the data.
+    // :docid - The docid.
     // :content - The binary data.
     let mut store_stmt = tx.prepare_cached(sql!(
         "
-        INSERT OR REPLACE INTO store (sha256, content)
+        INSERT OR REPLACE INTO store (docid, content)
         VALUES
-        (:sha256, :content)
+        (:docid, :content)
         "
     ))?;
 
@@ -580,20 +580,20 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     //
     // Parameters:
     // :algorithm - The name of the encoding algorithm.
-    // :identity_sha256 - The sha256 of the plain-text document in the store.
-    // :compressed_sha256 - The sha256 of the encoded document in the store.
+    // :identity_docid - The docid of the plain-text document in the store.
+    // :compressed_docid - The docid of the encoded document in the store.
     let mut compressed_stmt = tx.prepare_cached(sql!(
         "
-        INSERT OR REPLACE INTO compressed_document (algorithm, identity_sha256, compressed_sha256)
+        INSERT OR REPLACE INTO compressed_document (algorithm, identity_docid, compressed_docid)
         VALUES
-        (:algorithm, :identity_sha256, :compressed_sha256)
+        (:algorithm, :identity_docid, :compressed_docid)
         "
     ))?;
 
     // Insert the plain document into the store.
     let identity_doc_id = DocumentId::digest(data);
     store_stmt.execute(named_params! {
-        ":sha256": identity_doc_id,
+        ":docid": identity_doc_id,
         ":content": data
     })?;
 
@@ -607,13 +607,13 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
         let compressed = compress(data, encoding).map_err(DatabaseError::Compression)?;
         let compressed_doc_id = DocumentId::digest(&compressed);
         store_stmt.execute(named_params! {
-            ":sha256": compressed_doc_id,
+            ":docid": compressed_doc_id,
             ":content": compressed,
         })?;
         compressed_stmt.execute(named_params! {
             ":algorithm": encoding.to_string(),
-            ":identity_sha256": identity_doc_id,
-            ":compressed_sha256": compressed_doc_id,
+            ":identity_docid": identity_doc_id,
+            ":compressed_docid": compressed_doc_id,
         })?;
     }
 
@@ -884,7 +884,7 @@ mod test {
                     "
                     SELECT content
                     FROM store
-                    WHERE sha256 = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
+                    WHERE docid = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
                     "
                 ),
                 params![],
@@ -897,7 +897,7 @@ mod test {
             "
             SELECT algorithm
             FROM compressed_document
-            WHERE identity_sha256 = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
+            WHERE identity_docid = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
             "
         )).unwrap();
 
