@@ -354,16 +354,16 @@ fn insert_authority_certificates(
             // the end of the world if we change this later -- at worst, clients
             // will simply get it in a different encoding they prefer less, but
             // that should not be super critical.
-            let doc_id = database::store_insert(tx, raw.as_bytes(), ContentEncoding::iter())?;
-            Ok::<_, DatabaseError>((doc_id, cert))
+            let docid = database::store_insert(tx, raw.as_bytes(), ContentEncoding::iter())?;
+            Ok::<_, DatabaseError>((docid, cert))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     // Insert every certificate, after it has been inserted into the store, into
     // the authority certificates meta table.
-    for (doc_id, cert) in certs {
+    for (docid, cert) in certs {
         stmt.execute(named_params! {
-            ":docid": doc_id,
+            ":docid": docid,
             ":id_rsa": cert.fingerprint.as_hex_upper(),
             ":sign_rsa": cert.dir_signing_key.to_rsa_identity().as_hex_upper(),
             ":published": Timestamp::from(cert.dir_key_published.0),
@@ -560,8 +560,8 @@ mod test {
     const CERT_CONTENT: &[u8] = include_bytes!("../../testdata/authcert-longclaw");
 
     lazy_static! {
-        static ref CONSENSUS_DOC_ID: DocumentId = DocumentId::digest(CONSENSUS_CONTENT.as_bytes());
-        static ref CERT_DOC_ID: DocumentId = DocumentId::digest(CERT_CONTENT);
+        static ref CONSENSUS_DOCID: DocumentId = DocumentId::digest(CONSENSUS_CONTENT.as_bytes());
+        static ref CERT_DOCID: DocumentId = DocumentId::digest(CERT_CONTENT);
     }
 
     fn create_dummy_db() -> Pool<SqliteConnectionManager> {
@@ -569,12 +569,12 @@ mod test {
         database::rw_tx(&pool, |tx| {
             tx.execute(
                 sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
-                params![*CONSENSUS_DOC_ID, CONSENSUS_CONTENT.as_bytes()],
+                params![*CONSENSUS_DOCID, CONSENSUS_CONTENT.as_bytes()],
             )
             .unwrap();
             tx.execute(
                 sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
-                params![*CERT_DOC_ID, CERT_CONTENT],
+                params![*CERT_DOCID, CERT_CONTENT],
             )
             .unwrap();
 
@@ -588,7 +588,7 @@ mod test {
                     "
                 ),
                 params![
-                    *CONSENSUS_DOC_ID,
+                    *CONSENSUS_DOCID,
                     "0000000000000000000000000000000000000000000000000000000000000000", // not the correct hash
                     ConsensusFlavor::Plain.name(),
                     *VALID_AFTER,
@@ -607,7 +607,7 @@ mod test {
                 "
                 ),
                 named_params! {
-                ":docid": *CERT_DOC_ID,
+                ":docid": *CERT_DOCID,
                 ":id_rsa": "49015F787433103580E3B66A1707A00E60F2D15B",
                 ":sk_rsa": "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
                 ":published": 1764543578,

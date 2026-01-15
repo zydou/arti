@@ -67,28 +67,28 @@ impl StoreCache {
     pub(super) fn get(
         &self,
         tx: &Transaction,
-        doc_id: DocumentId,
+        docid: DocumentId,
     ) -> Result<Arc<[u8]>, DatabaseError> {
         // Query the cache for the relevant document.
-        if let Some(document) = self.lock().get(&doc_id) {
+        if let Some(document) = self.lock().get(&docid) {
             return Ok(document);
         }
 
         // Cache miss, let us query the database.
-        let document = Self::get_db(tx, doc_id)?;
+        let document = Self::get_db(tx, docid)?;
 
         // Insert it into the cache.
         //
         // We obtain the lock and check again if it has been added in the
         // meantime.  The idea is to only return one copy of it, not two
         // simultanous ones.
-        Ok(self.lock().entry(doc_id).or_insert(document))
+        Ok(self.lock().entry(docid).or_insert(document))
     }
 
     /// Obtains a [`DocumentId`] from the database without consulting the cache first.
-    fn get_db(tx: &Transaction, doc_id: DocumentId) -> Result<Arc<[u8]>, DatabaseError> {
+    fn get_db(tx: &Transaction, docid: DocumentId) -> Result<Arc<[u8]>, DatabaseError> {
         let mut stmt = tx.prepare_cached(sql!("SELECT content FROM store WHERE docid = ?1"))?;
-        let document: Vec<u8> = stmt.query_one(params![doc_id], |row| row.get(0))?;
+        let document: Vec<u8> = stmt.query_one(params![docid], |row| row.get(0))?;
         Ok(Arc::from(document))
     }
 
@@ -137,20 +137,20 @@ mod test {
 
         database::read_tx(&pool, |tx| {
             // Obtain the lipsum entry.
-            let entry = cache.get(tx, *IDENTITY_DOC_ID).unwrap();
+            let entry = cache.get(tx, *IDENTITY_DOCID).unwrap();
             assert_eq!(entry.as_ref(), IDENTITY.as_bytes());
             assert_eq!(Arc::strong_count(&entry), 1);
 
             // Obtain the lipsum entry again but ensure it is not copied in memory.
-            let entry2 = cache.get(tx, *IDENTITY_DOC_ID).unwrap();
+            let entry2 = cache.get(tx, *IDENTITY_DOCID).unwrap();
             assert_eq!(Arc::strong_count(&entry), 2);
             assert_eq!(Arc::as_ptr(&entry), Arc::as_ptr(&entry2));
             assert_eq!(entry, entry2);
 
             // Perform a garbage collection and ensure that entry is not removed.
-            assert!(cache.data.lock().unwrap().contains_key(&IDENTITY_DOC_ID));
+            assert!(cache.data.lock().unwrap().contains_key(&IDENTITY_DOCID));
             cache.gc();
-            assert!(cache.data.lock().unwrap().contains_key(&IDENTITY_DOC_ID));
+            assert!(cache.data.lock().unwrap().contains_key(&IDENTITY_DOCID));
 
             // Now drop entry and entry2 and perform the gc again.
             let weak_entry = Arc::downgrade(&entry);
@@ -160,7 +160,7 @@ mod test {
             assert_eq!(weak_entry.strong_count(), 0);
 
             // The strong count zero should already make it impossible to access the element ...
-            assert!(!cache.data.lock().unwrap().contains_key(&IDENTITY_DOC_ID));
+            assert!(!cache.data.lock().unwrap().contains_key(&IDENTITY_DOCID));
             // ... but it should not reduce the total size of the hash map ...
             assert_eq!(cache.data.lock().unwrap().len(), 1);
             cache.gc();

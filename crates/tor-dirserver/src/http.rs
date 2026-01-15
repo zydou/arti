@@ -315,14 +315,14 @@ impl HttpServer {
                 return Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR);
             }
         };
-        let (endpoint_fn_parts, doc_ids) = endpoint_fn_resp.into_parts();
+        let (endpoint_fn_parts, docids) = endpoint_fn_resp.into_parts();
 
-        // (4) Map the doc_ids to their compressed counterpart
-        let doc_ids = doc_ids
+        // (4) Map the docids to their compressed counterpart
+        let docids = docids
             .into_iter()
-            .map(|doc_id| Self::map_encoding(tx, doc_id, encoding))
+            .map(|docid| Self::map_encoding(tx, docid, encoding))
             .collect::<Result<Vec<_>, _>>();
-        let doc_ids = match doc_ids {
+        let docids = match docids {
             Ok(s) => s,
             Err(e) => {
                 warn!(
@@ -337,8 +337,8 @@ impl HttpServer {
         // (5) Query the [`StoreCache`] with the [`DocumentId`] and
         //     [`Transaction`] handle to store the document ref.
         let mut documents = VecDeque::new();
-        for doc_id in doc_ids {
-            let document = match cache.get(tx, doc_id) {
+        for docid in docids {
+            let document = match cache.get(tx, docid) {
                 Ok(document) => document,
                 Err(e) => {
                     warn!(
@@ -526,12 +526,12 @@ impl HttpServer {
     /// a [`ContentEncoding`].
     fn map_encoding(
         tx: &Transaction,
-        doc_id: DocumentId,
+        docid: DocumentId,
         encoding: ContentEncoding,
     ) -> Result<DocumentId, rusqlite::Error> {
         // If the encoding is the identity, do not bother about it any further.
         if encoding == ContentEncoding::Identity {
-            return Ok(doc_id);
+            return Ok(docid);
         }
 
         let mut stmt = tx.prepare_cached(sql!(
@@ -542,10 +542,10 @@ impl HttpServer {
                 AND algorithm = ?2
             "
         ))?;
-        let compressed_doc_id =
-            stmt.query_one(params![doc_id, encoding.to_string()], |row| row.get(0))?;
+        let compressed_docid =
+            stmt.query_one(params![docid, encoding.to_string()], |row| row.get(0))?;
 
-        Ok(compressed_doc_id)
+        Ok(compressed_docid)
     }
 
     /// Generates an empty response with a given [`StatusCode`].
@@ -598,23 +598,23 @@ pub(in crate::http) mod test {
     pub(in crate::http) const IDENTITY: &str = "Lorem ipsum dolor sit amet.";
 
     lazy_static! {
-        pub(in crate::http) static ref IDENTITY_DOC_ID: DocumentId =
+        pub(in crate::http) static ref IDENTITY_DOCID: DocumentId =
             "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66"
                 .parse()
                 .unwrap();
-        pub(in crate::http) static ref DEFLATE_DOC_ID: DocumentId =
+        pub(in crate::http) static ref DEFLATE_DOCID: DocumentId =
             "07564DD13A7F4A6AD98B997F2938B1CEE11F8C7F358C444374521BA54D50D05E"
                 .parse()
                 .unwrap();
-        pub(in crate::http) static ref GZIP_DOC_ID: DocumentId =
+        pub(in crate::http) static ref GZIP_DOCID: DocumentId =
             "1518107D3EF1EC6EAC3F3249DF26B2F845BC8226C326309F4822CAEF2E664104"
                 .parse()
                 .unwrap();
-        pub(in crate::http) static ref XZ_STD_DOC_ID: DocumentId =
+        pub(in crate::http) static ref XZ_STD_DOCID: DocumentId =
             "17416948501F8E627CC9A8F7EFE7A2F32788D53CB84A5F67AC8FD4C1B59184CF"
                 .parse()
                 .unwrap();
-        pub(in crate::http) static ref X_TOR_LZMA_DOC_ID: DocumentId =
+        pub(in crate::http) static ref X_TOR_LZMA_DOCID: DocumentId =
             "B5549F79A69113BDAF3EF0AD1D7D339D0083BC31400ECEE1B673F331CF26E239"
                 .parse()
                 .unwrap();
@@ -627,28 +627,28 @@ pub(in crate::http) mod test {
     }
 
     fn init_test_db(tx: &Transaction) {
-        assert_eq!(DocumentId::digest(IDENTITY.as_bytes()), *IDENTITY_DOC_ID);
+        assert_eq!(DocumentId::digest(IDENTITY.as_bytes()), *IDENTITY_DOCID);
 
         let deflate = {
             let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
             encoder.write_all(IDENTITY.as_bytes()).unwrap();
             encoder.finish().unwrap()
         };
-        assert_eq!(DocumentId::digest(&deflate), *DEFLATE_DOC_ID);
+        assert_eq!(DocumentId::digest(&deflate), *DEFLATE_DOCID);
 
         let gzip = {
             let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
             encoder.write_all(IDENTITY.as_bytes()).unwrap();
             encoder.finish().unwrap()
         };
-        assert_eq!(DocumentId::digest(&gzip), *GZIP_DOC_ID);
+        assert_eq!(DocumentId::digest(&gzip), *GZIP_DOCID);
 
         let xz_std = zstd::encode_all(IDENTITY.as_bytes(), 3).unwrap();
-        assert_eq!(DocumentId::digest(&xz_std), *XZ_STD_DOC_ID);
+        assert_eq!(DocumentId::digest(&xz_std), *XZ_STD_DOCID);
 
         let mut x_tor_lzma = Vec::new();
         lzma_rs::lzma_compress(&mut Cursor::new(IDENTITY), &mut x_tor_lzma).unwrap();
-        assert_eq!(DocumentId::digest(&x_tor_lzma), *X_TOR_LZMA_DOC_ID);
+        assert_eq!(DocumentId::digest(&x_tor_lzma), *X_TOR_LZMA_DOCID);
 
         tx.execute(
             sql!(
@@ -662,15 +662,15 @@ pub(in crate::http) mod test {
                 "
             ),
             params![
-                *IDENTITY_DOC_ID,
+                *IDENTITY_DOCID,
                 IDENTITY.as_bytes().to_vec(),
-                *DEFLATE_DOC_ID,
+                *DEFLATE_DOCID,
                 deflate,
-                *GZIP_DOC_ID,
+                *GZIP_DOCID,
                 gzip,
-                *XZ_STD_DOC_ID,
+                *XZ_STD_DOCID,
                 xz_std,
-                *X_TOR_LZMA_DOC_ID,
+                *X_TOR_LZMA_DOCID,
                 x_tor_lzma
             ],
         )
@@ -687,11 +687,11 @@ pub(in crate::http) mod test {
                 "
             ),
             params![
-                *IDENTITY_DOC_ID,
-                *DEFLATE_DOC_ID,
-                *GZIP_DOC_ID,
-                *XZ_STD_DOC_ID,
-                *X_TOR_LZMA_DOC_ID
+                *IDENTITY_DOCID,
+                *DEFLATE_DOCID,
+                *GZIP_DOCID,
+                *XZ_STD_DOCID,
+                *X_TOR_LZMA_DOCID
             ],
         )
         .unwrap();
@@ -856,19 +856,19 @@ pub(in crate::http) mod test {
         let pool = create_test_db_pool();
 
         let data = [
-            (ContentEncoding::Identity, *IDENTITY_DOC_ID),
-            (ContentEncoding::Deflate, *DEFLATE_DOC_ID),
-            (ContentEncoding::Gzip, *GZIP_DOC_ID),
-            (ContentEncoding::XZstd, *XZ_STD_DOC_ID),
-            (ContentEncoding::XTorLzma, *X_TOR_LZMA_DOC_ID),
+            (ContentEncoding::Identity, *IDENTITY_DOCID),
+            (ContentEncoding::Deflate, *DEFLATE_DOCID),
+            (ContentEncoding::Gzip, *GZIP_DOCID),
+            (ContentEncoding::XZstd, *XZ_STD_DOCID),
+            (ContentEncoding::XTorLzma, *X_TOR_LZMA_DOCID),
         ];
 
         database::read_tx(&pool, |tx| {
-            for (encoding, compressed_doc_id) in data {
+            for (encoding, compressed_docid) in data {
                 println!("{encoding}");
                 assert_eq!(
-                    HttpServer::map_encoding(tx, *IDENTITY_DOC_ID, encoding).unwrap(),
-                    compressed_doc_id
+                    HttpServer::map_encoding(tx, *IDENTITY_DOCID, encoding).unwrap(),
+                    compressed_docid
                 );
             }
         })
@@ -883,7 +883,7 @@ pub(in crate::http) mod test {
             _tx: &Transaction<'_>,
             _requ: &Request<Incoming>,
         ) -> Result<Response<Vec<DocumentId>>, Box<dyn std::error::Error + Send>> {
-            Ok(Response::new(vec![*IDENTITY_DOC_ID]))
+            Ok(Response::new(vec![*IDENTITY_DOCID]))
         }
 
         let pool = create_test_db_pool();

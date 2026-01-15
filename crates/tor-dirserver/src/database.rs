@@ -591,9 +591,9 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     ))?;
 
     // Insert the plain document into the store.
-    let identity_doc_id = DocumentId::digest(data);
+    let identity_docid = DocumentId::digest(data);
     store_stmt.execute(named_params! {
-        ":docid": identity_doc_id,
+        ":docid": identity_docid,
         ":content": data
     })?;
 
@@ -605,19 +605,19 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
         }
 
         let compressed = compress(data, encoding).map_err(DatabaseError::Compression)?;
-        let compressed_doc_id = DocumentId::digest(&compressed);
+        let compressed_docid = DocumentId::digest(&compressed);
         store_stmt.execute(named_params! {
-            ":docid": compressed_doc_id,
+            ":docid": compressed_docid,
             ":content": compressed,
         })?;
         compressed_stmt.execute(named_params! {
             ":algorithm": encoding.to_string(),
-            ":identity_docid": identity_doc_id,
-            ":compressed_docid": compressed_doc_id,
+            ":identity_docid": identity_docid,
+            ":compressed_docid": compressed_docid,
         })?;
     }
 
-    Ok(identity_doc_id)
+    Ok(identity_docid)
 }
 
 /// Compresses `data` into a specified [`ContentEncoding`].
@@ -871,10 +871,9 @@ mod test {
         let mut conn = Connection::open(&db_path).unwrap();
         let tx = conn.transaction().unwrap();
 
-        let doc_id =
-            super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
+        let docid = super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
         assert_eq!(
-            doc_id,
+            docid,
             "C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2"
         );
 
@@ -918,9 +917,9 @@ mod test {
 
         // Now insert the same thing a second time again and see whether the
         // ON CONFLICT magic works.
-        let doc_id_second =
+        let docid_second =
             super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
-        assert_eq!(doc_id, doc_id_second);
+        assert_eq!(docid, docid_second);
 
         // Remove a few compressed entries and get them again.
         let n = tx
@@ -937,9 +936,9 @@ mod test {
             .unwrap();
         assert_eq!(n, 2);
 
-        let doc_id_third =
+        let docid_third =
             super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
-        assert_eq!(doc_id, doc_id_third);
+        assert_eq!(docid, docid_third);
         let algorithms = stmt
             .query_map(params![], |row| row.get::<_, String>(0))
             .unwrap();
