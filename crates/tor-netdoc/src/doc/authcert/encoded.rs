@@ -275,7 +275,7 @@ mod test {
     use std::fmt::{Debug, Display};
 
     #[derive(Debug, Deftly)]
-    #[derive_deftly(NetdocParseable /* [dbg] XXXX */ )]
+    #[derive_deftly(NetdocParseable)]
     #[allow(unused)]
     struct Embeds {
         e_intro: (),
