@@ -11,6 +11,7 @@ use futures::{AsyncRead, AsyncWrite, SinkExt};
 use rand::Rng;
 use safelog::Sensitive;
 use std::net::{IpAddr, SocketAddr};
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 use tracing::{instrument, trace};
@@ -37,6 +38,24 @@ use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAc
 // crate that have all "network parameters" we support?
 /// A list of link authentication that we support (LinkAuth).
 pub(crate) static LINK_AUTH: &[u16] = &[3];
+
+/// The authentication cell received on the channel.
+pub(crate) enum AuthenticationCell {
+    /// The AUTH_CHALLENGE. Only relay responder receives this.
+    AuthChallenge(msg::AuthChallenge),
+    /// The AUTHENTICATE. Only relay initiator receives this.
+    Authenticate(msg::Authenticate),
+}
+
+impl AuthenticationCell {
+    /// Return a reference to the [`msg::AuthChallenge`] or None if we are not.
+    fn auth_challenge(&self) -> Option<&msg::AuthChallenge> {
+        match self {
+            AuthenticationCell::AuthChallenge(c) => Some(c),
+            _ => None,
+        }
+    }
+}
 
 /// Object containing the key and certificate that basically identifies us as a relay. They are
 /// used for channel authentication.
@@ -244,9 +263,13 @@ struct UnverifiedRelayChannel<
 > {
     /// The common unverified channel that both client and relays use.
     inner: UnverifiedChannel<T, S>,
-    /// The AUTH_CHALLENGE cell that we got from the relay. This is only relevant if the channel is
-    /// the initiator as this message is sent by the responder.
-    auth_challenge_cell: Option<msg::AuthChallenge>,
+    /// The cell used for authentication received (AUTHENTICATE or AUTH_CHALLENGE). If None, this
+    /// channel won't authenticate.
+    ///
+    /// When a channel does NOT authenticate, it means the initiator decided not to authenticate
+    /// and so as the initiator, we won't have an AUTHENTICATE and as the responder we won't have
+    /// an AUTH_CHALLENGE cell.
+    auth_cell: Option<AuthenticationCell>,
     /// The netinfo cell that we got from the relay.
     netinfo_cell: msg::Netinfo,
     /// Our identity keys needed for authentication.
@@ -265,19 +288,13 @@ impl<
     ///
     /// Both initiator and responder handshake build this data in order to authenticate.
     fn build_auth_data(
-        auth_challenge_cell: &Option<msg::AuthChallenge>,
+        auth_challenge_cell: Option<&msg::AuthChallenge>,
         identities: &Arc<RelayIdentities>,
         verified: &mut VerifiedChannel<T, S>,
     ) -> Result<ChannelAuthenticationData> {
-        // Are we a relay Responder or Initiator?
-        let is_responder = verified.channel_type.is_responder();
-
-        // Safety check. Only the initiator has an AUTH_CHALLENGE.
-        if is_responder && auth_challenge_cell.is_some() {
-            return Err(Error::from(internal!(
-                "Relay responder has a AUTH_CHALLENGE"
-            )));
-        }
+        // With an AUTH_CHALLENGE, we are the Initiator. With an AUTHENTICATE, we are the
+        // Responder. See tor-spec for a diagram of messages.
+        let is_responder = auth_challenge_cell.is_none();
 
         // Without an AUTH_CHALLENGE, we use our known link protocol value.
         let link_auth = *LINK_AUTH
@@ -357,21 +374,50 @@ impl<
     ) -> Result<Box<dyn FinalizableChannel<T, S>>> {
         // Get these object out as we consume "self" in the inner check().
         let identities = self.identities;
-        let auth_challenge_cell = self.auth_challenge_cell;
+        let auth_cell = self.auth_cell;
         let netinfo_cell = self.netinfo_cell;
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.check(peer, peer_cert, now)?;
 
-        let auth_data = Some(Self::build_auth_data(
-            &auth_challenge_cell,
-            &identities,
-            &mut verified,
-        )?);
+        // Authenticate if we have an AuthenticationCell set.
+        if let Some(auth_cell) = auth_cell {
+            // By building the ChannelAuthenticationData, we are certain that the authentication
+            // type requested by the responder is supported by us.
+            let auth_data =
+                Self::build_auth_data(auth_cell.auth_challenge(), &identities, &mut verified)?;
+            let our_authenticate = auth_data
+                .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
+
+            // CRITICAL: This if is what authenticates a channel on the responder side. We compare
+            // what we expected to what we received.
+            match auth_cell {
+                AuthenticationCell::Authenticate(received_authenticate) => {
+                    if received_authenticate != our_authenticate {
+                        return Err(Error::ChanProto(
+                            "AUTHENTICATE was unexpected. Failing authentication".into(),
+                        ));
+                    }
+                }
+                AuthenticationCell::AuthChallenge(_) => {
+                    // We got an AUTH_CHALLENGE, send the CERTS and AUTHENTICATE.
+                    let certs = build_certs_cell(&identities, ChannelType::RelayInitiator);
+                    trace!(channel_id = %verified.unique_id, "Sending CERTS as initiator cell.");
+                    verified.framed_tls.send(certs.into()).await?;
+                    trace!(channel_id = %verified.unique_id, "Sending AUTHENTICATE as initiator cell.");
+                    verified.framed_tls.send(our_authenticate.into()).await?;
+                }
+            }
+            // This part is very important as we now flag that we are authenticated. The responder
+            // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
+            //
+            // The underlying message handler will now know to treat this channel as a
+            // relay-to-relay (R2R) and thus restrict the message set.
+            verified.channel_type.set_authenticated();
+        }
 
         Ok(Box::new(VerifiedRelayChannel {
             inner: verified,
-            auth_data,
             identities,
             netinfo_cell,
         }))
@@ -403,9 +449,6 @@ struct VerifiedRelayChannel<
 > {
     /// The common unverified channel that both client and relays use.
     inner: VerifiedChannel<T, S>,
-    /// Authentication data for the [msg::Authenticate] cell. It is sent during the finalization
-    /// process because the channel needs to be verified before this is sent.
-    auth_data: Option<ChannelAuthenticationData>,
     /// Relay identities.
     identities: Arc<RelayIdentities>,
     /// The netinfo cell that we got from the relay.
@@ -436,9 +479,6 @@ impl<
         let netinfo = build_netinfo_cell(peer_ip, my_addrs, &self.inner.sleep_prov)?;
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
-
-        // TODO(relay): If we are authenticating that is self.auth_data.is_some(), send the CERTS
-        // and AUTHENTICATE.
 
         // TODO(relay): This would be the time to set a "is_canonical" flag to Channel which is
         // true if the Netinfo address matches the address we are connected to. Canonical

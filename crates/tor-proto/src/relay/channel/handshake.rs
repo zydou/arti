@@ -140,7 +140,7 @@ impl<
                 sleep_prov: self.sleep_prov.clone(),
                 certs_cell: Some(certs_cell),
             },
-            auth_challenge_cell,
+            auth_cell: auth_challenge_cell.map(super::AuthenticationCell::AuthChallenge),
             netinfo_cell,
             identities: self.identities,
         }))
@@ -232,10 +232,7 @@ impl<
 
         // Receive NETINFO and possibly [CERTS, AUTHENTICATE]. The connection could be from a
         // client/bridge and thus no authentication meaning no CERTS/AUTHENTICATE cells.
-        //
-        // TODO(relay): Keep the AUTHENTICATE cell into the UnverifiedRelayChannel so we can
-        // validate it after the certs have been validated.
-        let (_auth_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
+        let (auth_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
             self.recv_cells_from_initiator().await?;
 
         // Calculate our clock skew from the timings we just got/calculated.
@@ -260,7 +257,7 @@ impl<
                 sleep_prov: self.sleep_prov,
                 certs_cell,
             },
-            auth_challenge_cell: None,
+            auth_cell: auth_cell.map(super::AuthenticationCell::Authenticate),
             netinfo_cell,
             identities: self.identities,
         }))

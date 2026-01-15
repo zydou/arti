@@ -230,6 +230,13 @@ impl ChannelType {
     pub(crate) fn is_responder(&self) -> bool {
         matches!(self, Self::RelayResponder { .. })
     }
+
+    /// Set that this channel type is now authenticated. This only applies to RelayResponder.
+    pub(crate) fn set_authenticated(&mut self) {
+        if let Self::RelayResponder { authenticated } = self {
+            *authenticated = true;
+        }
+    }
 }
 
 /// A channel cell frame used for sending and receiving cells on a channel. The handler takes care
