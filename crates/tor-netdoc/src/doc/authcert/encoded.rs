@@ -127,7 +127,7 @@ impl ItemSequenceChecker {
                 *self = to;
                 Ok(Some(IsOurStructural))
             } else {
-                Err(EP::Other("authcert bad structure"))
+                Err(EP::OtherBadDocument("authcert bad structure"))
             }
         };
 
@@ -136,15 +136,19 @@ impl ItemSequenceChecker {
         } else if kw == FINAL_KEYWORD {
             change_state(Body, End)
         } else if *self != Body {
-            Err(EP::Other(
+            Err(EP::OtherBadDocument(
                 "authcert loose body item or missing intro keyword",
             ))
         } else if let Some(IsStructural) = NetworkStatusVote::is_structural_keyword(kw) {
-            Err(EP::Other("authcert with vote structural keyword"))
+            Err(EP::OtherBadDocument(
+                "authcert with vote structural keyword",
+            ))
         } else if kw == "fingerprint" || kw.as_str().starts_with("dir-") {
             Ok(None)
         } else {
-            Err(EP::Other("authcert body keyword not dir- or fingerprint"))
+            Err(EP::OtherBadDocument(
+                "authcert body keyword not dir- or fingerprint",
+            ))
         }
     }
 
@@ -153,7 +157,9 @@ impl ItemSequenceChecker {
         use ItemSequenceChecker::*;
         match self {
             End => Ok(()),
-            _other => Err(EP::Other("authcert missing end (signature) item")),
+            _other => Err(EP::OtherBadDocument(
+                "authcert missing end (signature) item",
+            )),
         }
     }
 }
@@ -168,7 +174,7 @@ fn extra_lexical_checks(s: &str) -> Result<(), EP> {
     let _without_trailing_nl = s
         // In case our lexer tolerates this
         .strip_suffix("\n")
-        .ok_or(EP::Other("missing final newline"))?;
+        .ok_or(EP::OtherBadDocument("missing final newline"))?;
 
     Ok(())
 }
@@ -228,7 +234,7 @@ impl NetdocParseable for EncodedAuthCert {
                 Some(IsOurStructural) => {} // already checked
                 None => {
                     if stop_at.stop_at(kw) {
-                        return Err(EP::Other(
+                        return Err(EP::Internal(
                             "bug! parent document structural keyword found while trying to process an embedded authcert, but was accepted by ItemSequenceChecker; authcert embedded in something other than a vote?",
                         ));
                     }
@@ -246,7 +252,9 @@ impl NetdocParseable for EncodedAuthCert {
 
         if let Some(next_item) = input.peek_keyword()? {
             if !stop_at.stop_at(next_item) {
-                return Err(EP::Other("unexpected loose items after embedded authcert"));
+                return Err(EP::OtherBadDocument(
+                    "unexpected loose items after embedded authcert",
+                ));
             }
         }
 
