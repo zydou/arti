@@ -255,11 +255,14 @@ where
                     ))?
                     .clone();
 
+                // TODO(relay): Get the my_addrs from ChanBuilder or as function param.
+                let my_addrs = Vec::new();
                 builder
                     .launch(
                         tls,
                         self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
                         identities,
+                        my_addrs,
                         memquota,
                     )
                     .connect(|| self.runtime.wallclock())
@@ -275,22 +278,23 @@ where
 
         let clock_skew = Some(chan.clock_skew()); // Not yet authenticated; can't use it till `check` is done.
         let now = self.runtime.wallclock();
-        let chan = chan
-            .check(target, &peer_cert, Some(now)).await
-            .map_err(|source| match &source {
-                tor_proto::Error::HandshakeCertsExpired { .. } => {
-                    event_sender
-                        .lock()
-                        .expect("Lock poisoned")
-                        .record_handshake_done_with_skewed_clock();
-                    Error::Proto {
-                        source,
-                        peer: using_target.to_logged(),
-                        clock_skew,
+        let chan =
+            chan.check(target, &peer_cert, Some(now))
+                .await
+                .map_err(|source| match &source {
+                    tor_proto::Error::HandshakeCertsExpired { .. } => {
+                        event_sender
+                            .lock()
+                            .expect("Lock poisoned")
+                            .record_handshake_done_with_skewed_clock();
+                        Error::Proto {
+                            source,
+                            peer: using_target.to_logged(),
+                            clock_skew,
+                        }
                     }
-                }
-                _ => Error::from_proto_no_skew(source, &using_target),
-            })?;
+                    _ => Error::from_proto_no_skew(source, &using_target),
+                })?;
         let (chan, reactor) = chan.finish().await.map_err(|source| Error::Proto {
             source,
             peer: target.to_logged(),

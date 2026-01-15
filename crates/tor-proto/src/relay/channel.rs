@@ -143,13 +143,14 @@ impl RelayChannelBuilder {
         tls: T,
         sleep_prov: S,
         identities: Arc<RelayIdentities>,
+        my_addrs: Vec<IpAddr>,
         memquota: ChannelAccount,
     ) -> RelayInitiatorHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        RelayInitiatorHandshake::new(tls, sleep_prov, identities, memquota)
+        RelayInitiatorHandshake::new(tls, sleep_prov, identities, my_addrs, memquota)
     }
 
     /// Accept a new handshake over a TLS stream.
@@ -274,6 +275,8 @@ struct UnverifiedRelayChannel<
     netinfo_cell: msg::Netinfo,
     /// Our identity keys needed for authentication.
     identities: Arc<RelayIdentities>,
+    /// Our advertised IP addresses.
+    my_addrs: Vec<IpAddr>,
 }
 
 impl<
@@ -376,6 +379,7 @@ impl<
         let identities = self.identities;
         let auth_cell = self.auth_cell;
         let netinfo_cell = self.netinfo_cell;
+        let my_addrs = self.my_addrs;
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.check(peer, peer_cert, now)?;
@@ -414,6 +418,20 @@ impl<
             // The underlying message handler will now know to treat this channel as a
             // relay-to-relay (R2R) and thus restrict the message set.
             verified.channel_type.set_authenticated();
+        }
+
+        // Send the NETINFO message only if initiator. The responder sends it at the very start of
+        // the handshake along all other cells.
+        if !verified.channel_type.is_responder() {
+            let peer_ip = verified
+                .target_method
+                .as_ref()
+                .and_then(ChannelMethod::socket_addrs)
+                .and_then(|addrs| addrs.first())
+                .map(SocketAddr::ip);
+            let netinfo = build_netinfo_cell(peer_ip, my_addrs, &verified.sleep_prov)?;
+            trace!(channel_id = %verified.unique_id, "Sending NETINFO as initiator cell.");
+            verified.framed_tls.send(netinfo.into()).await?;
         }
 
         Ok(Box::new(VerifiedRelayChannel {
@@ -463,28 +481,10 @@ impl<
 {
     #[instrument(skip_all, level = "trace")]
     async fn finish(mut self: Box<Self>) -> Result<(Arc<Channel>, Reactor<S>)> {
-        let peer_ip = self
-            .inner
-            .target_method
-            .as_ref()
-            .and_then(ChannelMethod::socket_addrs)
-            .and_then(|addrs| addrs.first())
-            .map(SocketAddr::ip);
-
-        // TODO(relay): Get our IP address(es) either directly or take them from the
-        // VerifiedRelayChannel values?
-        let my_addrs = Vec::new();
-
-        // Send the NETINFO message.
-        let netinfo = build_netinfo_cell(peer_ip, my_addrs, &self.inner.sleep_prov)?;
-        trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
-        self.inner.framed_tls.send(netinfo.into()).await?;
-
         // TODO(relay): This would be the time to set a "is_canonical" flag to Channel which is
         // true if the Netinfo address matches the address we are connected to. Canonical
         // definition is if the address we are connected to is what we expect it to be. This only
         // makes sense for relay channels.
-
         self.inner.finish().await
     }
 }

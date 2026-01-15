@@ -48,6 +48,8 @@ pub struct RelayInitiatorHandshake<
     unique_id: UniqId,
     /// Our identity keys needed for authentication.
     identities: Arc<RelayIdentities>,
+    /// Our advertised addresses. Needed for the NETINFO.
+    my_addrs: Vec<IpAddr>,
 }
 
 /// Implement the base channel handshake trait.
@@ -86,6 +88,7 @@ impl<
         tls: T,
         sleep_prov: S,
         identities: Arc<RelayIdentities>,
+        my_addrs: Vec<IpAddr>,
         memquota: ChannelAccount,
     ) -> Self {
         Self {
@@ -94,6 +97,7 @@ impl<
             sleep_prov,
             identities,
             memquota,
+            my_addrs,
         }
     }
 
@@ -143,6 +147,7 @@ impl<
             auth_cell: auth_challenge_cell.map(super::AuthenticationCell::AuthChallenge),
             netinfo_cell,
             identities: self.identities,
+            my_addrs: self.my_addrs,
         }))
     }
 }
@@ -260,6 +265,7 @@ impl<
             auth_cell: auth_cell.map(super::AuthenticationCell::Authenticate),
             netinfo_cell,
             identities: self.identities,
+            my_addrs: self.my_addrs,
         }))
     }
 
