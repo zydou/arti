@@ -127,7 +127,7 @@ impl RelayChannelBuilder {
         memquota: ChannelAccount,
     ) -> RelayInitiatorHandshake<T, S>
     where
-        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+        T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
         RelayInitiatorHandshake::new(tls, sleep_prov, identities, memquota)
@@ -144,7 +144,7 @@ impl RelayChannelBuilder {
         memquota: ChannelAccount,
     ) -> RelayResponderHandshake<T, S>
     where
-        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+        T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
         RelayResponderHandshake::new(peer, my_addrs, tls, sleep_prov, identities, memquota)
@@ -239,7 +239,7 @@ impl ChannelAuthenticationData {
 ///
 /// This is used for both initiator and responder channels.
 struct UnverifiedRelayChannel<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// The common unverified channel that both client and relays use.
@@ -254,7 +254,7 @@ struct UnverifiedRelayChannel<
 }
 
 impl<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > UnverifiedRelayChannel<T, S>
 {
@@ -339,7 +339,7 @@ impl<
 }
 
 impl<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > VerifiableChannel<T, S> for UnverifiedRelayChannel<T, S>
 {
@@ -385,7 +385,7 @@ impl<
 
 impl<T, S> crate::channel::seal::Sealed for UnverifiedRelayChannel<T, S>
 where
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 {
 }
@@ -397,7 +397,7 @@ where
 /// bunch of CPU, and you might want to do it as a separate task or after a yield.
 #[expect(unused)] // TODO(relay). remove
 struct VerifiedRelayChannel<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// The common unverified channel that both client and relays use.
@@ -413,7 +413,7 @@ struct VerifiedRelayChannel<
 
 #[async_trait]
 impl<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > FinalizableChannel<T, S> for VerifiedRelayChannel<T, S>
 {
@@ -450,7 +450,7 @@ impl<
 
 impl<T, S> crate::channel::seal::Sealed for VerifiedRelayChannel<T, S>
 where
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 {
 }

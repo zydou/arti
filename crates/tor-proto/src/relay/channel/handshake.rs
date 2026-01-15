@@ -15,7 +15,7 @@ use tor_cell::chancell::{
 };
 use tor_error::internal;
 use tor_linkspec::ChannelMethod;
-use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::channel::handshake::{
     ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, unauthenticated_clock_skew,
@@ -32,7 +32,7 @@ static AUTHTYPE_ED25519_SHA256_RFC5705: u16 = 3;
 
 /// A relay channel handshake as the initiator.
 pub struct RelayInitiatorHandshake<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// Runtime handle (insofar as we need it)
@@ -53,7 +53,7 @@ pub struct RelayInitiatorHandshake<
 /// Implement the base channel handshake trait.
 impl<T, S> ChannelBaseHandshake<T> for RelayInitiatorHandshake<T, S>
 where
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 {
     fn framed_tls(&mut self) -> &mut ChannelFrame<T> {
@@ -67,7 +67,7 @@ where
 /// Implement the initiator channel handshake trait.
 impl<T, S> ChannelInitiatorHandshake<T> for RelayInitiatorHandshake<T, S>
 where
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 {
     fn is_expecting_auth_challenge(&self) -> bool {
@@ -77,7 +77,7 @@ where
 }
 
 impl<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > RelayInitiatorHandshake<T, S>
 {
@@ -149,7 +149,7 @@ impl<
 
 /// A relay channel handshake as the responder.
 pub struct RelayResponderHandshake<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// Runtime handle (insofar as we need it)
@@ -174,7 +174,7 @@ pub struct RelayResponderHandshake<
 /// Implement the base channel handshake trait.
 impl<T, S> ChannelBaseHandshake<T> for RelayResponderHandshake<T, S>
 where
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 {
     fn framed_tls(&mut self) -> &mut ChannelFrame<T> {
@@ -186,7 +186,7 @@ where
 }
 
 impl<
-    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > RelayResponderHandshake<T, S>
 {
