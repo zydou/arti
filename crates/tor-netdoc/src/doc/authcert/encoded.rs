@@ -76,7 +76,7 @@ use crate::parse2::poc::netstatus::NetworkStatusVote; // TODO DIRAUTH abolish po
 //
 // pub type EncodedAuthCert = EncodedNetdoc<
 //     AuthCert, AuthCertSignatures,
-// 	(NetworkStatusVote, NetworkStatusSignaturesVote)
+//     (NetworkStatusVote, NetworkStatusSignaturesVote)
 // >;
 // ```
 //
