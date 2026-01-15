@@ -311,6 +311,7 @@ CREATE TABLE router_descriptor(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
     sha1                    TEXT NOT NULL UNIQUE,
+    sha2                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     flavor                  TEXT NOT NULL,
     router_extra_info_rowid  INTEGER,
@@ -319,6 +320,7 @@ CREATE TABLE router_descriptor(
     CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
     CHECK(LENGTH(sha1) == 40),
+    CHECK(docid == sha2),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40),
     CHECK(flavor IN ('ns', 'md'))
 ) STRICT;
