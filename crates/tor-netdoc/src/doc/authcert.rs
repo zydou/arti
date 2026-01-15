@@ -36,9 +36,10 @@ pub use build::AuthCertBuilder;
 #[cfg(feature = "parse2")]
 use crate::parse2::{self, ItemObjectParseable, SignatureHashInputs};
 
-#[cfg(feature = "parse2")]
+// TODO DIRAUTH untangle these feature(s)
+#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
 mod encoded;
-#[cfg(feature = "parse2")]
+#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
 pub use encoded::EncodedAuthCert;
 
 decl_keyword! {
