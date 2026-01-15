@@ -209,8 +209,8 @@ fn get_recent_authority_certificates(
                     ":id_rsa": kp.id_fingerprint.as_hex_upper(),
                     ":sk_rsa": kp.sk_fingerprint.as_hex_upper(),
                     ":now": now,
-                    ":pre_tolerance": tolerance.pre_valid_tolerance().as_secs(),
-                    ":post_tolerance": tolerance.post_valid_tolerance().as_secs(),
+                    ":pre_tolerance": tolerance.pre_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
+                    ":post_tolerance": tolerance.post_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
                 },
                 |row| row.get::<_, Vec<u8>>(0),
             )

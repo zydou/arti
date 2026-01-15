@@ -601,7 +601,6 @@ mod test {
         collections::HashSet,
         io::Read,
         sync::{Arc, Once},
-        time::Duration,
     };
 
     use flate2::read::{DeflateDecoder, GzDecoder};
