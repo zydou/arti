@@ -1,7 +1,8 @@
 //! Error module for `tor-dirserver`.
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, string::FromUtf8Error};
 
+use retry_error::RetryError;
 use thiserror::Error;
 
 /// An error while communicating with a directory authority.
@@ -48,6 +49,10 @@ pub(crate) enum AuthorityCommunicationError {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum DatabaseError {
+    /// Compressing data into the database failed with an I/O error.
+    #[error("compression error: {0}")]
+    Compression(std::io::Error),
+
     /// A low-level SQLite error has occurred, which can have a bascially
     /// infinite amount of reasons, all of them outlined in the actual SQLite
     /// and [`rusqlite`] documentation.
@@ -97,4 +102,21 @@ pub(crate) enum FatalError {
     /// is wrong in a persistent fashion, i.e. retries will not work anymore.
     #[error("consensus selection error: {0}")]
     ConsensusSelection(DatabaseError),
+}
+/// An error related to the request of a network document.
+///
+/// It mostly serves as an amalgamation of [`AuthorityCommunicationError`] and
+/// [`FromUtf8Error`] because UTF-8 is the mandatory encoding for network
+/// documents that is not enforced in the downloader per se.
+///
+/// TODO: Maybe the downloader should perform the UTF-8 conversion?
+#[derive(Debug, Error)]
+pub(crate) enum NetdocRequestError {
+    /// Downloading the network document failed.
+    #[error("download failed: {0:?}")]
+    Download(RetryError<AuthorityCommunicationError>),
+
+    /// Converting the network document to UTF-8 failed.
+    #[error("UTF-8 conversion failed: {0}")]
+    Utf8(#[from] FromUtf8Error),
 }

@@ -452,9 +452,13 @@ impl ProtoStatuses {
 
 /// A recognized 'flavor' of consensus document.
 ///
+/// The enum is exhaustive because the addition/removal of a consensus flavor
+/// should indeed be a breaking change, as it would inevitable require
+/// interfacing code to think about the handling of it.
+///
 /// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavors>
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_enums)]
 pub enum ConsensusFlavor {
     /// A "microdesc"-flavored consensus.  This is the one that
     /// clients and relays use today.

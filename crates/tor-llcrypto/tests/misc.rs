@@ -51,6 +51,11 @@ fn test_rsa_formatting() {
         format!("{:?}", id),
         "RsaIdentity { $5696ab38cb3852afa476a5c07b2d4788963d5567 }"
     );
+
+    assert_eq!(
+        id.as_hex_upper(),
+        "5696ab38cb3852afa476a5c07b2d4788963d5567".to_uppercase()
+    );
 }
 
 #[test]

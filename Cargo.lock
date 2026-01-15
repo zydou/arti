@@ -6824,6 +6824,7 @@ dependencies = [
  "tor-dirclient",
  "tor-dircommon",
  "tor-error",
+ "tor-llcrypto",
  "tor-netdoc",
  "tor-rtcompat",
  "tracing",

@@ -6,7 +6,6 @@
 use cache::StoreCache;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use strum::EnumString;
 use tor_error::internal;
 
 use std::{
@@ -37,7 +36,7 @@ use tokio::{
 };
 use tracing::warn;
 
-use crate::database::{self, sql, Sha256};
+use crate::database::{self, sql, ContentEncoding, Sha256};
 
 mod cache;
 
@@ -70,22 +69,6 @@ type EndpointFn = fn(
     &Transaction,
     &Request<Incoming>,
 ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>;
-
-/// Representation of the encoding of the network document the client has requested.
-#[derive(Debug, Clone, Copy, PartialEq, EnumString, strum::Display)]
-#[strum(serialize_all = "kebab-case", ascii_case_insensitive)]
-enum ContentEncoding {
-    /// RFC2616 section 3.5.
-    Identity,
-    /// RFC2616 section 3.5.
-    Deflate,
-    /// RFC2616 section 3.5.
-    Gzip,
-    /// The zstandard compression algorithm (www.zstd.net).
-    XZstd,
-    /// The lzma compression algorithm with a "present" value no higher than 6.
-    XTorLzma,
-}
 
 /// A type that implements [`Body`] for a list of [`Arc<[u8]>`] data.
 ///
