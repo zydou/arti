@@ -172,21 +172,24 @@ implementation with another.
  versions.
 
 * `experimental-api` -- build with experimental, unstable API support.
-  (Right now, most APIs in the `arti` crate are experimental, since this
-  crate was originally written to run as a binary only.)
-* `experimental` -- Build with all experimental features above, along with
-  all experimental features from other arti crates.
+  (Right now, APIs in the `arti` crate are experimental, since this
+  crate was originally written to run as a binary only.
+  We will, most likely, lower any of these APIs to other crates before we
+  make them public by default.)
 * `metrics` -- Build support for exporting metrics (to Prometheus).
   support. Restricted discovery support will become non-experimental
   once [#1795] is closed.
 * `onion-service-cli-extra` -- build with additional key and state management
   command-line functionalities.
 * `tokio-console` -- build with support for the `tokio-console` debugging tool.
+* `experimental` -- Build with all experimental features above, along with
+  all experimental features from other arti crates.
 
 [^1]: Remember, semantic versioning is what makes various `cargo` features
 work reliably. To be explicit, if you want `cargo update` to _only_ make
 correct changes, then you cannot enable these features.
 
+<--
 ### Deprecated features
 
 These features are either not recommended, or are no-op features.
@@ -194,8 +197,7 @@ They are included for backwards compatibility.
 Note that these features will still be enabled if you build with the
 `--all-features` cargo flag.
 
-* `memquota` -- Memory quota tracking is now always supported,
-  regardless of if this feature is enabled.
+-->
 
 [#1795]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1795
 
@@ -216,7 +218,12 @@ a more complete list of missing features.
 ## Library for building command-line client
 
 This library crate contains code useful for making a command-line program
-similar to `arti`. The API should not be considered stable.
+similar to `arti`. This code is currently behind the `experimental-api`
+feature flag, and should not be considered stable.
+
+If you find yourself using this code in practice, please consider opening a ticket,
+so we know what APIs you find useful, and so we can consider moving them to a place
+where they can stabilize. 
 
 License: MIT OR Apache-2.0
 

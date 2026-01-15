@@ -1,18 +1,18 @@
 //! Configure and implement onion service reverse-proxy feature.
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap, HashSet},
+    collections::{BTreeMap, HashSet, btree_map::Entry},
     sync::{Arc, Mutex},
 };
 
 use arti_client::config::onion_service::{OnionServiceConfig, OnionServiceConfigBuilder};
-use futures::{StreamExt as _};
+use futures::StreamExt as _;
 use tor_config::{
-    define_list_builder_helper, impl_standard_builder, ConfigBuildError, Flatten, Reconfigure,
-    ReconfigureError,
+    ConfigBuildError, Flatten, Reconfigure, ReconfigureError, define_list_builder_helper,
+    impl_standard_builder,
 };
 use tor_error::warn_report;
-use tor_hsrproxy::{config::ProxyConfigBuilder, OnionServiceReverseProxy, ProxyConfig};
+use tor_hsrproxy::{OnionServiceReverseProxy, ProxyConfig, config::ProxyConfigBuilder};
 use tor_hsservice::{HsNickname, RunningOnionService};
 use tor_rtcompat::{Runtime, SpawnExt};
 use tracing::debug;
@@ -25,7 +25,8 @@ use tracing::debug;
 /// behavior, consider using
 /// [`TorClient::launch_onion_service`](arti_client::TorClient::launch_onion_service).
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct OnionServiceProxyConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) struct OnionServiceProxyConfig {
     /// Configuration for the onion service itself.
     pub(crate) svc_cfg: OnionServiceConfig,
     /// Configuration for the reverse proxy that handles incoming connections
@@ -40,26 +41,32 @@ pub struct OnionServiceProxyConfig {
 // pieces that we need.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 #[serde(transparent)]
-pub struct OnionServiceProxyConfigBuilder(Flatten<OnionServiceConfigBuilder, ProxyConfigBuilder>);
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) struct OnionServiceProxyConfigBuilder(
+    Flatten<OnionServiceConfigBuilder, ProxyConfigBuilder>,
+);
 
 impl OnionServiceProxyConfigBuilder {
     /// Try to construct an [`OnionServiceProxyConfig`].
     ///
     /// Returns an error if any part of this builder is invalid.
-    pub fn build(&self) -> Result<OnionServiceProxyConfig, ConfigBuildError> {
-        let svc_cfg = self.0 .0.build()?;
-        let proxy_cfg = self.0 .1.build()?;
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn build(&self) -> Result<OnionServiceProxyConfig, ConfigBuildError> {
+        let svc_cfg = self.0.0.build()?;
+        let proxy_cfg = self.0.1.build()?;
         Ok(OnionServiceProxyConfig { svc_cfg, proxy_cfg })
     }
 
     /// Return a mutable reference to an onion-service configuration sub-builder.
-    pub fn service(&mut self) -> &mut OnionServiceConfigBuilder {
-        &mut self.0 .0
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn service(&mut self) -> &mut OnionServiceConfigBuilder {
+        &mut self.0.0
     }
 
     /// Return a mutable reference to a proxy configuration sub-builder.
-    pub fn proxy(&mut self) -> &mut ProxyConfigBuilder {
-        &mut self.0 .1
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn proxy(&mut self) -> &mut ProxyConfigBuilder {
+        &mut self.0.1
     }
 }
 
@@ -78,7 +85,8 @@ type ProxyBuilderMap = BTreeMap<HsNickname, OnionServiceProxyConfigBuilder>;
 // key, and that keys are distinct.
 #[cfg(feature = "onion-service-service")]
 define_list_builder_helper! {
-    pub struct OnionServiceProxyConfigMapBuilder {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) struct OnionServiceProxyConfigMapBuilder {
         services: [OnionServiceProxyConfigBuilder],
     }
     built: OnionServiceProxyConfigMap = build_list(services)?;
@@ -117,7 +125,7 @@ impl TryFrom<ProxyBuilderMap> for OnionServiceProxyConfigMapBuilder {
     fn try_from(value: ProxyBuilderMap) -> Result<Self, Self::Error> {
         let mut list_builder = OnionServiceProxyConfigMapBuilder::default();
         for (nickname, mut cfg) in value {
-            match cfg.0 .0.peek_nickname() {
+            match cfg.0.0.peek_nickname() {
                 Some(n) if n == &nickname => (),
                 None => (),
                 Some(other) => {
@@ -127,7 +135,7 @@ impl TryFrom<ProxyBuilderMap> for OnionServiceProxyConfigMapBuilder {
                     });
                 }
             }
-            cfg.0 .0.nickname(nickname);
+            cfg.0.0.nickname(nickname);
             list_builder.access().push(cfg);
         }
         Ok(list_builder)
@@ -144,7 +152,7 @@ impl From<OnionServiceProxyConfigMapBuilder> for ProxyBuilderMap {
     fn from(value: OnionServiceProxyConfigMapBuilder) -> Self {
         let mut map = BTreeMap::new();
         for cfg in value.services.into_iter().flatten() {
-            let nickname = cfg.0 .0.peek_nickname().cloned().unwrap_or_else(|| {
+            let nickname = cfg.0.0.peek_nickname().cloned().unwrap_or_else(|| {
                 "Unnamed"
                     .to_string()
                     .try_into()

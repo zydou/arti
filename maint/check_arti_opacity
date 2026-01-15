@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+#
+# Use nightly rustdoc to make sure that the expected list of APIs is exported
+# from the `arti` crate when built with --features=full.
+#
+# Requires jq and diff.
+
+set -eou pipefail
+
+EXPECTED_PUBLIC_MEMBERS=$(cat <<EOF
+arti
+arti.main
+EOF
+)
+
+JSONFILE=target/doc/arti.json
+
+export RUSTDOCFLAGS='-Z unstable-options --output-format json'
+: "${CARGO:=cargo +nightly}"
+
+${CARGO} doc --no-deps -p arti --features=full
+
+if ! test -e "$JSONFILE"; then
+   echo "Problem: $JSONFILE was not created by $CARGO doc"
+   exit 1
+fi
+
+
+TEMPDIR=$(mktemp -d)
+trap 'rm -rf "$TEMPDIR"' 0
+
+jq -r '.paths[] | select(.crate_id == 0) | .path | join(".") ' <"$JSONFILE" |sort >"$TEMPDIR/public_paths"
+
+echo "$EXPECTED_PUBLIC_MEMBERS" >"$TEMPDIR/expected_public_paths"
+
+if diff -u "$TEMPDIR/expected_public_paths" "$TEMPDIR/public_paths"; then
+    echo "No changes; all public APIs in arti are as expected"
+    exit 0
+else
+    echo "List of public APIs in arti crate are not as expected!" >&2
+    echo "(See above for diff from expected)" >&2
+    exit 1
+fi

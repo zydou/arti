@@ -30,7 +30,6 @@ default = [
 
 full = [
     "default-runtime",
-    "memquota",
     "onion-service-client",
     "onion-service-service",
     "vanguards",
@@ -60,9 +59,6 @@ full = [
     "tor-config-path/full",
     "tor-basic-utils/full",
     "tor-rpc-connect?/full",
-    "signal-hook",
-    "signal-hook-async-std",
-    "dialoguer",
     "tor-key-forge/full",
     "tor-keymgr/full",
     "tor-hscrypto?/full",
@@ -73,32 +69,18 @@ full = [
     "tor-general-addr/full",
 ]
 
-async-std = [
-    "arti-client/async-std",
-    "tor-rtcompat/async-std",
-    "async-ctrlc",
-    "async-signal",
-]
+async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "async-signal"]
 bridge-client = ["arti-client/bridge-client"]
 default-runtime = ["tokio", "native-tls"]
 dns-proxy = ["hickory-proto"]
 experimental-api = ["arti-client/experimental-api", "visibility", "__is_experimental"]
 harden = ["secmem-proc"]
 keymgr = ["arti-client/keymgr", "__is_experimental"]
-# the "memquota" feature is now a no-op as the functionality is always-enabled,
-# but the feature is kept for backwards compatibility
-# https://gitlab.torproject.org/tpo/core/arti/-/issues/2030
-memquota = []
 tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio", "tokio-util"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
 
-onion-service-cli-extra = [
-    "arti-client/onion-service-cli-extra",
-    "tor-hsclient",
-    "tor-hscrypto",
-    "__is_experimental",
-]
+onion-service-cli-extra = ["arti-client/onion-service-cli-extra", "tor-hsclient", "tor-hscrypto", "__is_experimental"]
 onion-service-service = ["arti-client/onion-service-service", "tor-hsrproxy", "tor-hsservice"]
 restricted-discovery = ["tor-hsservice/restricted-discovery"]
 vanguards = ["arti-client/vanguards"]
@@ -113,12 +95,7 @@ rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "derive-deftly"]
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
 # which in turn introduces a GPL-incompatibility.
-rustls = [
-    "arti-client/rustls",
-    "tor-rtcompat/rustls",
-    "rustls-crate",
-    "__is_nonadditive",
-]
+rustls = ["arti-client/rustls", "tor-rtcompat/rustls", "rustls-crate", "__is_nonadditive"]
 
 # depends directly on arti-client/static so native-tls doesn't get automatically included
 static = ["arti-client/static", "__is_nonadditive"]
@@ -161,30 +138,11 @@ experimental = [
     "opentelemetry",
     "tokio-console",
 ]
-metrics = [
-    "dep:metrics-exporter-prometheus",
-    "tor-hsservice?/metrics",
-    "tor-hsrproxy?/metrics",
-    "__is_experimental",
-]
-http-connect = [
-    "__is_experimental",
-    "base64ct",
-    "http",
-    "hyper",
-    "tor-error/http",
-    "tor-cell",
-    "tor-proto",
-]
+metrics = ["dep:metrics-exporter-prometheus", "tor-hsservice?/metrics", "tor-hsrproxy?/metrics", "__is_experimental"]
+http-connect = ["__is_experimental", "base64ct", "http", "hyper", "tor-error/http", "tor-cell", "tor-proto"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
 tokio-console = ["dep:console-subscriber", "__is_experimental"]
 __is_experimental = []
-# These features exist for backwards compatibility, and shouldn't be used directly.
-# Next time we do a version bump, it would be good to get rid of them.
-
-signal-hook = ["async-signal"]
-signal-hook-async-std = ["async-signal"]
-dialoguer = []
 
 [dependencies]
 anyhow = "1.0.23"
