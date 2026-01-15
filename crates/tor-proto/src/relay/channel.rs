@@ -49,6 +49,8 @@ pub struct RelayIdentities {
     pub(crate) rsa_id: RsaIdentity,
     /// As a relay, our Ed identity key: KP_relayid_ed
     pub(crate) ed_id: Ed25519Identity,
+    /// As a relay, our link signing keypair.
+    pub(crate) link_sign_kp: RelayLinkSigningKeypair,
     /// The Ed25519 identity signing cert (CertType 4)
     pub(crate) cert_id_sign_ed: Ed25519Cert,
     /// The Ed25519 signing TLS cert (CertType 5)
@@ -64,9 +66,11 @@ pub struct RelayIdentities {
 
 impl RelayIdentities {
     /// Constructor.
+    #[allow(clippy::too_many_arguments)] // Yes, plethora of keys...
     pub fn new(
         rsa_id: RsaIdentity,
         ed_id: Ed25519Identity,
+        link_sign_kp: RelayLinkSigningKeypair,
         cert_id_sign_ed: Ed25519Cert,
         cert_sign_tls_ed: Ed25519Cert,
         cert_sign_link_auth_ed: Ed25519Cert,
@@ -76,6 +80,7 @@ impl RelayIdentities {
         Self {
             rsa_id,
             ed_id,
+            link_sign_kp,
             cert_id_sign_ed,
             cert_sign_tls_ed,
             cert_sign_link_auth_ed,
