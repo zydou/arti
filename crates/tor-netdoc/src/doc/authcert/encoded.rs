@@ -27,7 +27,7 @@ use crate::parse2::poc::netstatus::NetworkStatusVote; // TODO DIRAUTH abolish po
 ///
 /// ## Non-invariant
 ///
-///  * **Signature and timeliness has not been checked**.
+///  * **Signature and timeliness have not been checked**.
 ///
 /// # Functionality
 ///
