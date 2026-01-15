@@ -116,7 +116,7 @@ pub use UncheckedPlainConsensus as UncheckedNsConsensus;
 pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
 #[cfg(feature = "ns-vote")]
-pub use rs::RouterStatusMdDigestsVote;
+pub use rs::{RouterStatusMdDigestsVote, SoftwareVersion};
 
 /// `publiscation` field in routerstatus entry intro item other than in votes
 ///
@@ -1151,7 +1151,7 @@ mod parse2_impls {
         }
     }
 
-    impl ItemValueParseable for rs::Version {
+    impl ItemValueParseable for rs::SoftwareVersion {
         fn from_unparsed(mut item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
             item.check_no_object()?;
             item.args_mut()

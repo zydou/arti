@@ -37,7 +37,7 @@ impl RouterStatus {
         &self.flags.known
     }
     /// Return the version of this routerstatus.
-    pub fn version(&self) -> Option<&crate::doc::netstatus::rs::Version> {
+    pub fn version(&self) -> Option<&crate::doc::netstatus::rs::SoftwareVersion> {
         self.version.as_ref()
     }
     /// Return true if the ed25519 identity on this relay reflects a

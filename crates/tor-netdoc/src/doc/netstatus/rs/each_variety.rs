@@ -130,7 +130,7 @@ pub struct RouterStatus {
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:v>
     #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "v")))]
-    pub version: Option<Version>,
+    pub version: Option<SoftwareVersion>,
 
     /// `pr` --- Subprotocol capabilities supported
     ///

@@ -39,9 +39,9 @@ use {
 // TODO: This might want to merge, at some point, with routerdesc::RelayPlatform.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, derive_more::Display)]
 #[non_exhaustive]
-pub enum Version {
+pub enum SoftwareVersion {
     /// A Tor version
-    Tor(TorVersion),
+    CTor(TorVersion),
     /// A string we couldn't parse.
     Other(Arc<str>),
 }
@@ -83,18 +83,18 @@ pub struct RouterStatusMdDigestsVote {
     pub digests: Vec<IdentifiedDigest>,
 }
 
-impl std::str::FromStr for Version {
+impl std::str::FromStr for SoftwareVersion {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
         let mut elts = s.splitn(3, ' ');
         if elts.next() == Some("Tor") {
             if let Some(Ok(v)) = elts.next().map(str::parse) {
-                return Ok(Version::Tor(v));
+                return Ok(SoftwareVersion::CTor(v));
             }
         }
 
-        Ok(Version::Other(OTHER_VERSION_CACHE.intern_ref(s)))
+        Ok(SoftwareVersion::Other(OTHER_VERSION_CACHE.intern_ref(s)))
     }
 }
 
