@@ -144,7 +144,6 @@ impl ItemSequenceChecker {
         } else if kw == "fingerprint" || kw.as_str().starts_with("dir-") {
             Ok(None)
         } else {
-            eprintln!("{kw:?}");
             Err(EP::Other("authcert body keyword not dir- or fingerprint"))
         }
     }
