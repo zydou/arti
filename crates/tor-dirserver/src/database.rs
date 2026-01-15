@@ -42,10 +42,12 @@
 // custom type.
 
 use std::{
+    fmt::Display,
     io::{Cursor, Write},
     num::NonZero,
     ops::{Add, Sub},
     path::Path,
+    str::FromStr,
     time::{Duration, SystemTime},
 };
 
@@ -54,18 +56,84 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{
     named_params, params,
-    types::{FromSql, FromSqlResult, ToSqlOutput, ValueRef},
+    types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef},
     ToSql, Transaction, TransactionBehavior,
 };
 use saturating_time::SaturatingTime;
 use sha2::Digest;
 
-use crate::err::DatabaseError;
+use crate::err::{DatabaseError, DocumentIdParseError};
 
-/// Representation of a Sha256 hash in hexadecimal (upper-case)
-// TODO: Make this a real type that actually enforces the constraints.
-// TODO: Change this to DocumentId.
-pub(crate) type Sha256 = String;
+/// The identifier for documents in the content-addressable cache.
+///
+/// Right now, this is a Sha256 hash, but this may change in future.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct DocumentId([u8; 32]);
+
+impl DocumentId {
+    /// Computes the [`DocumentId`] from arbitrary data.
+    pub(crate) fn digest(data: &[u8]) -> Self {
+        Self(sha2::Sha256::digest(data).into())
+    }
+}
+
+impl Display for DocumentId {
+    /// Formats the [`DocumentId`] in uppercase hexadecimal.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode_upper(self.0))
+    }
+}
+
+impl FromSql for DocumentId {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        // We read the document id as a hexadecimal string from the database.
+        // Afterwards, we convert it to binary data, which should succeed due
+        // to database check constraints.  Finally, we verify the length to see
+        // whether it actually constitutes a valid SHA256 checksum.
+        let data: [u8; 32] = value
+            .as_str()
+            .map(hex::decode)?
+            .map_err(|e| {
+                FromSqlError::Other(Box::new(tor_error::internal!(
+                    "non hex data in database? {e}"
+                )))
+            })?
+            .try_into()
+            .map_err(|_| {
+                FromSqlError::Other(Box::new(tor_error::internal!(
+                    "document id with invalid length in database?"
+                )))
+            })?;
+
+        Ok(Self(data))
+    }
+}
+
+impl ToSql for DocumentId {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        // Because Self is only constructed with FromSql and digest data, it is
+        // safe to assume to be valid.  Even if not, database constraints will
+        // catch us from inserting invalid data.
+        Ok(ToSqlOutput::from(self.to_string()))
+    }
+}
+
+impl PartialEq<&str> for DocumentId {
+    fn eq(&self, other: &&str) -> bool {
+        self.to_string() == other.to_uppercase()
+    }
+}
+
+impl FromStr for DocumentId {
+    type Err = DocumentIdParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let data: [u8; 32] = hex::decode(s)?
+            .try_into()
+            .map_err(|_| DocumentIdParseError::InvalidLen)?;
+
+        Ok(Self(data))
+    }
+}
 
 /// The supported content encodings.
 #[derive(Debug, Clone, Copy, PartialEq, strum::EnumString, strum::Display, strum::EnumIter)]
@@ -486,7 +554,7 @@ where
 
 /// Inserts `data` into store while also compressing it with given encodings.
 ///
-/// Returns the sha256 of `data` in uppercase hex.
+/// Returns the [`DocumentId`] of `data`.
 ///
 /// This function inserts `data` into store and also compresses it into all
 /// given compression formats.
@@ -497,7 +565,7 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     tx: &Transaction,
     data: &[u8],
     encodings: I,
-) -> Result<Sha256, DatabaseError> {
+) -> Result<DocumentId, DatabaseError> {
     // The statement to insert some data into the store.
     //
     // Parameters:
@@ -526,10 +594,9 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     ))?;
 
     // Insert the plain document into the store.
-    // TODO DIRMIRROR: Move this into a single call-site with DocumentId.
-    let identity_sha256 = hex::encode_upper(sha2::Sha256::digest(data));
+    let identity_doc_id = DocumentId::digest(data);
     store_stmt.execute(named_params! {
-        ":sha256": identity_sha256,
+        ":sha256": identity_doc_id,
         ":content": data
     })?;
 
@@ -541,20 +608,19 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
         }
 
         let compressed = compress(data, encoding).map_err(DatabaseError::Compression)?;
-        // TODO DIRMIRROR: Move this into a single call-site with DocumentId.
-        let compressed_sha256 = hex::encode_upper(sha2::Sha256::digest(&compressed));
+        let compressed_doc_id = DocumentId::digest(&compressed);
         store_stmt.execute(named_params! {
-            ":sha256": compressed_sha256,
+            ":sha256": compressed_doc_id,
             ":content": compressed,
         })?;
         compressed_stmt.execute(named_params! {
             ":algorithm": encoding.to_string(),
-            ":identity_sha256": identity_sha256,
-            ":compressed_sha256": compressed_sha256,
+            ":identity_sha256": identity_doc_id,
+            ":compressed_sha256": compressed_doc_id,
         })?;
     }
 
-    Ok(identity_sha256)
+    Ok(identity_doc_id)
 }
 
 /// Compresses `data` into a specified [`ContentEncoding`].
@@ -808,10 +874,10 @@ mod test {
         let mut conn = Connection::open(&db_path).unwrap();
         let tx = conn.transaction().unwrap();
 
-        let sha256 =
+        let doc_id =
             super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
         assert_eq!(
-            sha256,
+            doc_id,
             "C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2"
         );
 
@@ -855,9 +921,9 @@ mod test {
 
         // Now insert the same thing a second time again and see whether the
         // ON CONFLICT magic works.
-        let sha256_second =
+        let doc_id_second =
             super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
-        assert_eq!(sha256, sha256_second);
+        assert_eq!(doc_id, doc_id_second);
 
         // Remove a few compressed entries and get them again.
         let n = tx
@@ -874,9 +940,9 @@ mod test {
             .unwrap();
         assert_eq!(n, 2);
 
-        let sha256_third =
+        let doc_id_third =
             super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
-        assert_eq!(sha256, sha256_third);
+        assert_eq!(doc_id, doc_id_third);
         let algorithms = stmt
             .query_map(params![], |row| row.get::<_, String>(0))
             .unwrap();

@@ -354,16 +354,16 @@ fn insert_authority_certificates(
             // the end of the world if we change this later -- at worst, clients
             // will simply get it in a different encoding they prefer less, but
             // that should not be super critical.
-            let sha256 = database::store_insert(tx, raw.as_bytes(), ContentEncoding::iter())?;
-            Ok::<_, DatabaseError>((sha256, cert))
+            let doc_id = database::store_insert(tx, raw.as_bytes(), ContentEncoding::iter())?;
+            Ok::<_, DatabaseError>((doc_id, cert))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     // Insert every certificate, after it has been inserted into the store, into
     // the authority certificates meta table.
-    for (sha256, cert) in certs {
+    for (doc_id, cert) in certs {
         stmt.execute(named_params! {
-            ":sha256": sha256,
+            ":sha256": doc_id,
             ":id_rsa": cert.fingerprint.as_hex_upper(),
             ":sign_rsa": cert.dir_signing_key.to_rsa_identity().as_hex_upper(),
             ":published": Timestamp::from(cert.dir_key_published.0),
@@ -525,7 +525,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use std::time::SystemTime;
 
-    use crate::database;
+    use crate::database::{self, DocumentId};
 
     use super::*;
     use lazy_static::lazy_static;
@@ -557,23 +557,24 @@ mod test {
     }
 
     const CONSENSUS_CONTENT: &str = "Lorem ipsum dolor sit amet.";
-    const CONSENSUS_SHA256: &str =
-        "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66";
-
     const CERT_CONTENT: &[u8] = include_bytes!("../../testdata/authcert-longclaw");
-    const CERT_SHA256: &str = "8E16D249DF4E78E65FA8E0E863AC01A63995A8FB6F2B40526275BEB3E4AEABC9";
+
+    lazy_static! {
+        static ref CONSENSUS_DOC_ID: DocumentId = DocumentId::digest(CONSENSUS_CONTENT.as_bytes());
+        static ref CERT_DOC_ID: DocumentId = DocumentId::digest(CERT_CONTENT);
+    }
 
     fn create_dummy_db() -> Pool<SqliteConnectionManager> {
         let pool = database::open("").unwrap();
         database::rw_tx(&pool, |tx| {
             tx.execute(
                 sql!("INSERT INTO store (sha256, content) VALUES (?1, ?2)"),
-                params![CONSENSUS_SHA256, CONSENSUS_CONTENT.as_bytes()],
+                params![*CONSENSUS_DOC_ID, CONSENSUS_CONTENT.as_bytes()],
             )
             .unwrap();
             tx.execute(
                 sql!("INSERT INTO store (sha256, content) VALUES (?1, ?2)"),
-                params![CERT_SHA256, CERT_CONTENT],
+                params![*CERT_DOC_ID, CERT_CONTENT],
             )
             .unwrap();
 
@@ -587,7 +588,7 @@ mod test {
                     "
                 ),
                 params![
-                    CONSENSUS_SHA256,
+                    *CONSENSUS_DOC_ID,
                     "0000000000000000000000000000000000000000000000000000000000000000", // not the correct hash
                     ConsensusFlavor::Plain.name(),
                     *VALID_AFTER,
@@ -606,7 +607,7 @@ mod test {
                 "
                 ),
                 named_params! {
-                ":sha256": CERT_SHA256,
+                ":sha256": *CERT_DOC_ID,
                 ":id_rsa": "49015F787433103580E3B66A1707A00E60F2D15B",
                 ":sk_rsa": "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
                 ":published": 1764543578,
