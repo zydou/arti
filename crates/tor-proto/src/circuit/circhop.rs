@@ -289,11 +289,6 @@ pub(crate) struct SendRelayCell {
 
 /// The inbound state of a hop.
 pub(crate) struct CircHopInbound {
-    /// Congestion control object.
-    ///
-    /// This object is also in charge of handling circuit level SENDME logic for this hop.
-    #[allow(dead_code)] // TODO(relay)
-    ccontrol: Arc<Mutex<CongestionControl>>,
     /// Decodes relay cells received from this hop.
     decoder: RelayCellDecoder,
     /// Remaining permitted incoming relay cells from this hop, plus 1.
@@ -344,22 +339,11 @@ pub(crate) struct CircHopOutbound {
 
 impl CircHopInbound {
     /// Create a new [`CircHopInbound`].
-    pub(crate) fn new(
-        ccontrol: Arc<Mutex<CongestionControl>>,
-        decoder: RelayCellDecoder,
-        settings: &HopSettings,
-    ) -> Self {
+    pub(crate) fn new(decoder: RelayCellDecoder, settings: &HopSettings) -> Self {
         Self {
-            ccontrol,
             decoder,
             n_incoming_cells_permitted: settings.n_incoming_cells_permitted.map(cvt),
         }
-    }
-
-    /// Return a mutable reference to our CongestionControl object.
-    #[allow(dead_code)] // TODO(relay)
-    pub(crate) fn ccontrol(&self) -> MutexGuard<'_, CongestionControl> {
-        self.ccontrol.lock().expect("poisoned lock")
     }
 
     /// Parse a RELAY or RELAY_EARLY cell body.

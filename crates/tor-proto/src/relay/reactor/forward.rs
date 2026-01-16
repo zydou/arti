@@ -328,7 +328,10 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         // Decrement the circuit sendme windows, and see if we need to
         // send a sendme cell.
         let send_circ_sendme = if c_t_w {
-            self.hop.ccontrol().note_data_received()?
+            // XXX doesn't matter, all of this will go away soon in favor of the new
+            // generic reactor
+            todo!()
+            //self.hop.ccontrol().note_data_received()?
         } else {
             false
         };

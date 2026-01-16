@@ -244,11 +244,7 @@ impl CircHop {
         let relay_format = settings.relay_crypt_protocol().relay_cell_format();
 
         let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
-        let inbound = CircHopInbound::new(
-            Arc::clone(&ccontrol),
-            RelayCellDecoder::new(relay_format),
-            settings,
-        );
+        let inbound = CircHopInbound::new(RelayCellDecoder::new(relay_format), settings);
 
         let outbound = CircHopOutbound::new(
             ccontrol,
