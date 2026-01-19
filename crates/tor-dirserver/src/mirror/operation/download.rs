@@ -309,6 +309,9 @@ mod test {
     }
 
     /// Request that fails all the time.
+    ///
+    /// Failures are done by a server accept and then immediately closing the
+    /// connection.
     #[tokio::test(start_paused = true)]
     async fn request_fail_ultimately() {
         let mut server_addrs = Vec::new();
@@ -337,7 +340,12 @@ mod test {
 
         assert!(mgr.preferred_authority.is_none());
 
-        // This is just a longer loop to assert all errors are connection resets.
+        // This is just a longer loop to assert all errors are either resets or truncated headers.
+        //
+        // Because the detection of TCP RST in itself tends to be stochastic at best,
+        // we also check for TruncatedHeaders, which is what tor-dirclient will return
+        // when it performs a successful(!) read(2) returning zero bytes, indicating
+        // a successful closure of the connection.
         for err in errs {
             match err {
                 AuthorityCommunicationError::Dirclient(e) => match *e {
@@ -346,6 +354,7 @@ mod test {
                             ErrorKind::ConnectionReset => {}
                             e => unreachable!("{e}"),
                         },
+                        RequestError::TruncatedHeaders => {}
                         e => unreachable!("{e}"),
                     },
                     e => unreachable!("{e}"),
