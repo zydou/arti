@@ -65,6 +65,41 @@ pub struct NetworkConfig {
     ///
     /// The default is to use a set of compiled-in authorities,
     /// whose identities and public keys are shipped as part of the Arti source code.
+    ///
+    /// Custom directory authorities can be specified as follows:
+    /// ```toml
+    /// [tor_network.authorities]
+    /// SHA1 fingerprints of the directory authority identity keys.
+    /// v3idents = [
+    ///   [
+    ///     "0000000000000000000000000000000000000000"
+    ///   ]
+    /// ]
+    /// # IP addresses/ports for each authority to upload to (as a relay).
+    /// uploads = [
+    ///   [
+    ///     # Each logical authority is grouped to support dual-stack.
+    ///     "198.51.100.0:80",
+    ///     "[2001:db8::1]:80"
+    ///   ]
+    /// ]
+    /// # IP addresses/ports for each authority to download from (as a dirmirror).
+    /// downloads = [
+    ///   [
+    ///     # Each logical authority is grouped to support dual-stack.
+    ///     "198.51.100.0:80",
+    ///     "[2001:db8::1]:80"
+    ///   ]
+    /// ]
+    /// # IP addresses/ports for each authority to send votes to (as a dirauth).
+    /// votes = [
+    ///   [
+    ///     # Each logical authority is grouped to support dual-stack.
+    ///     "198.51.100.0:80",
+    ///     "[2001:db8::1]:80"
+    ///   ]
+    /// ]
+    /// ```
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default, deserialize_with = "authority_compat"))]
     #[getset(get = "pub")]
