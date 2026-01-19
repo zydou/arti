@@ -310,6 +310,6 @@ mod test {
                 RsaIdentity::from_hex("28D4680EA9C3660D1028FC40BACAC1319414581E").unwrap(),
                 RsaIdentity::from_hex("3817C9EB7E41C957594D0D9BCD6C7D7D718479C2").unwrap(),
             ]
-        )
+        );
     }
 }
