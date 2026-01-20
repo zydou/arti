@@ -352,31 +352,9 @@ impl<
         //    the RSA->Ed25519 crosscert (type 7), which signs...
         //    peer.ed_identity().
 
-        // Evidently, if no CERTS cell it means no authentication. This is only possible if we are
-        // a relay responder and a client/bridge is connecting to us. They don't authenticate.
-        let c = match (self.certs_cell.as_ref(), self.channel_type.is_responder()) {
-            (Some(c), _) => c,
-            (None, false) => {
-                return Err(Error::from(internal!(
-                    "No CERTS cell and not a relay responder"
-                )));
-            }
-            (None, true) => {
-                return Ok(VerifiedChannel {
-                    channel_type: self.channel_type,
-                    link_protocol: self.link_protocol,
-                    framed_tls: self.framed_tls,
-                    unique_id: self.unique_id,
-                    target_method: self.target_method,
-                    ed25519_id: None,
-                    rsa_id: None,
-                    rsa_cert_digest: None,
-                    peer_cert_digest,
-                    clock_skew: self.clock_skew,
-                    sleep_prov: self.sleep_prov,
-                    memquota: self.memquota,
-                });
-            }
+        // Evidently, without a CERTS at this point we have a code flow issue.
+        let Some(c) = &self.certs_cell.as_ref() else {
+            return Err(Error::from(internal!("No CERTS cell found to verify")));
         };
 
         /// Helper: get a cert from a Certs cell, and convert errors appropriately.
