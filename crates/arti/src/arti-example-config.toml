@@ -452,7 +452,7 @@
 # Usually, you do not want to modify this setting unless you are running arti
 # in a test environment.
 #  [tor_network.authorities]
-#  SHA1 fingerprints of the directory authority identity keys.
+#  # SHA1 fingerprints of the directory authority identity keys.
 #  v3idents = [
 #    [
 #      "0000000000000000000000000000000000000000"
