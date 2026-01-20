@@ -399,13 +399,13 @@ rust-nightly:
       - artifacts
     expire_in: 1 week
 
-api-surface:
+check-api-surface:
   needs: []
   stage: test
   image: docker.io/rustlang/rust:nightly
   script:
     - maint/common/apt-install jq
-    - ./maint/check_arti_opacity
+    - ./maint/check-api-surface-arti
 
 deb-source:
   needs: []
