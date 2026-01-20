@@ -358,7 +358,6 @@ impl<
     }
 }
 
-#[async_trait]
 impl<
     T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
@@ -369,7 +368,7 @@ impl<
     }
 
     #[instrument(skip_all, level = "trace")]
-    async fn check(
+    fn check(
         self: Box<Self>,
         peer: &OwnedChanTarget,
         peer_cert: &[u8],

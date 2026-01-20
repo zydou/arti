@@ -139,7 +139,6 @@ pub(crate) mod seal {
 ///
 /// An open channel that has not been verified as in the certificates and keys have not been
 /// validated yet. Upon successful validation, a boxed [`FinalizableChannel`] is returned.
-#[async_trait]
 pub trait VerifiableChannel<T, S>: seal::Sealed
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
@@ -158,7 +157,7 @@ where
     ///
     /// This is a separate function because it's likely to be somewhat
     /// CPU-intensive.
-    async fn check(
+    fn check(
         self: Box<Self>,
         peer: &OwnedChanTarget,
         peer_cert: &[u8],
