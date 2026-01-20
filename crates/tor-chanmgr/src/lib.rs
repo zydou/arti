@@ -290,11 +290,12 @@ impl<R: Runtime> ChanMgr<R> {
 
     /// Build a channel for an incoming stream.
     ///
-    /// The channel may or may not be authenticated.
-    /// This method will wait until the channel is usable,
-    /// and may return an error if we already have an existing channel to this peer,
-    /// or if there are already too many open connections with this
-    /// peer or subnet (as a dos defence).
+    /// The `my_addrs` are the IP address(es) that are advertised by the relay in the consensus. We
+    /// need to pass them so they can be sent in the NETINFO cell.
+    ///
+    /// The channel may or may not be authenticated. This method will wait until the channel is
+    /// usable, and may return an error if we already have an existing channel to this peer, or if
+    /// there are already too many open connections with this peer or subnet (as a dos defence).
     #[cfg(feature = "relay")]
     pub async fn handle_incoming(
         &self,
