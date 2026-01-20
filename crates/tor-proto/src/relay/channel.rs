@@ -375,50 +375,67 @@ impl<
         peer_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<Box<dyn FinalizableChannel<T, S>>> {
+        // We can't authenticate unless we have an Authentication cell.
+        //
+        // A clever observer can ask if this can be gamed to get an unverified relay channel
+        // considered as a canonical authenticate channel.
+        //
+        // The answer is no because when the handshake starts, Initiators always expect the other
+        // side to send a CERTS, AUTH_CHALLENGE and NETINFO. Else, an error is raised. Responder
+        // are the one dealing with unauthenticated channels and, for instance, if we receive a
+        // CERTS without an AUTHENTICATE , an error is raised.
+        //
+        // In other words, when a VerifiableChannel reaches this function, it either has what it
+        // needs to authenticate (relay<->relay channel) or not (client/bridge<->relay channel).
+        //
+        // An UnverifiedRelayChannel implements FinalizableChannel which enforces, with the type
+        // system, that an unverified channel will never become authenticated.
+        let Some(auth_cell) = self.auth_cell else {
+            return Ok(self);
+        };
+
         // Get these object out as we consume "self" in the inner check().
         let identities = self.identities;
-        let auth_cell = self.auth_cell;
         let netinfo_cell = self.netinfo_cell;
         let my_addrs = self.my_addrs;
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.check(peer, peer_cert, now)?;
 
-        // Authenticate if we have an AuthenticationCell set.
-        if let Some(auth_cell) = auth_cell {
-            // By building the ChannelAuthenticationData, we are certain that the authentication
-            // type requested by the responder is supported by us.
-            let auth_data =
-                Self::build_auth_data(auth_cell.auth_challenge(), &identities, &mut verified)?;
-            let our_authenticate = auth_data
-                .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
+        // By building the ChannelAuthenticationData, we are certain that the authentication
+        // type requested by the responder is supported by us.
+        let auth_data =
+            Self::build_auth_data(auth_cell.auth_challenge(), &identities, &mut verified)?;
+        let our_authenticate =
+            auth_data.into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
 
-            // CRITICAL: This if is what authenticates a channel on the responder side. We compare
-            // what we expected to what we received.
-            match auth_cell {
-                AuthenticationCell::Authenticate(received_authenticate) => {
-                    if received_authenticate != our_authenticate {
-                        return Err(Error::ChanProto(
-                            "AUTHENTICATE was unexpected. Failing authentication".into(),
-                        ));
-                    }
-                }
-                AuthenticationCell::AuthChallenge(_) => {
-                    // We got an AUTH_CHALLENGE, send the CERTS and AUTHENTICATE.
-                    let certs = build_certs_cell(&identities, ChannelType::RelayInitiator);
-                    trace!(channel_id = %verified.unique_id, "Sending CERTS as initiator cell.");
-                    verified.framed_tls.send(certs.into()).await?;
-                    trace!(channel_id = %verified.unique_id, "Sending AUTHENTICATE as initiator cell.");
-                    verified.framed_tls.send(our_authenticate.into()).await?;
+        // CRITICAL: This if is what authenticates a channel on the responder side. We compare
+        // what we expected to what we received.
+        match auth_cell {
+            AuthenticationCell::Authenticate(received_authenticate) => {
+                if received_authenticate != our_authenticate {
+                    return Err(Error::ChanProto(
+                        "AUTHENTICATE was unexpected. Failing authentication".into(),
+                    ));
                 }
             }
-            // This part is very important as we now flag that we are authenticated. The responder
-            // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
-            //
-            // The underlying message handler will now know to treat this channel as a
-            // relay-to-relay (R2R) and thus restrict the message set.
-            verified.channel_type.set_authenticated();
+            AuthenticationCell::AuthChallenge(_) => {
+                // We got an AUTH_CHALLENGE, send the CERTS and AUTHENTICATE.
+                let certs = build_certs_cell(&identities, ChannelType::RelayInitiator);
+                trace!(channel_id = %verified.unique_id, "Sending CERTS as initiator cell.");
+                verified.framed_tls.send(certs.into()).await?;
+                trace!(channel_id = %verified.unique_id, "Sending AUTHENTICATE as initiator cell.");
+                verified.framed_tls.send(our_authenticate.into()).await?;
+            }
         }
+        // This part is very important as we now flag that we are authenticated. The responder
+        // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
+        //
+        // TODO(relay): Add comment on how authenticated flag transports to the open handler.
+        //
+        // The underlying message handler will now know to treat this channel as a
+        // relay-to-relay (R2R) and thus restrict the message set.
+        verified.channel_type.set_authenticated();
 
         // Send the NETINFO message only if initiator. The responder sends it at the very start of
         // the handshake along all other cells.
@@ -445,6 +462,18 @@ impl<
     #[cfg(test)]
     fn link_protocol(&self) -> u16 {
         self.inner.link_protocol
+    }
+}
+
+#[async_trait]
+impl<
+    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> FinalizableChannel<T, S> for UnverifiedRelayChannel<T, S>
+{
+    #[instrument(skip_all, level = "trace")]
+    async fn finish(mut self: Box<Self>) -> Result<(Arc<Channel>, Reactor<S>)> {
+        self.inner.finish()
     }
 }
 

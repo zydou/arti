@@ -10,6 +10,7 @@ use crate::channel::{ChannelFrame, ChannelType, UniqId};
 use crate::memquota::ChannelAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
+use safelog::Redacted;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -543,6 +544,71 @@ impl<
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
         })
+    }
+
+    /// Finalize this channel into an actual channel and its reactor.
+    ///
+    /// An unverified channel can be finalized as it skipped the cert verification and
+    /// authentication because simply the other side is not authenticating.
+    ///
+    /// Two cases for this:
+    ///     - Client <-> Relay channel
+    ///     - Bridge <-> Relay channel
+    ///
+    // NOTE: Unfortunately, this function has duplicated code with the VerifiedChannel::finish()
+    // so make sure any changes here is reflected there. A proper refactoring is welcome!
+    #[instrument(skip_all, level = "trace")]
+    pub(crate) fn finish(mut self) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
+        // We treat a completed channel as incoming traffic since all cells were exchanged.
+        //
+        // TODO: conceivably we should remember the time when we _got_ the
+        // final cell on the handshake, and update the channel completion
+        // time to be no earlier than _that_ timestamp.
+        //
+        // TODO: This shouldn't be here. This should be called in the trait functions that actually
+        // receives the data (recv_*). We'll move it at a later commit.
+        crate::note_incoming_traffic();
+
+        // We have finalized the handshake, move our codec to Open.
+        self.framed_tls.codec_mut().set_open()?;
+
+        // Grab a new handle on which we can apply StreamOps (needed for KIST).
+        // On Unix platforms, this handle is a wrapper over the fd of the socket.
+        //
+        // Note: this is necessary because after `StreamExit::split()`,
+        // we no longer have access to the underlying stream
+        // or its StreamOps implementation.
+        let stream_ops = self.framed_tls.new_handle();
+        let (tls_sink, tls_stream) = self.framed_tls.split();
+
+        let mut peer_builder = OwnedChanTargetBuilder::default();
+        if let Some(target_method) = self.target_method {
+            if let Some(addrs) = target_method.socket_addrs() {
+                peer_builder.addrs(addrs.to_owned());
+            }
+            peer_builder.method(target_method);
+        }
+        let peer_id = peer_builder
+            .build()
+            .expect("OwnedChanTarget builder failed");
+
+        debug!(
+            stream_id = %self.unique_id,
+            "Completed handshake without authentication to {}", Redacted::new(&peer_id)
+        );
+
+        super::Channel::new(
+            self.channel_type,
+            self.link_protocol,
+            Box::new(tls_sink),
+            Box::new(tls_stream),
+            stream_ops,
+            self.unique_id,
+            peer_id,
+            self.clock_skew,
+            self.sleep_prov,
+            self.memquota,
+        )
     }
 }
 
