@@ -520,7 +520,8 @@ impl<
                 .as_ref()
                 .and_then(ChannelMethod::socket_addrs)
                 .and_then(|addrs| addrs.first())
-                .map(SocketAddr::ip);
+                .map(SocketAddr::ip)
+                .ok_or(Error::from(internal!("Target method address invalid")))?;
             let netinfo = build_netinfo_cell(peer_ip, self.my_addrs, &self.inner.sleep_prov)?;
             trace!(channel_id = %self.inner.unique_id, "Sending NETINFO as initiator cell.");
             self.inner.framed_tls.send(netinfo.into()).await?;
@@ -587,7 +588,7 @@ pub(crate) fn build_certs_cell(
 ///
 /// Both relay initiator and responder handshake use this.
 pub(crate) fn build_netinfo_cell<S>(
-    peer_ip: Option<IpAddr>,
+    peer_ip: IpAddr,
     my_addrs: Vec<IpAddr>,
     sleep_prov: &S,
 ) -> Result<msg::Netinfo>
@@ -603,5 +604,5 @@ where
         .as_secs()
         .try_into()
         .map_err(|e| internal!("Wallclock secs fail to convert to 32bit: {e}"))?;
-    Ok(msg::Netinfo::from_relay(timestamp, peer_ip, my_addrs))
+    Ok(msg::Netinfo::from_relay(timestamp, Some(peer_ip), my_addrs))
 }

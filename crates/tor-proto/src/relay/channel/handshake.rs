@@ -373,7 +373,7 @@ impl<
 
         // Send the NETINFO message.
         let peer_ip = self.peer.into_inner().ip();
-        let netinfo = build_netinfo_cell(Some(peer_ip), self.my_addrs.clone(), &self.sleep_prov)?;
+        let netinfo = build_netinfo_cell(peer_ip, self.my_addrs.clone(), &self.sleep_prov)?;
         trace!(channel_id = %self.unique_id, "Sending NETINFO as responder cell.");
         self.framed_tls.send(netinfo.into()).await?;
 
