@@ -28,7 +28,7 @@ use crate::relay::channel::{
 use crate::{Error, Result};
 
 /// The "Ed25519-SHA256-RFC5705" link authentication which is value "00 03".
-static AUTHTYPE_ED25519_SHA256_RFC5705: u16 = 3;
+pub(super) static AUTHTYPE_ED25519_SHA256_RFC5705: u16 = 3;
 
 /// A relay channel handshake as the initiator.
 pub struct RelayInitiatorHandshake<

@@ -31,13 +31,13 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::ClockSkew;
 use crate::channel::handshake::{UnverifiedChannel, VerifiedChannel};
 use crate::channel::{Channel, ChannelType, FinalizableChannel, Reactor, VerifiableChannel};
-use crate::relay::channel::handshake::RelayResponderHandshake;
+use crate::relay::channel::handshake::{AUTHTYPE_ED25519_SHA256_RFC5705, RelayResponderHandshake};
 use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 
 // TODO(relay): We should probably get those values from protover crate or some other
 // crate that have all "network parameters" we support?
 /// A list of link authentication that we support (LinkAuth).
-pub(crate) static LINK_AUTH: &[u16] = &[3];
+pub(crate) static LINK_AUTH: &[u16] = &[AUTHTYPE_ED25519_SHA256_RFC5705];
 
 /// The authentication cell received on the channel.
 pub(crate) enum AuthenticationCell {
