@@ -226,11 +226,6 @@ pub enum ChannelType {
 }
 
 impl ChannelType {
-    /// Return true iff we are a relay responder.
-    pub(crate) fn is_responder(&self) -> bool {
-        matches!(self, Self::RelayResponder { .. })
-    }
-
     /// Set that this channel type is now authenticated. This only applies to RelayResponder.
     pub(crate) fn set_authenticated(&mut self) {
         if let Self::RelayResponder { authenticated } = self {

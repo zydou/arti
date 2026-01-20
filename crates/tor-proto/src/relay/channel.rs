@@ -398,6 +398,7 @@ impl<
         let identities = self.identities;
         let netinfo_cell = self.netinfo_cell;
         let my_addrs = self.my_addrs;
+        let mut authenticate_cell = None;
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.check(peer, peer_cert, now)?;
@@ -411,50 +412,32 @@ impl<
 
         // CRITICAL: This if is what authenticates a channel on the responder side. We compare
         // what we expected to what we received.
-        match auth_cell {
-            AuthenticationCell::Authenticate(received_authenticate) => {
-                if received_authenticate != our_authenticate {
-                    return Err(Error::ChanProto(
-                        "AUTHENTICATE was unexpected. Failing authentication".into(),
-                    ));
-                }
+        if let AuthenticationCell::Authenticate(received_authenticate) = auth_cell {
+            if received_authenticate != our_authenticate {
+                return Err(Error::ChanProto(
+                    "AUTHENTICATE was unexpected. Failing authentication".into(),
+                ));
             }
-            AuthenticationCell::AuthChallenge(_) => {
-                // We got an AUTH_CHALLENGE, send the CERTS and AUTHENTICATE.
-                let certs = build_certs_cell(&identities, ChannelType::RelayInitiator);
-                trace!(channel_id = %verified.unique_id, "Sending CERTS as initiator cell.");
-                verified.framed_tls.send(certs.into()).await?;
-                trace!(channel_id = %verified.unique_id, "Sending AUTHENTICATE as initiator cell.");
-                verified.framed_tls.send(our_authenticate.into()).await?;
-            }
+            // Keep it so we can send it to the other end.
+            authenticate_cell = Some(our_authenticate);
         }
         // This part is very important as we now flag that we are authenticated. The responder
         // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
         //
-        // TODO(relay): Add comment on how authenticated flag transports to the open handler.
+        // At this point, the underlying cell handler is in the Handshake state. Setting the
+        // channel type here as authenticated means that once the handler transition to the Open
+        // state, it will carry this authenticated flag leading to the message filter of the
+        // channel codec to adapt its restricted message sets (meaning R2R only).
         //
-        // The underlying message handler will now know to treat this channel as a
-        // relay-to-relay (R2R) and thus restrict the message set.
+        // After this call, it is considered a R2R channel.
         verified.channel_type.set_authenticated();
-
-        // Send the NETINFO message only if initiator. The responder sends it at the very start of
-        // the handshake along all other cells.
-        if !verified.channel_type.is_responder() {
-            let peer_ip = verified
-                .target_method
-                .as_ref()
-                .and_then(ChannelMethod::socket_addrs)
-                .and_then(|addrs| addrs.first())
-                .map(SocketAddr::ip);
-            let netinfo = build_netinfo_cell(peer_ip, my_addrs, &verified.sleep_prov)?;
-            trace!(channel_id = %verified.unique_id, "Sending NETINFO as initiator cell.");
-            verified.framed_tls.send(netinfo.into()).await?;
-        }
 
         Ok(Box::new(VerifiedRelayChannel {
             inner: verified,
             identities,
             netinfo_cell,
+            authenticate_cell,
+            my_addrs,
         }))
     }
 
@@ -500,6 +483,10 @@ struct VerifiedRelayChannel<
     identities: Arc<RelayIdentities>,
     /// The netinfo cell that we got from the relay.
     netinfo_cell: msg::Netinfo,
+    /// The AUTHENTICATE cell we need to send back as a responder.
+    authenticate_cell: Option<msg::Authenticate>,
+    /// Our advertised IP addresses.
+    my_addrs: Vec<IpAddr>,
 }
 
 #[async_trait]
@@ -514,6 +501,29 @@ impl<
         // true if the Netinfo address matches the address we are connected to. Canonical
         // definition is if the address we are connected to is what we expect it to be. This only
         // makes sense for relay channels.
+
+        // If we have an AUTHENTICATE cell, we need to send it along our CERTS and NETINFO. In
+        // other words, it means we are a Responder.
+        if let Some(auth_cell) = self.authenticate_cell {
+            // We got an AUTH_CHALLENGE, send the CERTS and AUTHENTICATE.
+            let certs = build_certs_cell(&self.identities, ChannelType::RelayInitiator);
+            trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
+            self.inner.framed_tls.send(certs.into()).await?;
+            trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");
+            self.inner.framed_tls.send(auth_cell.into()).await?;
+
+            let peer_ip = self
+                .inner
+                .target_method
+                .as_ref()
+                .and_then(ChannelMethod::socket_addrs)
+                .and_then(|addrs| addrs.first())
+                .map(SocketAddr::ip);
+            let netinfo = build_netinfo_cell(peer_ip, self.my_addrs, &self.inner.sleep_prov)?;
+            trace!(channel_id = %self.inner.unique_id, "Sending NETINFO as initiator cell.");
+            self.inner.framed_tls.send(netinfo.into()).await?;
+        }
+
         self.inner.finish().await
     }
 }
