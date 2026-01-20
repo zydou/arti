@@ -7,6 +7,7 @@ use anyhow::Context;
 use futures::StreamExt;
 use safelog::Sensitive;
 use tor_chanmgr::ChanMgr;
+use tor_log_ratelim::log_ratelim;
 use tor_rtcompat::{NetStreamListener, NetStreamProvider, Runtime, SpawnExt as _};
 use tracing::debug;
 
@@ -42,15 +43,24 @@ pub(crate) async fn or_listener<R: Runtime>(
         // use that channel and the other channel will be unused and eventually closed. But there
         // are edge cases here, for example if both relays are using a proxy and the two relays will
         // never have a single connection that both consider canonical.
-        let (stream, remote_addr, local_addr) = match next {
-            Ok(x) => x,
-            Err(e) => {
-                // TODO: We should probably warn as this likely indicates a system configuration
-                // issue (for example max num of open files too low). But we don't want to warn too
-                // often since it's likely future incoming connections will fail as well.
-                debug!("Unable to accept incoming OR connection: {e}");
-                continue;
-            }
+
+        // This likely indicates a system configuration issue (for example max num of open files too
+        // low), but we don't want to warn too often since it's likely future incoming connections
+        // will fail as well.
+
+        // The `log_ratelim` macro requires the error to be `Clone` (although this is likely
+        // unnecessary here), so we throw it in an `Arc`.
+        let next = next.map_err(Arc::new);
+
+        log_ratelim!(
+            "accepting incoming OR connection";
+            next;
+            Err(_) => WARN, "Dropping connection";
+        );
+
+        let Ok((stream, remote_addr, local_addr)) = next else {
+            // We should have logged the error above.
+            continue;
         };
 
         // This may be sensitive (for example if this is a client connecting to a guard).
