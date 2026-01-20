@@ -109,7 +109,7 @@ fi
 ANY_DIFFERENCES=0
 SUGGEST_FORCE=0
 
-for cratedir in $("$TOPLEVEL/maint/list_crates" --subdir); do
+for cratedir in $("$TOPLEVEL/maint/list-crates" --subdir); do
     crate=$(basename "$cratedir")
     if ! test -e "$cratedir/cbindgen.toml"; then
 	# no cbindgen.toml here; we don't run in this crate.

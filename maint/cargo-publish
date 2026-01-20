@@ -100,7 +100,7 @@ check_equal "$our_head" "$origin_head" \
 
 #----- check that arti version matches
 
-arti=$("$maint"/list_crates -p arti --version)
+arti=$("$maint"/list-crates -p arti --version)
 arti=${arti##* }
 
 check_equal "$arti" "$version" \
@@ -113,7 +113,7 @@ check_equal "$arti" "$version" \
 
 #----- compare already-published versions -----
 
-"$maint"/list_crates --version >"$tmp/all-crates"
+"$maint"/list-crates --version >"$tmp/all-crates"
 
 exec 3<"$tmp/all-crates"
 

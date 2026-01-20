@@ -58,15 +58,15 @@ the SQLite 3 development files and shellcheck to successfully run git hooks.
   ```
   
 - For git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing)
-  (used in [`maint/shellcheck_all`](./maint/common/shellcheck-all))
+  (used in [`maint/common/shellcheck_all`](./maint/common/shellcheck-all))
 
 **(Optional) install development dependencies**
 
-TL;DR: `./maint/check_env`
+TL;DR: `./maint/check-env`
 
 If you plan to run scripts inside the `maint/` directory, that are scripts
 such as coverage reports, you'll need a few more dependencies. For this,
-please execute `./maint/check_env`, which will check your host machine if
+please execute `./maint/check-env`, which will check your host machine if
 all required dependencies are satisfied. If this is not the case, it will
 report the missing ones. Keep in mind that this list is pretty comprehensive
 and not every script requires all of these dependencies.

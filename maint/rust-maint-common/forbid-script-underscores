@@ -5,6 +5,8 @@
 #
 # This is a just a matter of style and taste; there are no correctness
 # implications.
+#
+# Exceptions are supported, by passing !<FILENAME> or !<GLOB> as argument(s).
 
 set -euo pipefail
 
@@ -14,16 +16,40 @@ common_dir=$(dirname "$common_dir")
 # shellcheck source=maint/common/bash-utils.sh
 . "$common_dir"/bash-utils.sh
 
-reject_all_arguments
+reject_options
+
+exceptions=()
+for arg in "$@"; do
+    case "$arg" in
+	!*) exceptions+=("${arg#!}") ;;
+	*)
+	    fail 'non-option arguments msut be !FILE to allow FILE as an exception'
+	    ;;
+    esac
+done
 
 shopt -s nullglob
 
 wrong=()
 
-for f in maint/*_*; do
+# git shell escapes things by default, see git-ls-files(1) and git-config(1) core.quotepath
+files=$(git ls-files ':maint/*_*')
+
+for f in $files; do
     case "$f" in
 	*.py) ;;
-	*) wrong+=("$f") ;;
+	*)
+	    excepted=false
+	    for exception in "${exceptions[@]}"; do
+		# shellcheck disable=SC2254
+		case "$f" in
+		    $exception) excepted=true ;;
+		esac
+	    done
+	    if ! $excepted; then
+		wrong+=("$f")
+	    fi
+	    ;;
     esac
 done
 

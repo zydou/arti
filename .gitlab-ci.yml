@@ -37,7 +37,7 @@ default:
       platform: linux/amd64
   before_script:
     # get section_start and section_end bash functions
-    - source maint/ci_log_span_fns.sh
+    - source maint/ci-log-span-fns.sh
     # gitlab fetch strategy doesn't reset permissions
     - (while [ "$PWD" != / ]; do chmod go-w . && cd ..; done)
     # verify that we're running in a container built for amd64.
@@ -134,18 +134,21 @@ maint-checks:
   stage: build
   script:
     - maint/common/apt-install git python3-toml python3-requests python3-mistune
-    - ./maint/check_toposort
+    - ./maint/check-toposort
     - ./maint/add_warning --check
     - ./maint/common/forbid-absolute-shebangs
-    - ./maint/common/forbid-script-extensions
+    - ./maint/common/forbid-script-extensions !maint/list_crates.py
     - ./maint/common/update-shell-includes --check --all
     - ./maint/cargo-check-publishable
-    - ./maint/check_case_sensitive
-    - ./maint/check_instrument_macros
+    - ./maint/check-case-sensitive
+    - ./maint/check-instrument-macros
+    # TODO rename maint/add_warning (textually large diff)
+    # TODO rename *coverage* (might need changes in another repo?)
+    - ./maint/common/forbid-script-underscores !maint/add_\* !*coverage*
     - git fetch --unshallow $ORIGIN
     - ./maint/update-md-links --check CHANGELOG.md
 
-maint-check-ownership:
+cargo-crate-owners:
   stage: test
   allow_failure: true
   script:
@@ -158,7 +161,7 @@ maint-check-ownership:
     # a chance to run `cargo add`.
     - if: $CI_COMMIT_BRANCH == "main"
 
-maint-check-cbindgen:
+maint-cbindgen-check:
   needs: []
   stage: test
   # cbindgen needs nightly rust to do macro expansion
@@ -167,15 +170,18 @@ maint-check-cbindgen:
     - ./maint/common/apt-install python3-toml
     - ./maint/common/via-cargo-install-in-ci cbindgen --version 0.28.0
     - ./maint/cbindgen --check
+  cache:
+    paths:
+      - cache
 
 # This should always be in the last testing stage, so that if it fails all the other steps still run
 # But it should run before any deployument.
-blocking-todos:
+check-blocking-todos:
   stage: test
   needs: []
   script:
     - maint/common/apt-install git
-    - ./maint/check_todos
+    - ./maint/check-blocking-todos
 
 rust-checks:
   needs: []
@@ -189,12 +195,12 @@ rust-checks:
     - ./maint/common/via-cargo-install-in-ci cargo-sort --version 2.0.1
     - ./maint/common/via-cargo-install-in-ci cargo-license --version 0.7.0
     - cargo fmt -- --check
-    - ./maint/check_licenses
-    - ./maint/check_msrv
-    - ./maint/cargo_sort
-    - ./maint/check_tree
-    - ./maint/check_all_lockfiles
-    - ./maint/check_wildcard
+    - ./maint/check-licenses
+    - ./maint/check-msrv
+    - ./maint/cargo-sort
+    - ./maint/check-cargo-tree
+    - ./maint/check-all-lockfiles
+    - ./maint/check-wildcard-deps
     - ./maint/common/forbid-hard-tabs
   cache:
     paths:
@@ -211,7 +217,7 @@ cargo-audit:
   script:
     - rustup show
     - ./maint/common/via-cargo-install-in-ci cargo-audit
-    - ./maint/cargo_audit
+    - ./maint/cargo-audit
   cache:
     paths:
       - cache
@@ -393,13 +399,13 @@ rust-nightly:
       - artifacts
     expire_in: 1 week
 
-api-surface:
+check-api-surface:
   needs: []
   stage: test
   image: docker.io/rustlang/rust:nightly
   script:
     - maint/common/apt-install jq
-    - ./maint/check_arti_opacity
+    - ./maint/check-api-surface-arti
 
 deb-source:
   needs: []
@@ -516,7 +522,7 @@ minimal-versions:
   needs: []
   script:
     - rustup install nightly
-    - ./maint/downgrade_dependencies
+    - ./maint/downgrade-dependencies
     - cargo test --target x86_64-unknown-linux-gnu --all-features
 
 .build-repro-template:
@@ -525,12 +531,12 @@ minimal-versions:
   variables:
     # To be overridden in template instantiations
     TARGET: UNDEFINED--BUG-IN-CI-YAML
-  # If you upgrade this image, also change the one in docker_reproducible_build.
+  # If you upgrade this image, also change the one in docker-reproducible-build.
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: docker.io/amd64/rust:1.91.0-alpine3.22
   script:
     - apk add bash
-    - ./maint/reproducible_build $TARGET
+    - ./maint/reproducible-build $TARGET
   # no after_script:, we don't build in the project dir
   # TODO #1410: Maybe there is something we _can_ remove though?
   artifacts:
@@ -819,7 +825,7 @@ matrix-test-cfg:
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
-    - ./maint/matrix_test_cfg
+    - ./maint/matrix-test-cfg
 
 # TODO: consider removing this in favor of cli-test
 cli-help:
@@ -843,7 +849,10 @@ fuzz-check:
     - ./maint/common/apt-install libclang-dev
     - rustup show
     - ./maint/common/via-cargo-install-in-ci cargo-fuzz --version 0.13.1
-    - ./maint/fuzz_it_all -c
+    - ./maint/fuzz-it-all -c
+  cache:
+    paths:
+      - cache
 
 # TODO: this should be folded in one of the other test jobs.
 #
@@ -882,13 +891,13 @@ coverage-aggregated:
   tags:
     - ipv6
 
-check-targets:
+cargo-check-targets:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
-    - ./maint/cargo_check_target -il
+    - ./maint/cargo-check-targets -il
 
 # build the website
 website:

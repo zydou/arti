@@ -62,7 +62,7 @@ set -o pipefail
 maint=maint
 # shellcheck source=maint/crates-io-utils.sh
 source "$maint"/crates-io-utils.sh
-crates=$("$maint"/list_crates)
+crates=$("$maint"/list-crates)
 
 if [ $# != 0 ]; then fail 'bad usage: no arguments allowed'; fi
 

@@ -29,7 +29,7 @@ diff -u <(echo "$version") <(perl <CHANGELOG.md -wne '
 
 message="Arti v$version
 
-$(maint/list_crates --version)
+$(maint/list-crates --version)
 "
 
 set -x

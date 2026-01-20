@@ -170,7 +170,7 @@ MYPY_STRICT = set(
     Path(p)
     for p in [
         "maint/update-md-links",
-        "maint/list_crates",
+        "maint/list-crates",
         "maint/cargo-check-publishable",
     ]
 )

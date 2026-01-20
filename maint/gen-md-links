@@ -8,7 +8,7 @@ the appropriate https URLs for them.
 Takes input either from a file, or from stdin.
 
 Example:
-  ./gen_md_links < new_changelog
+  ./gen-md-links < new_changelog
 """
 
 import json
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     import sys
     import argparse
 
-    parser = argparse.ArgumentParser(prog="gen_md_links")
+    parser = argparse.ArgumentParser(prog="gen-md-links")
     parser.add_argument("filename", nargs="?", default="-")
     args = parser.parse_args()
 

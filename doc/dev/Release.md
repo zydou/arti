@@ -53,9 +53,9 @@ to make sure we aren't going to break our users.
 
    Are they still relevant?
    (There are exceptions in
-   `cargo_audit`
+   `maint/cargo-audit`
    and
-   `check_licenses`.)
+   `maint/check-licenses`.)
 
 4. [ ] Do we have any open [issues] or [merge requests] tagged "Blocker"?
 
@@ -124,7 +124,7 @@ release?" above.
    Then, fill in the URLs for any links that the script couldn't find -
    they'll be marked with X X X todo markers.
 
-   Run `maint/format_md_links CHANGELOG.md`
+   Run `maint/format-md-links CHANGELOG.md`
    to ensure that the lists of links on each entry
    are in the expected format.
 
@@ -163,9 +163,9 @@ release?" above.
    even if there have been no changes.
    For other crates, things are more complicated:
 
-   You can identify crates that have no changes using `maint/changed_crates`:
+   You can identify crates that have no changes using `maint/changed-crates`:
    ```
-   maint/changed_crates -v "arti-v$LAST_VERSION" 2>&1 >/dev/null | grep -i "no change"
+   maint/changed-crates -v "arti-v$LAST_VERSION" 2>&1 >/dev/null | grep -i "no change"
    ```
 
    To see whether a crate has only non-functional changes,
@@ -210,7 +210,7 @@ before you continue!
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
-   `maint/list_crates --version  | grep -P '^tor|^arti'`
+   `maint/list-crates --version  | grep -P '^tor|^arti'`
    will show you the existing versions,
    which should usually all be the same.
    Pick the next minor version, and, for each such crate:
@@ -222,8 +222,8 @@ before you continue!
       `cargo set-version --bump {patch|minor|major} -p ${CRATE}`.
 
     * For crates with non-functional changes,
-      you can use the `bump_nodep` script:
-      `./maint/bump_nodep crate1 crate2 crate3` ...
+      you can use the `bump-nodep` script:
+      `./maint/bump-nodep crate1 crate2 crate3` ...
 
    In all cases, make sure you commit `Cargo.lock` changes too.
 
@@ -262,7 +262,7 @@ before you continue!
    since the last version,
    but not had their versions bumped,
    with the command
-   `./maint/changed_crates -u ${LAST_VERSION}`.
+   `./maint/changed-crates -u ${LAST_VERSION}`.
    (Note the `-u`.)
 
    Run `maint/semver-checks` again:
@@ -293,7 +293,7 @@ before you continue!
 
    To do this, run
    `maint/tag-arti-release ${THIS_VERSION}`
-   (which will include the output of `maint/list_crates --version`).
+   (which will include the output of `maint/list-crates --version`).
 
    (Note to self: if you find that gpg can't find your yubikey,
    you'll need to run
@@ -519,7 +519,7 @@ Each entry should contain a terse description of what changed,
 ending with a period.
 After that description, there is a list of reference links.
 
-Use the `maint/format_md_links` tool
+Use the `maint/format-md-links` tool
 to ensure that all of the reference links
 are in brackets, comma-separated, and wrapped in parentheses.
 Make sure to check its output:
