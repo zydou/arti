@@ -261,10 +261,8 @@ pub(crate) struct VerifiedChannel<
     pub(crate) unique_id: UniqId,
     /// Validated Ed25519 identity for this peer.
     pub(crate) ed25519_id: Option<Ed25519Identity>,
-    /// Validated RSA identity for this peer.
-    pub(crate) rsa_id: Option<RsaIdentity>,
-    /// Peer verified RSA cert digest.
-    pub(crate) rsa_cert_digest: Option<[u8; 32]>,
+    /// Validated RSA identity and cert digets for this peer.
+    pub(crate) rsa_id_cert_digest: Option<(RsaIdentity, [u8; 32])>,
     /// Peer TLS certificate digest
     pub(crate) peer_cert_digest: [u8; 32],
     /// Authenticated clock skew for this peer.
@@ -515,8 +513,7 @@ impl<
             unique_id: self.unique_id,
             target_method: self.target_method,
             ed25519_id: Some(*identity_key),
-            rsa_id: Some(rsa_id),
-            rsa_cert_digest: Some(*rsa_cert.digest()),
+            rsa_id_cert_digest: Some((rsa_id, *rsa_cert.digest())),
             peer_cert_digest,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
@@ -619,7 +616,7 @@ impl<
         debug!(
             stream_id = %self.unique_id,
             "Completed handshake with {:?} [{:?}]",
-            self.ed25519_id, self.rsa_id
+            self.ed25519_id, self.rsa_id_cert_digest
         );
 
         // Grab a new handle on which we can apply StreamOps (needed for KIST).
@@ -643,7 +640,7 @@ impl<
         if let Some(ed25519_id) = self.ed25519_id {
             peer_builder.ed_identity(ed25519_id);
         }
-        if let Some(rsa_id) = self.rsa_id {
+        if let Some((rsa_id, _)) = self.rsa_id_cert_digest {
             peer_builder.rsa_identity(rsa_id);
         }
         let peer_id = peer_builder
@@ -1178,7 +1175,7 @@ pub(super) mod test {
     fn test_finish() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
             let ed25519_id = Some([3_u8; 32].into());
-            let rsa_id = Some([4_u8; 20].into());
+            let rsa_id = [4_u8; 20].into();
             let peer_addr = "127.1.1.2:443".parse().unwrap();
             let mut framed_tls = new_frame(MsgBuf::new(&b""[..]), ChannelType::ClientInitiator);
             let _ = framed_tls.codec_mut().set_link_version(4);
@@ -1189,8 +1186,7 @@ pub(super) mod test {
                 unique_id: UniqId::new(),
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
                 ed25519_id,
-                rsa_id,
-                rsa_cert_digest: Some([0; 32]),
+                rsa_id_cert_digest: Some((rsa_id, [0; 32])),
                 peer_cert_digest: [0; 32],
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,

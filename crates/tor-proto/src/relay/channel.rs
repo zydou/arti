@@ -307,9 +307,12 @@ impl<
             .ok_or(Error::BadCellAuth)?;
         // The ordering matter based on if initiator or responder.
         let cid = identities.rsa_x509_digest();
-        let sid = verified.rsa_cert_digest.ok_or(Error::from(internal!(
-            "AUTH_CHALLENGE cell without RSA identity"
-        )))?;
+        let sid = verified
+            .rsa_id_cert_digest
+            .ok_or(Error::from(internal!(
+                "Verified channel without a RSA identity"
+            )))?
+            .1;
         let cid_ed = identities.ed_id_bytes();
         let sid_ed = verified
             .ed25519_id
