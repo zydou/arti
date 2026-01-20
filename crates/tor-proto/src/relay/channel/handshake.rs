@@ -330,6 +330,12 @@ impl<
         let Some((netinfo, netinfo_rcvd_at)) = netinfo_cell else {
             return Err(Error::HandshakeProto("Missing NETINFO cell".into()));
         };
+        // We must have CERTS and AUTHENTICATE together (or neither).
+        if auth_cell.is_some() != certs_cell.is_some() {
+            return Err(Error::HandshakeProto(
+                "CERTS and AUTHENTICATE must be present or both be absent".into(),
+            ));
+        }
 
         Ok((auth_cell, certs_cell, (netinfo, netinfo_rcvd_at)))
     }
