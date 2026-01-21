@@ -204,8 +204,11 @@ pub enum ConnectError {
     /// Unable to access the location of `socket_address_file`.
     #[error("Problem accessing socket address file")]
     SocketAddressFileAccess(#[source] fs_mistrust::Error),
-    /// We couldn't parse the contents of a socket address file.
-    #[error("Invalid contents in socket address file")]
+    /// We couldn't parse the JSON contents of a socket address file.
+    #[error("Invalid JSON contents in socket address file")]
+    SocketAddressFileJson(#[source] Arc<serde_json::Error>),
+    /// We couldn't parse the address in a socket address file.
+    #[error("Invalid address in socket address file")]
     SocketAddressFileContent(#[source] general::AddrParseError),
     /// We found an address in the socket address file that didn't match the connect point.
     #[error("Socket address file contents didn't match connect point")]
@@ -238,6 +241,7 @@ impl crate::HasClientErrorAction for ConnectError {
             E::UnsupportedAuthType => A::Decline,
             E::AfUnixSocketPathAccess(err) => err.client_action(),
             E::SocketAddressFileAccess(err) => err.client_action(),
+            E::SocketAddressFileJson(_) => A::Decline,
             E::SocketAddressFileContent(_) => A::Decline,
             E::SocketAddressFileMismatch => A::Decline,
             E::AlreadyLocked => A::Abort, // (This one can't actually occur for clients.)

@@ -1,6 +1,6 @@
 //! Client operations for working with connect points.
 
-use std::{io, net::TcpStream};
+use std::{io, net::TcpStream, sync::Arc};
 
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
@@ -11,7 +11,7 @@ use tor_general_addr::general;
 use crate::{
     ConnectError, ResolvedConnectPoint,
     auth::{RpcAuth, RpcCookieSource, cookie::CookieLocation},
-    connpt::AddrWithStr,
+    connpt::{AddrWithStr, AddressFile},
 };
 
 /// Information about an initial connection to a connect point.
@@ -71,9 +71,10 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
                     .file_access()
                     .read_to_string(socket_address_file)
                     .map_err(ConnectError::SocketAddressFileAccess)?;
-                // XXXX wrong format.
-
-                let address: AddrWithStr<general::SocketAddr> = addr_from_disk
+                let addrfile: AddressFile = serde_json::from_str(&addr_from_disk)
+                    .map_err(|e| ConnectError::SocketAddressFileJson(Arc::new(e)))?;
+                let address: AddrWithStr<general::SocketAddr> = addrfile
+                    .address
                     .parse()
                     .map_err(ConnectError::SocketAddressFileContent)?;
                 auto_addr.validate_parsed_address(address.as_ref())?;

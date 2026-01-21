@@ -339,6 +339,15 @@ impl InetAutoAddress {
     }
 }
 
+/// The representation of an address as written into a socket file.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "rpc-client", derive(Deserialize))]
+#[cfg_attr(feature = "rpc-server", derive(serde::Serialize))]
+pub(crate) struct AddressFile {
+    /// The address to which the server is bound.
+    pub(crate) address: String,
+}
+
 impl<R: Addresses> ConnectAddress<R> {
     /// Return true if this is an inet-auto address.
     fn is_auto(&self) -> bool {
@@ -557,7 +566,9 @@ impl Addresses for Resolved {
 ///
 /// We use this type in connect points because, for some kinds of authentication,
 /// we need the literal input string that created the address.
-#[derive(Clone, Debug, derive_more::AsRef, serde_with::DeserializeFromStr)]
+#[derive(
+    Clone, Debug, derive_more::AsRef, serde_with::DeserializeFromStr, serde_with::SerializeDisplay,
+)]
 pub(crate) struct AddrWithStr<A>
 where
     A: Clone + Debug,
@@ -615,6 +626,15 @@ where
         let addr = s.parse()?;
         let string = s.to_owned();
         Ok(Self { string, addr })
+    }
+}
+
+impl<A> std::fmt::Display for AddrWithStr<A>
+where
+    A: Clone + Debug + std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.string)
     }
 }
 

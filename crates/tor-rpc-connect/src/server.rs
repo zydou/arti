@@ -5,7 +5,7 @@ use std::{io, path::PathBuf, sync::Arc};
 use crate::{
     ConnectError, ResolvedConnectPoint,
     auth::{RpcAuth, RpcCookieSource, cookie::Cookie},
-    connpt::ConnectAddress,
+    connpt::{AddressFile, ConnectAddress},
 };
 use fs_mistrust::Mistrust;
 use tor_general_addr::general;
@@ -134,12 +134,16 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
         let (listener, chosen_address) = self.socket.bind(runtime).await?;
 
         if let Some(addr_file) = &self.socket_address_file {
-            // XXXX wrong format.
+            let file_contents = serde_json::to_string(&AddressFile {
+                address: chosen_address.clone(),
+            })
+            .expect("Unable to serialize address!");
+
             mistrust
                 .verifier()
                 .permit_readable()
                 .file_access()
-                .write_and_replace(addr_file, &chosen_address)
+                .write_and_replace(addr_file, file_contents)
                 .map_err(ConnectError::SocketAddressFileAccess)?;
         };
 
