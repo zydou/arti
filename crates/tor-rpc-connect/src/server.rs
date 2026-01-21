@@ -77,16 +77,20 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
     where
         R: NetStreamProvider<general::SocketAddr, Listener = tor_rtcompat::general::Listener>,
     {
-        let ConnectAddress::Socket(bind_to_socket) = &self.socket else {
-            todo!() // XXXX
-        };
-
         // Create parent directory for socket if needed.
-        if let Some(sock_parent_dir) = crate::socket_parent_path(bind_to_socket.as_ref()) {
-            mistrust.make_directory(sock_parent_dir)?;
+        if let ConnectAddress::Socket(bind_to_socket) = &self.socket {
+            if let Some(sock_parent_dir) = crate::socket_parent_path(bind_to_socket.as_ref()) {
+                mistrust.make_directory(sock_parent_dir)?;
+            }
         }
 
-        let guard = if let Some(socket_path) = bind_to_socket.as_ref().as_pathname() {
+        let af_unix_pathname = if let ConnectAddress::Socket(bind_to_socket) = &self.socket {
+            bind_to_socket.as_ref().as_pathname()
+        } else {
+            None
+        };
+
+        let guard = if let Some(socket_path) = af_unix_pathname {
             // This socket has a representation in the filesystem.
             // We need an associated lock to make sure that we don't delete the socket
             // while it is in use.
@@ -127,7 +131,17 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
             }
         };
 
-        let listener = runtime.listen(bind_to_socket.as_ref()).await?;
+        let (listener, chosen_address) = self.socket.bind(runtime).await?;
+
+        if let Some(addr_file) = &self.socket_address_file {
+            // XXXX wrong format.
+            mistrust
+                .verifier()
+                .permit_readable()
+                .file_access()
+                .write_and_replace(addr_file, &chosen_address)
+                .map_err(ConnectError::SocketAddressFileAccess)?;
+        };
 
         // We try to bind to the listener before we (maybe) create the cookie file,
         // so that if we encounter an `EADDRINUSE` we won't overwrite the old cookie file.
@@ -139,7 +153,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
                     &mut rand::rng(),
                     mistrust,
                 )?)),
-                server_address: bind_to_socket.as_str().to_owned(),
+                server_address: chosen_address,
             },
             crate::connpt::Auth::Unrecognized(_) => return Err(ConnectError::UnsupportedAuthType),
         };

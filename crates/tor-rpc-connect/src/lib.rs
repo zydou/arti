@@ -200,10 +200,18 @@ pub enum ConnectError {
     /// Unable to access the location of an AF\_UNIX socket.
     #[error("Unix domain socket path access")]
     AfUnixSocketPathAccess(#[from] fs_mistrust::Error),
+    /// Unable to access the location of `socket_address_file`.
+    #[error("Problem accessing socket address file")]
+    SocketAddressFileAccess(#[source] fs_mistrust::Error),
     /// Another process was holding a lock for this connect point,
     /// so we couldn't bind to it.
     #[error("Could not acquire lock: Another process is listening on this connect point")]
     AlreadyLocked,
+    /// We encountered an internal logic error.
+    //
+    // (We're not using tor_error::Bug here because we want this code to work properly in rpc-client-core.)
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl From<io::Error> for ConnectError {
@@ -222,7 +230,9 @@ impl crate::HasClientErrorAction for ConnectError {
             E::UnsupportedSocketType => A::Decline,
             E::UnsupportedAuthType => A::Decline,
             E::AfUnixSocketPathAccess(err) => err.client_action(),
+            E::SocketAddressFileAccess(err) => err.client_action(),
             E::AlreadyLocked => A::Abort, // (This one can't actually occur for clients.)
+            E::Internal(_) => A::Abort,
         }
     }
 }

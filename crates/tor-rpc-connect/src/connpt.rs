@@ -13,6 +13,8 @@ use tor_config_path::{
     addr::{CfgAddr, CfgAddrError},
 };
 use tor_general_addr::general::{self, AddrParseError};
+#[cfg(feature = "rpc-server")]
+use tor_rtcompat::{NetStreamListener, NetStreamProvider};
 
 use crate::HasClientErrorAction;
 
@@ -302,6 +304,21 @@ impl FromStr for InetAutoAddress {
     }
 }
 
+impl InetAutoAddress {
+    /// Return a list of addresses to bind to.
+    fn bind_to_addresses(&self) -> Vec<general::SocketAddr> {
+        match self {
+            InetAutoAddress { bind: None } => vec![
+                net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 0).into(),
+                net::SocketAddr::new(net::Ipv6Addr::LOCALHOST.into(), 0).into(),
+            ],
+            InetAutoAddress { bind: Some(ip) } => {
+                vec![net::SocketAddr::new(*ip, 0).into()]
+            }
+        }
+    }
+}
+
 impl<R: Addresses> ConnectAddress<R> {
     /// Return true if this is an inet-auto address.
     fn is_auto(&self) -> bool {
@@ -326,14 +343,54 @@ impl ConnectAddress<Resolved> {
     fn bind_to_addresses(&self) -> Vec<general::SocketAddr> {
         use ConnectAddress::*;
         match self {
-            InetAuto(InetAutoAddress { bind: None }) => vec![
-                net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 0).into(),
-                net::SocketAddr::new(net::Ipv6Addr::LOCALHOST.into(), 0).into(),
-            ],
-            InetAuto(InetAutoAddress { bind: Some(ip) }) => {
-                vec![net::SocketAddr::new(*ip, 0).into()]
-            }
+            InetAuto(a) => a.bind_to_addresses(),
             Socket(a) => vec![a.as_ref().clone()],
+        }
+    }
+
+    /// Bind a single address from this `ConnectAddress`,
+    /// or return an error if none can be bound.
+    #[cfg(feature = "rpc-server")]
+    pub(crate) async fn bind<R>(
+        &self,
+        runtime: &R,
+    ) -> Result<(R::Listener, String), crate::ConnectError>
+    where
+        R: NetStreamProvider<general::SocketAddr>,
+    {
+        use crate::ConnectError;
+        match self {
+            ConnectAddress::InetAuto(auto) => {
+                let bind_one =
+                     async |addr: &general::SocketAddr| -> Result<(R::Listener, String), crate::ConnectError>  {
+                        let listener = runtime.listen(addr).await?;
+                        let local_addr = listener.local_addr()?.try_to_string().ok_or_else(|| ConnectError::Internal("Can't represent auto socket as string!".into()))?;
+                        Ok((listener,local_addr))
+                    };
+
+                let mut first_error = None;
+
+                for addr in auto.bind_to_addresses() {
+                    match bind_one(&addr).await {
+                        Ok(result) => {
+                            return Ok(result);
+                        }
+                        Err(e) => {
+                            if first_error.is_none() {
+                                first_error = Some(e);
+                            }
+                        }
+                    }
+                }
+                // if we reach here, we only got errors.
+                Err(first_error.unwrap_or_else(|| {
+                    ConnectError::Internal("No auto addresses to bind!?".into())
+                }))
+            }
+            ConnectAddress::Socket(addr) => {
+                let listener = runtime.listen(addr.as_ref()).await?;
+                Ok((listener, addr.as_str().to_owned()))
+            }
         }
     }
 }
