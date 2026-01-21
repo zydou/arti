@@ -705,7 +705,7 @@ pub(super) mod test {
 
     use super::*;
     use crate::channel::handler::test::MsgBuf;
-    use crate::channel::new_frame;
+    use crate::channel::{ChannelType, new_frame};
     use crate::util::fake_mq;
     use crate::{Result, channel::ClientInitiatorHandshake};
     use tor_cell::chancell::msg;
