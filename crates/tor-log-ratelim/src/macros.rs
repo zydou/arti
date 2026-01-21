@@ -192,6 +192,8 @@ macro_rules! log_ratelim {
     struct Lg {
         /// Internal state of the log.
         state: LogState,
+        /// The activity status the last time we flushed.
+        last_activity: Option<Activity>,
     }
     impl Loggable for Lg {
         fn flush(&mut self, summarizing: std::time::Duration) -> Activity {
@@ -205,26 +207,31 @@ macro_rules! log_ratelim {
                   );
                }
                Activity::AppearsResolved => {
-                  tracing::event!(
-                      // Using err_level here is in some respects confusing:
-                      // if the _presence_ of the problem is (say) a WARN,
-                      // why should its newfound absence also be a WARN?
-                      //
-                      // We have had to decide which is worse:
-                      // that a user only watching WARNs
-                      // might not see a problem has gone away,
-                      // or that a non-problem would be reported
-                      // at an excessive severity.
-                      // We went with the latter.
-                      tracing::Level::$err_level,
-                      "{}",
-                      self.state.display_recovery(summarizing)
-                  );
+                   // Don't want to log an update if we're continuing to see successes and no
+                   // failures.
+                   if self.last_activity != Some(Activity::AppearsResolved) {
+                       tracing::event!(
+                           // Using err_level here is in some respects confusing:
+                           // if the _presence_ of the problem is (say) a WARN,
+                           // why should its newfound absence also be a WARN?
+                           //
+                           // We have had to decide which is worse:
+                           // that a user only watching WARNs
+                           // might not see a problem has gone away,
+                           // or that a non-problem would be reported
+                           // at an excessive severity.
+                           // We went with the latter.
+                           tracing::Level::$err_level,
+                           "{}",
+                           self.state.display_recovery(summarizing)
+                       );
+                   }
                }
                // There have been no new successes or failures, so there's no update to report.
                Activity::Dormant => {}
             }
             self.state.reset();
+            self.last_activity = Some(activity);
             activity
         }
     }
@@ -254,7 +261,8 @@ macro_rules! log_ratelim {
           .expect("poisoned lock")
           .entry(key)
           .or_insert_with(|| RateLim::new(Lg {
-              state: LogState::new(activity)
+              state: LogState::new(activity),
+              last_activity: None,
           }));
         // 2) Note failure in the activity with note_fail().
         logger.event(runtime, |lg| lg.state.note_fail(||
