@@ -12,7 +12,7 @@ def connect_simple(context):
 
     # Try a simple connection.
     # TODO: Pick another address?
-    (stream, ident) = connection.open_stream("www.torproject.org", 80)
+    stream, ident = connection.open_stream("www.torproject.org", 80)
     assert ident is None
     assert isinstance(stream, socket.socket)
     # TODO: Once we have another address, try doing something with this socket.
@@ -20,7 +20,7 @@ def connect_simple(context):
 
     # Try a connection to a nonexistent address.
     try:
-        (stream, ident) = connection.open_stream("does-not-exist.torproject.org", 443)
+        stream, ident = connection.open_stream("does-not-exist.torproject.org", 443)
         assert False
     except ArtiRpcError as e:
         assert str(e).startswith("Data stream failed")

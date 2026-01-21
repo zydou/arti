@@ -27,8 +27,7 @@ def test_crate(args, c):
             print(
                 """(
 (((((((((( skipping %s ))))))))))
-)"""
-                % c.name,
+)""" % c.name,
                 file=sys.stderr,
             )
             return
@@ -36,7 +35,7 @@ def test_crate(args, c):
         conditional_option_directive = "# @@ test-all-crates conditional-option "
         # One option per line, so it can contain spaces
         if line.startswith(conditional_option_directive):
-            (key, option) = (
+            key, option = (
                 line[len(conditional_option_directive) :].rstrip().split(maxsplit=1)
             )
             if key in args.enable_conditional_options:
@@ -48,8 +47,7 @@ def test_crate(args, c):
     print(
         """:
 :::::::::: %s ::::::::::
-:"""
-        % c.name,
+:""" % c.name,
         file=sys.stderr,
     )
 
@@ -73,8 +71,7 @@ def test_crate(args, c):
         print(
             """failed command %s
 "return code" %s
-failed to test crate %s"""
-            % (repr(command_l), child.returncode, c.name),
+failed to test crate %s""" % (repr(command_l), child.returncode, c.name),
             file=sys.stderr,
         )
         sys.exit(1)

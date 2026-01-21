@@ -59,8 +59,7 @@ def update_date(filename: Path, date: time.struct_time):
     date_text = time.strftime("%Y-%m-%d", date)
 
     with filename.open("w") as f:
-        f.write(
-            f"""\
+        f.write(f"""\
 {WARNING_TEXT}
 //! Release date for arti-client.
 //!
@@ -77,8 +76,7 @@ def update_date(filename: Path, date: time.struct_time):
 /// the fact that we released _this_ version
 /// indicates that a newer consensus probably permits this version.)
 pub(crate) const ARTI_CLIENT_RELEASE_DATE: &str = "{date_text}";
-"""
-        )
+""")
 
 
 def run():

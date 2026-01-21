@@ -108,7 +108,7 @@ def check_crate(crate: Crate) -> None:
 
     for spec_cat in cats:
         if "::" in spec_cat:
-            (cat, subcat) = spec_cat.split("::", 1)
+            cat, subcat = spec_cat.split("::", 1)
         else:
             cat = spec_cat
             subcat = None

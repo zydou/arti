@@ -25,16 +25,12 @@ class JqBinResolver:
     def resolve(self, args: Namespace) -> Path:
         res_str = args.jq_bin or shutil.which("jq")
         if res_str is None:
-            print(
-                textwrap.dedent(
-                    """
+            print(textwrap.dedent("""
                     jq not found.
                     Try setting --jq-bin or ensuring it's on your PATH.
                     On debian, it can be installed with:
                     apt install jq
-                    """
-                )
-            )
+                    """))
             sys.exit(1)
         res = Path(res_str)
         if not os.access(res, os.X_OK):
@@ -50,16 +46,12 @@ class ChutneyBinResolver:
     def resolve(self, args: Namespace) -> Path:
         res_str = args.chutney_bin or shutil.which("chutney")
         if res_str is None:
-            print(
-                textwrap.dedent(
-                    """
+            print(textwrap.dedent("""
                     chutney (https://gitlab.torproject.org/tpo/core/chutney) not found.
                     Try setting --chutney-bin or ensuring it's on your PATH.
                     quick install:
                     python3 -m pip install git+https://gitlab.torproject.org/tpo/core/chutney.git
-                    """
-                )
-            )
+                    """))
             sys.exit(1)
         res = Path(res_str)
         if not os.access(res, os.X_OK):
@@ -86,15 +78,11 @@ class ArtiBinResolver:
                     res_str = str(p)
                     break
         if res_str is None:
-            print(
-                textwrap.dedent(
-                    """
+            print(textwrap.dedent("""
                     arti client not found.
                     Try setting --arti-bin or building one in this repo:
                     cargo build --locked --profile=quicktest -p arti
-                    """
-                )
-            )
+                    """))
             sys.exit(1)
         res = Path(res_str)
         if not os.access(res, os.X_OK):
@@ -123,15 +111,11 @@ class ArtiBenchBinResolver:
                     res_str = str(p)
                     break
         if res_str is None:
-            print(
-                textwrap.dedent(
-                    """
+            print(textwrap.dedent("""
                     arti-bench not found.
                     Try setting --arti-bench-bin or building one in this repo:
                     cargo build --locked --profile=quicktest -p arti-bench
-                    """
-                )
-            )
+                    """))
             sys.exit(1)
         res = Path(res_str)
         if not os.access(res, os.X_OK):

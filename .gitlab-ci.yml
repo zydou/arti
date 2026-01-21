@@ -101,8 +101,8 @@ python3-checks:
   needs: []
   stage: build
   variables:
-    # Updated 2025-09-15
-    BLACK_VERSION: "25.1.0"
+    # Updated 2026-01-21
+    BLACK_VERSION: "26.1.0"
     # Updated 2025-09-15
     FLAKE8_VERSION: "7.3.0"
     # Updated 2025-09-15
