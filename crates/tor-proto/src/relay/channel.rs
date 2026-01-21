@@ -290,6 +290,9 @@ impl<
     /// requirement to pass the verified channel to this function.
     ///
     /// Both initiator and responder handshake build this data in order to authenticate.
+    ///
+    /// IMPORTANT: The CLOG and SLOG from the framed_tls codec is consumed here so calling twice
+    /// build_auth_data() will result in different AUTHENTICATE cells.
     fn build_auth_data(
         auth_challenge_cell: Option<&msg::AuthChallenge>,
         identities: &Arc<RelayIdentities>,
@@ -320,6 +323,7 @@ impl<
                 "Verified channel without an ed25519 identity"
             )))?
             .into();
+        // Both values are consumed from the underlying codec.
         let clog = verified.framed_tls.codec_mut().get_clog_digest()?;
         let slog = verified.framed_tls.codec_mut().get_slog_digest()?;
 
