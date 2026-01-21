@@ -60,6 +60,7 @@ use rusqlite::{
 };
 use saturating_time::SaturatingTime;
 use sha2::Digest;
+use tor_error::into_internal;
 
 use crate::err::DatabaseError;
 
@@ -601,7 +602,7 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
             continue;
         }
 
-        let compressed = compress(data, encoding).map_err(DatabaseError::Compression)?;
+        let compressed = compress(data, encoding).map_err(into_internal!("{encoding} failed?"))?;
         let compressed_docid = DocumentId::digest(&compressed);
         store_stmt.execute(named_params! {
             ":docid": compressed_docid,
