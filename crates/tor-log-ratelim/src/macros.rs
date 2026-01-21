@@ -189,16 +189,19 @@ macro_rules! log_ratelim {
     // `tor-log-ratelim`, all the messages would appear to originate from there.
     //
     // (TODO: We could use tracing::Metadata explicitly, perhaps? That might be hard.)
-    struct Lg(LogState);
+    struct Lg {
+        /// Internal state of the log.
+        state: LogState,
+    }
     impl Loggable for Lg {
         fn flush(&mut self, summarizing: std::time::Duration) -> Activity {
-            let activity = self.0.activity();
+            let activity = self.state.activity();
             match activity {
                Activity::Active => {
                   tracing::event!(
                       tracing::Level::$err_level,
                       "{}",
-                      self.0.display_problem(summarizing)
+                      self.state.display_problem(summarizing)
                   );
                }
                Activity::AppearsResolved => {
@@ -215,13 +218,13 @@ macro_rules! log_ratelim {
                       // We went with the latter.
                       tracing::Level::$err_level,
                       "{}",
-                      self.0.display_recovery(summarizing)
+                      self.state.display_recovery(summarizing)
                   );
                }
                // There have been no new successes or failures, so there's no update to report.
                Activity::Dormant => {}
             }
-            self.0.reset();
+            self.state.reset();
             activity
         }
     }
@@ -250,9 +253,11 @@ macro_rules! log_ratelim {
           .lock()
           .expect("poisoned lock")
           .entry(key)
-          .or_insert_with(|| RateLim::new(Lg(LogState::new(activity))));
+          .or_insert_with(|| RateLim::new(Lg {
+              state: LogState::new(activity)
+          }));
         // 2) Note failure in the activity with note_fail().
-        logger.event(runtime, |lg| lg.0.note_fail(||
+        logger.event(runtime, |lg| lg.state.note_fail(||
           // 2b) If this is the first time that this activity failed since the
           //     last flush, record the formatted err_msg, and a Clone of the error.
           (
@@ -272,7 +277,7 @@ macro_rules! log_ratelim {
           .lock()
           .expect("poisoned lock")
           .get(&key) {
-            logger.nonevent(|lg| lg.0.note_ok());
+            logger.nonevent(|lg| lg.state.note_ok());
           }
         // 2) If we have a per-success item to log, log it.
         $(
