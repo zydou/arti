@@ -69,6 +69,7 @@ use tor_llcrypto::pk;
 use tracing::{debug, info, instrument, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
+use crate::circuit::reactor::ReactorResultChannel;
 
 #[cfg(feature = "hs-service")]
 use crate::stream::incoming::IncomingStreamRequestHandler;
@@ -80,9 +81,6 @@ use {
 };
 
 pub(super) use control::{CtrlCmd, CtrlMsg, FlowCtrlMsg};
-
-/// The type of a oneshot channel used to inform reactor of the result of an operation.
-pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
 /// Contains a list of conflux handshake results.
 #[cfg(feature = "conflux")]

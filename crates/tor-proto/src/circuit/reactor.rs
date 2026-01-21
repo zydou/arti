@@ -7,3 +7,8 @@
 //! to use these new reactor types as well.
 //!
 //! [multi-reactor circuit subsystem]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/notes/relay-conflux.md
+
+use oneshot_fused_workaround as oneshot;
+
+/// The type of a oneshot channel used to inform reactor of the result of an operation.
+pub(crate) type ReactorResultChannel<T> = oneshot::Sender<crate::Result<T>>;
