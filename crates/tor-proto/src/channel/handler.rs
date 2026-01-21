@@ -44,6 +44,15 @@ impl From<super::ChannelType> for ChannelCellHandler {
 }
 
 impl ChannelCellHandler {
+    /// Return the [`ChannelType`] of the inner handler.
+    pub(crate) fn channel_type(&self) -> ChannelType {
+        match self {
+            Self::New(h) => h.channel_type,
+            Self::Handshake(h) => h.channel_type(),
+            Self::Open(h) => h.channel_type(),
+        }
+    }
+
     /// Set link protocol for this channel cell handler. This transition the handler into the
     /// handshake handler state.
     ///
@@ -65,10 +74,24 @@ impl ChannelCellHandler {
     pub(crate) fn set_open(&mut self) -> Result<(), ChanError> {
         let Self::Handshake(handler) = self else {
             return Err(ChanError::Bug(internal!(
-                "Setting authenticated without a handshake handler"
+                "Setting open without a handshake handler"
             )));
         };
         *self = Self::Open(handler.next_handler());
+        Ok(())
+    }
+
+    /// Mark this handler as authenticated.
+    ///
+    /// This can only happen during the Handshake process as a New handler can't be authenticated
+    /// from the start and an Open handler can only be opened after authentication.
+    pub(crate) fn set_authenticated(&mut self) -> Result<(), ChanError> {
+        let Self::Handshake(handler) = self else {
+            return Err(ChanError::Bug(internal!(
+                "Setting authenticated without a handshake handler"
+            )));
+        };
+        handler.set_authenticated();
         Ok(())
     }
 
@@ -303,8 +326,6 @@ impl futures_codec::Encoder for NewChannelHandler {
 /// The handshake channel handler which is used to decode and encode cells onto a channel that is
 /// handshaking with an endpoint.
 pub(crate) struct HandshakeChannelHandler {
-    /// The channel type for this handler.
-    channel_type: ChannelType,
     /// Message filter used to allow or not a certain message.
     filter: MessageFilter,
     /// The cell codec that we'll use to encode and decode our cells.
@@ -319,7 +340,6 @@ impl HandshakeChannelHandler {
     /// Constructor
     fn new(new_handler: &mut NewChannelHandler, link_version: LinkVersion) -> Self {
         Self {
-            channel_type: new_handler.channel_type,
             filter: MessageFilter::new(
                 link_version,
                 new_handler.channel_type,
@@ -344,7 +364,7 @@ impl HandshakeChannelHandler {
                 .link_version()
                 .try_into()
                 .expect("Channel Codec with unknown link version"),
-            self.channel_type,
+            self.channel_type(),
         )
     }
 
@@ -356,6 +376,16 @@ impl HandshakeChannelHandler {
     /// Return the digest of the SLOG consuming it.
     pub(crate) fn take_slog(&mut self) -> Option<[u8; 32]> {
         Self::finalize_log(self.slog.take())
+    }
+
+    /// Return the [`ChannelType`] of this handler.
+    pub(crate) fn channel_type(&self) -> ChannelType {
+        self.filter.channel_type()
+    }
+
+    /// Mark this handler as authenticated.
+    pub(crate) fn set_authenticated(&mut self) {
+        self.filter.channel_type_mut().set_authenticated();
     }
 }
 
@@ -413,6 +443,11 @@ impl OpenChannelHandler {
             inner: codec::ChannelCodec::new(link_version.value()),
             filter: MessageFilter::new(link_version, channel_type, super::msg::MessageStage::Open),
         }
+    }
+
+    /// Return the [`ChannelType`] of this handler.
+    fn channel_type(&self) -> ChannelType {
+        self.filter.channel_type()
     }
 }
 

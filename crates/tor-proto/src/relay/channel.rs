@@ -436,7 +436,7 @@ impl<
         // channel codec to adapt its restricted message sets (meaning R2R only).
         //
         // After this call, it is considered a R2R channel.
-        verified.channel_type.set_authenticated();
+        verified.set_authenticated()?;
 
         Ok(Box::new(VerifiedRelayChannel {
             inner: verified,

@@ -521,6 +521,16 @@ impl MessageFilter {
         }
     }
 
+    /// Return the [`ChannelType`] of this filter.
+    pub(super) fn channel_type(&self) -> ChannelType {
+        self.channel_type
+    }
+
+    /// Return the [`ChannelType`] of this filter as a mutable.
+    pub(super) fn channel_type_mut(&mut self) -> &mut ChannelType {
+        &mut self.channel_type
+    }
+
     /// Decode a cell from the given bytes for the right link version, channel type and message
     /// stage using the codec given.
     pub(super) fn decode_cell(

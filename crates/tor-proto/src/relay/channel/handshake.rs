@@ -134,7 +134,6 @@ impl<
 
         Ok(Box::new(UnverifiedRelayChannel {
             inner: UnverifiedChannel {
-                channel_type: ChannelType::RelayInitiator,
                 link_protocol,
                 framed_tls: self.framed_tls,
                 clock_skew,
@@ -250,9 +249,6 @@ impl<
 
         Ok(Box::new(UnverifiedRelayChannel {
             inner: UnverifiedChannel {
-                channel_type: ChannelType::RelayResponder {
-                    authenticated: false,
-                },
                 link_protocol,
                 framed_tls: self.framed_tls,
                 clock_skew,

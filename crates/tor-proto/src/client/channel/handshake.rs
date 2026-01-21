@@ -136,7 +136,6 @@ impl<
 
         Ok(Box::new(UnverifiedClientChannel {
             inner: UnverifiedChannel {
-                channel_type: ChannelType::ClientInitiator,
                 link_protocol,
                 framed_tls: self.framed_tls,
                 certs_cell: Some(certs_cell),

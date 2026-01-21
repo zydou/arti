@@ -6,7 +6,7 @@ use futures::stream::StreamExt;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_error::internal;
 
-use crate::channel::{ChannelFrame, ChannelType, UniqId};
+use crate::channel::{ChannelFrame, UniqId};
 use crate::memquota::ChannelAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
@@ -210,8 +210,6 @@ pub(crate) struct UnverifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
-    /// Indicate what type of channel this is.
-    pub(crate) channel_type: ChannelType,
     /// Runtime handle (insofar as we need it)
     pub(crate) sleep_prov: S,
     /// Memory quota account
@@ -245,8 +243,6 @@ pub(crate) struct VerifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
-    /// Indicate what type of channel this is.
-    pub(crate) channel_type: ChannelType,
     /// Runtime handle (insofar as we need it)
     pub(crate) sleep_prov: S,
     /// Memory quota account
@@ -507,7 +503,6 @@ impl<
         rsa_cert_timeliness?;
 
         Ok(VerifiedChannel {
-            channel_type: self.channel_type,
             link_protocol: self.link_protocol,
             framed_tls: self.framed_tls,
             unique_id: self.unique_id,
@@ -547,6 +542,10 @@ impl<
         // We have finalized the handshake, move our codec to Open.
         self.framed_tls.codec_mut().set_open()?;
 
+        // Grab the channel type from our underlying frame as we are about to consume the
+        // framed_tls and we need the channel type to be set into the resulting Channel.
+        let channel_type = self.framed_tls.codec().channel_type();
+
         // Grab a new handle on which we can apply StreamOps (needed for KIST).
         // On Unix platforms, this handle is a wrapper over the fd of the socket.
         //
@@ -573,7 +572,7 @@ impl<
         );
 
         super::Channel::new(
-            self.channel_type,
+            channel_type,
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
@@ -592,6 +591,12 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > VerifiedChannel<T, S>
 {
+    /// Mark this channel as authenticated.
+    pub(crate) fn set_authenticated(&mut self) -> Result<()> {
+        self.framed_tls.codec_mut().set_authenticated()?;
+        Ok(())
+    }
+
     /// The channel is used to send cells, and to create outgoing circuits.
     /// The reactor is used to route incoming messages to their appropriate
     /// circuit.
@@ -612,6 +617,10 @@ impl<
 
         // We have finalized the handshake, move our codec to Open.
         self.framed_tls.codec_mut().set_open()?;
+
+        // Grab the channel type from our underlying frame as we are about to consume the
+        // framed_tls and we need the channel type to be set into the resulting Channel.
+        let channel_type = self.framed_tls.codec().channel_type();
 
         debug!(
             stream_id = %self.unique_id,
@@ -648,7 +657,7 @@ impl<
             .expect("OwnedChanTarget builder failed");
 
         super::Channel::new(
-            self.channel_type,
+            channel_type,
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
@@ -908,7 +917,6 @@ pub(super) mod test {
         let _ = framed_tls.codec_mut().set_open();
         let clock_skew = ClockSkew::None;
         UnverifiedChannel {
-            channel_type: ChannelType::ClientInitiator,
             link_protocol: 4,
             framed_tls,
             certs_cell: Some(certs),
@@ -1180,7 +1188,6 @@ pub(super) mod test {
             let mut framed_tls = new_frame(MsgBuf::new(&b""[..]), ChannelType::ClientInitiator);
             let _ = framed_tls.codec_mut().set_link_version(4);
             let ver = VerifiedChannel {
-                channel_type: ChannelType::ClientInitiator,
                 link_protocol: 4,
                 framed_tls,
                 unique_id: UniqId::new(),
