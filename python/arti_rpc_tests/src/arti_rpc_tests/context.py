@@ -28,6 +28,7 @@ class TestContext:
     arti_binary: Path
     conf_file: Path
     socket_path: Path
+    socket_address_path: Path
     arti_process: Optional[ArtiProcess]
 
     def __init__(self, arti_binary: Path, path: Path):
@@ -44,7 +45,10 @@ class TestContext:
         socket_path = path.joinpath("arti_rpc.socket")
         unix_connpt_path = path.joinpath("arti_unix_connpt.toml")
         tcp_connpt_path = path.joinpath("arti_tcp_connpt.toml")
+        tcp_auto_connpt_path = path.joinpath("arti_tcp_auto_connpt.toml")
         cookie_path = path.joinpath("rpc_cookie.secret")
+        cookie2_path = path.joinpath("rpc_cookie_2.secret")
+        socket_address_path = path.joinpath("socket_address")
         socks_port = 15986  # "chosen by fair dice roll. guaranteed to be random."
         rpc_port = 18929
 
@@ -61,6 +65,16 @@ auth = "none"
 socket = "inet:127.0.0.1:{rpc_port}"
 auth = {{ cookie = {{ path = "{cookie_path}" }} }}
 """)
+
+        with open(tcp_auto_connpt_path, "w") as f:
+            f.write(
+                f"""
+[connect]
+socket = "inet-auto:auto"
+socket_address_file = "{socket_address_path}"
+auth = {{ cookie = {{ path = "{cookie2_path}" }} }}
+"""
+            )
 
         is_windows = sys.platform in ["win32", "cygwin"]
 
@@ -80,6 +94,9 @@ auth = {{ cookie = {{ path = "{cookie_path}" }} }}
                     },
                     "tcp-point": {
                         "file": str(tcp_connpt_path),
+                    },
+                    "tcp-auto-point": {
+                        "file": str(tcp_auto_connpt_path),
                     },
                 },
             },
@@ -103,6 +120,8 @@ auth = {{ cookie = {{ path = "{cookie_path}" }} }}
             self.unix_connpt_path = unix_connpt_path
         self.tcp_connpt_path = tcp_connpt_path
         self.cookie_path = cookie_path
+        self.cookie2_path = cookie2_path
+        self.socket_address_path = socket_address_path
         self.rpc_port = rpc_port
         self.arti_process = None
 
