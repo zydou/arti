@@ -317,6 +317,26 @@ impl InetAutoAddress {
             }
         }
     }
+
+    /// Having parsed `addr`, make sure it is a possible instantiation of this address.
+    ///
+    /// Return an error if it is not.
+    #[cfg(feature = "rpc-client")]
+    pub(crate) fn validate_parsed_address(
+        &self,
+        addr: &general::SocketAddr,
+    ) -> Result<(), crate::ConnectError> {
+        use general::SocketAddr::Inet;
+        for sa in self.bind_to_addresses() {
+            if let (Inet(specified), Inet(got)) = (sa, addr) {
+                if specified.port() == 0 && specified.ip() == got.ip() {
+                    return Ok(());
+                }
+            }
+        }
+
+        Err(crate::ConnectError::SocketAddressFileMismatch)
+    }
 }
 
 impl<R: Addresses> ConnectAddress<R> {

@@ -51,14 +51,33 @@ impl crate::connpt::Builtin {
 impl crate::connpt::Connect<crate::connpt::Resolved> {
     /// Return the address that we should actually try to connect to, with its string representation
     /// set to the canonical address.
-    #[allow(clippy::unnecessary_wraps)] //XXXX
-    fn find_connect_address(&self) -> Result<AddrWithStr<general::SocketAddr>, ConnectError> {
+    fn find_connect_address(
+        &self,
+        mistrust: &Mistrust,
+    ) -> Result<AddrWithStr<general::SocketAddr>, ConnectError> {
         use crate::connpt::ConnectAddress::*;
 
         // Find the target address.
         let mut addr = match &self.socket {
-            InetAuto(_) => {
-                todo!() // XXXX load from disk.
+            InetAuto(auto_addr) => {
+                let socket_address_file = self.socket_address_file.as_ref().ok_or_else(|| {
+                    ConnectError::Internal(
+                        "Absent socket_address_file should have been rejected earlier".into(),
+                    )
+                })?;
+                let addr_from_disk = mistrust
+                    .verifier()
+                    .permit_readable()
+                    .file_access()
+                    .read_to_string(socket_address_file)
+                    .map_err(ConnectError::SocketAddressFileAccess)?;
+                // XXXX wrong format.
+
+                let address: AddrWithStr<general::SocketAddr> = addr_from_disk
+                    .parse()
+                    .map_err(ConnectError::SocketAddressFileContent)?;
+                auto_addr.validate_parsed_address(address.as_ref())?;
+                address
             }
             Socket(addr) => addr.clone(),
         };
@@ -73,7 +92,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
     fn do_connect(&self, mistrust: &Mistrust) -> Result<Connection, ConnectError> {
         use crate::connpt::Auth;
         use tor_general_addr::general::SocketAddr as SA;
-        let connect_to_address = self.find_connect_address()?;
+        let connect_to_address = self.find_connect_address(mistrust)?;
         let auth = match &self.auth {
             Auth::None => RpcAuth::Inherent,
             Auth::Cookie { path } => RpcAuth::Cookie {
