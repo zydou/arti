@@ -12,13 +12,12 @@ source tests/chutney/arti.run
 [ -n "${arti_bench_bin:?}" ]
 [ -n "${chutney_bin:?}" ]
 [ -n "${jq_bin:?}" ]
-[ -n "${target:?}" ]
 
 # Hostname must be syncd in `tests/chutney/integration-e2e-shadow`.
 TEST_DOMAIN=example.com
 
 # Perform chutney's built-in "verify" test
-"${chutney_bin}" verify "$target"
+"${chutney_bin}" verify
 
 arti_client_port=$(\
   ${jq_bin} -r \

@@ -139,11 +139,13 @@ class ChutneyDataDirResolver:
 class ChutneyNetworkResolver:
     def __init__(self, parser: ArgumentParser) -> None:
         parser.add_argument(
-            "--network", "-n", help="name or path of a chutney network to launch"
+            "--network", "-n", help="flag to 'chutney init' specifying network to use."
         )
 
     def resolve(self, args: Namespace) -> str:
-        return args.network or str(_SCRIPT_DIR.joinpath("networks", "arti-ci"))
+        return args.network or "--net-from-script-path=" + str(
+            _SCRIPT_DIR.joinpath("networks", "arti-ci")
+        )
 
 
 @dataclasses.dataclass

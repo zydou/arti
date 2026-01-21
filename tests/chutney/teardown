@@ -11,4 +11,4 @@ source tests/chutney/arti.run
 [ -n "${target:?}" ]
 [ -n "${chutney_bin:?}" ]
 
-"${chutney_bin}" stop "$target"
+"${chutney_bin}" stop
