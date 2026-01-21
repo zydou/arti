@@ -201,7 +201,7 @@ macro_rules! log_ratelim {
                       self.0.display_problem(summarizing)
                   );
                }
-               Activity::Dormant => {
+               Activity::AppearsResolved => {
                   tracing::event!(
                       // Using err_level here is in some respects confusing:
                       // if the _presence_ of the problem is (say) a WARN,
@@ -218,6 +218,8 @@ macro_rules! log_ratelim {
                       self.0.display_recovery(summarizing)
                   );
                }
+               // There have been no new successes or failures, so there's no update to report.
+               Activity::Dormant => {}
             }
             self.0.reset();
             activity

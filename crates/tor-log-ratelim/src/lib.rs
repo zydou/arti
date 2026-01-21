@@ -117,6 +117,8 @@ pub trait Loggable: 'static + Send {
 pub enum Activity {
     /// There was a failure to report
     Active,
-    /// There is nothing to report except perhaps a lack of failures.
+    /// There is nothing to report (no successes or failures).
     Dormant,
+    /// There is a possible resolution to report (>0 successes and no failures).
+    AppearsResolved,
 }

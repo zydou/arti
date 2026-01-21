@@ -188,7 +188,8 @@ where
             // be saying stuff like "this problem occurred 8/12 times in the
             // last 10min 0.0014ssec" instead of "10m".
             match inner.loggable.flush(duration) {
-                Activity::Dormant => {
+                // There have been no failures since the last flush.
+                Activity::Dormant | Activity::AppearsResolved => {
                     // TODO: This can tell the user several times that the problem
                     // did not occur! Perhaps we only want to flush once on dormant,
                     // and then not report the dormant condition again until we are
