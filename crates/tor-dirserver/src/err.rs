@@ -116,3 +116,39 @@ pub(crate) enum NetdocRequestError {
     #[error("UTF-8 conversion failed: {0}")]
     Utf8(#[from] FromUtf8Error),
 }
+
+/// An error related to an operation in the dirmirror FSM.
+//
+// TODO: Rename this to MirrorOperationError.
+// TODO: Consider removing FatalError in favor of this, though it is not a
+// 1:1 replacement.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum OperationError {
+    /// Access to the database failed for good.
+    #[error("database error: {0}")]
+    Database(#[from] DatabaseError),
+
+    /// A netdoc request failed ultimately.
+    #[error("netdoc request error: {0:?}")]
+    NetdocRequest(#[from] NetdocRequestError),
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+impl OperationError {
+    /// Checks whether the error is fatal.
+    ///
+    /// A fatal error means that the application should stop execution because
+    /// further retries are very likely (potentially impossible) to succeed at
+    /// all.
+    ///
+    /// Right now, the following variants are considered fatal:
+    /// * [`OperationError::Database`]
+    /// * [`OperationError::Bug`]
+    pub(crate) fn is_fatal(&self) -> bool {
+        matches!(&self, Self::Database(_) | Self::Bug(_))
+    }
+}
