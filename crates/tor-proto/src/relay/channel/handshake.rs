@@ -236,8 +236,8 @@ impl<
 
         // Receive NETINFO and possibly [CERTS, AUTHENTICATE]. The connection could be from a
         // client/bridge and thus no authentication meaning no CERTS/AUTHENTICATE cells.
-        let (auth_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
-            self.recv_cells_from_initiator().await?;
+        let (cells, (netinfo_cell, netinfo_rcvd_at)) = self.recv_cells_from_initiator().await?;
+        let (auth_cell, certs_cell) = cells.unzip();
 
         // Calculate our clock skew from the timings we just got/calculated.
         let clock_skew = unauthenticated_clock_skew(
@@ -270,8 +270,7 @@ impl<
     async fn recv_cells_from_initiator(
         &mut self,
     ) -> Result<(
-        Option<msg::Authenticate>,
-        Option<msg::Certs>,
+        Option<(msg::Authenticate, msg::Certs)>,
         (msg::Netinfo, coarsetime::Instant),
     )> {
         let mut auth_cell: Option<msg::Authenticate> = None;
@@ -333,7 +332,9 @@ impl<
             ));
         }
 
-        Ok((auth_cell, certs_cell, (netinfo, netinfo_rcvd_at)))
+        // We validated above that we must either have (Some, Some) or (None, None) so the zip here
+        // works as the difference case is handled above.
+        Ok((auth_cell.zip(certs_cell), (netinfo, netinfo_rcvd_at)))
     }
 
     /// Send all expected cells to the initiator of the channel as the responder.
