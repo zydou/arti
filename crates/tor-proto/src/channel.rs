@@ -144,7 +144,8 @@ where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 {
-    /// Validate the certificates and keys in the relay's handshake.
+    /// Validate the certificates and keys in the relay's handshake only if the peer chooses to
+    /// authenticate (the peer is a responder or sends an AUTHENTICATE cell)
     ///
     /// 'peer' is the peer that we want to make sure we're connecting to.
     ///

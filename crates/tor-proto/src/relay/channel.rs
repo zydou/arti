@@ -463,6 +463,12 @@ impl<
 {
     #[instrument(skip_all, level = "trace")]
     async fn finish(mut self: Box<Self>) -> Result<(Arc<Channel>, Reactor<S>)> {
+        // NOTE: The only way to get here is if the channel is a relay responder.
+        //
+        // Initiators always authenticate and so only relay responder can end up with an unverified
+        // relay channel in the finish() state. Plausible future improvement here would be to have
+        // a more specific unverified responder channel type and so never an initiator handshake
+        // can lead to this function.
         self.inner.finish()
     }
 }
