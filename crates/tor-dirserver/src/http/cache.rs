@@ -8,7 +8,7 @@ use rusqlite::{params, Transaction};
 use weak_table::WeakValueHashMap;
 
 use crate::{
-    database::{sql, Sha256},
+    database::{sql, DocumentId},
     err::DatabaseError,
 };
 
@@ -34,7 +34,7 @@ pub(super) struct StoreCache {
     /// We use a [`Mutex`] instead of an [`RwLock`](std::sync::RwLock), because
     /// we want to assure that a concurrent cache miss does not lead into two
     /// simultanous database reads and copies into memory.
-    data: Mutex<WeakValueHashMap<Sha256, Weak<[u8]>>>,
+    data: Mutex<WeakValueHashMap<DocumentId, Weak<[u8]>>>,
 }
 
 impl StoreCache {
@@ -52,7 +52,7 @@ impl StoreCache {
         self.lock().remove_expired();
     }
 
-    /// Looks up a [`Sha256`] in the cache or the database.
+    /// Looks up a [`DocumentId`] in the cache or the database.
     ///
     /// If we got a cache miss, this function automatically queries the database
     /// and inserts the result into the cache, before returning it.
@@ -67,28 +67,28 @@ impl StoreCache {
     pub(super) fn get(
         &self,
         tx: &Transaction,
-        sha256: &Sha256,
+        docid: DocumentId,
     ) -> Result<Arc<[u8]>, DatabaseError> {
         // Query the cache for the relevant document.
-        if let Some(document) = self.lock().get(sha256) {
+        if let Some(document) = self.lock().get(&docid) {
             return Ok(document);
         }
 
         // Cache miss, let us query the database.
-        let document = Self::get_db(tx, sha256)?;
+        let document = Self::get_db(tx, docid)?;
 
         // Insert it into the cache.
         //
         // We obtain the lock and check again if it has been added in the
         // meantime.  The idea is to only return one copy of it, not two
         // simultanous ones.
-        Ok(self.lock().entry(sha256.clone()).or_insert(document))
+        Ok(self.lock().entry(docid).or_insert(document))
     }
 
-    /// Obtains a [`Sha256`] from the database without consulting the cache first.
-    fn get_db(tx: &Transaction, sha256: &Sha256) -> Result<Arc<[u8]>, DatabaseError> {
-        let mut stmt = tx.prepare_cached(sql!("SELECT content FROM store WHERE sha256 = ?1"))?;
-        let document: Vec<u8> = stmt.query_one(params![sha256], |row| row.get(0))?;
+    /// Obtains a [`DocumentId`] from the database without consulting the cache first.
+    fn get_db(tx: &Transaction, docid: DocumentId) -> Result<Arc<[u8]>, DatabaseError> {
+        let mut stmt = tx.prepare_cached(sql!("SELECT content FROM store WHERE docid = ?1"))?;
+        let document: Vec<u8> = stmt.query_one(params![docid], |row| row.get(0))?;
         Ok(Arc::from(document))
     }
 
@@ -102,7 +102,7 @@ impl StoreCache {
     ///
     /// TODO DIRMIRROR: Consider cleaning the poison, although that would probably
     /// involve much more complexity and wrapping around the parent type.
-    fn lock(&self) -> MutexGuard<'_, WeakValueHashMap<Sha256, Weak<[u8]>>> {
+    fn lock(&self) -> MutexGuard<'_, WeakValueHashMap<DocumentId, Weak<[u8]>>> {
         self.data.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
@@ -137,28 +137,20 @@ mod test {
 
         database::read_tx(&pool, |tx| {
             // Obtain the lipsum entry.
-            let entry = cache.get(tx, &String::from(IDENTITY_SHA256)).unwrap();
+            let entry = cache.get(tx, *IDENTITY_DOCID).unwrap();
             assert_eq!(entry.as_ref(), IDENTITY.as_bytes());
             assert_eq!(Arc::strong_count(&entry), 1);
 
             // Obtain the lipsum entry again but ensure it is not copied in memory.
-            let entry2 = cache.get(tx, &String::from(IDENTITY_SHA256)).unwrap();
+            let entry2 = cache.get(tx, *IDENTITY_DOCID).unwrap();
             assert_eq!(Arc::strong_count(&entry), 2);
             assert_eq!(Arc::as_ptr(&entry), Arc::as_ptr(&entry2));
             assert_eq!(entry, entry2);
 
             // Perform a garbage collection and ensure that entry is not removed.
-            assert!(cache
-                .data
-                .lock()
-                .unwrap()
-                .contains_key(&String::from(IDENTITY_SHA256)));
+            assert!(cache.data.lock().unwrap().contains_key(&IDENTITY_DOCID));
             cache.gc();
-            assert!(cache
-                .data
-                .lock()
-                .unwrap()
-                .contains_key(&String::from(IDENTITY_SHA256)));
+            assert!(cache.data.lock().unwrap().contains_key(&IDENTITY_DOCID));
 
             // Now drop entry and entry2 and perform the gc again.
             let weak_entry = Arc::downgrade(&entry);
@@ -168,11 +160,7 @@ mod test {
             assert_eq!(weak_entry.strong_count(), 0);
 
             // The strong count zero should already make it impossible to access the element ...
-            assert!(!cache
-                .data
-                .lock()
-                .unwrap()
-                .contains_key(&String::from(IDENTITY_SHA256)));
+            assert!(!cache.data.lock().unwrap().contains_key(&IDENTITY_DOCID));
             // ... but it should not reduce the total size of the hash map ...
             assert_eq!(cache.data.lock().unwrap().len(), 1);
             cache.gc();

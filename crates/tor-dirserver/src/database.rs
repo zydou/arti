@@ -42,6 +42,7 @@
 // custom type.
 
 use std::{
+    fmt::Display,
     io::{Cursor, Write},
     num::NonZero,
     ops::{Add, Sub},
@@ -54,7 +55,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{
     named_params, params,
-    types::{FromSql, FromSqlResult, ToSqlOutput, ValueRef},
+    types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef},
     ToSql, Transaction, TransactionBehavior,
 };
 use saturating_time::SaturatingTime;
@@ -62,10 +63,72 @@ use sha2::Digest;
 
 use crate::err::DatabaseError;
 
-/// Representation of a Sha256 hash in hexadecimal (upper-case)
-// TODO: Make this a real type that actually enforces the constraints.
-// TODO: Change this to DocumentId.
-pub(crate) type Sha256 = String;
+/// The identifier for documents in the content-addressable cache.
+///
+/// Right now, this is a Sha256 hash, but this may change in future.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct DocumentId([u8; 32]);
+
+impl DocumentId {
+    /// Computes the [`DocumentId`] from arbitrary data.
+    pub(crate) fn digest(data: &[u8]) -> Self {
+        Self(sha2::Sha256::digest(data).into())
+    }
+}
+
+impl Display for DocumentId {
+    /// Formats the [`DocumentId`] in uppercase hexadecimal.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode_upper(self.0))
+    }
+}
+
+impl FromSql for DocumentId {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        // We read the document id as a hexadecimal string from the database.
+        // Afterwards, we convert it to binary data, which should succeed due
+        // to database check constraints.  Finally, we verify the length to see
+        // whether it actually constitutes a valid SHA256 checksum.
+        let data: [u8; 32] = value
+            .as_str()
+            .map(hex::decode)?
+            .map_err(|e| {
+                FromSqlError::Other(Box::new(tor_error::internal!(
+                    "non hex data in database? {e}"
+                )))
+            })?
+            .try_into()
+            .map_err(|_| {
+                FromSqlError::Other(Box::new(tor_error::internal!(
+                    "document id with invalid length in database?"
+                )))
+            })?;
+
+        Ok(Self(data))
+    }
+}
+
+impl ToSql for DocumentId {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        // Because Self is only constructed with FromSql and digest data, it is
+        // safe to assume to be valid.  Even if not, database constraints will
+        // catch us from inserting invalid data.
+        Ok(ToSqlOutput::from(self.to_string()))
+    }
+}
+
+impl PartialEq<&str> for DocumentId {
+    fn eq(&self, other: &&str) -> bool {
+        self.to_string() == other.to_uppercase()
+    }
+}
+
+#[cfg(test)]
+impl From<[u8; 32]> for DocumentId {
+    fn from(value: [u8; 32]) -> Self {
+        Self(value)
+    }
+}
 
 /// The supported content encodings.
 #[derive(Debug, Clone, Copy, PartialEq, strum::EnumString, strum::Display, strum::EnumIter)]
@@ -187,13 +250,10 @@ macro_rules! sql {
 pub(crate) use sql;
 
 /// Version 1 of the database schema.
-///
-/// TODO DIRMIRROR: Should we rename arti_dirmirror_schema_version to say
-/// dirserver or something more generic?
 const V1_SCHEMA: &str = sql!(
     "
 -- Meta table to store the current schema version.
-CREATE TABLE arti_dirmirror_schema_version(
+CREATE TABLE arti_dirserver_schema_version(
     version TEXT NOT NULL -- currently, always `1`
 ) STRICT;
 
@@ -204,7 +264,7 @@ CREATE TABLE arti_dirmirror_schema_version(
 -- http://<hostname>/tor/status-vote/current/consensus-<FLAVOR>/diff/<HASH>/<FPRLIST>
 CREATE TABLE consensus(
     rowid               INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256              TEXT NOT NULL UNIQUE,
+    docid               TEXT NOT NULL UNIQUE,
     -- Required for consensus diffs.
     -- https://spec.torproject.org/dir-spec/directory-cache-operation.html#diff-format
     unsigned_sha3_256   TEXT NOT NULL UNIQUE,
@@ -212,7 +272,7 @@ CREATE TABLE consensus(
     valid_after         INTEGER NOT NULL,
     fresh_until         INTEGER NOT NULL,
     valid_until         INTEGER NOT NULL,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     CHECK(GLOB('*[^0-9A-F]*', unsigned_sha3_256) == 0),
     CHECK(LENGTH(unsigned_sha3_256) == 64),
     CHECK(flavor IN ('ns', 'md')),
@@ -228,10 +288,10 @@ CREATE TABLE consensus(
 -- http://<hostname>/tor/status-vote/current/consensus-<FLAVOR>/diff/<HASH>/<FPRLIST>
 CREATE TABLE consensus_diff(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256                  TEXT NOT NULL UNIQUE,
+    docid                   TEXT NOT NULL UNIQUE,
     old_consensus_rowid     INTEGER NOT NULL,
     new_consensus_rowid     INTEGER NOT NULL,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     FOREIGN KEY(old_consensus_rowid) REFERENCES consensus(rowid),
     FOREIGN KEY(new_consensus_rowid) REFERENCES consensus(rowid)
 ) STRICT;
@@ -244,16 +304,18 @@ CREATE TABLE consensus_diff(
 -- http://<hostname>/tor/server/all
 CREATE TABLE router_descriptor(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256                  TEXT NOT NULL UNIQUE,
+    docid                   TEXT NOT NULL UNIQUE,
     sha1                    TEXT NOT NULL UNIQUE,
+    sha2                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     flavor                  TEXT NOT NULL,
     router_extra_info_rowid  INTEGER,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     FOREIGN KEY(router_extra_info_rowid) REFERENCES router_extra_info(rowid),
     CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
     CHECK(LENGTH(sha1) == 40),
+    CHECK(docid == sha2),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40),
     CHECK(flavor IN ('ns', 'md'))
 ) STRICT;
@@ -266,10 +328,10 @@ CREATE TABLE router_descriptor(
 -- http://<hostname>/tor/extra/authority
 CREATE TABLE router_extra_info(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256                  TEXT NOT NULL UNIQUE,
+    docid                   TEXT NOT NULL UNIQUE,
     sha1                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
     CHECK(LENGTH(sha1) == 40),
@@ -286,12 +348,12 @@ CREATE TABLE router_extra_info(
 -- http://<hostname>/tor/keys/sk/<F>-<S>
 CREATE TABLE authority_key_certificate(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256                  TEXT NOT NULL UNIQUE,
+    docid                   TEXT NOT NULL UNIQUE,
     kp_auth_id_rsa_sha1     TEXT NOT NULL,
     kp_auth_sign_rsa_sha1   TEXT NOT NULL,
     dir_key_published       INTEGER NOT NULL,
     dir_key_expires         INTEGER NOT NULL,
-    FOREIGN KEY(sha256) REFERENCES store(sha256),
+    FOREIGN KEY(docid) REFERENCES store(docid),
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_id_rsa_sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_sign_rsa_sha1) == 0),
     CHECK(LENGTH(kp_auth_id_rsa_sha1) == 40),
@@ -305,21 +367,21 @@ CREATE TABLE authority_key_certificate(
 -- Content addressable storage, storing all contents.
 CREATE TABLE store(
     rowid   INTEGER PRIMARY KEY AUTOINCREMENT, -- hex uppercase
-    sha256  TEXT NOT NULL UNIQUE,
+    docid   TEXT NOT NULL UNIQUE,
     content BLOB NOT NULL,
-    CHECK(GLOB('*[^0-9A-F]*', sha256) == 0),
-    CHECK(LENGTH(sha256) == 64)
+    CHECK(GLOB('*[^0-9A-F]*', docid) == 0),
+    CHECK(LENGTH(docid) == 64)
 ) STRICT;
 
 -- Stores compressed network documents.
 CREATE TABLE compressed_document(
     rowid               INTEGER PRIMARY KEY AUTOINCREMENT,
     algorithm           TEXT NOT NULL,
-    identity_sha256     TEXT NOT NULL,
-    compressed_sha256   TEXT NOT NULL,
-    FOREIGN KEY(identity_sha256) REFERENCES store(sha256),
-    FOREIGN KEY(compressed_sha256) REFERENCES store(sha256),
-    UNIQUE(algorithm, identity_sha256)
+    identity_docid      TEXT NOT NULL,
+    compressed_docid   TEXT NOT NULL,
+    FOREIGN KEY(identity_docid) REFERENCES store(docid),
+    FOREIGN KEY(compressed_docid) REFERENCES store(docid),
+    UNIQUE(algorithm, identity_docid)
 ) STRICT;
 
 -- Stores the N:M cardinality of which router descriptors are contained in which
@@ -346,7 +408,7 @@ CREATE TABLE consensus_authority_voter(
     FOREIGN KEY(authority_rowid) REFERENCES authority_key_certificate(rowid)
 ) STRICT;
 
-INSERT INTO arti_dirmirror_schema_version VALUES ('1');
+INSERT INTO arti_dirserver_schema_version VALUES ('1');
 "
 );
 
@@ -399,13 +461,13 @@ pub(crate) fn open<P: AsRef<Path>>(
         // 1. Checking the database schema.
         // 2. Upgrading (in future) or initializing the database schema (if empty).
 
-        let has_arti_dirmirror_schema_version = match tx.query_one(
+        let has_arti_dirserver_schema_version = match tx.query_one(
             sql!(
                 "
                 SELECT name
                 FROM sqlite_master
                   WHERE type = 'table'
-                    AND name = 'arti_dirmirror_schema_version'
+                    AND name = 'arti_dirserver_schema_version'
                 "
             ),
             params![],
@@ -416,9 +478,9 @@ pub(crate) fn open<P: AsRef<Path>>(
             Err(e) => return Err(DatabaseError::LowLevel(e)),
         };
 
-        if has_arti_dirmirror_schema_version {
+        if has_arti_dirserver_schema_version {
             let version = tx.query_one(
-                sql!("SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1"),
+                sql!("SELECT version FROM arti_dirserver_schema_version WHERE rowid = 1"),
                 params![],
                 |row| row.get::<_, String>(0),
             )?;
@@ -486,7 +548,7 @@ where
 
 /// Inserts `data` into store while also compressing it with given encodings.
 ///
-/// Returns the sha256 of `data` in uppercase hex.
+/// Returns the [`DocumentId`] of `data`.
 ///
 /// This function inserts `data` into store and also compresses it into all
 /// given compression formats.
@@ -497,17 +559,17 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     tx: &Transaction,
     data: &[u8],
     encodings: I,
-) -> Result<Sha256, DatabaseError> {
+) -> Result<DocumentId, DatabaseError> {
     // The statement to insert some data into the store.
     //
     // Parameters:
-    // :sha256 - The SHA256 sum in uppercase hex of the data.
+    // :docid - The docid.
     // :content - The binary data.
     let mut store_stmt = tx.prepare_cached(sql!(
         "
-        INSERT OR REPLACE INTO store (sha256, content)
+        INSERT OR REPLACE INTO store (docid, content)
         VALUES
-        (:sha256, :content)
+        (:docid, :content)
         "
     ))?;
 
@@ -515,21 +577,20 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     //
     // Parameters:
     // :algorithm - The name of the encoding algorithm.
-    // :identity_sha256 - The sha256 of the plain-text document in the store.
-    // :compressed_sha256 - The sha256 of the encoded document in the store.
+    // :identity_docid - The docid of the plain-text document in the store.
+    // :compressed_docid - The docid of the encoded document in the store.
     let mut compressed_stmt = tx.prepare_cached(sql!(
         "
-        INSERT OR REPLACE INTO compressed_document (algorithm, identity_sha256, compressed_sha256)
+        INSERT OR REPLACE INTO compressed_document (algorithm, identity_docid, compressed_docid)
         VALUES
-        (:algorithm, :identity_sha256, :compressed_sha256)
+        (:algorithm, :identity_docid, :compressed_docid)
         "
     ))?;
 
     // Insert the plain document into the store.
-    // TODO DIRMIRROR: Move this into a single call-site with DocumentId.
-    let identity_sha256 = hex::encode_upper(sha2::Sha256::digest(data));
+    let identity_docid = DocumentId::digest(data);
     store_stmt.execute(named_params! {
-        ":sha256": identity_sha256,
+        ":docid": identity_docid,
         ":content": data
     })?;
 
@@ -541,20 +602,19 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
         }
 
         let compressed = compress(data, encoding).map_err(DatabaseError::Compression)?;
-        // TODO DIRMIRROR: Move this into a single call-site with DocumentId.
-        let compressed_sha256 = hex::encode_upper(sha2::Sha256::digest(&compressed));
+        let compressed_docid = DocumentId::digest(&compressed);
         store_stmt.execute(named_params! {
-            ":sha256": compressed_sha256,
+            ":docid": compressed_docid,
             ":content": compressed,
         })?;
         compressed_stmt.execute(named_params! {
             ":algorithm": encoding.to_string(),
-            ":identity_sha256": identity_sha256,
-            ":compressed_sha256": compressed_sha256,
+            ":identity_docid": identity_docid,
+            ":compressed_docid": compressed_docid,
         })?;
     }
 
-    Ok(identity_sha256)
+    Ok(identity_docid)
 }
 
 /// Compresses `data` into a specified [`ContentEncoding`].
@@ -621,7 +681,7 @@ mod test {
         // Check if the version was initialized properly.
         let version = conn
             .query_one(
-                "SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1",
+                "SELECT version FROM arti_dirserver_schema_version WHERE rowid = 1",
                 params![],
                 |row| row.get::<_, String>(0),
             )
@@ -630,7 +690,7 @@ mod test {
 
         // Set the version to something unknown.
         conn.execute(
-            "UPDATE arti_dirmirror_schema_version SET version = 42",
+            "UPDATE arti_dirserver_schema_version SET version = 42",
             params![],
         )
         .unwrap();
@@ -651,11 +711,11 @@ mod test {
 
         // Do a write transaction despite forbidden.
         super::read_tx(&pool, |tx| {
-            tx.execute_batch("DELETE FROM arti_dirmirror_schema_version")
+            tx.execute_batch("DELETE FROM arti_dirserver_schema_version")
                 .unwrap();
             let e = tx
                 .query_one(
-                    sql!("SELECT version FROM arti_dirmirror_schema_version"),
+                    sql!("SELECT version FROM arti_dirserver_schema_version"),
                     params![],
                     |row| row.get::<_, String>(0),
                 )
@@ -667,7 +727,7 @@ mod test {
         // Normal check.
         let version: String = super::read_tx(&pool, |tx| {
             tx.query_one(
-                sql!("SELECT version FROM arti_dirmirror_schema_version"),
+                sql!("SELECT version FROM arti_dirserver_schema_version"),
                 params![],
                 |row| row.get(0),
             )
@@ -686,7 +746,7 @@ mod test {
 
         // Do a write transaction.
         super::rw_tx(&pool, |tx| {
-            tx.execute_batch("DELETE FROM arti_dirmirror_schema_version")
+            tx.execute_batch("DELETE FROM arti_dirserver_schema_version")
                 .unwrap();
         })
         .unwrap();
@@ -695,7 +755,7 @@ mod test {
         super::read_tx(&pool, |tx| {
             let e = tx
                 .query_one(
-                    sql!("SELECT version FROM arti_dirmirror_schema_version"),
+                    sql!("SELECT version FROM arti_dirserver_schema_version"),
                     params![],
                     |row| row.get::<_, String>(0),
                 )
@@ -808,10 +868,9 @@ mod test {
         let mut conn = Connection::open(&db_path).unwrap();
         let tx = conn.transaction().unwrap();
 
-        let sha256 =
-            super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
+        let docid = super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
         assert_eq!(
-            sha256,
+            docid,
             "C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2"
         );
 
@@ -821,7 +880,7 @@ mod test {
                     "
                     SELECT content
                     FROM store
-                    WHERE sha256 = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
+                    WHERE docid = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
                     "
                 ),
                 params![],
@@ -834,7 +893,7 @@ mod test {
             "
             SELECT algorithm
             FROM compressed_document
-            WHERE identity_sha256 = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
+            WHERE identity_docid = 'C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2'
             "
         )).unwrap();
 
@@ -855,9 +914,9 @@ mod test {
 
         // Now insert the same thing a second time again and see whether the
         // ON CONFLICT magic works.
-        let sha256_second =
+        let docid_second =
             super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
-        assert_eq!(sha256, sha256_second);
+        assert_eq!(docid, docid_second);
 
         // Remove a few compressed entries and get them again.
         let n = tx
@@ -874,9 +933,9 @@ mod test {
             .unwrap();
         assert_eq!(n, 2);
 
-        let sha256_third =
+        let docid_third =
             super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
-        assert_eq!(sha256, sha256_third);
+        assert_eq!(docid, docid_third);
         let algorithms = stmt
             .query_map(params![], |row| row.get::<_, String>(0))
             .unwrap();

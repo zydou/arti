@@ -36,7 +36,7 @@ use tokio::{
 };
 use tracing::warn;
 
-use crate::database::{self, sql, ContentEncoding, Sha256};
+use crate::database::{self, sql, ContentEncoding, DocumentId};
 
 mod cache;
 
@@ -47,14 +47,14 @@ mod cache;
 /// fn get_consensus(
 ///     tx: &Transaction<'_>,
 ///     requ: &Request<Incoming>
-/// ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>;
+/// ) -> Result<Response<Vec<DocumentId>>, Box<dyn std::error::Error + Send>>;
 /// ```
 ///
 /// The arguments give the endpoint function access to fixed state of the
 /// database ([`Transaction`]) and the incoming [`Request`].  The return type is
 /// a [`Result`] with an arbitrary error that implements [`Send`] and gets logged
 /// but not returned to the client, which will just receive an `Internal Server Error`.
-/// The [`Ok`] type of the [`Result`] is a [`Vec`] consisting of [`Sha256`]
+/// The [`Ok`] type of the [`Result`] is a [`Vec`] consisting of [`DocumentId`]
 /// hashsums identifying (uncompressed) objects in the `store` table.
 ///
 /// Changes to the database within the [`Transaction`] will (for now) get rolled
@@ -68,7 +68,7 @@ mod cache;
 type EndpointFn = fn(
     &Transaction,
     &Request<Incoming>,
-) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>;
+) -> Result<Response<Vec<DocumentId>>, Box<dyn std::error::Error + Send>>;
 
 /// A type that implements [`Body`] for a list of [`Arc<[u8]>`] data.
 ///
@@ -264,10 +264,10 @@ impl HttpServer {
     /// within the code:
     /// 1. Determine the compression algorithm
     /// 2. Select an [`EndpointFn`] by matching the path component
-    /// 3. Call the [`EndpointFn`] to obtain various [`Sha256`] hashsums
-    /// 4. Map the [`Sha256`] hashsums to their compressed counterpart
-    /// 5. Query the [`StoreCache`] with the [`Sha256`] and [`Transaction`] handle
-    ///    to store the document ref
+    /// 3. Call the [`EndpointFn`] to obtain various [`DocumentId`]s
+    /// 4. Map the [`DocumentId`]s to their compressed counterpart
+    /// 5. Query the [`StoreCache`] with the [`DocumentId`] and [`Transaction`]
+    ///    handle to store the document ref
     /// 6. Compose the [`Response`]
     ///
     /// TODO DIRMIRROR: Implement [`Method::HEAD`].
@@ -290,7 +290,7 @@ impl HttpServer {
             None => return Self::empty_response(StatusCode::NOT_FOUND),
         };
 
-        // (3) Call the `EndpointFn` to obtain various `Sha256` hashsums
+        // (3) Call the `EndpointFn` to obtain various `DocumentId`s
         let endpoint_fn_resp = match catch_unwind(AssertUnwindSafe(|| endpoint_fn(tx, requ))) {
             // Everything went successful.
             Ok(Ok(r)) => r,
@@ -315,14 +315,14 @@ impl HttpServer {
                 return Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR);
             }
         };
-        let (endpoint_fn_parts, sha256sums) = endpoint_fn_resp.into_parts();
+        let (endpoint_fn_parts, docids) = endpoint_fn_resp.into_parts();
 
-        // (4) Map the sha256sums to their compressed counterpart
-        let sha256sums = sha256sums
-            .iter()
-            .map(|sha256| Self::map_encoding(tx, sha256, encoding))
+        // (4) Map the docids to their compressed counterpart
+        let docids = docids
+            .into_iter()
+            .map(|docid| Self::map_encoding(tx, docid, encoding))
             .collect::<Result<Vec<_>, _>>();
-        let sha256sums = match sha256sums {
+        let docids = match docids {
             Ok(s) => s,
             Err(e) => {
                 warn!(
@@ -334,11 +334,11 @@ impl HttpServer {
             }
         };
 
-        // (5) Query the [`StoreCache`] with the [`Sha256`] and [`Transaction`] handle
-        //     to store the document ref
+        // (5) Query the [`StoreCache`] with the [`DocumentId`] and
+        //     [`Transaction`] handle to store the document ref.
         let mut documents = VecDeque::new();
-        for sha256 in &sha256sums {
-            let document = match cache.get(tx, sha256) {
+        for docid in docids {
+            let document = match cache.get(tx, docid) {
                 Ok(document) => document,
                 Err(e) => {
                     warn!(
@@ -522,31 +522,30 @@ impl HttpServer {
         res
     }
 
-    /// Looks up the corresponding [`Sha256`] for a given [`Sha256`] and a [`ContentEncoding`].
+    /// Looks up the corresponding [`DocumentId`] for a given [`DocumentId`] and
+    /// a [`ContentEncoding`].
     fn map_encoding(
         tx: &Transaction,
-        sha256: &Sha256,
+        docid: DocumentId,
         encoding: ContentEncoding,
-    ) -> Result<Sha256, rusqlite::Error> {
-        let sha256 = sha256.clone();
-
+    ) -> Result<DocumentId, rusqlite::Error> {
         // If the encoding is the identity, do not bother about it any further.
         if encoding == ContentEncoding::Identity {
-            return Ok(sha256);
+            return Ok(docid);
         }
 
         let mut stmt = tx.prepare_cached(sql!(
             "
-            SELECT compressed_sha256
+            SELECT compressed_docid
             FROM compressed_document
-              WHERE identity_sha256 = ?1
+              WHERE identity_docid = ?1
                 AND algorithm = ?2
             "
         ))?;
-        let compressed_sha256 =
-            stmt.query_one(params![sha256, encoding.to_string()], |row| row.get(0))?;
+        let compressed_docid =
+            stmt.query_one(params![docid, encoding.to_string()], |row| row.get(0))?;
 
-        Ok(compressed_sha256)
+        Ok(compressed_docid)
     }
 
     /// Generates an empty response with a given [`StatusCode`].
@@ -589,7 +588,7 @@ pub(in crate::http) mod test {
     };
     use http::Version;
     use http_body_util::{BodyExt, Empty};
-    use sha2::{digest::Update, Digest};
+    use lazy_static::lazy_static;
     use tokio::{
         net::{TcpListener, TcpStream},
         task,
@@ -597,16 +596,19 @@ pub(in crate::http) mod test {
     use tokio_stream::wrappers::TcpListenerStream;
 
     pub(in crate::http) const IDENTITY: &str = "Lorem ipsum dolor sit amet.";
-    pub(in crate::http) const IDENTITY_SHA256: &str =
-        "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66";
-    pub(in crate::http) const DEFLATE_SHA256: &str =
-        "07564DD13A7F4A6AD98B997F2938B1CEE11F8C7F358C444374521BA54D50D05E";
-    pub(in crate::http) const GZIP_SHA256: &str =
-        "1518107D3EF1EC6EAC3F3249DF26B2F845BC8226C326309F4822CAEF2E664104";
-    pub(in crate::http) const XZ_STD_SHA256: &str =
-        "17416948501F8E627CC9A8F7EFE7A2F32788D53CB84A5F67AC8FD4C1B59184CF";
-    pub(in crate::http) const X_TOR_LZMA_SHA256: &str =
-        "B5549F79A69113BDAF3EF0AD1D7D339D0083BC31400ECEE1B673F331CF26E239";
+
+    lazy_static! {
+        pub(in crate::http) static ref IDENTITY_DOCID: DocumentId =
+            hex_to_docid("DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66");
+        pub(in crate::http) static ref DEFLATE_DOCID: DocumentId =
+            hex_to_docid("07564DD13A7F4A6AD98B997F2938B1CEE11F8C7F358C444374521BA54D50D05E");
+        pub(in crate::http) static ref GZIP_DOCID: DocumentId =
+            hex_to_docid("1518107D3EF1EC6EAC3F3249DF26B2F845BC8226C326309F4822CAEF2E664104");
+        pub(in crate::http) static ref XZ_STD_DOCID: DocumentId =
+            hex_to_docid("17416948501F8E627CC9A8F7EFE7A2F32788D53CB84A5F67AC8FD4C1B59184CF");
+        pub(in crate::http) static ref X_TOR_LZMA_DOCID: DocumentId =
+            hex_to_docid("B5549F79A69113BDAF3EF0AD1D7D339D0083BC31400ECEE1B673F331CF26E239");
+    }
 
     pub(in crate::http) fn create_test_db_pool() -> Pool<SqliteConnectionManager> {
         let pool = database::open("").unwrap();
@@ -614,41 +616,39 @@ pub(in crate::http) mod test {
         pool
     }
 
+    fn hex_to_docid(s: &str) -> DocumentId {
+        let data: [u8; 32] = hex::decode(s).unwrap().try_into().unwrap();
+        data.into()
+    }
+
     fn init_test_db(tx: &Transaction) {
-        // Create a document and compressed versions of it.
-        let identity_sha256 = hex::encode_upper(sha2::Sha256::new().chain(IDENTITY).finalize());
-        assert_eq!(identity_sha256, IDENTITY_SHA256);
+        assert_eq!(DocumentId::digest(IDENTITY.as_bytes()), *IDENTITY_DOCID);
 
         let deflate = {
             let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
             encoder.write_all(IDENTITY.as_bytes()).unwrap();
             encoder.finish().unwrap()
         };
-        let deflate_sha256 = hex::encode_upper(sha2::Sha256::new().chain(&deflate).finalize());
-        assert_eq!(deflate_sha256, DEFLATE_SHA256);
+        assert_eq!(DocumentId::digest(&deflate), *DEFLATE_DOCID);
 
         let gzip = {
             let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
             encoder.write_all(IDENTITY.as_bytes()).unwrap();
             encoder.finish().unwrap()
         };
-        let gzip_sha256 = hex::encode_upper(sha2::Sha256::new().chain(&gzip).finalize());
-        assert_eq!(gzip_sha256, GZIP_SHA256);
+        assert_eq!(DocumentId::digest(&gzip), *GZIP_DOCID);
 
         let xz_std = zstd::encode_all(IDENTITY.as_bytes(), 3).unwrap();
-        let xz_std_sha256 = hex::encode_upper(sha2::Sha256::new().chain(&xz_std).finalize());
-        assert_eq!(xz_std_sha256, XZ_STD_SHA256);
+        assert_eq!(DocumentId::digest(&xz_std), *XZ_STD_DOCID);
 
         let mut x_tor_lzma = Vec::new();
         lzma_rs::lzma_compress(&mut Cursor::new(IDENTITY), &mut x_tor_lzma).unwrap();
-        let x_tor_lzma_sha256 =
-            hex::encode_upper(sha2::Sha256::new().chain(&x_tor_lzma).finalize());
-        assert_eq!(x_tor_lzma_sha256, X_TOR_LZMA_SHA256);
+        assert_eq!(DocumentId::digest(&x_tor_lzma), *X_TOR_LZMA_DOCID);
 
         tx.execute(
             sql!(
                 "
-                INSERT INTO store(sha256, content) VALUES
+                INSERT INTO store(docid, content) VALUES
                 (?1, ?2), -- identity
                 (?3, ?4), -- deflate
                 (?5, ?6), -- gzip
@@ -657,15 +657,15 @@ pub(in crate::http) mod test {
                 "
             ),
             params![
-                identity_sha256,
+                *IDENTITY_DOCID,
                 IDENTITY.as_bytes().to_vec(),
-                deflate_sha256,
+                *DEFLATE_DOCID,
                 deflate,
-                gzip_sha256,
+                *GZIP_DOCID,
                 gzip,
-                xz_std_sha256,
+                *XZ_STD_DOCID,
                 xz_std,
-                x_tor_lzma_sha256,
+                *X_TOR_LZMA_DOCID,
                 x_tor_lzma
             ],
         )
@@ -674,7 +674,7 @@ pub(in crate::http) mod test {
         tx.execute(
             sql!(
                 "
-                INSERT INTO compressed_document(algorithm, identity_sha256, compressed_sha256) VALUES
+                INSERT INTO compressed_document(algorithm, identity_docid, compressed_docid) VALUES
                 ('deflate', ?1, ?2),
                 ('gzip', ?1, ?3),
                 ('x-zstd', ?1, ?4),
@@ -682,11 +682,11 @@ pub(in crate::http) mod test {
                 "
             ),
             params![
-                identity_sha256,
-                deflate_sha256,
-                gzip_sha256,
-                xz_std_sha256,
-                x_tor_lzma_sha256
+                *IDENTITY_DOCID,
+                *DEFLATE_DOCID,
+                *GZIP_DOCID,
+                *XZ_STD_DOCID,
+                *X_TOR_LZMA_DOCID
             ],
         )
         .unwrap();
@@ -794,7 +794,7 @@ pub(in crate::http) mod test {
         fn dummy(
             _: &Transaction,
             _: &Request<Incoming>,
-        ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>> {
+        ) -> Result<Response<Vec<DocumentId>>, Box<dyn std::error::Error + Send>> {
             todo!()
         }
 
@@ -851,19 +851,19 @@ pub(in crate::http) mod test {
         let pool = create_test_db_pool();
 
         let data = [
-            (ContentEncoding::Identity, IDENTITY_SHA256),
-            (ContentEncoding::Deflate, DEFLATE_SHA256),
-            (ContentEncoding::Gzip, GZIP_SHA256),
-            (ContentEncoding::XZstd, XZ_STD_SHA256),
-            (ContentEncoding::XTorLzma, X_TOR_LZMA_SHA256),
+            (ContentEncoding::Identity, *IDENTITY_DOCID),
+            (ContentEncoding::Deflate, *DEFLATE_DOCID),
+            (ContentEncoding::Gzip, *GZIP_DOCID),
+            (ContentEncoding::XZstd, *XZ_STD_DOCID),
+            (ContentEncoding::XTorLzma, *X_TOR_LZMA_DOCID),
         ];
 
         database::read_tx(&pool, |tx| {
-            for (encoding, compressed_sha256) in data {
+            for (encoding, compressed_docid) in data {
                 println!("{encoding}");
                 assert_eq!(
-                    HttpServer::map_encoding(tx, &IDENTITY_SHA256.to_string(), encoding).unwrap(),
-                    compressed_sha256
+                    HttpServer::map_encoding(tx, *IDENTITY_DOCID, encoding).unwrap(),
+                    compressed_docid
                 );
             }
         })
@@ -877,8 +877,8 @@ pub(in crate::http) mod test {
         fn identity(
             _tx: &Transaction<'_>,
             _requ: &Request<Incoming>,
-        ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>> {
-            Ok(Response::new(vec![IDENTITY_SHA256.into()]))
+        ) -> Result<Response<Vec<DocumentId>>, Box<dyn std::error::Error + Send>> {
+            Ok(Response::new(vec![*IDENTITY_DOCID]))
         }
 
         let pool = create_test_db_pool();
