@@ -6,9 +6,9 @@ pub(crate) mod cell_sender;
 pub(crate) mod celltypes;
 pub(crate) mod circhop;
 pub(crate) mod padding;
+pub(crate) mod reactor;
 pub(crate) mod syncview;
 pub(crate) mod unique_id;
-pub(crate) mod reactor;
 
 pub use crate::memquota::StreamAccount;
 pub use syncview::CircSyncView;

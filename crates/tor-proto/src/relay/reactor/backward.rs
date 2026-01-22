@@ -291,7 +291,12 @@ impl BackwardReactor {
             Poll::Ready(StreamEvent::ReadyMsg { sid, msg })
         });
 
-        let cc_can_send = self.hop.ccontrol().can_send();
+        let cc_can_send = self
+            .hop
+            .ccontrol()
+            .lock()
+            .expect("poisoned lock")
+            .can_send();
 
         // Concurrently, drive :
         //  1. a future that reads from the ready application streams
@@ -724,6 +729,8 @@ impl BackwardReactor {
         // with possible congestion signals.
         self.hop
             .ccontrol()
+            .lock()
+            .expect("poisoned lock")
             .note_sendme_received(&self.time_provider, tag, signals)?;
 
         Ok(())

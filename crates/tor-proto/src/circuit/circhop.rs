@@ -38,7 +38,7 @@ use tor_protover::named;
 use std::num::NonZeroU32;
 use std::pin::Pin;
 use std::result::Result as StdResult;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 #[cfg(test)]
@@ -472,7 +472,12 @@ impl CircHopOutbound {
     ) -> Result<Option<Xon>> {
         // the call below will return an error if XON/XOFF aren't supported,
         // so we check for support here
-        if !self.ccontrol().uses_xon_xoff() {
+        if !self
+            .ccontrol()
+            .lock()
+            .expect("poisoned lock")
+            .uses_xon_xoff()
+        {
             return Ok(None);
         }
 
@@ -491,7 +496,12 @@ impl CircHopOutbound {
     pub(crate) fn maybe_send_xoff(&mut self, id: StreamId) -> Result<Option<Xoff>> {
         // the call below will return an error if XON/XOFF aren't supported,
         // so we check for support here
-        if !self.ccontrol().uses_xon_xoff() {
+        if !self
+            .ccontrol()
+            .lock()
+            .expect("poisoned lock")
+            .uses_xon_xoff()
+        {
             return Ok(None);
         }
 
@@ -515,7 +525,10 @@ impl CircHopOutbound {
     /// Delegate to CongestionControl, for testing purposes
     #[cfg(test)]
     pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<SendmeTag>) {
-        self.ccontrol().send_window_and_expected_tags()
+        self.ccontrol()
+            .lock()
+            .expect("poisoned lock")
+            .send_window_and_expected_tags()
     }
 
     /// Return the number of open streams on this hop.
@@ -526,9 +539,9 @@ impl CircHopOutbound {
         self.map.lock().expect("lock poisoned").n_open_streams()
     }
 
-    /// Return a mutable reference to our CongestionControl object.
-    pub(crate) fn ccontrol(&self) -> MutexGuard<'_, CongestionControl> {
-        self.ccontrol.lock().expect("poisoned lock")
+    /// Return a reference to our CongestionControl object.
+    pub(crate) fn ccontrol(&self) -> &Arc<Mutex<CongestionControl>> {
+        &self.ccontrol
     }
 
     /// We're about to send `msg`.
@@ -599,7 +612,12 @@ impl CircHopOutbound {
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Result<StreamFlowCtrl> {
-        if self.ccontrol().uses_stream_sendme() {
+        if self
+            .ccontrol()
+            .lock()
+            .expect("poisoned lock")
+            .uses_stream_sendme()
+        {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
             Ok(StreamFlowCtrl::new_window(window))
         } else {
