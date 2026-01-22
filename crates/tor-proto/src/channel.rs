@@ -144,7 +144,8 @@ where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 {
-    /// Validate the certificates and keys in the relay's handshake.
+    /// Validate the certificates and keys in the relay's handshake only if the peer chooses to
+    /// authenticate (the peer is a responder or sends an AUTHENTICATE cell)
     ///
     /// 'peer' is the peer that we want to make sure we're connecting to.
     ///
@@ -222,6 +223,15 @@ pub enum ChannelType {
         /// meaning a relay.
         authenticated: bool,
     },
+}
+
+impl ChannelType {
+    /// Set that this channel type is now authenticated. This only applies to RelayResponder.
+    pub(crate) fn set_authenticated(&mut self) {
+        if let Self::RelayResponder { authenticated } = self {
+            *authenticated = true;
+        }
+    }
 }
 
 /// A channel cell frame used for sending and receiving cells on a channel. The handler takes care

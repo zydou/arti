@@ -9,6 +9,8 @@ use tor_llcrypto as ll;
 
 use digest::Digest;
 
+use crate::CertType;
+
 /// A RSA->Ed25519 cross-certificate
 ///
 /// This kind of certificate is used in the channel handshake to prove
@@ -44,6 +46,11 @@ impl RsaCrosscert {
     /// Return true if the subject key in this certificate matches `other`
     pub fn subject_key_matches(&self, other: &ll::pk::ed25519::Ed25519Identity) -> bool {
         other == &self.subject_key
+    }
+
+    /// Return this certificate cert type.
+    pub fn cert_type(&self) -> CertType {
+        CertType::RSA_ID_V_IDENTITY
     }
 
     /// Decode a slice of bytes into an RSA crosscert.

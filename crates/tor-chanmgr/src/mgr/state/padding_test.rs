@@ -23,7 +23,7 @@ use futures::channel::mpsc;
 use futures_await_test::async_test;
 use itertools::{Itertools, zip_eq};
 #[cfg(feature = "relay")]
-use safelog::Sensitive;
+use {safelog::Sensitive, std::net::IpAddr};
 
 use tor_cell::chancell::msg::PaddingNegotiateCmd;
 use tor_config::PaddingLevel;
@@ -149,6 +149,7 @@ impl AbstractChannelFactory for FakeChannelFactory {
     async fn build_channel_using_incoming(
         &self,
         _peer: Sensitive<std::net::SocketAddr>,
+        _my_addrs: Vec<IpAddr>,
         _stream: Self::Stream,
         _memquota: ChannelAccount,
     ) -> Result<Arc<Self::Channel>> {

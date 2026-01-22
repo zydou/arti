@@ -217,6 +217,12 @@ pub(crate) struct TorRelay<R: Runtime> {
 
     /// Listening OR ports.
     or_listeners: Vec<<R as NetStreamProvider<SocketAddr>>::Listener>,
+
+    /// Advertised IP address(es) found in the config file.
+    ///
+    /// They are kept here so they can be passed on to the OR listener task which in turn uses them
+    /// for new inbound channels to send them in the NETINFO cell.
+    advertised_addresses: crate::config::Advertise,
 }
 
 impl<R: Runtime> TorRelay<R> {
@@ -343,6 +349,7 @@ impl<R: Runtime> TorRelay<R> {
             dirmgr,
             keymgr: inert.keymgr,
             or_listeners,
+            advertised_addresses: inert.config.relay.advertise,
         })
     }
 
@@ -369,9 +376,14 @@ impl<R: Runtime> TorRelay<R> {
             let chanmgr = Arc::clone(&self.chanmgr);
             async {
                 // TODO: Should we give all tasks a `start` method?
-                crate::tasks::listeners::or_listener(runtime, chanmgr, self.or_listeners)
-                    .await
-                    .context("Failed to run OR listener task")
+                crate::tasks::listeners::or_listener(
+                    runtime,
+                    chanmgr,
+                    self.or_listeners,
+                    self.advertised_addresses,
+                )
+                .await
+                .context("Failed to run OR listener task")
             }
         });
 

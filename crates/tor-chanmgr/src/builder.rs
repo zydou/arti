@@ -21,7 +21,7 @@ use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
 use tracing::instrument;
 
 #[cfg(feature = "relay")]
-use {safelog::Sensitive, tor_proto::RelayIdentities};
+use {safelog::Sensitive, std::net::IpAddr, tor_proto::RelayIdentities};
 
 /// TLS-based channel builder.
 ///
@@ -133,6 +133,7 @@ where
     async fn accept_from_transport(
         &self,
         peer: Sensitive<std::net::SocketAddr>,
+        _my_addrs: Vec<IpAddr>,
         stream: Self::Stream,
         _memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
@@ -254,11 +255,14 @@ where
                     ))?
                     .clone();
 
+                // TODO(relay): Get the my_addrs from ChanBuilder or as function param.
+                let my_addrs = Vec::new();
                 builder
                     .launch(
                         tls,
                         self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
                         identities,
+                        my_addrs,
                         memquota,
                     )
                     .connect(|| self.runtime.wallclock())

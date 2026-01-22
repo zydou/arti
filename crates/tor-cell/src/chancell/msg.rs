@@ -1063,7 +1063,7 @@ impl Readable for AuthChallenge {
 /// responder, even if TLS client authentication was not used.
 ///
 /// Clients do not use this.
-#[derive(Clone, Debug, Deftly)]
+#[derive(Clone, Debug, Deftly, Eq, PartialEq)]
 #[derive_deftly(HasMemoryCost)]
 pub struct Authenticate {
     /// Authentication method in use

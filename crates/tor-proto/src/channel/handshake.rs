@@ -6,10 +6,11 @@ use futures::stream::StreamExt;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_error::internal;
 
-use crate::channel::{ChannelFrame, ChannelType, UniqId};
+use crate::channel::{ChannelFrame, UniqId};
 use crate::memquota::ChannelAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
+use safelog::Redacted;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -209,8 +210,6 @@ pub(crate) struct UnverifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
-    /// Indicate what type of channel this is.
-    pub(crate) channel_type: ChannelType,
     /// Runtime handle (insofar as we need it)
     pub(crate) sleep_prov: S,
     /// Memory quota account
@@ -219,8 +218,8 @@ pub(crate) struct UnverifiedChannel<
     pub(crate) link_protocol: u16,
     /// The Source+Sink on which we're reading and writing cells.
     pub(crate) framed_tls: ChannelFrame<T>,
-    /// The certs cell that we got from the relay.
-    pub(crate) certs_cell: msg::Certs,
+    /// The certs cell that we might have got during the handshake.
+    pub(crate) certs_cell: Option<msg::Certs>,
     /// Declared target method for this channel, if any.
     pub(crate) target_method: Option<ChannelMethod>,
     /// How much clock skew did we detect in this handshake?
@@ -244,8 +243,6 @@ pub(crate) struct VerifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
-    /// Indicate what type of channel this is.
-    pub(crate) channel_type: ChannelType,
     /// Runtime handle (insofar as we need it)
     pub(crate) sleep_prov: S,
     /// Memory quota account
@@ -259,11 +256,9 @@ pub(crate) struct VerifiedChannel<
     /// Logging identifier for this stream.  (Used for logging only.)
     pub(crate) unique_id: UniqId,
     /// Validated Ed25519 identity for this peer.
-    pub(crate) ed25519_id: Ed25519Identity,
-    /// Validated RSA identity for this peer.
-    pub(crate) rsa_id: RsaIdentity,
-    /// Peer verified RSA cert digest.
-    pub(crate) rsa_cert_digest: [u8; 32],
+    pub(crate) ed25519_id: Option<Ed25519Identity>,
+    /// Validated RSA identity and cert digets for this peer.
+    pub(crate) rsa_id_cert_digest: Option<(RsaIdentity, [u8; 32])>,
     /// Peer TLS certificate digest
     pub(crate) peer_cert_digest: [u8; 32],
     /// Authenticated clock skew for this peer.
@@ -351,7 +346,11 @@ impl<
         //    the RSA->Ed25519 crosscert (type 7), which signs...
         //    peer.ed_identity().
 
-        let c = &self.certs_cell;
+        // Evidently, without a CERTS at this point we have a code flow issue.
+        let Some(c) = &self.certs_cell.as_ref() else {
+            return Err(Error::from(internal!("No CERTS cell found to verify")));
+        };
+
         /// Helper: get a cert from a Certs cell, and convert errors appropriately.
         fn get_cert(
             certs: &tor_cell::chancell::msg::Certs,
@@ -504,19 +503,86 @@ impl<
         rsa_cert_timeliness?;
 
         Ok(VerifiedChannel {
-            channel_type: self.channel_type,
             link_protocol: self.link_protocol,
             framed_tls: self.framed_tls,
             unique_id: self.unique_id,
             target_method: self.target_method,
-            ed25519_id: *identity_key,
-            rsa_id,
-            rsa_cert_digest: *rsa_cert.digest(),
+            ed25519_id: Some(*identity_key),
+            rsa_id_cert_digest: Some((rsa_id, *rsa_cert.digest())),
             peer_cert_digest,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
         })
+    }
+
+    /// Finalize this channel into an actual channel and its reactor.
+    ///
+    /// An unverified channel can be finalized as it skipped the cert verification and
+    /// authentication because simply the other side is not authenticating.
+    ///
+    /// Two cases for this:
+    ///     - Client <-> Relay channel
+    ///     - Bridge <-> Relay channel
+    ///
+    // NOTE: Unfortunately, this function has duplicated code with the VerifiedChannel::finish()
+    // so make sure any changes here is reflected there. A proper refactoring is welcome!
+    #[instrument(skip_all, level = "trace")]
+    pub(crate) fn finish(mut self) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
+        // We treat a completed channel as incoming traffic since all cells were exchanged.
+        //
+        // TODO: conceivably we should remember the time when we _got_ the
+        // final cell on the handshake, and update the channel completion
+        // time to be no earlier than _that_ timestamp.
+        //
+        // TODO: This shouldn't be here. This should be called in the trait functions that actually
+        // receives the data (recv_*). We'll move it at a later commit.
+        crate::note_incoming_traffic();
+
+        // We have finalized the handshake, move our codec to Open.
+        self.framed_tls.codec_mut().set_open()?;
+
+        // Grab the channel type from our underlying frame as we are about to consume the
+        // framed_tls and we need the channel type to be set into the resulting Channel.
+        let channel_type = self.framed_tls.codec().channel_type();
+
+        // Grab a new handle on which we can apply StreamOps (needed for KIST).
+        // On Unix platforms, this handle is a wrapper over the fd of the socket.
+        //
+        // Note: this is necessary because after `StreamExit::split()`,
+        // we no longer have access to the underlying stream
+        // or its StreamOps implementation.
+        let stream_ops = self.framed_tls.new_handle();
+        let (tls_sink, tls_stream) = self.framed_tls.split();
+
+        let mut peer_builder = OwnedChanTargetBuilder::default();
+        if let Some(target_method) = self.target_method {
+            if let Some(addrs) = target_method.socket_addrs() {
+                peer_builder.addrs(addrs.to_owned());
+            }
+            peer_builder.method(target_method);
+        }
+        let peer_id = peer_builder
+            .build()
+            .expect("OwnedChanTarget builder failed");
+
+        debug!(
+            stream_id = %self.unique_id,
+            "Completed handshake without authentication to {}", Redacted::new(&peer_id)
+        );
+
+        super::Channel::new(
+            channel_type,
+            self.link_protocol,
+            Box::new(tls_sink),
+            Box::new(tls_stream),
+            stream_ops,
+            self.unique_id,
+            peer_id,
+            self.clock_skew,
+            self.sleep_prov,
+            self.memquota,
+        )
     }
 }
 
@@ -525,6 +591,12 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > VerifiedChannel<T, S>
 {
+    /// Mark this channel as authenticated.
+    pub(crate) fn set_authenticated(&mut self) -> Result<()> {
+        self.framed_tls.codec_mut().set_authenticated()?;
+        Ok(())
+    }
+
     /// The channel is used to send cells, and to create outgoing circuits.
     /// The reactor is used to route incoming messages to their appropriate
     /// circuit.
@@ -546,10 +618,14 @@ impl<
         // We have finalized the handshake, move our codec to Open.
         self.framed_tls.codec_mut().set_open()?;
 
+        // Grab the channel type from our underlying frame as we are about to consume the
+        // framed_tls and we need the channel type to be set into the resulting Channel.
+        let channel_type = self.framed_tls.codec().channel_type();
+
         debug!(
             stream_id = %self.unique_id,
-            "Completed handshake with {} [{}]",
-            self.ed25519_id, self.rsa_id
+            "Completed handshake with {:?} [{:?}]",
+            self.ed25519_id, self.rsa_id_cert_digest
         );
 
         // Grab a new handle on which we can apply StreamOps (needed for KIST).
@@ -568,14 +644,20 @@ impl<
             }
             peer_builder.method(target_method);
         }
+        // Non authenticating channels won't have these identities. This is possible as a relay
+        // responder handling an incoming channel from a client/bridge.
+        if let Some(ed25519_id) = self.ed25519_id {
+            peer_builder.ed_identity(ed25519_id);
+        }
+        if let Some((rsa_id, _)) = self.rsa_id_cert_digest {
+            peer_builder.rsa_identity(rsa_id);
+        }
         let peer_id = peer_builder
-            .ed_identity(self.ed25519_id)
-            .rsa_identity(self.rsa_id)
             .build()
             .expect("OwnedChanTarget builder failed");
 
         super::Channel::new(
-            self.channel_type,
+            channel_type,
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
@@ -623,7 +705,7 @@ pub(super) mod test {
 
     use super::*;
     use crate::channel::handler::test::MsgBuf;
-    use crate::channel::new_frame;
+    use crate::channel::{ChannelType, new_frame};
     use crate::util::fake_mq;
     use crate::{Result, channel::ClientInitiatorHandshake};
     use tor_cell::chancell::msg;
@@ -835,10 +917,9 @@ pub(super) mod test {
         let _ = framed_tls.codec_mut().set_open();
         let clock_skew = ClockSkew::None;
         UnverifiedChannel {
-            channel_type: ChannelType::ClientInitiator,
             link_protocol: 4,
             framed_tls,
-            certs_cell: certs,
+            certs_cell: Some(certs),
             clock_skew,
             target_method: None,
             unique_id: UniqId::new(),
@@ -1101,20 +1182,18 @@ pub(super) mod test {
     #[test]
     fn test_finish() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let ed25519_id = [3_u8; 32].into();
+            let ed25519_id = Some([3_u8; 32].into());
             let rsa_id = [4_u8; 20].into();
             let peer_addr = "127.1.1.2:443".parse().unwrap();
             let mut framed_tls = new_frame(MsgBuf::new(&b""[..]), ChannelType::ClientInitiator);
             let _ = framed_tls.codec_mut().set_link_version(4);
             let ver = VerifiedChannel {
-                channel_type: ChannelType::ClientInitiator,
                 link_protocol: 4,
                 framed_tls,
                 unique_id: UniqId::new(),
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
                 ed25519_id,
-                rsa_id,
-                rsa_cert_digest: [0; 32],
+                rsa_id_cert_digest: Some((rsa_id, [0; 32])),
                 peer_cert_digest: [0; 32],
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,

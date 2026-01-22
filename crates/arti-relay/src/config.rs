@@ -7,7 +7,7 @@
 mod listen;
 
 use std::borrow::Cow;
-use std::net::{SocketAddrV4, SocketAddrV6};
+use std::net::{IpAddr, SocketAddrV4, SocketAddrV6};
 use std::path::PathBuf;
 
 use derive_builder::Builder;
@@ -258,6 +258,17 @@ pub(crate) struct Advertise {
     ipv4: NonEmptyList<SocketAddrV4>,
     /// Relays may optionally advertise an IPv6 address.
     ipv6: Vec<SocketAddrV6>,
+}
+
+impl Advertise {
+    /// Return all IP addresses (both IPv4 and IPv6).
+    pub(crate) fn all_ips(&self) -> Vec<IpAddr> {
+        self.ipv4
+            .iter()
+            .map(|s| IpAddr::V4(*s.ip()))
+            .chain(self.ipv6.iter().map(|s| IpAddr::V6(*s.ip())))
+            .collect()
+    }
 }
 
 /// Default log level.
