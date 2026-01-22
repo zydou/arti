@@ -4,6 +4,7 @@ import argparse
 import dataclasses
 import os
 import shutil
+import shlex
 import subprocess
 import sys
 import textwrap
@@ -188,12 +189,15 @@ def _main() -> None:
     config = config_resolver.resolve(args)
 
     with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
-        print(f'target="{config.network}"', file=c)
-        print(f'jq_bin="{config.jq}"', file=c)
-        print(f'arti_bench_bin="{config.arti_bench}"', file=c)
-        print(f'chutney_bin="{config.chutney}"', file=c)
-        print(f'export CHUTNEY_ARTI="{config.arti}"', file=c)
-        print(f'export CHUTNEY_DATA_DIR="{config.chutney_data_dir}"', file=c)
+        print(f"target={shlex.quote(config.network)}", file=c)
+        print(f"jq_bin={shlex.quote(str(config.jq))}", file=c)
+        print(f"arti_bench_bin={shlex.quote(str(config.arti_bench))}", file=c)
+        print(f"chutney_bin={shlex.quote(str(config.chutney))}", file=c)
+        print(f"export CHUTNEY_ARTI={shlex.quote(str(config.arti))}", file=c)
+        print(
+            f"export CHUTNEY_DATA_DIR={shlex.quote(str(config.chutney_data_dir))}",
+            file=c,
+        )
 
 
 if __name__ == "__main__":
