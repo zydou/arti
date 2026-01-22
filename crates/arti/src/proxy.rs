@@ -555,3 +555,20 @@ where
         }
     }
 }
+
+/// If any source of the provided `error` is a [`tor_proto::Error`], return a reference to that
+/// [`tor_proto::Error`].
+fn extract_proto_err<'a>(
+    mut error: &'a (dyn std::error::Error + 'static),
+) -> Option<&'a tor_proto::Error> {
+    loop {
+        if let Some(downcast) = error.downcast_ref::<tor_proto::Error>() {
+            return Some(downcast);
+        }
+        if let Some(source) = error.source() {
+            error = source;
+        } else {
+            return None;
+        }
+    }
+}
