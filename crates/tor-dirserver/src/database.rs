@@ -602,6 +602,10 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
             continue;
         }
 
+        // We map a compression error to a bug because there is no good reason
+        // on why it should fail, given that we compress from memory data to
+        // memory data.  Probably because it uses the std::io::Writer interface
+        // which itself demands use of std::io::Result.
         let compressed = compress(data, encoding).map_err(into_internal!("{encoding} failed?"))?;
         let compressed_docid = DocumentId::digest(&compressed);
         store_stmt.execute(named_params! {
