@@ -1,7 +1,7 @@
 //! Download Management for [`super`].
 //!
-//! This module consists of [`ConsensusBoundDownloader`], a structure whose lifetime
-//! SHOULD be tied to the context of a single consensus.
+//! This module consists of [`DownloadManager`], a helper for
+//! downloading network documents.
 //!
 //! More information about the proper use can be found in the documentation
 //! of the respective data type.
@@ -20,21 +20,20 @@ use tracing::{debug, warn};
 
 use crate::err::AuthorityCommunicationError;
 
-/// Consensus bound download mangement for authority requests.
-///
-/// **The instance of [`ConsensusBoundDownloader`] shall be dropped once the
-/// context lifetime of a consensus is over.**
+/// Download manager for authority requests.
 ///
 /// This structure serves as the main interface for downloading documents from
 /// a directory authority.  It implements the logic for retrying failed
 /// downloads properly.
 ///
-/// The reason why this has to be a separate structure and not a just a single
-/// function lies within the reason that a minimal state has to be maintained,
-/// namely the last authority from which we have gotten a successful response,
-/// which will be re-used for all further request unless it fails, in which
-/// case it will randomly try and pick a new one, just like it did during the
-/// initial invocation.
+/// Technically, this structure does not need to be a structure and could be a
+/// simple method instead.  However, because many settings stay the same across
+/// all download attempts throughout the run-time of this program, making this
+/// a separate structure is convenient for making the method signature smaller.
+/// No state is kept *within* this structure, instead
+/// [`DownloadManager::download()`] accepts an optional reference to a preferred
+/// authority while returning the actual used authority, which the caller may
+/// store in order to use that authority again in the future.
 ///
 /// It may be worth to note that two round-robin loops, with one of them being
 /// nested inside the other, are being used here.  The first serves as an
@@ -62,28 +61,21 @@ use crate::err::AuthorityCommunicationError;
 /// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#general-download-behavior>
 /// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#retry-as-cache>
 #[derive(Debug)]
-pub(super) struct ConsensusBoundDownloader<'a, 'b> {
+pub(super) struct DownloadManager<'a, 'b> {
     /// The list of download authorities.
     ///
     /// TODO DIRMIRROR: Consider accepting an AuthorityContacts and extract the
     /// download addresses ourselves?
     authorities: &'a Vec<Vec<SocketAddr>>,
 
-    /// The authority we currently prefer, because it worked for us recently.
-    preferred_authority: Option<&'a Vec<SocketAddr>>,
-
     /// A handle to the runtime that is being used.
     rt: &'b PreferredRuntime,
 }
 
-impl<'a, 'b> ConsensusBoundDownloader<'a, 'b> {
-    /// Creates a new [`ConsensusBoundDownloader`] with a set of download authorities.
+impl<'a, 'b> DownloadManager<'a, 'b> {
+    /// Creates a new [`DownloadManager`] with a set of download authorities.
     pub(super) fn new(authorities: &'a Vec<Vec<SocketAddr>>, rt: &'b PreferredRuntime) -> Self {
-        Self {
-            authorities,
-            preferred_authority: None,
-            rt,
-        }
+        Self { authorities, rt }
     }
 
     /// Performs a download to a single authority.
@@ -133,14 +125,18 @@ impl<'a, 'b> ConsensusBoundDownloader<'a, 'b> {
     /// Downloads a [`Requestable`] from the download authorities.
     ///
     /// The relevant algorithm is non-trivial, but well-documented in the
-    /// [`ConsensusBoundDownloader`], which is why we will leave it out here by
+    /// [`DownloadManager`], which is why we will leave it out here by
     /// just referencing to it.
+    ///
+    /// Returns the actual used authority as well as the response, or a
+    /// collection of errors.
     #[allow(clippy::cognitive_complexity)]
     pub(super) async fn download<Req: Requestable + Debug, R: Rng>(
-        &mut self,
+        &self,
         req: &Req,
+        preferred: Option<&'a Vec<SocketAddr>>,
         rng: &mut R,
-    ) -> Result<Vec<u8>, RetryError<AuthorityCommunicationError>> {
+    ) -> Result<(&'a Vec<SocketAddr>, Vec<u8>), RetryError<AuthorityCommunicationError>> {
         // Because this is a round-robin approach, we want to collect errors.
         let mut err = RetryError::in_attempt_to("request to authority");
 
@@ -154,7 +150,7 @@ impl<'a, 'b> ConsensusBoundDownloader<'a, 'b> {
             .collect::<VecDeque<_>>();
 
         // If we have a preferred authority, move it to the front.
-        if let Some(preferred) = self.preferred_authority {
+        if let Some(preferred) = preferred {
             // In this case, we first throw it out and insert it to the start.
             random_auths.retain(|x| *x != preferred);
             random_auths.push_front(preferred);
@@ -170,11 +166,7 @@ impl<'a, 'b> ConsensusBoundDownloader<'a, 'b> {
             match self.download_single(endpoints, req).await {
                 Ok(resp) => {
                     debug!("request {req:?} to {endpoints:?} succeeded!");
-                    if self.preferred_authority != Some(endpoints) {
-                        debug!("using {endpoints:?} as new preferred authority");
-                        self.preferred_authority = Some(endpoints);
-                    }
-                    return Ok(resp);
+                    return Ok((endpoints, resp));
                 }
                 Err(e) => {
                     let delay = retry_delay.next_delay(rng);
@@ -210,7 +202,7 @@ mod test {
         io::ErrorKind,
         sync::{
             atomic::{AtomicUsize, Ordering},
-            Arc,
+            Arc, Mutex,
         },
     };
 
@@ -242,17 +234,18 @@ mod test {
         let authorities = vec![vec![server_addr]];
         let rt = PreferredRuntime::current().unwrap();
 
-        let mut mgr = ConsensusBoundDownloader::new(&authorities, &rt);
-        let resp = mgr
+        let mgr = DownloadManager::new(&authorities, &rt);
+        let (preferred, resp) = mgr
             .download(
                 &ConsensusRequest::new(ConsensusFlavor::Plain),
+                None,
                 &mut testing_rng(),
             )
             .await
             .unwrap();
 
         assert_eq!(resp, b"foo");
-        assert_eq!(mgr.preferred_authority.unwrap(), &authorities[0]);
+        assert_eq!(preferred, &authorities[0]);
     }
 
     /// Testing for a request that initially fails by returning a 404 but later succeeds.
@@ -260,15 +253,21 @@ mod test {
     async fn request_fail_but_succeed() {
         let mut server_addrs = Vec::new();
         let requ_counter = Arc::new(AtomicUsize::new(0));
+        let last = Arc::new(Mutex::new(Vec::new()));
         for _ in 0..8 {
             let server = TcpListener::bind("[::]:0").await.unwrap();
             let server_addr = server.local_addr().unwrap();
             let requ_counter = requ_counter.clone();
+            let last = last.clone();
             server_addrs.push(vec![server_addr]);
 
             tokio::task::spawn(async move {
                 loop {
                     let (mut conn, _) = server.accept().await.unwrap();
+
+                    // Store which server_addr was active last, because only the
+                    // last one will succeed.
+                    *last.lock().unwrap() = vec![server_addr];
 
                     // This read is important!
                     // Otherwise this server will terminate the connection with
@@ -294,18 +293,19 @@ mod test {
         }
 
         let rt = PreferredRuntime::current().unwrap();
-        let mut mgr = ConsensusBoundDownloader::new(&server_addrs, &rt);
+        let mgr = DownloadManager::new(&server_addrs, &rt);
 
-        let resp = mgr
+        let (preferred, resp) = mgr
             .download(
                 &ConsensusRequest::new(ConsensusFlavor::Plain),
+                None,
                 &mut testing_rng(),
             )
             .await
             .unwrap();
 
         assert_eq!(resp, b"foo");
-        assert!(mgr.preferred_authority.is_some());
+        assert_eq!(*preferred, *last.lock().unwrap());
     }
 
     /// Request that fails all the time.
@@ -328,17 +328,16 @@ mod test {
         }
 
         let rt = PreferredRuntime::current().unwrap();
-        let mut mgr = ConsensusBoundDownloader::new(&server_addrs, &rt);
+        let mgr = DownloadManager::new(&server_addrs, &rt);
 
         let errs = mgr
             .download(
                 &ConsensusRequest::new(ConsensusFlavor::Plain),
+                None,
                 &mut testing_rng(),
             )
             .await
             .unwrap_err();
-
-        assert!(mgr.preferred_authority.is_none());
 
         // This is just a longer loop to assert all errors are either resets or truncated headers.
         //

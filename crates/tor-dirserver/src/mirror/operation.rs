@@ -15,7 +15,7 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::time::Duration;
+use std::{net::SocketAddr, time::Duration};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -42,7 +42,7 @@ use tracing::warn;
 use crate::{
     database::{self, sql, ContentEncoding, Timestamp},
     err::{DatabaseError, FatalError, NetdocRequestError},
-    mirror::operation::download::ConsensusBoundDownloader,
+    mirror::operation::download::DownloadManager,
 };
 
 mod download;
@@ -256,23 +256,24 @@ fn get_recent_authority_certificates(
 /// Downloads (missing) directory authority certificates from an authority.
 ///
 /// The key pairs (identity and signing keys) are specified in `missing`.
-/// This function will then use the [`ConsensusBoundDownloader`] to download
+/// This function will then use the [`DownloadManager`] to download
 /// the missing certificates from a directory authority.
 async fn download_authority_certificates<'a, 'b, R: Rng>(
     missing: &[AuthCertKeyIds],
-    downloader: &mut ConsensusBoundDownloader<'a, 'b>,
+    downloader: &DownloadManager<'a, 'b>,
+    preferred: Option<&'a Vec<SocketAddr>>,
     rng: &mut R,
-) -> Result<String, NetdocRequestError> {
+) -> Result<(&'a Vec<SocketAddr>, String), NetdocRequestError> {
     let mut requ = AuthCertRequest::new();
     missing.iter().for_each(|kp| requ.push(*kp));
 
-    let resp = downloader
-        .download(&requ, rng)
+    let (preferred, resp) = downloader
+        .download(&requ, preferred, rng)
         .await
         .map_err(NetdocRequestError::Download)?;
     let resp = String::from_utf8(resp)?;
 
-    Ok(resp)
+    Ok((preferred, resp))
 }
 
 /// Parses multiple raw directory authority certificates.
@@ -899,19 +900,21 @@ mod test {
 
         // Download certificate.
         let rt = PreferredRuntime::current().unwrap();
-        let mut downloader = ConsensusBoundDownloader::new(authorities.downloads(), &rt);
-        let certs_raw = download_authority_certificates(
+        let downloader = DownloadManager::new(authorities.downloads(), &rt);
+        let (preferred, certs_raw) = download_authority_certificates(
             &[AuthCertKeyIds {
                 id_fingerprint: RsaIdentity::from_hex("49015F787433103580E3B66A1707A00E60F2D15B")
                     .unwrap(),
                 sk_fingerprint: RsaIdentity::from_hex("C5D153A6F0DA7CC22277D229DCBBF929D0589FE0")
                     .unwrap(),
             }],
-            &mut downloader,
+            &downloader,
+            None,
             &mut testing_rng(),
         )
         .await
         .unwrap();
+        assert_eq!(preferred, &authorities.downloads()[0]);
         assert_eq!(certs_raw, include_str!("../../testdata/authcert-longclaw"));
 
         // Parse certificate.
