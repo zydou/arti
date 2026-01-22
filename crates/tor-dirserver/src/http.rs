@@ -599,31 +599,26 @@ pub(in crate::http) mod test {
 
     lazy_static! {
         pub(in crate::http) static ref IDENTITY_DOCID: DocumentId =
-            "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66"
-                .parse()
-                .unwrap();
+            hex_to_docid("DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66");
         pub(in crate::http) static ref DEFLATE_DOCID: DocumentId =
-            "07564DD13A7F4A6AD98B997F2938B1CEE11F8C7F358C444374521BA54D50D05E"
-                .parse()
-                .unwrap();
+            hex_to_docid("07564DD13A7F4A6AD98B997F2938B1CEE11F8C7F358C444374521BA54D50D05E");
         pub(in crate::http) static ref GZIP_DOCID: DocumentId =
-            "1518107D3EF1EC6EAC3F3249DF26B2F845BC8226C326309F4822CAEF2E664104"
-                .parse()
-                .unwrap();
+            hex_to_docid("1518107D3EF1EC6EAC3F3249DF26B2F845BC8226C326309F4822CAEF2E664104");
         pub(in crate::http) static ref XZ_STD_DOCID: DocumentId =
-            "17416948501F8E627CC9A8F7EFE7A2F32788D53CB84A5F67AC8FD4C1B59184CF"
-                .parse()
-                .unwrap();
+            hex_to_docid("17416948501F8E627CC9A8F7EFE7A2F32788D53CB84A5F67AC8FD4C1B59184CF");
         pub(in crate::http) static ref X_TOR_LZMA_DOCID: DocumentId =
-            "B5549F79A69113BDAF3EF0AD1D7D339D0083BC31400ECEE1B673F331CF26E239"
-                .parse()
-                .unwrap();
+            hex_to_docid("B5549F79A69113BDAF3EF0AD1D7D339D0083BC31400ECEE1B673F331CF26E239");
     }
 
     pub(in crate::http) fn create_test_db_pool() -> Pool<SqliteConnectionManager> {
         let pool = database::open("").unwrap();
         database::rw_tx(&pool, init_test_db).unwrap();
         pool
+    }
+
+    fn hex_to_docid(s: &str) -> DocumentId {
+        let data: [u8; 32] = hex::decode(s).unwrap().try_into().unwrap();
+        data.into()
     }
 
     fn init_test_db(tx: &Transaction) {

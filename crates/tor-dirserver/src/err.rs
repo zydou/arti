@@ -2,7 +2,6 @@
 
 use std::{net::SocketAddr, string::FromUtf8Error};
 
-use hex::FromHexError;
 use retry_error::RetryError;
 use thiserror::Error;
 
@@ -87,19 +86,6 @@ pub(crate) enum DatabaseError {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
-}
-
-/// An error with parsing of a [`crate::database::DocumentId`].
-#[derive(Debug, Error)]
-#[non_exhaustive]
-pub(crate) enum DocumentIdParseError {
-    /// The input contains invalid hexadecimal data.
-    #[error("invalid hex supplied: {0}")]
-    InvalidHex(#[from] FromHexError),
-
-    /// The input is of invalid length.
-    #[error("DocumentId has an invalid length")]
-    InvalidLen,
 }
 
 /// An unrecoverable error during daemon operation.

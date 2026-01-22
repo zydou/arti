@@ -47,7 +47,6 @@ use std::{
     num::NonZero,
     ops::{Add, Sub},
     path::Path,
-    str::FromStr,
     time::{Duration, SystemTime},
 };
 
@@ -62,7 +61,7 @@ use rusqlite::{
 use saturating_time::SaturatingTime;
 use sha2::Digest;
 
-use crate::err::{DatabaseError, DocumentIdParseError};
+use crate::err::DatabaseError;
 
 /// The identifier for documents in the content-addressable cache.
 ///
@@ -124,14 +123,10 @@ impl PartialEq<&str> for DocumentId {
     }
 }
 
-impl FromStr for DocumentId {
-    type Err = DocumentIdParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let data: [u8; 32] = hex::decode(s)?
-            .try_into()
-            .map_err(|_| DocumentIdParseError::InvalidLen)?;
-
-        Ok(Self(data))
+#[cfg(test)]
+impl From<[u8; 32]> for DocumentId {
+    fn from(value: [u8; 32]) -> Self {
+        Self(value)
     }
 }
 
