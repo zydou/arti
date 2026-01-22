@@ -449,7 +449,39 @@
 # List of directory authorities which we expect to sign consensus documents and
 # to download directory information from, if we are a directory mirror.
 #
-#   authorities = [ <default list is compiled-in > ]
+# Usually, you do not want to modify this setting unless you are running arti
+# in a test environment.
+#  [tor_network.authorities]
+#  # SHA1 fingerprints of the directory authority identity keys.
+#  v3idents = [
+#    [
+#      "0000000000000000000000000000000000000000"
+#    ]
+#  ]
+#  # IP addresses/ports for each authority to upload to (as a relay).
+#  uploads = [
+#    [
+#      # Each logical authority is grouped to support dual-stack.
+#      "198.51.100.0:80",
+#      "[2001:db8::1]:80"
+#    ]
+#  ]
+#  # IP addresses/ports for each authority to download from (as a dirmirror).
+#  downloads = [
+#    [
+#      # Each logical authority is grouped to support dual-stack.
+#      "198.51.100.0:80",
+#      "[2001:db8::1]:80"
+#    ]
+#  ]
+#  # IP addresses/ports for each authority to send votes to (as a dirauth).
+#  votes = [
+#    [
+#      # Each logical authority is grouped to support dual-stack.
+#      "198.51.100.0:80",
+#      "[2001:db8::1]:80"
+#    ]
+#  ]
 
 # Channels and their behaviour
 [channel]

@@ -54,19 +54,6 @@ pub struct AuthorityContacts {
     votes: Vec<Vec<SocketAddr>>,
 }
 
-/// The legacy way of storing an authority before Arti 1.6.0.
-///
-/// Only for compatibility, see `crate::config::authority_compat`.
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct LegacyAuthority {
-    /// A memorable nickname for this authority.
-    pub(crate) name: String,
-    /// A SHA1 digest of the DER-encoded long-term v3 RSA identity key for
-    /// this authority.
-    // TODO: It would be lovely to use a better hash for these identities.
-    pub(crate) v3ident: RsaIdentity,
-}
-
 impl_standard_builder! { AuthorityContacts }
 
 define_list_builder_accessors! {
