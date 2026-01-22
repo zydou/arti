@@ -10,4 +10,6 @@ source tests/chutney/arti.run
 [ -n "${target:?}" ]
 [ -n "${chutney_bin:?}" ]
 
-CHUTNEY_START_TIME=300 "${chutney_bin}" bootstrap "$target"
+export CHUTNEY_START_TIME=300
+"${chutney_bin}" init "$target"
+"${chutney_bin}" bootstrap

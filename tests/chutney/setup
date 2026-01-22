@@ -4,6 +4,7 @@ import argparse
 import dataclasses
 import os
 import shutil
+import shlex
 import subprocess
 import sys
 import textwrap
@@ -25,16 +26,12 @@ class JqBinResolver:
     def resolve(self, args: Namespace) -> Path:
         res_str = args.jq_bin or shutil.which("jq")
         if res_str is None:
-            print(
-                textwrap.dedent(
-                    """
+            print(textwrap.dedent("""
                     jq not found.
                     Try setting --jq-bin or ensuring it's on your PATH.
                     On debian, it can be installed with:
                     apt install jq
-                    """
-                )
-            )
+                    """))
             sys.exit(1)
         res = Path(res_str)
         if not os.access(res, os.X_OK):
@@ -50,16 +47,12 @@ class ChutneyBinResolver:
     def resolve(self, args: Namespace) -> Path:
         res_str = args.chutney_bin or shutil.which("chutney")
         if res_str is None:
-            print(
-                textwrap.dedent(
-                    """
+            print(textwrap.dedent("""
                     chutney (https://gitlab.torproject.org/tpo/core/chutney) not found.
                     Try setting --chutney-bin or ensuring it's on your PATH.
                     quick install:
                     python3 -m pip install git+https://gitlab.torproject.org/tpo/core/chutney.git
-                    """
-                )
-            )
+                    """))
             sys.exit(1)
         res = Path(res_str)
         if not os.access(res, os.X_OK):
@@ -86,15 +79,11 @@ class ArtiBinResolver:
                     res_str = str(p)
                     break
         if res_str is None:
-            print(
-                textwrap.dedent(
-                    """
+            print(textwrap.dedent("""
                     arti client not found.
                     Try setting --arti-bin or building one in this repo:
                     cargo build --locked --profile=quicktest -p arti
-                    """
-                )
-            )
+                    """))
             sys.exit(1)
         res = Path(res_str)
         if not os.access(res, os.X_OK):
@@ -123,15 +112,11 @@ class ArtiBenchBinResolver:
                     res_str = str(p)
                     break
         if res_str is None:
-            print(
-                textwrap.dedent(
-                    """
+            print(textwrap.dedent("""
                     arti-bench not found.
                     Try setting --arti-bench-bin or building one in this repo:
                     cargo build --locked --profile=quicktest -p arti-bench
-                    """
-                )
-            )
+                    """))
             sys.exit(1)
         res = Path(res_str)
         if not os.access(res, os.X_OK):
@@ -155,11 +140,13 @@ class ChutneyDataDirResolver:
 class ChutneyNetworkResolver:
     def __init__(self, parser: ArgumentParser) -> None:
         parser.add_argument(
-            "--network", "-n", help="name or path of a chutney network to launch"
+            "--network", "-n", help="flag to 'chutney init' specifying network to use."
         )
 
     def resolve(self, args: Namespace) -> str:
-        return args.network or str(_SCRIPT_DIR.joinpath("networks", "arti-ci"))
+        return args.network or "--net-from-script-path=" + str(
+            _SCRIPT_DIR.joinpath("networks", "arti-ci")
+        )
 
 
 @dataclasses.dataclass
@@ -202,12 +189,15 @@ def _main() -> None:
     config = config_resolver.resolve(args)
 
     with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
-        print(f'target="{config.network}"', file=c)
-        print(f'jq_bin="{config.jq}"', file=c)
-        print(f'arti_bench_bin="{config.arti_bench}"', file=c)
-        print(f'chutney_bin="{config.chutney}"', file=c)
-        print(f'export CHUTNEY_ARTI="{config.arti}"', file=c)
-        print(f'export CHUTNEY_DATA_DIR="{config.chutney_data_dir}"', file=c)
+        print(f"target={shlex.quote(config.network)}", file=c)
+        print(f"jq_bin={shlex.quote(str(config.jq))}", file=c)
+        print(f"arti_bench_bin={shlex.quote(str(config.arti_bench))}", file=c)
+        print(f"chutney_bin={shlex.quote(str(config.chutney))}", file=c)
+        print(f"export CHUTNEY_ARTI={shlex.quote(str(config.arti))}", file=c)
+        print(
+            f"export CHUTNEY_DATA_DIR={shlex.quote(str(config.chutney_data_dir))}",
+            file=c,
+        )
 
 
 if __name__ == "__main__":

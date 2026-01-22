@@ -189,16 +189,14 @@ def self_test():
     A basic runtime test.
     """
 
-    md = textwrap.dedent(
-        """
+    md = textwrap.dedent("""
         # Foo
 
         Test [link]. And [another]. What about [this][one]? Or [this](https://wikipedia.org)?
 
         [another]: https://example.com
         [not-present]: https://www.torproject.org
-        """
-    )
+        """)
 
     extracted = extract_links(md)
 

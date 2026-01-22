@@ -77,12 +77,9 @@ TEST_LINTS = """
 
 # ---------- list of lints to apply or disapply *in examples* ----------
 
-EXAMPLE_LINTS = (
-    """
+EXAMPLE_LINTS = """
 #![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
-"""
-    + TEST_LINTS.strip()
-)
+""" + TEST_LINTS.strip()
 
 
 # ---------- some notes about lints we might use - NOT USED by any code here ----------

@@ -92,15 +92,13 @@ get_or_fail(document, "nav").insert_after(commands_tag)
 # Construct a crate-coverage table to go after the main table.
 #
 # We build this as a string and parse it because it's simpler that way.
-table_text = [
-    """<table class="table is-fullwidth">
+table_text = ["""<table class="table is-fullwidth">
 <thead><tr>
    <th>Crate name</th>
    <th class="has-text-centered" colspan="2">Line coverage</th>
 </tr></thead>
 <tbody>
-"""
-]
+"""]
 danger_threshold = 0.7
 warning_threshold = 0.9
 # Add a row for each crate...
@@ -119,14 +117,12 @@ for crate, (numerator, denominator) in crate_lines.items():
     else:
         bg = "success"
     tclass = f"has-text-centered has-background-{bg} p-2"
-    table_text.append(
-        f"""
+    table_text.append(f"""
 <tr>
   <th>{crate}</th>
   <td class="{tclass}">{pct}</td>
   <td class="{tclass}">{numerator} / {denominator}</td>
-</tr>"""
-    )
+</tr>""")
 table_text.append("</tbody></table>")
 newtable = BeautifulSoup("\n".join(table_text), "html.parser")
 # Insert the table!

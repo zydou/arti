@@ -49,22 +49,18 @@ class TestContext:
         rpc_port = 18929
 
         with open(unix_connpt_path, "w") as f:
-            f.write(
-                f"""
+            f.write(f"""
 [connect]
 socket = "unix:{socket_path}"
 auth = "none"
-"""
-            )
+""")
 
         with open(tcp_connpt_path, "w") as f:
-            f.write(
-                f"""
+            f.write(f"""
 [connect]
 socket = "inet:127.0.0.1:{rpc_port}"
 auth = {{ cookie = {{ path = "{cookie_path}" }} }}
-"""
-            )
+""")
 
         is_windows = sys.platform in ["win32", "cygwin"]
 
