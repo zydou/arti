@@ -302,10 +302,11 @@ impl<
         // Responder. See tor-spec for a diagram of messages.
         let is_responder = auth_challenge_cell.is_none();
 
-        // Without an AUTH_CHALLENGE, we use our known link protocol value.
+        // Without an AUTH_CHALLENGE, we use our known link protocol value. Else, we only keep what
+        // we know from the AUTH_CHALLENGE and we max() on it.
         let link_auth = *LINK_AUTH
             .iter()
-            .filter(|m| auth_challenge_cell.is_some_and(|cell| cell.methods().contains(m)))
+            .filter(|m| auth_challenge_cell.is_none_or(|cell| cell.methods().contains(m)))
             .max()
             .ok_or(Error::BadCellAuth)?;
         // The ordering matter based on if initiator or responder.
