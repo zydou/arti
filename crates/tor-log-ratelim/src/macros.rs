@@ -189,37 +189,49 @@ macro_rules! log_ratelim {
     // `tor-log-ratelim`, all the messages would appear to originate from there.
     //
     // (TODO: We could use tracing::Metadata explicitly, perhaps? That might be hard.)
-    struct Lg(LogState);
+    struct Lg {
+        /// Internal state of the log.
+        state: LogState,
+        /// The activity status the last time we flushed.
+        last_activity: Option<Activity>,
+    }
     impl Loggable for Lg {
         fn flush(&mut self, summarizing: std::time::Duration) -> Activity {
-            let activity = self.0.activity();
+            let activity = self.state.activity();
             match activity {
                Activity::Active => {
                   tracing::event!(
                       tracing::Level::$err_level,
                       "{}",
-                      self.0.display_problem(summarizing)
+                      self.state.display_problem(summarizing)
                   );
                }
-               Activity::Dormant => {
-                  tracing::event!(
-                      // Using err_level here is in some respects confusing:
-                      // if the _presence_ of the problem is (say) a WARN,
-                      // why should its newfound absence also be a WARN?
-                      //
-                      // We have had to decide which is worse:
-                      // that a user only watching WARNs
-                      // might not see a problem has gone away,
-                      // or that a non-problem would be reported
-                      // at an excessive severity.
-                      // We went with the latter.
-                      tracing::Level::$err_level,
-                      "{}",
-                      self.0.display_recovery(summarizing)
-                  );
+               Activity::AppearsResolved => {
+                   // Don't want to log an update if we're continuing to see successes and no
+                   // failures.
+                   if self.last_activity != Some(Activity::AppearsResolved) {
+                       tracing::event!(
+                           // Using err_level here is in some respects confusing:
+                           // if the _presence_ of the problem is (say) a WARN,
+                           // why should its newfound absence also be a WARN?
+                           //
+                           // We have had to decide which is worse:
+                           // that a user only watching WARNs
+                           // might not see a problem has gone away,
+                           // or that a non-problem would be reported
+                           // at an excessive severity.
+                           // We went with the latter.
+                           tracing::Level::$err_level,
+                           "{}",
+                           self.state.display_recovery(summarizing)
+                       );
+                   }
                }
+               // There have been no new successes or failures, so there's no update to report.
+               Activity::Dormant => {}
             }
-            self.0.reset();
+            self.state.reset();
+            self.last_activity = Some(activity);
             activity
         }
     }
@@ -248,9 +260,12 @@ macro_rules! log_ratelim {
           .lock()
           .expect("poisoned lock")
           .entry(key)
-          .or_insert_with(|| RateLim::new(Lg(LogState::new(activity))));
+          .or_insert_with(|| RateLim::new(Lg {
+              state: LogState::new(activity),
+              last_activity: None,
+          }));
         // 2) Note failure in the activity with note_fail().
-        logger.event(runtime, |lg| lg.0.note_fail(||
+        logger.event(runtime, |lg| lg.state.note_fail(||
           // 2b) If this is the first time that this activity failed since the
           //     last flush, record the formatted err_msg, and a Clone of the error.
           (
@@ -270,7 +285,7 @@ macro_rules! log_ratelim {
           .lock()
           .expect("poisoned lock")
           .get(&key) {
-            logger.nonevent(|lg| lg.0.note_ok());
+            logger.nonevent(|lg| lg.state.note_ok());
           }
         // 2) If we have a per-success item to log, log it.
         $(

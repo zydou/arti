@@ -63,10 +63,10 @@ impl LogState {
     }
     /// Check whether there is any activity to report from this LogState.
     pub fn activity(&self) -> crate::Activity {
-        if self.n_fail == 0 {
-            crate::Activity::Dormant
-        } else {
-            crate::Activity::Active
+        match (self.n_ok, self.n_fail) {
+            (0, 0) => crate::Activity::Dormant,
+            (_, 0) => crate::Activity::AppearsResolved,
+            (_, _) => crate::Activity::Active,
         }
     }
     /// Return a wrapper type for reporting that we have observed problems in

@@ -187,28 +187,28 @@ where
             // had slept for the exact amount, since the alternative appears to
             // be saying stuff like "this problem occurred 8/12 times in the
             // last 10min 0.0014ssec" instead of "10m".
-            if inner.loggable.flush(duration) == Activity::Dormant {
-                // TODO: This can tell the user several times that the problem
-                // did not occur! Perhaps we only want to flush once on dormant,
-                // and then not report the dormant condition again until we are
-                // no longer tracking it.  Or perhaps we should lower the
-                // responsibility for deciding when to log and when to uninstall
-                // to the Loggable?
-                match dormant_since {
-                    Some(when) => {
-                        if let Some(dormant_for) = rt_support.now().checked_duration_since(when) {
-                            if dormant_for >= RESET_AFTER_DORMANT_FOR {
-                                inner.task_running = false;
-                                return;
+            match inner.loggable.flush(duration) {
+                // There have been no failures since the last flush.
+                Activity::Dormant | Activity::AppearsResolved => {
+                    // TODO: Perhaps we should lower the responsibility for
+                    // deciding when to log and when to uninstall to the
+                    // Loggable?
+                    match dormant_since {
+                        Some(when) => {
+                            if let Some(dormant_for) = rt_support.now().checked_duration_since(when)
+                            {
+                                if dormant_for >= RESET_AFTER_DORMANT_FOR {
+                                    inner.task_running = false;
+                                    return;
+                                }
                             }
                         }
-                    }
-                    None => {
-                        dormant_since = Some(rt_support.now());
+                        None => {
+                            dormant_since = Some(rt_support.now());
+                        }
                     }
                 }
-            } else {
-                dormant_since = None;
+                Activity::Active => dormant_since = None,
             }
         }
     }
