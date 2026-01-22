@@ -67,7 +67,7 @@ pub(super) struct ForwardReactor<T: HasRelayIds> {
     /// The sending end of the forward channel, if we are not the last hop.
     ///
     /// Delivers cells towards the exit.
-    forward: Option<Forward>,
+    forward: Option<ForwardSender>,
     /// Sender for RELAY cells that need to be forwarded to the client,
     /// or otherwise handled in the BackwardReactor.
     ///
@@ -97,7 +97,7 @@ pub(super) struct ForwardReactor<T: HasRelayIds> {
 
 /// A relay's view of the forward (away from the client, towards the exit) state of the circuit.
 #[allow(unused)]
-struct Forward {
+struct ForwardSender {
     /// The circuit identifier on the forward Tor channel.
     circ_id: CircId,
     /// The sending end of the forward Tor channel.
@@ -281,7 +281,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         // TODO(relay): deliver `receiver` to the other reactor,
         // and instruct it to send back an EXTEND/EXTENDED2
 
-        let forward = Forward {
+        let forward = ForwardSender {
             circ_id,
             chan_sender: chan.sender(),
         };
