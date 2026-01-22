@@ -49,10 +49,6 @@ pub(crate) enum AuthorityCommunicationError {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum DatabaseError {
-    /// Compressing data into the database failed with an I/O error.
-    #[error("compression error: {0}")]
-    Compression(std::io::Error),
-
     /// A low-level SQLite error has occurred, which can have a bascially
     /// infinite amount of reasons, all of them outlined in the actual SQLite
     /// and [`rusqlite`] documentation.
