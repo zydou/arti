@@ -8,6 +8,7 @@ use crate::channel::Channel;
 use crate::circuit::cell_sender::CircuitCellSender;
 use crate::circuit::celltypes::CreateResponse;
 use crate::circuit::circhop::HopSettings;
+use crate::circuit::padding::CircPaddingDisposition;
 use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::client::circuit::padding::{
@@ -1719,19 +1720,6 @@ impl Circuit {
     pub(super) fn estimate_cbt(&self, length: usize) -> Duration {
         self.timeouts.circuit_build_timeout(length)
     }
-}
-
-/// A possible way to handle a request to send padding.
-#[derive(Copy, Clone, Debug)]
-enum CircPaddingDisposition {
-    /// Enqueue the padding normally.
-    QueuePaddingNormally,
-    /// Enqueue the padding, and allow one cell of data on our outbound queue
-    /// to bypass the current block.
-    QueuePaddingAndBypass,
-    /// Do not take any actual padding action:
-    /// existing data on our outbound queue will count as padding.
-    TreatQueuedCellAsPadding,
 }
 
 impl Drop for Circuit {
