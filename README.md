@@ -66,9 +66,13 @@ into nightly.[^3]
 This feature is guarded behind `time_systemtime_limits` and a tracking
 issue regarding the stabilization of it exists.[^4]
 
-#### `SystemTime::saturating_add()` and `SystemTime::saturating_sub()`
+#### `SystemTime::saturating_add()`, et, al.
 
-None yet.
+In January 2025, `SystemTime::saturating_add()`, `SystemTime::saturating_sub()`,
+and `SystemTime::saturating_duration_since()` got merged into nightly.[^5]
+
+This feature is guarded behind `time_saturating_systemtime` and a tracking
+issue regarding the stabilization of it exists.[^6]
 
 ### `Instant`
 
@@ -78,6 +82,8 @@ None yet.
 [^2]: Assuming the name, signature, and behavior does not change.
 [^3]: <https://github.com/rust-lang/rust/pull/149979>
 [^4]: <https://github.com/rust-lang/rust/issues/149067>
+[^5]: <https://github.com/rust-lang/rust/pull/151200>
+[^6]: <https://github.com/rust-lang/rust/issues/151199>
 
 ## License and Copyright
 
