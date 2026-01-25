@@ -61,7 +61,7 @@ The eventual goal is to get this functionality into the Rust standard library.
 #### `SystemTime::MIN` and `SystemTime::MAX`
 
 In December 2025, `SystemTime::MIN` and `SystemTime::MAX` got merged
-into stable.[^3]
+into nightly.[^3]
 
 This feature is guarded behind `time_systemtime_limits` and a tracking
 issue regarding the stabilization of it exists.[^4]
