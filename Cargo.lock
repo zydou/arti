@@ -7639,6 +7639,7 @@ dependencies = [
  "native-tls",
  "paste",
  "pin-project",
+ "rustls",
  "rustls-pki-types",
  "rustls-webpki",
  "smol",

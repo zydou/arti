@@ -20,7 +20,7 @@ paste = "1"
 rand = "0.9.1"
 rand_chacha = "0.9"
 serde = { version = "1.0.103", optional = true, features = ["derive"] }
-slab = "0.4.4"
+slab = "0.4.7"
 smallvec = "1.10"
 thiserror = "2"
 weak-table = "0.3.0"
