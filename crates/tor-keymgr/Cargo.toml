@@ -86,7 +86,7 @@ walkdir = { version = "2" }
 zeroize = "1"
 
 [dev-dependencies]
-paste = "1"
+paste = "1.0.3"
 serde_json = "1.0.104"
 tempfile = "3"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.38.0" }
