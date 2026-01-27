@@ -736,6 +736,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
         }
     }
 
+    /// Use the new KIST parameters.
     #[cfg(not(target_os = "linux"))]
     fn apply_kist_params(&self, params: &KistParams) {
         use super::kist::KistMode;
