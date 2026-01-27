@@ -81,7 +81,8 @@ pub use timer::{SleepProviderExt, Timeout, TimeoutError};
 /// Traits used to describe TLS connections and objects that can
 /// create them.
 pub mod tls {
-    pub use crate::traits::{CertifiedConn, TlsConnector};
+    pub use crate::impls::unimpl_tls::UnimplementedTls;
+    pub use crate::traits::{CertifiedConn, TlsAcceptorSettings, TlsConnector};
 
     #[cfg(all(
         feature = "native-tls",

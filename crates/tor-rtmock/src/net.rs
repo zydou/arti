@@ -11,7 +11,7 @@ use super::MockNetRuntime;
 use super::io::{LocalStream, stream_pair};
 use crate::util::mpsc_channel;
 use core::fmt;
-use tor_rtcompat::tls::TlsConnector;
+use tor_rtcompat::tls::{TlsAcceptorSettings, TlsConnector};
 use tor_rtcompat::{
     CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, StreamOps, TlsProvider,
 };
@@ -463,9 +463,14 @@ impl NetStreamProvider for MockNetProvider {
 impl TlsProvider<LocalStream> for MockNetProvider {
     type Connector = MockTlsConnector;
     type TlsStream = MockTlsStream;
+    type Acceptor = MockTlsConnector;
+    type TlsServerStream = MockTlsStream;
 
     fn tls_connector(&self) -> MockTlsConnector {
         MockTlsConnector {}
+    }
+    fn tls_acceptor(&self, _settings: TlsAcceptorSettings) -> IoResult<MockTlsConnector> {
+        Ok(MockTlsConnector {})
     }
 
     fn supports_keying_material_export(&self) -> bool {

@@ -101,8 +101,18 @@ define_derive_deftly! {
         type TlsStream = <$ftype as TlsProvider<
             <$ftype as NetStreamProvider>::Stream
             >>::TlsStream;
+        type Acceptor = <$ftype as TlsProvider<
+            <$ftype as NetStreamProvider>::Stream
+            >>::Acceptor;
+        type TlsServerStream = <$ftype as TlsProvider<
+            <$ftype as NetStreamProvider>::Stream
+            >>::TlsServerStream;
+
         fn tls_connector(&self) -> Self::Connector {
             self.$fname.tls_connector()
+        }
+        fn tls_acceptor(&self, settings: tor_rtcompat::tls::TlsAcceptorSettings) -> std::io::Result<Self::Acceptor> {
+            self.$fname.tls_acceptor(settings)
         }
         fn supports_keying_material_export(&self) -> bool {
             self.$fname.supports_keying_material_export()

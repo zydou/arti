@@ -1,11 +1,14 @@
 //! Implementation for using `native_tls`
 
-use crate::traits::{CertifiedConn, StreamOps, TlsConnector, TlsProvider};
+use crate::{
+    tls::{TlsAcceptorSettings, UnimplementedTls},
+    traits::{CertifiedConn, StreamOps, TlsConnector, TlsProvider},
+};
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use native_tls_crate as native_tls;
-use std::io::{Error as IoError, Result as IoResult};
+use std::io::{self, Error as IoError, Result as IoResult};
 use tracing::instrument;
 
 /// A [`TlsProvider`] that uses `native_tls`.
@@ -99,6 +102,9 @@ where
 
     type TlsStream = async_native_tls::TlsStream<S>;
 
+    type Acceptor = UnimplementedTls;
+    type TlsServerStream = UnimplementedTls;
+
     fn tls_connector(&self) -> Self::Connector {
         let mut builder = native_tls::TlsConnector::builder();
         // These function names are scary, but they just mean that we
@@ -119,6 +125,11 @@ where
             connector,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    fn tls_acceptor(&self, _settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor> {
+        // XXXX Implement.
+        Err(io::Error::from(io::ErrorKind::Unsupported))
     }
 
     fn supports_keying_material_export(&self) -> bool {

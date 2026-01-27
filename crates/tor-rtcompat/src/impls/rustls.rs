@@ -3,6 +3,8 @@
 //! #
 
 use crate::StreamOps;
+use crate::impls::unimpl_tls::UnimplementedTls;
+use crate::tls::TlsAcceptorSettings;
 use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 
 use async_trait::async_trait;
@@ -125,12 +127,19 @@ where
 
     type TlsStream = futures_rustls::client::TlsStream<S>;
 
+    type Acceptor = UnimplementedTls; // XXXX Implement.
+    type TlsServerStream = UnimplementedTls; // XXXXX implement.
+
     fn tls_connector(&self) -> Self::Connector {
         let connector = futures_rustls::TlsConnector::from(Arc::clone(&self.config));
         RustlsConnector {
             connector,
             _phantom: std::marker::PhantomData,
         }
+    }
+    fn tls_acceptor(&self, _settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor> {
+        // XXXX Implement.
+        Err(io::Error::from(io::ErrorKind::Unsupported))
     }
 
     fn supports_keying_material_export(&self) -> bool {

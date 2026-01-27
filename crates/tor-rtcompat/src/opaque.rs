@@ -103,9 +103,16 @@ macro_rules! implement_opaque_runtime {
     {
         type Connector = <$mty as $crate::traits::TlsProvider<S>>::Connector;
         type TlsStream = <$mty as $crate::traits::TlsProvider<S>>::TlsStream;
+        type Acceptor = <$mty as $crate::traits::TlsProvider<S>>::Acceptor;
+        type TlsServerStream = <$mty as $crate::traits::TlsProvider<S>>::TlsServerStream;
+
         #[inline]
         fn tls_connector(&self) -> Self::Connector {
             self.$member.tls_connector()
+        }
+        #[inline]
+        fn tls_acceptor(&self, settings: $crate::traits::TlsAcceptorSettings) -> std::io::Result<Self::Acceptor> {
+           <$mty as $crate::traits::TlsProvider<S>>::tls_acceptor(&self.$member, settings)
         }
         #[inline]
         fn supports_keying_material_export(&self) -> bool {

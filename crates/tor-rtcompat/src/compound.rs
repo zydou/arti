@@ -275,10 +275,17 @@ where
 {
     type Connector = TlsR::Connector;
     type TlsStream = TlsR::TlsStream;
+    type Acceptor = TlsR::Acceptor;
+    type TlsServerStream = TlsR::TlsServerStream;
 
     #[inline]
     fn tls_connector(&self) -> Self::Connector {
         self.inner.tls.tls_connector()
+    }
+
+    #[inline]
+    fn tls_acceptor(&self, settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor> {
+        self.inner.tls.tls_acceptor(settings)
     }
 
     #[inline]

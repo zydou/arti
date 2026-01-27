@@ -669,9 +669,36 @@ pub trait TlsProvider<S: StreamOps>: Clone + Send + Sync + 'static {
     /// The type of the stream returned by that connector.
     type TlsStream: AsyncRead + AsyncWrite + StreamOps + CertifiedConn + Unpin + Send + 'static;
 
+    /// The Acceptor object that this provider can return, for handling incoming connections.
+    type Acceptor: TlsConnector<S, Conn = Self::TlsServerStream> + Send + Sync + Unpin;
+
+    /// The type of stream returned by that Acceptor.
+    type TlsServerStream: AsyncRead
+        + AsyncWrite
+        + StreamOps
+        + CertifiedConn
+        + Unpin
+        + Send
+        + 'static;
+
     /// Return a TLS connector for use with this runtime.
     fn tls_connector(&self) -> Self::Connector;
 
+    /// Return a TLS acceptor for use with this runtime.
+    ///
+    /// Not every [`TlsProvider`] supports this method.
+    /// For those that do, this method is only supported
+    /// when `tor-rtcompat` is built with the `tls-server` feature.
+    /// When this method is unsupported, it returns an error.
+    fn tls_acceptor(&self, settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor>;
+
     /// Return true iff the keying material exporters (RFC 5705) is supported.
     fn supports_keying_material_export(&self) -> bool;
+}
+
+/// Settings used for constructing a TlsAcceptor.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct TlsAcceptorSettings {
+    // TODO: Put some members here.
 }
