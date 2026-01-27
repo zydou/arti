@@ -363,7 +363,7 @@ impl<R: Addresses> ConnectAddress<R> {
     }
 }
 impl ConnectAddress<Unresolved> {
-    /// Convert all symbolic paths within this ConnectAddress to their symbolic forms.
+    /// Expand all variables within this ConnectAddress to their concrete forms.
     fn resolve(
         &self,
         resolver: &CfgPathResolver,
@@ -433,7 +433,7 @@ impl ConnectAddress<Resolved> {
 }
 
 impl Connect<Unresolved> {
-    /// Convert all symbolic paths within this Connect to their resolved forms.
+    /// Expand all variables within this `Connect` to their concrete forms.
     fn resolve(&self, resolver: &CfgPathResolver) -> Result<Connect<Resolved>, ResolveError> {
         let socket = self.socket.resolve(resolver)?;
         let socket_canonical = self
@@ -521,7 +521,7 @@ pub(crate) enum Auth<R: Addresses> {
 }
 
 impl Auth<Unresolved> {
-    /// Convert all symbolic paths within this `Auth` to their resolved forms.
+    /// Expand all variables within this `Auth` to their concrete forms.
     fn resolve(&self, resolver: &CfgPathResolver) -> Result<Auth<Resolved>, ResolveError> {
         match self {
             Auth::None => Ok(Auth::None),
