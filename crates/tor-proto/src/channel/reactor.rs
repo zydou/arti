@@ -431,6 +431,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
     ///
     /// (With circuit padding disabled, PaddingEvent can't be constructed.)
     #[cfg(not(feature = "circ-padding"))]
+    #[allow(clippy::unused_async)] // for symmetry with the version below
     async fn handle_padding_event(&mut self, action: PaddingEvent) -> Result<()> {
         void::unreachable(action.0)
     }
