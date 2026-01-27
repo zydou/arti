@@ -145,6 +145,7 @@ impl DirMirror {
     /// with a `RELAY_BEGIN_DIR` cell.  How this is concretely done, is outside
     /// the scope of this crate; instead we provide the primitives making such
     /// flexibility possible.
+    #[allow(clippy::unused_async)] // TODO
     pub async fn serve<S, T, E>(self, _listener: S) -> Result<(), Infallible>
     where
         S: Stream<Item = Result<T, E>> + Unpin,
