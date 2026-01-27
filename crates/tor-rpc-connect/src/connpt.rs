@@ -79,6 +79,13 @@ pub enum ParseError {
     /// connect point section.
     #[error("Unrecognized format on connect point")]
     UnrecognizedFormat,
+    /// An inet-auto address was provided in a connect point
+    /// that was not a loopback address.
+    ///
+    /// (Note that this error is only generated for inet-auto addresses.
+    /// Other non-loopback addresses cause a [`ResolveError::AddressNotLoopback`].)
+    #[error("inet-auto address was not a loopback address")]
+    AutoAddressNotLoopback,
 }
 impl HasClientErrorAction for ParseError {
     fn client_action(&self) -> crate::ClientErrorAction {
@@ -86,6 +93,7 @@ impl HasClientErrorAction for ParseError {
         match self {
             ParseError::InvalidConnectPoint(_) => A::Abort,
             ParseError::ConflictingMembers => A::Abort,
+            ParseError::AutoAddressNotLoopback => A::Decline,
             ParseError::UnrecognizedFormat => A::Decline,
         }
     }
@@ -299,7 +307,7 @@ impl FromStr for InetAutoAddress {
         if addr.is_loopback() {
             Ok(InetAutoAddress { bind: Some(addr) })
         } else {
-            Err(ParseError::UnrecognizedFormat)
+            Err(ParseError::AutoAddressNotLoopback)
         }
     }
 }
