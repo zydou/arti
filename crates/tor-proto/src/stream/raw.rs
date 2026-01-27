@@ -66,7 +66,7 @@ impl StreamReceiver {
                 // The channel is indicating that it has terminated, likely from a dropped sender.
                 // But if we're here, it means we never received an END cell.
                 //
-                // This generally (exclusively? means that the circuit was destroyed before the
+                // This generally (exclusively?) means that the circuit was destroyed before the
                 // peer sent an END message.
                 return Err(Error::CircuitClosed);
             }
