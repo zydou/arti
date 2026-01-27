@@ -36,6 +36,7 @@ impl<R: Runtime> ChannelHouseKeepingTask<R> {
     }
 
     /// Run the background task.
+    #[allow(clippy::unused_async)] // TODO(relay)
     async fn run(&mut self) -> anyhow::Result<Duration> {
         let mgr = Weak::upgrade(&self.mgr).context("Channel manager is gone")?;
         // Expire any channels that are possibly closing.
