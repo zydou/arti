@@ -363,7 +363,7 @@ impl<R: Runtime> DirMgr<R> {
     /// In general, you shouldn't use this function in a long-running
     /// program; it's only suitable for command-line or batch tools.
     // TODO: I wish this function didn't have to be async or take a runtime.
-    pub async fn load_once(runtime: R, config: DirMgrConfig) -> Result<Arc<NetDir>> {
+    pub fn load_once(runtime: R, config: DirMgrConfig) -> Result<Arc<NetDir>> {
         let store = DirMgrStore::new(&config, runtime.clone(), true)?;
         let dirmgr = Arc::new(Self::from_config(config, runtime, store, None, true)?);
 
