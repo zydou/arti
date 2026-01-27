@@ -602,6 +602,13 @@ pub trait CertifiedConn {
     /// Try to return the (DER-encoded) peer certificate for this
     /// connection, if any.
     fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>>;
+
+    /// Try to return the (DER-encoded) link certificate (if any) containing
+    /// the key we used to authenticate this connection.
+    ///
+    /// Ordinarily, this will return a certificate for server connections,
+    /// and not for client connections.
+    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>>;
 }
 
 /// An object that knows how to wrap a TCP connection (where the type of said TCP

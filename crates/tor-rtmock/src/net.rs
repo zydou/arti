@@ -519,6 +519,7 @@ impl CertifiedConn for MockTlsStream {
     fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
         Ok(self.peer_cert.clone())
     }
+    // XXXX Add own_certificate implementation.
     fn export_keying_material(
         &self,
         _len: usize,
@@ -526,6 +527,11 @@ impl CertifiedConn for MockTlsStream {
         _context: Option<&[u8]>,
     ) -> IoResult<Vec<u8>> {
         Ok(Vec::new())
+    }
+
+    // XXXX Implement.
+    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+        Ok(None)
     }
 }
 

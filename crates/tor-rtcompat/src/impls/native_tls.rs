@@ -49,6 +49,10 @@ where
             tor_error::bad_api_usage!("native-tls does not support exporting keying material"),
         ))
     }
+
+    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+        Ok(None)
+    }
 }
 
 impl<S: AsyncRead + AsyncWrite + StreamOps + Unpin> StreamOps for async_native_tls::TlsStream<S> {

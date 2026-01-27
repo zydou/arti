@@ -76,6 +76,11 @@ impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
             .export_keying_material(Vec::with_capacity(len), label, context)
             .map_err(|e| IoError::new(io::ErrorKind::InvalidData, e))
     }
+
+    // XXXX Implement for servers.
+    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+        Ok(None)
+    }
 }
 
 impl<S: StreamOps> StreamOps for futures_rustls::client::TlsStream<S> {
