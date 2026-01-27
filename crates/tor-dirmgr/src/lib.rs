@@ -956,7 +956,7 @@ impl<R: Runtime> DirMgr<R> {
                 .clone()
                 .unwrap_or_else(|| Arc::new(crate::filter::NilFilter)),
         );
-        let _ = bootstrap::load(Arc::clone(self), Box::new(state), attempt_id)?;
+        let _ = bootstrap::load(self, Box::new(state), attempt_id)?;
 
         Ok(self.netdir.get().is_some())
     }

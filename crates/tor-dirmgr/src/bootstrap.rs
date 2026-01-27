@@ -405,7 +405,7 @@ fn load_once<R: Runtime>(
 /// No downloads are performed; the provided state will not be reset.
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor? Somewhat due to tracing.
 pub(crate) fn load<R: Runtime>(
-    dirmgr: Arc<DirMgr<R>>,
+    dirmgr: &Arc<DirMgr<R>>,
     mut state: Box<dyn DirState>,
     attempt_id: AttemptId,
 ) -> Result<Box<dyn DirState>> {
@@ -413,7 +413,7 @@ pub(crate) fn load<R: Runtime>(
     loop {
         trace!(attempt=%attempt_id, state=%state.describe(), "Loading from cache");
         let mut changed = false;
-        let outcome = load_once(&dirmgr, &mut state, attempt_id, &mut changed);
+        let outcome = load_once(dirmgr, &mut state, attempt_id, &mut changed);
         {
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
             dirmgr.apply_netdir_changes(&mut state, &mut **store)?;
@@ -910,7 +910,7 @@ mod test {
 
             // Try just a load.
             let state = Box::new(DemoState::new1());
-            let result = super::load(Arc::clone(&mgr), state, attempt_id)
+            let result = super::load(&mgr, state, attempt_id)
                 .unwrap();
             assert!(result.is_ready(Readiness::Complete));
 
