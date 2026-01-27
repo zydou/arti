@@ -827,15 +827,11 @@ fn insert_authority_certificates(
     Ok(())
 }
 
-/// Calculates the [`Duration`] to wait before querying the authorities again.
+/// Calculates the [`Timestamp`] at which the authorities will be queried again.
 ///
 /// This function accepts a `fresh-until` and `valid-until`, both hopefully
 /// obtained through the [`get_recent_consensus()`] function, and caculates a
-/// [`Duration`] relative to `now`, describing the time to wait before querying
-/// the authorities again.
-///
-/// If [`get_recent_consensus()`] returned [`None`], it is safe to skip a call
-/// to this function and use [`Duration::ZERO`] instead.
+/// [`Timestamp`] describing the time at which the new consensus is downloaded.
 ///
 /// # Specifications
 ///
@@ -846,17 +842,16 @@ fn insert_authority_certificates(
 fn calculate_sync_timeout<R: Rng>(
     fresh_until: Timestamp,
     valid_until: Timestamp,
-    now: Timestamp,
     rng: &mut R,
-) -> Duration {
+) -> Timestamp {
     assert!(fresh_until < valid_until);
 
     let offset = rng
         .gen_range_checked(0..=((valid_until - fresh_until).as_secs() / 2))
         .expect("invalid range???");
 
-    // fresh_until + offset - now
-    fresh_until + Duration::from_secs(offset) - now
+    // fresh_until + offset
+    fresh_until + Duration::from_secs(offset)
 }
 
 /// Runs forever in the current task, performing the core operation of a directory mirror.
@@ -922,8 +917,8 @@ pub(super) async fn serve<R: Rng, F: Fn() -> Timestamp>(
             // determine all missing network documents reffered to by the current
             // consensus and scheduling downloads from the authorities in order
             // to obtain and insert them into the database.
-            let sync_timeout = calculate_sync_timeout(fresh_until, valid_until, now, rng);
-            tokio::time::timeout(sync_timeout, async {
+            let sync_timeout = calculate_sync_timeout(fresh_until, valid_until, rng);
+            tokio::time::timeout(sync_timeout - now, async {
                 // TODO DIRMIRROR: Actually download descriptors.
                 // Ensure a good timeout to protect against malicious
                 // authorities transmitting data extra slow; a download should
@@ -1191,11 +1186,9 @@ mod test {
     fn sync_timeout() {
         // We repeat the tests a few thousand times to go over many random values.
         for _ in 0..10000 {
-            let now = (SystemTime::UNIX_EPOCH + Duration::from_secs(42)).into();
-
-            let dur = calculate_sync_timeout(*FRESH_UNTIL, *VALID_UNTIL, now, &mut testing_rng());
-            assert!(dur >= *FRESH_UNTIL - now);
-            assert!(dur <= *FRESH_UNTIL_HALF - now);
+            let when = calculate_sync_timeout(*FRESH_UNTIL, *VALID_UNTIL, &mut testing_rng());
+            assert!(when >= *FRESH_UNTIL);
+            assert!(when <= *FRESH_UNTIL_HALF);
         }
     }
 
