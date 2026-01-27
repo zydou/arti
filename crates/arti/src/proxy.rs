@@ -17,7 +17,7 @@ use futures::stream::StreamExt;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tor_rtcompat::SpawnExt;
-use tracing::{error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 #[allow(unused)]
 use arti_client::HasKind;
@@ -479,8 +479,7 @@ pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
         tor_client.runtime().spawn(async move {
             let res = handle_proxy_conn(proxy_context, stream, (sock_id, addr.ip())).await;
             if let Err(e) = res {
-                // TODO: warn_report doesn't work on anyhow::Error.
-                warn!("connection exited with error: {}", tor_error::Report(e));
+                report_proxy_error(e);
             }
         })?;
     }
@@ -553,5 +552,40 @@ where
             );
             Ok(())
         }
+    }
+}
+
+/// If any source of the provided `error` is a [`tor_proto::Error`], return a reference to that
+/// [`tor_proto::Error`].
+fn extract_proto_err<'a>(
+    mut error: &'a (dyn std::error::Error + 'static),
+) -> Option<&'a tor_proto::Error> {
+    loop {
+        if let Some(downcast) = error.downcast_ref::<tor_proto::Error>() {
+            return Some(downcast);
+        }
+        if let Some(source) = error.source() {
+            error = source;
+        } else {
+            return None;
+        }
+    }
+}
+
+/// Report an error that occurred within a single proxy task.
+fn report_proxy_error(e: anyhow::Error) {
+    use tor_proto::Error as PE;
+    // TODO: In the long run it might be a good idea to use an ErrorKind here if we can get one.
+    // This is a bit of a kludge based on the fact that we're using anyhow.
+    //
+    // TODO: It might be handy to have a way to collapse CircuitClosed into EOF earlier.
+    // But that loses information, so it should be optional.
+    //
+    // TODO: Maybe we should look at io::ErrorKind as well, if it's there.  That's another reason
+    // to discard or restrict our anyhow usage.
+    match extract_proto_err(e.as_ref()) {
+        Some(PE::CircuitClosed) => debug!("Connection exited with circuit close"),
+        // TODO: warn_report doesn't work on anyhow::Error.
+        _ => warn!("connection exited with error: {}", tor_error::Report(e)),
     }
 }

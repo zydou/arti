@@ -620,17 +620,11 @@ impl HttpConnectError {
     // tor-cell that are not re-exported from arti-client.  It also relies on the fact that
     // there is a single error type way down in `tor-proto` representing a received END message.
     fn remote_end_reason(&self) -> Option<tor_cell::relaycell::msg::EndReason> {
-        use tor_proto::Error as ProtoErr;
-        let mut error: &(dyn std::error::Error + 'static) = self;
-        loop {
-            if let Some(ProtoErr::EndReceived(reason)) = error.downcast_ref::<ProtoErr>() {
-                return Some(*reason);
-            }
-            if let Some(source) = error.source() {
-                error = source;
-            } else {
-                return None;
-            }
+        use tor_proto::Error::EndReceived;
+        if let Some(EndReceived(reason)) = super::extract_proto_err(self) {
+            Some(*reason)
+        } else {
+            None
         }
     }
 }

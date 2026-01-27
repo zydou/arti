@@ -65,12 +65,10 @@ impl StreamReceiver {
             Poll::Ready(None) => {
                 // The channel is indicating that it has terminated, likely from a dropped sender.
                 // But if we're here, it means we never received an END cell.
-                // I don't think this is unexpected, since a circuit may be destroyed before the
-                // peer sends an END message.
-                // TODO: Is there a better message or error variant we could provide here?
-                return Err(Error::StreamProto(
-                    "stream channel disappeared without END cell?".into(),
-                ));
+                //
+                // This generally (exclusively?) means that the circuit was destroyed before the
+                // peer sent an END message.
+                return Err(Error::CircuitClosed);
             }
             Poll::Pending => return Ok(Poll::Pending),
         };
