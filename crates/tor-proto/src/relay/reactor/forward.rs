@@ -228,6 +228,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
     /// if the request failed, we need to tear down the circuit.
     #[allow(unused)] // TODO(relay)
     #[allow(unreachable_code)] // TODO(relay)
+    #[allow(clippy::unused_async)] // TODO(relay)
     async fn handle_outgoing_chan_res(
         &mut self,
         chan_res: ChannelResult,
@@ -441,11 +442,13 @@ impl<T: HasRelayIds> ForwardReactor<T> {
     }
 
     /// Handle an EXTEND2 cell.
+    #[allow(clippy::unused_async)] // TODO(relay)
     async fn handle_extend2(&mut self) -> StdResult<(), ReactorError> {
         todo!()
     }
 
     /// Handle a TRUNCATE cell.
+    #[allow(clippy::unused_async)] // TODO(relay)
     async fn handle_truncate(&mut self) -> StdResult<(), ReactorError> {
         // TODO(relay): when we implement this, we should try to do better than C Tor:
         // if we have some cells queued for the next hop in the circuit,
