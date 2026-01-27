@@ -910,8 +910,7 @@ mod test {
 
             // Try just a load.
             let state = Box::new(DemoState::new1());
-            let result = super::load(&mgr, state, attempt_id)
-                .unwrap();
+            let result = super::load(&mgr, state, attempt_id).unwrap();
             assert!(result.is_ready(Readiness::Complete));
 
             // Try a bootstrap that could (but won't!) download.
