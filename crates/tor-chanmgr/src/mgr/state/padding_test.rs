@@ -20,7 +20,6 @@ use std::iter;
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
-use futures_await_test::async_test;
 use itertools::{Itertools, zip_eq};
 #[cfg(feature = "relay")]
 use {safelog::Sensitive, std::net::IpAddr};
@@ -282,8 +281,8 @@ impl CaseContext {
 /// told.  For example each PaddingNegotiation in a control message will be sent precisely
 /// once (assuming it can be sent before the channel is closed or the next one arrives).
 /// The timing parameters, and enablement, are passed directly to the padding timer.
-#[async_test]
-async fn padding_control_through_layer() {
+#[test]
+fn padding_control_through_layer() {
     test_with_all_runtimes!(padding_control_through_layer_impl);
 }
 
