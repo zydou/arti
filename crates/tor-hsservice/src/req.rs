@@ -242,7 +242,7 @@ impl RendRequest {
     }
 
     /// Reject this request.  (The client will receive no notification.)
-    pub async fn reject(self) -> Result<(), Bug> {
+    pub fn reject(self) -> Result<(), Bug> {
         // nothing to do.
         Ok(())
     }
