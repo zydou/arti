@@ -8,7 +8,7 @@ use crate::{
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use native_tls_crate as native_tls;
-use std::io::{self, Error as IoError, Result as IoResult};
+use std::io::{Error as IoError, Result as IoResult};
 use tracing::instrument;
 
 /// A [`TlsProvider`] that uses `native_tls`.
@@ -128,8 +128,9 @@ where
     }
 
     fn tls_acceptor(&self, _settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor> {
-        // XXXX Implement.
-        Err(io::Error::from(io::ErrorKind::Unsupported))
+        // TODO: In principle, there's nothing preventing us from implementing this,
+        // except for the fact we decided to base our relay support on rustls.
+        Err(crate::tls::TlsServerUnsupported {}.into())
     }
 
     fn supports_keying_material_export(&self) -> bool {

@@ -148,7 +148,7 @@ where
             type Acceptor = crate::tls::UnimplementedTls;
             type TlsServerStream = crate::tls::UnimplementedTls;
             fn tls_acceptor(&self, _settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor> {
-                Err(io::Error::from(io::ErrorKind::Unsupported))
+                Err(crate::tls::TlsServerUnsupported{}.into())
             }
         }
     }

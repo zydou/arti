@@ -82,7 +82,9 @@ pub use timer::{SleepProviderExt, Timeout, TimeoutError};
 /// create them.
 pub mod tls {
     pub use crate::impls::unimpl_tls::UnimplementedTls;
-    pub use crate::traits::{CertifiedConn, TlsAcceptorSettings, TlsConnector};
+    pub use crate::traits::{
+        CertifiedConn, TlsAcceptorSettings, TlsConnector, TlsServerUnsupported,
+    };
 
     #[cfg(all(
         feature = "native-tls",

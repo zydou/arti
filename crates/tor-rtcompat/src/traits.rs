@@ -778,3 +778,15 @@ pub enum TlsPrivateKey<'a> {
     /// (This is typically encoded in PEM with "BEGIN PRIVATE KEY")
     Pkcs8(&'a [u8]),
 }
+
+/// An error returned by TlsProvider::tls_acceptor when the TlsProvider does not have TLS server support.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+#[error("This TlsProvider does not support running as a server")]
+pub struct TlsServerUnsupported {}
+
+impl From<TlsServerUnsupported> for io::Error {
+    fn from(value: TlsServerUnsupported) -> Self {
+        io::Error::new(io::ErrorKind::Unsupported, value)
+    }
+}
