@@ -81,6 +81,10 @@ pub use timer::{SleepProviderExt, Timeout, TimeoutError};
 /// Traits used to describe TLS connections and objects that can
 /// create them.
 pub mod tls {
+    #[cfg(all(
+        any(feature = "native-tls", feature = "rustls"),
+        any(feature = "async-std", feature = "tokio", feature = "smol")
+    ))]
     pub use crate::impls::unimpl_tls::UnimplementedTls;
     pub use crate::traits::{
         CertifiedConn, TlsAcceptorSettings, TlsConnector, TlsServerUnsupported,
@@ -420,6 +424,7 @@ mod test {
     use std::io::Result as IoResult;
     use std::net::SocketAddr;
     use std::net::{Ipv4Addr, SocketAddrV4};
+    use std::time::SystemTime;
     use std::time::{Duration, Instant};
 
     // Test "sleep" with a tiny delay, and make sure that at least that
@@ -603,8 +608,8 @@ mod test {
 
     // Try listening on an address and connecting there, except using TLS.
     //
-    // Note that since we don't have async tls server support yet, I'm just
-    // going to use a thread.
+    // Note that since we didn't have TLS server support when this test was first written,
+    // we're going to use a thread.
     fn simple_tls<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         /*
          A simple expired self-signed rsa-2048 certificate.
@@ -662,6 +667,74 @@ mod test {
         })?;
 
         th.join().unwrap()?;
+        IoResult::Ok(())
+    }
+
+    fn simple_tls_server<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
+        let mut rng = tor_basic_utils::test_rng::testing_rng();
+        let tls_cert = tor_cert::x509::TlsKeyAndCert::create(
+            &mut rng,
+            SystemTime::now(),
+            "prospit.example.org",
+            "derse.example.org",
+        )
+        .unwrap();
+        let certs_der = tls_cert.certificates_der();
+        let key_der = tls_cert.private_key_pkcs8_der().unwrap();
+        let settings = TlsAcceptorSettings::new(
+            TlsServerCert::Der(certs_der[0]),
+            TlsPrivateKey::Pkcs8(key_der.as_ref()),
+        )
+        .unwrap();
+
+        let Ok(tls_acceptor) = runtime.tls_acceptor(settings) else {
+            dbg!("Skipping test.");
+            return IoResult::Ok(());
+        };
+
+        let tls_connector = runtime.tls_connector();
+
+        let localhost: SocketAddr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into();
+        let rt1 = runtime.clone();
+
+        let msg = b"Derse Reviles Him And Outlaws Frogs Wherever They Can";
+        runtime.block_on(async move {
+            let listener = runtime.listen(&localhost).await.unwrap();
+            let address = listener.local_addr().unwrap();
+
+            let h1 = runtime
+                .spawn_with_handle(async move {
+                    let conn = listener.incoming().next().await.unwrap().unwrap().0;
+                    let mut conn = tls_acceptor.negotiate_unvalidated(conn, "").await.unwrap();
+
+                    let mut buf = vec![];
+                    conn.read_to_end(&mut buf).await.unwrap();
+                    (buf, conn.own_certificate())
+                })
+                .unwrap();
+
+            let h2 = runtime
+                .spawn_with_handle(async move {
+                    let conn = rt1.connect(&address).await.unwrap();
+                    let mut conn = tls_connector
+                        .negotiate_unvalidated(conn, "prospit.example.org")
+                        .await
+                        .unwrap();
+                    conn.write_all(msg).await.unwrap();
+                    conn.close().await.unwrap();
+                    conn.peer_certificate()
+                })
+                .unwrap();
+
+            let (received, server_own_cert) = h1.await;
+            let client_peer_cert = h2.await;
+            assert_eq!(received, msg);
+            assert_eq!(server_own_cert.unwrap().unwrap(), certs_der[0]);
+            assert_eq!(client_peer_cert.unwrap().unwrap(), certs_der[0]);
+
+            dbg!("woo it worked.");
+        });
+
         IoResult::Ok(())
     }
 
@@ -742,5 +815,6 @@ mod test {
 
     tls_runtime_tests! {
         simple_tls,
+        simple_tls_server,
     }
 }

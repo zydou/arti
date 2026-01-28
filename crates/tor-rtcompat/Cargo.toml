@@ -110,6 +110,9 @@ zeroize = "1"
 assert_matches = "1.5.0"
 # Used for testing our TLS implementation.
 native-tls-crate = { package = "native-tls", version = "0.2" }
+tor-cert = { version = "0.38.0", path = "../tor-cert", features = ["x509"]}
+tor-basic-utils = { version = "0.38.0", path = "../tor-basic-utils" }
+
 [package.metadata.docs.rs]
 all-features = true
 
