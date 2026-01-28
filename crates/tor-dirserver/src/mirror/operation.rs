@@ -40,7 +40,7 @@ use tor_netdoc::{
 use tracing::{debug, warn};
 
 use crate::{
-    database::{self, sql, ContentEncoding, Timestamp},
+    database::{self, sql, Consensus, ContentEncoding, Timestamp},
     err::{DatabaseError, NetdocRequestError, OperationError},
     mirror::operation::download::DownloadManager,
 };
@@ -281,7 +281,7 @@ impl StaticEngine {
                 // is very fast and having to maintain two different queries,
                 // one for checking and one for selecting, is prone to get
                 // out-of-sync.
-                match database::Consensus::query_recent(tx, self.flavor, &self.tolerance, now)? {
+                match Consensus::query_recent(tx, self.flavor, &self.tolerance, now)? {
                     // Some consensus means we can load it.
                     Some(_) => State::LoadConsensus,
 
@@ -408,7 +408,7 @@ impl StaticEngine {
         // applications arbitrarily modifying the database while we are running
         // leaves too much room for wrong/weird behavior.
         let (_meta, consensus) = database::read_tx(pool, |tx| {
-            let meta = database::Consensus::query_recent(tx, self.flavor, &self.tolerance, now)?
+            let meta = Consensus::query_recent(tx, self.flavor, &self.tolerance, now)?
                 .ok_or(internal!("database externally modified?"))?;
             let consensus = meta.raw(tx)?;
             Ok::<_, DatabaseError>((meta, consensus))
