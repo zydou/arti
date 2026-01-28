@@ -90,7 +90,7 @@ impl<R: Runtime> Reactor<R> {
         crypto_in: Box<dyn InboundRelayLayer + Send>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         settings: &HopSettings,
-        chan_provider: Box<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+        chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
         timeouts: Arc<dyn TimeoutEstimator>,

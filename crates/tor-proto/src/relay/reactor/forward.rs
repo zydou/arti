@@ -24,6 +24,7 @@ use tor_rtcompat::Runtime;
 use futures::SinkExt as _;
 
 use std::result::Result as StdResult;
+use std::sync::Arc;
 
 /// Placeholder for our custom control message type.
 type CtrlMsg = ();
@@ -43,7 +44,7 @@ pub(crate) struct Forward {
     /// with the *same* underlying Tor channel provider (`ChanMgr`),
     /// to enable the reuse of existing Tor channels where possible.
     #[allow(unused)] // XXX
-    chan_provider: Box<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+    chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
 }
 
 impl Forward {
@@ -51,7 +52,7 @@ impl Forward {
     pub(crate) fn new(
         unique_id: UniqId,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
-        chan_provider: Box<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+        chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
     ) -> Self {
         Self {
             unique_id,
