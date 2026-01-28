@@ -186,8 +186,8 @@ mod test {
         };
     }
 
-    #[async_test]
-    async fn postage_drop() {
+    #[test]
+    fn postage_drop() {
         #[derive(Clone, Copy, Debug, Eq, PartialEq)]
         struct I(i32);
 

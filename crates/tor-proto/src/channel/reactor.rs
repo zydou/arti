@@ -431,6 +431,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
     ///
     /// (With circuit padding disabled, PaddingEvent can't be constructed.)
     #[cfg(not(feature = "circ-padding"))]
+    #[allow(clippy::unused_async)] // for symmetry with the version below
     async fn handle_padding_event(&mut self, action: PaddingEvent) -> Result<()> {
         void::unreachable(action.0)
     }
@@ -579,7 +580,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
 
             Destroy(_) => self.deliver_destroy(circid, msg).await,
 
-            CreatedFast(_) | Created2(_) => self.deliver_created(circid, msg).await,
+            CreatedFast(_) | Created2(_) => self.deliver_created(circid, msg),
 
             // These are always ignored.
             Padding(_) | Vpadding(_) => Ok(()),
@@ -617,7 +618,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
 
     /// Handle a CREATED{,_FAST,2} cell by passing it on to the appropriate
     /// circuit, if that circuit is waiting for one.
-    async fn deliver_created(&mut self, circid: Option<CircId>, msg: AnyChanMsg) -> Result<()> {
+    fn deliver_created(&mut self, circid: Option<CircId>, msg: AnyChanMsg) -> Result<()> {
         let Some(circid) = circid else {
             return Err(Error::ChanProto("'Created' cell without circuit ID".into()));
         };

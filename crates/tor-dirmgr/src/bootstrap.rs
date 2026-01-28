@@ -368,7 +368,7 @@ async fn fetch_multiple<R: Runtime>(
 }
 
 /// Try to update `state` by loading cached information from `dirmgr`.
-async fn load_once<R: Runtime>(
+fn load_once<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
     attempt_id: AttemptId,
@@ -404,8 +404,8 @@ async fn load_once<R: Runtime>(
 ///
 /// No downloads are performed; the provided state will not be reset.
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor? Somewhat due to tracing.
-pub(crate) async fn load<R: Runtime>(
-    dirmgr: Arc<DirMgr<R>>,
+pub(crate) fn load<R: Runtime>(
+    dirmgr: &Arc<DirMgr<R>>,
     mut state: Box<dyn DirState>,
     attempt_id: AttemptId,
 ) -> Result<Box<dyn DirState>> {
@@ -413,7 +413,7 @@ pub(crate) async fn load<R: Runtime>(
     loop {
         trace!(attempt=%attempt_id, state=%state.describe(), "Loading from cache");
         let mut changed = false;
-        let outcome = load_once(&dirmgr, &mut state, attempt_id, &mut changed).await;
+        let outcome = load_once(dirmgr, &mut state, attempt_id, &mut changed);
         {
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
             dirmgr.apply_netdir_changes(&mut state, &mut **store)?;
@@ -568,7 +568,7 @@ pub(crate) async fn download<R: Runtime>(
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
             let mut changed = false;
             trace!(attempt=%attempt_id, state=%state.describe(),"Attempting to load directory information from cache.");
-            let load_result = load_once(&dirmgr, state, attempt_id, &mut changed).await;
+            let load_result = load_once(&dirmgr, state, attempt_id, &mut changed);
             trace!(attempt=%attempt_id, state=%state.describe(), outcome=?load_result, "Load attempt complete.");
             if let Err(e) = &load_result {
                 // If the load failed but the error can be blamed on a directory
@@ -910,9 +910,7 @@ mod test {
 
             // Try just a load.
             let state = Box::new(DemoState::new1());
-            let result = super::load(Arc::clone(&mgr), state, attempt_id)
-                .await
-                .unwrap();
+            let result = super::load(&mgr, state, attempt_id).unwrap();
             assert!(result.is_ready(Readiness::Complete));
 
             // Try a bootstrap that could (but won't!) download.

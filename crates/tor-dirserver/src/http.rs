@@ -239,6 +239,7 @@ impl HttpServer {
     /// A small wrapper function that creates a read-only or read-write
     /// [`Transaction`] based upon the [`Method`] and continues execution in
     /// [`Self::handler_tx`].
+    #[allow(clippy::unused_async)] // TODO
     async fn handler(
         cache: Arc<StoreCache>,
         endpoints: Arc<[Endpoint]>,

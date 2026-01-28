@@ -1105,7 +1105,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     /// if there is not.
     // TODO: This should probably take some kind of parallelism parameter.
     #[cfg(test)]
-    pub(crate) async fn ensure_tunnel(
+    pub(crate) fn ensure_tunnel(
         self: &Arc<Self>,
         usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
@@ -2319,9 +2319,9 @@ mod test {
             let ports2 = TargetTunnelUsage::new_from_ipv4_ports(&[80]);
             let ports3 = TargetTunnelUsage::new_from_ipv4_ports(&[443]);
 
-            let (ok, c1, c2) = rt
-                .wait_for(futures::future::join3(
-                    mgr.ensure_tunnel(&ports1, di()),
+            let ok = mgr.ensure_tunnel(&ports1, di());
+            let (c1, c2) = rt
+                .wait_for(futures::future::join(
                     async {
                         rt.sleep(Duration::from_millis(10)).await;
                         mgr.get_or_launch(&ports2, di()).await
@@ -2364,12 +2364,8 @@ mod test {
             let imap = TargetTunnelUsage::new_from_ipv4_ports(&[993]);
             let pop = TargetTunnelUsage::new_from_ipv4_ports(&[995]);
 
-            let (ok, pop1) = rt
-                .wait_for(futures::future::join(
-                    mgr.ensure_tunnel(&imap, di()),
-                    mgr.get_or_launch(&pop, di()),
-                ))
-                .await;
+            let ok = mgr.ensure_tunnel(&imap, di());
+            let pop1 = rt.wait_for(mgr.get_or_launch(&pop, di())).await;
 
             assert!(ok.is_ok());
             let pop1 = pop1.unwrap().0;

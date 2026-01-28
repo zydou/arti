@@ -191,7 +191,7 @@ where
     }
 
     match *request.method() {
-        Method::OPTIONS => handle_options_request(request).await,
+        Method::OPTIONS => handle_options_request(&request),
         Method::CONNECT => {
             handle_connect_request::<R, S>(request, context, listener_isolation).await
         }
@@ -205,7 +205,7 @@ where
 }
 
 /// Return an appropriate reply to the given OPTIONS request.
-async fn handle_options_request(request: Request) -> Result<Response<Body>, anyhow::Error> {
+fn handle_options_request(request: &Request) -> Result<Response<Body>, anyhow::Error> {
     use hyper::body::Body as _;
 
     let target = request.uri().to_string();

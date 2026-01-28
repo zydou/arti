@@ -1207,7 +1207,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let new_config = Arc::new(config.into());
         if self.replace_config_if_changed(Arc::clone(&new_config)) {
             self.update_file_watcher();
-            self.update_authorized_clients_if_changed().await?;
+            self.update_authorized_clients_if_changed();
 
             info!(nickname=%self.imm.nickname, "Config has changed, generating a new descriptor");
             self.mark_all_dirty();
@@ -1238,7 +1238,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // Update the file watcher, in case the change was triggered by a key_dir move.
         self.update_file_watcher();
 
-        if self.update_authorized_clients_if_changed().await? {
+        if self.update_authorized_clients_if_changed() {
             self.mark_all_dirty();
 
             // Schedule an upload, unless we're still waiting for IPTs.
@@ -1252,7 +1252,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Recreate the authorized_clients based on the current config.
     ///
     /// Returns `true` if the authorized clients have changed.
-    async fn update_authorized_clients_if_changed(&mut self) -> Result<bool, FatalError> {
+    fn update_authorized_clients_if_changed(&mut self) -> bool {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let authorized_clients =
             Self::read_authorized_clients(&inner.config.restricted_discovery, &self.path_resolver);
@@ -1265,7 +1265,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             *clients = authorized_clients;
         }
 
-        Ok(changed)
+        changed
     }
 
     /// Read the authorized `RestrictedDiscoveryKeys` from `config`.

@@ -242,6 +242,7 @@ impl RendRequest {
     }
 
     /// Reject this request.  (The client will receive no notification.)
+    #[allow(clippy::unused_async)] // we might need this to be async at some point
     pub async fn reject(self) -> Result<(), Bug> {
         // nothing to do.
         Ok(())
