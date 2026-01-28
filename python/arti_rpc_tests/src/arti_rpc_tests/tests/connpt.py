@@ -10,6 +10,7 @@ from arti_rpc import (
     ArtiRpcConnBuilder,
 )
 
+import json
 import sys
 import tempfile
 import os
@@ -35,6 +36,19 @@ def connpt_unix(context):
 [connect]
 socket = "unix:{context.socket_path}"
 auth = "none"
+"""
+
+
+def connpt_tcp_auto(context):
+    """
+    Return a connect point that uses a TCP connection point
+    and cookie authentication to connect to arti.
+    """
+    return f"""
+[connect]
+socket = "inet-auto:auto"
+socket_address_file = "{context.socket_address_path}"
+auth = {{ cookie = {{ path = "{context.cookie2_path}" }} }}
 """
 
 
@@ -280,3 +294,20 @@ def connect_unix(context):
     bld.prepend_literal_connect_point(connpt_abort())
     bld.prepend_literal_connect_point(connpt_unix(context))
     assert_builder_connects(bld)
+
+
+@arti_test
+def connect_tcp_auto(context):
+    bld = ArtiRpcConnBuilder()
+    bld.prepend_literal_connect_point(connpt_abort())
+    bld.prepend_literal_connect_point(connpt_tcp_auto(context))
+    assert_builder_connects(bld)
+
+
+@arti_test
+def check_tcp_auto_content(context):
+    content = open(context.socket_address_path).read()
+    j = json.loads(content)
+    address = j["address"]
+    assert address.startswith("inet:127.0.0.1:")
+    assert address != "inet:127.0.0.1:0"

@@ -1,15 +1,17 @@
 //! Client operations for working with connect points.
 
-use std::{io, net::TcpStream};
+use std::{io, net::TcpStream, sync::Arc};
 
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 
 use fs_mistrust::Mistrust;
+use tor_general_addr::general;
 
 use crate::{
     ConnectError, ResolvedConnectPoint,
     auth::{RpcAuth, RpcCookieSource, cookie::CookieLocation},
+    connpt::{AddrWithStr, AddressFile},
 };
 
 /// Information about an initial connection to a connect point.
@@ -47,33 +49,71 @@ impl crate::connpt::Builtin {
     }
 }
 impl crate::connpt::Connect<crate::connpt::Resolved> {
+    /// Return the address that we should actually try to connect to, with its string representation
+    /// set to the canonical address.
+    fn find_connect_address(
+        &self,
+        mistrust: &Mistrust,
+    ) -> Result<AddrWithStr<general::SocketAddr>, ConnectError> {
+        use crate::connpt::ConnectAddress::*;
+
+        // Find the target address.
+        let mut addr = match &self.socket {
+            InetAuto(auto_addr) => {
+                let socket_address_file = self.socket_address_file.as_ref().ok_or_else(|| {
+                    ConnectError::Internal(
+                        "Absent socket_address_file should have been rejected earlier".into(),
+                    )
+                })?;
+                let addr_from_disk = mistrust
+                    .verifier()
+                    .permit_readable()
+                    .file_access()
+                    .read_to_string(socket_address_file)
+                    .map_err(ConnectError::SocketAddressFileAccess)?;
+                let addrfile: AddressFile = serde_json::from_str(&addr_from_disk)
+                    .map_err(|e| ConnectError::SocketAddressFileJson(Arc::new(e)))?;
+                let address: AddrWithStr<general::SocketAddr> = addrfile
+                    .address
+                    .parse()
+                    .map_err(ConnectError::SocketAddressFileContent)?;
+                auto_addr.validate_parsed_address(address.as_ref())?;
+                address
+            }
+            Socket(addr) => addr.clone(),
+        };
+        // Override the string if needed.
+        if let Some(canon) = &self.socket_canonical {
+            addr.set_string_from(canon);
+        }
+        Ok(addr)
+    }
+
     /// Try to connect on a "Connect" connect point.
     fn do_connect(&self, mistrust: &Mistrust) -> Result<Connection, ConnectError> {
         use crate::connpt::Auth;
         use tor_general_addr::general::SocketAddr as SA;
+        let connect_to_address = self.find_connect_address(mistrust)?;
         let auth = match &self.auth {
             Auth::None => RpcAuth::Inherent,
-            Auth::Cookie { path } => {
-                let canonical_addr = self.socket_canonical.as_ref().unwrap_or(&self.socket);
-                RpcAuth::Cookie {
-                    secret: RpcCookieSource::Unloaded(CookieLocation {
-                        path: path.clone(),
-                        mistrust: mistrust.clone(),
-                    }),
-                    server_address: canonical_addr.as_str().to_string(),
-                }
-            }
+            Auth::Cookie { path } => RpcAuth::Cookie {
+                secret: RpcCookieSource::Unloaded(CookieLocation {
+                    path: path.clone(),
+                    mistrust: mistrust.clone(),
+                }),
+                server_address: connect_to_address.as_str().to_string(),
+            },
             // This is unreachable, but harmless:
             Auth::Unrecognized(_) => return Err(ConnectError::UnsupportedAuthType),
         };
-        if let Some(sock_parent_dir) = crate::socket_parent_path(self.socket.as_ref()) {
+        if let Some(sock_parent_dir) = crate::socket_parent_path(connect_to_address.as_ref()) {
             mistrust.check_directory(sock_parent_dir)?;
         }
         // TODO: we currently use try_clone() to get separate reader and writer instances.
         // conceivably, we could instead create something like the `Split` implementation that
         // exists for `AsyncRead + AsyncWrite` objects in futures::io.
         let (reader, writer): (Box<dyn io::Read + Send>, Box<dyn io::Write + Send>) =
-            match self.socket.as_ref() {
+            match connect_to_address.as_ref() {
                 SA::Inet(addr) => {
                     let socket = TcpStream::connect(addr)?;
                     (Box::new(socket.try_clone()?), Box::new(socket))

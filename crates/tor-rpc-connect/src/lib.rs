@@ -60,6 +60,7 @@ mod testing;
 use std::{io, sync::Arc};
 
 pub use connpt::{ParsedConnectPoint, ResolveError, ResolvedConnectPoint};
+use tor_general_addr::general;
 
 /// An action that an RPC client should take when a connect point fails.
 ///
@@ -200,10 +201,27 @@ pub enum ConnectError {
     /// Unable to access the location of an AF\_UNIX socket.
     #[error("Unix domain socket path access")]
     AfUnixSocketPathAccess(#[from] fs_mistrust::Error),
+    /// Unable to access the location of `socket_address_file`.
+    #[error("Problem accessing socket address file")]
+    SocketAddressFileAccess(#[source] fs_mistrust::Error),
+    /// We couldn't parse the JSON contents of a socket address file.
+    #[error("Invalid JSON contents in socket address file")]
+    SocketAddressFileJson(#[source] Arc<serde_json::Error>),
+    /// We couldn't parse the address in a socket address file.
+    #[error("Invalid address in socket address file")]
+    SocketAddressFileContent(#[source] general::AddrParseError),
+    /// We found an address in the socket address file that didn't match the connect point.
+    #[error("Socket address file contents didn't match connect point")]
+    SocketAddressFileMismatch,
     /// Another process was holding a lock for this connect point,
     /// so we couldn't bind to it.
     #[error("Could not acquire lock: Another process is listening on this connect point")]
     AlreadyLocked,
+    /// We encountered an internal logic error.
+    //
+    // (We're not using tor_error::Bug here because we want this code to work properly in rpc-client-core.)
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl From<io::Error> for ConnectError {
@@ -222,7 +240,12 @@ impl crate::HasClientErrorAction for ConnectError {
             E::UnsupportedSocketType => A::Decline,
             E::UnsupportedAuthType => A::Decline,
             E::AfUnixSocketPathAccess(err) => err.client_action(),
+            E::SocketAddressFileAccess(err) => err.client_action(),
+            E::SocketAddressFileJson(_) => A::Decline,
+            E::SocketAddressFileContent(_) => A::Decline,
+            E::SocketAddressFileMismatch => A::Decline,
             E::AlreadyLocked => A::Abort, // (This one can't actually occur for clients.)
+            E::Internal(_) => A::Abort,
         }
     }
 }
