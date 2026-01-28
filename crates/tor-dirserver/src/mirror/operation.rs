@@ -20,7 +20,7 @@ use std::{collections::VecDeque, net::SocketAddr, time::Duration};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
-use rusqlite::{named_params, params, OptionalExtension, Transaction};
+use rusqlite::{named_params, OptionalExtension, Transaction};
 use strum::IntoEnumIterator;
 use tor_basic_utils::RngExt;
 use tor_dirclient::request::AuthCertRequest;
@@ -280,12 +280,12 @@ impl StaticEngine {
             ConsensusBoundData::None => {
                 // Check whether there is a valid consensus in the database at all.
                 //
-                // Yes, it is kinda redundant calling get_recent_consensus here
+                // Yes, it is kinda redundant querying a consensus here
                 // and potentially again when loading the consensus, but SQLite
                 // is very fast and having to maintain two different queries,
                 // one for checking and one for selecting, is prone to get
                 // out-of-sync.
-                match get_recent_consensus(tx, self.flavor, &self.tolerance, now)? {
+                match database::Consensus::query_recent(tx, self.flavor, &self.tolerance, now)? {
                     // Some consensus means we can load it.
                     Some(_) => State::LoadConsensus,
 
@@ -411,11 +411,12 @@ impl StaticEngine {
         // In this case, it is probably better to return a bug, as external
         // applications arbitrarily modifying the database while we are running
         // leaves too much room for wrong/weird behavior.
-        let consensus = database::read_tx(pool, |tx| {
-            get_recent_consensus(tx, self.flavor, &self.tolerance, now)
-        })??
-        .ok_or(internal!("database externally modified?"))?
-        .3;
+        let (_meta, consensus) = database::read_tx(pool, |tx| {
+            let meta = database::Consensus::query_recent(tx, self.flavor, &self.tolerance, now)?
+                .ok_or(internal!("database externally modified?"))?;
+            let consensus = meta.raw(tx)?;
+            Ok::<_, DatabaseError>((meta, consensus))
+        })??;
 
         // Parse the most recent valid consensus from the database.
         //
@@ -497,95 +498,6 @@ impl FlavoredConsensusSigned {
             })
             .collect()
     }
-}
-
-/// Obtains the most recent valid consensus from the database.
-///
-/// This function queries the database using a [`Transaction`] in order to have
-/// a consistent view upon it.  It will return an [`Option`] containing various
-/// consensus related timestamps plus the raw consensus itself (more on this
-/// below).  In order to obtain a *valid* consensus, a [`Timestamp`] plus a
-/// [`DirTolerance`] is supplied, which will be used for querying the datbaase.
-///
-/// # The [`Ok`] Return Value
-///
-/// In the [`Some`] case, the return value is composed of the following:
-/// 1. The `valid-after` timestamp represented by a [`Timestamp`].
-/// 2. The `fresh-until` timestamp represented by a [`Timestamp`].
-/// 3. The `valid-until` timestamp represented by a [`Timestamp`].
-/// 4. The raw consensus reprented by a [`String`].
-///
-/// The [`None`] case implies that no valid recent consensus has been found,
-/// that is, no consensus at all or no consensus whose `valid-before` or
-/// `valid-after` lies within the range composed by `now` and `tolerance`.
-fn get_recent_consensus(
-    tx: &Transaction,
-    flavor: ConsensusFlavor,
-    tolerance: &DirTolerance,
-    now: Timestamp,
-) -> Result<Option<(Timestamp, Timestamp, Timestamp, String)>, DatabaseError> {
-    // Select the most recent flavored consensus document from the database.
-    //
-    // The `valid_after` and `valid_until` cells must be a member of the range:
-    // `[valid_after - pre_valid_tolerance; valid_after + post_valid_tolerance]`
-    // (inclusively).
-    //
-    // The query parameters being:
-    // ?1: The consensus flavor as a String.
-    // ?2: `now` as a Unix timestamp.
-    let mut meta_stmt = tx.prepare_cached(sql!(
-        "
-        SELECT c.valid_after, c.fresh_until, c.valid_until, s.content
-        FROM
-          consensus AS c
-          INNER JOIN store AS s ON s.docid = c.docid
-        WHERE
-          flavor = ?1
-          AND ?2 >= valid_after - ?3
-          AND ?2 <= valid_until + ?4
-        ORDER BY valid_after DESC
-        LIMIT 1
-        "
-    ))?;
-
-    // Actually execute the query; a None is totally valid and considered as
-    // no consensus being present in the current database.
-    let res = meta_stmt
-        .query_one(
-            params![
-                flavor.name(),
-                now,
-                tolerance
-                    .pre_valid_tolerance()
-                    .as_secs()
-                    .try_into()
-                    .unwrap_or(i64::MAX),
-                tolerance
-                    .post_valid_tolerance()
-                    .as_secs()
-                    .try_into()
-                    .unwrap_or(i64::MAX)
-            ],
-            |row| {
-                Ok((
-                    row.get::<_, Timestamp>(0)?,
-                    row.get::<_, Timestamp>(1)?,
-                    row.get::<_, Timestamp>(2)?,
-                    row.get::<_, Vec<u8>>(3)?,
-                ))
-            },
-        )
-        .optional()?;
-
-    let (valid_after, fresh_until, valid_until, consensus) = match res {
-        Some(res) => res,
-        None => return Ok(None),
-    };
-
-    let consensus =
-        String::from_utf8(consensus).map_err(|e| internal!("utf-8 contraint violated? {e}"))?;
-
-    Ok(Some((valid_after, fresh_until, valid_until, consensus)))
 }
 
 /// Obtain the most recently published and valid certificate for each authority.
@@ -901,7 +813,7 @@ pub(super) async fn serve<R: Rng, F: Fn() -> Timestamp>(
         // TODO: Use `Result::flatten` once MSRV is 1.89.0.
         let res = database::read_tx(&pool, {
             let tolerance = tolerance.clone();
-            move |tx| get_recent_consensus(tx, flavor, &tolerance, now)
+            move |tx| database::Consensus::query_recent(tx, flavor, &tolerance, now)
         });
         let res = match res {
             Ok(Ok(res)) => res,
@@ -911,7 +823,12 @@ pub(super) async fn serve<R: Rng, F: Fn() -> Timestamp>(
         };
 
         // (1.1) If the call returns Some, goto (2).
-        if let Some((_valid_after, fresh_until, valid_until, _consensus)) = res {
+        if let Some(database::Consensus {
+            fresh_until,
+            valid_until,
+            ..
+        }) = res
+        {
             // (2) Run a closure backed by tokio::time::timeout() with a lifetime
             // returned by by calculate_sync_timeout, whose purpose it is to
             // determine all missing network documents reffered to by the current
@@ -977,39 +894,35 @@ mod test {
 
     use super::*;
     use lazy_static::lazy_static;
+    use rusqlite::params;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
     };
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_dircommon::{authority::AuthorityContactsBuilder, config::DirToleranceBuilder};
+    use tor_dircommon::authority::AuthorityContactsBuilder;
     use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_rtcompat::PreferredRuntime;
 
-    lazy_static! {
-    /// Wed Jan 01 2020 00:00:00 GMT+0000
-    static ref VALID_AFTER: Timestamp =
-        (SystemTime::UNIX_EPOCH + Duration::from_secs(1577836800)).into();
-
-    /// Wed Jan 01 2020 01:00:00 GMT+0000
-    static ref FRESH_UNTIL: Timestamp =
-        *VALID_AFTER + Duration::from_secs(60 * 60);
-
-    /// Wed Jan 01 2020 02:00:00 GMT+0000
-    static ref FRESH_UNTIL_HALF: Timestamp =
-        *FRESH_UNTIL + Duration::from_secs(60 * 60);
-
-    /// Wed Jan 01 2020 03:00:00 GMT+0000
-    static ref VALID_UNTIL: Timestamp =
-        *FRESH_UNTIL + Duration::from_secs(60 * 60 * 2);
-    }
-
-    const CONSENSUS_CONTENT: &str = "Lorem ipsum dolor sit amet.";
     const CERT_CONTENT: &[u8] = include_bytes!("../../testdata/authcert-longclaw");
 
     lazy_static! {
-        static ref CONSENSUS_DOCID: DocumentId = DocumentId::digest(CONSENSUS_CONTENT.as_bytes());
         static ref CERT_DOCID: DocumentId = DocumentId::digest(CERT_CONTENT);
+        /// Wed Jan 01 2020 00:00:00 GMT+0000
+        static ref VALID_AFTER: Timestamp =
+            (SystemTime::UNIX_EPOCH + Duration::from_secs(1577836800)).into();
+
+        /// Wed Jan 01 2020 01:00:00 GMT+0000
+        static ref FRESH_UNTIL: Timestamp =
+            *VALID_AFTER + Duration::from_secs(60 * 60);
+
+        /// Wed Jan 01 2020 02:00:00 GMT+0000
+        static ref FRESH_UNTIL_HALF: Timestamp =
+            *FRESH_UNTIL + Duration::from_secs(60 * 60);
+
+        /// Wed Jan 01 2020 03:00:00 GMT+0000
+        static ref VALID_UNTIL: Timestamp =
+            *FRESH_UNTIL + Duration::from_secs(60 * 60 * 2);
     }
 
     fn create_dummy_db() -> Pool<SqliteConnectionManager> {
@@ -1017,34 +930,10 @@ mod test {
         database::rw_tx(&pool, |tx| {
             tx.execute(
                 sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
-                params![*CONSENSUS_DOCID, CONSENSUS_CONTENT.as_bytes()],
-            )
-            .unwrap();
-            tx.execute(
-                sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
                 params![*CERT_DOCID, CERT_CONTENT],
             )
             .unwrap();
 
-            tx.execute(
-                sql!(
-                    "
-                    INSERT INTO consensus
-                    (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
-                    VALUES
-                    (?1, ?2, ?3, ?4, ?5, ?6)
-                    "
-                ),
-                params![
-                    *CONSENSUS_DOCID,
-                    "0000000000000000000000000000000000000000000000000000000000000000", // not the correct hash
-                    ConsensusFlavor::Plain.name(),
-                    *VALID_AFTER,
-                    *FRESH_UNTIL,
-                    *VALID_UNTIL,
-                ],
-            )
-            .unwrap();
 
             tx.execute(sql!(
                 "
@@ -1065,121 +954,6 @@ mod test {
         .unwrap();
 
         pool
-    }
-
-    #[test]
-    fn recent_consensus() {
-        let pool = create_dummy_db();
-        let no_tolerance = DirToleranceBuilder::default()
-            .pre_valid_tolerance(Duration::ZERO)
-            .post_valid_tolerance(Duration::ZERO)
-            .build()
-            .unwrap();
-        let liberal_tolerance = DirToleranceBuilder::default()
-            .pre_valid_tolerance(Duration::from_secs(60 * 60)) // 1h before
-            .post_valid_tolerance(Duration::from_secs(60 * 60)) // 1h after
-            .build()
-            .unwrap();
-
-        database::read_tx(&pool, move |tx| {
-            // Get None by being way before valid-after.
-            assert!(get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                SystemTime::UNIX_EPOCH.into(),
-            )
-            .unwrap()
-            .is_none());
-
-            // Get None by being way behind valid-until.
-            assert!(get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_UNTIL + Duration::from_secs(60 * 60 * 24 * 365),
-            )
-            .unwrap()
-            .is_none());
-
-            // Get None by being minimally before valid-after.
-            assert!(get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_AFTER - Duration::from_secs(1),
-            )
-            .unwrap()
-            .is_none());
-
-            // Get None by being minimally behind valid-until.
-            assert!(get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_UNTIL + Duration::from_secs(1),
-            )
-            .unwrap()
-            .is_none());
-
-            // Get a valid consensus by being in the interval.
-            let res1 =
-                get_recent_consensus(tx, ConsensusFlavor::Plain, &no_tolerance, *VALID_AFTER)
-                    .unwrap()
-                    .unwrap();
-            let res2 =
-                get_recent_consensus(tx, ConsensusFlavor::Plain, &no_tolerance, *VALID_UNTIL)
-                    .unwrap()
-                    .unwrap();
-            let res3 = get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_AFTER + Duration::from_secs(60 * 30),
-            )
-            .unwrap()
-            .unwrap();
-            assert_eq!(
-                res1,
-                (
-                    *VALID_AFTER,
-                    *FRESH_UNTIL,
-                    *VALID_UNTIL,
-                    CONSENSUS_CONTENT.to_string(),
-                )
-            );
-            assert_eq!(res1, res2);
-            assert_eq!(res2, res3);
-
-            // Get a valid consensus using a liberal dir tolerance.
-            let res1 = get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &liberal_tolerance,
-                *VALID_AFTER - Duration::from_secs(60 * 30),
-            )
-            .unwrap()
-            .unwrap();
-            let res2 = get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &liberal_tolerance,
-                *VALID_UNTIL + Duration::from_secs(60 * 30),
-            )
-            .unwrap()
-            .unwrap();
-            assert_eq!(
-                res1,
-                (
-                    *VALID_AFTER,
-                    *FRESH_UNTIL,
-                    *VALID_UNTIL,
-                    CONSENSUS_CONTENT.to_string(),
-                )
-            );
-            assert_eq!(res1, res2);
-        })
-        .unwrap();
     }
 
     #[test]

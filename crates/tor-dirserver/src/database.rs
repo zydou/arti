@@ -56,11 +56,13 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{
     named_params, params,
     types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef},
-    ToSql, Transaction, TransactionBehavior,
+    OptionalExtension, ToSql, Transaction, TransactionBehavior,
 };
 use saturating_time::SaturatingTime;
 use sha2::Digest;
+use tor_dircommon::config::DirTolerance;
 use tor_error::into_internal;
+use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 use crate::err::DatabaseError;
 
@@ -232,6 +234,103 @@ impl ToSql for Timestamp {
                 .try_into()
                 .unwrap_or(i64::MAX),
         ))
+    }
+}
+
+/// Representation of a consensus from the database.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Consensus {
+    /// The document id uniquely identifying the consensus.
+    pub(crate) docid: DocumentId,
+
+    /// The SHA3 of the unsigned part of the consensus.
+    pub(crate) unsigned_sha3_256: String,
+
+    /// The flavor of the consensus.
+    pub(crate) flavor: ConsensusFlavor,
+
+    /// The time after which this consensus is valid.
+    pub(crate) valid_after: Timestamp,
+
+    /// The time after which this consensus stops being fresh.
+    pub(crate) fresh_until: Timestamp,
+
+    /// The time after which this consensus stops being valid.
+    pub(crate) valid_until: Timestamp,
+}
+
+impl Consensus {
+    /// Obtains the most recent valid consensus from the database.
+    ///
+    /// This function queries the database using a [`Transaction`] in order to
+    /// have a consistent view upon it.  It will return an [`Option`] containing
+    /// a [`Consensus`].  In order to obtain a *valid* consensus, a [`Timestamp`]
+    /// plus a [`DirTolerance`] are supplied, which will be used for querying
+    /// the database in a time-constrained fashion.
+    ///
+    /// The [`None`] case implies that no valid consensus has been found, that
+    /// is, no consensus at all or no consensus whose `valid-before` or
+    /// `valid-after` lies within the range composed by `now` and `tolerance`.
+    pub(crate) fn query_recent(
+        tx: &Transaction,
+        flavor: ConsensusFlavor,
+        tolerance: &DirTolerance,
+        now: Timestamp,
+    ) -> Result<Option<Self>, DatabaseError> {
+        // Select the most recent flavored consensus document from the database.
+        //
+        // The `valid_after` and `valid_until` cells must be a member of the range:
+        // `[valid_after - pre_valid_tolerance; valid_after + post_valid_tolerance]`
+        // (inclusively).
+        let mut meta_stmt = tx.prepare_cached(sql!(
+            "
+            SELECT docid, unsigned_sha3_256, valid_after, fresh_until, valid_until
+            FROM consensus
+            WHERE
+              flavor = :flavor
+              AND :now >= valid_after - :pre_valid
+              AND :now <= valid_until + :post_valid
+            ORDER BY valid_after DESC
+            LIMIT 1
+            "
+        ))?;
+
+        // Actually execute the query; a None is totally valid and considered as
+        // no consensus being present in the current database.
+        let res = meta_stmt.query_one(named_params! {
+            ":flavor": flavor.name(),
+            ":now": now,
+            ":pre_valid": tolerance.pre_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
+            ":post_valid": tolerance.post_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
+        }, |row| {
+            Ok(Self {
+                docid: row.get(0)?,
+                unsigned_sha3_256: row.get(1)?,
+                flavor,
+                valid_after: row.get(2)?,
+                fresh_until: row.get(3)?,
+                valid_until: row.get(4)?,
+            })
+        }).optional()?;
+
+        Ok(res)
+    }
+
+    /// Queries the raw data of a [`Consensus`].
+    pub(crate) fn raw(&self, tx: &Transaction<'_>) -> Result<String, DatabaseError> {
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            SELECT content
+            FROM store
+            WHERE docid = :docid
+            "
+        ))?;
+
+        let raw = stmt.query_one(named_params! {":docid": self.docid}, |row| {
+            row.get::<_, Vec<u8>>(0)
+        })?;
+        let raw = String::from_utf8(raw).map_err(into_internal!("utf-8 constraint violated?"))?;
+        Ok(raw)
     }
 }
 
@@ -669,11 +768,71 @@ mod test {
     };
 
     use flate2::read::{DeflateDecoder, GzDecoder};
+    use lazy_static::lazy_static;
     use rusqlite::Connection;
     use strum::IntoEnumIterator;
     use tempfile::tempdir;
+    use tor_dircommon::config::DirToleranceBuilder;
 
     use super::*;
+
+    lazy_static! {
+    /// Wed Jan 01 2020 00:00:00 GMT+0000
+    static ref VALID_AFTER: Timestamp =
+        (SystemTime::UNIX_EPOCH + Duration::from_secs(1577836800)).into();
+
+    /// Wed Jan 01 2020 01:00:00 GMT+0000
+    static ref FRESH_UNTIL: Timestamp =
+        *VALID_AFTER + Duration::from_secs(60 * 60);
+
+    /// Wed Jan 01 2020 02:00:00 GMT+0000
+    static ref FRESH_UNTIL_HALF: Timestamp =
+        *FRESH_UNTIL + Duration::from_secs(60 * 60);
+
+    /// Wed Jan 01 2020 03:00:00 GMT+0000
+    static ref VALID_UNTIL: Timestamp =
+        *FRESH_UNTIL + Duration::from_secs(60 * 60 * 2);
+    }
+
+    const CONSENSUS_CONTENT: &str = "Lorem ipsum dolor sit amet.";
+
+    lazy_static! {
+        static ref CONSENSUS_DOCID: DocumentId = DocumentId::digest(CONSENSUS_CONTENT.as_bytes());
+    }
+
+    fn create_dummy_db() -> Pool<SqliteConnectionManager> {
+        let pool = super::open("").unwrap();
+        super::rw_tx(&pool, |tx| {
+            tx.execute(
+                sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
+                params![*CONSENSUS_DOCID, CONSENSUS_CONTENT.as_bytes()],
+            )
+            .unwrap();
+
+            tx.execute(
+                sql!(
+                    "
+                    INSERT INTO consensus
+                    (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
+                    VALUES
+                    (?1, ?2, ?3, ?4, ?5, ?6)
+                    "
+                ),
+                params![
+                    *CONSENSUS_DOCID,
+                    "0000000000000000000000000000000000000000000000000000000000000000", // not the correct hash
+                    ConsensusFlavor::Plain.name(),
+                    *VALID_AFTER,
+                    *FRESH_UNTIL,
+                    *VALID_UNTIL,
+                ],
+            )
+            .unwrap();
+        })
+        .unwrap();
+
+        pool
+    }
 
     #[test]
     fn open() {
@@ -1003,5 +1162,136 @@ mod test {
 
             assert_eq!(decompressed, INPUT);
         }
+    }
+
+    #[test]
+    fn recent_consensus() {
+        let pool = create_dummy_db();
+        let no_tolerance = DirToleranceBuilder::default()
+            .pre_valid_tolerance(Duration::ZERO)
+            .post_valid_tolerance(Duration::ZERO)
+            .build()
+            .unwrap();
+        let liberal_tolerance = DirToleranceBuilder::default()
+            .pre_valid_tolerance(Duration::from_secs(60 * 60)) // 1h before
+            .post_valid_tolerance(Duration::from_secs(60 * 60)) // 1h after
+            .build()
+            .unwrap();
+
+        super::read_tx(&pool, move |tx| {
+            // Get None by being way before valid-after.
+            assert!(super::Consensus::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                SystemTime::UNIX_EPOCH.into(),
+            )
+            .unwrap()
+            .is_none());
+
+            // Get None by being way behind valid-until.
+            assert!(super::Consensus::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                *VALID_UNTIL + Duration::from_secs(60 * 60 * 24 * 365),
+            )
+            .unwrap()
+            .is_none());
+
+            // Get None by being minimally before valid-after.
+            assert!(super::Consensus::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                *VALID_AFTER - Duration::from_secs(1),
+            )
+            .unwrap()
+            .is_none());
+
+            // Get None by being minimally behind valid-until.
+            assert!(super::Consensus::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                *VALID_UNTIL + Duration::from_secs(1),
+            )
+            .unwrap()
+            .is_none());
+
+            // Get a valid consensus by being in the interval.
+            let res1 = super::Consensus::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                *VALID_AFTER,
+            )
+            .unwrap()
+            .unwrap();
+            let res2 = super::Consensus::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                *VALID_UNTIL,
+            )
+            .unwrap()
+            .unwrap();
+            let res3 = super::Consensus::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                *VALID_AFTER + Duration::from_secs(60 * 30),
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(
+                res1,
+                super::Consensus {
+                    docid: *CONSENSUS_DOCID,
+                    unsigned_sha3_256: String::from(
+                        "0000000000000000000000000000000000000000000000000000000000000000"
+                    ),
+                    flavor: ConsensusFlavor::Plain,
+                    valid_after: *VALID_AFTER,
+                    fresh_until: *FRESH_UNTIL,
+                    valid_until: *VALID_UNTIL,
+                }
+            );
+            assert_eq!(res1, res2);
+            assert_eq!(res2, res3);
+
+            // Get a valid consensus using a liberal dir tolerance.
+            let res1 = super::Consensus::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &liberal_tolerance,
+                *VALID_AFTER - Duration::from_secs(60 * 30),
+            )
+            .unwrap()
+            .unwrap();
+            let res2 = super::Consensus::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &liberal_tolerance,
+                *VALID_UNTIL + Duration::from_secs(60 * 30),
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(
+                res1,
+                super::Consensus {
+                    docid: *CONSENSUS_DOCID,
+                    unsigned_sha3_256: String::from(
+                        "0000000000000000000000000000000000000000000000000000000000000000"
+                    ),
+                    flavor: ConsensusFlavor::Plain,
+                    valid_after: *VALID_AFTER,
+                    fresh_until: *FRESH_UNTIL,
+                    valid_until: *VALID_UNTIL,
+                }
+            );
+            assert_eq!(res1, res2);
+        })
+        .unwrap();
     }
 }
