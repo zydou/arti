@@ -740,6 +740,11 @@ impl TlsAcceptorSettings {
             key_fmt,
         })
     }
+
+    /// Return the primary certificate for this [`TlsAcceptorSettings`], in DER format.
+    pub fn cert_der(&self) -> &[u8] {
+        self.cert_der.as_ref()
+    }
 }
 
 /// A format in which a private key can be encoded.
