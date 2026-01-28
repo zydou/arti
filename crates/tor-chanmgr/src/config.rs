@@ -4,11 +4,38 @@
 //!
 //! Most types in this module are re-exported by `arti-client`.
 
+use std::net::SocketAddr;
+
 use tor_config::impl_standard_builder;
 use tor_config::{ConfigBuildError, PaddingLevel};
+use tor_socksproto::SocksAuth;
+use tor_socksproto::SocksVersion;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+
+/// Information about what proxy protocol to use, and how to use it.
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum ProxyProtocol {
+    /// Connect via SOCKS 4, SOCKS 4a, or SOCKS 5.
+    Socks {
+        version: SocksVersion,
+        auth: SocksAuth,
+        addr: SocketAddr,
+    },
+}
+
+impl ProxyProtocol {
+    /// Create a new SOCKS proxy configuration with no authentication
+    pub fn socks_no_auth(version: SocksVersion, addr: SocketAddr) -> Self {
+        ProxyProtocol::Socks {
+            version,
+            auth: SocksAuth::NoAuth,
+            addr,
+        }
+    }
+}
 
 /// Channel configuration
 ///
@@ -21,6 +48,9 @@ pub struct ChannelConfig {
     /// Control of channel padding
     #[builder(default)]
     pub(crate) padding: PaddingLevel,
+    /// Outbound proxy to use for all direct connections
+    #[builder(default)]
+    pub(crate) outbound_proxy: Option<ProxyProtocol>,
 }
 impl_standard_builder! { ChannelConfig }
 
