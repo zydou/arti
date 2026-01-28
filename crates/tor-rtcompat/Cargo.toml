@@ -10,6 +10,8 @@ description = "Compatibility layer for asynchronous runtimes, used by Tor"
 keywords = ["tor", "arti", "async"]
 categories = ["asynchronous"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 
@@ -106,15 +108,12 @@ tracing = "0.1.36"
 void = "1"
 zeroize = "1"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 assert_matches = "1.5.0"
 # Used for testing our TLS implementation.
 native-tls-crate = { package = "native-tls", version = "0.2" }
-tor-cert = { version = "0.38.0", path = "../tor-cert", features = ["x509"]}
 tor-basic-utils = { version = "0.38.0", path = "../tor-basic-utils" }
-
-[package.metadata.docs.rs]
-all-features = true
-
-[target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
+tor-cert = { version = "0.38.0", path = "../tor-cert", features = ["x509"] }
