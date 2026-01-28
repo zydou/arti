@@ -22,12 +22,20 @@ use crate::Error;
 pub(crate) struct DefaultTransport<R: Runtime> {
     /// The runtime that we use for connecting.
     runtime: R,
+    /// The outbound proxy to use, if any
+    outbound_proxy: Option<(crate::config::ProxyProtocol, std::net::SocketAddr)>,
 }
 
 impl<R: Runtime> DefaultTransport<R> {
     /// Construct a new DefaultTransport
-    pub(crate) fn new(runtime: R) -> Self {
-        Self { runtime }
+    pub(crate) fn new(runtime: R, outbound_proxy: Option<crate::config::ProxyProtocol>) -> Self {
+        let outbound_proxy = outbound_proxy.map(|proxy| {
+            let addr = match &proxy {
+                crate::config::ProxyProtocol::Socks { addr, .. } => *addr,
+            };
+            (proxy, addr)
+        });
+        Self { runtime, outbound_proxy }
     }
 }
 
@@ -54,7 +62,7 @@ impl<R: Runtime> crate::transport::TransportImplHelper for DefaultTransport<R> {
 
         trace!("Launching direct connection for {}", target);
 
-        let (stream, addr) = connect_to_one(&self.runtime, &direct_addrs).await?;
+        let (stream, addr) = connect_to_one(&self.runtime, &direct_addrs, &self.outbound_proxy).await?;
         let mut using_target = target.clone();
         let _ignore = using_target.chan_method_mut().retain_addrs(|a| a == &addr);
 
@@ -72,6 +80,7 @@ static CONNECTION_DELAY: Duration = Duration::from_millis(150);
 async fn connect_to_one<R: Runtime>(
     rt: &R,
     addrs: &[SocketAddr],
+    outbound_proxy: &Option<(crate::config::ProxyProtocol, std::net::SocketAddr)>,
 ) -> crate::Result<(<R as NetStreamProvider>::Stream, SocketAddr)> {
     // We need *some* addresses to connect to.
     if addrs.is_empty() {
@@ -92,11 +101,28 @@ async fn connect_to_one<R: Runtime>(
         .enumerate()
         .map(|(i, a)| {
             let delay = rt.sleep(CONNECTION_DELAY * i as u32);
+            let proxy = outbound_proxy.clone();
             delay.then(move |_| {
                 tracing::debug!("Connecting to {}", a);
-                rt.connect(a)
-                    .map_ok(move |stream| (stream, *a))
-                    .map_err(move |e| (e, *a))
+                let a = *a;
+                async move {
+                    let stream = if let Some((protocol, proxy_addr)) = proxy {
+                        // Use proxy
+                        let target = tor_linkspec::PtTargetAddr::IpPort(a);
+                        let protocol = match protocol {
+                            crate::config::ProxyProtocol::Socks { version, auth, .. } => {
+                                super::proxied::Protocol::Socks(version, auth)
+                            }
+                        };
+                        super::proxied::connect_via_proxy(rt, &proxy_addr, &protocol, &target)
+                            .await
+                    } else {
+                        // Direct connection
+                        rt.connect(&a).await.map_err(super::proxied::ProxyError::from)
+                    }?;
+                    Ok((stream, a))
+                }
+                .map_err(move |e: super::proxied::ProxyError| (e, a))
             })
         })
         .collect::<FuturesUnordered<_>>();
@@ -114,7 +140,7 @@ async fn connect_to_one<R: Runtime>(
             Err((e, a)) => {
                 // We got a failure on one of the streams. Store the error.
                 // TODO(eta): ideally we'd start the next connection attempt immediately.
-                tor_error::warn_report!(e, "Connection to {} failed", sv(a));
+                tor_error::warn_report!(Arc::new(std::io::Error::from(e.clone())), "Connection to {} failed", sv(a));
                 errors.push((e, a));
             }
         }
@@ -126,7 +152,7 @@ async fn connect_to_one<R: Runtime>(
     ret.ok_or_else(|| Error::ChannelBuild {
         addresses: errors
             .into_iter()
-            .map(|(e, a)| (sv(a), Arc::new(e)))
+            .map(|(e, a)| (sv(a), Arc::new(std::io::Error::from(e))))
             .collect(),
     })
 }
@@ -189,7 +215,7 @@ mod test {
             network.add_blackhole(addr3).unwrap();
 
             // No addresses? Can't succeed.
-            let failure = connect_to_one(&client_rt, &[]).await;
+            let failure = connect_to_one(&client_rt, &[], &None).await;
             assert!(failure.is_err());
 
             // Connect to a set of addresses including addr1? That's a success.
@@ -202,7 +228,7 @@ mod test {
                 &[addr1, addr2, addr3][..],
                 &[addr3, addr2, addr1][..],
             ] {
-                let (_conn, addr) = connect_to_one(&client_rt, addresses).await.unwrap();
+                let (_conn, addr) = connect_to_one(&client_rt, addresses, &None).await.unwrap();
                 assert_eq!(addr, addr1);
             }
 
@@ -218,7 +244,7 @@ mod test {
                 let failure = rt
                     .timeout(
                         Duration::from_millis(300),
-                        connect_to_one(&client_rt, addresses),
+                        connect_to_one(&client_rt, addresses, &None),
                     )
                     .await;
                 if expect_timeout {
@@ -229,9 +255,9 @@ mod test {
             }
 
             // Connect to addr1 and addr4?  The first one should win.
-            let (_conn, addr) = connect_to_one(&client_rt, &[addr1, addr4]).await.unwrap();
+            let (_conn, addr) = connect_to_one(&client_rt, &[addr1, addr4], &None).await.unwrap();
             assert_eq!(addr, addr1);
-            let (_conn, addr) = connect_to_one(&client_rt, &[addr4, addr1]).await.unwrap();
+            let (_conn, addr) = connect_to_one(&client_rt, &[addr4, addr1], &None).await.unwrap();
             assert_eq!(addr, addr4);
         });
     }

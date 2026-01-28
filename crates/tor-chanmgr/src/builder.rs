@@ -585,7 +585,7 @@ mod test {
             client_rt.jump_to(now);
 
             // Create the channel builder that we want to test.
-            let transport = crate::transport::DefaultTransport::new(client_rt.clone());
+            let transport = crate::transport::DefaultTransport::new(client_rt.clone(), None);
             let builder = ChanBuilder::new_client(client_rt, transport);
 
             let (r1, r2): (Result<Arc<Channel>>, Result<LocalStream>) = futures::join!(
