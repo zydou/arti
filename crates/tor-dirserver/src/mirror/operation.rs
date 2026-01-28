@@ -24,10 +24,7 @@ use rusqlite::{named_params, OptionalExtension, Transaction};
 use strum::IntoEnumIterator;
 use tor_basic_utils::RngExt;
 use tor_dirclient::request::AuthCertRequest;
-use tor_dircommon::{
-    authority::AuthorityContacts,
-    config::{DirTolerance, DownloadScheduleConfig},
-};
+use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::{internal, into_internal};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::{
@@ -45,7 +42,7 @@ use tracing::{debug, warn};
 
 use crate::{
     database::{self, sql, ContentEncoding, Timestamp},
-    err::{DatabaseError, FatalError, NetdocRequestError, OperationError},
+    err::{DatabaseError, NetdocRequestError, OperationError},
     mirror::operation::download::DownloadManager,
 };
 
@@ -764,113 +761,6 @@ fn calculate_sync_timeout<R: Rng>(
 
     // fresh_until + offset
     fresh_until + Duration::from_secs(offset)
-}
-
-/// Runs forever in the current task, performing the core operation of a directory mirror.
-///
-/// This function runs forever in the current task, continously downloading
-/// network documents from authorities and inserting them into the database,
-/// while also performing garbage collection.
-///
-/// A core principle of this function is to be safe against power-losses, sudden
-/// abortions, and such.  This means that re-starting this function will resume
-/// seaminglessly from where it stopped.
-///
-/// # Algorithm
-///
-/// 1. Call [`get_recent_consensus()`] to obtain the most recent and non-expired
-///    consensus from the database.
-///     1. If the call returns [`Some`], goto (2).
-///     2. If the call returns [`None`], goto (3).
-/// 2. Spawn a task backed by [`tokio::time::timeout()`] whose purpose it is to
-///    determine all missing network documents referred to by the current
-///    consensus and scheduling downloads from the authorities in order to
-///    obtain and insert them into the database.
-///    TODO DIRMIRROR: Impose a timeout for each download attempt.
-/// 3. Download a new consensus from the directory authorities and insert it into
-///    the database.
-/// 4. Perform a cycle of garbage collection.
-/// 5. Goto (1).
-///
-/// # Specifications
-///
-/// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#download-desc-from-auth>
-/// * <https://spec.torproject.org/dir-spec/client-operation.html#retrying-failed-downloads>
-pub(super) async fn serve<R: Rng, F: Fn() -> Timestamp>(
-    pool: Pool<SqliteConnectionManager>,
-    flavor: ConsensusFlavor,
-    _authorities: AuthorityContacts,
-    _schedule: DownloadScheduleConfig,
-    tolerance: DirTolerance,
-    rng: &mut R,
-    now_fn: F,
-) -> Result<(), FatalError> {
-    loop {
-        let now = now_fn();
-
-        // (1) Call get_recent_consensus() to obtain the most recent and non-expired
-        // consensus from the database.
-        // TODO: Use `Result::flatten` once MSRV is 1.89.0.
-        let res = database::read_tx(&pool, {
-            let tolerance = tolerance.clone();
-            move |tx| database::Consensus::query_recent(tx, flavor, &tolerance, now)
-        });
-        let res = match res {
-            Ok(Ok(res)) => res,
-            Err(e) | Ok(Err(e)) => {
-                return Err(FatalError::ConsensusSelection(e));
-            }
-        };
-
-        // (1.1) If the call returns Some, goto (2).
-        if let Some(database::Consensus {
-            fresh_until,
-            valid_until,
-            ..
-        }) = res
-        {
-            // (2) Run a closure backed by tokio::time::timeout() with a lifetime
-            // returned by by calculate_sync_timeout, whose purpose it is to
-            // determine all missing network documents reffered to by the current
-            // consensus and scheduling downloads from the authorities in order
-            // to obtain and insert them into the database.
-            let sync_timeout = calculate_sync_timeout(fresh_until, valid_until, rng);
-            tokio::time::timeout(sync_timeout - now, async {
-                // TODO DIRMIRROR: Actually download descriptors.
-                // Ensure a good timeout to protect against malicious
-                // authorities transmitting data extra slow; a download should
-                // probably not take `sync_timeout` but a few minutes instead.
-                // This implies a nested timeout.  The `sync_timeout` for the
-                // outer layer and a smaller timeout for each download, in order
-                // to ensure that each download actually gets the same amount
-                // of time to exist, instead of just the first ones having
-                // the full-time, with subsequent ones having a smaller and
-                // smaller time.
-                let _ = std::future::pending::<()>().await;
-            })
-            .await
-            .expect_err("std::future::pending returned?");
-        }
-
-        // (3) Download a new consensus from the directory authorities and insert
-        // it into the database.
-        //
-        // At this stage we also have to ask ourselves what happens in the highly
-        // unlikely but still possible case that a new consensus could not be
-        // retrieved, due to connectivity-loss (actually likely) or the even
-        // more unlikely case of the directory authorities all being down and/or
-        // unable to compute a new consensus.
-        //
-        // The specification is fairly clean on that (see the link above).
-        // Downloads are retried with a variation of the "decorrelated jitter"
-        // algorithm; that is, determining a certain amount of time before trying
-        // again from an authority we have not tried yet.
-        //
-        // TODO: Actually download from authorities.
-
-        // (4) Perform a cycle of garbage collection.
-        // TODO: Actually perform a cycle of garbage collection.
-    }
 }
 
 #[cfg(test)]
