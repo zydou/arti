@@ -2365,11 +2365,7 @@ mod test {
             let pop = TargetTunnelUsage::new_from_ipv4_ports(&[995]);
 
             let ok = mgr.ensure_tunnel(&imap, di());
-            let pop1 = rt
-                .wait_for(
-                    mgr.get_or_launch(&pop, di())
-                )
-                .await;
+            let pop1 = rt.wait_for(mgr.get_or_launch(&pop, di())).await;
 
             assert!(ok.is_ok());
             let pop1 = pop1.unwrap().0;
