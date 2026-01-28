@@ -199,6 +199,12 @@ impl From<std::io::Error> for ProxyError {
     }
 }
 
+impl From<ProxyError> for std::io::Error {
+    fn from(e: ProxyError) -> Self {
+        std::io::Error::new(std::io::ErrorKind::Other, format!("{}", e))
+    }
+}
+
 impl tor_error::HasKind for ProxyError {
     fn kind(&self) -> tor_error::ErrorKind {
         use ProxyError as E;
