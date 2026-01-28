@@ -67,14 +67,12 @@ auth = {{ cookie = {{ path = "{cookie_path}" }} }}
 """)
 
         with open(tcp_auto_connpt_path, "w") as f:
-            f.write(
-                f"""
+            f.write(f"""
 [connect]
 socket = "inet-auto:auto"
 socket_address_file = "{socket_address_path}"
 auth = {{ cookie = {{ path = "{cookie2_path}" }} }}
-"""
-            )
+""")
 
         is_windows = sys.platform in ["win32", "cygwin"]
 
