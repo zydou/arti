@@ -19,6 +19,7 @@ full = [
     "async-std",
     "tokio",
     "native-tls",
+    "tls-server",
     "tor-error/full",
     "tor-general-addr/full",
 ]
@@ -49,6 +50,9 @@ rustls = [
     "__is_nonadditive",
 ]
 
+# Build with TLS server support, if possible.
+tls-server = []
+
 __is_nonadditive = []
 
 [dependencies]
@@ -60,6 +64,7 @@ async-trait = "0.1.54"
 async_executors = { version = "0.7.0", default-features = false }
 asynchronous-codec = "0.7.0"
 blocking = { version = "1.6.2", optional = true }
+cfg-if = "1.0.0"
 coarsetime = "0.1.20"
 derive_more = { version = "2.0.1", features = ["full"] }
 dyn-clone = "1.0.17"
@@ -99,6 +104,7 @@ tor-error = { version = "0.38.0", path = "../tor-error", features = ["tracing"] 
 tor-general-addr = { version = "0.38.0", path = "../tor-general-addr" }
 tracing = "0.1.36"
 void = "1"
+zeroize = "1"
 
 [dev-dependencies]
 assert_matches = "1.5.0"

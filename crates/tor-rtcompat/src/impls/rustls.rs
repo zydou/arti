@@ -2,8 +2,10 @@
 //!
 //! #
 
+#[cfg(feature = "tls-server")]
+pub(crate) mod rustls_server;
+
 use crate::StreamOps;
-use crate::impls::unimpl_tls::UnimplementedTls;
 use crate::tls::TlsAcceptorSettings;
 use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 
@@ -79,8 +81,8 @@ impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
             .map_err(|e| IoError::new(io::ErrorKind::InvalidData, e))
     }
 
-    // XXXX Implement for servers.
     fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+        // This is a client stream, so (as we build them currently) we know we didn't present a certificate.
         Ok(None)
     }
 }
@@ -127,9 +129,6 @@ where
 
     type TlsStream = futures_rustls::client::TlsStream<S>;
 
-    type Acceptor = UnimplementedTls; // XXXX Implement.
-    type TlsServerStream = UnimplementedTls; // XXXXX implement.
-
     fn tls_connector(&self) -> Self::Connector {
         let connector = futures_rustls::TlsConnector::from(Arc::clone(&self.config));
         RustlsConnector {
@@ -137,9 +136,21 @@ where
             _phantom: std::marker::PhantomData,
         }
     }
-    fn tls_acceptor(&self, _settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor> {
-        // XXXX Implement.
-        Err(io::Error::from(io::ErrorKind::Unsupported))
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "tls-server")] {
+            type Acceptor = rustls_server::RustlsAcceptor<S>;
+            type TlsServerStream = rustls_server::RustlsServerStream<S>;
+            fn tls_acceptor(&self, settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor> {
+                rustls_server::RustlsAcceptor::new(settings)
+            }
+        } else {
+            type Acceptor = crate::tls::UnimplementedTls;
+            type TlsServerStream = crate::tls::UnimplementedTls;
+            fn tls_acceptor(&self, _settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor> {
+                Err(io::Error::from(io::ErrorKind::Unsupported))
+            }
+        }
     }
 
     fn supports_keying_material_export(&self) -> bool {

@@ -94,6 +94,12 @@ pub mod tls {
         any(feature = "tokio", feature = "async-std", feature = "smol")
     ))]
     pub use crate::impls::rustls::RustlsProvider;
+    #[cfg(all(
+        feature = "rustls",
+        feature = "tls-server",
+        any(feature = "tokio", feature = "async-std", feature = "smol")
+    ))]
+    pub use crate::impls::rustls::rustls_server::{RustlsAcceptor, RustlsServerStream};
 }
 
 #[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "tokio"))]
