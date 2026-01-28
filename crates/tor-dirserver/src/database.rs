@@ -388,11 +388,11 @@ CREATE TABLE compressed_document(
 -- Stores the N:M cardinality of which router descriptors are contained in which
 -- consensuses.
 CREATE TABLE consensus_router_descriptor_member(
-    consensus_rowid         INTEGER,
-    router_descriptor_rowid INTEGER,
-    PRIMARY KEY(consensus_rowid, router_descriptor_rowid),
-    FOREIGN KEY(consensus_rowid) REFERENCES consensus(rowid),
-    FOREIGN KEY(router_descriptor_rowid) REFERENCES router_descriptor(rowid)
+    consensus_docid         TEXT,
+    router_descriptor_docid TEXT,
+    PRIMARY KEY(consensus_docid, router_descriptor_docid),
+    FOREIGN KEY(consensus_docid) REFERENCES consensus(docid),
+    FOREIGN KEY(router_descriptor_docid) REFERENCES router_descriptor(docid)
 ) STRICT;
 
 -- Stores which authority key signed which consensuses.
@@ -402,11 +402,11 @@ CREATE TABLE consensus_router_descriptor_member(
 --
 -- http://<hostname>/tor/status-vote/current/consensus-<FLAVOR>/<F1>+<F2>+<F3>
 CREATE TABLE consensus_authority_voter(
-    consensus_rowid INTEGER,
-    authority_rowid INTEGER,
-    PRIMARY KEY(consensus_rowid, authority_rowid),
-    FOREIGN KEY(consensus_rowid) REFERENCES consensus(rowid),
-    FOREIGN KEY(authority_rowid) REFERENCES authority_key_certificate(rowid)
+    consensus_docid TEXT,
+    authority_docid TEXT,
+    PRIMARY KEY(consensus_docid, authority_docid),
+    FOREIGN KEY(consensus_docid) REFERENCES consensus(docid),
+    FOREIGN KEY(authority_docid) REFERENCES authority_key_certificate(docid)
 ) STRICT;
 
 INSERT INTO arti_dirserver_schema_version VALUES ('1');
