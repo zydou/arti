@@ -46,9 +46,8 @@ use std::task::Poll;
 
 use crate::circuit::CircuitRxReceiver;
 
-// TODO(relay): refactor to avoid using relay-specific code in generic reactor;
 #[cfg(feature = "relay")]
-use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
+use crate::relay::channel_provider::ChannelResult;
 
 /// The forward circuit reactor.
 ///
@@ -101,39 +100,12 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for
     /// sending cell over the inbound channel.
     backward_reactor_tx: mpsc::Sender<BackwardReactorCmd>,
-    /// The outbound channel launcher.
-    //
-    // TODO(relay): this is only used for relays, so perhaps it should be feature-gated,
-    // or moved to the relay-specific ForwardReactor impl?
-    #[cfg(feature = "relay")]
-    outbound_chan: OutboundChan<F::BuildSpec>,
     /// Hop manager, storing per-hop state, and handles to the stream reactors.
     ///
     /// Contains the `CircHopList`.
     hop_mgr: HopMgr<R>,
     /// A padding controller to which padding-related events should be reported.
     padding_ctrl: PaddingController,
-}
-
-/// State needed for creating an outbound channel.
-///
-/// Only used by middle relays.
-#[cfg(feature = "relay")]
-struct OutboundChan<B> {
-    /// An MPSC channel for receiving newly opened outgoing [`Channel`](crate::channel::Channel)s.
-    ///
-    /// This channel is polled from the main loop of the reactor,
-    /// and is used when extending the circuit.
-    ///
-    /// Set to `Some` if we have requested a channel from a [`ChannelProvider`].
-    rx: Option<mpsc::UnboundedReceiver<ChannelResult>>,
-    /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
-    ///
-    /// Note: all circuit reactors of a relay need to be initialized
-    /// with the *same* underlying Tor channel provider (`ChanMgr`),
-    /// to enable the reuse of existing Tor channels where possible.
-    #[allow(unused)] // TODO(relay)
-    chan_provider: Box<dyn ChannelProvider<BuildSpec = B> + Send>,
 }
 
 /// The reactor's view of the sending end of the outbound Tor Channel.
@@ -237,16 +209,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         command_rx: mpsc::UnboundedReceiver<CtrlCmd<F::CtrlCmd>>,
         backward_reactor_tx: mpsc::Sender<BackwardReactorCmd>,
         padding_ctrl: PaddingController,
-        #[cfg(feature = "relay")] chan_provider: Box<
-            dyn ChannelProvider<BuildSpec = F::BuildSpec> + Send,
-        >,
     ) -> Self {
-        #[cfg(feature = "relay")]
-        let outbound_chan = OutboundChan {
-            rx: None,
-            chan_provider,
-        };
-
         Self {
             unique_id,
             inbound_chan_rx,
@@ -255,8 +218,6 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             inner,
             // Initially, we are the last hop in the circuit.
             forward: None,
-            #[cfg(feature = "relay")]
-            outbound_chan,
             backward_reactor_tx,
             hop_mgr,
             padding_ctrl,
@@ -284,26 +245,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             self.inbound_chan_rx.next().await
         };
 
-        #[cfg(feature = "relay")]
-        let outgoing_chan_rx_fut = async {
-            if let Some(rx) = self.outbound_chan.rx.as_mut() {
-                rx.next().await
-            } else {
-                // No pending channel, nothing to do
-                future::pending().await
-            }
-        };
-
-        #[cfg(not(feature = "relay"))]
-        let outgoing_chan_rx_fut: futures::future::Pending<Option<()>> = future::pending();
-
         select_biased! {
-            res = outgoing_chan_rx_fut.fuse() => {
-                let chan_res = res
-                    .ok_or_else(|| internal!("chan provider exited?!"))?;
-
-                self.handle_outgoing_chan_res(chan_res).await
-            },
             res = self.command_rx.next().fuse() => {
                 let cmd = res.ok_or_else(|| ReactorError::Shutdown)?;
                 self.handle_cmd(cmd)

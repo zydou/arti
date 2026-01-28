@@ -12,6 +12,7 @@ use crate::{Error, HopNum, Result};
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
 
+use crate::relay::channel_provider::ChannelProvider;
 use tor_cell::chancell::msg::{AnyChanMsg, Destroy, PaddingNegotiate, Relay, RelayEarly};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg};
 use tor_cell::relaycell::{RelayCellFormat, RelayCmd, UnparsedRelayMsg};
@@ -33,12 +34,25 @@ type CtrlCmd = ();
 pub(crate) struct Forward {
     /// The cryptographic state for this circuit for inbound cells.
     crypto_out: Box<dyn OutboundRelayLayer + Send>,
+    /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
+    ///
+    /// Note: all circuit reactors of a relay need to be initialized
+    /// with the *same* underlying Tor channel provider (`ChanMgr`),
+    /// to enable the reuse of existing Tor channels where possible.
+    #[allow(unused)] // XXX
+    chan_provider: Box<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
 }
 
 impl Forward {
     /// Create a new [`Forward`].
-    pub(crate) fn new(crypto_out: Box<dyn OutboundRelayLayer + Send>) -> Self {
-        Self { crypto_out }
+    pub(crate) fn new(
+        crypto_out: Box<dyn OutboundRelayLayer + Send>,
+        chan_provider: Box<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+    ) -> Self {
+        Self {
+            crypto_out,
+            chan_provider,
+        }
     }
 
     /// Handle a DROP message.
