@@ -53,6 +53,7 @@ use std::{
 use flate2::write::{DeflateEncoder, GzEncoder};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+use rand::Rng;
 use rusqlite::{
     named_params, params,
     types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef},
@@ -60,6 +61,7 @@ use rusqlite::{
 };
 use saturating_time::SaturatingTime;
 use sha2::Digest;
+use tor_basic_utils::RngExt;
 use tor_dircommon::config::DirTolerance;
 use tor_error::into_internal;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
@@ -331,6 +333,21 @@ impl Consensus {
         })?;
         let raw = String::from_utf8(raw).map_err(into_internal!("utf-8 constraint violated?"))?;
         Ok(raw)
+    }
+
+    /// Calculates the [`Timestamp`] at which the authorities will be queried again.
+    ///
+    /// # Specifications
+    ///
+    /// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#download-ns-from-auth>
+    fn lifetime<R: Rng>(&self, rng: &mut R) -> Timestamp {
+        assert!(self.fresh_until < self.valid_until);
+
+        let offset = rng
+            .gen_range_checked(0..=((self.valid_until - self.fresh_until).as_secs() / 2))
+            .expect("invalid range?");
+
+        self.fresh_until + Duration::from_secs(offset)
     }
 }
 
@@ -772,6 +789,7 @@ mod test {
     use rusqlite::Connection;
     use strum::IntoEnumIterator;
     use tempfile::tempdir;
+    use tor_basic_utils::test_rng::testing_rng;
     use tor_dircommon::config::DirToleranceBuilder;
 
     use super::*;
@@ -1293,5 +1311,23 @@ mod test {
             assert_eq!(res1, res2);
         })
         .unwrap();
+    }
+
+    #[test]
+    fn sync_timeout() {
+        // We repeat the tests a few thousand times to go over many random values.
+        let cons = Consensus {
+            docid: *CONSENSUS_DOCID,
+            unsigned_sha3_256: String::new(),
+            flavor: ConsensusFlavor::Plain,
+            valid_after: *VALID_AFTER,
+            fresh_until: *FRESH_UNTIL,
+            valid_until: *VALID_UNTIL,
+        };
+        for _ in 0..10000 {
+            let when = cons.lifetime(&mut testing_rng());
+            assert!(when >= *FRESH_UNTIL);
+            assert!(when <= *FRESH_UNTIL_HALF);
+        }
     }
 }

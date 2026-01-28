@@ -15,14 +15,13 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::{collections::VecDeque, net::SocketAddr, time::Duration};
+use std::{collections::VecDeque, net::SocketAddr};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::{named_params, OptionalExtension, Transaction};
 use strum::IntoEnumIterator;
-use tor_basic_utils::RngExt;
 use tor_dirclient::request::AuthCertRequest;
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::{internal, into_internal};
@@ -736,33 +735,6 @@ fn insert_authority_certificates(
     Ok(())
 }
 
-/// Calculates the [`Timestamp`] at which the authorities will be queried again.
-///
-/// This function accepts a `fresh-until` and `valid-until`, both hopefully
-/// obtained through the [`get_recent_consensus()`] function, and caculates a
-/// [`Timestamp`] describing the time at which the new consensus is downloaded.
-///
-/// # Specifications
-///
-/// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#download-ns-from-auth>
-///
-/// TODO DIRMIRROR: Consider not naming this timeout but something like
-/// "download interval" or "poll interval".
-fn calculate_sync_timeout<R: Rng>(
-    fresh_until: Timestamp,
-    valid_until: Timestamp,
-    rng: &mut R,
-) -> Timestamp {
-    assert!(fresh_until < valid_until);
-
-    let offset = rng
-        .gen_range_checked(0..=((valid_until - fresh_until).as_secs() / 2))
-        .expect("invalid range???");
-
-    // fresh_until + offset
-    fresh_until + Duration::from_secs(offset)
-}
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -778,7 +750,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use std::time::SystemTime;
+    use std::time::{Duration, SystemTime};
 
     use crate::database::{self, DocumentId};
 
@@ -798,21 +770,6 @@ mod test {
 
     lazy_static! {
         static ref CERT_DOCID: DocumentId = DocumentId::digest(CERT_CONTENT);
-        /// Wed Jan 01 2020 00:00:00 GMT+0000
-        static ref VALID_AFTER: Timestamp =
-            (SystemTime::UNIX_EPOCH + Duration::from_secs(1577836800)).into();
-
-        /// Wed Jan 01 2020 01:00:00 GMT+0000
-        static ref FRESH_UNTIL: Timestamp =
-            *VALID_AFTER + Duration::from_secs(60 * 60);
-
-        /// Wed Jan 01 2020 02:00:00 GMT+0000
-        static ref FRESH_UNTIL_HALF: Timestamp =
-            *FRESH_UNTIL + Duration::from_secs(60 * 60);
-
-        /// Wed Jan 01 2020 03:00:00 GMT+0000
-        static ref VALID_UNTIL: Timestamp =
-            *FRESH_UNTIL + Duration::from_secs(60 * 60 * 2);
     }
 
     fn create_dummy_db() -> Pool<SqliteConnectionManager> {
@@ -844,16 +801,6 @@ mod test {
         .unwrap();
 
         pool
-    }
-
-    #[test]
-    fn sync_timeout() {
-        // We repeat the tests a few thousand times to go over many random values.
-        for _ in 0..10000 {
-            let when = calculate_sync_timeout(*FRESH_UNTIL, *VALID_UNTIL, &mut testing_rng());
-            assert!(when >= *FRESH_UNTIL);
-            assert!(when <= *FRESH_UNTIL_HALF);
-        }
     }
 
     #[test]
