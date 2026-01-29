@@ -691,13 +691,8 @@ mod test {
             "derse.example.org",
         )
         .unwrap();
-        let certs_der = tls_cert.certificates_der();
-        let key_der = tls_cert.private_key_pkcs8_der().unwrap();
-        let settings = TlsAcceptorSettings::new(
-            TlsServerCert::Der(certs_der[0]),
-            TlsPrivateKey::Pkcs8(key_der.as_ref()),
-        )
-        .unwrap();
+        let cert = tls_cert.certificates_der()[0].to_vec();
+        let settings = TlsAcceptorSettings::new(tls_cert).unwrap();
 
         let Ok(tls_acceptor) = runtime.tls_acceptor(settings) else {
             println!("Skipping tls-server test for runtime {:?}", &runtime);
@@ -742,8 +737,8 @@ mod test {
             let (received, server_own_cert) = h1.await;
             let client_peer_cert = h2.await;
             assert_eq!(received, msg);
-            assert_eq!(server_own_cert.unwrap().unwrap(), certs_der[0]);
-            assert_eq!(client_peer_cert.unwrap().unwrap(), certs_der[0]);
+            assert_eq!(&server_own_cert.unwrap().unwrap(), &cert);
+            assert_eq!(&client_peer_cert.unwrap().unwrap(), &cert);
         });
         IoResult::Ok(())
     }

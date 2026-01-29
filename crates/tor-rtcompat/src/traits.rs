@@ -10,7 +10,9 @@ use std::io::{self, Result as IoResult};
 use std::net;
 use std::time::{Duration, Instant, SystemTime};
 use tor_general_addr::unix;
-use zeroize::Zeroizing;
+
+#[cfg(feature = "tls-server")]
+use tor_cert_x509::TlsKeyAndCert;
 
 /// A runtime for use by Tor client library code.
 ///
@@ -706,18 +708,12 @@ pub trait TlsProvider<S: StreamOps>: Clone + Send + Sync + 'static {
 }
 
 /// Settings used for constructing a TlsAcceptor.
-#[derive(derive_more::Debug, Clone)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct TlsAcceptorSettings {
-    /// The certificate for this acceptor, in DER encoding.
-    pub(crate) cert_der: Vec<u8>,
-
-    /// The private key for this acceptor, in DER encoding.
-    #[debug(skip)]
-    pub(crate) key_der: Zeroizing<Vec<u8>>,
-
-    /// The format of the private key.
-    pub(crate) key_fmt: TlsPrivateKeyFmt,
+    /// The certificates and keys for this acceptor.
+    pub(crate) identity: TlsKeyAndCert,
+    //
     // TODO: Add support for additional certificates in a chain.
     // TODO: Possibly, add support for PEM.
 }
@@ -732,64 +728,15 @@ impl TlsAcceptorSettings {
     // but that would (apparently) introduce a dependency cycle.  It would be cool to figure out how
     // to invert that.
     #[allow(clippy::unnecessary_wraps)]
-    pub fn new(cert: TlsServerCert<'_>, private_key: TlsPrivateKey<'_>) -> std::io::Result<Self> {
-        let cert_der = match cert {
-            TlsServerCert::Der(b) => b.to_vec(),
-        };
-        let (key_dir, key_fmt) = match private_key {
-            TlsPrivateKey::Pkcs1(b) => (b.to_vec(), TlsPrivateKeyFmt::Pkcs1),
-            TlsPrivateKey::Pkcs8(b) => (b.to_vec(), TlsPrivateKeyFmt::Pkcs8),
-        };
-        let key_der = Zeroizing::new(key_dir);
-
-        Ok(Self {
-            cert_der,
-            key_der,
-            key_fmt,
-        })
+    #[cfg(feature = "tls-server")]
+    pub fn new(identity: TlsKeyAndCert) -> std::io::Result<Self> {
+        Ok(Self { identity })
     }
 
     /// Return the primary certificate for this [`TlsAcceptorSettings`], in DER format.
     pub fn cert_der(&self) -> &[u8] {
-        self.cert_der.as_ref()
+        self.identity.certificates_der()[0]
     }
-}
-
-/// A format in which a private key can be encoded.
-#[derive(Copy, Clone, Debug)]
-pub(crate) enum TlsPrivateKeyFmt {
-    /// The key is encoded in PKCS1
-    ///
-    /// (Only RSA keys can be encoded this way.)
-    Pkcs1,
-    /// The key is encoded in PKCS8
-    Pkcs8,
-}
-
-/// A certificate that can be used as a TLS server.
-//
-// TODO: Add certificate chain support?
-// TODO: Add PEM support?
-#[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub enum TlsServerCert<'a> {
-    /// A certificate encoded in DER format.
-    Der(&'a [u8]),
-}
-
-/// A private key that can be used as a TLS server.
-#[derive(Clone, Copy)] // Deliberately doesn't derive debug.
-#[non_exhaustive]
-pub enum TlsPrivateKey<'a> {
-    /// A private key in PKCS1 format.
-    ///
-    /// (This is typically encoded in PEM with "BEGIN RSA PRIVATE KEY".)
-    Pkcs1(&'a [u8]),
-
-    /// A private key in PKCS8 format.
-    ///
-    /// (This is typically encoded in PEM with "BEGIN PRIVATE KEY")
-    Pkcs8(&'a [u8]),
 }
 
 /// An error returned by TlsProvider::tls_acceptor when the TlsProvider does not have TLS server support.
