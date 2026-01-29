@@ -3,6 +3,179 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 2.0.0 — 2 February 2026
+
+Arti 2.0.0 deprecates library functionality in the `arti` crate
+(which should only be used as a binary),
+deprecates some legacy features and configuration formats,
+and adds support for using the `inet-auto` socket type
+to automatically pick an unused TCP port for the RPC server.
+As usual, there is also a significant amount of behind-the-scenes work on
+relay and directory authority functionality.
+
+While "2.0" may sound like an exciting release number, it's actually fairly mundane.
+[Semver](https://semver.org) requires us to bump our major version number when making breaking changes,
+and we had a couple breaking changes we wanted to make in order to keep our APIs tidy.
+The only people who should notice significant changes in this release are developers
+who are building applications using the `arti` crate directly,
+rather than the recommended `arti-client` crate or other lower-level crates.
+
+### Breaking changes
+
+* Removed the long-deprecated `proxy.socks_port` and `proxy.dns_port` configuration options.
+  Use `proxy.socks_listen` and `dns_listen` instead. ([!3622])
+* Removed legacy syntax for specifying directory authorities.
+  The current syntax is documented in the [example configuration]. ([!3597])
+* All APIs in the `arti` crate except for `main()` are now experimental.
+  They are only available when the crate is built with the `experimental-api` feature.
+  These APIs are no longer covered by semver,
+  and they are likely to be removed or moved into different crates in the future.
+  If you use any of these APIs, please [open an issue] with your usecase,
+  so that we can keep it in mind when choosing how to expose these APIs in other crates. ([!3586])
+* Removed the deprecated `memquota` and `dialoguer` cargo features (which did nothing).
+* Removed the `signal-hook` and `signal-hook-async-std` cargo features,
+  which were aliases for `async-signal`. The `async-signal` feature should be used directly.
+
+### Breaking changes in lower-level crates
+
+* In `slotmap_careful`, `HopSlotMap` was removed,
+  as it is deprecated in the upstream `slotmap` crate. ([!3585])
+* In `tor-netdoc`, `AuthCertBuilder` and `AuthCert::builder` were deprecated.
+  `AuthCertConstructor` should be used instead. ([!3560])
+* In `tor-chanmgr` ([!3563]):
+  * `AbstractChanMgr` now takes a `ChannelConfig` instead of a reference.
+  * `ChanBuilder::new()` now takes an outbound channel type.
+* In `tor-proto` ([!3563]):
+  * `UnverifiedClientChannel` and `VerifiedClientChannel` are no longer public.
+  * `ClientInitiatorHandshake::connect()` and `RelayInitiatorHandshake::connect()`
+    return a `Box<dyn VerifiableChannel>`.
+  * `ChannelProvider::get_or_launch_relay()` was renamed to `get_or_launch`,
+    and its signature is now different.
+* In `tor-rtcompat` ([!3614]):
+  * The `CertifiedConn` trait requires a new `own_certificate` method.
+  * The `TlsProvider` trait has several new server-related members.
+
+### Directory authority development
+
+* Changed constructor for `AuthCert`. ([!3560], [!3571])
+* Implemented authority certificate management. ([!3561])
+* Implemented `EncodedAuthCert`. ([!3592], [!3595])
+* Made `DownloadManager` stateless. ([!3601])
+
+### Relay development
+
+* `ChanMgr` can now launch relay channels. ([!3563])
+* Implemented `RelayResponderHandshake`. ([!3596])
+* Implemented the generic and modular circuit reactor architecture described in [relay-conflux.md],
+  and reimplemented the work-in-progress relay circuit reactor to use it as its base. 
+  In the future, this new architecture will form the basis of the client circuit reactor as well. ([!3612])
+* Implemented TLS server support in `tor-rtcompat`. ([!3614])
+
+### RPC development
+
+* Arti now supports `inet-auto` connect points. ([!3606])
+
+### Testing
+
+* Eliminated use of sleep in `tor-dirserver` tests. ([!3582])
+* Improved performance of `tor-dirserver` tests. ([!3591])
+* Fixed flaky `request_fail_ultimately` test. ([!3598])
+* Added integration tests for `arti hsc ctor-migrate` command. ([!3544], [!3623])
+
+### Documentation
+
+* Added link to [oniux webpage](https://arti.torproject.org/related/oniux) to Arti website. ([!3562])
+* Documented directory authority key certificates in network status documents. ([!3565])
+* Updated outdated reference to rxs in StreamMap docs. ([!3573])
+* Documented intended behavior of `inet-auto` connect points. ([!3587])
+
+### Infrastructure
+
+* Added warning for using the `retain` method in the `weak_table` crate, which is buggy. ([!3574])
+* Switched to `C.UTF-8` for sorting in `maint/thanks` script. ([!3588])
+* Renamed all `maint/` scripts to use kebab-case. ([!3590])
+* Bumped chutney version. ([!3604])
+* Fixed clippy warning on non-Linux builds. ([!3611])
+* Began denying `clippy::unused_async` lint. ([!3613])
+
+### Cleanups, minor features, and bugfixes
+
+* Refactored `IncomingStreamRequestHandler` to support relay streams. ([!3572])
+* Fixed `rpc.py` script to work on Windows. ([!3576])
+* Upgraded to newer versions of various dependencies. ([!3585], [!3609], [!3610])
+* Fixed bug preventing log rate-limiting from working properly. ([!3593])
+* Renamed `Version` to `SoftwareVersion` in `tor-netdoc`. ([!3594])
+* Refactored `tor-dirserver` database module. ([!3599])
+* Improved logging when accepting OR connections in `arti-relay`. ([!3602], [!3603])
+* Made compression failures in `tor-dirserver` a bug, rather than a different error type, as they should never occur. ([!3605])
+* Made "stream closed without END" a debug message, rather than a warning. ([!3608])
+* Updated to the latest list of Tor fallback directories. ([!3615])
+* Fixed panic when invalid ports are given to proxy command. ([!3621])
+* Refactored `tor-rtcompat` key API. ([!3618])
+* Split new `tor-cert-x509` crate out of `tor-cert`. ([!3618])
+* Split new `tor-memquota-cost` crate out of `tor-memquota`. ([!3618])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Niel Duysters, Samuel Cobb, carti-it, hjrgrn, and sjcobb!
+
+Also, our deep thanks to
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+[!3544]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3544
+[!3560]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3560
+[!3561]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3561
+[!3562]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3562
+[!3563]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3563
+[!3565]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3565
+[!3571]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3571
+[!3572]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3572
+[!3573]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3573
+[!3574]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3574
+[!3576]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3576
+[!3582]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3582
+[!3585]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3585
+[!3586]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3586
+[!3587]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3587
+[!3588]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3588
+[!3590]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3590
+[!3591]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3591
+[!3592]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3592
+[!3593]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3593
+[!3594]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3594
+[!3595]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3595
+[!3596]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3596
+[!3597]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3597
+[!3598]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3598
+[!3599]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3599
+[!3601]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3601
+[!3602]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3602
+[!3603]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3603
+[!3604]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3604
+[!3605]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3605
+[!3606]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3606
+[!3608]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3608
+[!3609]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3609
+[!3610]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3610
+[!3611]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3611
+[!3612]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3612
+[!3613]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3613
+[!3614]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3614
+[!3615]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3615
+[!3618]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3618
+[!3621]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3621
+[!3622]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3622
+[!3623]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3623
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[example configuration]: https://gitlab.torproject.org/tpo/core/arti/-/blob/df5fba75c61001b07115776518f95bcb4d51681c/crates/arti/src/arti-example-config.toml#L449-484
+[open an issue]: https://gitlab.torproject.org/tpo/core/arti/-/issues/new?type=ISSUE
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[relay-conflux.md]: https://gitlab.torproject.org/tpo/core/arti/-/blob/a63c96bdc62fc088affa565be61c0215830b870e/doc/dev/notes/relay-conflux.md
+
+
 
 # Arti 1.9.0 — 13 January 2026
 
