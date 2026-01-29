@@ -98,7 +98,7 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     ///
     /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for
     /// sending cell over the inbound channel.
-    cmd_tx: mpsc::Sender<BackwardReactorCmd>,
+    backward_reactor_tx: mpsc::Sender<BackwardReactorCmd>,
     /// The outbound channel launcher.
     //
     // TODO(relay): this is only used for relays, so perhaps it should be feature-gated,
@@ -233,7 +233,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         inbound_chan_rx: CircuitRxReceiver,
         control_rx: mpsc::UnboundedReceiver<CtrlMsg<F::CtrlMsg>>,
         command_rx: mpsc::UnboundedReceiver<CtrlCmd<F::CtrlCmd>>,
-        cmd_tx: mpsc::Sender<BackwardReactorCmd>,
+        backward_reactor_tx: mpsc::Sender<BackwardReactorCmd>,
         padding_ctrl: PaddingController,
         #[cfg(feature = "relay")] chan_provider: Box<
             dyn ChannelProvider<BuildSpec = F::BuildSpec> + Send,
@@ -255,7 +255,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             forward: None,
             #[cfg(feature = "relay")]
             outbound_chan,
-            cmd_tx,
+            backward_reactor_tx,
             hop_mgr,
             padding_ctrl,
         }
@@ -423,7 +423,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         let circ_id = todo!();
         let receiver = todo!();
 
-        // TODO(relay): deliver a BackwardReactorCommand over cmd_tx
+        // TODO(relay): deliver a BackwardReactorCommand over backward_reactor_tx
         // containing the `receiver`. This will instruct the bWD to send back
         // an EXTEND/EXTENDED2
 
@@ -629,7 +629,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
 
     /// Send a command to the backward reactor.
     ///
-    /// Blocks if the `cmd_tx` channel is full, i.e. if the backward reactor
+    /// Blocks if the `backward_reactor_tx` channel is full, i.e. if the backward reactor
     /// is not ready to send any more cells.
     ///
     /// Returns an error if the backward reactor has shut down.
@@ -637,7 +637,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         &mut self,
         forward: BackwardReactorCmd,
     ) -> StdResult<(), ReactorError> {
-        self.cmd_tx.send(forward).await.map_err(|_| {
+        self.backward_reactor_tx.send(forward).await.map_err(|_| {
             // The other reactor has shut down
             ReactorError::Shutdown
         })

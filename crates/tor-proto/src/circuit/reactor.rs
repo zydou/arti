@@ -408,7 +408,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         // non-zero for whatever reason, we must remember to register it with memquota
         // so that it counts towards the total memory usage for the circuit.
         #[allow(clippy::disallowed_methods)]
-        let (cell_tx, cell_rx) = mpsc::channel(0);
+        let (backward_reactor_tx, forward_reactor_rx) = mpsc::channel(0);
 
         // TODO: channels galore
         let (control_tx, control_rx) = mpsc::unbounded();
@@ -438,7 +438,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             inbound_chan_rx,
             fwd_control_rx,
             fwd_command_rx,
-            cell_tx,
+            backward_reactor_tx,
             padding_ctrl.clone(),
             #[cfg(feature = "relay")]
             chan_provider,
@@ -451,7 +451,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             unique_id,
             backward_impl,
             hops,
-            cell_rx,
+            forward_reactor_rx,
             bwd_control_rx,
             bwd_command_rx,
             padding_ctrl,

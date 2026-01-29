@@ -122,7 +122,7 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     ///   * it lets the `BackwardReactor` know if the `ForwardReactor` has shut down:
     ///     we select! on this MPSC channel in the main loop, so if the `ForwardReactor`
     ///     shuts down, we will get EOS upon calling `.next()`)
-    cmd_rx: mpsc::Receiver<BackwardReactorCmd>,
+    forward_reactor_rx: mpsc::Receiver<BackwardReactorCmd>,
     /// A channel for receiving endpoint-bound stream messages from the StreamReactor(s)
     /// (the stream messages are client-bound if we are a relay, or exit-bound if we are a client).
     stream_rx: mpsc::Receiver<ReadyStreamMsg>,
@@ -177,7 +177,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         unique_id: UniqId,
         inner: B,
         hops: Arc<RwLock<CircHopList>>,
-        cmd_rx: mpsc::Receiver<BackwardReactorCmd>,
+        forward_reactor_rx: mpsc::Receiver<BackwardReactorCmd>,
         control_rx: mpsc::UnboundedReceiver<CtrlMsg<B::CtrlMsg>>,
         command_rx: mpsc::UnboundedReceiver<CtrlCmd<B::CtrlCmd>>,
         padding_ctrl: PaddingController,
@@ -194,7 +194,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             inbound_chan_tx,
             unique_id,
             circ_id,
-            cmd_rx,
+            forward_reactor_rx,
             control_rx,
             command_rx,
             stream_rx,
@@ -210,7 +210,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     /// Handles cells arriving on the outbound Tor channel,
     /// and writes cells to the inbound Tor channel.
     ///
-    /// Because the Tor application streams, the `cmd_rx` MPSC streams,
+    /// Because the Tor application streams, the `forward_reactor_rx` MPSC streams,
     /// and the outbound Tor channel MPSC stream are driven concurrently using [`PollAll`],
     /// this function can send up to 3 cells per call over the inbound Tor channel:
     ///
@@ -278,7 +278,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         //  2. the stream of commands coming from the ForwardReactor
         //  (this resolves to a BackwardReactorCmd)
         poll_all.push(async {
-            let event = match self.cmd_rx.next().await {
+            let event = match self.forward_reactor_rx.next().await {
                 Some(cmd) => CircuitEvent::Forwarded(cmd),
                 None => {
                     // The forward reactor has crashed, so we have to shut down.
@@ -325,12 +325,12 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             //
             //   1. From the application streams (received from StreamReactor), if there are any.
             //
-            //   2. From the cmd_rx channel, used by the forward reactor to send us
+            //   2. From the forward_reactor_rx channel, used by the forward reactor to send us
             //
             //     - a circuit-level SENDME that we have received, or
             //     - a circuit-level SENDME that we need to deliver to the client
             //
-            //     Not reading from the cmd_rx channel, in turn, causes the forward reactor
+            //     Not reading from the forward_reactor_rx channel, in turn, causes the forward reactor
             //     to block and therefore stop reading from **its** input sources,
             //     propagating backpressure all the way to the other endpoint of the circuit.
             //
@@ -342,11 +342,11 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             // TODO: memquota setup to make sure this doesn't turn into a memory DOS vector
             let _ = backward_chan_ready.await;
 
-            // TODO: it's important to not block reading from the cmd_rx channel on the chan
+            // TODO: it's important to not block reading from the forward_reactor_rx channel on the chan
             // sender readiness (for instance, we should not block the sending of SENDMEs
             // if the channel is blocked on a padding-induced block).
             //
-            // This means we will need to move the cmd_rx handling out of the PollAll
+            // This means we will need to move the forward_reactor_rx handling out of the PollAll
             // to the select_biased! below.
             poll_all.await
         };
