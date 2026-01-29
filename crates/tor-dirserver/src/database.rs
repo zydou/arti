@@ -411,9 +411,9 @@ impl ToSql for Timestamp {
     }
 }
 
-/// Representation of a consensus from the database.
+/// Representation of consensus metadata from the database.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Consensus {
+pub(crate) struct ConsensusMeta {
     /// The document id uniquely identifying the consensus.
     pub(crate) docid: DocumentId,
 
@@ -433,7 +433,7 @@ pub(crate) struct Consensus {
     pub(crate) valid_until: Timestamp,
 }
 
-impl Consensus {
+impl ConsensusMeta {
     /// Obtains the most recent valid consensus from the database.
     ///
     /// This function queries the database using a [`Transaction`] in order to
@@ -490,8 +490,8 @@ impl Consensus {
         Ok(res)
     }
 
-    /// Queries the raw data of a [`Consensus`].
-    pub(crate) fn raw(&self, tx: &Transaction<'_>) -> Result<String, DatabaseError> {
+    /// Queries the raw data of a [`ConsensusMeta`].
+    pub(crate) fn data(&self, tx: &Transaction<'_>) -> Result<String, DatabaseError> {
         let mut stmt = tx.prepare_cached(sql!(
             "
             SELECT content
@@ -1196,7 +1196,7 @@ mod test {
 
         read_tx(&pool, move |tx| {
             // Get None by being way before valid-after.
-            assert!(Consensus::query_recent(
+            assert!(ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1206,7 +1206,7 @@ mod test {
             .is_none());
 
             // Get None by being way behind valid-until.
-            assert!(Consensus::query_recent(
+            assert!(ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1216,7 +1216,7 @@ mod test {
             .is_none());
 
             // Get None by being minimally before valid-after.
-            assert!(Consensus::query_recent(
+            assert!(ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1226,7 +1226,7 @@ mod test {
             .is_none());
 
             // Get None by being minimally behind valid-until.
-            assert!(Consensus::query_recent(
+            assert!(ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1236,15 +1236,23 @@ mod test {
             .is_none());
 
             // Get a valid consensus by being in the interval.
-            let res1 =
-                Consensus::query_recent(tx, ConsensusFlavor::Plain, &no_tolerance, *VALID_AFTER)
-                    .unwrap()
-                    .unwrap();
-            let res2 =
-                Consensus::query_recent(tx, ConsensusFlavor::Plain, &no_tolerance, *VALID_UNTIL)
-                    .unwrap()
-                    .unwrap();
-            let res3 = Consensus::query_recent(
+            let res1 = ConsensusMeta::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                *VALID_AFTER,
+            )
+            .unwrap()
+            .unwrap();
+            let res2 = ConsensusMeta::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                *VALID_UNTIL,
+            )
+            .unwrap()
+            .unwrap();
+            let res3 = ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1254,7 +1262,7 @@ mod test {
             .unwrap();
             assert_eq!(
                 res1,
-                Consensus {
+                ConsensusMeta {
                     docid: *CONSENSUS_DOCID,
                     unsigned_sha3_256: String::from(
                         "0000000000000000000000000000000000000000000000000000000000000000"
@@ -1269,7 +1277,7 @@ mod test {
             assert_eq!(res2, res3);
 
             // Get a valid consensus using a liberal dir tolerance.
-            let res1 = Consensus::query_recent(
+            let res1 = ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
@@ -1277,7 +1285,7 @@ mod test {
             )
             .unwrap()
             .unwrap();
-            let res2 = Consensus::query_recent(
+            let res2 = ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
@@ -1287,7 +1295,7 @@ mod test {
             .unwrap();
             assert_eq!(
                 res1,
-                Consensus {
+                ConsensusMeta {
                     docid: *CONSENSUS_DOCID,
                     unsigned_sha3_256: String::from(
                         "0000000000000000000000000000000000000000000000000000000000000000"
@@ -1306,7 +1314,7 @@ mod test {
     #[test]
     fn sync_timeout() {
         // We repeat the tests a few thousand times to go over many random values.
-        let cons = Consensus {
+        let cons = ConsensusMeta {
             docid: *CONSENSUS_DOCID,
             unsigned_sha3_256: String::new(),
             flavor: ConsensusFlavor::Plain,
