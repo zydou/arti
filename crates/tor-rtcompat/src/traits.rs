@@ -5,6 +5,7 @@ use futures::future::{FutureExt, RemoteHandle};
 use futures::stream;
 use futures::task::{Spawn, SpawnError};
 use futures::{AsyncRead, AsyncWrite, Future};
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::io::{self, Result as IoResult};
 use std::net;
@@ -604,7 +605,7 @@ pub trait CertifiedConn {
     ) -> IoResult<Vec<u8>>;
     /// Try to return the (DER-encoded) peer certificate for this
     /// connection, if any.
-    fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>>;
+    fn peer_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>>;
 
     /// Try to return the (DER-encoded) link certificate (if any) containing
     /// the key we used to authenticate this connection.
@@ -616,7 +617,7 @@ pub trait CertifiedConn {
     // Later, if we support optional certificates for clients,
     // the place to return an Unsupported error would be
     // from whatever function tries to set such a certificate.)
-    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>>;
+    fn own_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>>;
 }
 
 /// An object that knows how to wrap a TCP connection (where the type of said TCP

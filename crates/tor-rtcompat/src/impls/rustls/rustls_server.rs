@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use pin_project::pin_project;
 use std::{
+    borrow::Cow,
     io::{Error as IoError, Result as IoResult},
     marker::PhantomData,
     pin::Pin,
@@ -68,11 +69,11 @@ impl<S: StreamOps> StreamOps for RustlsServerStream<S> {
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> CertifiedConn for RustlsServerStream<S> {
-    fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+    fn peer_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
         let (_, session) = self.stream.get_ref();
         Ok(session
             .peer_certificates()
-            .and_then(|certs| certs.first().map(|c| Vec::from(c.as_ref()))))
+            .and_then(|certs| certs.first().map(|c| Cow::from(c.as_ref()))))
     }
 
     fn export_keying_material(
@@ -87,8 +88,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> CertifiedConn for RustlsServerStream<S> 
             .map_err(|e| IoError::new(std::io::ErrorKind::InvalidData, e))
     }
 
-    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
-        Ok(Some(self.cert_der.to_vec()))
+    fn own_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
+        Ok(Some(Cow::from(self.cert_der.as_ref())))
     }
 }
 

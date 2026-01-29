@@ -217,7 +217,11 @@ where
         let peer_cert = tls
             .peer_certificate()
             .map_err(map_ioe("TLS certs"))?
-            .ok_or_else(|| Error::Internal(internal!("TLS connection with no peer certificate")))?;
+            .ok_or_else(|| Error::Internal(internal!("TLS connection with no peer certificate")))?
+            // Note: we could skip this "into_owned" if we computed any necessary digest on the
+            // certificate earlier.  That would require changing out channel negotiation APIs,
+            // though, and might not be worth it.
+            .into_owned();
 
         {
             event_sender

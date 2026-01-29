@@ -1,6 +1,6 @@
 //! Stub types to provide in place of an unimplemented TLS server-side implementation.
 
-use std::{io::Result as IoResult, pin::Pin, task::Context};
+use std::{borrow::Cow, io::Result as IoResult, pin::Pin, task::Context};
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
@@ -30,11 +30,11 @@ impl CertifiedConn for UnimplementedTls {
         void::unreachable(self.0)
     }
 
-    fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+    fn peer_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
         void::unreachable(self.0)
     }
 
-    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+    fn own_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
         void::unreachable(self.0)
     }
 }
