@@ -23,7 +23,7 @@ pub type ChannelResult = Result<Arc<Channel>>;
 // by the [`ChannelProvider`].
 #[allow(unreachable_pub)] // TODO(#1447)
 #[allow(unused)]
-pub struct OutboundChanSender(mpsc::UnboundedSender<ChannelResult>);
+pub struct OutboundChanSender(pub(crate) mpsc::UnboundedSender<ChannelResult>);
 
 impl OutboundChanSender {
     /// Create a new [`OutboundChanSender`] from an [`mpsc`] sender.
