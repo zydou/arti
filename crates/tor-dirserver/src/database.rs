@@ -819,8 +819,8 @@ mod test {
     }
 
     fn create_dummy_db() -> Pool<SqliteConnectionManager> {
-        let pool = super::open("").unwrap();
-        super::rw_tx(&pool, |tx| {
+        let pool = open("").unwrap();
+        rw_tx(&pool, |tx| {
             tx.execute(
                 sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
                 params![*CONSENSUS_DOCID, CONSENSUS_CONTENT.as_bytes()],
@@ -853,11 +853,11 @@ mod test {
     }
 
     #[test]
-    fn open() {
+    fn open_test() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
 
-        super::open(&db_path).unwrap();
+        open(&db_path).unwrap();
         let conn = Connection::open(&db_path).unwrap();
 
         // Check if the version was initialized properly.
@@ -879,20 +879,20 @@ mod test {
         drop(conn);
 
         assert_eq!(
-            super::open(&db_path).unwrap_err().to_string(),
+            open(&db_path).unwrap_err().to_string(),
             "incompatible schema version: 42"
         );
     }
 
     #[test]
-    fn read_tx() {
+    fn read_tx_test() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
 
-        let pool = super::open(&db_path).unwrap();
+        let pool = open(&db_path).unwrap();
 
         // Do a write transaction despite forbidden.
-        super::read_tx(&pool, |tx| {
+        read_tx(&pool, |tx| {
             tx.execute_batch("DELETE FROM arti_dirserver_schema_version")
                 .unwrap();
             let e = tx
@@ -907,7 +907,7 @@ mod test {
         .unwrap();
 
         // Normal check.
-        let version: String = super::read_tx(&pool, |tx| {
+        let version: String = read_tx(&pool, |tx| {
             tx.query_one(
                 sql!("SELECT version FROM arti_dirserver_schema_version"),
                 params![],
@@ -920,21 +920,21 @@ mod test {
     }
 
     #[test]
-    fn rw_tx() {
+    fn rw_tx_test() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
 
-        let pool = super::open(&db_path).unwrap();
+        let pool = open(&db_path).unwrap();
 
         // Do a write transaction.
-        super::rw_tx(&pool, |tx| {
+        rw_tx(&pool, |tx| {
             tx.execute_batch("DELETE FROM arti_dirserver_schema_version")
                 .unwrap();
         })
         .unwrap();
 
         // Check that it was deleted.
-        super::read_tx(&pool, |tx| {
+        read_tx(&pool, |tx| {
             let e = tx
                 .query_one(
                     sql!("SELECT version FROM arti_dirserver_schema_version"),
@@ -959,7 +959,7 @@ mod test {
     fn rw_tx_busy_timeout_working() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
-        let pool = super::open(db_path).unwrap();
+        let pool = open(db_path).unwrap();
 
         // t2 will wait on this before it starts doing stuff.
         let t1_acquired_lock = Arc::new(Once::new());
@@ -971,7 +971,7 @@ mod test {
             let t1_acquired_lock = t1_acquired_lock.clone();
             let t2_is_waiting = t2_is_waiting.clone();
             move || {
-                super::rw_tx(&pool, move |_tx| {
+                rw_tx(&pool, move |_tx| {
                     // Inform t2 we have write lock.
                     t1_acquired_lock.call_once(|| ());
                     println!("t1 acquired write lock");
@@ -987,7 +987,7 @@ mod test {
         println!("t2 waits for t1 to acquire write lock");
         t1_acquired_lock.wait();
         t2_is_waiting.call_once(|| ());
-        super::rw_tx(&pool, |_| ()).unwrap();
+        rw_tx(&pool, |_| ()).unwrap();
         println!("t2 acquired and released write lock");
         t1.join().unwrap();
     }
@@ -1004,7 +1004,7 @@ mod test {
     fn rw_tx_busy_timeout_busy() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
-        let pool = super::open(db_path).unwrap();
+        let pool = open(db_path).unwrap();
 
         // t2 will wait on this before it starts doing stuff.
         let t1_acquired_lock = Arc::new(Once::new());
@@ -1017,7 +1017,7 @@ mod test {
             let t2_gave_up = t2_gave_up.clone();
 
             move || {
-                super::rw_tx(&pool, move |_tx| {
+                rw_tx(&pool, move |_tx| {
                     // Inform t2 we have the write lock.
                     t1_acquired_lock.call_once(|| ());
                     println!("t1 acquired write lock");
@@ -1031,7 +1031,7 @@ mod test {
 
         println!("t2 waits for t1 to acquire write lock");
         t1_acquired_lock.wait();
-        let e = super::rw_tx(&pool, |_| ()).unwrap_err();
+        let e = rw_tx(&pool, |_| ()).unwrap_err();
         assert_eq!(
             e.to_string(),
             "low-level rusqlite error: database is locked"
@@ -1042,15 +1042,15 @@ mod test {
     }
 
     #[test]
-    fn store_insert() {
+    fn store_insert_test() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
 
-        super::open(&db_path).unwrap();
+        open(&db_path).unwrap();
         let mut conn = Connection::open(&db_path).unwrap();
         let tx = conn.transaction().unwrap();
 
-        let docid = super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
+        let docid = store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
         assert_eq!(
             docid,
             "C3AB8FF13720E8AD9047DD39466B3C8974E592C2FA383D4A3960714CAEF0C4F2"
@@ -1096,8 +1096,7 @@ mod test {
 
         // Now insert the same thing a second time again and see whether the
         // ON CONFLICT magic works.
-        let docid_second =
-            super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
+        let docid_second = store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
         assert_eq!(docid, docid_second);
 
         // Remove a few compressed entries and get them again.
@@ -1115,8 +1114,7 @@ mod test {
             .unwrap();
         assert_eq!(n, 2);
 
-        let docid_third =
-            super::store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
+        let docid_third = store_insert(&tx, "foobar".as_bytes(), ContentEncoding::iter()).unwrap();
         assert_eq!(docid, docid_third);
         let algorithms = stmt
             .query_map(params![], |row| row.get::<_, String>(0))
@@ -1134,7 +1132,7 @@ mod test {
     }
 
     #[test]
-    fn compress() {
+    fn compress_test() {
         /// Asserts that `res` contains `encoding`.
         fn contains(encoding: ContentEncoding, res: &[(ContentEncoding, Vec<u8>)]) {
             assert!(res.iter().any(|x| x.0 == encoding));
@@ -1144,7 +1142,7 @@ mod test {
 
         // Check whether everything was encoded.
         let res = ContentEncoding::iter()
-            .map(|encoding| (encoding, super::compress(INPUT, encoding).unwrap()))
+            .map(|encoding| (encoding, compress(INPUT, encoding).unwrap()))
             .collect::<Vec<_>>();
         assert_eq!(res.len(), 5);
         contains(ContentEncoding::Identity, &res);
@@ -1196,9 +1194,9 @@ mod test {
             .build()
             .unwrap();
 
-        super::read_tx(&pool, move |tx| {
+        read_tx(&pool, move |tx| {
             // Get None by being way before valid-after.
-            assert!(super::Consensus::query_recent(
+            assert!(Consensus::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1208,7 +1206,7 @@ mod test {
             .is_none());
 
             // Get None by being way behind valid-until.
-            assert!(super::Consensus::query_recent(
+            assert!(Consensus::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1218,7 +1216,7 @@ mod test {
             .is_none());
 
             // Get None by being minimally before valid-after.
-            assert!(super::Consensus::query_recent(
+            assert!(Consensus::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1228,7 +1226,7 @@ mod test {
             .is_none());
 
             // Get None by being minimally behind valid-until.
-            assert!(super::Consensus::query_recent(
+            assert!(Consensus::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1238,23 +1236,15 @@ mod test {
             .is_none());
 
             // Get a valid consensus by being in the interval.
-            let res1 = super::Consensus::query_recent(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_AFTER,
-            )
-            .unwrap()
-            .unwrap();
-            let res2 = super::Consensus::query_recent(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_UNTIL,
-            )
-            .unwrap()
-            .unwrap();
-            let res3 = super::Consensus::query_recent(
+            let res1 =
+                Consensus::query_recent(tx, ConsensusFlavor::Plain, &no_tolerance, *VALID_AFTER)
+                    .unwrap()
+                    .unwrap();
+            let res2 =
+                Consensus::query_recent(tx, ConsensusFlavor::Plain, &no_tolerance, *VALID_UNTIL)
+                    .unwrap()
+                    .unwrap();
+            let res3 = Consensus::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1264,7 +1254,7 @@ mod test {
             .unwrap();
             assert_eq!(
                 res1,
-                super::Consensus {
+                Consensus {
                     docid: *CONSENSUS_DOCID,
                     unsigned_sha3_256: String::from(
                         "0000000000000000000000000000000000000000000000000000000000000000"
@@ -1279,7 +1269,7 @@ mod test {
             assert_eq!(res2, res3);
 
             // Get a valid consensus using a liberal dir tolerance.
-            let res1 = super::Consensus::query_recent(
+            let res1 = Consensus::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
@@ -1287,7 +1277,7 @@ mod test {
             )
             .unwrap()
             .unwrap();
-            let res2 = super::Consensus::query_recent(
+            let res2 = Consensus::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
@@ -1297,7 +1287,7 @@ mod test {
             .unwrap();
             assert_eq!(
                 res1,
-                super::Consensus {
+                Consensus {
                     docid: *CONSENSUS_DOCID,
                     unsigned_sha3_256: String::from(
                         "0000000000000000000000000000000000000000000000000000000000000000"
