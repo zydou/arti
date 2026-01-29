@@ -650,11 +650,14 @@ pub trait TlsConnector<S> {
 
     /// Start a TLS session over the provided TCP stream `stream`.
     ///
-    /// Declare `sni_hostname` as the desired hostname, but don't actually check
+    /// For a client connection,
+    /// declare `sni_hostname` as the desired hostname, but don't actually check
     /// whether the hostname in the certificate matches it.  The connector may
     /// send `sni_hostname` as part of its handshake, if it supports
     /// [SNI](https://en.wikipedia.org/wiki/Server_Name_Indication) or one of
     /// the TLS 1.3 equivalents.
+    ///
+    /// (For a server connection, `sni_hostname` is ignored.)
     async fn negotiate_unvalidated(&self, stream: S, sni_hostname: &str) -> IoResult<Self::Conn>;
 }
 
