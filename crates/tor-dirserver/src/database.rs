@@ -512,7 +512,7 @@ impl ConsensusMeta {
     /// # Specifications
     ///
     /// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#download-ns-from-auth>
-    fn lifetime<R: Rng>(&self, rng: &mut R) -> Timestamp {
+    pub(crate) fn lifetime<R: Rng>(&self, rng: &mut R) -> Timestamp {
         assert!(self.fresh_until < self.valid_until);
 
         let offset = rng
