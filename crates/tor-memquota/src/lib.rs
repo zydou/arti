@@ -237,17 +237,15 @@
 mod drop_bomb;
 #[macro_use]
 mod refcount;
-#[macro_use]
-mod memory_cost_derive;
 
 mod drop_reentrancy;
-mod if_enabled;
 mod internal_prelude;
 mod utils;
 
 // Modules with public items
 mod config;
 mod error;
+mod if_enabled;
 pub mod memory_cost;
 pub mod mq_queue;
 pub mod mtracker;
@@ -267,11 +265,12 @@ pub mod testing {
 
 //---------- re-exports at the crate root ----------
 
+pub use tor_memquota_cost::{
+    EnabledToken, HasMemoryCost, HasMemoryCostStructural, assert_copy_static,
+};
+
 pub use config::{Config, ConfigBuilder};
 pub use error::{Error, MemoryReclaimedError, StartupError};
-pub use if_enabled::EnabledToken;
-pub use memory_cost::HasMemoryCost;
-pub use memory_cost_derive::{HasMemoryCostStructural, assert_copy_static};
 pub use mtracker::{Account, MemoryQuotaTracker};
 pub use utils::ArcMemoryQuotaTrackerExt;
 
@@ -280,3 +279,5 @@ pub use derive_deftly;
 
 /// `Result` whose `Err` is [`tor_memtrack::Error`](Error)
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub use tor_memquota_cost::{derive_deftly_template_HasMemoryCost, memory_cost_structural_copy};

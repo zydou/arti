@@ -34,6 +34,7 @@ members = [
     "crates/tor-rpc-connect",
     "crates/tor-log-ratelim",
     "crates/tor-rpcbase",
+    "crates/tor-memquota-cost",
     "crates/tor-memquota",
     "crates/tor-units",
     "crates/tor-llcrypto",

@@ -7318,11 +7318,24 @@ dependencies = [
  "tor-config",
  "tor-error",
  "tor-log-ratelim",
+ "tor-memquota-cost",
  "tor-rtcompat",
  "tor-rtmock",
  "tracing",
  "tracing-test",
  "visibility",
+ "void",
+]
+
+[[package]]
+name = "tor-memquota-cost"
+version = "0.38.0"
+dependencies = [
+ "derive-deftly",
+ "itertools 0.14.0",
+ "paste",
+ "safelog",
+ "serde_json",
  "void",
 ]
 
