@@ -53,7 +53,7 @@ rustls = [
 ]
 
 # Build with TLS server support, if possible.
-tls-server = []
+tls-server = ["tor-cert-x509"]
 
 __is_nonadditive = []
 
@@ -102,6 +102,7 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
     "time",
 ] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
+tor-cert-x509 = { version = "0.38.0", path = "../tor-cert-x509", optional = true }
 tor-error = { version = "0.38.0", path = "../tor-error", features = ["tracing"] }
 tor-general-addr = { version = "0.38.0", path = "../tor-general-addr" }
 tracing = "0.1.36"
@@ -116,5 +117,3 @@ assert_matches = "1.5.0"
 # Used for testing our TLS implementation.
 native-tls-crate = { package = "native-tls", version = "0.2" }
 tor-basic-utils = { version = "0.38.0", path = "../tor-basic-utils" }
-# TODO #2330 re-enable.
-#tor-cert = { version = "0.38.0", path = "../tor-cert", features = ["x509"] }

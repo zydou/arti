@@ -7693,6 +7693,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tor-basic-utils",
+ "tor-cert-x509",
  "tor-error",
  "tor-general-addr",
  "tracing",

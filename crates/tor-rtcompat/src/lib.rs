@@ -682,14 +682,11 @@ mod test {
         IoResult::Ok(())
     }
 
-    fn simple_tls_server<R: ToplevelRuntime>(_runtime: &R) -> IoResult<()> {
-        /*
-        TODO #2330: re-enable once we have our tor-cert dependency figured out.
-
+    fn simple_tls_server<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         let mut rng = tor_basic_utils::test_rng::testing_rng();
-        let tls_cert = tor_cert::x509::TlsKeyAndCert::create(
+        let tls_cert = tor_cert_x509::TlsKeyAndCert::create(
             &mut rng,
-            SystemTime::now(),
+            std::time::SystemTime::now(),
             "prospit.example.org",
             "derse.example.org",
         )
@@ -748,7 +745,6 @@ mod test {
             assert_eq!(server_own_cert.unwrap().unwrap(), certs_der[0]);
             assert_eq!(client_peer_cert.unwrap().unwrap(), certs_der[0]);
         });
-        */
         IoResult::Ok(())
     }
 
