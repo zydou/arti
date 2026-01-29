@@ -307,6 +307,7 @@ macro_rules! impl_hash_wrapper {
     };
 }
 
+impl_hash_wrapper!(Sha1, sha1::Sha1, 20);
 impl_hash_wrapper!(Sha256, sha2::Sha256, 32);
 impl_hash_wrapper!(Sha3_256, sha3::Sha3_256, 32);
 
@@ -538,10 +539,10 @@ pub(crate) struct AuthCertMeta {
     pub(crate) docid: DocumentId,
 
     /// The SHA-1 fingerprint of the identity key.
-    pub(crate) kp_auth_id_rsa_sha1: String,
+    pub(crate) kp_auth_id_rsa_sha1: Sha1,
 
     /// The SHA-1 fingerprint of the signign key.
-    pub(crate) kp_auth_sign_rsa_sha1: String,
+    pub(crate) kp_auth_sign_rsa_sha1: Sha1,
 
     /// The timestamp after which this certificate will be valid.
     pub(crate) dir_key_published: Timestamp,
@@ -1551,8 +1552,14 @@ mod test {
             found,
             vec![AuthCertMeta {
                 docid: DocumentId::digest(CERT_CONTENT),
-                kp_auth_id_rsa_sha1: "49015F787433103580E3B66A1707A00E60F2D15B".to_owned(),
-                kp_auth_sign_rsa_sha1: "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0".to_owned(),
+                kp_auth_id_rsa_sha1: Sha1::from([
+                    73, 1, 95, 120, 116, 51, 16, 53, 128, 227, 182, 106, 23, 7, 160, 14, 96, 242,
+                    209, 91
+                ]),
+                kp_auth_sign_rsa_sha1: Sha1::from([
+                    197, 209, 83, 166, 240, 218, 124, 194, 34, 119, 210, 41, 220, 187, 249, 41,
+                    208, 88, 159, 224
+                ]),
                 dir_key_published: (SystemTime::UNIX_EPOCH + Duration::from_secs(1764543578))
                     .into(),
                 dir_key_expires: (SystemTime::UNIX_EPOCH + Duration::from_secs(1772492378)).into()
