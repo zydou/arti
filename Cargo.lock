@@ -6515,14 +6515,28 @@ dependencies = [
  "ecdsa",
  "hex-literal",
  "humantime",
+ "rand 0.9.2",
+ "thiserror 2.0.17",
+ "tor-basic-utils",
+ "tor-bytes",
+ "tor-cert-x509",
+ "tor-checkable",
+ "tor-error",
+ "tor-llcrypto",
+]
+
+[[package]]
+name = "tor-cert-x509"
+version = "0.38.0"
+dependencies = [
+ "digest",
+ "ecdsa",
  "p256",
  "pem",
  "rand 0.9.2",
  "rsa",
  "thiserror 2.0.17",
  "tor-basic-utils",
- "tor-bytes",
- "tor-checkable",
  "tor-error",
  "tor-llcrypto",
  "x509-cert",
