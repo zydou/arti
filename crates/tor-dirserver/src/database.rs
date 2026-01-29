@@ -421,7 +421,7 @@ impl ToSql for Timestamp {
 }
 
 /// Representation of consensus metadata from the database.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ConsensusMeta {
     /// The document id uniquely identifying the consensus.
     pub(crate) docid: DocumentId,
@@ -533,7 +533,7 @@ impl ConsensusMeta {
 }
 
 /// Representation of authority certificate metadata from the database.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AuthCertMeta {
     /// The document id uniquely identifying the consensus.
     pub(crate) docid: DocumentId,
