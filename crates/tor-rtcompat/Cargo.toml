@@ -116,4 +116,5 @@ assert_matches = "1.5.0"
 # Used for testing our TLS implementation.
 native-tls-crate = { package = "native-tls", version = "0.2" }
 tor-basic-utils = { version = "0.38.0", path = "../tor-basic-utils" }
-tor-cert = { version = "0.38.0", path = "../tor-cert", features = ["x509"] }
+# TODO #2330 re-enable.
+#tor-cert = { version = "0.38.0", path = "../tor-cert", features = ["x509"] }

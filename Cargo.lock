@@ -7651,7 +7651,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tor-basic-utils",
- "tor-cert",
  "tor-error",
  "tor-general-addr",
  "tracing",
