@@ -3,6 +3,7 @@
 pub(crate) mod ct;
 pub(crate) mod err;
 pub(crate) mod keyed_futures_unordered;
+pub(crate) mod msg;
 pub(crate) mod notify;
 pub(crate) mod oneshot_broadcast;
 pub(crate) mod poll_all;
@@ -10,6 +11,7 @@ pub(crate) mod sink_blocker;
 pub(crate) mod skew;
 pub(crate) mod sometimes_unbounded_sink;
 pub(crate) mod stream_poll_set;
+pub(crate) mod timeout;
 pub(crate) mod token_bucket;
 pub(crate) mod ts;
 pub(crate) mod tunnel_activity;

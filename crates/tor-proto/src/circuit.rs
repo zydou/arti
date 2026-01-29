@@ -5,6 +5,8 @@
 pub(crate) mod cell_sender;
 pub(crate) mod celltypes;
 pub(crate) mod circhop;
+pub(crate) mod padding;
+pub(crate) mod reactor;
 pub(crate) mod syncview;
 pub(crate) mod unique_id;
 
@@ -26,6 +28,9 @@ use tor_memquota::mq_queue::{self, MpscSpec};
 pub(crate) type CircuitRxSender = mq_queue::Sender<AnyChanMsg, MpscSpec>;
 /// MPSC queue for inbound data on its way from channel to circuit, receiver
 pub(crate) type CircuitRxReceiver = mq_queue::Receiver<AnyChanMsg, MpscSpec>;
+
+/// Estimated upper bound for the likely number of hops.
+pub(crate) const HOPS: usize = 6;
 
 /// Description of the network's current rules for building circuits.
 ///

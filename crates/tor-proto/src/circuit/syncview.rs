@@ -13,6 +13,7 @@ impl<'a> CircSyncView<'a> {
     }
 
     /// Create a new relay circuit view.
+    #[allow(dead_code)] // TODO(relay)
     #[cfg(feature = "relay")]
     pub(crate) fn new_relay() -> Self {
         Self(CircSyncViewInner::Relay( /* TODO(relay) */))

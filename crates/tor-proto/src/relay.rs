@@ -15,18 +15,32 @@ pub mod channel_provider;
 pub(crate) mod reactor;
 
 use derive_deftly::Deftly;
-use futures::channel::mpsc;
+use either::Either;
+use futures::StreamExt as _;
 use oneshot_fused_workaround as oneshot;
 
 use tor_cell::chancell::msg::{self as chanmsg};
 use tor_cell::relaycell::StreamId;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
-use tor_rtcompat::DynTimeProvider;
+use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 
-use reactor::{RelayCtrlCmd, RelayCtrlMsg};
-
+use crate::Error;
 use crate::circuit::celltypes::derive_deftly_template_RestrictedChanMsgSet;
+use crate::circuit::reactor::CircReactorHandle;
+use crate::circuit::reactor::{CtrlCmd, forward};
+use crate::congestion::sendme::StreamRecvWindow;
+use crate::memquota::SpecificAccount;
+use crate::relay::reactor::backward::Backward;
+use crate::relay::reactor::forward::Forward;
+use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
+use crate::stream::incoming::{
+    IncomingCmdChecker, IncomingStream, IncomingStreamRequestFilter, StreamReqInfo,
+};
+use crate::stream::raw::StreamReceiver;
+use crate::stream::{RECV_WINDOW_INIT, StreamComponents, StreamTarget, Tunnel};
+
+use std::sync::Arc;
 
 /// A subclass of ChanMsg that can correctly arrive on a live relay
 /// circuit (one where a CREATE* has been received).
@@ -48,17 +62,22 @@ pub(crate) enum RelayCircChanMsg {
     PaddingNegotiate(chanmsg::PaddingNegotiate),
 }
 
+impl crate::util::msg::ToRelayMsg for RelayCircChanMsg {
+    fn to_relay_msg(self) -> Either<chanmsg::Relay, Self> {
+        use Either::*;
+        use RelayCircChanMsg::*;
+
+        match self {
+            Relay(r) => Left(r),
+            m => Right(m),
+        }
+    }
+}
+
 /// A handle for interacting with a relay circuit.
 #[allow(unused)] // TODO(relay)
 #[derive(Debug)]
-pub struct RelayCirc {
-    /// Sender for reactor control messages.
-    control: mpsc::UnboundedSender<RelayCtrlMsg>,
-    /// Sender for reactor control commands.
-    command: mpsc::UnboundedSender<RelayCtrlCmd>,
-    /// The time provider.
-    time_provider: DynTimeProvider,
-}
+pub struct RelayCirc(pub(crate) CircReactorHandle<Forward, Backward>);
 
 impl RelayCirc {
     /// Shut down this circuit, along with all streams that are using it.
@@ -71,12 +90,12 @@ impl RelayCirc {
     /// It's not necessary to call this method if you're just done with a circuit:
     /// the circuit should close on its own once nothing is using it any more.
     pub fn terminate(&self) {
-        let _ = self.command.unbounded_send(RelayCtrlCmd::Shutdown);
+        let _ = self.0.command.unbounded_send(CtrlCmd::Shutdown);
     }
 
     /// Return true if this circuit is closed and therefore unusable.
     pub fn is_closing(&self) -> bool {
-        self.control.is_closed()
+        self.0.control.is_closed()
     }
 
     /// Inform the circuit reactor that there has been a change in the drain rate for this stream.
@@ -149,6 +168,130 @@ impl RelayCirc {
         _message: crate::stream::CloseStreamBehavior,
     ) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
         todo!()
+    }
+
+    /// Tell this reactor to begin allowing incoming stream requests,
+    /// and to return those pending requests in an asynchronous stream.
+    ///
+    /// Ordinarily, these requests are rejected.
+    ///
+    /// Needed for exits. Middle relays should reject every incoming stream,
+    /// either through the `filter` provided in `filter`,
+    /// or by explicitly calling .reject() on each received stream.
+    ///
+    // TODO(relay): I think we will prefer using the .reject() approach
+    // for this, because the filter is only meant for inexpensive quick
+    // checks that are done immediately in the reactor (any blocking
+    // in the filter will block the relay reactor main loop!).
+    ///
+    /// The user of the reactor **must** handle this stream
+    /// (either by .accept()ing and opening and proxying the corresponding
+    /// streams as appropriate, or by .reject()ing).
+    ///
+    // TODO: declare a type-alias for the return type when support for
+    // impl in type aliases gets stabilized.
+    //
+    // See issue #63063 <https://github.com/rust-lang/rust/issues/63063>
+    //
+    /// There can only be one [`Stream`](futures::Stream) of this type created on a given reactor.
+    /// If a such a [`Stream`](futures::Stream) already exists, this method will return
+    /// an error.
+    ///
+    /// After this method has been called on a reactor, the reactor is expected
+    /// to receive requests of this type indefinitely, until it is finally closed.
+    /// If the `Stream` is dropped, the next request on this reactor will cause it to close.
+    ///
+    // TODO: Someday, we might want to allow a stream request handler to be
+    // un-registered.  However, nothing in the Tor protocol requires it.
+    //
+    // TODO(DEDUP): *very* similar to ServiceOnionServiceDataTunnel::allow_stream_requests
+    #[allow(unused)] // TODO(relay): call this from the task that creates the circ
+    pub(crate) async fn allow_stream_requests<'a, FILT>(
+        self: Arc<Self>,
+        allow_commands: &'a [tor_cell::relaycell::RelayCmd],
+        filter: FILT,
+    ) -> crate::Result<impl futures::Stream<Item = IncomingStream> + use<'a, FILT>>
+    where
+        FILT: IncomingStreamRequestFilter,
+    {
+        let tunnel = Arc::clone(&self);
+        /// The size of the channel receiving IncomingStreamRequestContexts.
+        ///
+        // TODO(relay-tuning): buffer size
+        const INCOMING_BUFFER: usize = crate::stream::STREAM_READER_BUFFER;
+
+        let (incoming_sender, incoming_receiver) = MpscSpec::new(INCOMING_BUFFER).new_mq(
+            self.0.time_provider.clone(),
+            tunnel.0.memquota.as_raw_account(),
+        )?;
+
+        let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
+        let (tx, rx) = oneshot::channel();
+        let cmd = forward::CtrlCmd::AwaitStreamRequests {
+            incoming_sender,
+            cmd_checker,
+            hop: None,
+            filter: Box::new(filter),
+            done: tx,
+        };
+
+        tunnel
+            .0
+            .command
+            .unbounded_send(CtrlCmd::Forward(cmd))
+            .map_err(|_| Error::CircuitClosed)?;
+
+        // Check whether the AwaitStreamRequest was processed successfully.
+        rx.await.map_err(|_| Error::CircuitClosed)??;
+
+        // TODO(relay): this is more or less copy-pasta from client code
+        let stream = incoming_receiver.map(move |req_ctx| {
+            let StreamReqInfo {
+                req,
+                stream_id,
+                hop,
+                receiver,
+                msg_tx,
+                rate_limit_stream,
+                drain_rate_request_stream,
+                memquota,
+                relay_cell_format,
+            } = req_ctx;
+
+            // There is no originating hop if we're a relay
+            debug_assert!(hop.is_none());
+
+            let target = StreamTarget {
+                tunnel: Tunnel::Relay(Arc::clone(&tunnel)),
+                tx: msg_tx,
+                hop: None,
+                stream_id,
+                relay_cell_format,
+                rate_limit_stream,
+            };
+
+            // can be used to build a reader that supports XON/XOFF flow control
+            let xon_xoff_reader_ctrl =
+                XonXoffReaderCtrl::new(drain_rate_request_stream, target.clone());
+
+            let reader = StreamReceiver {
+                target: target.clone(),
+                receiver,
+                recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
+                ended: false,
+            };
+
+            let components = StreamComponents {
+                stream_receiver: reader,
+                target,
+                memquota,
+                xon_xoff_reader_ctrl,
+            };
+
+            IncomingStream::new(self.0.time_provider.clone(), req, components)
+        });
+
+        Ok(stream)
     }
 }
 

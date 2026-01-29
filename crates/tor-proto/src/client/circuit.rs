@@ -74,13 +74,13 @@ use crate::circuit::UniqId;
 
 use super::{ClientTunnel, TargetHop};
 
+use either::Either;
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
 use futures::FutureExt as _;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
@@ -99,6 +99,9 @@ pub(crate) use crate::client::reactor::syncview::ClientCircSyncView;
 // TODO: export this from the top-level instead (it's not client-specific).
 pub use crate::circuit::CircParameters;
 
+// TODO(relay): reexport this from somewhere else (it's not client-specific)
+pub use crate::util::timeout::TimeoutEstimator;
+
 /// A subclass of ChanMsg that can correctly arrive on a live client
 /// circuit (one where a CREATED* has been received).
 #[derive(Debug, Deftly)]
@@ -113,6 +116,18 @@ pub(super) enum ClientCircChanMsg {
     /// A cell telling us to destroy the circuit.
     Destroy(chanmsg::Destroy),
     // Note: RelayEarly is not valid for clients!
+}
+
+impl crate::util::msg::ToRelayMsg for ClientCircChanMsg {
+    fn to_relay_msg(self) -> Either<chanmsg::Relay, Self> {
+        use ClientCircChanMsg::*;
+        use Either::*;
+
+        match self {
+            Relay(r) => Left(r),
+            m => Right(m),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -978,16 +993,6 @@ impl PendingClientTunnel {
 
         self.circ.into_tunnel()
     }
-}
-
-/// An object used by circuits to compute various timeouts.
-///
-// This is implemented for the timeout `Estimator` from tor-circmgr.
-pub trait TimeoutEstimator: Send + Sync {
-    /// The estimated circuit build timeout for a circuit of the specified length.
-    ///
-    // Used by the circuit reactor for deciding when to expire half-streams.
-    fn circuit_build_timeout(&self, length: usize) -> Duration;
 }
 
 #[cfg(test)]

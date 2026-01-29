@@ -244,11 +244,7 @@ impl CircHop {
         let relay_format = settings.relay_crypt_protocol().relay_cell_format();
 
         let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
-        let inbound = CircHopInbound::new(
-            Arc::clone(&ccontrol),
-            RelayCellDecoder::new(relay_format),
-            settings,
-        );
+        let inbound = CircHopInbound::new(RelayCellDecoder::new(relay_format), settings);
 
         let outbound = CircHopOutbound::new(
             ccontrol,
@@ -345,7 +341,7 @@ impl CircHop {
 
     /// Return a mutable reference to our CongestionControl object.
     pub(crate) fn ccontrol(&self) -> MutexGuard<'_, CongestionControl> {
-        self.outbound.ccontrol()
+        self.outbound.ccontrol().lock().expect("poisoned lock")
     }
 
     /// We're about to send `msg`.

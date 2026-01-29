@@ -8,13 +8,13 @@ use crate::channel::Channel;
 use crate::circuit::cell_sender::CircuitCellSender;
 use crate::circuit::celltypes::CreateResponse;
 use crate::circuit::circhop::HopSettings;
+use crate::circuit::padding::CircPaddingDisposition;
 use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::client::circuit::padding::{
     self, PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
 };
-use crate::client::circuit::{ClientCircChanMsg, MutableState};
-use crate::client::circuit::{TimeoutEstimator, path};
+use crate::client::circuit::{ClientCircChanMsg, MutableState, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::congestion::CongestionSignals;
 use crate::congestion::sendme;
@@ -37,6 +37,7 @@ use crate::streammap;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
+use crate::util::timeout::TimeoutEstimator;
 use crate::{ClockSkew, Error, Result};
 
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
@@ -1599,60 +1600,11 @@ impl Circuit {
     /// we do not keep track of which hop is actually doing the blocking.
     #[cfg(feature = "circ-padding")]
     fn padding_disposition(&self, send_padding: &padding::SendPadding) -> CircPaddingDisposition {
-        use CircPaddingDisposition::*;
-        use padding::Bypass::*;
-        use padding::Replace::*;
-
-        // If true, and we are trying to send Replaceable padding,
-        // we should let any data in the queue count as the queued padding instead,
-        // if it is queued for our target hop (or any subsequent hop).
-        //
-        // TODO circpad: In addition to letting currently-queued data count as padding,
-        // maybenot also permits us to send currently pending data from our streams
-        // (or from our next hop, if we're a relay).  We don't have that implemented yet.
-        //
-        // TODO circpad: This will usually be false, since we try not to queue data
-        // when there isn't space to write it.  If we someday add internal per-circuit
-        // Buffers to chan_sender, this test is more likely to trigger.
-        let have_queued_cell_for_hop = self
-            .chan_sender
-            .have_queued_cell_for_hop_or_later(send_padding.hop);
-
-        match &self.padding_block {
-            Some(blocking) if blocking.is_bypassable => {
-                match (
-                    send_padding.may_replace_with_data(),
-                    send_padding.may_bypass_block(),
-                ) {
-                    (NotReplaceable, DoNotBypass) => QueuePaddingNormally,
-                    (NotReplaceable, BypassBlocking) => QueuePaddingAndBypass,
-                    (Replaceable, DoNotBypass) => {
-                        if have_queued_cell_for_hop {
-                            TreatQueuedCellAsPadding
-                        } else {
-                            QueuePaddingNormally
-                        }
-                    }
-                    (Replaceable, BypassBlocking) => {
-                        if have_queued_cell_for_hop {
-                            TreatQueuedCellAsPadding
-                        } else {
-                            QueuePaddingAndBypass
-                        }
-                    }
-                }
-            }
-            Some(_) | None => match send_padding.may_replace_with_data() {
-                Replaceable => {
-                    if have_queued_cell_for_hop {
-                        TreatQueuedCellAsPadding
-                    } else {
-                        QueuePaddingNormally
-                    }
-                }
-                NotReplaceable => QueuePaddingNormally,
-            },
-        }
+        crate::circuit::padding::padding_disposition(
+            send_padding,
+            &self.chan_sender,
+            self.padding_block.as_ref(),
+        )
     }
 
     /// Handle a request from our padding subsystem to send a padding packet.
@@ -1719,19 +1671,6 @@ impl Circuit {
     pub(super) fn estimate_cbt(&self, length: usize) -> Duration {
         self.timeouts.circuit_build_timeout(length)
     }
-}
-
-/// A possible way to handle a request to send padding.
-#[derive(Copy, Clone, Debug)]
-enum CircPaddingDisposition {
-    /// Enqueue the padding normally.
-    QueuePaddingNormally,
-    /// Enqueue the padding, and allow one cell of data on our outbound queue
-    /// to bypass the current block.
-    QueuePaddingAndBypass,
-    /// Do not take any actual padding action:
-    /// existing data on our outbound queue will count as padding.
-    TreatQueuedCellAsPadding,
 }
 
 impl Drop for Circuit {

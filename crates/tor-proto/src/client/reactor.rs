@@ -24,8 +24,8 @@ pub(super) mod syncview;
 
 use crate::circuit::circhop::SendRelayCell;
 use crate::circuit::{CircuitRxReceiver, UniqId};
+use crate::client::circuit::ClientCircChanMsg;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
-use crate::client::circuit::{ClientCircChanMsg, TimeoutEstimator};
 use crate::client::{HopLocation, TargetHop};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
@@ -35,6 +35,7 @@ use crate::streammap;
 use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
+use crate::util::timeout::TimeoutEstimator;
 use crate::{Error, Result};
 use circuit::Circuit;
 use conflux::ConfluxSet;
@@ -68,6 +69,7 @@ use tor_llcrypto::pk;
 use tracing::{debug, info, instrument, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
+use crate::circuit::reactor::ReactorResultChannel;
 
 #[cfg(feature = "hs-service")]
 use crate::stream::incoming::IncomingStreamRequestHandler;
@@ -79,9 +81,6 @@ use {
 };
 
 pub(super) use control::{CtrlCmd, CtrlMsg, FlowCtrlMsg};
-
-/// The type of a oneshot channel used to inform reactor of the result of an operation.
-pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
 /// Contains a list of conflux handshake results.
 #[cfg(feature = "conflux")]

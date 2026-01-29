@@ -24,6 +24,7 @@ use tor_memquota::memory_cost_structural_copy;
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
 use crate::HopNum;
+use crate::circuit::HOPS;
 use crate::util::err::ExcessPadding;
 use backend::PaddingBackend;
 
@@ -343,9 +344,6 @@ pub(crate) struct StartBlocking {
     /// No traffic may be sent to later hops.)
     pub(crate) is_bypassable: bool,
 }
-
-/// Estimated upper bound for the likely number of hops.
-const HOPS: usize = 6;
 
 /// Absolute upper bound for number of hops.
 const MAX_HOPS: usize = 64;
