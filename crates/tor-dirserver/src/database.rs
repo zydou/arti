@@ -128,17 +128,18 @@ CREATE TABLE consensus_diff(
 CREATE TABLE router_descriptor(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
-    sha1                    TEXT NOT NULL UNIQUE,
-    sha2                    TEXT NOT NULL UNIQUE,
+    unsigned_sha1           TEXT NOT NULL UNIQUE,
+    unsigned_sha2           TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     flavor                  TEXT NOT NULL,
     router_extra_info_sha1  TEXT,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha2) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', router_extra_info_sha1) == 0),
-    CHECK(LENGTH(sha1) == 40),
-    CHECK(docid == sha2),
+    CHECK(LENGTH(unsigned_sha1) == 40),
+    CHECK(LENGTH(unsigned_sha2) == 64),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40),
     CHECK(LENGTH(router_extra_info_sha1) == 40),
     CHECK(flavor IN ('ns', 'md'))
@@ -212,14 +213,14 @@ CREATE TABLE compressed_document(
 -- consensuses.
 CREATE TABLE consensus_router_descriptor_member(
     consensus_docid         TEXT NOT NULL,
-    router_descriptor_sha1  TEXT,
-    router_descriptor_sha2  TEXT,
-    PRIMARY KEY(consensus_docid, router_descriptor_sha1, router_descriptor_sha2),
+    unsigned_sha1           TEXT NOT NULL,
+    unsigned_sha2           TEXT NOT NULL,
+    PRIMARY KEY(consensus_docid, unsigned_sha1, unsigned_sha2),
     FOREIGN KEY(consensus_docid) REFERENCES consensus(docid),
-    CHECK(GLOB('*[^0-9A-F]*', router_descriptor_sha1) == 0),
-    CHECK(GLOB('*[^0-9A-F]*', router_descriptor_sha2) == 0),
-    CHECK(LENGTH(router_descriptor_sha1) == 40),
-    CHECK(LENGTH(router_descriptor_sha2) == 64)
+    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha2) == 0),
+    CHECK(LENGTH(unsigned_sha1) == 40),
+    CHECK(LENGTH(unsigned_sha2) == 64)
 ) STRICT;
 
 -- Stores which authority key signed which consensuses.
