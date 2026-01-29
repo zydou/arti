@@ -50,6 +50,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use digest::Digest;
 use flate2::write::{DeflateEncoder, GzEncoder};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -60,7 +61,6 @@ use rusqlite::{
     OptionalExtension, ToSql, Transaction, TransactionBehavior,
 };
 use saturating_time::SaturatingTime;
-use sha2::Digest;
 use tor_basic_utils::RngExt;
 use tor_dircommon::config::DirTolerance;
 use tor_error::into_internal;
@@ -240,72 +240,79 @@ PRAGMA busy_timeout=1000;
 "
 );
 
+/// Convience macro for implementing a hash type in a rusqlite compatible fashion.
+macro_rules! impl_hash_wrapper {
+    ($name:ident, $algo:ty, $size:literal) => {
+        /// Database wrapper type for [`$algo`].
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+        pub(crate) struct $name([u8; $size]);
+
+        impl $name {
+            /// Computes the [`$name`] from arbitrary data.
+            pub(crate) fn digest(data: &[u8]) -> Self {
+                Self(<$algo>::digest(data).into())
+            }
+        }
+
+        impl Display for $name {
+            /// Formats the [`$name`] in uppercase hexadecimal.
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", hex::encode_upper(self.0))
+            }
+        }
+
+        impl FromSql for $name {
+            fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+                // We read the hash as a hexadecimal string from the database.
+                // Convert it to binary data and check length afterwards.
+                let data: [u8; $size] = value
+                    .as_str()
+                    .map(hex::decode)?
+                    .map_err(|e| {
+                        FromSqlError::Other(Box::new(tor_error::internal!(
+                            "non hex data in database? {e}"
+                        )))
+                    })?
+                    .try_into()
+                    .map_err(|_| {
+                        FromSqlError::Other(Box::new(tor_error::internal!(
+                            "$name with invalid length in database?"
+                        )))
+                    })?;
+
+                Ok(Self(data))
+            }
+        }
+
+        impl ToSql for $name {
+            fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+                // Because Self is only constructed with FromSql and digest
+                // data, it is safe to assume it is valid.
+                Ok(ToSqlOutput::from(self.to_string()))
+            }
+        }
+
+        impl PartialEq<&str> for $name {
+            fn eq(&self, other: &&str) -> bool {
+                self.to_string() == other.to_uppercase()
+            }
+        }
+
+        #[cfg(test)]
+        impl From<[u8; $size]> for $name {
+            fn from(value: [u8; $size]) -> Self {
+                Self(value)
+            }
+        }
+    };
+}
+
+impl_hash_wrapper!(Sha256, sha2::Sha256, 32);
+
 /// The identifier for documents in the content-addressable cache.
 ///
-/// Right now, this is a Sha256 hash, but this may change in future.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct DocumentId([u8; 32]);
-
-impl DocumentId {
-    /// Computes the [`DocumentId`] from arbitrary data.
-    pub(crate) fn digest(data: &[u8]) -> Self {
-        Self(sha2::Sha256::digest(data).into())
-    }
-}
-
-impl Display for DocumentId {
-    /// Formats the [`DocumentId`] in uppercase hexadecimal.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode_upper(self.0))
-    }
-}
-
-impl FromSql for DocumentId {
-    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
-        // We read the document id as a hexadecimal string from the database.
-        // Afterwards, we convert it to binary data, which should succeed due
-        // to database check constraints.  Finally, we verify the length to see
-        // whether it actually constitutes a valid SHA256 checksum.
-        let data: [u8; 32] = value
-            .as_str()
-            .map(hex::decode)?
-            .map_err(|e| {
-                FromSqlError::Other(Box::new(tor_error::internal!(
-                    "non hex data in database? {e}"
-                )))
-            })?
-            .try_into()
-            .map_err(|_| {
-                FromSqlError::Other(Box::new(tor_error::internal!(
-                    "document id with invalid length in database?"
-                )))
-            })?;
-
-        Ok(Self(data))
-    }
-}
-
-impl ToSql for DocumentId {
-    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
-        // Because Self is only constructed with FromSql and digest data, it is
-        // safe to assume to be valid.  Even if not, database constraints will
-        // catch us from inserting invalid data.
-        Ok(ToSqlOutput::from(self.to_string()))
-    }
-}
-
-impl PartialEq<&str> for DocumentId {
-    fn eq(&self, other: &&str) -> bool {
-        self.to_string() == other.to_uppercase()
-    }
-}
-
-#[cfg(test)]
-impl From<[u8; 32]> for DocumentId {
-    fn from(value: [u8; 32]) -> Self {
-        Self(value)
-    }
-}
+/// Right now, this is a [`Sha256`] hash, but this may change in future.
+pub(crate) type DocumentId = Sha256;
 
 /// The supported content encodings.
 #[derive(Debug, Clone, Copy, PartialEq, strum::EnumString, strum::Display, strum::EnumIter)]
@@ -1546,10 +1553,7 @@ mod test {
         assert_eq!(
             found,
             vec![AuthCertMeta {
-                docid: DocumentId([
-                    92, 209, 212, 58, 114, 64, 222, 240, 206, 86, 208, 234, 56, 226, 190, 213, 169,
-                    84, 186, 24, 192, 145, 31, 119, 236, 140, 35, 22, 78, 160, 77, 117
-                ]),
+                docid: DocumentId::digest(CERT_CONTENT),
                 kp_auth_id_rsa_sha1: "49015F787433103580E3B66A1707A00E60F2D15B".to_owned(),
                 kp_auth_sign_rsa_sha1: "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0".to_owned(),
                 dir_key_published: (SystemTime::UNIX_EPOCH + Duration::from_secs(1764543578))

@@ -26,6 +26,7 @@ full = [
 
 [dependencies]
 bytes = "1.10.1"
+digest = "0.10.7"
 flate2 = "1.1.5"
 futures = "0.3.31"
 hex = "0.4.3"
