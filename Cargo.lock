@@ -7630,6 +7630,7 @@ dependencies = [
  "async_executors",
  "asynchronous-codec",
  "blocking",
+ "cfg-if",
  "coarsetime",
  "derive_more",
  "dyn-clone",
@@ -7649,10 +7650,12 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tokio-util",
+ "tor-basic-utils",
  "tor-error",
  "tor-general-addr",
  "tracing",
  "void",
+ "zeroize",
 ]
 
 [[package]]

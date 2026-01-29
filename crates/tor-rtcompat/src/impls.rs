@@ -18,6 +18,7 @@ pub(crate) mod rustls;
 pub(crate) mod native_tls;
 
 pub(crate) mod streamops;
+pub(crate) mod unimpl_tls;
 
 use tor_error::warn_report;
 

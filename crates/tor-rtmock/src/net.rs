@@ -11,7 +11,7 @@ use super::MockNetRuntime;
 use super::io::{LocalStream, stream_pair};
 use crate::util::mpsc_channel;
 use core::fmt;
-use tor_rtcompat::tls::TlsConnector;
+use tor_rtcompat::tls::{TlsAcceptorSettings, TlsConnector};
 use tor_rtcompat::{
     CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, StreamOps, TlsProvider,
 };
@@ -463,9 +463,16 @@ impl NetStreamProvider for MockNetProvider {
 impl TlsProvider<LocalStream> for MockNetProvider {
     type Connector = MockTlsConnector;
     type TlsStream = MockTlsStream;
+    type Acceptor = MockTlsAcceptor;
+    type TlsServerStream = MockTlsStream;
 
     fn tls_connector(&self) -> MockTlsConnector {
         MockTlsConnector {}
+    }
+    fn tls_acceptor(&self, settings: TlsAcceptorSettings) -> IoResult<MockTlsAcceptor> {
+        Ok(MockTlsAcceptor {
+            own_cert: settings.cert_der().to_vec(),
+        })
     }
 
     fn supports_keying_material_export(&self) -> bool {
@@ -481,6 +488,17 @@ impl TlsProvider<LocalStream> for MockNetProvider {
 #[non_exhaustive]
 pub struct MockTlsConnector;
 
+/// Mock TLS acceptor for use with MockNetProvider.
+///
+/// Note that no TLS is actually performed here: connections are simply
+/// told that they succeeded.
+#[derive(Clone)]
+#[non_exhaustive]
+pub struct MockTlsAcceptor {
+    /// The certificate that we are pretending to send.
+    own_cert: Vec<u8>,
+}
+
 /// Mock TLS connector for use with MockNetProvider.
 ///
 /// Note that no TLS is actually performed here: connections are simply
@@ -492,6 +510,8 @@ pub struct MockTlsConnector;
 pub struct MockTlsStream {
     /// The peer certificate that we are pretending our peer has.
     peer_cert: Option<Vec<u8>>,
+    /// The certificate that we are pretending that we sent.
+    own_cert: Option<Vec<u8>>,
     /// The underlying stream.
     stream: LocalStream,
 }
@@ -511,13 +531,38 @@ impl TlsConnector<LocalStream> for MockTlsConnector {
             return Err(std::io::Error::other("attempted to wrap non-TLS stream!"));
         }
 
-        Ok(MockTlsStream { peer_cert, stream })
+        Ok(MockTlsStream {
+            peer_cert,
+            own_cert: None,
+            stream,
+        })
+    }
+}
+
+#[async_trait]
+impl TlsConnector<LocalStream> for MockTlsAcceptor {
+    type Conn = MockTlsStream;
+
+    async fn negotiate_unvalidated(
+        &self,
+        stream: LocalStream,
+        _sni_hostname: &str,
+    ) -> IoResult<MockTlsStream> {
+        Ok(MockTlsStream {
+            peer_cert: None,
+            own_cert: Some(self.own_cert.clone()),
+            stream,
+        })
     }
 }
 
 impl CertifiedConn for MockTlsStream {
     fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
         Ok(self.peer_cert.clone())
+    }
+
+    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+        Ok(self.own_cert.clone())
     }
     fn export_keying_material(
         &self,
