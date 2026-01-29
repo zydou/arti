@@ -412,7 +412,20 @@ macro_rules! test_with_one_runtime {
     not(miri), // Many of these tests use real sockets or SystemTime.
 ))]
 mod test {
-    #![allow(clippy::unwrap_used, clippy::unnecessary_wraps)]
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::unnecessary_wraps)]
     use crate::SleepProviderExt;
     use crate::ToplevelRuntime;
 
@@ -688,9 +701,10 @@ mod test {
         .unwrap();
 
         let Ok(tls_acceptor) = runtime.tls_acceptor(settings) else {
-            dbg!("Skipping test.");
+            println!("Skipping tls-server test for runtime {:?}", &runtime);
             return IoResult::Ok(());
         };
+        println!("Running tls-server test for runtime {:?}", &runtime);
 
         let tls_connector = runtime.tls_connector();
 
@@ -731,8 +745,6 @@ mod test {
             assert_eq!(received, msg);
             assert_eq!(server_own_cert.unwrap().unwrap(), certs_der[0]);
             assert_eq!(client_peer_cert.unwrap().unwrap(), certs_der[0]);
-
-            dbg!("woo it worked.");
         });
 
         IoResult::Ok(())
