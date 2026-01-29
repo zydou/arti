@@ -70,6 +70,9 @@ use tor_netdoc::doc::{authcert::AuthCertKeyIds, netstatus::ConsensusFlavor};
 use crate::err::DatabaseError;
 
 /// Version 1 of the database schema.
+///
+/// TODO DIRMIRROR: Before the release, figure out where to use rowid and where
+/// to use docid.
 const V1_SCHEMA: &str = sql!(
     "
 -- Meta table to store the current schema version.
@@ -129,14 +132,15 @@ CREATE TABLE router_descriptor(
     sha2                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     flavor                  TEXT NOT NULL,
-    router_extra_info_rowid  INTEGER,
+    router_extra_info_sha1  TEXT,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    FOREIGN KEY(router_extra_info_rowid) REFERENCES router_extra_info(rowid),
     CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', router_extra_info_sha1) == 0),
     CHECK(LENGTH(sha1) == 40),
     CHECK(docid == sha2),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40),
+    CHECK(LENGTH(router_extra_info_sha1) == 40),
     CHECK(flavor IN ('ns', 'md'))
 ) STRICT;
 
