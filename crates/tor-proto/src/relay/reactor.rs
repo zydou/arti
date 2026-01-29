@@ -81,7 +81,7 @@ impl<R: Runtime> Reactor<R> {
     ///
     /// The internal unique identifier for this circuit will be `unique_id`.
     #[allow(clippy::too_many_arguments)] // TODO
-    pub(super) async fn new(
+    pub(super) fn new(
         runtime: R,
         channel: &Arc<Channel>,
         circ_id: CircId,
