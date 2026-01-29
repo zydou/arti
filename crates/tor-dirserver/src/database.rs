@@ -211,11 +211,15 @@ CREATE TABLE compressed_document(
 -- Stores the N:M cardinality of which router descriptors are contained in which
 -- consensuses.
 CREATE TABLE consensus_router_descriptor_member(
-    consensus_docid         TEXT,
-    router_descriptor_docid TEXT,
-    PRIMARY KEY(consensus_docid, router_descriptor_docid),
+    consensus_docid         TEXT NOT NULL,
+    router_descriptor_sha1  TEXT,
+    router_descriptor_sha2  TEXT,
+    PRIMARY KEY(consensus_docid, router_descriptor_sha1, router_descriptor_sha2),
     FOREIGN KEY(consensus_docid) REFERENCES consensus(docid),
-    FOREIGN KEY(router_descriptor_docid) REFERENCES router_descriptor(docid)
+    CHECK(GLOB('*[^0-9A-F]*', router_descriptor_sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', router_descriptor_sha2) == 0),
+    CHECK(LENGTH(router_descriptor_sha1) == 40),
+    CHECK(LENGTH(router_descriptor_sha2) == 64)
 ) STRICT;
 
 -- Stores which authority key signed which consensuses.
