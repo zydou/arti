@@ -608,7 +608,12 @@ pub trait CertifiedConn {
     /// the key we used to authenticate this connection.
     ///
     /// Ordinarily, this will return a certificate for server connections,
-    /// and not for client connections.
+    /// and None for client connections.
+    //
+    // NOTE: (The correct return value in the _absence_ of a certificate is None.
+    // Later, if we support optional certificates for clients,
+    // the place to return an Unsupported error would be
+    // from whatever function tries to set such a certificate.)
     fn own_certificate(&self) -> IoResult<Option<Vec<u8>>>;
 }
 

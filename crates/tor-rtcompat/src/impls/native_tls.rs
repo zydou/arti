@@ -54,6 +54,11 @@ where
     }
 
     fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+        // This is a client stream, so (as we build them currently) we know we didn't present a
+        // certificate.
+        //
+        // TODO: If we ever implement server-side native_tls support, we need to change this.
+        // But first we'd need an implementation for export_keying_material.
         Ok(None)
     }
 }
