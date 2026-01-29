@@ -110,7 +110,7 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     command_rx: mpsc::UnboundedReceiver<CtrlCmd<B::CtrlCmd>>,
     /// Channel for receiving control messages.
     control_rx: mpsc::UnboundedReceiver<CtrlMsg<B::CtrlMsg>>,
-    /// Receiver for Tor stream data that needs to be delivered to a Tor stream.
+    /// Receiver for [`BackwardReactorCmd`]s coming from the forward reactor.
     ///
     /// The sender is in [`ForwardReactor`](super::ForwardReactor), which will forward all cells
     /// carrying Tor stream data to us.
