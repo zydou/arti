@@ -44,6 +44,17 @@ pub(crate) struct HopMgr<R: Runtime> {
     ///
     /// Relays have at most one stream reactor per circuit.
     /// Clients have at most one stream reactor per circuit hop.
+    ///
+    /// This is shared with the backward reactor.
+    /// The backward reactor only ever *reads* from this
+    /// (it never mutates the list).
+    ///
+    // TODO: the backward reactor only ever reads from this.
+    // Conceptually, it is the HopMgr that owns this list,
+    // because only HopMgr can add hops to the list.
+    //
+    // Perhaps we need a specialized abstraction that only allows reading here.
+    // This could be a wrapper over RwLock, providing a read-only API for the BWD.
     hops: Arc<RwLock<CircHopList>>,
     /// Memory quota account
     memquota: CircuitAccount,
