@@ -33,6 +33,7 @@ full = [
     "tor-dircommon/full",
     "tor-dirmgr/full",
     "tor-guardmgr/full",
+    "tor-log-ratelim/full",
 ]
 
 [dependencies]

@@ -21,6 +21,7 @@ full = [
     "retry-error/full",
     "tor-dirclient/full",
     "tor-rtcompat/full",
+    "tor-llcrypto/full",
 ]
 
 [dependencies]
