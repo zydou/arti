@@ -117,7 +117,7 @@ impl<R: Runtime> Reactor<R> {
         // (TODO: for clients, we probably will need to store a bunch more state here)
         hop_mgr.add_hop(settings.clone())?;
 
-        let forward_foo = Forward::new(crypto_out, chan_provider);
+        let forward_foo = Forward::new(unique_id, crypto_out, chan_provider);
         let backward_foo = Backward::new(crypto_in);
 
         let (inner, handle) = crate::circuit::reactor::Reactor::new(

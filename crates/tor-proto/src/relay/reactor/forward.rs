@@ -1,5 +1,6 @@
 //! A relay's view of the forward (away from the client, towards the exit) state of a circuit.
 
+use crate::circuit::UniqId;
 use crate::circuit::reactor::ControlHandler;
 use crate::circuit::reactor::forward::{CellDecodeResult, ForwardHandler, ForwardSender};
 use crate::circuit::reactor::hop_mgr::HopMgr;
@@ -32,6 +33,8 @@ type CtrlCmd = ();
 
 /// Relay-specific state for the forward reactor.
 pub(crate) struct Forward {
+    /// An identifier for logging about this reactor's circuit.
+    unique_id: UniqId,
     /// The cryptographic state for this circuit for inbound cells.
     crypto_out: Box<dyn OutboundRelayLayer + Send>,
     /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
@@ -46,10 +49,12 @@ pub(crate) struct Forward {
 impl Forward {
     /// Create a new [`Forward`].
     pub(crate) fn new(
+        unique_id: UniqId,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
     ) -> Self {
         Self {
+            unique_id,
             crypto_out,
             chan_provider,
         }
