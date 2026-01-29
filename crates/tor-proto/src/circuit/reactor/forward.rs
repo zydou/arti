@@ -373,6 +373,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     /// if the request failed, we need to tear down the circuit.
     #[allow(unused)] // TODO(relay)
     #[allow(unreachable_code)] // TODO(relay)
+    #[allow(clippy::unused_async)] // TODO(relay)
     #[cfg(feature = "relay")]
     async fn handle_outgoing_chan_res(
         &mut self,
@@ -448,6 +449,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     // TODO(relay): move outgoing chan handling to relay ForwardHandler impl
     #[allow(unreachable_code)] // TODO(relay)
     #[cfg(not(feature = "relay"))]
+    #[allow(clippy::unused_async)] // TODO(relay)
     async fn handle_outgoing_chan_res(&mut self, _chan_res: ()) -> StdResult<(), ReactorError> {
         Err(internal!("got channel result in non-relay circuit reactor?!").into())
     }
