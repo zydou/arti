@@ -150,7 +150,7 @@ impl ForwardHandler for Forward {
 
         // Note: this future is always `Ready`, because we checked the sink for readiness
         // before polling the input channel, so await won't block.
-        forward.chan_sender.start_send_unpin((cell, info))?;
+        forward.outbound_chan_tx.start_send_unpin((cell, info))?;
 
         Ok(())
     }

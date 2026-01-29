@@ -118,8 +118,8 @@
 // so we will need to tune the sizes of these MPSC buffers.
 //!
 //! The read and write ends of the inbound and outbound Tor channels are "split",
-//! such that each reactor holds an `input` stream (for reading)
-//! and a `chan_sender` sink (for writing):
+//! such that each reactor holds an `inbound_chan_rx` stream (for reading)
+//! and a `inbound_chan_tx` sink (for writing):
 //!
 //!  * `ForwardReactor` holds the reading end of the inbound
 //!    (coming from the client, if we are a relay, or coming from the guard, if we are a client)
@@ -147,7 +147,7 @@
 //! | SENDME            | F           | B          | Sent to BackwardReactor for handling   |
 //! |                   |             |            | (BackwardReactorCmd::HandleSendme)     |
 //! |                   |             |            | because the forward reactor doesn't    |
-//! |                   |             |            | have access to the chan_sender part    |
+//! |                   |             |            | have access to the inbound_chan_tx part|
 //! |                   |             |            | of the inbound (towards the client)    |
 //! |                   |             |            | Tor channel, and so cannot obtain the  |
 //! |                   |             |            | congestion signals needed for SENDME   |
@@ -308,8 +308,8 @@ pub(crate) struct Reactor<R: Runtime, F: ForwardHandler, B: BackwardHandler> {
     /// This MPSC channel is polled in [`run`](Self::run).
     ///
     /// NOTE: this is a separate channel from `control`, because some messages
-    /// have higher priority and need to be handled even if the `chan_sender` is not
-    /// ready (whereas `control` messages are not read until the `chan_sender` sink
+    /// have higher priority and need to be handled even if the `inbound_chan_tx` is not
+    /// ready (whereas `control` messages are not read until the `inbound_chan_tx` sink
     /// is ready to accept cells).
     command: mpsc::UnboundedReceiver<CtrlCmd<F::CtrlCmd, B::CtrlCmd>>,
     /// Control channels for the [`ForwardReactor`].
@@ -380,7 +380,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
     /// Create a new circuit reactor.
     ///
     /// The reactor will send outbound messages on `channel`, receive incoming
-    /// messages on `input`, and identify this circuit by the channel-local
+    /// messages on `inbound_chan_rx`, and identify this circuit by the channel-local
     /// [`CircId`] provided.
     ///
     /// The internal unique identifier for this circuit will be `unique_id`.
@@ -390,7 +390,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         channel: &Arc<Channel>,
         circ_id: CircId,
         unique_id: UniqId,
-        input: CircuitRxReceiver,
+        inbound_chan_rx: CircuitRxReceiver,
         forward_impl: F,
         backward_impl: B,
         hop_mgr: HopMgr<R>,
@@ -435,7 +435,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             unique_id,
             forward_impl,
             hop_mgr,
-            input,
+            inbound_chan_rx,
             fwd_control_rx,
             fwd_command_rx,
             cell_tx,

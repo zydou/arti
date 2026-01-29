@@ -73,10 +73,10 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     /// This enables us to customize the behavior of the reactor,
     /// depending on whether we are a client or a relay.
     inner: B,
-    /// The reading end of the forward Tor channel, if we are not the last hop.
+    /// The reading end of the outbound Tor channel, if we are not the last hop.
     ///
-    /// Yields cells moving from the exit towards the client.
-    input: Option<CircuitRxReceiver>,
+    /// Yields cells moving from the exit towards the client, if we are a middle relay.
+    outbound_chan_rx: Option<CircuitRxReceiver>,
     /// The per-hop state, shared with the forward reactor.
     ///
     /// The backward reactor acquires a read lock to this whenever it needs to
@@ -105,7 +105,7 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     ///
     /// Delivers cells towards the other endpoint: towards the client, if we are a relay,
     /// or towards the exit, if we are a client.
-    chan_sender: CircuitCellSender,
+    inbound_chan_tx: CircuitCellSender,
     /// Channel for receiving control commands.
     command_rx: mpsc::UnboundedReceiver<CtrlCmd<B::CtrlCmd>>,
     /// Channel for receiving control messages.
@@ -184,14 +184,14 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         padding_event_stream: PaddingEventStream,
         stream_rx: mpsc::Receiver<ReadyStreamMsg>,
     ) -> Self {
-        let chan_sender = CircuitCellSender::from_channel_sender(channel.sender());
+        let inbound_chan_tx = CircuitCellSender::from_channel_sender(channel.sender());
 
         Self {
             time_provider: DynTimeProvider::new(runtime),
-            input: None,
+            outbound_chan_rx: None,
             inner,
             hops,
-            chan_sender,
+            inbound_chan_tx,
             unique_id,
             circ_id,
             cmd_rx,
@@ -256,9 +256,9 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             // a bit of progress each time.
             //
             // (TODO: do we want to handle errors here?)
-            let _ = self.chan_sender.poll_flush_unpin(cx);
+            let _ = self.inbound_chan_tx.poll_flush_unpin(cx);
 
-            self.chan_sender.poll_ready_unpin(cx)
+            self.inbound_chan_tx.poll_ready_unpin(cx)
         });
 
         // Concurrently, drive :
@@ -295,9 +295,9 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         // NOTE: in practice, clients and exits won't have an outbound Tor channel,
         // so for them this will be a no-op.
         poll_all.push(async {
-            let event = if let Some(input) = self.input.as_mut() {
+            let event = if let Some(outbound_chan_rx) = self.outbound_chan_rx.as_mut() {
                 // Forward channel unexpectedly closed, we should close too
-                match input.next().await {
+                match outbound_chan_rx.next().await {
                     Some(msg) => match msg.try_into() {
                         Err(e) => CircuitEvent::ProtoViolation(e),
                         Ok(cell) => CircuitEvent::Cell(cell),
@@ -364,7 +364,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             }
             res = self.padding_event_stream.next().fuse() => {
                 // If there's a padding event, we need to handle it immediately,
-                // because it might tell us to start blocking the chan_sender sink,
+                // because it might tell us to start blocking the inbound_chan_tx sink,
                 // which, in turn, means we need to stop trying to read from
                 // the application streams.
                 let event = res.ok_or_else(|| ReactorError::Shutdown)?;
@@ -445,7 +445,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
 
         match padding_disposition(
             &send_padding,
-            &self.chan_sender,
+            &self.inbound_chan_tx,
             self.padding_block.as_ref(),
         ) {
             QueuePaddingNormally => {
@@ -472,7 +472,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     // TODO(DEDUP): copy of Client::start_blocking_for_padding()
     #[cfg(feature = "circ-padding")]
     pub(super) fn start_blocking_for_padding(&mut self, block: padding::StartBlocking) {
-        self.chan_sender.start_blocking();
+        self.inbound_chan_tx.start_blocking();
         self.padding_block = Some(block);
     }
 
@@ -481,7 +481,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     // TODO(DEDUP): copy of Client::stop_blocking_for_padding()
     #[cfg(feature = "circ-padding")]
     pub(super) fn stop_blocking_for_padding(&mut self) {
-        self.chan_sender.stop_blocking();
+        self.inbound_chan_tx.stop_blocking();
         self.padding_block = None;
     }
 
@@ -519,7 +519,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     fn padding_disposition(&self, send_padding: &padding::SendPadding) -> CircPaddingDisposition {
         crate::circuit::padding::padding_disposition(
             send_padding,
-            &self.chan_sender,
+            &self.inbound_chan_tx,
             self.padding_block.as_ref(),
         )
     }
@@ -628,7 +628,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
 
         // NOTE: it's okay to await. We are only awaiting on the congestion_signals
         // future which *should* resolve immediately
-        let signals = self.chan_sender.congestion_signals().await;
+        let signals = self.inbound_chan_tx.congestion_signals().await;
 
         let hops = self.hops.read().expect("poisoned lock");
         let hop = hops
@@ -725,7 +725,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
 
         // Note: this future is always `Ready`, because we checked the sink for readiness
         // before polling the async streams, so await won't block.
-        Pin::new(&mut self.chan_sender)
+        Pin::new(&mut self.inbound_chan_tx)
             .send_unbounded((cell, padding_info))
             .await?;
 

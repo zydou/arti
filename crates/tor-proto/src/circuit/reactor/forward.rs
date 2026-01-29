@@ -86,7 +86,7 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     ///
     /// Yields cells moving from the client towards the exit, if we are a relay,
     /// or cells moving towards *us*, if we are a client.
-    input: CircuitRxReceiver,
+    inbound_chan_rx: CircuitRxReceiver,
     /// Sender for sending commands to the BackwardReactor.
     ///
     /// Used for sending:
@@ -142,7 +142,7 @@ pub(crate) struct ForwardSender {
     /// The circuit identifier on the outbound Tor channel.
     pub(crate) circ_id: CircId,
     /// The sending end of the forward Tor channel.
-    pub(crate) chan_sender: ChannelSender,
+    pub(crate) outbound_chan_tx: ChannelSender,
 }
 
 /// A control command aimed at the generic forward reactor.
@@ -230,7 +230,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         unique_id: UniqId,
         inner: F,
         hop_mgr: HopMgr<R>,
-        input: CircuitRxReceiver,
+        inbound_chan_rx: CircuitRxReceiver,
         control_rx: mpsc::UnboundedReceiver<CtrlMsg<F::CtrlMsg>>,
         command_rx: mpsc::UnboundedReceiver<CtrlCmd<F::CtrlCmd>>,
         cmd_tx: mpsc::Sender<BackwardReactorCmd>,
@@ -247,7 +247,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
 
         Self {
             unique_id,
-            input,
+            inbound_chan_rx,
             control_rx,
             command_rx,
             inner,
@@ -263,23 +263,23 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
 
     /// Helper for [`run`](Self::run).
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
-        let chan_sender_ready = future::poll_fn(|cx| {
+        let outbound_chan_ready = future::poll_fn(|cx| {
             if let Some(forward) = self.forward.as_mut() {
-                let _ = forward.chan_sender.poll_flush_unpin(cx);
+                let _ = forward.outbound_chan_tx.poll_flush_unpin(cx);
 
-                forward.chan_sender.poll_ready_unpin(cx)
+                forward.outbound_chan_tx.poll_ready_unpin(cx)
             } else {
-                // If there is no forward Tor channel, we're happy to read from input.
-                // In fact, we *must* read from input, because the client might
+                // If there is no forward Tor channel, we're happy to read from inbound_chan_rx.
+                // In fact, we *must* read from inbound_chan_rx, because the client might
                 // have sent some Tor stream data.
                 Poll::Ready(Ok(()))
             }
         });
 
-        let input_fut = async {
-            // Avoid reading from the input Tor Channel if the outgoing sink is blocked
-            let _ = chan_sender_ready.await;
-            self.input.next().await
+        let inbound_chan_rx_fut = async {
+            // Avoid reading from the inbound_chan_rx Tor Channel if the outgoing sink is blocked
+            let _ = outbound_chan_ready.await;
+            self.inbound_chan_rx.next().await
         };
 
         #[cfg(feature = "relay")]
@@ -310,7 +310,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 let msg = res.ok_or_else(|| ReactorError::Shutdown)?;
                 self.handle_msg(msg)
             }
-            cell = input_fut.fuse() => {
+            cell = inbound_chan_rx_fut.fuse() => {
                 let Some(cell) = cell else {
                     debug!(
                         circ_id = %self.unique_id,
@@ -429,7 +429,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
 
         let forward = ForwardSender {
             circ_id,
-            chan_sender: chan.sender(),
+            outbound_chan_tx: chan.sender(),
         };
 
         self.forward = Some(forward);
@@ -526,7 +526,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             // the congestion control object right here (via hop_mgr).
             //
             // However, the forward reactor does not have access to the
-            // chan_sender part of the inbound (towards the client) Tor channel,
+            // outbound_chan_tx part of the inbound (towards the client) Tor channel,
             // and so it cannot handle the SENDME on its own
             // (because it cannot obtain the congestion signals),
             // so the SENDME needs to be handled in the backward reactor.
