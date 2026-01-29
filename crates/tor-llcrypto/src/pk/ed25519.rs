@@ -16,7 +16,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
 #[cfg(feature = "memquota-memcost")]
-use tor_memquota::derive_deftly_template_HasMemoryCost;
+use tor_memquota_cost::derive_deftly_template_HasMemoryCost;
 
 use ed25519_dalek::hazmat::ExpandedSecretKey;
 use ed25519_dalek::{Signer as _, Verifier as _};

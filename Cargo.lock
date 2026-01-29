@@ -7272,7 +7272,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tor-basic-utils",
  "tor-error",
- "tor-memquota",
+ "tor-memquota-cost",
  "typenum",
  "visibility",
  "x25519-dalek",
