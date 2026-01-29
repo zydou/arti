@@ -40,7 +40,7 @@ use tor_netdoc::{
 use tracing::{debug, warn};
 
 use crate::{
-    database::{self, sql, Consensus, ContentEncoding, Timestamp},
+    database::{self as db, sql, Consensus, ContentEncoding, Timestamp},
     err::{DatabaseError, NetdocRequestError, OperationError},
     mirror::operation::download::DownloadManager,
 };
@@ -373,7 +373,7 @@ impl StaticEngine {
         // TODO: Should we return DatabaseError or something like
         // StateDeterminationError?  Either way, both cases should be seriously
         // fatal.
-        let state = database::read_tx(pool, |tx| self.determine_state(tx, data, now))??;
+        let state = db::read_tx(pool, |tx| self.determine_state(tx, data, now))??;
         debug!("state is {state}");
 
         match state {
@@ -407,7 +407,7 @@ impl StaticEngine {
         // In this case, it is probably better to return a bug, as external
         // applications arbitrarily modifying the database while we are running
         // leaves too much room for wrong/weird behavior.
-        let (_meta, consensus) = database::read_tx(pool, |tx| {
+        let (_meta, consensus) = db::read_tx(pool, |tx| {
             let meta = Consensus::query_recent(tx, self.flavor, &self.tolerance, now)?
                 .ok_or(internal!("database externally modified?"))?;
             let consensus = meta.raw(tx)?;
@@ -715,7 +715,7 @@ fn insert_authority_certificates(
             // the end of the world if we change this later -- at worst, clients
             // will simply get it in a different encoding they prefer less, but
             // that should not be super critical.
-            let docid = database::store_insert(tx, raw.as_bytes(), ContentEncoding::iter())?;
+            let docid = db::store_insert(tx, raw.as_bytes(), ContentEncoding::iter())?;
             Ok::<_, DatabaseError>((docid, cert))
         })
         .collect::<Result<Vec<_>, _>>()?;
