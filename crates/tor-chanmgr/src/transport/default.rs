@@ -35,7 +35,10 @@ impl<R: Runtime> DefaultTransport<R> {
             };
             (proxy, addr)
         });
-        Self { runtime, outbound_proxy }
+        Self {
+            runtime,
+            outbound_proxy,
+        }
     }
 }
 
@@ -62,7 +65,8 @@ impl<R: Runtime> crate::transport::TransportImplHelper for DefaultTransport<R> {
 
         trace!("Launching direct connection for {}", target);
 
-        let (stream, addr) = connect_to_one(&self.runtime, &direct_addrs, &self.outbound_proxy).await?;
+        let (stream, addr) =
+            connect_to_one(&self.runtime, &direct_addrs, &self.outbound_proxy).await?;
         let mut using_target = target.clone();
         let _ignore = using_target.chan_method_mut().retain_addrs(|a| a == &addr);
 
@@ -114,11 +118,12 @@ async fn connect_to_one<R: Runtime>(
                                 super::proxied::Protocol::Socks(version, auth)
                             }
                         };
-                        super::proxied::connect_via_proxy(rt, &proxy_addr, &protocol, &target)
-                            .await
+                        super::proxied::connect_via_proxy(rt, &proxy_addr, &protocol, &target).await
                     } else {
                         // Direct connection
-                        rt.connect(&a).await.map_err(super::proxied::ProxyError::from)
+                        rt.connect(&a)
+                            .await
+                            .map_err(super::proxied::ProxyError::from)
                     }?;
                     Ok((stream, a))
                 }
@@ -140,7 +145,11 @@ async fn connect_to_one<R: Runtime>(
             Err((e, a)) => {
                 // We got a failure on one of the streams. Store the error.
                 // TODO(eta): ideally we'd start the next connection attempt immediately.
-                tor_error::warn_report!(Arc::new(std::io::Error::from(e.clone())), "Connection to {} failed", sv(a));
+                tor_error::warn_report!(
+                    Arc::new(std::io::Error::from(e.clone())),
+                    "Connection to {} failed",
+                    sv(a)
+                );
                 errors.push((e, a));
             }
         }
@@ -255,9 +264,13 @@ mod test {
             }
 
             // Connect to addr1 and addr4?  The first one should win.
-            let (_conn, addr) = connect_to_one(&client_rt, &[addr1, addr4], &None).await.unwrap();
+            let (_conn, addr) = connect_to_one(&client_rt, &[addr1, addr4], &None)
+                .await
+                .unwrap();
             assert_eq!(addr, addr1);
-            let (_conn, addr) = connect_to_one(&client_rt, &[addr4, addr1], &None).await.unwrap();
+            let (_conn, addr) = connect_to_one(&client_rt, &[addr4, addr1], &None)
+                .await
+                .unwrap();
             assert_eq!(addr, addr4);
         });
     }

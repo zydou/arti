@@ -6635,6 +6635,7 @@ dependencies = [
  "rand 0.9.2",
  "safelog",
  "serde",
+ "serde_with",
  "thiserror 2.0.18",
  "tor-async-utils",
  "tor-basic-utils",
