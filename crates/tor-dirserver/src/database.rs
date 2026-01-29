@@ -64,7 +64,7 @@ use sha2::Digest;
 use tor_basic_utils::RngExt;
 use tor_dircommon::config::DirTolerance;
 use tor_error::into_internal;
-use tor_netdoc::doc::netstatus::ConsensusFlavor;
+use tor_netdoc::doc::{authcert::AuthCertKeyIds, netstatus::ConsensusFlavor};
 
 use crate::err::DatabaseError;
 
@@ -523,6 +523,132 @@ impl ConsensusMeta {
     }
 }
 
+/// Representation of authority certificate metadata from the database.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AuthCertMeta {
+    /// The document id uniquely identifying the consensus.
+    pub(crate) docid: DocumentId,
+
+    /// The SHA-1 fingerprint of the identity key.
+    pub(crate) kp_auth_id_rsa_sha1: String,
+
+    /// The SHA-1 fingerprint of the signign key.
+    pub(crate) kp_auth_sign_rsa_sha1: String,
+
+    /// The timestamp after which this certificate will be valid.
+    pub(crate) dir_key_published: Timestamp,
+
+    /// The timestamp until this certificate will be valid.
+    pub(crate) dir_key_expires: Timestamp,
+}
+
+impl AuthCertMeta {
+    /// Obtain the most recently published and valid certificate for each authority.
+    ///
+    /// Returns the found [`AuthCertMeta`] items as well as the missing
+    /// [`AuthCertKeyIds`].
+    ///
+    /// # Performance
+    ///
+    /// This function has a performance between `O(n * log n)` and `O(n^2)`
+    /// because it performs `signatories.len()` database queries, with each
+    /// database query potentially taking something between `O(log n)` to
+    /// `O(n)` to execute.  However, given that this respective value is
+    /// oftentimes fairly small, it should not be much of a big concern.
+    pub(crate) fn query_recent(
+        tx: &Transaction,
+        signatories: &[AuthCertKeyIds],
+        tolerance: &DirTolerance,
+        now: Timestamp,
+    ) -> Result<(Vec<Self>, Vec<AuthCertKeyIds>), DatabaseError> {
+        // For every key pair in `signatories`, get the most recent valid cert.
+        //
+        // This query selects the most recent timestamp valid certificate from
+        // the database for a single given key pair.  It means that this query
+        // has to be executed as many times as there are entires in
+        // `signatories`.
+        //
+        // Unfortunately, there is no neater way to do this, because the
+        // alternative would involve using a nested set which SQLite does not
+        // support, even with the carray extension.  An alternative might be to
+        // precompute that string and then insert it here using `format!` but
+        // that feels hacky, error- and injection-prone.
+        //
+        // Parameters:
+        // :id_rsa: The RSA identity key fingerprint in uppercase hexadecimal.
+        // :sk_rsa: The RSA signing key fingerprint in uppercase hexadecimal.
+        // :now: The current system timestamp.
+        // :pre_tolerance: The tolerance for not-yet-valid certificates.
+        // :post_tolerance: The tolerance for expired certificates.
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            SELECT docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1,
+              dir_key_published, dir_key_expires
+            FROM authority_key_certificate
+            WHERE
+              (:id_rsa, :sk_rsa) = (kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1)
+              AND :now >= dir_key_published - :pre_tolerance
+              AND :now <= dir_key_expires + :post_tolerance
+            ORDER BY dir_key_published DESC
+            LIMIT 1
+            "
+        ))?;
+
+        // Keep track of the found (and parsed) certificates and the missing ones.
+        let mut found = Vec::new();
+        let mut missing = Vec::new();
+
+        // Iterate over every key pair and query it, adding it to found if it exists
+        // and was parsed successfully or to missing if it does not exist within the
+        // database.
+        for kp in signatories {
+            // Query the certificate from the database.
+            let res = stmt
+            .query_one(
+                named_params! {
+                    ":id_rsa": kp.id_fingerprint.as_hex_upper(),
+                    ":sk_rsa": kp.sk_fingerprint.as_hex_upper(),
+                    ":now": now,
+                    ":pre_tolerance": tolerance.pre_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
+                    ":post_tolerance": tolerance.post_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
+                },
+                |row| Ok(Self {
+                    docid: row.get(0)?,
+                    kp_auth_id_rsa_sha1: row.get(1)?,
+                    kp_auth_sign_rsa_sha1: row.get(2)?,
+                    dir_key_published: row.get(3)?,
+                    dir_key_expires: row.get(4)?,
+                })
+            )
+            .optional()?;
+
+            match res {
+                Some(cert) => found.push(cert),
+                None => missing.push(*kp),
+            }
+        }
+
+        Ok((found, missing))
+    }
+
+    /// Queries the raw data of an [`AuthCertMeta`].
+    pub(crate) fn data(&self, tx: &Transaction<'_>) -> Result<String, DatabaseError> {
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            SELECT content
+            FROM store
+            WHERE docid = :docid
+            "
+        ))?;
+
+        let raw = stmt.query_one(named_params! {":docid": self.docid}, |row| {
+            row.get::<_, Vec<u8>>(0)
+        })?;
+        let raw = String::from_utf8(raw).map_err(into_internal!("utf-8 constraint violated?"))?;
+        Ok(raw)
+    }
+}
+
 /// A no-op macro just returning the supplied.
 ///
 /// The purpose of this macro is to semantically mark [`str`] literals to be
@@ -791,6 +917,7 @@ mod test {
     use tempfile::tempdir;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_dircommon::config::DirToleranceBuilder;
+    use tor_llcrypto::pk::rsa::RsaIdentity;
 
     use super::*;
 
@@ -813,9 +940,11 @@ mod test {
     }
 
     const CONSENSUS_CONTENT: &str = "Lorem ipsum dolor sit amet.";
+    const CERT_CONTENT: &[u8] = include_bytes!("../testdata/authcert-longclaw");
 
     lazy_static! {
         static ref CONSENSUS_DOCID: DocumentId = DocumentId::digest(CONSENSUS_CONTENT.as_bytes());
+        static ref CERT_DOCID: DocumentId = DocumentId::digest(CERT_CONTENT);
     }
 
     fn create_dummy_db() -> Pool<SqliteConnectionManager> {
@@ -824,6 +953,12 @@ mod test {
             tx.execute(
                 sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
                 params![*CONSENSUS_DOCID, CONSENSUS_CONTENT.as_bytes()],
+            )
+            .unwrap();
+
+            tx.execute(
+                sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
+                params![*CERT_DOCID, CERT_CONTENT],
             )
             .unwrap();
 
@@ -846,6 +981,22 @@ mod test {
                 ],
             )
             .unwrap();
+
+                    tx.execute(sql!(
+                "
+                INSERT INTO authority_key_certificate
+                  (docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1, dir_key_published, dir_key_expires)
+                VALUES
+                  (:docid, :id_rsa, :sk_rsa, :published, :expires)
+                "
+                ),
+                named_params! {
+                ":docid": *CERT_DOCID,
+                ":id_rsa": "49015F787433103580E3B66A1707A00E60F2D15B",
+                ":sk_rsa": "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
+                ":published": 1764543578,
+                ":expires": 1772492378,
+            }).unwrap();
         })
         .unwrap();
 
@@ -1327,5 +1478,109 @@ mod test {
             assert!(when >= *FRESH_UNTIL);
             assert!(when <= *FRESH_UNTIL_HALF);
         }
+    }
+
+    #[test]
+    fn get_auth_cert() {
+        let pool = create_dummy_db();
+
+        // Empty.
+        let (found, missing) = read_tx(&pool, |tx| {
+            AuthCertMeta::query_recent(
+                tx,
+                &[],
+                &DirTolerance::default(),
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
+            )
+        })
+        .unwrap()
+        .unwrap();
+        assert!(found.is_empty());
+        assert!(missing.is_empty());
+
+        // Find one and two missing ones.
+        let (found, missing) = read_tx(&pool, |tx| {
+            AuthCertMeta::query_recent(
+                tx,
+                &[
+                    // Found one.
+                    AuthCertKeyIds {
+                        id_fingerprint: RsaIdentity::from_hex(
+                            "49015F787433103580E3B66A1707A00E60F2D15B",
+                        )
+                        .unwrap(),
+                        sk_fingerprint: RsaIdentity::from_hex(
+                            "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
+                        )
+                        .unwrap(),
+                    },
+                    // Missing.
+                    AuthCertKeyIds {
+                        id_fingerprint: RsaIdentity::from_hex(
+                            "0000000000000000000000000000000000000000",
+                        )
+                        .unwrap(),
+                        sk_fingerprint: RsaIdentity::from_hex(
+                            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                        )
+                        .unwrap(),
+                    },
+                    // Missing.
+                    AuthCertKeyIds {
+                        id_fingerprint: RsaIdentity::from_hex(
+                            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                        )
+                        .unwrap(),
+                        sk_fingerprint: RsaIdentity::from_hex(
+                            "0000000000000000000000000000000000000000",
+                        )
+                        .unwrap(),
+                    },
+                ],
+                &DirTolerance::default(),
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
+            )
+        })
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            found,
+            vec![AuthCertMeta {
+                docid: DocumentId([
+                    92, 209, 212, 58, 114, 64, 222, 240, 206, 86, 208, 234, 56, 226, 190, 213, 169,
+                    84, 186, 24, 192, 145, 31, 119, 236, 140, 35, 22, 78, 160, 77, 117
+                ]),
+                kp_auth_id_rsa_sha1: "49015F787433103580E3B66A1707A00E60F2D15B".to_owned(),
+                kp_auth_sign_rsa_sha1: "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0".to_owned(),
+                dir_key_published: (SystemTime::UNIX_EPOCH + Duration::from_secs(1764543578))
+                    .into(),
+                dir_key_expires: (SystemTime::UNIX_EPOCH + Duration::from_secs(1772492378)).into()
+            }]
+        );
+        assert_eq!(
+            missing,
+            vec![
+                AuthCertKeyIds {
+                    id_fingerprint: RsaIdentity::from_hex(
+                        "0000000000000000000000000000000000000000",
+                    )
+                    .unwrap(),
+                    sk_fingerprint: RsaIdentity::from_hex(
+                        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                    )
+                    .unwrap(),
+                },
+                AuthCertKeyIds {
+                    id_fingerprint: RsaIdentity::from_hex(
+                        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                    )
+                    .unwrap(),
+                    sk_fingerprint: RsaIdentity::from_hex(
+                        "0000000000000000000000000000000000000000",
+                    )
+                    .unwrap(),
+                }
+            ]
+        );
     }
 }
