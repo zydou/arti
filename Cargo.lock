@@ -6988,6 +6988,7 @@ dependencies = [
  "rusqlite",
  "saturating-time",
  "sha2",
+ "sha3",
  "strum 0.28.0",
  "tempfile",
  "thiserror 2.0.18",

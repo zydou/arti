@@ -308,6 +308,7 @@ macro_rules! impl_hash_wrapper {
 }
 
 impl_hash_wrapper!(Sha256, sha2::Sha256, 32);
+impl_hash_wrapper!(Sha3_256, sha3::Sha3_256, 32);
 
 /// The identifier for documents in the content-addressable cache.
 ///
@@ -425,7 +426,7 @@ pub(crate) struct ConsensusMeta {
     pub(crate) docid: DocumentId,
 
     /// The SHA3 of the unsigned part of the consensus.
-    pub(crate) unsigned_sha3_256: String,
+    pub(crate) unsigned_sha3_256: Sha3_256,
 
     /// The flavor of the consensus.
     pub(crate) flavor: ConsensusFlavor,
@@ -1422,9 +1423,7 @@ mod test {
                 res1,
                 ConsensusMeta {
                     docid: *CONSENSUS_DOCID,
-                    unsigned_sha3_256: String::from(
-                        "0000000000000000000000000000000000000000000000000000000000000000"
-                    ),
+                    unsigned_sha3_256: Sha3_256::from([0; 32]),
                     flavor: ConsensusFlavor::Plain,
                     valid_after: *VALID_AFTER,
                     fresh_until: *FRESH_UNTIL,
@@ -1455,9 +1454,7 @@ mod test {
                 res1,
                 ConsensusMeta {
                     docid: *CONSENSUS_DOCID,
-                    unsigned_sha3_256: String::from(
-                        "0000000000000000000000000000000000000000000000000000000000000000"
-                    ),
+                    unsigned_sha3_256: Sha3_256::from([0; 32]),
                     flavor: ConsensusFlavor::Plain,
                     valid_after: *VALID_AFTER,
                     fresh_until: *FRESH_UNTIL,
@@ -1474,7 +1471,7 @@ mod test {
         // We repeat the tests a few thousand times to go over many random values.
         let cons = ConsensusMeta {
             docid: *CONSENSUS_DOCID,
-            unsigned_sha3_256: String::new(),
+            unsigned_sha3_256: Sha3_256::from([0; 32]),
             flavor: ConsensusFlavor::Plain,
             valid_after: *VALID_AFTER,
             fresh_until: *FRESH_UNTIL,
