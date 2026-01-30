@@ -1797,10 +1797,10 @@ example config file {which:?}, uncommented={uncommented:?}
         assert_eq!(&config.proxy, proxy);
     }
 
-    /// Comprehensive tests for the various `socks_port` and `dns_port`
+    /// Comprehensive tests for `proxy.socks_listen` and `proxy.dns_listen`.
     ///
     /// The "this isn't set at all, just use the default" cases are tested elsewhere.
-    fn compat_ports_listen(
+    fn ports_listen(
         f: &str,
         get_listen: &dyn Fn(&ArtiConfig) -> &Listen,
         bld_get_listen: &dyn Fn(&ArtiConfigBuilder) -> &Option<Listen>,
@@ -1819,15 +1819,14 @@ example config file {which:?}, uncommented={uncommented:?}
         };
 
         let check_setters = |port, expected: &_| {
-            for cfg in [ArtiConfig::builder()] {
-                for listen in match port {
-                    None => vec![Listen::new_none(), Listen::new_localhost(0)],
-                    Some(port) => vec![Listen::new_localhost(port)],
-                } {
-                    let mut cfg = cfg.clone();
-                    setter_listen(&mut cfg, dbg!(listen));
-                    chk(&cfg, expected);
-                }
+            let cfg = ArtiConfig::builder();
+            for listen in match port {
+                None => vec![Listen::new_none(), Listen::new_localhost(0)],
+                Some(port) => vec![Listen::new_localhost(port)],
+            } {
+                let mut cfg = cfg.clone();
+                setter_listen(&mut cfg, dbg!(listen));
+                chk(&cfg, expected);
             }
         };
 
@@ -1852,9 +1851,8 @@ example config file {which:?}, uncommented={uncommented:?}
     }
 
     #[test]
-    #[allow(deprecated)]
     fn ports_listen_socks() {
-        compat_ports_listen(
+        ports_listen(
             "socks",
             &|cfg| &cfg.proxy.socks_listen,
             &|bld| &bld.proxy.socks_listen,
@@ -1863,9 +1861,8 @@ example config file {which:?}, uncommented={uncommented:?}
     }
 
     #[test]
-    #[allow(deprecated)]
-    fn compat_ports_listen_dns() {
-        compat_ports_listen(
+    fn ports_listen_dns() {
+        ports_listen(
             "dns",
             &|cfg| &cfg.proxy.dns_listen,
             &|bld| &bld.proxy.dns_listen,
