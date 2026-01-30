@@ -233,8 +233,8 @@ async fn run_proxy<R: ToplevelRuntime>(
             warn!(
                 "No proxy address set; \
                 specify -p PORT (to override `socks_listen`) \
-                or -d PORT (to override `dns_port`). \
-                Alternatively, use the `socks_listen` or `dns_port` configuration options."
+                or -d PORT (to override `dns_listen`). \
+                Alternatively, use the `socks_listen` or `dns_listen` configuration options."
             );
             return Ok(());
         } else {

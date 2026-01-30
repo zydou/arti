@@ -29,7 +29,7 @@
 #socks_listen = 9150
 
 # Port to use to listen for DNS requests.  0 means disabled.
-#dns_port = 0
+#dns_listen = 0
 
 # Configure logging
 [logging]

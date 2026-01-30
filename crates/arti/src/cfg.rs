@@ -134,23 +134,8 @@ pub(crate) struct ProxyConfig {
     pub(crate) socks_listen: Listen,
 
     /// Addresses to listen on for incoming DNS connections.
-    #[builder(field(build = r#"#[allow(deprecated)]
-                   // We use this deprecated macro to instantiate the legacy dns_port option.
-                   { resolve_listen_port!(self, dns, 0) }
-                 "#))]
+    #[builder(default = "Listen::new_none()")]
     pub(crate) dns_listen: Listen,
-
-    /// Port to listen on (at localhost) for incoming DNS connections.
-    ///
-    /// This field is deprecated, and will, eventually, be removed.
-    /// Use `dns_listen` instead, which accepts the same values,
-    /// but which will also be able to support more flexible listening in the future.
-    #[builder(
-        setter(strip_option),
-        field(type = "Option<Option<u16>>", build = "()")
-    )]
-    #[builder_setter_attr(deprecated)]
-    pub(crate) dns_port: (),
 }
 impl_standard_builder! { ProxyConfig }
 
@@ -609,7 +594,6 @@ mod test {
                 "bridges",
                 "logging.time_granularity",
                 "path_rules.long_lived_ports",
-                "proxy.dns_listen",
                 "use_obsolete_software",
                 "circuit_timing.disused_circuit_timeout",
                 "storage.port_info_file",
