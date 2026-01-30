@@ -29,6 +29,7 @@ full = [
     "tor-basic-utils/full",
     "oneshot-fused-workaround/full",
     "tor-config-path/full",
+    "tor-proto/full",
 ]
 
 experimental = ["experimental-api"]
