@@ -2,8 +2,6 @@
 //
 // (This module is called `cfg` to avoid name clash with the `config` crate, which we use.)
 
-use paste::paste;
-
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_config_path::CfgPath;
@@ -19,7 +17,6 @@ pub use crate::rpc::{RpcConfig, RpcConfigBuilder};
 use arti_client::TorClientConfig;
 #[cfg(feature = "onion-service-service")]
 use tor_config::define_list_builder_accessors;
-use tor_config::resolve_alternative_specs;
 pub(crate) use tor_config::{ConfigBuildError, Listen, impl_standard_builder};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
@@ -86,38 +83,6 @@ pub(crate) struct ApplicationConfig {
     pub(crate) allow_running_as_root: bool,
 }
 impl_standard_builder! { ApplicationConfig }
-
-/// Resolves values from `$field_listen` and `$field_port` (compat) into a `Listen`
-///
-/// For `dns` and `proxy`.
-///
-/// Handles defaulting, and normalization, using `resolve_alternative_specs`
-/// and `Listen::new_localhost_option`.
-///
-/// Broken out into a macro so as to avoid having to state the field name four times,
-/// which is a recipe for programming slips.
-///
-/// NOTE: Don't use this for new ports options!
-/// We only have to use it where we do because of the legacy `port` options.
-/// For new ports, provide a listener only.
-#[deprecated = "This macro is only for supporting old _port options! Don't use it for new options."]
-macro_rules! resolve_listen_port {
-    { $self:expr, $field:ident, $def_port:expr } => { paste!{
-        resolve_alternative_specs(
-            [
-                (
-                    concat!(stringify!($field), "_listen"),
-                    $self.[<$field _listen>].clone(),
-                ),
-                (
-                    concat!(stringify!($field), "_port"),
-                    $self.[<$field _port>].map(Listen::new_localhost_optional),
-                ),
-            ],
-            || Listen::new_localhost($def_port),
-        )?
-    } }
-}
 
 /// Configuration for one or more proxy listeners.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]

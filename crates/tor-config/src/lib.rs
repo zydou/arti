@@ -249,6 +249,11 @@ where
 /// `value` is that field from the builder,
 /// converted to the common output type `V`.
 ///
+/// **NOTE:** Arti used to use this when it supported both `socks_listen` and `socks_port` options.
+/// As `socks_port` and `dns_port` have been removed, this is no longer used.
+/// This functions is being kept since we will likely need to support alternative configuration
+/// items in the future, and can reuse this function at that time.
+///
 /// # Example
 ///
 /// ```
@@ -284,9 +289,6 @@ where
 ///     }
 /// }
 /// ```
-//
-// Testing: this is tested quit exhaustively in the context of the listen/port handling, in
-// crates/arti/src/cfg.rs.
 pub fn resolve_alternative_specs<V, K>(
     specified: impl IntoIterator<Item = (K, Option<V>)>,
     default: impl FnOnce() -> V,
