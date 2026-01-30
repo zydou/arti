@@ -1803,9 +1803,7 @@ example config file {which:?}, uncommented={uncommented:?}
     fn compat_ports_listen(
         f: &str,
         get_listen: &dyn Fn(&ArtiConfig) -> &Listen,
-        bld_get_port: &dyn Fn(&ArtiConfigBuilder) -> &Option<Option<u16>>,
         bld_get_listen: &dyn Fn(&ArtiConfigBuilder) -> &Option<Listen>,
-        setter_port: &dyn Fn(&mut ArtiConfigBuilder, Option<u16>) -> &mut ProxyConfigBuilder,
         setter_listen: &dyn Fn(&mut ArtiConfigBuilder, Listen) -> &mut ProxyConfigBuilder,
     ) {
         let from_toml = |s: &str| -> ArtiConfigBuilder {
@@ -1814,29 +1812,19 @@ example config file {which:?}, uncommented={uncommented:?}
             cfg
         };
 
-        let conflicting_cfgs = [
-            format!("proxy.{}_port = 0 \n proxy.{}_listen = 200", f, f),
-            format!("proxy.{}_port = 100 \n proxy.{}_listen = 0", f, f),
-            format!("proxy.{}_port = 100 \n proxy.{}_listen = 200", f, f),
-        ];
-
         let chk = |cfg: &ArtiConfigBuilder, expected: &Listen| {
-            dbg!(bld_get_listen(cfg), bld_get_port(cfg));
+            dbg!(bld_get_listen(cfg));
             let cfg = cfg.build().unwrap();
             assert_eq!(get_listen(&cfg), expected);
         };
 
         let check_setters = |port, expected: &_| {
-            for cfg in chain!(
-                iter::once(ArtiConfig::builder()),
-                conflicting_cfgs.iter().map(|cfg| from_toml(cfg)),
-            ) {
+            for cfg in [ArtiConfig::builder()] {
                 for listen in match port {
                     None => vec![Listen::new_none(), Listen::new_localhost(0)],
                     Some(port) => vec![Listen::new_localhost(port)],
                 } {
                     let mut cfg = cfg.clone();
-                    setter_port(&mut cfg, dbg!(port));
                     setter_listen(&mut cfg, dbg!(listen));
                     chk(&cfg, expected);
                 }
@@ -1846,18 +1834,8 @@ example config file {which:?}, uncommented={uncommented:?}
         {
             let expected = Listen::new_localhost(100);
 
-            let cfg = from_toml(&format!("proxy.{}_port = 100", f));
-            assert_eq!(bld_get_port(&cfg), &Some(Some(100)));
-            chk(&cfg, &expected);
-
             let cfg = from_toml(&format!("proxy.{}_listen = 100", f));
             assert_eq!(bld_get_listen(&cfg), &Some(Listen::new_localhost(100)));
-            chk(&cfg, &expected);
-
-            let cfg = from_toml(&format!(
-                "proxy.{}_port = 100\n proxy.{}_listen = 100",
-                f, f
-            ));
             chk(&cfg, &expected);
 
             check_setters(Some(100), &expected);
@@ -1866,22 +1844,10 @@ example config file {which:?}, uncommented={uncommented:?}
         {
             let expected = Listen::new_none();
 
-            let cfg = from_toml(&format!("proxy.{}_port = 0", f));
-            chk(&cfg, &expected);
-
             let cfg = from_toml(&format!("proxy.{}_listen = 0", f));
             chk(&cfg, &expected);
 
-            let cfg = from_toml(&format!("proxy.{}_port = 0 \n proxy.{}_listen = 0", f, f));
-            chk(&cfg, &expected);
-
             check_setters(None, &expected);
-        }
-
-        for cfg in &conflicting_cfgs {
-            let cfg = from_toml(cfg);
-            let err = dbg!(cfg.build()).unwrap_err();
-            assert!(err.to_string().contains("specifying different values"));
         }
     }
 
@@ -1891,9 +1857,7 @@ example config file {which:?}, uncommented={uncommented:?}
         compat_ports_listen(
             "socks",
             &|cfg| &cfg.proxy.socks_listen,
-            &|bld| &bld.proxy.socks_port,
             &|bld| &bld.proxy.socks_listen,
-            &|bld, arg| bld.proxy.socks_port(arg),
             &|bld, arg| bld.proxy.socks_listen(arg),
         );
     }
@@ -1904,9 +1868,7 @@ example config file {which:?}, uncommented={uncommented:?}
         compat_ports_listen(
             "dns",
             &|cfg| &cfg.proxy.dns_listen,
-            &|bld| &bld.proxy.dns_port,
             &|bld| &bld.proxy.dns_listen,
-            &|bld, arg| bld.proxy.dns_port(arg),
             &|bld, arg| bld.proxy.dns_listen(arg),
         );
     }
