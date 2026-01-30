@@ -712,7 +712,11 @@ pub trait TlsProvider<S: StreamOps>: Clone + Send + Sync + 'static {
 #[non_exhaustive]
 pub struct TlsAcceptorSettings {
     /// The certificates and keys for this acceptor.
+    #[cfg(feature = "tls-server")]
     pub(crate) identity: TlsKeyAndCert,
+
+    #[cfg(not(feature = "tls-server"))]
+    unconstructable: void::Void,
     //
     // TODO: Add support for additional certificates in a chain.
     // TODO: Possibly, add support for PEM.
@@ -735,6 +739,11 @@ impl TlsAcceptorSettings {
 
     /// Return the primary certificate for this [`TlsAcceptorSettings`], in DER format.
     pub fn cert_der(&self) -> &[u8] {
+        #[cfg(not(feature = "tls-server"))]
+        {
+            void::unreachable(self.unconstructable);
+        }
+        #[cfg(feature = "tls-server")]
         self.identity.certificates_der()[0]
     }
 }
