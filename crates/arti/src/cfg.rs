@@ -130,23 +130,8 @@ pub(crate) struct ProxyConfig {
     /// Addresses to listen on for incoming SOCKS connections.
     //
     // TODO: Once http-connect is non-experimental, we should rename this option in a backward-compatible way.
-    #[builder(field(build = r#"#[allow(deprecated)]
-                   // We use this deprecated macro to instantiate the legacy socks_port option.
-                   { resolve_listen_port!(self, socks, 9150) }
-                 "#))]
+    #[builder(default = "Listen::new_localhost(9150)")]
     pub(crate) socks_listen: Listen,
-
-    /// Port to listen on (at localhost) for incoming SOCKS connections.
-    ///
-    /// This field is deprecated, and will, eventually, be removed.
-    /// Use `socks_listen` instead, which accepts the same values,
-    /// but which will also be able to support more flexible listening in the future.
-    #[builder(
-        setter(strip_option),
-        field(type = "Option<Option<u16>>", build = "()")
-    )]
-    #[builder_setter_attr(deprecated)]
-    pub(crate) socks_port: (),
 
     /// Addresses to listen on for incoming DNS connections.
     #[builder(field(build = r#"#[allow(deprecated)]
@@ -339,6 +324,10 @@ impl ArtiConfigBuilder {
 
 impl tor_config::load::TopLevel for ArtiConfig {
     type Builder = ArtiConfigBuilder;
+    // Some config options such as "proxy.socks_port" are no longer
+    // just "deprecated" and have since been completely removed from Arti,
+    // but there's no harm in informing the user that the options are still deprecated.
+    // For these removed options, Arti will ignore them like it does for all unknown options.
     const DEPRECATED_KEYS: &'static [&'static str] = &["proxy.socks_port", "proxy.dns_port"];
 }
 
@@ -620,7 +609,6 @@ mod test {
                 "bridges",
                 "logging.time_granularity",
                 "path_rules.long_lived_ports",
-                "proxy.socks_listen",
                 "proxy.dns_listen",
                 "use_obsolete_software",
                 "circuit_timing.disused_circuit_timeout",

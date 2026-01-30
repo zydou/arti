@@ -229,12 +229,12 @@ async fn run_proxy<R: ToplevelRuntime>(
 
     if proxy.is_empty() {
         if !launched_onion_svc {
-            // TODO: rename "socks_port" to "proxy_port", preserving compat, once http-connect is stable.
+            // TODO: rename "socks_listen" to "proxy_listen", preserving compat, once http-connect is stable.
             warn!(
                 "No proxy address set; \
-                specify -p PORT (to override `socks_port`) \
+                specify -p PORT (to override `socks_listen`) \
                 or -d PORT (to override `dns_port`). \
-                Alternatively, use the `socks_port` or `dns_port` configuration options."
+                Alternatively, use the `socks_listen` or `dns_port` configuration options."
             );
             return Ok(());
         } else {

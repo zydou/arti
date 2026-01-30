@@ -26,7 +26,7 @@
 # listen on localhost.
 #
 # Note that only one process can listen on a given port at a time.
-#socks_port = 9150
+#socks_listen = 9150
 
 # Port to use to listen for DNS requests.  0 means disabled.
 #dns_port = 0
