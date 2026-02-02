@@ -42,10 +42,10 @@ For example, the following command is used to launch Arti in SOCKS proxy mode wi
 target/debug/arti proxy
 ```
 
-To override the default settings, you can use the `-o` flag to specify the parameters you want to change. For example, the following command is used to launch Arti in SOCKS proxy mode with the default settings, but with the `proxy.port` parameter set to `9000`.
+To override the default settings, you can use the `-o` flag to specify the parameters you want to change. For example, the following command is used to launch Arti in SOCKS proxy mode with the default settings, but with the `proxy.socks_listen` parameter set to `9000`.
 
 ```bash
-target/debug/arti proxy -o proxy.socks_port=9000
+target/debug/arti proxy -o 'proxy.socks_listen = 9000'
 ```
 
 This starts Arti in SOCKS proxy mode using default settings, listening on port 9000 instead of 9150.

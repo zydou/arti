@@ -2,8 +2,6 @@
 //
 // (This module is called `cfg` to avoid name clash with the `config` crate, which we use.)
 
-use paste::paste;
-
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_config_path::CfgPath;
@@ -19,7 +17,6 @@ pub use crate::rpc::{RpcConfig, RpcConfigBuilder};
 use arti_client::TorClientConfig;
 #[cfg(feature = "onion-service-service")]
 use tor_config::define_list_builder_accessors;
-use tor_config::resolve_alternative_specs;
 pub(crate) use tor_config::{ConfigBuildError, Listen, impl_standard_builder};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
@@ -87,38 +84,6 @@ pub(crate) struct ApplicationConfig {
 }
 impl_standard_builder! { ApplicationConfig }
 
-/// Resolves values from `$field_listen` and `$field_port` (compat) into a `Listen`
-///
-/// For `dns` and `proxy`.
-///
-/// Handles defaulting, and normalization, using `resolve_alternative_specs`
-/// and `Listen::new_localhost_option`.
-///
-/// Broken out into a macro so as to avoid having to state the field name four times,
-/// which is a recipe for programming slips.
-///
-/// NOTE: Don't use this for new ports options!
-/// We only have to use it where we do because of the legacy `port` options.
-/// For new ports, provide a listener only.
-#[deprecated = "This macro is only for supporting old _port options! Don't use it for new options."]
-macro_rules! resolve_listen_port {
-    { $self:expr, $field:ident, $def_port:expr } => { paste!{
-        resolve_alternative_specs(
-            [
-                (
-                    concat!(stringify!($field), "_listen"),
-                    $self.[<$field _listen>].clone(),
-                ),
-                (
-                    concat!(stringify!($field), "_port"),
-                    $self.[<$field _port>].map(Listen::new_localhost_optional),
-                ),
-            ],
-            || Listen::new_localhost($def_port),
-        )?
-    } }
-}
-
 /// Configuration for one or more proxy listeners.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
@@ -130,42 +95,12 @@ pub(crate) struct ProxyConfig {
     /// Addresses to listen on for incoming SOCKS connections.
     //
     // TODO: Once http-connect is non-experimental, we should rename this option in a backward-compatible way.
-    #[builder(field(build = r#"#[allow(deprecated)]
-                   // We use this deprecated macro to instantiate the legacy socks_port option.
-                   { resolve_listen_port!(self, socks, 9150) }
-                 "#))]
+    #[builder(default = "Listen::new_localhost(9150)")]
     pub(crate) socks_listen: Listen,
 
-    /// Port to listen on (at localhost) for incoming SOCKS connections.
-    ///
-    /// This field is deprecated, and will, eventually, be removed.
-    /// Use `socks_listen` instead, which accepts the same values,
-    /// but which will also be able to support more flexible listening in the future.
-    #[builder(
-        setter(strip_option),
-        field(type = "Option<Option<u16>>", build = "()")
-    )]
-    #[builder_setter_attr(deprecated)]
-    pub(crate) socks_port: (),
-
     /// Addresses to listen on for incoming DNS connections.
-    #[builder(field(build = r#"#[allow(deprecated)]
-                   // We use this deprecated macro to instantiate the legacy dns_port option.
-                   { resolve_listen_port!(self, dns, 0) }
-                 "#))]
+    #[builder(default = "Listen::new_none()")]
     pub(crate) dns_listen: Listen,
-
-    /// Port to listen on (at localhost) for incoming DNS connections.
-    ///
-    /// This field is deprecated, and will, eventually, be removed.
-    /// Use `dns_listen` instead, which accepts the same values,
-    /// but which will also be able to support more flexible listening in the future.
-    #[builder(
-        setter(strip_option),
-        field(type = "Option<Option<u16>>", build = "()")
-    )]
-    #[builder_setter_attr(deprecated)]
-    pub(crate) dns_port: (),
 }
 impl_standard_builder! { ProxyConfig }
 
@@ -339,6 +274,10 @@ impl ArtiConfigBuilder {
 
 impl tor_config::load::TopLevel for ArtiConfig {
     type Builder = ArtiConfigBuilder;
+    // Some config options such as "proxy.socks_port" are no longer
+    // just "deprecated" and have since been completely removed from Arti,
+    // but there's no harm in informing the user that the options are still deprecated.
+    // For these removed options, Arti will ignore them like it does for all unknown options.
     const DEPRECATED_KEYS: &'static [&'static str] = &["proxy.socks_port", "proxy.dns_port"];
 }
 
@@ -620,8 +559,6 @@ mod test {
                 "bridges",
                 "logging.time_granularity",
                 "path_rules.long_lived_ports",
-                "proxy.socks_listen",
-                "proxy.dns_listen",
                 "use_obsolete_software",
                 "circuit_timing.disused_circuit_timeout",
                 "storage.port_info_file",
@@ -1797,15 +1734,13 @@ example config file {which:?}, uncommented={uncommented:?}
         assert_eq!(&config.proxy, proxy);
     }
 
-    /// Comprehensive tests for the various `socks_port` and `dns_port`
+    /// Comprehensive tests for `proxy.socks_listen` and `proxy.dns_listen`.
     ///
     /// The "this isn't set at all, just use the default" cases are tested elsewhere.
-    fn compat_ports_listen(
+    fn ports_listen(
         f: &str,
         get_listen: &dyn Fn(&ArtiConfig) -> &Listen,
-        bld_get_port: &dyn Fn(&ArtiConfigBuilder) -> &Option<Option<u16>>,
         bld_get_listen: &dyn Fn(&ArtiConfigBuilder) -> &Option<Listen>,
-        setter_port: &dyn Fn(&mut ArtiConfigBuilder, Option<u16>) -> &mut ProxyConfigBuilder,
         setter_listen: &dyn Fn(&mut ArtiConfigBuilder, Listen) -> &mut ProxyConfigBuilder,
     ) {
         let from_toml = |s: &str| -> ArtiConfigBuilder {
@@ -1814,50 +1749,29 @@ example config file {which:?}, uncommented={uncommented:?}
             cfg
         };
 
-        let conflicting_cfgs = [
-            format!("proxy.{}_port = 0 \n proxy.{}_listen = 200", f, f),
-            format!("proxy.{}_port = 100 \n proxy.{}_listen = 0", f, f),
-            format!("proxy.{}_port = 100 \n proxy.{}_listen = 200", f, f),
-        ];
-
         let chk = |cfg: &ArtiConfigBuilder, expected: &Listen| {
-            dbg!(bld_get_listen(cfg), bld_get_port(cfg));
+            dbg!(bld_get_listen(cfg));
             let cfg = cfg.build().unwrap();
             assert_eq!(get_listen(&cfg), expected);
         };
 
         let check_setters = |port, expected: &_| {
-            for cfg in chain!(
-                iter::once(ArtiConfig::builder()),
-                conflicting_cfgs.iter().map(|cfg| from_toml(cfg)),
-            ) {
-                for listen in match port {
-                    None => vec![Listen::new_none(), Listen::new_localhost(0)],
-                    Some(port) => vec![Listen::new_localhost(port)],
-                } {
-                    let mut cfg = cfg.clone();
-                    setter_port(&mut cfg, dbg!(port));
-                    setter_listen(&mut cfg, dbg!(listen));
-                    chk(&cfg, expected);
-                }
+            let cfg = ArtiConfig::builder();
+            for listen in match port {
+                None => vec![Listen::new_none(), Listen::new_localhost(0)],
+                Some(port) => vec![Listen::new_localhost(port)],
+            } {
+                let mut cfg = cfg.clone();
+                setter_listen(&mut cfg, dbg!(listen));
+                chk(&cfg, expected);
             }
         };
 
         {
             let expected = Listen::new_localhost(100);
 
-            let cfg = from_toml(&format!("proxy.{}_port = 100", f));
-            assert_eq!(bld_get_port(&cfg), &Some(Some(100)));
-            chk(&cfg, &expected);
-
             let cfg = from_toml(&format!("proxy.{}_listen = 100", f));
             assert_eq!(bld_get_listen(&cfg), &Some(Listen::new_localhost(100)));
-            chk(&cfg, &expected);
-
-            let cfg = from_toml(&format!(
-                "proxy.{}_port = 100\n proxy.{}_listen = 100",
-                f, f
-            ));
             chk(&cfg, &expected);
 
             check_setters(Some(100), &expected);
@@ -1866,47 +1780,29 @@ example config file {which:?}, uncommented={uncommented:?}
         {
             let expected = Listen::new_none();
 
-            let cfg = from_toml(&format!("proxy.{}_port = 0", f));
-            chk(&cfg, &expected);
-
             let cfg = from_toml(&format!("proxy.{}_listen = 0", f));
-            chk(&cfg, &expected);
-
-            let cfg = from_toml(&format!("proxy.{}_port = 0 \n proxy.{}_listen = 0", f, f));
             chk(&cfg, &expected);
 
             check_setters(None, &expected);
         }
-
-        for cfg in &conflicting_cfgs {
-            let cfg = from_toml(cfg);
-            let err = dbg!(cfg.build()).unwrap_err();
-            assert!(err.to_string().contains("specifying different values"));
-        }
     }
 
     #[test]
-    #[allow(deprecated)]
     fn ports_listen_socks() {
-        compat_ports_listen(
+        ports_listen(
             "socks",
             &|cfg| &cfg.proxy.socks_listen,
-            &|bld| &bld.proxy.socks_port,
             &|bld| &bld.proxy.socks_listen,
-            &|bld, arg| bld.proxy.socks_port(arg),
             &|bld, arg| bld.proxy.socks_listen(arg),
         );
     }
 
     #[test]
-    #[allow(deprecated)]
-    fn compat_ports_listen_dns() {
-        compat_ports_listen(
+    fn ports_listen_dns() {
+        ports_listen(
             "dns",
             &|cfg| &cfg.proxy.dns_listen,
-            &|bld| &bld.proxy.dns_port,
             &|bld| &bld.proxy.dns_listen,
-            &|bld, arg| bld.proxy.dns_port(arg),
             &|bld, arg| bld.proxy.dns_listen(arg),
         );
     }
