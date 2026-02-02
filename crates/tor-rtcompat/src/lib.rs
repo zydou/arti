@@ -717,7 +717,7 @@ mod test {
 
                     let mut buf = vec![];
                     conn.read_to_end(&mut buf).await.unwrap();
-                    (buf, conn.own_certificate())
+                    (buf, conn.own_certificate().unwrap().unwrap().into_owned())
                 })
                 .unwrap();
 
@@ -730,15 +730,15 @@ mod test {
                         .unwrap();
                     conn.write_all(msg).await.unwrap();
                     conn.close().await.unwrap();
-                    conn.peer_certificate()
+                    conn.peer_certificate().unwrap().unwrap().into_owned()
                 })
                 .unwrap();
 
             let (received, server_own_cert) = h1.await;
             let client_peer_cert = h2.await;
             assert_eq!(received, msg);
-            assert_eq!(&server_own_cert.unwrap().unwrap(), &cert);
-            assert_eq!(&client_peer_cert.unwrap().unwrap(), &cert);
+            assert_eq!(&server_own_cert, &cert);
+            assert_eq!(&client_peer_cert, &cert);
         });
         IoResult::Ok(())
     }

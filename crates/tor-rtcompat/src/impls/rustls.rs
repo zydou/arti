@@ -19,6 +19,7 @@ use rustls_pki_types::{CertificateDer, ServerName};
 use tracing::instrument;
 use webpki::EndEntityCert; // this is actually rustls_webpki.
 
+use std::borrow::Cow;
 use std::{
     io::{self, Error as IoError, Result as IoResult},
     sync::Arc,
@@ -62,11 +63,11 @@ pub struct RustlsProvider {
 }
 
 impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
-    fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
+    fn peer_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
         let (_, session) = self.get_ref();
         Ok(session
             .peer_certificates()
-            .and_then(|certs| certs.first().map(|c| Vec::from(c.as_ref()))))
+            .and_then(|certs| certs.first().map(|c| Cow::from(c.as_ref()))))
     }
 
     fn export_keying_material(
@@ -81,9 +82,8 @@ impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
             .map_err(|e| IoError::new(io::ErrorKind::InvalidData, e))
     }
 
-    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
-        // This is a client stream, so (as we build them currently) we know we didn't present a
-        // certificate.
+    fn own_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
+        // This is a client stream, so (as we build them currently) we know we didn't present a certificate.
         Ok(None)
     }
 }

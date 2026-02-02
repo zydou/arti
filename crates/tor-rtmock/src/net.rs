@@ -11,6 +11,7 @@ use super::MockNetRuntime;
 use super::io::{LocalStream, stream_pair};
 use crate::util::mpsc_channel;
 use core::fmt;
+use std::borrow::Cow;
 use tor_rtcompat::tls::{TlsAcceptorSettings, TlsConnector};
 use tor_rtcompat::{
     CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, StreamOps, TlsProvider,
@@ -557,12 +558,12 @@ impl TlsConnector<LocalStream> for MockTlsAcceptor {
 }
 
 impl CertifiedConn for MockTlsStream {
-    fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
-        Ok(self.peer_cert.clone())
+    fn peer_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
+        Ok(self.peer_cert.clone().map(Cow::from))
     }
 
-    fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
-        Ok(self.own_cert.clone())
+    fn own_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
+        Ok(self.own_cert.clone().map(Cow::from))
     }
     fn export_keying_material(
         &self,
