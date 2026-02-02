@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+# This script generates the ctor-keystore[0-9]+ test data in
+# `./crates/arti/tests/testcases/hsc-extra/hsc.in/local`
+#
+# Run this script from the root directory of the project:
+# ```bash
+# rm -r ./crates/arti/tests/testcases/hsc-extra/hsc.in/local/ctor-keystore*
+# ./maint/keygen-client-auth-test/generate
+# ```
+
+set -eou pipefail
+
+DIR="./crates/arti/tests/testcases/hsc-extra/hsc.in/local"
+PACKAGE="keygen-client-auth-test"
+BIN_PATH="./target/debug/${PACKAGE}"
+
+ADDR1="rh5d6reakhpvuxe2t3next6um6iiq4jf43m7gmdrphfhopfpnoglzcyd.onion"
+KEY1="service1.auth_private"
+
+ADDR2="2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion"
+KEY2="service2.auth_private"
+
+rm -rf "$DIR"/ctor-keystore*
+
+create_keystore() {
+    local keystore_dir="${DIR}/$1"
+    mkdir "$keystore_dir"
+    echo "$keystore_dir"
+}
+
+create_key() {
+    local file="$1/$2"
+    "$BIN_PATH" --hsid "$3" --priv-path "$file" 1> /dev/null
+    echo "$file"
+}
+
+if [ ! -d $DIR ]; then
+    echo "Did not find './crates/arti/tests/testcases/hsc-extra/hsc.in/local'" 1>&2
+    echo "directory in $(pwd). Cannot proceed." 1>&2
+    echo "Hint: run this script from the workspace root" 1>&2
+    exit 1
+fi
+
+cargo build --bin "$PACKAGE"
+
+export ARTI_TEST_PRNG="deterministic"
+
+keystore_dir=$(create_keystore "ctor-keystore1")
+create_key "$keystore_dir" "$KEY1" "$ADDR1"
+create_key "$keystore_dir" "$KEY2" "$ADDR2"
+
+keystore_dir=$(create_keystore "ctor-keystore2")
+create_key "$keystore_dir" "$KEY1" "$ADDR1"
+key=$(create_key "$keystore_dir" "$KEY2" "$ADDR2")
+cp "$key" "${keystore_dir}/service2_replica.auth_private"
+
+keystore_dir=$(create_keystore "ctor-keystore3")
+key="${keystore_dir}/invalid_key.auth_private"
+echo "Invalid Key" > "$key"
+
+keystore_dir=$(create_keystore "ctor-keystore4")
+create_key "$keystore_dir" "invalid_entry" $ADDR1
+
+keystore_dir=$(create_keystore "ctor-keystore5")
+create_key "$keystore_dir" "$KEY1" "$ADDR1"
+create_key "$keystore_dir" "$KEY2" "$ADDR2"
+create_key "$keystore_dir" "invalid_entry" $ADDR1
