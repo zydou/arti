@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirserver"
-version = "0.38.0"
+version = "0.39.0"
 authors = ["The Tor Project, Inc.", "Clara Engler <cve@torproject.org>"]
 edition = "2021"
 rust-version = "1.86"
@@ -45,13 +45,13 @@ strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full", "test-util"] }
 tokio-util = { version = "0.7.16", features = ["compat"] }
-tor-basic-utils = { version = "0.38.0", path = "../tor-basic-utils" }
-tor-dirclient = { version = "0.38.0", path = "../tor-dirclient" }
-tor-dircommon = { version = "0.38.0", path = "../tor-dircommon" }
-tor-error = { version = "0.38.0", path = "../tor-error" }
-tor-llcrypto = { version = "0.38.0", path = "../tor-llcrypto" }
-tor-netdoc = { version = "0.38.0", path = "../tor-netdoc", features = ["full", "experimental"] }
-tor-rtcompat = { version = "0.38.0", path = "../tor-rtcompat", features = [ "tokio", "native-tls", "rustls" ] }
+tor-basic-utils = { version = "0.39.0", path = "../tor-basic-utils" }
+tor-dirclient = { version = "0.39.0", path = "../tor-dirclient" }
+tor-dircommon = { version = "0.39.0", path = "../tor-dircommon" }
+tor-error = { version = "0.39.0", path = "../tor-error" }
+tor-llcrypto = { version = "0.39.0", path = "../tor-llcrypto" }
+tor-netdoc = { version = "0.39.0", path = "../tor-netdoc", features = ["full", "experimental"] }
+tor-rtcompat = { version = "0.39.0", path = "../tor-rtcompat", features = [ "tokio", "native-tls", "rustls" ] }
 tracing = "0.1.41"
 weak-table = "0.3.2"
 zstd = "0.13.3"

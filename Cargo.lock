@@ -302,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -370,7 +370,7 @@ version = "0.17.0"
 
 [[package]]
 name = "arti-relay"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -413,7 +413,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpc-client-core"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "caret",
  "cfg-if",
@@ -438,7 +438,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpcserver"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "arti-client",
  "async-trait",
@@ -498,7 +498,7 @@ dependencies = [
 
 [[package]]
 name = "arti-ureq"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "arti-client",
  "async-std",
@@ -6417,7 +6417,7 @@ dependencies = [
 
 [[package]]
 name = "tor-async-utils"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "derive-deftly",
  "educe",
@@ -6436,7 +6436,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "derive_more",
  "educe",
@@ -6457,7 +6457,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "bytes",
  "derive-deftly",
@@ -6474,7 +6474,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "bitflags 2.10.0",
@@ -6505,7 +6505,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "base64ct",
  "caret",
@@ -6527,7 +6527,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert-x509"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "digest",
  "ecdsa",
@@ -6544,7 +6544,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "async-trait",
  "caret",
@@ -6584,7 +6584,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "humantime",
  "signature",
@@ -6594,7 +6594,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "async-trait",
@@ -6647,7 +6647,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "assert_matches",
@@ -6684,7 +6684,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config-path"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "assert_matches",
  "derive_builder_fork_arti",
@@ -6703,7 +6703,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "digest",
  "hex",
@@ -6713,7 +6713,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirclient"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "async-compression",
  "base64ct",
@@ -6741,7 +6741,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dircommon"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "base64ct",
  "derive_builder_fork_arti",
@@ -6761,7 +6761,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6823,7 +6823,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirserver"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "bytes",
  "flate2",
@@ -6863,7 +6863,7 @@ dependencies = [
 
 [[package]]
 name = "tor-error"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -6893,7 +6893,7 @@ dependencies = [
 
 [[package]]
 name = "tor-general-addr"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "arbitrary",
  "assert_matches",
@@ -6904,7 +6904,7 @@ dependencies = [
 
 [[package]]
 name = "tor-geoip"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "derive_more",
  "rangemap",
@@ -6913,7 +6913,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "base64ct",
@@ -6961,7 +6961,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsclient"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "async-trait",
  "derive-deftly",
@@ -7009,7 +7009,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hscrypto"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -7043,7 +7043,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsrproxy"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "derive-deftly",
  "derive_builder_fork_arti",
@@ -7074,7 +7074,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsservice"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "arrayvec",
@@ -7145,7 +7145,7 @@ dependencies = [
 
 [[package]]
 name = "tor-key-forge"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
@@ -7166,7 +7166,7 @@ dependencies = [
 
 [[package]]
 name = "tor-keymgr"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "arrayvec",
@@ -7210,7 +7210,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "base64ct",
  "by_address",
@@ -7237,7 +7237,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "aes",
  "base64ct",
@@ -7281,7 +7281,7 @@ dependencies = [
 
 [[package]]
 name = "tor-log-ratelim"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "futures",
  "humantime",
@@ -7294,7 +7294,7 @@ dependencies = [
 
 [[package]]
 name = "tor-memquota"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "cfg-if",
  "derive-deftly",
@@ -7329,7 +7329,7 @@ dependencies = [
 
 [[package]]
 name = "tor-memquota-cost"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "derive-deftly",
  "itertools 0.14.0",
@@ -7341,7 +7341,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "async-trait",
  "bitflags 2.10.0",
@@ -7376,7 +7376,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -7427,7 +7427,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -7459,7 +7459,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "aes",
  "amplify",
@@ -7537,7 +7537,7 @@ dependencies = [
 
 [[package]]
 name = "tor-protover"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "caret",
  "paste",
@@ -7549,7 +7549,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7579,7 +7579,7 @@ dependencies = [
 
 [[package]]
 name = "tor-relay-crypto"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
@@ -7595,7 +7595,7 @@ dependencies = [
 
 [[package]]
 name = "tor-relay-selection"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "rand 0.9.2",
  "serde",
@@ -7608,7 +7608,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rpc-connect"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "assert_matches",
  "base16ct 1.0.0",
@@ -7638,7 +7638,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rpcbase"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "assert-impl",
  "derive-deftly",
@@ -7661,7 +7661,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "arbitrary",
  "assert_matches",
@@ -7703,7 +7703,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "assert_matches",
@@ -7733,7 +7733,7 @@ dependencies = [
 
 [[package]]
 name = "tor-socksproto"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -7751,7 +7751,7 @@ dependencies = [
 
 [[package]]
 name = "tor-units"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
