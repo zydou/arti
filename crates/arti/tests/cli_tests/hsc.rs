@@ -187,7 +187,7 @@ fn forced_migration_overwrites_arti_keys() {
 /// registered C Tor keystore, then test `ctor-migrate` fails when there
 /// are no valid keys in the registered C Tor keystore.
 #[test]
-fn migarte_fails_if_no_valid_entries_or_keys_in_ctor_ks() {
+fn migrate_fails_if_no_valid_entries_or_keys_in_ctor_ks() {
     let assert_cmd_fails = |path: &str| {
         let migrate_cmd = CTorMigrateCmd::new();
 
@@ -208,7 +208,7 @@ fn migarte_fails_if_no_valid_entries_or_keys_in_ctor_ks() {
 /// Tests whether `ctor-migrate` succeeds when both valid and invalid entries are present in the
 /// registered C Tor keystore.
 #[test]
-fn migarte_skips_invalid_ctor_entries() {
+fn migrate_skips_invalid_ctor_entries() {
     let migrate_cmd = CTorMigrateCmd::new();
 
     let output = migrate_cmd.output(CTOR_KEYSTORE5_PATH).unwrap();
