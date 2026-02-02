@@ -116,7 +116,7 @@ fn migrate_succeeds() {
        ));
     };
 
-    // Check whether the Arti primary keystore already contains keys.
+    // The client keystore doesn't have keys for either of the two services before the migration
     assert_key_is_missing(ONION_ADDR_SERVICE_1);
     assert_key_is_missing(ONION_ADDR_SERVICE_2);
 
