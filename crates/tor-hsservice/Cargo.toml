@@ -145,7 +145,7 @@ void = "1"
 libc = { version = "0.2", default-features = false }
 rmp-serde = "1"
 serde_json = "1.0.104"
-slotmap-careful = { path = "../slotmap-careful", version = "0.5.0" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.6.0" }
 tempfile = "3"
 test-temp-dir = { version = "0.6.0", path = "../test-temp-dir" }
 tor-config = { version = "0.39.0", path = "../tor-config", features = ["testing"] }

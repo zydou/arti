@@ -66,7 +66,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.9.1"
 retry-error = { path = "../retry-error", version = "0.10.0" }
 safelog = { path = "../safelog", version = "0.7.0" }
-slotmap-careful = { path = "../slotmap-careful", version = "0.5.0" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.6.0" }
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
 tor-async-utils = { version = "0.39.0", path = "../tor-async-utils" }
