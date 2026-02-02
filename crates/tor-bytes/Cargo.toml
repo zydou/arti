@@ -33,4 +33,4 @@ full = ["tor-error/full", "tor-llcrypto/full", "safelog/full", "tor-llcrypto?/fu
 all-features = true
 
 [target.wasm32-unknown-unknown.dependencies]
-getrandom = "0.3.2"
+getrandom = "0.4.0"
