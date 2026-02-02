@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.75"
-arti-client = { path = "../../../crates/arti-client", version = "0.38", features = [
+arti-client = { path = "../../../crates/arti-client", version = "0.39", features = [
     "onion-service-service",
 ] }
 axum = { version = "0.8.1", features = ["tracing"] }
@@ -19,9 +19,9 @@ hyper-util = { version = "0.1.1", features = ["tokio"] }
 safelog = { path = "../../../crates/safelog", version = "0.7" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 tokio-util = "0.7.10"
-tor-cell = { path = "../../../crates/tor-cell", version = "0.38" }
-tor-hsservice = { path = "../../../crates/tor-hsservice", version = "0.38" }
-tor-proto = { path = "../../../crates/tor-proto", version = "0.38" }
+tor-cell = { path = "../../../crates/tor-cell", version = "0.39" }
+tor-hsservice = { path = "../../../crates/tor-hsservice", version = "0.39" }
+tor-proto = { path = "../../../crates/tor-proto", version = "0.39" }
 tower = { version = "0.5.1", features = ["util", "tracing"] }
 tracing-subscriber = "0.3.20"
 

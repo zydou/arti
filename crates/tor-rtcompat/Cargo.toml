@@ -1,6 +1,6 @@
 [package]
 name = "tor-rtcompat"
-version = "0.38.0"
+version = "0.39.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.86"
@@ -102,9 +102,9 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
     "time",
 ] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
-tor-cert-x509 = { version = "0.38.0", path = "../tor-cert-x509", optional = true }
-tor-error = { version = "0.38.0", path = "../tor-error", features = ["tracing"] }
-tor-general-addr = { version = "0.38.0", path = "../tor-general-addr" }
+tor-cert-x509 = { version = "0.39.0", path = "../tor-cert-x509", optional = true }
+tor-error = { version = "0.39.0", path = "../tor-error", features = ["tracing"] }
+tor-general-addr = { version = "0.39.0", path = "../tor-general-addr" }
 tracing = "0.1.36"
 void = "1"
 zeroize = "1"
@@ -116,4 +116,4 @@ libc = "0.2"
 assert_matches = "1.5.0"
 # Used for testing our TLS implementation.
 native-tls-crate = { package = "native-tls", version = "0.2" }
-tor-basic-utils = { version = "0.38.0", path = "../tor-basic-utils" }
+tor-basic-utils = { version = "0.39.0", path = "../tor-basic-utils" }

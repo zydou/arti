@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 anyhow = "1.0.72"
 # Use latest arti-client from GitLab to connect to Tor network
-arti-client = { path = "../../../crates/arti-client", version = "0.38", features = ["bridge-client"] }
+arti-client = { path = "../../../crates/arti-client", version = "0.39", features = ["bridge-client"] }
 thiserror = "2"
 # Specify which async framework we wish to use
 tokio = { version = "1.7", features = ["full"] }

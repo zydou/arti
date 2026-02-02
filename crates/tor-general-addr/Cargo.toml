@@ -1,6 +1,6 @@
 [package]
 name = "tor-general-addr"
-version = "0.38.0"
+version = "0.39.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.86"

@@ -1,6 +1,6 @@
 [package]
 name = "futures-copy"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.86"
@@ -21,9 +21,9 @@ pin-project = "1"
 
 [dev-dependencies]
 tokio = { version = "1.7", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
-tor-error = { path = "../tor-error", version = "0.38.0" }
-tor-rtcompat = { version = "0.38.0", path = "../tor-rtcompat" }
-tor-rtmock = { path = "../tor-rtmock", version = "0.38.0" }
+tor-error = { path = "../tor-error", version = "0.39.0" }
+tor-rtcompat = { version = "0.39.0", path = "../tor-rtcompat" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.39.0" }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

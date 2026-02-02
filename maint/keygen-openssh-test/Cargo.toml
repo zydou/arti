@@ -15,9 +15,9 @@ clap = { version = "4.3.24", features = ["derive"] }
 rand = "0.9.1"
 rand_core = { version = "0.9.3", features = ["os_rng"] }
 ssh-key = { version = "0.6.1", features = ["dsa", "alloc", "rand_core", "std"] }
-tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.38" }
-tor-keymgr = { path = "../../crates/tor-keymgr", version = "0.38", features = ["keymgr"] }
-tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.38", features = ["relay", "rng-compat", "cvt-x25519"] }
+tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.39" }
+tor-keymgr = { path = "../../crates/tor-keymgr", version = "0.39", features = ["keymgr"] }
+tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.39", features = ["relay", "rng-compat", "cvt-x25519"] }
 
 [features]
 full = ["tor-basic-utils/full", "tor-keymgr/full", "tor-llcrypto/full"]

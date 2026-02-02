@@ -15,7 +15,7 @@ base32 = "0.5"
 clap = { version = "4.5.53", features = ["derive"] }
 regex = "1.12.2"
 safelog = { path = "../../crates/safelog", version = "0.7" }
-tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.38" }
-tor-hsservice = { path = "../../crates/tor-hsservice", version = "0.38" }
-tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.38", features = ["rng-compat"] }
+tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.39" }
+tor-hsservice = { path = "../../crates/tor-hsservice", version = "0.39" }
+tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.39", features = ["rng-compat"] }
 x25519-dalek = { version = "2", features = ["static_secrets"] }

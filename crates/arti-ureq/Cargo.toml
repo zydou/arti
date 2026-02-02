@@ -1,6 +1,6 @@
 [package]
 name = "arti-ureq"
-version = "0.38.0"
+version = "0.39.0"
 edition = "2024"
 rust-version = "1.86"
 authors = ["The Tor Project, Inc.", "Niel Duysters"]
@@ -11,15 +11,15 @@ categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-arti-client = { path = "../arti-client", version = "0.38.0" }
+arti-client = { path = "../arti-client", version = "0.39.0" }
 async-std = { version = "1.7.0", optional = true }
 educe = "0.4.6"
 futures = "0.3.14"
 thiserror = "2"
 tokio = { version = "1.7", optional = true }
-tor-error = { path = "../tor-error", version = "0.38.0" }
-tor-proto = { path = "../tor-proto", features = [ "stream-ctrl" ], version = "0.38.0" }
-tor-rtcompat = { path = "../tor-rtcompat", default-features = false, version = "0.38.0" }
+tor-error = { path = "../tor-error", version = "0.39.0" }
+tor-proto = { path = "../tor-proto", features = [ "stream-ctrl" ], version = "0.39.0" }
+tor-rtcompat = { path = "../tor-rtcompat", default-features = false, version = "0.39.0" }
 # We rely on some of the APIs in ureq::unversioned, which are allowed to have semver
 # breaks between minor releases of ureq.  Therefore, we we use a tilde here, so that
 # we will only get patchlevel updates.

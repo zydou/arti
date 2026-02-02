@@ -1,6 +1,6 @@
 [package]
 name = "tor-relay-selection"
-version = "0.38.0"
+version = "0.39.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.86"
@@ -31,16 +31,16 @@ __is_experimental = []
 [dependencies]
 rand = "0.9.1"
 serde = { version = "1.0.103", features = ["derive"] }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.38.0" }
-tor-geoip = { path = "../tor-geoip", version = "0.38.0", optional = true }
-tor-linkspec = { path = "../tor-linkspec", version = "0.38.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.38.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.38.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0" }
+tor-geoip = { path = "../tor-geoip", version = "0.39.0", optional = true }
+tor-linkspec = { path = "../tor-linkspec", version = "0.39.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.39.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.39.0" }
 
 [dev-dependencies]
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.38" }
-tor-netdir = { path = "../tor-netdir", version = "0.38.0", features = ["testing"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.38.0", features = ["testing"] }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.39" }
+tor-netdir = { path = "../tor-netdir", version = "0.39.0", features = ["testing"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.39.0", features = ["testing"] }
 
 [package.metadata.docs.rs]
 all-features = true

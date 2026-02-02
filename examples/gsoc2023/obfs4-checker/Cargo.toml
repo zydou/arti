@@ -8,18 +8,18 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.72"
-arti-client = { path = "../../../crates/arti-client", version = "0.38", features = ["bridge-client", "pt-client", "experimental-api"] }
+arti-client = { path = "../../../crates/arti-client", version = "0.39", features = ["bridge-client", "pt-client", "experimental-api"] }
 axum = "0.8.1"
 clap = { version = "4.3.21", features = ["derive", "wrap_help"] }
 futures = "0.3.28"
 serde = "1.0.180"
 time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.7", features = ["full"] }
-tor-chanmgr = { path = "../../../crates/tor-chanmgr", version = "0.38", features = ["pt-client", "experimental-api"] }
-tor-error = { path = "../../../crates/tor-error", version = "0.38" }
-tor-guardmgr = { path = "../../../crates/tor-guardmgr", version = "0.38", features = ["full"] }
-tor-proto = { path = "../../../crates/tor-proto", version = "0.38", features = [] }
-tor-rtcompat = { path = "../../../crates/tor-rtcompat", version = "0.38" }
+tor-chanmgr = { path = "../../../crates/tor-chanmgr", version = "0.39", features = ["pt-client", "experimental-api"] }
+tor-error = { path = "../../../crates/tor-error", version = "0.39" }
+tor-guardmgr = { path = "../../../crates/tor-guardmgr", version = "0.39", features = ["full"] }
+tor-proto = { path = "../../../crates/tor-proto", version = "0.39", features = [] }
+tor-rtcompat = { path = "../../../crates/tor-rtcompat", version = "0.39" }
 tracing-subscriber = "0.3.20"
 
 [features]
