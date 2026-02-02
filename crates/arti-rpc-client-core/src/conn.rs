@@ -537,6 +537,9 @@ pub enum ConnectError {
     /// IO error while connecting to Arti.
     #[error("Unable to make a connection")]
     CannotConnect(#[from] tor_rpc_connect::ConnectError),
+    /// The connect point told us to connect via a type of stream we don't know how to support.
+    #[error("Connect point stream type was unsupported")]
+    StreamTypeUnsupported,
     /// Opened a connection, but didn't get a banner message.
     ///
     /// (This isn't a `BadMessage`, since it is likelier to represent something that isn't
@@ -589,6 +592,7 @@ impl HasClientErrorAction for ConnectError {
             E::CannotResolvePath(_) => A::Abort,
             E::CannotResolveConnectPoint(e) => e.client_action(),
             E::CannotConnect(e) => e.client_action(),
+            E::StreamTypeUnsupported => A::Decline,
             E::InvalidBanner => A::Decline,
             E::RelativeConnectFile => A::Abort,
             E::AuthenticationFailed(_) => A::Decline,

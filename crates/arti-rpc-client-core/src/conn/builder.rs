@@ -5,6 +5,7 @@ use std::{
     io::{self},
     path::PathBuf,
     str::FromStr as _,
+    sync::Arc,
 };
 
 use fs_mistrust::Mistrust;
@@ -332,12 +333,24 @@ fn try_connect(
     resolver: &CfgPathResolver,
     mistrust: &Mistrust,
 ) -> Result<RpcConn, ConnectError> {
-    let tor_rpc_connect::client::Connection {
-        reader,
-        writer,
-        auth,
-        ..
-    } = parsed.resolve(resolver)?.connect(mistrust)?;
+    use tor_rpc_connect::client::Stream as S;
+    let tor_rpc_connect::client::Connection { stream, auth, .. } =
+        parsed.resolve(resolver)?.connect(mistrust)?;
+    let wrap_io_err = |e| tor_rpc_connect::ConnectError::Io(Arc::new(e));
+    // TODO: we currently use try_clone() to get separate reader and writer instances.
+    // conceivably, we could instead create something like the `Split` implementation that
+    // exists for `AsyncRead + AsyncWrite` objects in futures::io.
+    let (reader, writer): (Box<dyn io::Read + Send>, Box<dyn io::Write + Send>) = match stream {
+        S::Tcp(stream) => (
+            Box::new(stream.try_clone().map_err(wrap_io_err)?),
+            Box::new(stream),
+        ),
+        S::Unix(stream) => (
+            Box::new(stream.try_clone().map_err(wrap_io_err)?),
+            Box::new(stream),
+        ),
+        _ => return Err(ConnectError::StreamTypeUnsupported),
+    };
     let mut reader = llconn::Reader::new(io::BufReader::new(reader));
     let banner = reader
         .read_msg()
