@@ -109,7 +109,7 @@ fn generate_then_remove() {
 fn migrate_succeeds() {
     let migrate_cmd = CTorMigrateCmd::new();
 
-    let assert_key_already_exists = |svc: &str| {
+    let assert_key_is_missing = |svc: &str| {
         let err = migrate_cmd.keystore_contains_client_key(svc).unwrap_err();
         assert!(err.to_string().contains(
           "arti: error: Service discovery key not found. Rerun with --generate=if-needed to generate a new service discovery keypair"
@@ -117,8 +117,8 @@ fn migrate_succeeds() {
     };
 
     // Check whether the Arti primary keystore already contains keys.
-    assert_key_already_exists(ONION_ADDR_SERVICE_1);
-    assert_key_already_exists(ONION_ADDR_SERVICE_2);
+    assert_key_is_missing(ONION_ADDR_SERVICE_1);
+    assert_key_is_missing(ONION_ADDR_SERVICE_2);
 
     let output = migrate_cmd.output(CTOR_KEYSTORE1_PATH).unwrap();
     assert!(output.status.success());
