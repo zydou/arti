@@ -118,7 +118,7 @@ rather than the recommended `arti-client` crate or other lower-level crates.
 ### Acknowledgments
 
 Thanks to everybody who's contributed to this release, including
-Niel Duysters, Samuel Cobb, carti-it, hjrgrn, and sjcobb!
+Niel Duysters, carti-it, hjrgrn, and sjcobb!
 
 Also, our deep thanks to
 the [Bureau of Democracy, Human Rights and Labor],
