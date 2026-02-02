@@ -1,6 +1,9 @@
 //! Deriving `HasMemoryCost`
 
-use crate::internal_prelude::*;
+use crate::{EnabledToken, HasMemoryCost};
+use derive_deftly::define_derive_deftly;
+use itertools::chain;
+use paste::paste;
 
 //---------- main public items ----------
 
@@ -205,8 +208,8 @@ define_derive_deftly! {
     /// ```
     /// use derive_deftly::Deftly;
     /// use std::mem::size_of;
-    /// use tor_memquota::{HasMemoryCost, HasMemoryCostStructural};
-    /// use tor_memquota::derive_deftly_template_HasMemoryCost;
+    /// use tor_memquota_cost::{HasMemoryCost, HasMemoryCostStructural};
+    /// use tor_memquota_cost::derive_deftly_template_HasMemoryCost;
     ///
     /// #[derive(Deftly)]
     /// #[derive_deftly(HasMemoryCost)]
@@ -231,7 +234,7 @@ define_derive_deftly! {
     ///     info: String::with_capacity(12).into(),
     /// };
     ///
-    /// let Some(et) = tor_memquota::EnabledToken::new_if_compiled_in() else { return };
+    /// let Some(et) = tor_memquota_cost::EnabledToken::new_if_compiled_in() else { return };
     ///
     /// assert_eq!(
     ///     s.memory_cost(et),
@@ -298,6 +301,7 @@ mod test {
     #![allow(clippy::arithmetic_side_effects)] // don't mind potential panicking ops in tests
 
     use super::*;
+    use derive_deftly::Deftly;
 
     #[derive(Deftly)]
     #[derive_deftly(HasMemoryCost)]

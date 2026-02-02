@@ -5,7 +5,7 @@ use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use zeroize::Zeroize;
 
 #[cfg(feature = "memquota-memcost")]
-use tor_memquota::derive_deftly_template_HasMemoryCost;
+use tor_memquota_cost::derive_deftly_template_HasMemoryCost;
 
 define_derive_deftly! {
     /// Derives [`subtle::ConstantTimeEq`] on structs for which all fields

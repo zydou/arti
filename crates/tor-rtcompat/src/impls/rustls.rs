@@ -82,7 +82,8 @@ impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
     }
 
     fn own_certificate(&self) -> IoResult<Option<Vec<u8>>> {
-        // This is a client stream, so (as we build them currently) we know we didn't present a certificate.
+        // This is a client stream, so (as we build them currently) we know we didn't present a
+        // certificate.
         Ok(None)
     }
 }
@@ -142,7 +143,7 @@ where
             type Acceptor = rustls_server::RustlsAcceptor<S>;
             type TlsServerStream = rustls_server::RustlsServerStream<S>;
             fn tls_acceptor(&self, settings: TlsAcceptorSettings) -> IoResult<Self::Acceptor> {
-                rustls_server::RustlsAcceptor::new(settings)
+                rustls_server::RustlsAcceptor::new(&settings)
             }
         } else {
             type Acceptor = crate::tls::UnimplementedTls;

@@ -13,12 +13,12 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-memquota-memcost = ["tor-memquota"]
+memquota-memcost = ["tor-memquota-cost"]
 full = [
     "memquota-memcost",
     "rng-compat",
     "safelog/full",
-    "tor-memquota?/full",
+    "tor-memquota-cost?/full",
     "tor-error/full",
 ]
 
@@ -73,7 +73,7 @@ signature = "2"
 subtle = "2"
 thiserror = "2"
 tor-error = { version = "0.38.0", path = "../tor-error" }
-tor-memquota = { version = "0.38.0", path = "../tor-memquota", default-features = false, optional = true }
+tor-memquota-cost = { version = "0.38.0", path = "../tor-memquota-cost", default-features = false, optional = true }
 typenum = { version = "1.15.0", optional = true }
 visibility = "0.1.0"
 x25519-dalek = { version = "2.0.0", features = ["static_secrets"] }

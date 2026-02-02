@@ -20,7 +20,7 @@ use std::fmt;
 use subtle::{Choice, ConstantTimeEq};
 
 #[cfg(feature = "memquota-memcost")]
-use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
+use {derive_deftly::Deftly, tor_memquota_cost::derive_deftly_template_HasMemoryCost};
 
 use crate::util::{ct::CtByteArray, rng::RngCompat};
 

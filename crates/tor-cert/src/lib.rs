@@ -47,8 +47,9 @@
 
 mod err;
 pub mod rsa;
+
 #[cfg(feature = "x509")]
-pub mod x509;
+pub use tor_cert_x509 as x509;
 
 use caret::caret_int;
 use tor_bytes::{Error as BytesError, Result as BytesResult};

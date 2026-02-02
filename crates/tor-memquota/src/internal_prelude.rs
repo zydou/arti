@@ -64,11 +64,12 @@ pub(crate) use {
 };
 
 pub(crate) use crate::{
+    EnabledToken,
     config::{Config, ConfigInner},
     drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,
     error::{Error, ReclaimCrashed, StartupError, TrackerCorrupted},
-    if_enabled::{EnabledToken, IfEnabled},
+    if_enabled::IfEnabled,
     memory_cost::{HasMemoryCost, HasTypedMemoryCost, TypedParticipation},
     mtracker::{self, Account, IsParticipant, MemoryQuotaTracker, Participation},
     private::Sealed,
