@@ -1,0 +1,21 @@
+[package]
+name = "keygen-client-auth-test"
+version = "0.1.0"
+edition = "2024"
+publish = false
+authors = ["The Tor Project, Inc.", "hjrgrn <3874-hjrgrn@gitlab.torproject.org>"]
+rust-version = "1.86"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Tool used to generate a client authorization keypair for testing"
+
+[dependencies]
+anyhow = "1.0.100"
+base32 = "0.5"
+clap = { version = "4.5.53", features = ["derive"] }
+regex = "1.12.2"
+safelog = { path = "../../crates/safelog", version = "0.7" }
+tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.38" }
+tor-hsservice = { path = "../../crates/tor-hsservice", version = "0.38" }
+tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.38", features = ["rng-compat"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }

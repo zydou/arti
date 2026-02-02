@@ -1,60 +1,19 @@
-use std::path::Path;
+mod ctor_migrate_util;
+mod key_util;
 
-use assert_cmd::Command;
-use assert_cmd::cargo::cargo_bin_cmd;
+use crate::hsc::ctor_migrate_util::{
+    CTOR_KEYSTORE_ID, CTOR_KEYSTORE1_PATH, CTOR_KEYSTORE2_PATH, CTOR_KEYSTORE3_PATH,
+    CTOR_KEYSTORE4_PATH, CTOR_KEYSTORE5_PATH, CTorMigrateCmd, ONION_ADDR_SERVICE_1,
+    ONION_ADDR_SERVICE_2,
+};
 
-/// A test onion address.
-const ONION_ADDR: &str = "fpqqmiwzqiv63jczrshh4qcmlxw6gujcai3arobq23wikt7hk7ojadid.onion";
-/// Length of the onion address without ".onion" suffix.
-const ADDR_LEN: usize = 56;
-/// Path to a test specific configuration
-const CFG_PATH: &str = "./tests/testcases/hsc-common/conf/hsc.toml";
-
-/// An `arti hsc` subcommand.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, derive_more::Display)]
-enum ArtiHscCmd {
-    #[display("get")]
-    Get,
-    #[display("rotate")]
-    Rotate,
-    #[display("remove")]
-    Remove,
-}
-
-/// Build an `arti hsc` command, setting the state directory to `state_dir`.
-fn build_hsc_cmd(sub_cmd: ArtiHscCmd, state_dir: &Path) -> Command {
-    let opts = format!(r#"storage.state_dir="{}""#, state_dir.to_str().unwrap());
-    let mut cmd = cargo_bin_cmd!("arti");
-    cmd.args([
-        "-c",
-        CFG_PATH,
-        "-o",
-        &opts,
-        "hsc",
-        "key",
-        &sub_cmd.to_string(),
-        "--batch",
-    ]);
-
-    // Add subcommand-specific args
-    match sub_cmd {
-        ArtiHscCmd::Get => {
-            cmd.args(["--key-type=service-discovery", "--output", "-"]);
-        }
-        ArtiHscCmd::Rotate => {
-            cmd.args(["--output", "-"]);
-        }
-        ArtiHscCmd::Remove => {}
-    }
-
-    cmd
-}
+use crate::hsc::key_util::{ADDR_LEN, ArtiHscKeyCmd, ONION_ADDR, build_hsc_key_cmd};
 
 #[test]
 fn gen_key() {
     let state_dir = tempfile::TempDir::new().unwrap();
     let state_dir = state_dir.path();
-    let mut cmd = build_hsc_cmd(ArtiHscCmd::Get, state_dir);
+    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Get, state_dir);
     cmd.write_stdin(ONION_ADDR);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
@@ -84,14 +43,14 @@ fn gen_key() {
 fn generate_then_rotate() {
     let state_dir = tempfile::TempDir::new().unwrap();
     let state_dir = state_dir.path();
-    let mut cmd = build_hsc_cmd(ArtiHscCmd::Get, state_dir);
+    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Get, state_dir);
     cmd.write_stdin(ONION_ADDR);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
     let descriptor = String::from_utf8(output.stdout).unwrap();
     assert!(descriptor.contains("descriptor:x25519:"));
 
-    let mut cmd = build_hsc_cmd(ArtiHscCmd::Rotate, state_dir);
+    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Rotate, state_dir);
     cmd.write_stdin(ONION_ADDR);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
@@ -121,7 +80,7 @@ fn generate_then_rotate() {
 fn generate_then_remove() {
     let state_dir = tempfile::TempDir::new().unwrap();
     let state_dir = state_dir.path();
-    let mut cmd = build_hsc_cmd(ArtiHscCmd::Get, state_dir);
+    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Get, state_dir);
     cmd.write_stdin(ONION_ADDR);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
@@ -131,7 +90,7 @@ fn generate_then_remove() {
             .contains("descriptor:x25519:")
     );
 
-    let mut cmd = build_hsc_cmd(ArtiHscCmd::Remove, state_dir);
+    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Remove, state_dir);
     cmd.write_stdin(ONION_ADDR);
     cmd.assert().success();
 
@@ -141,4 +100,123 @@ fn generate_then_remove() {
     let entries = keystore_path.read_dir().unwrap().flatten();
     // Assert key has been removed
     assert_eq!(entries.count(), 0);
+}
+
+/// Tests whether `ctor-migrate` can successfully migrate a valid C Tor client keystore
+/// to an Arti keystore that does not already have discovery keys for the services
+/// the C Tor client is configured with.
+#[test]
+fn migrate_succeeds() {
+    let migrate_cmd = CTorMigrateCmd::new();
+
+    let assert_key_already_exists = |svc: &str| {
+        let err = migrate_cmd.keystore_contains_client_key(svc).unwrap_err();
+        assert!(err.to_string().contains(
+          "arti: error: Service discovery key not found. Rerun with --generate=if-needed to generate a new service discovery keypair"
+       ));
+    };
+
+    // Check whether the Arti primary keystore already contains keys.
+    assert_key_already_exists(ONION_ADDR_SERVICE_1);
+    assert_key_already_exists(ONION_ADDR_SERVICE_2);
+
+    let output = migrate_cmd.output(CTOR_KEYSTORE1_PATH).unwrap();
+    assert!(output.status.success());
+    assert!(
+        migrate_cmd
+            .keystore_contains_client_key(ONION_ADDR_SERVICE_1)
+            .is_ok()
+    );
+    assert!(
+        migrate_cmd
+            .keystore_contains_client_key(ONION_ADDR_SERVICE_2)
+            .is_ok()
+    );
+}
+
+/// Tests whether `ctor-migrate` fails if multiple client keys for the same service are present in
+/// the C Tor keystore. A C Tor keystore must not contain multiple client keys for the same
+/// service.
+#[test]
+fn migrate_fails_if_multiple_keys_for_same_service() {
+    let migrate_cmd = CTorMigrateCmd::new();
+    let output = migrate_cmd.output(CTOR_KEYSTORE2_PATH).unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("Invalid C Tor keystore (multiple keys exist for service")
+    );
+}
+
+/// Tests whether `ctor-migrate` succeeds when client keys for the same service are present in both
+/// the Arti primary keystore and in the C Tor keystore being migrated. It also verifies that the
+/// keys in the Arti primary keystore differ from the original ones after migration.
+#[test]
+fn forced_migration_overwrites_arti_keys() {
+    let migrate_cmd = CTorMigrateCmd::new();
+    migrate_cmd.populate_state_dir();
+    // Ensure the keystore is now populated with the expected keys
+    let output_service_1_prev = migrate_cmd
+        .keystore_contains_client_key(ONION_ADDR_SERVICE_1)
+        .unwrap();
+    let output_service_2_prev = migrate_cmd
+        .keystore_contains_client_key(ONION_ADDR_SERVICE_2)
+        .unwrap();
+
+    assert!(
+        migrate_cmd
+            .output(CTOR_KEYSTORE1_PATH)
+            .unwrap()
+            .status
+            .success()
+    );
+
+    // Check whether the current keys are different from the original ones
+    let output_service_1_current = migrate_cmd
+        .keystore_contains_client_key(ONION_ADDR_SERVICE_1)
+        .unwrap();
+    let output_service_2_current = migrate_cmd
+        .keystore_contains_client_key(ONION_ADDR_SERVICE_2)
+        .unwrap();
+    assert_ne!(output_service_1_prev, output_service_1_current);
+    assert_ne!(output_service_2_prev, output_service_2_current);
+}
+
+/// Tests that `ctor-migrate` fails when there are no valid entries in the
+/// registered C Tor keystore, then test `ctor-migrate` fails when there
+/// are no valid keys in the registered C Tor keystore.
+#[test]
+fn migarte_fails_if_no_valid_entries_or_keys_in_ctor_ks() {
+    let assert_cmd_fails = |path: &str| {
+        let migrate_cmd = CTorMigrateCmd::new();
+
+        let output = migrate_cmd.output(path).unwrap();
+        assert!(!output.status.success());
+        let error = String::from_utf8(output.stderr).unwrap();
+        assert!(error.contains("No CTor client keys found in keystore"));
+        assert!(error.contains(CTOR_KEYSTORE_ID));
+    };
+
+    // NOTE: with CTOR_KEYSTORE3_PATH the keystore has a valid entry containing an invalid key.
+    // With CTOR_KEYSTORE4_PATH the keystore has an invalid entry containing a valid key.
+    // Both cases should fail.
+    assert_cmd_fails(CTOR_KEYSTORE3_PATH);
+    assert_cmd_fails(CTOR_KEYSTORE4_PATH);
+}
+
+/// Tests whether `ctor-migrate` succeeds when both valid and invalid entries are present in the
+/// registered C Tor keystore.
+#[test]
+fn migarte_skips_invalid_ctor_entries() {
+    let migrate_cmd = CTorMigrateCmd::new();
+
+    let output = migrate_cmd.output(CTOR_KEYSTORE5_PATH).unwrap();
+    assert!(output.status.success());
+
+    assert!(
+        migrate_cmd
+            .keystore_contains_client_key(ONION_ADDR_SERVICE_1)
+            .is_ok()
+    );
 }

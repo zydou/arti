@@ -77,6 +77,7 @@ members = [
     "crates/arti-rpc-client-core",
 
     "maint/fixup-features",
+    "maint/keygen-client-auth-test",
     "maint/keygen-openssh-test",
 
     "examples/gsoc2023/connection-checker",

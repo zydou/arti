@@ -1,6 +1,6 @@
 //! Utilities for integration testing of CLI subcommands.
 
-use std::process::Output;
+use std::{fs, io, path::Path, process::Output};
 
 /// Due to the "destroy" policy of some service configurations,
 /// in some of the tests stderr is not empty; instead, it contains
@@ -29,4 +29,27 @@ pub fn create_state_dir_entry(state_dir_path: &str) -> String {
         .into_iter()
         .collect();
     toml::to_string(&table).unwrap()
+}
+
+/// Recursively clones the entire contents of the directory `source` into the
+/// directory `destination`.
+///
+/// This function does not check whether `source` and `destination` exist,
+/// whether they are directories, or perform any other validation.
+pub(super) fn clone_dir(source: &Path, destination: &Path) -> io::Result<()> {
+    let entries = source.read_dir()?;
+    for entry in entries {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let source_path = entry.path();
+        let file_name = entry.file_name();
+        let destination_path = destination.join(file_name);
+        if file_type.is_dir() {
+            fs::create_dir_all(&destination_path)?;
+            clone_dir(&source_path, &destination_path)?;
+        } else if file_type.is_file() {
+            fs::copy(&source_path, &destination_path)?;
+        }
+    }
+    Ok(())
 }

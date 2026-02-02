@@ -1,16 +1,10 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Output,
-    str::FromStr,
-};
+use std::{path::PathBuf, process::Output, str::FromStr};
 
 use assert_cmd::cargo::cargo_bin_cmd;
-use std::io;
 use tempfile::TempDir;
 use walkdir::WalkDir;
 
-use crate::util::create_state_dir_entry;
+use crate::util::{clone_dir, create_state_dir_entry};
 
 /// Path to a test specific configuration that provides a full Arti native keystore.
 pub const CFG_PATH: &str = "./tests/testcases/hss-extra/conf/hss.toml";
@@ -137,33 +131,7 @@ impl CTorMigrateCmd {
     /// Populates the temporary state directory with the files from the default state directory.
     pub fn populate_state_dir(&self) {
         let keystore_path = PathBuf::from_str(KEYSTORE_PATH).unwrap();
-        Self::clone_dir(&keystore_path, &self.state_dir_path);
-    }
-
-    /// Recursively clones the entire contents of the directory `source` into the
-    /// directory `destination`.
-    ///
-    /// This function does not check whether `source` and `destination` exist,
-    /// whether they are directories, or perform any other validation.
-    fn clone_dir(source: &Path, destination: &Path) {
-        let entries = fs::read_dir(source).unwrap();
-        for entry in entries {
-            let entry = entry.unwrap();
-            let file_type = entry.file_type().unwrap();
-            let source_path = entry.path();
-            let file_name = source_path.file_name().unwrap();
-            let destination_path = destination.join(file_name);
-            if file_type.is_dir() {
-                if let Err(e) = fs::create_dir(&destination_path) {
-                    if e.kind() != io::ErrorKind::AlreadyExists {
-                        panic!("{}", e)
-                    }
-                };
-                Self::clone_dir(&source_path, &destination_path);
-            } else if file_type.is_file() {
-                fs::copy(&source_path, &destination_path).unwrap();
-            }
-        }
+        clone_dir(&keystore_path, &self.state_dir_path).unwrap();
     }
 
     /// Check whether the state directory is empty.

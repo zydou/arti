@@ -3331,6 +3331,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "keygen-client-auth-test"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base32",
+ "clap",
+ "regex",
+ "safelog",
+ "tor-basic-utils",
+ "tor-hsservice",
+ "tor-llcrypto",
+ "x25519-dalek",
+]
+
+[[package]]
 name = "keygen-openssh-test"
 version = "0.1.0"
 dependencies = [
