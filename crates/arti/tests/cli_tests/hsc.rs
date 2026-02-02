@@ -106,7 +106,7 @@ fn generate_then_remove() {
 /// to an Arti keystore that does not already have discovery keys for the services
 /// the C Tor client is configured with.
 #[test]
-fn migrate_succeeds() {
+fn simple_ctor_migration() {
     let migrate_cmd = CTorMigrateCmd::new();
 
     let assert_key_is_missing = |svc: &str| {
@@ -138,7 +138,7 @@ fn migrate_succeeds() {
 /// the C Tor keystore. A C Tor keystore must not contain multiple client keys for the same
 /// service.
 #[test]
-fn migrate_fails_if_multiple_keys_for_same_service() {
+fn migrate_duplicate_ctor_entries() {
     let migrate_cmd = CTorMigrateCmd::new();
     let output = migrate_cmd.output(CTOR_KEYSTORE2_PATH).unwrap();
     assert!(!output.status.success());
@@ -187,7 +187,7 @@ fn forced_migration_overwrites_arti_keys() {
 /// registered C Tor keystore, then test `ctor-migrate` fails when there
 /// are no valid keys in the registered C Tor keystore.
 #[test]
-fn migrate_fails_if_no_valid_entries_or_keys_in_ctor_ks() {
+fn migrate_invalid_ctor_keystore() {
     let assert_cmd_fails = |path: &str| {
         let migrate_cmd = CTorMigrateCmd::new();
 
