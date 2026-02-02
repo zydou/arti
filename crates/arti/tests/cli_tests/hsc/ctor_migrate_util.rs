@@ -81,33 +81,41 @@ pub(super) const CFG_PATH_CTOR_MIGRATE: &str = "./tests/testcases/hsc-extra/conf
 /// The onion address for service 1.
 pub(super) const ONION_ADDR_SERVICE_1: &str =
     "rh5d6reakhpvuxe2t3next6um6iiq4jf43m7gmdrphfhopfpnoglzcyd.onion";
+
 /// The onion address for service 2.
 pub(super) const ONION_ADDR_SERVICE_2: &str =
     "2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion";
+
 /// Path to a C Tor keystore with restricted service discovery keys for service 1
 /// and service 2.
 pub(super) const CTOR_KEYSTORE1_PATH: &str =
     "./tests/testcases/hsc-extra/hsc.in/local/ctor-keystore1";
+
 /// Path to a C Tor keystore with restricted service discovery keys for service 1
 /// and service 2, along with a redundant key for service 2.
 ///
 /// This keystore is invalid because of the duplicated key.
 pub(super) const CTOR_KEYSTORE2_PATH: &str =
     "./tests/testcases/hsc-extra/hsc.in/local/ctor-keystore2";
+
 /// Path to a C Tor keystore with an invalid key.
 pub(super) const CTOR_KEYSTORE3_PATH: &str =
     "./tests/testcases/hsc-extra/hsc.in/local/ctor-keystore3";
+
 /// Path to a C Tor keystore with an invalid entry.
 pub(super) const CTOR_KEYSTORE4_PATH: &str =
     "./tests/testcases/hsc-extra/hsc.in/local/ctor-keystore4";
+
 /// Path to a C Tor keystore with restricted service discovery keys for service 1
 /// and service 2, along with a an invalid entry.
 pub(super) const CTOR_KEYSTORE5_PATH: &str =
     "./tests/testcases/hsc-extra/hsc.in/local/ctor-keystore5";
+
 /// Path to a state directory containing a fully populated Arti native keystore.
 ///
 /// The keystore contains two vaild restricted service discovery keys.
 pub(super) const KEYSTORE_PATH: &str = "./tests/testcases/hsc-extra/hsc.in/local/state-dir";
+
 /// ID that will be assigned to the C Tor keystore in every test for `hsc ctor-migrate`.
 pub(super) const CTOR_KEYSTORE_ID: &str = "ctor";
 

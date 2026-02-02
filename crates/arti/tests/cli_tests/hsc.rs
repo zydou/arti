@@ -106,19 +106,19 @@ fn generate_then_remove() {
 /// to an Arti keystore that does not already have discovery keys for the services
 /// the C Tor client is configured with.
 #[test]
-fn migrate_succeeds() {
+fn simple_ctor_migration() {
     let migrate_cmd = CTorMigrateCmd::new();
 
-    let assert_key_already_exists = |svc: &str| {
+    let assert_key_is_missing = |svc: &str| {
         let err = migrate_cmd.keystore_contains_client_key(svc).unwrap_err();
         assert!(err.to_string().contains(
           "arti: error: Service discovery key not found. Rerun with --generate=if-needed to generate a new service discovery keypair"
        ));
     };
 
-    // Check whether the Arti primary keystore already contains keys.
-    assert_key_already_exists(ONION_ADDR_SERVICE_1);
-    assert_key_already_exists(ONION_ADDR_SERVICE_2);
+    // The client keystore doesn't have keys for either of the two services before the migration
+    assert_key_is_missing(ONION_ADDR_SERVICE_1);
+    assert_key_is_missing(ONION_ADDR_SERVICE_2);
 
     let output = migrate_cmd.output(CTOR_KEYSTORE1_PATH).unwrap();
     assert!(output.status.success());
@@ -138,7 +138,7 @@ fn migrate_succeeds() {
 /// the C Tor keystore. A C Tor keystore must not contain multiple client keys for the same
 /// service.
 #[test]
-fn migrate_fails_if_multiple_keys_for_same_service() {
+fn migrate_duplicate_ctor_entries() {
     let migrate_cmd = CTorMigrateCmd::new();
     let output = migrate_cmd.output(CTOR_KEYSTORE2_PATH).unwrap();
     assert!(!output.status.success());
@@ -187,7 +187,7 @@ fn forced_migration_overwrites_arti_keys() {
 /// registered C Tor keystore, then test `ctor-migrate` fails when there
 /// are no valid keys in the registered C Tor keystore.
 #[test]
-fn migarte_fails_if_no_valid_entries_or_keys_in_ctor_ks() {
+fn migrate_invalid_ctor_keystore() {
     let assert_cmd_fails = |path: &str| {
         let migrate_cmd = CTorMigrateCmd::new();
 
@@ -208,7 +208,7 @@ fn migarte_fails_if_no_valid_entries_or_keys_in_ctor_ks() {
 /// Tests whether `ctor-migrate` succeeds when both valid and invalid entries are present in the
 /// registered C Tor keystore.
 #[test]
-fn migarte_skips_invalid_ctor_entries() {
+fn migrate_skips_invalid_ctor_entries() {
     let migrate_cmd = CTorMigrateCmd::new();
 
     let output = migrate_cmd.output(CTOR_KEYSTORE5_PATH).unwrap();
