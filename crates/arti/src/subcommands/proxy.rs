@@ -44,20 +44,14 @@ pub(crate) fn run<R: ToplevelRuntime>(
     // This implies listening on localhost ports.
 
     // TODO: Parse a string rather than calling new_localhost.
-    let socks_listen = match proxy_matches.get_one::<String>("socks-port") {
-        Some(p) => Listen::new_localhost(
-            p.parse()
-                .with_context(|| format!("Invalid -p argument (SOCKS port): \"{p}\""))?,
-        ),
+    let socks_listen = match proxy_matches.get_one::<u16>("socks-port") {
+        Some(p) => Listen::new_localhost(*p),
         None => config.proxy().socks_listen.clone(),
     };
 
     // TODO: Parse a string rather than calling new_localhost.
-    let dns_listen = match proxy_matches.get_one::<String>("dns-port") {
-        Some(p) => Listen::new_localhost(
-            p.parse()
-                .with_context(|| format!("Invalid -d argument (DNS port): \"{p}\""))?,
-        ),
+    let dns_listen = match proxy_matches.get_one::<u16>("dns-port") {
+        Some(p) => Listen::new_localhost(*p),
         None => config.proxy().dns_listen.clone(),
     };
 

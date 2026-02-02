@@ -304,6 +304,7 @@ where
                             .short('p')
                             .action(ArgAction::Set)
                             .value_name("PORT")
+                            .value_parser(clap::value_parser!(u16))
                             .help(r#"Localhost port to listen on for SOCKS connections (0 means "disabled"; overrides addresses in the config if specified)."#)
                     )
                     .arg(
@@ -311,6 +312,7 @@ where
                             .short('d')
                             .action(ArgAction::Set)
                             .value_name("PORT")
+                            .value_parser(clap::value_parser!(u16))
                             .help(r#"Localhost port to listen on for DNS requests (0 means "disabled"; overrides addresses in the config if specified)."#)
                     )
             )
