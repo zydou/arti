@@ -5,6 +5,7 @@
 
 pub(crate) mod handshake;
 pub(crate) mod initiator;
+pub(crate) mod responder;
 
 use async_trait::async_trait;
 use digest::Digest;
