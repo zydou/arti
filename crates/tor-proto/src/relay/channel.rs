@@ -251,6 +251,91 @@ impl ChannelAuthenticationData {
         // Lets go with the AUTHENTICATE cell.
         Ok(msg::Authenticate::new(self.link_auth, body))
     }
+
+    /// Build the [`ChannelAuthenticationData`] given a [`VerifiedChannel`].
+    ///
+    /// We should never check or build authentication data if the channel is not verified thus the
+    /// requirement to pass the verified channel to this function.
+    ///
+    /// Both initiator and responder handshake build this data in order to authenticate.
+    ///
+    /// IMPORTANT: The CLOG and SLOG from the framed_tls codec is consumed here so calling twice
+    /// build_auth_data() will result in different AUTHENTICATE cells.
+    pub(crate) fn build<T, S>(
+        auth_challenge_cell: Option<&msg::AuthChallenge>,
+        identities: &Arc<RelayIdentities>,
+        verified: &mut VerifiedChannel<T, S>,
+    ) -> Result<ChannelAuthenticationData>
+    where
+        T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
+        S: CoarseTimeProvider + SleepProvider,
+    {
+        // With an AUTH_CHALLENGE, we are the Initiator. With an AUTHENTICATE, we are the
+        // Responder. See tor-spec for a diagram of messages.
+        let is_responder = auth_challenge_cell.is_none();
+
+        // Without an AUTH_CHALLENGE, we use our known link protocol value. Else, we only keep what
+        // we know from the AUTH_CHALLENGE and we max() on it.
+        let link_auth = *LINK_AUTH
+            .iter()
+            .filter(|m| auth_challenge_cell.is_none_or(|cell| cell.methods().contains(m)))
+            .max()
+            .ok_or(Error::BadCellAuth)?;
+        // The ordering matter based on if initiator or responder.
+        let cid = identities.rsa_x509_digest();
+        let sid = verified
+            .rsa_id_cert_digest
+            .ok_or(Error::from(internal!(
+                "Verified channel without a RSA identity"
+            )))?
+            .1;
+        let cid_ed = identities.ed_id_bytes();
+        let sid_ed = verified
+            .ed25519_id
+            .ok_or(Error::from(internal!(
+                "Verified channel without an ed25519 identity"
+            )))?
+            .into();
+        // Both values are consumed from the underlying codec.
+        let clog = verified.framed_tls.codec_mut().get_clog_digest()?;
+        let slog = verified.framed_tls.codec_mut().get_slog_digest()?;
+
+        let (cid, sid, cid_ed, sid_ed) = if is_responder {
+            // Reverse when responder as in CID becomes SID, and so on.
+            (sid, cid, sid_ed, cid_ed)
+        } else {
+            // Keep it that way if we are initiator.
+            (cid, sid, cid_ed, sid_ed)
+        };
+
+        let (clog, slog) = if is_responder {
+            // Reverse as the SLOG is the responder log digest meaning the clog as a responder.
+            (slog, clog)
+        } else {
+            // Keep ordering.
+            (clog, slog)
+        };
+
+        let scert = if is_responder {
+            // TODO(relay): This is the peer certificate but as a responder, we need our
+            // certificate which requires lot more work and a rustls provider configured as a
+            // server side. See arti#2316.
+            todo!()
+        } else {
+            verified.peer_cert_digest
+        };
+
+        Ok(Self {
+            link_auth,
+            cid,
+            sid,
+            cid_ed,
+            sid_ed,
+            clog,
+            slog,
+            scert,
+        })
+    }
 }
 
 /// A relay unverified channel which is a channel where the version has been negotiated and the
