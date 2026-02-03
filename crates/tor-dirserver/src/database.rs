@@ -98,7 +98,7 @@ CREATE TABLE consensus(
     FOREIGN KEY(docid) REFERENCES store(docid),
     CHECK(GLOB('*[^0-9A-F]*', unsigned_sha3_256) == 0),
     CHECK(LENGTH(unsigned_sha3_256) == 64),
-    CHECK(flavor IN ('ns', 'md')),
+    CHECK(flavor IN ('ns', 'microdesc')),
     CHECK(valid_after >= 0),
     CHECK(fresh_until >= 0),
     CHECK(valid_until >= 0),
@@ -144,7 +144,7 @@ CREATE TABLE router_descriptor(
     CHECK(LENGTH(extra_unsigned_sha1) == 40),
     CHECK(
       flavor = 'ns' AND extra_unsigned_sha1 IS NOT NULL
-      OR flavor = 'md' AND extra_unsigned_sha1 IS NULL
+      OR flavor = 'microdesc' AND extra_unsigned_sha1 IS NULL
     )
 ) STRICT;
 
