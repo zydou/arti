@@ -716,6 +716,7 @@ pub struct TlsAcceptorSettings {
     #[cfg(feature = "tls-server")]
     pub(crate) identity: TlsKeyAndCert,
 
+    /// Indicates that this type can not be constructed.
     #[cfg(not(feature = "tls-server"))]
     unconstructable: void::Void,
     //
