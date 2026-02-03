@@ -22,6 +22,7 @@ use crate::channel::handshake::{
 };
 use crate::channel::{ChannelFrame, ChannelType, UniqId, VerifiableChannel, new_frame};
 use crate::memquota::ChannelAccount;
+use crate::relay::channel::initiator::UnverifiedInitiatorRelayChannel;
 use crate::relay::channel::{
     RelayIdentities, UnverifiedRelayChannel, build_certs_cell, build_netinfo_cell,
 };
@@ -105,7 +106,7 @@ impl<
     ///
     /// Takes a function that reports the current time.  In theory, this can just be
     /// `SystemTime::now()`.
-    pub async fn connect<F>(mut self, now_fn: F) -> Result<Box<dyn VerifiableChannel<T, S>>>
+    pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedInitiatorRelayChannel<T, S>>
     where
         F: FnOnce() -> SystemTime,
     {
@@ -119,6 +120,10 @@ impl<
         // Read until we have all the remaining cells from the responder.
         let (auth_challenge_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
             self.recv_cells_from_responder().await?;
+        // As a relay initiator, we always expect an AUTH_CHALLENGE else it is protocol violation.
+        let auth_challenge_cell = auth_challenge_cell.ok_or(Error::ChanProto(
+            "Missing AUTH_CHALLENGE as relay initiator".into(),
+        ))?;
 
         trace!(stream_id = %self.unique_id,
             "received handshake, ready to verify.",
@@ -132,7 +137,7 @@ impl<
             versions_flushed_wallclock,
         );
 
-        Ok(Box::new(UnverifiedRelayChannel {
+        Ok(UnverifiedInitiatorRelayChannel {
             inner: UnverifiedChannel {
                 link_protocol,
                 framed_tls: self.framed_tls,
@@ -143,11 +148,11 @@ impl<
                 sleep_prov: self.sleep_prov.clone(),
                 certs_cell: Some(certs_cell),
             },
-            auth_cell: auth_challenge_cell.map(super::AuthenticationCell::AuthChallenge),
+            auth_challenge_cell,
             netinfo_cell,
             identities: self.identities,
             my_addrs: self.my_addrs,
-        }))
+        })
     }
 }
 

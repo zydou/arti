@@ -4,6 +4,7 @@
 //! establish a channel according to the Tor protocol.
 
 pub(crate) mod handshake;
+pub(crate) mod initiator;
 
 use async_trait::async_trait;
 use digest::Digest;
