@@ -7,45 +7,46 @@ use walkdir::WalkDir;
 use crate::util::{clone_dir, create_state_dir_entry};
 
 /// Path to a test specific configuration that provides a full Arti native keystore.
-pub const CFG_PATH: &str = "./tests/testcases/hss-extra/conf/hss.toml";
+pub(super) const CFG_PATH: &str = "./tests/testcases/hss-extra/conf/hss.toml";
 
 /// Path to a test specific configuration that provides a full Arti native keystore and a full CTor
 /// keystore.
-pub const CFG_CTOR_PATH: &str = "./tests/testcases/hss-extra/conf/hss-ctor.toml";
+pub(super) const CFG_CTOR_PATH: &str = "./tests/testcases/hss-extra/conf/hss-ctor.toml";
 
 /// Path to a fully populated Arti native keystore.
 const KEYSTORE_PATH: &str = "./tests/testcases/hss-extra/hss.in/local/state-dir";
 
 /// Path to the long-term ID key, relative to the state directory.
-pub const EXPECTED_ID_KEY_PATH: &str = "keystore/hss/allium-cepa/ks_hs_id.ed25519_expanded_private";
+pub(super) const EXPECTED_ID_KEY_PATH: &str =
+    "keystore/hss/allium-cepa/ks_hs_id.ed25519_expanded_private";
 
 /// Path to the keystore directory, relative to the state directory.
-pub const KEYSTORE_DIR_PATH: &str = "keystore";
+pub(super) const KEYSTORE_DIR_PATH: &str = "keystore";
 
 /// Path to the keystore directory, relative to the state directory.
-pub const HSS_DIR_PATH: &str = "keystore/hss";
+pub(super) const HSS_DIR_PATH: &str = "keystore/hss";
 
 /// Path to the keystore directory, relative to the state directory.
-pub const SERVICE_DIR_PATH: &str = "keystore/hss/allium-cepa";
+pub(super) const SERVICE_DIR_PATH: &str = "keystore/hss/allium-cepa";
 
 /// Path to an unrecognized keystore entry, relative to the state directory.
-pub const EXPECTED_UNRECOGNIZED_KEYSTORE_ENTRY: &str =
+pub(super) const EXPECTED_UNRECOGNIZED_KEYSTORE_ENTRY: &str =
     "keystore/hss/allium-cepa/unrecognized-entry";
 
 /// Path to ipts directory, relative to the state directory.
-pub const IPTS_DIR_PATH: &str = "keystore/hss/allium-cepa/ipts";
+pub(super) const IPTS_DIR_PATH: &str = "keystore/hss/allium-cepa/ipts";
 
 /// A part of an unrecognized path, relative to the state directory.
-pub const UNRECOGNIZED_PATH_1: &str = "keystore/unrecognized-path";
+pub(super) const UNRECOGNIZED_PATH_1: &str = "keystore/unrecognized-path";
 
 /// A part of an unrecognized path, relative to the state directory.
-pub const UNRECOGNIZED_PATH_2_DIR: &str = "keystore/unrecognized-path-dir";
+pub(super) const UNRECOGNIZED_PATH_2_DIR: &str = "keystore/unrecognized-path-dir";
 
 /// Unrecognized path, relative to the state directory.
-pub const UNRECOGNIZED_PATH_2: &str = "keystore/unrecognized-path-dir/unrecognized-path";
+pub(super) const UNRECOGNIZED_PATH_2: &str = "keystore/unrecognized-path-dir/unrecognized-path";
 
 /// A collection of every path present in the default state directory.
-pub const ARTI_KEYSTORE_POPULATION: &[&str] = &[
+pub(super) const ARTI_KEYSTORE_POPULATION: &[&str] = &[
     KEYSTORE_DIR_PATH,
     HSS_DIR_PATH,
     SERVICE_DIR_PATH,
@@ -67,7 +68,7 @@ pub const ARTI_KEYSTORE_POPULATION: &[&str] = &[
 
 /// A struct that represents the subcommand `hss ctor-migrate`.
 #[derive(Debug, amplify::Getters)]
-pub struct CTorMigrateCmd {
+pub(super) struct CTorMigrateCmd {
     /// The temporary directory representing the state directory.
     ///
     /// NOTE: Although this field is not used directly, it must be retained to prevent the
@@ -91,7 +92,7 @@ pub struct CTorMigrateCmd {
 
 impl CTorMigrateCmd {
     /// A fresh instance of `CTorMigrateCmd`.
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         let state_dir = TempDir::new().unwrap();
         let state_dir_path = state_dir.path().to_path_buf();
         Self {
@@ -104,7 +105,7 @@ impl CTorMigrateCmd {
     }
 
     /// Execute the command and return its output as an [`Output`].
-    pub fn output(&self) -> std::io::Result<Output> {
+    pub(super) fn output(&self) -> std::io::Result<Output> {
         let mut cmd = cargo_bin_cmd!("arti");
 
         let opt = create_state_dir_entry(self.state_dir_path.to_string_lossy().as_ref());
@@ -129,18 +130,18 @@ impl CTorMigrateCmd {
     }
 
     /// Populates the temporary state directory with the files from the default state directory.
-    pub fn populate_state_dir(&self) {
+    pub(super) fn populate_state_dir(&self) {
         let keystore_path = PathBuf::from_str(KEYSTORE_PATH).unwrap();
         clone_dir(&keystore_path, &self.state_dir_path).unwrap();
     }
 
     /// Check whether the state directory is empty.
-    pub fn is_state_dir_empty(&self) -> bool {
+    pub(super) fn is_state_dir_empty(&self) -> bool {
         self.state_dir_entries().is_empty()
     }
 
     /// Check whether the state directory contains only the provided entries.
-    pub fn state_dir_contains_only(&self, expected_entries: &[&str]) -> bool {
+    pub(super) fn state_dir_contains_only(&self, expected_entries: &[&str]) -> bool {
         let state_dir_entries = self.state_dir_entries();
         let entries: Vec<_> = state_dir_entries
             .iter()
@@ -178,24 +179,24 @@ impl CTorMigrateCmd {
     }
 
     /// Setter for the field `nickname`
-    pub fn set_nickname(&mut self, nickname: String) {
+    pub(super) fn set_nickname(&mut self, nickname: String) {
         self.nickname = nickname;
     }
 
     /// Setter for the field `config`
-    pub fn set_config(&mut self, config: String) {
+    pub(super) fn set_config(&mut self, config: String) {
         self.config = config;
     }
 
     /// Setter for the field `stdin`
-    pub fn set_stdin(&mut self, content: String) {
+    pub(super) fn set_stdin(&mut self, content: String) {
         self.stdin = Some(content);
     }
 }
 
 /// A struct that represents the subcommand `hss --nickname allium-cepa onion-address`.
 #[derive(Debug, Clone, Default, Eq, PartialEq, derive_builder::Builder)]
-pub struct OnionAddressCmd {
+pub(super) struct OnionAddressCmd {
     /// Path to the configuration file supplied as the value of the `-c` flag.
     config_path: String,
     /// Optional path to a state directory.
@@ -206,7 +207,7 @@ pub struct OnionAddressCmd {
 
 impl OnionAddressCmd {
     /// Execute the command and return its output as an [`Output`].
-    pub fn output(&self) -> std::io::Result<Output> {
+    pub(super) fn output(&self) -> std::io::Result<Output> {
         let mut cmd = cargo_bin_cmd!("arti");
         cmd.args(["--config", &self.config_path]);
         if let Some(state_directory) = &self.state_directory {
