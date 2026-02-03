@@ -72,7 +72,8 @@ const CTOR_UNRECOGNIZED_ENTRY: &str = " Unrecognized entry
 ";
 
 /// The output relative to all the keys present in the test `ArtiNativeKeystore`.
-pub const LIST_OUTPUT_ARTI: &[&str] = &[CLIENT_KEY, UNRECOGNIZED_ENTRY, ID_KEY, UNRECOGNIZED_PATH];
+pub(super) const LIST_OUTPUT_ARTI: &[&str] =
+    &[CLIENT_KEY, UNRECOGNIZED_ENTRY, ID_KEY, UNRECOGNIZED_PATH];
 
 /// The the output relative to all the keys present
 /// in the test `CTorServiceKeystore`.
@@ -80,7 +81,7 @@ pub const LIST_OUTPUT_ARTI: &[&str] = &[CLIENT_KEY, UNRECOGNIZED_ENTRY, ID_KEY, 
 // TODO: The hostname file of the ctor keystore is not
 // currently handled correctly and is erroneously represented
 // as an unrecognized entry. This should be fixed.
-pub const LIST_OUTPUT_CTOR: &[&str] = &[
+pub(super) const LIST_OUTPUT_CTOR: &[&str] = &[
     CTOR_HOSTNAME,
     CTOR_SECRET,
     CTOR_PUBLIC,
@@ -89,7 +90,7 @@ pub const LIST_OUTPUT_CTOR: &[&str] = &[
 
 /// A struct that represents the subcommand `keys list`.
 #[derive(Debug, Clone, Default, Eq, PartialEq, derive_builder::Builder)]
-pub struct KeysListCmd {
+pub(super) struct KeysListCmd {
     /// Use [`with_arti`] to include a populated `ArtiNativeKeystore`.
     #[builder(default)]
     with_arti: bool,
@@ -103,7 +104,7 @@ pub struct KeysListCmd {
 
 impl KeysListCmd {
     /// Execute the command and return its output as an [`Output`].
-    pub fn output(&self) -> std::io::Result<Output> {
+    pub(super) fn output(&self) -> std::io::Result<Output> {
         let mut cmd = cargo_bin_cmd!("arti");
         if self.with_ctor {
             cmd.args(["-c", CFG_PATH_WITH_CTOR]);
@@ -136,7 +137,7 @@ impl KeysListCmd {
 
 /// A struct that represents the subcommand `keys list-keystores`.
 #[derive(Debug, Clone, Default, Eq, PartialEq, derive_builder::Builder)]
-pub struct KeysListKeystoreCmd {
+pub(super) struct KeysListKeystoreCmd {
     /// Use [`with_ctor`] to include a `CTorServiceKeystore` in the configuration.
     #[builder(default)]
     with_ctor: bool,
@@ -144,7 +145,7 @@ pub struct KeysListKeystoreCmd {
 
 impl KeysListKeystoreCmd {
     /// Execute the command and return its output as an [`Output`].
-    pub fn output(&self) -> std::io::Result<Output> {
+    pub(super) fn output(&self) -> std::io::Result<Output> {
         let mut cmd = cargo_bin_cmd!("arti");
         if self.with_ctor {
             cmd.args(["-c", CFG_PATH_WITH_CTOR]);
