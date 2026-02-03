@@ -56,6 +56,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod cli;
+mod client;
 mod config;
 mod relay;
 mod tasks;
