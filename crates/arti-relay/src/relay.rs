@@ -195,7 +195,6 @@ pub(crate) struct TorRelay<R: Runtime> {
     memquota: Arc<MemoryQuotaTracker>,
 
     /// A "client" used by relays to construct circuits.
-    #[expect(unused)] // TODO RELAY remove
     client: RelayClient<R>,
 
     /// Channel manager, used by circuits etc.
@@ -243,11 +242,6 @@ impl<R: Runtime> TorRelay<R> {
             inert.state_mgr,
         )
         .context("Failed to construct the relay's client")?;
-
-        client
-            .bootstrap()
-            .await
-            .context("Failed to bootstrap the relay's client")?;
 
         // An iterator of `listen()` futures with some extra error handling.
         let or_listeners = inert.config.relay.listen.addrs().map(async |addr| {
@@ -341,7 +335,26 @@ impl<R: Runtime> TorRelay<R> {
             }
         });
 
+        // Launch client tasks.
+        //
+        // We need to hold on to these handles until the relay stops, otherwise dropping these
+        // handles would stop the background tasks.
+        //
+        // These are `tor_rtcompat::scheduler::TaskHandle`s, which don't notify us if they
+        // stop/crash.
+        //
+        // TODO: Whose responsibility is it to ensure that these background tasks don't crash?
+        // Should we have a way of monitoring these tasks? Or should the circuit manager re-launch
+        // crashed tasks?
+        let _client_task_handles = self.client.launch_background_tasks();
+
         // TODO: More tasks will be spawned here.
+
+        // Now that background tasks are started, bootstrap the client.
+        self.client
+            .bootstrap()
+            .await
+            .context("Failed to bootstrap the relay's client")?;
 
         // We block until facism is erradicated or a task ends which means the relay will shutdown
         // and facism will have one more chance.

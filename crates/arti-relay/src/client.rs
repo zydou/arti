@@ -9,6 +9,7 @@ use tor_dirmgr::{DirMgr, DirMgrConfig, DirMgrStore, DirProvider};
 use tor_guardmgr::{GuardMgr, GuardMgrConfig};
 use tor_persist::FsStateMgr;
 use tor_rtcompat::Runtime;
+use tor_rtcompat::scheduler::TaskHandle;
 
 /// A "client" used by relays to construct circuits. For example a relay needs to build
 /// bandwidth-testing circuits, reachability-testing circuits, and possibly in the future anonymous
@@ -19,6 +20,12 @@ use tor_rtcompat::Runtime;
 /// Instead we provide methods here for building whatever circuits the relay may need, and with
 /// whatever properties the relay needs.
 pub(crate) struct RelayClient<R: Runtime> {
+    /// The provided runtime.
+    runtime: R,
+
+    /// The provided state manager.
+    state_mgr: FsStateMgr,
+
     /// Channel manager, used by circuits etc.
     #[expect(unused)] // TODO RELAY remove
     chanmgr: Arc<ChanMgr<R>>,
@@ -29,7 +36,6 @@ pub(crate) struct RelayClient<R: Runtime> {
 
     /// Circuit manager for keeping our circuits up to date and building
     /// them on-demand.
-    #[expect(unused)] // TODO RELAY remove
     circmgr: Arc<CircMgr<R>>,
 
     /// Directory manager for keeping our directory material up to date.
@@ -38,6 +44,8 @@ pub(crate) struct RelayClient<R: Runtime> {
 
 impl<R: Runtime> RelayClient<R> {
     /// Create a new [`RelayClient`].
+    ///
+    /// You must call [`RelayClient::launch_background_tasks()`] before using.
     pub(crate) fn new(
         runtime: R,
         chanmgr: Arc<ChanMgr<R>>,
@@ -63,7 +71,7 @@ impl<R: Runtime> RelayClient<R> {
         let circmgr = Arc::new(
             CircMgr::new(
                 circmgr_config,
-                state_mgr,
+                state_mgr.clone(),
                 &runtime,
                 Arc::clone(&chanmgr),
                 &guardmgr,
@@ -81,7 +89,7 @@ impl<R: Runtime> RelayClient<R> {
         let dirmgr = Arc::new(
             DirMgr::create_unbootstrapped(
                 dirmgr_config,
-                runtime,
+                runtime.clone(),
                 dirmgr_store,
                 Arc::clone(&circmgr),
             )
@@ -89,11 +97,22 @@ impl<R: Runtime> RelayClient<R> {
         );
 
         Ok(Self {
+            runtime,
+            state_mgr,
             chanmgr,
             guardmgr,
             circmgr,
             dirmgr,
         })
+    }
+
+    /// Launch background tasks for any of the client's submodules.
+    ///
+    /// The background tasks will stop when the returned [`TaskHandle`]s are dropped.
+    pub(crate) fn launch_background_tasks(&self) -> anyhow::Result<Vec<TaskHandle>> {
+        self.circmgr
+            .launch_background_tasks(&self.runtime, &self.dirmgr, self.state_mgr.clone())
+            .context("Failed to launch circuit manager background tasks")
     }
 
     /// Bootstrap this client by ensuring we have directory documents downloaded.
