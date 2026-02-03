@@ -779,7 +779,7 @@ enum CircuitEvent<M> {
 
 /// Instructions from the forward reactor.
 pub(crate) enum BackwardReactorCmd {
-    /// A circuit SENDME we received from the client.
+    /// A circuit SENDME we received from the other endpoint.
     HandleSendme {
         /// The hop the SENDME came on.
         hop: Option<HopNum>,
