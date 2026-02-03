@@ -2,14 +2,16 @@
 
 use std::io;
 
-/// The type of stream returned by `construct_socketpair`.
+use crate::nb_stream::MioStream;
+
+/// The type of blocking stream returned by `construct_socketpair`.
 #[cfg(not(windows))]
 pub(crate) type SocketpairStream = socketpair::SocketpairStream;
 #[cfg(windows)]
 pub(crate) type SocketpairStream = std::net::TcpStream;
 
 /// Test helper: construct a socketpair.
-pub(crate) fn construct_socketpair() -> io::Result<(SocketpairStream, SocketpairStream)> {
+fn construct_socketpair_inner() -> io::Result<(SocketpairStream, SocketpairStream)> {
     #[cfg(not(windows))]
     {
         socketpair::socketpair_stream()
@@ -34,4 +36,27 @@ pub(crate) fn construct_socketpair() -> io::Result<(SocketpairStream, Socketpair
         assert_eq!(s1.local_addr().unwrap(), s2_addr);
         Ok((s1, s2))
     }
+}
+
+/// Test helper: Construct a socketpair,
+/// wrapping the first element in a MIO wrapper and making it nonblocking.
+pub(crate) fn construct_socketpair() -> io::Result<(Box<dyn MioStream>, SocketpairStream)> {
+    let (s1, s2) = construct_socketpair_inner()?;
+
+    #[cfg(not(windows))]
+    let s1 = {
+        use std::os::fd::OwnedFd;
+
+        let owned_fd = OwnedFd::from(s1);
+        std::os::unix::net::UnixStream::from(owned_fd)
+    };
+
+    s1.set_nonblocking(true)?;
+
+    #[cfg(not(windows))]
+    let s1 = mio::net::UnixStream::from_std(s1);
+    #[cfg(windows)]
+    let s1 = mio::net::TcpStream::from_std(s1);
+
+    Ok((Box::new(s1), s2))
 }

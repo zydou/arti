@@ -687,8 +687,8 @@ mod test {
     use tor_basic_utils::{RngExt as _, test_rng::testing_rng};
 
     use crate::{
-        llconn,
         msgs::request::{JsonMap, Request, ValidatedRequest},
+        nb_stream::PollingStream,
     };
 
     use super::*;
@@ -696,9 +696,7 @@ mod test {
     /// helper: Return a dummy RpcConn, along with a socketpair for it to talk to.
     fn dummy_connected() -> (RpcConn, crate::testing::SocketpairStream) {
         let (s1, s2) = crate::testing::construct_socketpair().unwrap();
-        let s1_w = s1.try_clone().unwrap();
-        let s1_r = io::BufReader::new(s1);
-        let conn = RpcConn::new(llconn::Reader::new(s1_r), llconn::Writer::new(s1_w));
+        let conn = RpcConn::new(PollingStream::new(s1).unwrap());
 
         (conn, s2)
     }

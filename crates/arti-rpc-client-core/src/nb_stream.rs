@@ -15,15 +15,14 @@
 
 use mio::Interest;
 
-use crate::{
-    msgs::{request::ValidatedRequest, response::UnparsedResponse},
-    util::define_from_for_arc,
-};
+use crate::{msgs::request::ValidatedRequest, util::define_from_for_arc};
 use std::{
     io::{self, Read as _, Write as _},
     mem,
     sync::{Arc, Mutex},
 };
+
+pub use crate::msgs::response::UnparsedResponse;
 
 /// An IO stream to Arti, along with any supporting logic necessary to check it for readiness.
 ///
@@ -165,7 +164,7 @@ impl PollingStream {
 ///
 /// Note that queueing a message has no effect unless some party is polling the stream,
 /// either with [`PollingStream::interact()`], or [`NonblockingStream::interact_once()`].
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct WriteHandle {
     /// The actual implementation type for this writer.
     inner: Arc<Mutex<WriteHandleImpl>>,
@@ -218,6 +217,7 @@ define_from_for_arc!( io::Error => SendRequestError [Io] );
 /// To solve this, we put the write_buf and the waker behind the same lock:
 /// While the interactor is checking the buffer, nobody is able to add to the buffer _or_ wake the
 /// interactor.
+#[derive(derive_more::Debug)]
 struct WriteHandleImpl {
     /// An underlying buffer holding messages to be sent to the RPC server.
     //
@@ -225,6 +225,7 @@ struct WriteHandleImpl {
     write_buf: Vec<u8>,
 
     /// The waker to use to wake the polling loop.
+    #[debug(ignore)]
     waker: Box<dyn Waker>,
 }
 

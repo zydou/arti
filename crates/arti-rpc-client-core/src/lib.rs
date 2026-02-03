@@ -50,9 +50,8 @@
 mod conn;
 #[cfg(feature = "ffi")]
 pub mod ffi;
-pub mod llconn;
 mod msgs;
-mod nb_stream;
+pub mod nb_stream;
 #[macro_use]
 mod util;
 #[cfg(test)]
