@@ -132,17 +132,20 @@ CREATE TABLE router_descriptor(
     unsigned_sha2           TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     flavor                  TEXT NOT NULL,
-    router_extra_info_sha1  TEXT,
+    extra_unsigned_sha1     TEXT,
     FOREIGN KEY(docid) REFERENCES store(docid),
     CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', unsigned_sha2) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
-    CHECK(GLOB('*[^0-9A-F]*', router_extra_info_sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', extra_unsigned_sha1) == 0),
     CHECK(LENGTH(unsigned_sha1) == 40),
     CHECK(LENGTH(unsigned_sha2) == 64),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40),
-    CHECK(LENGTH(router_extra_info_sha1) == 40),
-    CHECK(flavor IN ('ns', 'md'))
+    CHECK(LENGTH(extra_unsigned_sha1) == 40),
+    CHECK(
+      flavor = 'ns' AND extra_unsigned_sha1 IS NOT NULL
+      OR flavor = 'md' AND extra_unsigned_sha1 IS NULL
+    )
 ) STRICT;
 
 -- Stores extra-info documents.
@@ -154,12 +157,12 @@ CREATE TABLE router_descriptor(
 CREATE TABLE router_extra_info(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
-    sha1                    TEXT NOT NULL UNIQUE,
+    unsigned_sha1           TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
-    CHECK(LENGTH(sha1) == 40),
+    CHECK(LENGTH(unsigned_sha1) == 40),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40)
 ) STRICT;
 
