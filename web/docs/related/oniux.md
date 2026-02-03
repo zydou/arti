@@ -34,7 +34,7 @@ oniux <CMD>
         * You probably want to do `rustup default stable`.
     2.
         ```
-        cargo install --locked --git https://gitlab.torproject.org/tpo/core/oniux --tag v0.7.0 oniux
+        cargo install --locked --git https://gitlab.torproject.org/tpo/core/oniux --tag v0.8.0 oniux
         ```
 
 ## Internals
