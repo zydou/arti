@@ -420,6 +420,8 @@ dependencies = [
  "derive_more",
  "educe",
  "fs-mistrust",
+ "memchr",
+ "mio",
  "paste",
  "percent-encoding",
  "rand 0.9.2",

@@ -52,6 +52,7 @@ mod conn;
 pub mod ffi;
 pub mod llconn;
 mod msgs;
+mod nb_stream;
 #[macro_use]
 mod util;
 #[cfg(test)]
