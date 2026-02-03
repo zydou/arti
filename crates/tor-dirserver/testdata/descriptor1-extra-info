@@ -1,0 +1,36 @@
+extra-info lisdex 000004ACBB9D29BCBA17256BB35928DDBFC8ABA9
+identity-ed25519
+-----BEGIN ED25519 CERT-----
+AQQAB4DrAQrvrZZm0NM3mABR2I/9LTJmu9fCKj3x2LxhBLRAjv7TAQAgBACEQpbC
+JQ6Csy5N8Qg5w2Zf46oLmzlPdGy55stF+jzLcgIIDohteU8y3+nSlepbTsWcsdyJ
+zC7YhWZP6SiWca59OyoDqMnlym9aM/wktBWfuRWqrytEJSo/vuXvgPAflA4=
+-----END ED25519 CERT-----
+published 2026-01-29 07:44:43
+write-history 2026-01-28 16:14:14 (86400 s) 1656786379776,1304776002560,1282229236736,1551438191616,1661463233536
+read-history 2026-01-28 16:14:14 (86400 s) 1646477017088,1291753369600,1265653974016,1535745429504,1636254971904
+ipv6-write-history 2026-01-28 16:14:14 (86400 s) 444715885568,357684436992,271206474752,349587898368,397939495936
+ipv6-read-history 2026-01-28 16:14:14 (86400 s) 617377385472,509723511808,463707954176,553830307840,603197643776
+dirreq-write-history 2026-01-28 16:14:14 (86400 s) 8497933312,11478216704,15750652928,14784960512,17441347584
+dirreq-read-history 2026-01-28 16:14:14 (86400 s) 384407552,500531200,1221431296,1247721472,1396931584
+geoip-db-digest 31076C25AD8B12FC033675F0F71A182D161A24D3
+geoip6-db-digest 911C766C0178E4407764C65FC1FC43DC4EC6B040
+dirreq-stats-end 2026-01-28 19:44:07 (86400 s)
+dirreq-v3-ips ir=280,us=136,de=96,in=56,ru=48,nl=40,fr=32,id=32,it=32,fi=24,gb=24,au=16,be=16,br=16,ca=16,cz=16,ph=16,pk=16,ae=8,al=8,am=8,ao=8,ar=8,bd=8,bg=8,bo=8,ch=8,ci=8,cl=8,co=8,dk=8,do=8,dz=8,ee=8,eg=8,es=8,eu=8,gh=8,gr=8,hk=8,hr=8,hu=8,il=8,iq=8,is=8,jo=8,jp=8,ke=8,kh=8,kr=8,kw=8,lb=8,lk=8,lt=8,ma=8,md=8,me=8,mk=8,mx=8,my=8,nc=8,ng=8,nz=8,om=8,pe=8,pl=8,pt=8,qa=8,ro=8,rs=8,sa=8,se=8,sg=8,sk=8,sy=8,th=8,tl=8,tn=8,tr=8,tw=8,tz=8,ua=8,ug=8,ve=8,vn=8,za=8,zm=8
+dirreq-v3-reqs in=1760,ir=568,us=360,pe=216,de=192,pk=160,id=128,ph=96,nl=88,ru=88,it=80,tr=72,fr=64,br=56,fi=48,ar=40,ca=40,gb=40,au=32,il=32,bd=24,be=24,cz=24,jp=24,za=24,ch=16,cl=16,es=16,hu=16,lt=16,mx=16,pl=16,pt=16,sa=16,se=16,tn=16,vn=16,ae=8,al=8,am=8,ao=8,bg=8,bo=8,ci=8,co=8,dk=8,do=8,dz=8,ee=8,eg=8,eu=8,gh=8,gr=8,hk=8,hr=8,iq=8,is=8,jo=8,ke=8,kh=8,kr=8,kw=8,lb=8,lk=8,ma=8,md=8,me=8,mk=8,my=8,nc=8,ng=8,nz=8,om=8,qa=8,ro=8,rs=8,sg=8,sk=8,sy=8,th=8,tl=8,tw=8,tz=8,ua=8,ug=8,ve=8,zm=8
+dirreq-v3-resp ok=4496,not-enough-sigs=0,unavailable=0,not-found=0,not-modified=184,busy=0
+dirreq-v3-direct-dl complete=0,timeout=0,running=0
+dirreq-v3-tunneled-dl complete=2200,timeout=2292,running=0,min=431,d1=146913,d2=503111,q1=854545,d3=1375444,d4=3036666,md=4321666,d6=5243000,d7=6495000,q3=7257500,d8=8711000,d9=12184000,max=57728000
+hidserv-stats-end 2026-01-28 19:44:07 (86400 s)
+hidserv-rend-relayed-cells 14034 delta_f=2048 epsilon=0.30 bin_size=1024
+hidserv-dir-onions-seen 45 delta_f=8 epsilon=0.30 bin_size=8
+hidserv-v3-stats-end 2026-01-28 12:00:00 (86400 s)
+hidserv-rend-v3-relayed-cells 158513042 delta_f=2048 epsilon=0.30 bin_size=1024
+hidserv-dir-v3-onions-seen 3580 delta_f=8 epsilon=0.30 bin_size=8
+padding-counts 2026-01-28 19:44:19 (86400 s) bin-size=10000 write-drop=1940000 write-pad=9450000 write-total=3133350000 read-drop=160000 read-pad=5920000 read-total=3084130000 enabled-read-pad=5830000 enabled-read-total=3061990000 enabled-write-pad=9450000 enabled-write-total=2979860000 max-chanpad-timers=60910
+router-sig-ed25519 +OPMfsqKAEiMwWh6UMoLWZ4hwdSZcnJ7B/dauYGwATyCBguDZcPxqZXOsARQjL3raA7m1LY+35WfMy6u06JpAg
+router-signature
+-----BEGIN SIGNATURE-----
+j3deN6BnCl5wByLPx0KYXJG2ykaIKJbyRfjxFOuakN9CbREU0m3XBzKG/GzHJfkJ
+3tRxj4cRzp577v0OViTDujrD2HqVOA7EzO1VBbI+8meVTFdf8+1pOhOoU0BHqiPc
+8DBvhc/4SWPSf3+1V6QKG6E7IaOnMAGo4VcSGx/3PzY=
+-----END SIGNATURE-----

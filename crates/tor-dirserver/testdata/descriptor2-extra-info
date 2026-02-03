@@ -1,0 +1,34 @@
+extra-info SharingIsCaring 0000775396823734F953D22C238F0FE85DB6F390
+identity-ed25519
+-----BEGIN ED25519 CERT-----
+AQQAB4E4AQiCgdaVVWKhiysazuhhO1RF+n/bkhidegwdQYq+NwvkAQAgBAAvWeu2
+4s1QmSioY7hxo7m8zteoSfdyR8yZJYjFt26jU2hjkoKFkhu+HG6FjUoD+RZOSGDH
+Q06aZS6MeIh75EayZ4HG2eGIOR3MXwtAAaSheDZutWbp6BtWZNJIAd9FbQQ=
+-----END ED25519 CERT-----
+published 2026-01-28 23:00:07
+write-history 2026-01-28 21:19:34 (86400 s) 13431085056,15343709184,8924834816,18114855936,14200250368
+read-history 2026-01-28 21:19:34 (86400 s) 13693249536,15722472448,9132302336,18148557824,14742090752
+dirreq-write-history 2026-01-28 21:19:34 (86400 s) 175892480,153626624,615542784,1000339456,197888000
+dirreq-read-history 2026-01-28 21:19:34 (86400 s) 427030528,533766144,844356608,1059472384,719854592
+geoip-db-digest 31076C25AD8B12FC033675F0F71A182D161A24D3
+geoip6-db-digest 911C766C0178E4407764C65FC1FC43DC4EC6B040
+dirreq-stats-end 2026-01-28 11:57:06 (86400 s)
+dirreq-v3-ips ru=32,de=8,it=8,lv=8,nl=8,us=8
+dirreq-v3-reqs ru=64,de=8,it=8,lv=8,nl=8,us=8
+dirreq-v3-resp ok=72,not-enough-sigs=0,unavailable=0,not-found=0,not-modified=8,busy=0
+dirreq-v3-direct-dl complete=0,timeout=0,running=0
+dirreq-v3-tunneled-dl complete=60,timeout=8,running=0,min=41722,d1=226685,d2=349470,q1=505805,d3=630525,d4=1701571,md=2205833,d6=2840400,d7=3221000,q3=3298000,d8=3441000,d9=4581000,max=7011500
+hidserv-stats-end 2026-01-28 11:57:06 (86400 s)
+hidserv-rend-relayed-cells -5819 delta_f=2048 epsilon=0.30 bin_size=1024
+hidserv-dir-onions-seen -5 delta_f=8 epsilon=0.30 bin_size=8
+hidserv-v3-stats-end 2026-01-28 12:00:00 (86400 s)
+hidserv-rend-v3-relayed-cells 1222132 delta_f=2048 epsilon=0.30 bin_size=1024
+hidserv-dir-v3-onions-seen 5806 delta_f=8 epsilon=0.30 bin_size=8
+padding-counts 2026-01-28 11:58:02 (86400 s) bin-size=10000 write-drop=30000 write-pad=1690000 write-total=38140000 read-drop=10000 read-pad=1600000 read-total=38990000 enabled-read-pad=1600000 enabled-read-total=38880000 enabled-write-pad=1690000 enabled-write-total=35850000 max-chanpad-timers=713
+router-sig-ed25519 c6Ex73ldZ+sR3iliVoZoHo2UpIiinXdeBRyDmuNqISZdlAu/em4dGafcpaLJ7L2s9iwDPOM33h1tTGAJGZf8Dw
+router-signature
+-----BEGIN SIGNATURE-----
+umBJGRZRCw2Ys1RradjBvFt74dSzBOWLPxYyA+g/1V2wwBJH1GKjT+JGZrulD3ht
+KtXFDBrVmu9X10gXbv/RyzWLjrzqpTuMuZwb9FpGrSghmw6LE965aSNjjtkmnNZ2
+xwlwdI2XsyBj/Ubr3TIBJZSBZuJB0ih1m1r0Q/x5QmA=
+-----END SIGNATURE-----

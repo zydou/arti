@@ -42,6 +42,7 @@
 // custom type.
 
 use std::{
+    collections::HashSet,
     fmt::Display,
     io::{Cursor, Write},
     num::NonZero,
@@ -544,6 +545,140 @@ impl ConsensusMeta {
 
         self.fresh_until + Duration::from_secs(offset)
     }
+
+    /// Returns the missing server descriptors for this consensus.
+    pub(crate) fn missing_servers(
+        &self,
+        tx: &Transaction<'_>,
+    ) -> Result<HashSet<Sha1>, DatabaseError> {
+        if self.flavor != ConsensusFlavor::Plain {
+            return Ok(HashSet::new());
+        }
+
+        // Select the missing router descriptors.
+        //
+        // A router descriptor is considered missing if it exists in
+        // `consensus_router_descriptor_member` but not in `router_descriptor`
+        // because the first entry is added once the consensus got parsed,
+        // whereas the second entry is added once we have actually retrieved it.
+        //
+        // It works by doing a left join on router_descriptor and filtering for
+        // all entries where the join is NULL, as that implies we are aware of
+        // the descriptor but not have it stored.
+        //
+        // Parameters:
+        // :docid - The docid of the consensus.
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            SELECT cr.unsigned_sha1
+            FROM consensus_router_descriptor_member AS cr
+              LEFT JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
+            WHERE
+              cr.consensus_docid = :docid
+              AND server.unsigned_sha1 IS NULL
+            "
+        ))?;
+
+        let mut missing = HashSet::new();
+        let rows = stmt.query_map(named_params! {":docid": self.docid}, |row| row.get(0))?;
+        for row in rows {
+            missing.insert(row?);
+        }
+
+        Ok(missing)
+    }
+
+    /// Returns the missing extra infos for this consensus to the best of our abilities.
+    ///
+    /// Keep in mind that this does not return **all** missing extra infos but
+    /// only the missing extra infos of server descriptors we have.
+    pub(crate) fn missing_extras(
+        &self,
+        tx: &Transaction<'_>,
+    ) -> Result<HashSet<Sha1>, DatabaseError> {
+        if self.flavor != ConsensusFlavor::Plain {
+            return Ok(HashSet::new());
+        }
+
+        // Select the missing extra infos for this consensus.
+        //
+        // This return value is not complete because we only know the missing
+        // extra-infos to the best of our abilities.  In other words: We are
+        // only aware of a missing extra-info if we have parsed the respective
+        // server descriptor.
+        //
+        // It works by doing an inner join from
+        // `consensus_router_descriptor_member` to `router_descriptor` because
+        // we can only know about the extra-infos of which we have the server
+        // descriptors from.  Afterwards, we do a left join with the
+        // `router_extra_info` table and filter for all results where the left
+        // join result is null, hence where we have a server descriptor but not
+        // the respective extra-info.
+        //
+        // Parameters:
+        // :docid - The docid of the consensus.
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            SELECT server.extra_unsigned_sha1
+            FROM consensus_router_descriptor_member AS cr
+              INNER JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
+              LEFT JOIN router_extra_info AS extra ON server.extra_unsigned_sha1 = extra.unsigned_sha1
+            WHERE
+              cr.consensus_docid = :docid
+              AND extra.unsigned_sha1 IS NULL
+            "
+        ))?;
+
+        let mut missing = HashSet::new();
+        let rows = stmt.query_map(named_params! {":docid": self.docid}, |row| row.get(0))?;
+        for row in rows {
+            missing.insert(row?);
+        }
+
+        Ok(missing)
+    }
+
+    /// Returns the missing micro descriptors for this consensus.
+    pub(crate) fn missing_micros(
+        &self,
+        tx: &Transaction<'_>,
+    ) -> Result<HashSet<Sha256>, DatabaseError> {
+        if self.flavor != ConsensusFlavor::Microdesc {
+            return Ok(HashSet::new());
+        }
+
+        // Select the missing micro descriptors.
+        //
+        // A micro descriptor is considered missing if it exists in
+        // `consensus_router_descriptor_member` but not in `router_descriptor`
+        // because the first entry is added once the consensus got parsed,
+        // whereas the second entry is added once we have actually retrieved it.
+        //
+        // It works by doing a left join on router_descriptor and filtering for
+        // all entries where the join is NULL, as that implies we are aware of
+        // the descriptor but not have it stored.
+        //
+        // Parameters:
+        // :docid - The docid of the consensus.
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            SELECT cr.unsigned_sha2
+            FROM consensus_router_descriptor_member AS cr
+              LEFT JOIN router_descriptor AS micro ON cr.unsigned_sha2 = micro.unsigned_sha2
+            WHERE
+              cr.consensus_docid = :docid
+              AND micro.unsigned_sha2 IS NULL
+            "
+        ))?;
+
+        let mut missing = HashSet::new();
+        let rows = stmt.query_map(named_params! {":docid": self.docid}, |row| row.get(0))?;
+        for row in rows {
+            missing.insert(row?);
+        }
+
+        Ok(missing)
+    }
 }
 
 /// Representation of authority certificate metadata from the database.
@@ -964,10 +1099,13 @@ mod test {
     }
 
     const CONSENSUS_CONTENT: &str = "Lorem ipsum dolor sit amet.";
+    const CONSENSUS_MD_CONTENT: &str = "Lorem ipsum dolor sit amet!";
     const CERT_CONTENT: &[u8] = include_bytes!("../testdata/authcert-longclaw");
 
     lazy_static! {
         static ref CONSENSUS_DOCID: DocumentId = DocumentId::digest(CONSENSUS_CONTENT.as_bytes());
+        static ref CONSENSUS_MD_DOCID: DocumentId =
+            DocumentId::digest(CONSENSUS_MD_CONTENT.as_bytes());
         static ref CERT_DOCID: DocumentId = DocumentId::digest(CERT_CONTENT);
     }
 
@@ -982,9 +1120,81 @@ mod test {
 
             tx.execute(
                 sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
+                params![*CONSENSUS_MD_DOCID, CONSENSUS_MD_CONTENT.as_bytes()],
+            )
+            .unwrap();
+
+            tx.execute(
+                sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
                 params![*CERT_DOCID, CERT_CONTENT],
             )
             .unwrap();
+
+            tx.execute(
+                sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
+                params![
+                    DocumentId::digest(include_bytes!("../testdata/descriptor1-ns")),
+                    include_bytes!("../testdata/descriptor1-ns")
+                ]
+            ).unwrap();
+
+            tx.execute(
+                sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
+                params![
+                    DocumentId::digest(include_bytes!("../testdata/descriptor1-extra-info")),
+                    include_bytes!("../testdata/descriptor1-extra-info")
+                ]
+            ).unwrap();
+
+            tx.execute(
+                sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
+                params![
+                    DocumentId::digest(include_bytes!("../testdata/descriptor1-md")),
+                    include_bytes!("../testdata/descriptor1-md"),
+            ]).unwrap();
+
+            // Insert descriptor into router_extra_info.
+            tx.execute(sql!(
+                "
+                INSERT INTO router_extra_info
+                (docid, unsigned_sha1, kp_relay_id_rsa_sha1)
+                VALUES (?1, ?2, ?3)
+                "
+            ), params![
+                Sha256::digest(include_bytes!("../testdata/descriptor1-extra-info")),
+                Sha1::digest(include_bytes!("../testdata/descriptor1-extra-info-unsigned")),
+                "000004ACBB9D29BCBA17256BB35928DDBFC8ABA9",
+            ]).unwrap();
+
+            // We only insert descriptor1 here.
+            tx.execute(sql!(
+                "
+                INSERT INTO router_descriptor
+                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor, extra_unsigned_sha1)
+                VALUES
+                (?1, ?2, ?3, ?4, 'ns', ?5)
+                "
+            ), params![
+                DocumentId::digest(include_bytes!("../testdata/descriptor1-ns")),
+                Sha1::digest(include_bytes!("../testdata/descriptor1-ns-unsigned")),
+                Sha256::digest(include_bytes!("../testdata/descriptor1-ns-unsigned")),
+                Sha1::from([0, 0, 4, 172, 187, 157, 41, 188, 186, 23, 37, 107, 179, 89, 40, 221, 191, 200, 171, 169]),
+                Sha1::digest(include_bytes!("../testdata/descriptor1-extra-info-unsigned")),
+            ]).unwrap();
+
+            // Only insert descriptor1's md
+            tx.execute(sql!(
+                "
+                INSERT INTO router_descriptor
+                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor)
+                VALUES (?1, ?2, ?3, ?4, 'microdesc')
+                "
+            ), params![
+                DocumentId::digest(include_bytes!("../testdata/descriptor1-md")),
+                Sha1::digest(include_bytes!("../testdata/descriptor1-md")),
+                Sha256::digest(include_bytes!("../testdata/descriptor1-md")),
+                Sha1::from([0, 0, 4, 172, 187, 157, 41, 188, 186, 23, 37, 107, 179, 89, 40, 221, 191, 200, 171, 169]),
+            ]).unwrap();
 
             tx.execute(
                 sql!(
@@ -1006,7 +1216,59 @@ mod test {
             )
             .unwrap();
 
-                    tx.execute(sql!(
+            tx.execute(
+                sql!(
+                    "
+                    INSERT INTO consensus
+                    (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
+                    VALUES
+                    (?1, ?2, ?3, ?4, ?5, ?6)
+                    "
+                ),
+                params![
+                    *CONSENSUS_MD_DOCID,
+                    "0000000000000000000000000000000000000000000000000000000000000001", // not the correct hash
+                    ConsensusFlavor::Microdesc.name(),
+                    *VALID_AFTER,
+                    *FRESH_UNTIL,
+                    *VALID_UNTIL,
+                ],
+            )
+            .unwrap();
+
+            tx.execute(sql!(
+                "
+                INSERT INTO consensus_router_descriptor_member
+                (consensus_docid, unsigned_sha1, unsigned_sha2)
+                VALUES
+                (?1, ?2, ?3),
+                (?1, ?4, ?5)
+                "
+            ), params![
+                *CONSENSUS_DOCID,
+                Sha1::digest(include_bytes!("../testdata/descriptor1-ns-unsigned")),
+                Sha256::digest(include_bytes!("../testdata/descriptor1-ns-unsigned")),
+                Sha1::digest(include_bytes!("../testdata/descriptor2-ns-unsigned")),
+                Sha256::digest(include_bytes!("../testdata/descriptor2-ns-unsigned")),
+            ]).unwrap();
+
+            tx.execute(sql!(
+                "
+                INSERT INTO consensus_router_descriptor_member
+                (consensus_docid, unsigned_sha1, unsigned_sha2)
+                VALUES
+                (?1, ?2, ?3),
+                (?1, ?4, ?5)
+                "
+            ), params![
+                *CONSENSUS_MD_DOCID,
+                Sha1::digest(include_bytes!("../testdata/descriptor1-md")),
+                Sha256::digest(include_bytes!("../testdata/descriptor1-md")),
+                Sha1::digest(include_bytes!("../testdata/descriptor2-md")),
+                Sha256::digest(include_bytes!("../testdata/descriptor2-md")),
+            ]).unwrap();
+
+            tx.execute(sql!(
                 "
                 INSERT INTO authority_key_certificate
                   (docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1, dir_key_published, dir_key_expires)
@@ -1604,6 +1866,137 @@ mod test {
                     .unwrap(),
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn missing_server_descriptors() {
+        let pool = create_dummy_db();
+        let meta = read_tx(&pool, |tx| {
+            ConsensusMeta::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &DirTolerance::default(),
+                *VALID_AFTER,
+            )
+        })
+        .unwrap()
+        .unwrap()
+        .unwrap();
+
+        // Only one should be returned.
+        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            missing_servers,
+            HashSet::from([Sha1::digest(include_bytes!(
+                "../testdata/descriptor2-ns-unsigned"
+            ))])
+        );
+
+        // If we delete all router descriptors we have, we should get both.
+        rw_tx(&pool, |tx| {
+            tx.execute(sql!("DELETE FROM router_descriptor"), params![])
+        })
+        .unwrap()
+        .unwrap();
+
+        // Now both should be returned
+        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            missing_servers,
+            HashSet::from([
+                Sha1::digest(include_bytes!("../testdata/descriptor1-ns-unsigned")),
+                Sha1::digest(include_bytes!("../testdata/descriptor2-ns-unsigned"))
+            ])
+        );
+    }
+
+    #[test]
+    fn missing_extra_infos() {
+        let pool = create_dummy_db();
+        let meta = read_tx(&pool, |tx| {
+            ConsensusMeta::query_recent(
+                tx,
+                ConsensusFlavor::Plain,
+                &DirTolerance::default(),
+                *VALID_AFTER,
+            )
+        })
+        .unwrap()
+        .unwrap()
+        .unwrap();
+
+        // We should have no missing extra-infos.
+        // Technically extra-info of the second relay is missing too, but we
+        // cannot know that.
+        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx))
+            .unwrap()
+            .unwrap();
+        assert!(missing_extras.is_empty());
+
+        // Now delete the record of router_extra_info.
+        pool.get()
+            .unwrap()
+            .execute(sql!("DELETE FROM router_extra_info"), params![])
+            .unwrap();
+
+        // Now we should get a single missing extra-info.
+        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            missing_extras,
+            HashSet::from([Sha1::digest(include_bytes!(
+                "../testdata/descriptor1-extra-info-unsigned"
+            ))])
+        );
+    }
+
+    #[test]
+    fn missing_micro_descriptors() {
+        let pool = create_dummy_db();
+        let meta = read_tx(&pool, |tx| {
+            ConsensusMeta::query_recent(
+                tx,
+                ConsensusFlavor::Microdesc,
+                &DirTolerance::default(),
+                *VALID_AFTER,
+            )
+        })
+        .unwrap()
+        .unwrap()
+        .unwrap();
+
+        // Only one should be returned.
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            missing_micros,
+            HashSet::from([Sha256::digest(include_bytes!("../testdata/descriptor2-md"))])
+        );
+
+        // If we delete all router descriptors we have, we should get both.
+        rw_tx(&pool, |tx| {
+            tx.execute(sql!("DELETE FROM router_descriptor"), params![])
+        })
+        .unwrap()
+        .unwrap();
+
+        // Now both should be returned
+        let missing_servers = read_tx(&pool, |tx| meta.missing_micros(tx))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            missing_servers,
+            HashSet::from([
+                Sha256::digest(include_bytes!("../testdata/descriptor1-md")),
+                Sha256::digest(include_bytes!("../testdata/descriptor2-md"))
+            ])
         );
     }
 }
