@@ -122,11 +122,11 @@ impl InertTorRelay {
     }
 
     /// Connect the [`InertTorRelay`] to the Tor network.
-    pub(crate) async fn bootstrap<R: Runtime>(self, runtime: R) -> anyhow::Result<TorRelay<R>> {
+    pub(crate) async fn init<R: Runtime>(self, runtime: R) -> anyhow::Result<TorRelay<R>> {
         // Attempt to generate any missing keys/cert from the KeyMgr.
         Self::try_generate_keys(&self.keymgr).context("Failed to generate keys")?;
 
-        TorRelay::bootstrap(runtime, self).await
+        TorRelay::init(runtime, self).await
     }
 
     /// Create the [key manager](KeyMgr).
@@ -218,8 +218,11 @@ pub(crate) struct TorRelay<R: Runtime> {
 impl<R: Runtime> TorRelay<R> {
     /// Create a new Tor relay with the given [`runtime`][tor_rtcompat].
     ///
-    /// Expected to be called from [`InertTorRelay::bootstrap()`].
-    async fn bootstrap(runtime: R, inert: InertTorRelay) -> anyhow::Result<Self> {
+    /// We use this to initialize components, open sockets, etc.
+    /// Doing work with these components should happen in [`TorRelay::run()`].
+    ///
+    /// Expected to be called from [`InertTorRelay::init()`].
+    async fn init(runtime: R, inert: InertTorRelay) -> anyhow::Result<Self> {
         let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
             .context("Failed to initialize memquota tracker")?;
 
@@ -292,8 +295,6 @@ impl<R: Runtime> TorRelay<R> {
                 crate::util::iter_join(", ", inert.config.relay.listen.addrs()),
             ));
         }
-
-        // TODO: missing the actual bootstrapping
 
         Ok(Self {
             runtime,
