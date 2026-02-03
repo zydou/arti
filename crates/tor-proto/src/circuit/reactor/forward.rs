@@ -27,7 +27,9 @@ use tor_cell::chancell::CircId;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::Relay;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg};
+use tor_cell::relaycell::{
+    AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg,
+};
 use tor_error::{internal, warn_report};
 use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
@@ -520,10 +522,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             // become incorrect.  (Higher numbers are not currently defined.)
             let sendme = Sendme::from(tag);
             let msg = AnyRelayMsgOuter::new(None, sendme.into());
-            let forward = BackwardReactorCmd::SendRelayMsg {
-                hop: hopnum,
-                msg
-            };
+            let forward = BackwardReactorCmd::SendRelayMsg { hop: hopnum, msg };
 
             // NOTE: sending the SENDME to the backward reactor for handling
             // might seem counterintuitive, given that we have access to
