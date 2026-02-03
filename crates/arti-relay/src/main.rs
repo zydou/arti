@@ -56,6 +56,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod cli;
+mod client;
 mod config;
 mod relay;
 mod tasks;
@@ -258,7 +259,7 @@ async fn run_relay<R: Runtime>(
     inert_relay: InertTorRelay,
 ) -> anyhow::Result<void::Void> {
     let relay = inert_relay
-        .bootstrap(runtime)
+        .init(runtime)
         .await
         .context("Failed to bootstrap")?;
     // This blocks until end of time or an error.

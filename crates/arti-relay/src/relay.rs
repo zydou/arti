@@ -10,10 +10,8 @@ use tracing::{debug, warn};
 
 use fs_mistrust::Mistrust;
 use tor_chanmgr::{ChanMgr, ChanMgrConfig, Dormancy};
-use tor_circmgr::CircMgr;
 use tor_config_path::CfgPathResolver;
-use tor_dirmgr::{DirMgr, DirMgrConfig, DirMgrStore, DirProvider};
-use tor_guardmgr::GuardMgr;
+use tor_dirmgr::DirMgrConfig;
 use tor_keymgr::{
     ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
 };
@@ -24,6 +22,7 @@ use tor_persist::{FsStateMgr, StateMgr};
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
 use tor_rtcompat::{NetStreamProvider, Runtime};
 
+use crate::client::RelayClient;
 use crate::config::TorRelayConfig;
 
 /// An initialized but unbootstrapped relay.
@@ -51,7 +50,7 @@ pub(crate) struct InertTorRelay {
     /// The configuration options for the relay.
     config: TorRelayConfig,
 
-    /// The configuration options for the [`DirMgr`].
+    /// The configuration options for the client's directory manager.
     dirmgr_config: DirMgrConfig,
 
     /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
@@ -123,11 +122,11 @@ impl InertTorRelay {
     }
 
     /// Connect the [`InertTorRelay`] to the Tor network.
-    pub(crate) async fn bootstrap<R: Runtime>(self, runtime: R) -> anyhow::Result<TorRelay<R>> {
+    pub(crate) async fn init<R: Runtime>(self, runtime: R) -> anyhow::Result<TorRelay<R>> {
         // Attempt to generate any missing keys/cert from the KeyMgr.
         Self::try_generate_keys(&self.keymgr).context("Failed to generate keys")?;
 
-        TorRelay::bootstrap(runtime, self).await
+        TorRelay::init(runtime, self).await
     }
 
     /// Create the [key manager](KeyMgr).
@@ -195,21 +194,11 @@ pub(crate) struct TorRelay<R: Runtime> {
     #[expect(unused)] // TODO RELAY remove
     memquota: Arc<MemoryQuotaTracker>,
 
+    /// A "client" used by relays to construct circuits.
+    client: RelayClient<R>,
+
     /// Channel manager, used by circuits etc.
     chanmgr: Arc<ChanMgr<R>>,
-
-    /// Guard manager.
-    #[expect(unused)] // TODO RELAY remove
-    guardmgr: GuardMgr<R>,
-
-    /// Circuit manager for keeping our circuits up to date and building
-    /// them on-demand.
-    #[expect(unused)] // TODO RELAY remove
-    circmgr: Arc<CircMgr<R>>,
-
-    /// Directory manager for keeping our directory material up to date.
-    #[expect(unused)] // TODO RELAY remove
-    dirmgr: Arc<dyn DirProvider>,
 
     /// See [`InertTorRelay::keymgr`].
     #[expect(unused)] // TODO RELAY remove
@@ -228,8 +217,11 @@ pub(crate) struct TorRelay<R: Runtime> {
 impl<R: Runtime> TorRelay<R> {
     /// Create a new Tor relay with the given [`runtime`][tor_rtcompat].
     ///
-    /// Expected to be called from [`InertTorRelay::bootstrap()`].
-    async fn bootstrap(runtime: R, inert: InertTorRelay) -> anyhow::Result<Self> {
+    /// We use this to initialize components, open sockets, etc.
+    /// Doing work with these components should happen in [`TorRelay::run()`].
+    ///
+    /// Expected to be called from [`InertTorRelay::init()`].
+    async fn init(runtime: R, inert: InertTorRelay) -> anyhow::Result<Self> {
         let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
             .context("Failed to initialize memquota tracker")?;
 
@@ -241,55 +233,15 @@ impl<R: Runtime> TorRelay<R> {
             memquota.clone(),
         ));
 
-        // TODO: We probably don't want a guard manager for relays,
-        // unless we plan to build anonymous circuits.
-        // See https://gitlab.torproject.org/tpo/core/arti/-/issues/1737.
-        // If we do want a guard manager and anonymous circuits,
-        // we should think more about whether our anonymous circuits can be differentiated from
-        // other circuits, and make sure that we're not closing channels for "client reasons" as
-        // these channels will also be used by the relay for relaying Tor user traffic.
-        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3552#note_3313591.
-        let guardmgr = GuardMgr::new(runtime.clone(), inert.state_mgr.clone(), &inert.config)
-            .context("Failed to initialize the guard manager")?;
-
-        // TODO: We might not want a circuit manager for relays,
-        // but we will probably want its path construction logic.
-        // We need to be able to build circuits for reachability testing and bandwidth measurement.
-        let circmgr = Arc::new(
-            CircMgr::new(
-                &inert.config,
-                inert.state_mgr.clone(),
-                &runtime,
-                Arc::clone(&chanmgr),
-                &guardmgr,
-            )
-            .context("Failed to initialize the circuit manager")?,
-        );
-
-        let dirmgr_store = DirMgrStore::new(
-            &inert.dirmgr_config,
+        let client = RelayClient::new(
             runtime.clone(),
-            /* offline= */ false,
+            Arc::clone(&chanmgr),
+            &inert.config,
+            &inert.config,
+            inert.dirmgr_config,
+            inert.state_mgr,
         )
-        .context("Failed to initialize directory store")?;
-
-        // TODO: We want to use tor-dirserver as a `NetDirProvider` in the future if possible to
-        // avoid having two document downloaders, and so that we can download documents over direct
-        // TCP connections rather than over circuits.
-        let dirmgr = Arc::new(
-            DirMgr::create_unbootstrapped(
-                inert.dirmgr_config,
-                runtime.clone(),
-                dirmgr_store,
-                Arc::clone(&circmgr),
-            )
-            .context("Failed to initialize the directory manager")?,
-        );
-
-        dirmgr
-            .bootstrap()
-            .await
-            .context("Failed to bootstrap the directory manager")?;
+        .context("Failed to construct the relay's client")?;
 
         // An iterator of `listen()` futures with some extra error handling.
         let or_listeners = inert.config.relay.listen.addrs().map(async |addr| {
@@ -338,15 +290,11 @@ impl<R: Runtime> TorRelay<R> {
             ));
         }
 
-        // TODO: missing the actual bootstrapping
-
         Ok(Self {
             runtime,
             memquota,
+            client,
             chanmgr,
-            guardmgr,
-            circmgr,
-            dirmgr,
             keymgr: inert.keymgr,
             or_listeners,
             advertised_addresses: inert.config.relay.advertise,
@@ -387,7 +335,26 @@ impl<R: Runtime> TorRelay<R> {
             }
         });
 
+        // Launch client tasks.
+        //
+        // We need to hold on to these handles until the relay stops, otherwise dropping these
+        // handles would stop the background tasks.
+        //
+        // These are `tor_rtcompat::scheduler::TaskHandle`s, which don't notify us if they
+        // stop/crash.
+        //
+        // TODO: Whose responsibility is it to ensure that these background tasks don't crash?
+        // Should we have a way of monitoring these tasks? Or should the circuit manager re-launch
+        // crashed tasks?
+        let _client_task_handles = self.client.launch_background_tasks();
+
         // TODO: More tasks will be spawned here.
+
+        // Now that background tasks are started, bootstrap the client.
+        self.client
+            .bootstrap()
+            .await
+            .context("Failed to bootstrap the relay's client")?;
 
         // We block until facism is erradicated or a task ends which means the relay will shutdown
         // and facism will have one more chance.
