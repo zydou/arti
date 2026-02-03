@@ -14,7 +14,7 @@ use tor_linkspec::OwnedChanTarget;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::{
-    Error, RelayIdentities, Result,
+    ClockSkew, Error, RelayIdentities, Result,
     channel::{
         Channel, Reactor,
         handshake::{UnverifiedChannel, VerifiedChannel},
@@ -135,6 +135,11 @@ where
             inner: verified,
             netinfo_cell,
         })
+    }
+
+    /// Return the clock skew of this channel.
+    pub fn clock_skew(&self) -> ClockSkew {
+        self.inner.clock_skew
     }
 }
 

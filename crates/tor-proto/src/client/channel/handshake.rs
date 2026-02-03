@@ -11,6 +11,7 @@ use tracing::{debug, instrument, trace};
 use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
+use crate::ClockSkew;
 use crate::Result;
 use crate::channel::handshake::{
     ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, VerifiedChannel,
@@ -18,9 +19,6 @@ use crate::channel::handshake::{
 };
 use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
-
-#[cfg(test)]
-use crate::ClockSkew;
 
 /// A raw client channel on which nothing has been done.
 pub struct ClientInitiatorHandshake<
@@ -188,9 +186,8 @@ impl<
         Ok(VerifiedClientChannel { inner })
     }
 
-    /// Return the link protocol version of this channel.
-    #[cfg(test)]
-    pub(crate) fn clock_skew(&self) -> ClockSkew {
+    /// Return the clock skew of this channel.
+    pub fn clock_skew(&self) -> ClockSkew {
         self.inner.clock_skew
     }
 
