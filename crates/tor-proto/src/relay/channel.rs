@@ -7,21 +7,17 @@ pub(crate) mod handshake;
 pub(crate) mod initiator;
 pub(crate) mod responder;
 
-use async_trait::async_trait;
 use digest::Digest;
-use futures::{AsyncRead, AsyncWrite, SinkExt};
+use futures::{AsyncRead, AsyncWrite};
 use rand::Rng;
 use safelog::Sensitive;
-use std::net::{IpAddr, SocketAddr};
-use std::ops::Deref;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
-use tracing::{instrument, trace};
 
 use tor_cell::chancell::msg;
 use tor_cert::{Ed25519Cert, rsa::RsaCrosscert};
 use tor_error::internal;
-use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{
     ed25519::{Ed25519Identity, Ed25519SigningKey},
@@ -30,9 +26,8 @@ use tor_llcrypto::pk::{
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
-use crate::ClockSkew;
-use crate::channel::handshake::{UnverifiedChannel, VerifiedChannel};
-use crate::channel::{Channel, ChannelType, FinalizableChannel, Reactor, VerifiableChannel};
+use crate::channel::ChannelType;
+use crate::channel::handshake::VerifiedChannel;
 use crate::relay::channel::handshake::{AUTHTYPE_ED25519_SHA256_RFC5705, RelayResponderHandshake};
 use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 
@@ -40,24 +35,6 @@ use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAc
 // crate that have all "network parameters" we support?
 /// A list of link authentication that we support (LinkAuth).
 pub(crate) static LINK_AUTH: &[u16] = &[AUTHTYPE_ED25519_SHA256_RFC5705];
-
-/// The authentication cell received on the channel.
-pub(crate) enum AuthenticationCell {
-    /// The AUTH_CHALLENGE. Only relay responder receives this.
-    AuthChallenge(msg::AuthChallenge),
-    /// The AUTHENTICATE. Only relay initiator receives this.
-    Authenticate(msg::Authenticate),
-}
-
-impl AuthenticationCell {
-    /// Return a reference to the [`msg::AuthChallenge`] or None if we are not.
-    fn auth_challenge(&self) -> Option<&msg::AuthChallenge> {
-        match self {
-            AuthenticationCell::AuthChallenge(c) => Some(c),
-            _ => None,
-        }
-    }
-}
 
 /// Object containing the key and certificate that basically identifies us as a relay. They are
 /// used for channel authentication.
@@ -338,302 +315,6 @@ impl ChannelAuthenticationData {
             scert,
         })
     }
-}
-
-/// A relay unverified channel which is a channel where the version has been negotiated and the
-/// handshake has been done but where the certificates and keys have not been validated hence
-/// unverified.
-///
-/// This is used for both initiator and responder channels.
-struct UnverifiedRelayChannel<
-    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-    S: CoarseTimeProvider + SleepProvider,
-> {
-    /// The common unverified channel that both client and relays use.
-    inner: UnverifiedChannel<T, S>,
-    /// The cell used for authentication received (AUTHENTICATE or AUTH_CHALLENGE). If None, this
-    /// channel won't authenticate.
-    ///
-    /// When a channel does NOT authenticate, it means the initiator decided not to authenticate
-    /// and so as the initiator, we won't have an AUTHENTICATE and as the responder we won't have
-    /// an AUTH_CHALLENGE cell.
-    auth_cell: Option<AuthenticationCell>,
-    /// The netinfo cell that we got from the relay.
-    netinfo_cell: msg::Netinfo,
-    /// Our identity keys needed for authentication.
-    identities: Arc<RelayIdentities>,
-    /// Our advertised IP addresses.
-    my_addrs: Vec<IpAddr>,
-}
-
-impl<
-    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-    S: CoarseTimeProvider + SleepProvider,
-> UnverifiedRelayChannel<T, S>
-{
-    /// Build the [`ChannelAuthenticationData`] given a [`VerifiedChannel`].
-    ///
-    /// We should never check or build authentication data if the channel is not verified thus the
-    /// requirement to pass the verified channel to this function.
-    ///
-    /// Both initiator and responder handshake build this data in order to authenticate.
-    ///
-    /// IMPORTANT: The CLOG and SLOG from the framed_tls codec is consumed here so calling twice
-    /// build_auth_data() will result in different AUTHENTICATE cells.
-    fn build_auth_data(
-        auth_challenge_cell: Option<&msg::AuthChallenge>,
-        identities: &Arc<RelayIdentities>,
-        verified: &mut VerifiedChannel<T, S>,
-    ) -> Result<ChannelAuthenticationData> {
-        // With an AUTH_CHALLENGE, we are the Initiator. With an AUTHENTICATE, we are the
-        // Responder. See tor-spec for a diagram of messages.
-        let is_responder = auth_challenge_cell.is_none();
-
-        // Without an AUTH_CHALLENGE, we use our known link protocol value. Else, we only keep what
-        // we know from the AUTH_CHALLENGE and we max() on it.
-        let link_auth = *LINK_AUTH
-            .iter()
-            .filter(|m| auth_challenge_cell.is_none_or(|cell| cell.methods().contains(m)))
-            .max()
-            .ok_or(Error::BadCellAuth)?;
-        // The ordering matter based on if initiator or responder.
-        let cid = identities.rsa_x509_digest();
-        let sid = verified
-            .rsa_id_cert_digest
-            .ok_or(Error::from(internal!(
-                "Verified channel without a RSA identity"
-            )))?
-            .1;
-        let cid_ed = identities.ed_id_bytes();
-        let sid_ed = verified
-            .ed25519_id
-            .ok_or(Error::from(internal!(
-                "Verified channel without an ed25519 identity"
-            )))?
-            .into();
-        // Both values are consumed from the underlying codec.
-        let clog = verified.framed_tls.codec_mut().get_clog_digest()?;
-        let slog = verified.framed_tls.codec_mut().get_slog_digest()?;
-
-        let (cid, sid, cid_ed, sid_ed) = if is_responder {
-            // Reverse when responder as in CID becomes SID, and so on.
-            (sid, cid, sid_ed, cid_ed)
-        } else {
-            // Keep it that way if we are initiator.
-            (cid, sid, cid_ed, sid_ed)
-        };
-
-        let (clog, slog) = if is_responder {
-            // Reverse as the SLOG is the responder log digest meaning the clog as a responder.
-            (slog, clog)
-        } else {
-            // Keep ordering.
-            (clog, slog)
-        };
-
-        let scert = if is_responder {
-            // TODO(relay): This is the peer certificate but as a responder, we need our
-            // certificate which requires lot more work and a rustls provider configured as a
-            // server side. See arti#2316.
-            todo!()
-        } else {
-            verified.peer_cert_digest
-        };
-
-        Ok(ChannelAuthenticationData {
-            link_auth,
-            cid,
-            sid,
-            cid_ed,
-            sid_ed,
-            clog,
-            slog,
-            scert,
-        })
-    }
-}
-
-impl<
-    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-    S: CoarseTimeProvider + SleepProvider,
-> VerifiableChannel<T, S> for UnverifiedRelayChannel<T, S>
-{
-    fn clock_skew(&self) -> ClockSkew {
-        self.inner.clock_skew
-    }
-
-    #[instrument(skip_all, level = "trace")]
-    fn check(
-        self: Box<Self>,
-        peer: &OwnedChanTarget,
-        peer_cert: &[u8],
-        now: Option<std::time::SystemTime>,
-    ) -> Result<Box<dyn FinalizableChannel<T, S>>> {
-        // We can't authenticate unless we have an Authentication cell.
-        //
-        // A clever observer can ask if this can be gamed to get an unverified relay channel
-        // considered as a canonical authenticate channel.
-        //
-        // The answer is no because when the handshake starts, Initiators always expect the other
-        // side to send a CERTS, AUTH_CHALLENGE and NETINFO. Else, an error is raised. Responder
-        // are the one dealing with unauthenticated channels and, for instance, if we receive a
-        // CERTS without an AUTHENTICATE , an error is raised.
-        //
-        // In other words, when a VerifiableChannel reaches this function, it either has what it
-        // needs to authenticate (relay<->relay channel) or not (client/bridge<->relay channel).
-        //
-        // An UnverifiedRelayChannel implements FinalizableChannel which enforces, with the type
-        // system, that an unverified channel will never become authenticated.
-        let Some(auth_cell) = self.auth_cell else {
-            return Ok(self);
-        };
-
-        // Get these object out as we consume "self" in the inner check().
-        let identities = self.identities;
-        let netinfo_cell = self.netinfo_cell;
-        let my_addrs = self.my_addrs;
-        let mut authenticate_cell = None;
-
-        // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self.inner.check(peer, peer_cert, now)?;
-
-        // By building the ChannelAuthenticationData, we are certain that the authentication
-        // type requested by the responder is supported by us.
-        let auth_data =
-            Self::build_auth_data(auth_cell.auth_challenge(), &identities, &mut verified)?;
-        let our_authenticate =
-            auth_data.into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
-
-        // CRITICAL: This if is what authenticates a channel on the responder side. We compare
-        // what we expected to what we received.
-        if let AuthenticationCell::Authenticate(received_authenticate) = auth_cell {
-            if received_authenticate != our_authenticate {
-                return Err(Error::ChanProto(
-                    "AUTHENTICATE was unexpected. Failing authentication".into(),
-                ));
-            }
-            // Keep it so we can send it to the other end.
-            authenticate_cell = Some(our_authenticate);
-        }
-        // This part is very important as we now flag that we are authenticated. The responder
-        // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
-        //
-        // At this point, the underlying cell handler is in the Handshake state. Setting the
-        // channel type here as authenticated means that once the handler transition to the Open
-        // state, it will carry this authenticated flag leading to the message filter of the
-        // channel codec to adapt its restricted message sets (meaning R2R only).
-        //
-        // After this call, it is considered a R2R channel.
-        verified.set_authenticated()?;
-
-        Ok(Box::new(VerifiedRelayChannel {
-            inner: verified,
-            identities,
-            netinfo_cell,
-            authenticate_cell,
-            my_addrs,
-        }))
-    }
-
-    /// Return the link protocol version of this channel.
-    #[cfg(test)]
-    fn link_protocol(&self) -> u16 {
-        self.inner.link_protocol
-    }
-}
-
-#[async_trait]
-impl<
-    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-    S: CoarseTimeProvider + SleepProvider,
-> FinalizableChannel<T, S> for UnverifiedRelayChannel<T, S>
-{
-    #[instrument(skip_all, level = "trace")]
-    async fn finish(mut self: Box<Self>) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // NOTE: The only way to get here is if the channel is a relay responder.
-        //
-        // Initiators always authenticate and so only relay responder can end up with an unverified
-        // relay channel in the finish() state. Plausible future improvement here would be to have
-        // a more specific unverified responder channel type and so never an initiator handshake
-        // can lead to this function.
-        self.inner.finish()
-    }
-}
-
-impl<T, S> crate::channel::seal::Sealed for UnverifiedRelayChannel<T, S>
-where
-    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-    S: CoarseTimeProvider + SleepProvider,
-{
-}
-
-/// A verified relay channel on which versions have been negotiated, the handshake has been read,
-/// but the relay has not yet finished the handshake.
-///
-/// This type is separate from UnverifiedRelayChannel, since finishing the handshake requires a
-/// bunch of CPU, and you might want to do it as a separate task or after a yield.
-#[expect(unused)] // TODO(relay). remove
-struct VerifiedRelayChannel<
-    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-    S: CoarseTimeProvider + SleepProvider,
-> {
-    /// The common unverified channel that both client and relays use.
-    inner: VerifiedChannel<T, S>,
-    /// Relay identities.
-    identities: Arc<RelayIdentities>,
-    /// The netinfo cell that we got from the relay.
-    netinfo_cell: msg::Netinfo,
-    /// The AUTHENTICATE cell we need to send back as a responder.
-    authenticate_cell: Option<msg::Authenticate>,
-    /// Our advertised IP addresses.
-    my_addrs: Vec<IpAddr>,
-}
-
-#[async_trait]
-impl<
-    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-    S: CoarseTimeProvider + SleepProvider,
-> FinalizableChannel<T, S> for VerifiedRelayChannel<T, S>
-{
-    #[instrument(skip_all, level = "trace")]
-    async fn finish(mut self: Box<Self>) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // TODO(relay): This would be the time to set a "is_canonical" flag to Channel which is
-        // true if the Netinfo address matches the address we are connected to. Canonical
-        // definition is if the address we are connected to is what we expect it to be. This only
-        // makes sense for relay channels.
-
-        // If we have an AUTHENTICATE cell, we need to send it along our CERTS and NETINFO. In
-        // other words, it means we are a Responder.
-        if let Some(auth_cell) = self.authenticate_cell {
-            // We got an AUTH_CHALLENGE, send the CERTS and AUTHENTICATE.
-            let certs = build_certs_cell(&self.identities, ChannelType::RelayInitiator);
-            trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
-            self.inner.framed_tls.send(certs.into()).await?;
-            trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");
-            self.inner.framed_tls.send(auth_cell.into()).await?;
-
-            let peer_ip = self
-                .inner
-                .target_method
-                .as_ref()
-                .and_then(ChannelMethod::socket_addrs)
-                .and_then(|addrs| addrs.first())
-                .map(SocketAddr::ip)
-                .ok_or(Error::from(internal!("Target method address invalid")))?;
-            let netinfo = build_netinfo_cell(peer_ip, self.my_addrs, &self.inner.sleep_prov)?;
-            trace!(channel_id = %self.inner.unique_id, "Sending NETINFO as initiator cell.");
-            self.inner.framed_tls.send(netinfo.into()).await?;
-        }
-
-        self.inner.finish().await
-    }
-}
-
-impl<T, S> crate::channel::seal::Sealed for VerifiedRelayChannel<T, S>
-where
-    T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-    S: CoarseTimeProvider + SleepProvider,
-{
 }
 
 /// Helper: Build a [`msg::Certs`] cell for the given relay identities and channel type.
