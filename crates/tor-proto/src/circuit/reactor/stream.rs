@@ -174,7 +174,7 @@ impl StreamReactor {
                 // Note: this does not block outgoing flow-control messages:
                 //
                 //   * circuit SENDMEs are initiated by the forward reactor,
-                //     by sending a BackwardReactorCmd::SendSendme to BWD,
+                //     by sending a BackwardReactorCmd::SendRelayMsg to BWD,
                 //   * stream SENDMEs will be initiated by StreamTarget::send_sendme(),
                 //     by sending a a control message to the reactor
                 //     (TODO(relay): not yet implemented)

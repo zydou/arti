@@ -580,9 +580,8 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         use BackwardReactorCmd::*;
 
         match msg {
-            SendSendme { hop, sendme } => {
-                let sendme = AnyRelayMsgOuter::new(None, sendme.into());
-                self.send_relay_msg(hop, sendme).await?;
+            SendRelayMsg { hop, msg } => {
+                self.send_relay_msg(hop, msg).await?;
             }
             HandleSendme { hop, sendme } => {
                 self.handle_sendme(hop, sendme).await?;
@@ -787,11 +786,11 @@ pub(crate) enum BackwardReactorCmd {
         /// The SENDME.
         sendme: Sendme,
     },
-    /// A circuit SENDME we need to send to the client.
-    SendSendme {
-        /// The hop to encode the SENDME for.
+    /// A SENDME we need to send back to the other endpoint.
+    SendRelayMsg {
+        /// The hop to encode the message for.
         hop: Option<HopNum>,
-        /// The SENDME we have received.
-        sendme: Sendme,
+        /// The message to send.
+        msg: AnyRelayMsgOuter,
     },
 }
