@@ -3,7 +3,7 @@
 //! This module defines two main types: [`NonblockingStream`].
 //! (a low-level type for use by external tools
 //! that want to implement their own nonblocking IO),
-//! and [`MioIo`] (a slightly higher-level type
+//! and [`PollingStream`] (a slightly higher-level type
 //! that we use internally when we are asked to provide
 //! our own nonblocking IO loop(s)).
 //!
@@ -15,14 +15,15 @@
 
 use mio::Interest;
 
-use crate::{msgs::request::ValidatedRequest, util::define_from_for_arc};
+use crate::{
+    msgs::{request::ValidatedRequest, response::UnparsedResponse},
+    util::define_from_for_arc,
+};
 use std::{
     io::{self, Read as _, Write as _},
     mem,
     sync::{Arc, Mutex},
 };
-
-pub use crate::msgs::response::UnparsedResponse;
 
 /// An IO stream to Arti, along with any supporting logic necessary to check it for readiness.
 ///
@@ -179,16 +180,6 @@ impl WriteHandle {
         // See TOCTOU note on `WriteHandleImpl`: we need to wake() while we are holding the
         // above mutex.
         w.waker.wake()
-    }
-
-    /// Queue an outbound request.
-    ///
-    /// Return an error if an IO problems occurred, or if the request was not well-formed.
-    #[allow(unreachable_pub, dead_code)] // TODO nb: expose this method.
-    pub fn send_request(&mut self, request: &str) -> Result<(), SendRequestError> {
-        let validated = ValidatedRequest::from_string_strict(request)?;
-        self.send_valid(&validated)?;
-        Ok(())
     }
 }
 

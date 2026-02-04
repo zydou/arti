@@ -14,7 +14,7 @@ use crate::{
 ///
 /// (It will have no internal newlines, and a single NL at the end.)
 #[derive(Clone, Debug, derive_more::AsRef)]
-pub struct UnparsedResponse {
+pub(crate) struct UnparsedResponse {
     /// The body of this response.
     msg: String,
 }
