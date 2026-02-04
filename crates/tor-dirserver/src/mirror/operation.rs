@@ -169,18 +169,12 @@ enum ConsensusBoundData {
         // TODO DIRMIRROR: Make this optional, see comment in
         // StaticEngine::execute.
         consensus: FlavoredConsensusSigned,
-
-        /// The authority we have downloaded it from.
-        preferred: Vec<SocketAddr>,
     },
 
     /// We have downloaded and verified a consensus.
     Verified {
         /// The verified consensus we have.
         consensus: FlavoredConsensus,
-
-        /// The authority we prefer downloading from.
-        preferred: Option<Vec<SocketAddr>>,
 
         /// When to stop dealing with this consensus and fetching a new one.
         lifetime: Timestamp,
@@ -360,6 +354,7 @@ impl StaticEngine {
         &self,
         pool: &Pool<SqliteConnectionManager>,
         data: &mut ConsensusBoundData,
+        _endpoint: &[SocketAddr],
         now: Timestamp,
         rng: &mut R,
     ) -> Result<(), OperationError> {
@@ -443,7 +438,6 @@ impl StaticEngine {
 
         *data = ConsensusBoundData::Verified {
             consensus,
-            preferred: None,
             lifetime,
             server_queue,
             extra_queue,
@@ -651,7 +645,6 @@ mod test {
         match data {
             ConsensusBoundData::Verified {
                 consensus,
-                preferred,
                 lifetime,
                 server_queue,
                 extra_queue,
@@ -661,7 +654,6 @@ mod test {
                     FlavoredConsensus::Ns(_) => {}
                     _ => panic!("consensus not ns"),
                 }
-                assert_eq!(preferred, None);
                 assert_eq!(
                     server_queue,
                     HashSet::from([db::Sha1::digest(include_bytes!(
