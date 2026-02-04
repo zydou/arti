@@ -22,7 +22,7 @@ use crate::client::circuit::padding::{
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, RelayCmd};
 use tor_error::internal;
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
@@ -580,8 +580,8 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         use BackwardReactorCmd::*;
 
         match msg {
-            SendSendme { hop, sendme } => {
-                self.send_sendme(hop, sendme).await?;
+            SendRelayMsg { hop, msg } => {
+                self.send_relay_msg(hop, msg).await?;
             }
             HandleSendme { hop, sendme } => {
                 self.handle_sendme(hop, sendme).await?;
@@ -592,18 +592,21 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         Ok(())
     }
 
-    /// Send a circuit-level SENDME (stream ID = 0) to the specified hop.
-    async fn send_sendme(
+    /// Send a relay message to the specified hop.
+    async fn send_relay_msg(
         &mut self,
         hopnum: Option<HopNum>,
-        sendme: Sendme,
+        msg: AnyRelayMsgOuter,
     ) -> StdResult<(), ReactorError> {
         let (relay_cell_format, ccontrol) = self.hop_info(hopnum)?;
+        let cmd = msg.cmd();
 
-        let cell = AnyRelayMsgOuter::new(None, sendme.into());
-        self.send_relay_cell(hopnum, relay_cell_format, cell, false, &ccontrol)
+        self.send_relay_cell(hopnum, relay_cell_format, msg, false, &ccontrol)
             .await?;
-        ccontrol.lock().expect("poisoned lock").note_sendme_sent();
+
+        if cmd == RelayCmd::SENDME {
+            ccontrol.lock().expect("poisoned lock").note_sendme_sent();
+        }
 
         Ok(())
     }
@@ -776,18 +779,18 @@ enum CircuitEvent<M> {
 
 /// Instructions from the forward reactor.
 pub(crate) enum BackwardReactorCmd {
-    /// A circuit SENDME we received from the client.
+    /// A circuit SENDME we received from the other endpoint.
     HandleSendme {
         /// The hop the SENDME came on.
         hop: Option<HopNum>,
         /// The SENDME.
         sendme: Sendme,
     },
-    /// A circuit SENDME we need to send to the client.
-    SendSendme {
-        /// The hop to encode the SENDME for.
+    /// A SENDME we need to send back to the other endpoint.
+    SendRelayMsg {
+        /// The hop to encode the message for.
         hop: Option<HopNum>,
-        /// The SENDME we have received.
-        sendme: Sendme,
+        /// The message to send.
+        msg: AnyRelayMsgOuter,
     },
 }

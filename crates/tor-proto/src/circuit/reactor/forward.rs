@@ -27,7 +27,9 @@ use tor_cell::chancell::CircId;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::Relay;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
-use tor_cell::relaycell::{RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg};
+use tor_cell::relaycell::{
+    AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg,
+};
 use tor_error::{internal, warn_report};
 use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
@@ -94,7 +96,7 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     ///    * circuit-level SENDMEs received from the other endpoint
     ///      (`[BackwardReactorCmd::HandleSendme]`)
     ///    * circuit-level SENDMEs that need to be delivered to the other endpoint
-    ///      (`[BackwardReactorCmd::SendSendme]`)
+    ///      (using `[BackwardReactorCmd::SendRelayMsg]`)
     ///
     /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for
     /// sending cell over the inbound channel.
@@ -518,10 +520,9 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             // that SendmeEmitMinVersion is no more than 1.  If the authorities
             // every increase that parameter to a higher number, this will
             // become incorrect.  (Higher numbers are not currently defined.)
-            let forward = BackwardReactorCmd::SendSendme {
-                hop: hopnum,
-                sendme: Sendme::from(tag),
-            };
+            let sendme = Sendme::from(tag);
+            let msg = AnyRelayMsgOuter::new(None, sendme.into());
+            let forward = BackwardReactorCmd::SendRelayMsg { hop: hopnum, msg };
 
             // NOTE: sending the SENDME to the backward reactor for handling
             // might seem counterintuitive, given that we have access to
