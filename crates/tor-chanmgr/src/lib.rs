@@ -484,7 +484,7 @@ impl<R: Runtime> ChanMgr<R> {
 impl<R: Runtime> ChannelProvider for ChanMgr<R> {
     type BuildSpec = OwnedChanTarget;
 
-    async fn get_or_launch(
+    fn get_or_launch(
         self: Arc<Self>,
         reactor_id: tor_proto::circuit::UniqId,
         target: Self::BuildSpec,
