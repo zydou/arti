@@ -15,7 +15,7 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::{collections::VecDeque, net::SocketAddr};
+use std::{collections::HashSet, net::SocketAddr};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -186,16 +186,16 @@ enum ConsensusBoundData {
         lifetime: Timestamp,
 
         /// SHA-1 digests of the missing server descriptors in the consensus.
-        server_queue: VecDeque<[u8; 20]>,
+        server_queue: HashSet<db::Sha1>,
 
         /// SHA-1 digests of the missing extra-info descriptors in the server
         /// descriptors of the consensus.
         ///
         /// extra-info documents are only transitively related to a consensus
         /// through consensus -> server descriptors -> extra-info descriptors
-        extra_queue: VecDeque<[u8; 20]>,
+        extra_queue: HashSet<db::Sha1>,
 
-        /// SHA-1 digests of the missing micro descriptors in the consensus.
+        /// SHA-256 digests of the missing micro descriptors in the consensus.
         ///
         /// This field is technically mutually exclusive to server_queue and
         /// extra_queue because micro descriptors are only found in
@@ -205,7 +205,7 @@ enum ConsensusBoundData {
         /// of wrapping this behind an enum variant for true mutual exclusivity.
         /// This makes coding much easier with less boilerplate and neglectable
         /// additional runtime cost.
-        micro_queue: VecDeque<[u8; 32]>,
+        micro_queue: HashSet<db::Sha256>,
     },
 }
 
@@ -385,7 +385,6 @@ impl StaticEngine {
     /// * Load the most recent valid consensus from the database.
     /// * Compute the lifetime for it.
     /// * Compute the missing descriptors for it.
-    /// * ...
     fn load_consensus<R: Rng>(
         &self,
         pool: &Pool<SqliteConnectionManager>,
@@ -400,12 +399,23 @@ impl StaticEngine {
         // In this case, it is probably better to return a bug, as external
         // applications arbitrarily modifying the database while we are running
         // leaves too much room for wrong/weird behavior.
-        let (_meta, consensus) = db::read_tx(pool, |tx| {
-            let meta = ConsensusMeta::query_recent(tx, self.flavor, &self.tolerance, now)?
-                .ok_or(internal!("database externally modified?"))?;
-            let consensus = meta.data(tx)?;
-            Ok::<_, DatabaseError>((meta, consensus))
-        })??;
+        let (server_queue, extra_queue, micro_queue, lifetime, consensus) =
+            db::read_tx(pool, |tx| {
+                let meta = ConsensusMeta::query_recent(tx, self.flavor, &self.tolerance, now)?
+                    .ok_or(internal!("database externally modified?"))?;
+                let server_queue = meta.missing_servers(tx)?;
+                let extra_queue = meta.missing_extras(tx)?;
+                let micro_queue = meta.missing_micros(tx)?;
+                let lifetime = meta.lifetime(rng);
+                let consensus = meta.data(tx)?;
+                Ok::<_, DatabaseError>((
+                    server_queue,
+                    extra_queue,
+                    micro_queue,
+                    lifetime,
+                    consensus,
+                ))
+            })??;
 
         // Parse the most recent valid consensus from the database.
         //
@@ -434,11 +444,12 @@ impl StaticEngine {
         *data = ConsensusBoundData::Verified {
             consensus,
             preferred: None,
-            lifetime: todo!(),
-            server_queue: todo!(),
-            extra_queue: todo!(),
-            micro_queue: todo!(),
+            lifetime,
+            server_queue,
+            extra_queue,
+            micro_queue,
         };
+        Ok(())
     }
 
     // Hibernates for the remaining lifetime of the consensus.
@@ -486,5 +497,183 @@ impl FlavoredConsensusSigned {
                 _ => None,
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use std::time::{Duration, SystemTime};
+
+    use rusqlite::named_params;
+    use tor_basic_utils::test_rng::testing_rng;
+
+    use crate::database::sql;
+
+    use super::*;
+
+    fn create_dummy_db() -> Pool<SqliteConnectionManager> {
+        let pool = db::open("").unwrap();
+
+        let mut conn = pool.get().unwrap();
+        let tx = conn.transaction().unwrap();
+
+        let cons_docid = db::store_insert(
+            &tx,
+            include_bytes!("../../testdata/consensus-ns"),
+            std::iter::empty(),
+        )
+        .unwrap();
+        let ns1_docid = db::store_insert(
+            &tx,
+            include_bytes!("../../testdata/descriptor1-ns"),
+            std::iter::empty(),
+        )
+        .unwrap();
+        let extra1_docid = db::store_insert(
+            &tx,
+            include_bytes!("../../testdata/descriptor1-extra-info"),
+            std::iter::empty(),
+        )
+        .unwrap();
+
+        tx.execute(
+            sql!(
+                "
+                INSERT INTO router_extra_info (docid, unsigned_sha1, kp_relay_id_rsa_sha1)
+                VALUES
+                (:docid, :sha1, :fingerprint)
+                "
+            ),
+            named_params! {
+                ":docid": extra1_docid,
+                ":sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-extra-info-unsigned")),
+                ":fingerprint": "000004ACBB9D29BCBA17256BB35928DDBFC8ABA9"
+            },
+        )
+        .unwrap();
+        tx.execute(
+            sql!(
+                "
+                INSERT INTO router_descriptor
+                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor, extra_unsigned_sha1)
+                VALUES
+                (:docid, :sha1, :sha2, :fingerprint, 'ns', :extra)
+                "
+            ),
+            named_params! {
+                ":docid": ns1_docid,
+                ":sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
+                ":sha2": db::Sha256::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
+                ":fingerprint": "000004ACBB9D29BCBA17256BB35928DDBFC8ABA9",
+                ":extra": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-extra-info-unsigned")),
+            },
+        )
+        .unwrap();
+
+        tx.execute(
+            sql!(
+                "
+                INSERT INTO consensus
+                (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
+                VALUES
+                (:docid, :sha3, 'ns', :valid_after, :fresh_until, :valid_until)
+                "
+            ),
+            named_params! {
+                ":docid": cons_docid,
+                ":sha3": "0000000000000000000000000000000000000000000000000000000000000000",
+                ":valid_after": 1769698800,
+                ":fresh_until": 1769702400,
+                ":valid_until": 1769709600,
+            },
+        )
+        .unwrap();
+
+        tx.execute(
+            sql!(
+                "
+                INSERT INTO consensus_router_descriptor_member
+                (consensus_docid, unsigned_sha1, unsigned_sha2)
+                VALUES
+                (:cons_docid, :ns1_sha1, :ns1_sha2),
+                (:cons_docid, :ns2_sha1, :ns2_sha2)
+                "
+            ),
+            named_params! {
+                ":cons_docid": cons_docid,
+                ":ns1_sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
+                ":ns1_sha2": db::Sha256::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
+                ":ns2_sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor2-ns-unsigned")),
+                ":ns2_sha2": db::Sha256::digest(include_bytes!("../../testdata/descriptor2-ns-unsigned")),
+            },
+        )
+        .unwrap();
+
+        tx.commit().unwrap();
+
+        pool
+    }
+
+    #[test]
+    fn state_load_consensus() {
+        let pool = create_dummy_db();
+        let mut data = ConsensusBoundData::None;
+        let engine = StaticEngine {
+            flavor: ConsensusFlavor::Plain,
+            authorities: AuthorityContacts::default(),
+            tolerance: DirTolerance::default(),
+        };
+
+        let time = SystemTime::UNIX_EPOCH + Duration::from_secs(1769700600); // 2026-01-29 15:30:00
+        let time: Timestamp = time.into();
+        let fresh_until = time + Duration::from_secs(60 * 30);
+        let fresh_until_half = fresh_until + Duration::from_secs(60 * 60);
+
+        engine
+            .load_consensus(&pool, &mut data, time, &mut testing_rng())
+            .unwrap();
+
+        // El-cheapo assert_eq due to lack of PartialEq for tor-netdoc poc.
+        match data {
+            ConsensusBoundData::Verified {
+                consensus,
+                preferred,
+                lifetime,
+                server_queue,
+                extra_queue,
+                micro_queue,
+            } => {
+                match consensus {
+                    FlavoredConsensus::Ns(_) => {}
+                    _ => panic!("consensus not ns"),
+                }
+                assert_eq!(preferred, None);
+                assert_eq!(
+                    server_queue,
+                    HashSet::from([db::Sha1::digest(include_bytes!(
+                        "../../testdata/descriptor2-ns-unsigned"
+                    ))])
+                );
+                assert!(lifetime >= fresh_until);
+                assert!(lifetime <= fresh_until_half);
+                assert!(extra_queue.is_empty());
+                assert!(micro_queue.is_empty());
+            }
+            _ => panic!("data is not verified"),
+        }
     }
 }
