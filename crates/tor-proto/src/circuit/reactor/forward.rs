@@ -1,6 +1,5 @@
 //! A circuit's view of the forward state of the circuit.
 
-use crate::channel::ChannelSender;
 use crate::circuit::UniqId;
 use crate::circuit::reactor::backward::BackwardReactorCmd;
 use crate::circuit::reactor::hop_mgr::HopMgr;
@@ -23,14 +22,13 @@ use crate::stream::incoming::{
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 
-use tor_cell::chancell::CircId;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::Relay;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg,
 };
-use tor_error::{internal, warn_report};
+use tor_error::internal;
 use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
 
@@ -38,16 +36,12 @@ use derive_deftly::Deftly;
 use either::Either;
 use futures::SinkExt;
 use futures::channel::mpsc;
-use futures::{FutureExt as _, StreamExt, future, select_biased};
+use futures::{FutureExt as _, StreamExt, select_biased};
 use tracing::debug;
 
 use std::result::Result as StdResult;
-use std::task::Poll;
 
 use crate::circuit::CircuitRxReceiver;
-
-#[cfg(feature = "relay")]
-use crate::relay::channel_provider::ChannelResult;
 
 /// The forward circuit reactor.
 ///
@@ -70,12 +64,6 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     runtime: R,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
-    /// The sending end of the outbound channel, if we are not the last hop.
-    ///
-    /// Delivers cells towards the exit, if we are a relay.
-    ///
-    /// Only set for middle relays.
-    forward: Option<ForwardSender>,
     /// Implementation-dependent part of the reactor.
     ///
     /// This enables us to customize the behavior of the reactor,
@@ -113,17 +101,6 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     circ_events: mpsc::Receiver<F::CircEvent>,
     /// A padding controller to which padding-related events should be reported.
     padding_ctrl: PaddingController,
-}
-
-/// The reactor's view of the sending end of the outbound Tor Channel.
-///
-/// (The reading side is stored in the BWD.)
-#[allow(unused)]
-pub(crate) struct ForwardSender {
-    /// The circuit identifier on the outbound Tor channel.
-    pub(crate) circ_id: CircId,
-    /// The sending end of the forward Tor channel.
-    pub(crate) outbound_chan_tx: ChannelSender,
 }
 
 /// A control command aimed at the generic forward reactor.
@@ -197,7 +174,6 @@ pub(crate) trait ForwardHandler: ControlHandler {
     /// Only used by relays.
     fn handle_unrecognized_cell(
         &mut self,
-        forward: Option<&mut ForwardSender>,
         body: RelayCellBody,
         info: Option<QueuedCellPaddingInfo>,
     ) -> StdResult<(), ReactorError>;
@@ -217,6 +193,12 @@ pub(crate) trait ForwardHandler: ControlHandler {
         &mut self,
         event: Self::CircEvent,
     ) -> StdResult<Option<BackwardReactorCmd>, ReactorError>;
+
+    /// Wait until the outbound channel, if there is one, is ready to accept more cells.
+    ///
+    /// Resolves immediately if there is no outbound channel.
+    /// Blocks if there is a pending outbound channel.
+    async fn outbound_chan_ready(&mut self) -> Result<()>;
 }
 
 impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
@@ -241,8 +223,6 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             control_rx,
             command_rx,
             inner,
-            // Initially, we are the last hop in the circuit.
-            forward: None,
             backward_reactor_tx,
             hop_mgr,
             circ_events,
@@ -252,23 +232,12 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
 
     /// Helper for [`run`](Self::run).
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
-        let outbound_chan_ready = future::poll_fn(|cx| {
-            if let Some(forward) = self.forward.as_mut() {
-                let _ = forward.outbound_chan_tx.poll_flush_unpin(cx);
-
-                forward.outbound_chan_tx.poll_ready_unpin(cx)
-            } else {
-                // If there is no forward Tor channel, we're happy to read from inbound_chan_rx.
-                // In fact, we *must* read from inbound_chan_rx, because the client might
-                // have sent some Tor stream data.
-                Poll::Ready(Ok(()))
-            }
-        });
+        let outbound_chan_ready = self.inner.outbound_chan_ready();
 
         let inbound_chan_rx_fut = async {
             // Avoid reading from the inbound_chan_rx Tor Channel if the outgoing sink is blocked
-            let _ = outbound_chan_ready.await;
-            self.inbound_chan_rx.next().await
+            outbound_chan_ready.await?;
+            Ok(self.inbound_chan_rx.next().await)
         };
 
         select_biased! {
@@ -288,7 +257,8 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
 
                 Ok(())
             }
-            cell = inbound_chan_rx_fut.fuse() => {
+            res = inbound_chan_rx_fut.fuse() => {
+                let cell = res.map_err(ReactorError::Err)?;
                 let Some(cell) = cell else {
                     debug!(
                         circ_id = %self.unique_id,
@@ -343,95 +313,6 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         }
     }
 
-    /// Handle the outcome of our request to launch an outgoing Tor channel.
-    ///
-    /// If the request was successful, extend the circuit,
-    /// and respond with EXTENDED to the client.
-    ///
-    /// if the request failed, we need to tear down the circuit.
-    #[allow(unused)] // TODO(relay)
-    #[allow(unreachable_code)] // TODO(relay)
-    #[allow(clippy::unused_async)] // TODO(relay)
-    #[cfg(feature = "relay")]
-    async fn handle_outgoing_chan_res(
-        &mut self,
-        chan_res: ChannelResult,
-    ) -> StdResult<(), ReactorError> {
-        let chan = match chan_res {
-            Ok(chan) => chan,
-            Err(e) => {
-                warn_report!(e, "Failed to launch outgoing channel");
-                // Note: retries are handled within
-                // get_or_launch(), so if we receive an
-                // error at this point, we need to bail
-
-                // TODO(relay): we need to update our state
-                // (should we send a DESTROY cell to tear down the circ?)
-                return Ok(());
-            }
-        };
-
-        if self.forward.is_some() {
-            return Err(internal!("relay circuit has 2 outgoing channels?!").into());
-        }
-
-        // Now that we finally have a forward Tor channel,
-        // it's time to forward the onion skin and extend the circuit...
-
-        /* TODO(relay): the channel reactor's CircMap can only hold client circuit entries
-        * We can address this TODO once #1599 is implemented
-        *
-        * let (sender, receiver) =
-        *     MpscSpec::new(128).new_mq(self.runtime.clone(), memquota.as_raw_account())?;
-        * let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
-
-        * let (tx, rx) = oneshot::channel();
-        * self.send_control(crate::channel::CtrlMsg::AllocateCircuit {
-        *     created_sender: createdsender,
-        *     sender,
-        *     tx,
-        * })?;
-
-        * let (id, circ_id, padding_ctrl, padding_stream) =
-        *     rx.await.map_err(|_| ChannelClosed)??;
-        */
-
-        // TODO(relay): the channel reactor doesn't support relay circuits
-        // (the circuit entries from the CircMap use ClientCircChanMsg instead
-        // of RelayCircChanMsg)
-        let circ_id = todo!();
-        let receiver = todo!();
-
-        // TODO(relay): deliver a BackwardReactorCommand over backward_reactor_tx
-        // containing the `receiver`. This will instruct the bWD to send back
-        // an EXTEND/EXTENDED2
-
-        let forward = ForwardSender {
-            circ_id,
-            outbound_chan_tx: chan.sender(),
-        };
-
-        self.forward = Some(forward);
-
-        // TODO(relay): assuming the TODO above is addressed,
-        // if we reach this point, it means we have extended
-        // the circuit by one hop, so we need to take the contents
-        // of the CREATE/CREATED2 cell, and package an EXTEND/EXTENDED2
-        // to send back to the client.
-
-        Ok(())
-    }
-
-    /// Handle an outgoing channel result on a non-relay circuit by returning an error.
-    ///
-    // TODO(relay): move outgoing chan handling to relay ForwardHandler impl
-    #[allow(unreachable_code)] // TODO(relay)
-    #[cfg(not(feature = "relay"))]
-    #[allow(clippy::unused_async)] // TODO(relay)
-    async fn handle_outgoing_chan_res(&mut self, _chan_res: ()) -> StdResult<(), ReactorError> {
-        Err(internal!("got channel result in non-relay circuit reactor?!").into())
-    }
-
     /// Note that we have received a RELAY cell.
     ///
     /// Updates the padding and CC state.
@@ -471,9 +352,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         let (hopnum, res) = self.inner.decode_relay_cell(&mut self.hop_mgr, cell)?;
         let (tag, decode_res) = match res {
             CellDecodeResult::Unrecognizd(body) => {
-                return self
-                    .inner
-                    .handle_unrecognized_cell(self.forward.as_mut(), body, None);
+                return self.inner.handle_unrecognized_cell(body, None);
             }
             CellDecodeResult::Recognized(tag, res) => (tag, res),
         };
