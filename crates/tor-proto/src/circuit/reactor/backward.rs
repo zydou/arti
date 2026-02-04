@@ -41,6 +41,9 @@ use crate::circuit::CircuitRxReceiver;
 #[cfg(feature = "circ-padding")]
 use crate::circuit::padding::{CircPaddingDisposition, padding_disposition};
 
+#[cfg(feature = "relay")]
+use tor_cell::relaycell::msg::Extended2;
+
 /// The "backward" circuit reactor of a relay.
 ///
 /// See the [`reactor`](crate::circuit::reactor) module-level docs.
@@ -587,6 +590,16 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                 self.handle_sendme(hop, sendme).await?;
                 return Ok(());
             }
+            #[cfg(feature = "relay")]
+            HandleCircuitExtended {
+                hop,
+                extended2,
+                outbound_chan_rx,
+            } => {
+                self.outbound_chan_rx = Some(outbound_chan_rx);
+                let msg = AnyRelayMsgOuter::new(None, extended2.into());
+                self.send_relay_msg(hop, msg).await?;
+            }
         }
 
         Ok(())
@@ -792,5 +805,28 @@ pub(crate) enum BackwardReactorCmd {
         hop: Option<HopNum>,
         /// The message to send.
         msg: AnyRelayMsgOuter,
+    },
+    /// This relay circuit was extended by another hop.
+    ///
+    /// This causes the reactor send the `extended2` message on its inbound channel,
+    /// and start reading from `outbound_chan_rx` in the main loop.
+    //
+    ///
+    // TODO: I wish we didn't need to expose this relay-specific variant
+    // in the generic reactor but we have no choice: abstracting it away
+    // means either introducing a mutex between the relay-side forward/backward
+    // handlers, or yet another mpsc between them.
+    #[cfg(feature = "relay")]
+    HandleCircuitExtended {
+        /// The hop to encode the message for.
+        ///
+        /// In practice, this is always None, because only relays use this.
+        hop: Option<HopNum>,
+        /// The cell to send to the specified hop,
+        extended2: Extended2,
+        /// The reading end of the outbound Tor channel, if we are not the last hop.
+        ///
+        /// Yields cells moving from the exit towards the client, if we are a middle relay.
+        outbound_chan_rx: CircuitRxReceiver,
     },
 }
