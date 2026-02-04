@@ -269,9 +269,6 @@ impl Forward {
             .await
             .map_err(|_| internal!("channel disappeared?"))?;
 
-        // XXX: we need to make sure that any error
-        // here will cause us to send a DESTROY and shut down
-
         let outbound = Outbound {
             circ_id,
             channel: Arc::clone(&channel),
@@ -449,5 +446,14 @@ impl ControlHandler for Forward {
     fn handle_msg(&mut self, msg: Self::CtrlMsg) -> StdResult<(), ReactorError> {
         let () = msg;
         Ok(())
+    }
+}
+
+impl Drop for Forward {
+    fn drop(&mut self) {
+        if let Some(outbound) = self.outbound.as_mut() {
+            // This will send a DESTROY down the outbound channel
+            let _ = outbound.channel.close_circuit(outbound.circ_id);
+        }
     }
 }

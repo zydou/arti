@@ -71,6 +71,8 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     unique_id: UniqId,
     /// The circuit identifier on the backward Tor channel.
     circ_id: CircId,
+    /// The inbound Tor channel.
+    channel: Arc<Channel>,
     /// Implementation-dependent part of the reactor.
     ///
     /// This enables us to customize the behavior of the reactor,
@@ -187,11 +189,13 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         padding_event_stream: PaddingEventStream,
         stream_rx: mpsc::Receiver<ReadyStreamMsg>,
     ) -> Self {
+        let channel = Arc::clone(channel);
         let inbound_chan_tx = CircuitCellSender::from_channel_sender(channel.sender());
 
         Self {
             time_provider: DynTimeProvider::new(runtime),
             outbound_chan_rx: None,
+            channel,
             inner,
             hops,
             inbound_chan_tx,
@@ -759,6 +763,13 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     fn handle_backward_cell(&mut self, _cell: B::CircChanMsg) -> StdResult<(), ReactorError> {
         Err(internal!("Cell relaying is not implemented").into())
+    }
+}
+
+impl<B: BackwardHandler> Drop for BackwardReactor<B> {
+    fn drop(&mut self) {
+        // This will send a DESTROY down the inbound Tor channel
+        let _ = self.channel.close_circuit(self.circ_id);
     }
 }
 
