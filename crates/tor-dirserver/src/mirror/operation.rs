@@ -452,7 +452,7 @@ impl StaticEngine {
         Ok(())
     }
 
-    // Hibernates for the remaining lifetime of the consensus.
+    /// Hibernates for the remaining lifetime of the consensus.
     async fn hibernate(
         &self,
         data: &mut ConsensusBoundData,

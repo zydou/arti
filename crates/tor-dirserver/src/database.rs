@@ -257,19 +257,19 @@ PRAGMA busy_timeout=1000;
 /// Convience macro for implementing a hash type in a rusqlite compatible fashion.
 macro_rules! impl_hash_wrapper {
     ($name:ident, $algo:ty, $size:literal) => {
-        /// Database wrapper type for [`$algo`].
+        /// Database wrapper type.
         #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
         pub(crate) struct $name([u8; $size]);
 
         impl $name {
-            /// Computes the [`$name`] from arbitrary data.
+            /// Computes the hash from arbitrary data.
             pub(crate) fn digest(data: &[u8]) -> Self {
                 Self(<$algo>::digest(data).into())
             }
         }
 
         impl Display for $name {
-            /// Formats the [`$name`] in uppercase hexadecimal.
+            /// Formats the hash in uppercase hexadecimal.
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{}", hex::encode_upper(self.0))
             }
@@ -462,7 +462,7 @@ impl ConsensusMeta {
     ///
     /// This function queries the database using a [`Transaction`] in order to
     /// have a consistent view upon it.  It will return an [`Option`] containing
-    /// a [`Consensus`].  In order to obtain a *valid* consensus, a [`Timestamp`]
+    /// a consensus.  In order to obtain a *valid* consensus, a [`Timestamp`]
     /// plus a [`DirTolerance`] are supplied, which will be used for querying
     /// the database in a time-constrained fashion.
     ///
