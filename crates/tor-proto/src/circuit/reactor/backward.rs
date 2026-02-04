@@ -786,7 +786,7 @@ pub(crate) enum BackwardReactorCmd {
         /// The SENDME.
         sendme: Sendme,
     },
-    /// A SENDME we need to send back to the other endpoint.
+    /// A message we need to send back to the other endpoint.
     SendRelayMsg {
         /// The hop to encode the message for.
         hop: Option<HopNum>,
