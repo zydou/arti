@@ -266,7 +266,7 @@ where
                                 .record_handshake_done_with_skewed_clock();
                             Error::Proto {
                                 source,
-                                peer: using_target.to_logged(),
+                                peer: target.to_logged(),
                                 clock_skew: Some(clock_skew),
                             }
                         }
@@ -290,15 +290,8 @@ where
             }
             #[cfg(feature = "relay")]
             ChannelType::RelayInitiator => {
-                self.build_relay_channel(
-                    tls,
-                    target,
-                    &peer_cert,
-                    using_target,
-                    memquota,
-                    event_sender.clone(),
-                )
-                .await?
+                self.build_relay_channel(tls, target, &peer_cert, memquota, event_sender.clone())
+                    .await?
             }
             _ => {
                 return Err(Error::Internal(internal!(
@@ -324,7 +317,6 @@ where
         tls: T,
         peer: &OwnedChanTarget,
         peer_cert: &[u8],
-        using_target: OwnedChanTarget,
         memquota: ChannelAccount,
         event_sender: Arc<Mutex<ChanMgrEventSender>>,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>>
@@ -352,7 +344,7 @@ where
             )
             .connect(|| self.runtime.wallclock())
             .await
-            .map_err(|e| Error::from_proto_no_skew(e, &using_target))?;
+            .map_err(|e| Error::from_proto_no_skew(e, peer))?;
 
         let now = self.runtime.wallclock();
         let clock_skew = unverified.clock_skew();
@@ -366,11 +358,11 @@ where
                         .record_handshake_done_with_skewed_clock();
                     Error::Proto {
                         source,
-                        peer: using_target.to_logged(),
+                        peer: peer.to_logged(),
                         clock_skew: Some(clock_skew),
                     }
                 }
-                _ => Error::from_proto_no_skew(source, &using_target),
+                _ => Error::from_proto_no_skew(source, peer),
             })?
             .finish()
             .await
