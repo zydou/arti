@@ -82,9 +82,9 @@ struct ReceiverState {
     ///
     /// Invariants:
     ///
-    /// * If this is None, a thread is reading and will take responsibility
+    /// * If this is None, a thread is polling and will take responsibility
     ///   for liveness.
-    /// * If this is Some, no-one is reading and anyone who cares about liveness
+    /// * If this is Some, no-one is polling and anyone who cares about liveness
     ///   must take on the interactor role.
     ///
     /// (Therefore, when it becomes Some, we must signal a cv, if any is set.)
@@ -123,7 +123,7 @@ impl ReceiverState {
 /// This is a crate-internal abstraction.
 /// It's separate from RpcConn for a few reasons:
 ///
-/// - So we can keep the reading side of the channel open while the RpcConn has
+/// - So we can keep polling the channel while the RpcConn has
 ///   been dropped.
 /// - So we can hold the lock on this part without being blocked on threads writing.
 /// - Because this is the only part that for which
@@ -131,7 +131,7 @@ impl ReceiverState {
 pub(super) struct Receiver {
     /// Mutable state.
     ///
-    /// This lock should only be held briefly, and never while reading from the
+    /// This lock should only be held briefly, and never while interacting with the
     /// `PollingStream`.
     state: Mutex<ReceiverState>,
 }
@@ -326,8 +326,8 @@ impl Receiver {
         AlertWhom,
     ) {
         // At this point, we have not registered on a condvar, and we have not
-        // taken the reader.
-        // Therefore, we do not yet need to ensure that anybody else takes the reader.
+        // taken the PollingStream.
+        // Therefore, we do not yet need to ensure that anybody else takes the PollingStream.
         //
         // TODO: It is possibly too easy to forget to set this,
         // or to set it to a less "alerty" value.  Refactoring might help;
@@ -364,11 +364,11 @@ impl Receiver {
             should_alert = AlertWhom::Anybody;
 
             if let Some(r) = state.stream.take() {
-                // Nobody else is reading; we have to do it.
+                // Nobody else is polling; we have to do it.
                 break r;
             }
 
-            // Somebody else is reading; register a condvar.
+            // Somebody else is polling; register a condvar.
             let cv = Arc::new(Condvar::new());
             this_ent.waiter = Some(Arc::clone(&cv));
 
@@ -395,7 +395,9 @@ impl Receiver {
         (result.map_err(ProtoError::from), state_lock, should_alert)
     }
 
-    /// Read messages, delivering them as appropriate, until we find one for `id`,
+    /// Interact with `stream`, writing any queued messages,
+    /// reading messages, and
+    /// delivering them as appropriate, until we find one for `id`,
     /// or a fatal error occurs.
     ///
     /// Return that message or error, along with a `MutexGuard`.
@@ -416,7 +418,7 @@ impl Receiver {
         AlertWhom,
     ) {
         loop {
-            // Importantly, we drop the state lock while we are reading.
+            // Importantly, we drop the state lock while we are polling.
             // This is okay, since all our invariants should hold at this point.
             drop(state_lock);
 

@@ -364,6 +364,8 @@ impl RequestHandle {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ShutdownError {
+    // TODO nb: Read/Write are no longer well separated in the API.
+    //
     /// Io error occurred while reading.
     #[error("Unable to read response")]
     Read(#[source] Arc<io::Error>),
