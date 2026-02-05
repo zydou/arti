@@ -51,6 +51,9 @@ where
     transport: H,
     /// Object to build TLS connections.
     tls_connector: <R as TlsProvider<H::Stream>>::Connector,
+    /// Object to accept TLS connections.
+    #[cfg(feature = "relay")]
+    tls_acceptor: Option<<R as TlsProvider<H::Stream>>::Acceptor>,
     /// Relay identities needed for relay channels.
     #[cfg(feature = "relay")]
     identities: Option<Arc<RelayIdentities>>,
@@ -60,23 +63,42 @@ impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
 where
     R: TlsProvider<H::Stream>,
 {
-    /// Construct a new ChanBuilder.
-    pub fn new(runtime: R, transport: H) -> Self {
+    /// Construct a new client specific ChanBuilder.
+    pub fn new_client(runtime: R, transport: H) -> Self {
         let tls_connector = <R as TlsProvider<H::Stream>>::tls_connector(&runtime);
         ChanBuilder {
             runtime,
             transport,
             tls_connector,
             #[cfg(feature = "relay")]
+            tls_acceptor: None,
+            #[cfg(feature = "relay")]
             identities: None,
         }
     }
 
-    /// Set the relay identities and return itself.
+    /// Construct a new relay specific ChanBuilder.
     #[cfg(feature = "relay")]
-    pub fn with_identities(mut self, ids: Arc<RelayIdentities>) -> Self {
-        self.identities = Some(ids);
-        self
+    pub fn new_relay(
+        runtime: R,
+        transport: H,
+        identities: Arc<RelayIdentities>,
+    ) -> crate::Result<Self> {
+        use tor_error::into_internal;
+        use tor_rtcompat::tls::TlsAcceptorSettings;
+
+        // Build the TLS acceptor.
+        let tls_settings = TlsAcceptorSettings::new(identities.tls_key_and_cert())
+            .map_err(into_internal!("Unable to build TLS acceptor setting"))?;
+        let tls_acceptor = <R as TlsProvider<H::Stream>>::tls_acceptor(&runtime, tls_settings)
+            .map_err(into_internal!("Unable to build TLS acceptor"))?;
+
+        // Same builder as a client but with identities and acceptor.
+        let mut builder = Self::new_client(runtime, transport);
+        builder.identities = Some(identities);
+        builder.tls_acceptor = Some(tls_acceptor);
+
+        Ok(builder)
     }
 
     /// Return the outbound channel type of this config.
@@ -87,12 +109,17 @@ where
     /// Important: The wrong channel type is returned if this is called before `with_identities()`
     /// is called.
     fn outbound_chan_type(&self) -> ChannelType {
-        #[cfg(feature = "relay")]
-        if self.identities.is_some() {
-            return ChannelType::RelayInitiator;
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "relay")] {
+                // This means that if the relay feature is set, all channels will be relay channels
+                // and thus if this builder is used for client circuits, it results in relay
+                // channels which is fine for a relay.
+                ChannelType::RelayInitiator
+            } else {
+                // No relay built in, always client.
+                ChannelType::ClientInitiator
+            }
         }
-        // No relay built in, always client.
-        ChannelType::ClientInitiator
     }
 }
 
@@ -486,7 +513,7 @@ mod test {
 
             // Create the channel builder that we want to test.
             let transport = crate::transport::DefaultTransport::new(client_rt.clone());
-            let builder = ChanBuilder::new(client_rt, transport);
+            let builder = ChanBuilder::new_client(client_rt, transport);
 
             let (r1, r2): (Result<Arc<Channel>>, Result<LocalStream>) = futures::join!(
                 async {

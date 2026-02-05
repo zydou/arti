@@ -906,13 +906,16 @@ impl<R: Runtime> TorClient<R> {
         let status_receiver = status::BootstrapEvents {
             inner: status_receiver,
         };
-        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
-            runtime.clone(),
-            ChanMgrConfig::new(config.channel.clone()),
-            dormant.into(),
-            &NetParameters::from_map(&config.override_net_params),
-            memquota.clone(),
-        ));
+        let chanmgr = Arc::new(
+            tor_chanmgr::ChanMgr::new(
+                runtime.clone(),
+                ChanMgrConfig::new(config.channel.clone()),
+                dormant.into(),
+                &NetParameters::from_map(&config.override_net_params),
+                memquota.clone(),
+            )
+            .map_err(ErrorDetail::ChanMgrSetup)?,
+        );
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), statemgr.clone(), config)
             .map_err(ErrorDetail::GuardMgrSetup)?;
 

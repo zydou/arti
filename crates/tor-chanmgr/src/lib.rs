@@ -229,7 +229,7 @@ impl<R: Runtime> ChanMgr<R> {
         dormancy: Dormancy,
         netparams: &NetParameters,
         memquota: ToplevelAccount,
-    ) -> Self
+    ) -> Result<Self>
     where
         R: 'static,
     {
@@ -237,15 +237,17 @@ impl<R: Runtime> ChanMgr<R> {
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let reporter = BootstrapReporter(sender);
         let transport = transport::DefaultTransport::new(runtime.clone());
-        let builder = builder::ChanBuilder::new(runtime.clone(), transport);
-
-        // Set relay identity keys if we have any. Remember, bridges are relays but will be acting
-        // as a client when establishing channels.
-        #[cfg(feature = "relay")]
-        let builder = if let Some(ids) = &config.identities {
-            builder.with_identities(ids.clone())
-        } else {
-            builder
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "relay")] {
+                let builder = if let Some(identities) = &config.identities {
+                    builder::ChanBuilder::new_relay(runtime.clone(), transport, identities.clone())?
+                } else {
+                    // Yes, clients can have the "relay" feature enabled (unit tests).
+                    builder::ChanBuilder::new_client(runtime.clone(), transport)
+                };
+            } else {
+                let builder =  builder::ChanBuilder::new_client(runtime.clone(), transport);
+            }
         };
 
         let factory = factory::CompoundFactory::new(
@@ -255,11 +257,11 @@ impl<R: Runtime> ChanMgr<R> {
         );
         let mgr =
             mgr::AbstractChanMgr::new(factory, config.cfg, dormancy, netparams, reporter, memquota);
-        ChanMgr {
+        Ok(ChanMgr {
             mgr,
             bootstrap_status: receiver,
             runtime,
-        }
+        })
     }
 
     /// Launch the periodic daemon tasks required by the manager to function properly.
