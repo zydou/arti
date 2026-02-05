@@ -36,11 +36,11 @@ use tracing::debug;
 
 use crate::{
     database::{self as db, AuthCertMeta, ConsensusMeta, Timestamp},
-    err::{DatabaseError, OperationError},
+    err::{AuthorityRequestError, DatabaseError, OperationError},
 };
 
 /// The various states for the [`StaticEngine`].
-#[derive(Debug, Clone, Copy, strum::Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
 enum State {
     /// Loads the most recent valid (and verified) consensus from the database
     /// into memory.
