@@ -104,6 +104,11 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     ///
     /// Contains the `CircHopList`.
     hop_mgr: HopMgr<R>,
+    /// An implementation-specific event stream.
+    ///
+    /// Polled from the main loop of the reactor.
+    /// Each event is passed to [`ForwardHandler::handle_event`].
+    circ_events: mpsc::Receiver<F::CircEvent>,
     /// A padding controller to which padding-related events should be reported.
     padding_ctrl: PaddingController,
 }
@@ -163,6 +168,12 @@ pub(crate) trait ForwardHandler: ControlHandler {
     /// The subclass of ChanMsg that can arrive on this type of circuit.
     type CircChanMsg: TryFrom<AnyChanMsg, Error = crate::Error> + ToRelayMsg;
 
+    /// An opaque event type.
+    ///
+    /// The [`ForwardReactor`] polls an MPSC stream yielding `CircEvent`s from the main loop.
+    /// Each event is passed to [`Self::handle_event`] for handling.
+    type CircEvent;
+
     /// Decode `cell`, returning its corresponding hop number, tag and decoded body.
     fn decode_relay_cell<R: Runtime>(
         &mut self,
@@ -195,6 +206,14 @@ pub(crate) trait ForwardHandler: ControlHandler {
     ///   - moving from the guard towards us, if we're a client
     async fn handle_forward_cell(&mut self, cell: Self::CircChanMsg)
     -> StdResult<(), ReactorError>;
+
+    /// Handle an implementation-specific circuit event.
+    ///
+    /// Returns a command for the backward reactor.
+    fn handle_event(
+        &mut self,
+        event: Self::CircEvent,
+    ) -> StdResult<Option<BackwardReactorCmd>, ReactorError>;
 }
 
 impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
@@ -208,6 +227,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         control_rx: mpsc::UnboundedReceiver<CtrlMsg<F::CtrlMsg>>,
         command_rx: mpsc::UnboundedReceiver<CtrlCmd<F::CtrlCmd>>,
         backward_reactor_tx: mpsc::Sender<BackwardReactorCmd>,
+        circ_events: mpsc::Receiver<F::CircEvent>,
         padding_ctrl: PaddingController,
     ) -> Self {
         Self {
@@ -220,6 +240,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             forward: None,
             backward_reactor_tx,
             hop_mgr,
+            circ_events,
             padding_ctrl,
         }
     }
@@ -253,6 +274,14 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             res = self.control_rx.next().fuse() => {
                 let msg = res.ok_or_else(|| ReactorError::Shutdown)?;
                 self.handle_msg(msg)
+            }
+            res = self.circ_events.next().fuse() => {
+                let ev = res.ok_or_else(|| ReactorError::Shutdown)?;
+                if let Some(cmd) = self.inner.handle_event(ev)? {
+                    self.send_reactor_cmd(cmd).await?;
+                }
+
+                Ok(())
             }
             cell = inbound_chan_rx_fut.fuse() => {
                 let Some(cell) = cell else {

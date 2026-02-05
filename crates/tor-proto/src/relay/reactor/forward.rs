@@ -2,6 +2,7 @@
 
 use crate::circuit::UniqId;
 use crate::circuit::reactor::ControlHandler;
+use crate::circuit::reactor::backward::BackwardReactorCmd;
 use crate::circuit::reactor::forward::{CellDecodeResult, ForwardHandler, ForwardSender};
 use crate::circuit::reactor::hop_mgr::HopMgr;
 use crate::crypto::cell::OutboundRelayLayer;
@@ -22,6 +23,7 @@ use tor_linkspec::OwnedChanTarget;
 use tor_rtcompat::Runtime;
 
 use futures::SinkExt as _;
+use futures::channel::mpsc;
 
 use std::result::Result as StdResult;
 use std::sync::Arc;
@@ -45,7 +47,12 @@ pub(crate) struct Forward {
     /// to enable the reuse of existing Tor channels where possible.
     #[allow(unused)] // XXX
     chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+    /// A stream of events to be read from the main loop of the reactor.
+    event_tx: mpsc::Sender<CircEvent>,
 }
+
+/// A type of event issued by the relay forward reactor.
+pub(crate) enum CircEvent {}
 
 impl Forward {
     /// Create a new [`Forward`].
@@ -53,11 +60,13 @@ impl Forward {
         unique_id: UniqId,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+        event_tx: mpsc::Sender<CircEvent>,
     ) -> Self {
         Self {
             unique_id,
             crypto_out,
             chan_provider,
+            event_tx,
         }
     }
 
@@ -112,6 +121,7 @@ impl Forward {
 impl ForwardHandler for Forward {
     type BuildSpec = OwnedChanTarget;
     type CircChanMsg = RelayCircChanMsg;
+    type CircEvent = CircEvent;
 
     fn decode_relay_cell<R: Runtime>(
         &mut self,
@@ -186,6 +196,13 @@ impl ForwardHandler for Forward {
             Destroy(d) => self.handle_destroy_cell(d),
             PaddingNegotiate(p) => self.handle_padding_negotiate(p),
         }
+    }
+
+    fn handle_event(
+        &mut self,
+        event: Self::CircEvent,
+    ) -> StdResult<Option<BackwardReactorCmd>, ReactorError> {
+        todo!()
     }
 }
 
