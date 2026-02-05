@@ -31,6 +31,7 @@ use tor_netdoc::{
         ParseInput,
     },
 };
+use tor_rtcompat::PreferredRuntime;
 use tracing::debug;
 
 use crate::{
@@ -149,6 +150,11 @@ struct StaticEngine {
 
     /// The document tolerance we are accepting.
     tolerance: DirTolerance,
+
+    /// The preferred runtime for compatibility with other arti crates.
+    ///
+    /// Generally obtained through [`PreferredRuntime::current()`].
+    rt: PreferredRuntime,
 }
 
 /// Additional state machine data concering a single consensus.
@@ -620,14 +626,15 @@ mod test {
         pool
     }
 
-    #[test]
-    fn state_load_consensus() {
+    #[tokio::test]
+    async fn state_load_consensus() {
         let pool = create_dummy_db();
         let mut data = ConsensusBoundData::None;
         let engine = StaticEngine {
             flavor: ConsensusFlavor::Plain,
             authorities: AuthorityContacts::default(),
             tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
         };
 
         let time = SystemTime::UNIX_EPOCH + Duration::from_secs(1769700600); // 2026-01-29 15:30:00
