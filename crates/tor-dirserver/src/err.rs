@@ -1,46 +1,6 @@
 //! Error module for `tor-dirserver`.
 
-use std::{net::SocketAddr, string::FromUtf8Error};
-
-use retry_error::RetryError;
 use thiserror::Error;
-
-/// An error while communicating with a directory authority.
-///
-/// This error should be returned by all functions that download or upload
-/// resources to authorities, in other words: every function that interacts or
-/// communicates with a directory authority.
-#[derive(Debug, Error)]
-#[non_exhaustive]
-pub(crate) enum AuthorityCommunicationError {
-    /// A TCP connection to an authority failed.
-    ///
-    /// A failure of this implies that both, the V4 and V6 (if present), have
-    /// failed.
-    #[error("TCP connection failure: {endpoints:?}: {error}")]
-    TcpConnect {
-        /// The [`SocketAddr`] items we tried to connect to, most typically
-        /// the IPv4 and IPv6 address + port of the directory authority.
-        endpoints: Vec<SocketAddr>,
-
-        /// The actual I/O error that happened.
-        error: std::io::Error,
-    },
-
-    /// A failure related to [`tor_dirclient`].
-    ///
-    /// Most likely, this will be of type [`tor_dirclient::Error::RequestFailed`],
-    /// but in order to stay compatible with `non_exhaustive` we map the error.
-    ///
-    /// The value is in a [`Box`] to satisfy `clippy::large_enum_variant`.
-    /// It is already noted in a TODO within the respective crate.
-    #[error("dirclient error: {0}")]
-    Dirclient(#[from] Box<tor_dirclient::Error>),
-
-    /// An internal error.
-    #[error("internal error")]
-    Bug(#[from] tor_error::Bug),
-}
 
 /// An error while interacting with a database.
 ///
@@ -84,24 +44,6 @@ pub(crate) enum DatabaseError {
     Bug(#[from] tor_error::Bug),
 }
 
-/// An error related to the request of a network document.
-///
-/// It mostly serves as an amalgamation of [`AuthorityCommunicationError`] and
-/// [`FromUtf8Error`] because UTF-8 is the mandatory encoding for network
-/// documents that is not enforced in the downloader per se.
-///
-/// TODO: Maybe the downloader should perform the UTF-8 conversion?
-#[derive(Debug, Error)]
-pub(crate) enum NetdocRequestError {
-    /// Downloading the network document failed.
-    #[error("download failed: {0:?}")]
-    Download(RetryError<AuthorityCommunicationError>),
-
-    /// Converting the network document to UTF-8 failed.
-    #[error("UTF-8 conversion failed: {0}")]
-    Utf8(#[from] FromUtf8Error),
-}
-
 /// An error related to an operation in the dirmirror FSM.
 //
 // TODO: Rename this to MirrorOperationError.
@@ -111,10 +53,6 @@ pub(crate) enum OperationError {
     /// Access to the database failed for good.
     #[error("database error: {0}")]
     Database(#[from] DatabaseError),
-
-    /// A netdoc request failed ultimately.
-    #[error("netdoc request error: {0:?}")]
-    NetdocRequest(#[from] NetdocRequestError),
 
     /// An internal error.
     #[error("Internal error")]
