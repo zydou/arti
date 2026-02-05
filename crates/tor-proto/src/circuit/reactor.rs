@@ -426,6 +426,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         /// Grab a handle to the hop list (it's needed by the BWD)
         let hops = Arc::clone(hop_mgr.hops());
         let forward = ForwardReactor::new(
+            runtime.clone(),
             unique_id,
             forward_impl,
             hop_mgr,

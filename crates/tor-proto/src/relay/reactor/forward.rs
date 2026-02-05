@@ -147,8 +147,9 @@ impl ForwardHandler for Forward {
         Ok((hopnum, CellDecodeResult::Recognized(tag, decode_res)))
     }
 
-    async fn handle_meta_msg(
+    async fn handle_meta_msg<R: Runtime>(
         &mut self,
+        runtime: &R,
         _hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
         _relay_cell_format: RelayCellFormat,

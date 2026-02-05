@@ -66,6 +66,8 @@ use crate::relay::channel_provider::ChannelResult;
 #[deftly(run_inner_fn = "Self::run_once")]
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
 pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
+    /// A handle to the runtime.
+    runtime: R,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// The sending end of the outbound channel, if we are not the last hop.
@@ -182,8 +184,9 @@ pub(crate) trait ForwardHandler: ControlHandler {
     ) -> Result<(Option<HopNum>, CellDecodeResult)>;
 
     /// Handle a non-SENDME RELAY message on this circuit with stream ID 0.
-    async fn handle_meta_msg(
+    async fn handle_meta_msg<R: Runtime>(
         &mut self,
+        runtime: &R,
         hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
         relay_cell_format: RelayCellFormat,
@@ -220,6 +223,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     /// Create a new [`ForwardReactor`].
     #[allow(clippy::too_many_arguments)] // TODO
     pub(super) fn new(
+        runtime: R,
         unique_id: UniqId,
         inner: F,
         hop_mgr: HopMgr<R>,
@@ -231,6 +235,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         padding_ctrl: PaddingController,
     ) -> Self {
         Self {
+            runtime,
             unique_id,
             inbound_chan_rx,
             control_rx,
@@ -595,7 +600,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             }
             _ => {
                 self.inner
-                    .handle_meta_msg(hopnum, msg, relay_cell_format)
+                    .handle_meta_msg(&self.runtime, hopnum, msg, relay_cell_format)
                     .await
             }
         }
