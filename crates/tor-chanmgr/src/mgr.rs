@@ -202,12 +202,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     ) -> Result<Arc<CF::Channel>> {
         let chan_builder = self.channels.builder();
         let memquota = ChannelAccount::new(&self.memquota)?;
-        let _outcome = chan_builder
+        let channel = chan_builder
             .build_channel_using_incoming(src, my_addrs, stream, memquota)
             .await?;
-
-        // TODO RELAY: we need to do something with the channel here now that we've created it
-        todo!();
+        // Add it to our list.
+        self.channels.add_open(channel.clone())?;
+        Ok(channel)
     }
 
     /// Get a channel corresponding to the identities of `target`.
