@@ -170,7 +170,7 @@ impl ForwardHandler for Forward {
     ) -> StdResult<(), ReactorError> {
         let Some(forward) = forward else {
             return Err(Error::CircProto(
-                "Asked to forward cell, but there is no forward channel?!".into(),
+                "Asked to forward cell before the circuit was extended?!".into(),
             )
             .into());
         };
