@@ -351,8 +351,8 @@ impl StaticEngine {
     /// The return value is of type [`Result<(), OperationError>`].
     /// The success type is not of much interest for calling applications.
     /// However, the error case itself should be passed towards
-    /// [`OperationError::is_fatal()`] in order to either abort the application
-    /// or retry with an appropriate timeout.
+    /// [`crate::err::IsFatal::is_fatal()`] in order to either abort the
+    /// application or retry with an appropriate timeout.
     ///
     // TODO: Use tracing instrumentation here.
     // TODO DIRMIRROR: Document the state transition check which we have to do

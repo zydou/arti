@@ -3,6 +3,20 @@
 use thiserror::Error;
 use tor_netdoc::parse2;
 
+/// Indicates that an error variant is fatal.
+///
+/// A fatal error means that the application should abort execution and may
+/// not retry again in the future.
+///
+/// This trait should only be implemented for error variants where some error
+/// variants are fatal and others are not.  In other words: An error where all
+/// variants are either fatal or non-fatal does not qualify for this trait.
+// TODO DIRMIRROR: Move this to tor_error.
+pub(crate) trait IsFatal: std::error::Error {
+    /// Checks whether the current error is considered to be fatal.
+    fn is_fatal(&self) -> bool;
+}
+
 /// An error while performing a request at a directory authority.
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -29,17 +43,12 @@ pub(crate) enum AuthorityRequestError {
     Bug(#[from] tor_error::Bug),
 }
 
-impl AuthorityRequestError {
-    /// Checks whether the error is fatal.
+impl IsFatal for AuthorityRequestError {
+    /// The [`AuthorityRequestError`] is considered to be fatal.
     ///
-    /// A fatal error means that the application should stop execution because
-    /// further retries are very likely (potentially impossible) to succeed at
-    /// all.
-    ///
-    /// Right now, the following variants are considered fatal:
+    /// Right now, the following variants are considered to be fatal:
     /// * [`AuthorityRequestError::Bug`]
-    // TODO DIRMIRROR: Make this a trait to avoid duplication.
-    pub(crate) fn is_fatal(&self) -> bool {
+    fn is_fatal(&self) -> bool {
         matches!(&self, Self::Bug(_))
     }
 }
@@ -111,17 +120,13 @@ impl From<AuthorityRequestError> for OperationError {
     }
 }
 
-impl OperationError {
-    /// Checks whether the error is fatal.
+impl IsFatal for OperationError {
+    /// The [`OperationError`] is considered to be fatal.
     ///
-    /// A fatal error means that the application should stop execution because
-    /// further retries are very likely (potentially impossible) to succeed at
-    /// all.
-    ///
-    /// Right now, the following variants are considered fatal:
+    /// Right now, the following variants are considered to be fatal:
     /// * [`OperationError::Database`]
     /// * [`OperationError::Bug`]
-    pub(crate) fn is_fatal(&self) -> bool {
+    fn is_fatal(&self) -> bool {
         matches!(&self, Self::Database(_) | Self::Bug(_))
     }
 }
