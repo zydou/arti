@@ -7,6 +7,7 @@
 //! NOTE that many of the types and fields here have documented invariants.
 //! Except if noted otherwise, these invariants only hold when nobody
 //! is holding the lock on [`RequestState`].
+
 use std::{
     collections::{HashMap, VecDeque},
     sync::{Arc, Condvar, Mutex, MutexGuard},
@@ -25,12 +26,17 @@ use super::{ProtoError, ShutdownError};
 
 /// An identifier for a [`ResponseQueue`] within a [`RequestMap`].
 trait QueueId {
+    /// A tag type associated with responses in the identified queue.
+    ///
+    /// ("Polling" requests use tags to tell the user which response goes with which request.)
+    type Tag: Sized;
+
     /// Find the queue identified by this `QueueId` within `map`,
     /// in order to wait for messages on it.
     fn get_queue_mut<'a>(
         &self,
         map: &'a mut RequestMap,
-    ) -> Result<&'a mut ResponseQueue, ProtoError>;
+    ) -> Result<&'a mut ResponseQueue<Self>, ProtoError>;
 
     /// Given that we are polling on the queue identified by `self`,
     /// determine what we should do with `msg`.
@@ -40,7 +46,7 @@ trait QueueId {
         &self,
         map: &'a mut RequestMap,
         msg: &ValidatedResponse,
-    ) -> ResponseDisposition<'a>;
+    ) -> ResponseDisposition<'a, Self>;
 
     /// Remove any state from `map` associated with `msg_id`.
     ///
@@ -52,10 +58,12 @@ trait QueueId {
 }
 
 impl QueueId for AnyRequestId {
+    type Tag = ();
+
     fn get_queue_mut<'a>(
         &self,
         map: &'a mut RequestMap,
-    ) -> Result<&'a mut ResponseQueue, ProtoError> {
+    ) -> Result<&'a mut ResponseQueue<Self>, ProtoError> {
         match map.map.get_mut(self) {
             Some(RequestState::Waiting(s)) => Ok(s),
             None => Err(ProtoError::RequestCompleted),
@@ -66,14 +74,14 @@ impl QueueId for AnyRequestId {
         &self,
         map: &'a mut RequestMap,
         msg: &ValidatedResponse,
-    ) -> ResponseDisposition<'a> {
+    ) -> ResponseDisposition<'a, Self> {
         if self == msg.id() {
             // This message is for us; no reason to look anything up.
-            return ResponseDisposition::Return;
+            return ResponseDisposition::Return(());
         }
 
         match map.map.get_mut(msg.id()) {
-            Some(RequestState::Waiting(q)) => ResponseDisposition::Forward(q),
+            Some(RequestState::Waiting(q)) => ResponseDisposition::ForwardWaiting(q),
             None => ResponseDisposition::Ignore,
         }
     }
@@ -90,10 +98,11 @@ impl QueueId for AnyRequestId {
 
 /// A queue of responses used to alert a polling function about replies to
 /// one or more requests.
-#[derive(Default)]
-struct ResponseQueue {
+#[derive(educe::Educe)]
+#[educe(Default)]
+struct ResponseQueue<Q: QueueId + ?Sized> {
     /// A queue of replies received with this request's identity.
-    queue: VecDeque<ValidatedResponse>,
+    queue: VecDeque<(Q::Tag, ValidatedResponse)>,
     /// A condition variable used to wake a thread waiting for this request
     /// to have messages.
     ///
@@ -116,10 +125,10 @@ enum RequestState {
     /// A request submitted by one of the `execute_*` functions:
     /// The user must call a "wait" function for this request specifically in order to get
     /// responses. This request has its own queue.
-    Waiting(ResponseQueue),
+    Waiting(ResponseQueue<AnyRequestId>),
 }
 
-impl ResponseQueue {
+impl<Q: QueueId + ?Sized> ResponseQueue<Q> {
     /// Helper: Pop and return the next message for this request.
     ///
     /// If there are no queued messages, but a fatal error has occurred on the connection,
@@ -129,7 +138,7 @@ impl ResponseQueue {
     fn pop_next_msg(
         &mut self,
         fatal: &Option<ShutdownError>,
-    ) -> Option<Result<ValidatedResponse, ShutdownError>> {
+    ) -> Option<Result<(Q::Tag, ValidatedResponse), ShutdownError>> {
         if let Some(m) = self.queue.pop_front() {
             Some(Ok(m))
         } else {
@@ -138,8 +147,8 @@ impl ResponseQueue {
     }
 
     /// Queue `response` for this request, and alert the condvar (if any).
-    fn push_back_and_alert(&mut self, response: ValidatedResponse) {
-        self.queue.push_back(response);
+    fn push_back_and_alert(&mut self, tag: Q::Tag, response: ValidatedResponse) {
+        self.queue.push_back((tag, response));
 
         if let Some(cv) = &self.waiter {
             cv.notify_one();
@@ -161,17 +170,17 @@ struct RequestMap {
 /// An action to take with a given message.
 ///
 /// Returned by [`QueueId::response_disposition`]
-enum ResponseDisposition<'a> {
+enum ResponseDisposition<'a, Q: QueueId + ?Sized> {
     /// This message is for the queue that we are waiting for;
     /// we should return it to the caller.
-    Return,
+    Return(Q::Tag),
 
     /// This message if for a dead request that was probably cancelled;
     /// we should drop it.
     Ignore,
 
     /// This message is for some other request; we should instead forward it to that request's queue.
-    Forward(&'a mut ResponseQueue),
+    ForwardWaiting(&'a mut ResponseQueue<AnyRequestId>),
 }
 
 /// Mutable state to implement receiving replies on an RpcConn.
@@ -377,12 +386,23 @@ impl RpcConn {
 
 impl Receiver {
     /// Wait until there is either a fatal error on this connection,
-    /// _or_ there is a new message for the queue with the provided `queue_id`.
+    /// _or_ there is a new message for the queue with the provided waiting request `id`.
     /// Return that message, or a copy of the fatal error.
     pub(super) fn wait_on_message_for(
         &self,
-        queue_id: &AnyRequestId,
+        id: &AnyRequestId,
     ) -> Result<ValidatedResponse, ProtoError> {
+        let ((), response) = self.wait_on_message_for_queue(id)?;
+        Ok(response)
+    }
+
+    /// Wait until there is either a fatal error on this connection,
+    /// _or_ there is a new message for the queue with the provided `queue_id`.
+    /// Return that message, or a copy of the fatal error.
+    fn wait_on_message_for_queue<Q: QueueId>(
+        &self,
+        queue_id: &Q,
+    ) -> Result<(Q::Tag, ValidatedResponse), ProtoError> {
         // Here in wait_on_message_for_impl, we do the the actual work
         // of waiting for the message.
         let state = self.state.lock().expect("poisoned");
@@ -399,7 +419,7 @@ impl Receiver {
             // replies for this request.
             let (msg_id, is_final) = match &result {
                 Err(_) => (None, true),
-                Ok(r) => (Some(r.id()), r.is_final()),
+                Ok(r) => (Some(r.1.id()), r.1.is_final()),
             };
 
             if is_final {
@@ -440,12 +460,13 @@ impl Receiver {
     ///   depending on the resulting `AlertWhom`.
     ///
     /// The caller must not drop the `MutexGuard` until it has done the above.
+    #[allow(clippy::type_complexity)]
     fn wait_on_message_for_impl<'a, Q: QueueId>(
         &'a self,
         mut state_lock: MutexGuard<'a, ReceiverState>,
         queue_id: &Q,
     ) -> (
-        Result<ValidatedResponse, ProtoError>,
+        Result<(Q::Tag, ValidatedResponse), ProtoError>,
         MutexGuard<'a, ReceiverState>,
         AlertWhom,
     ) {
@@ -533,13 +554,14 @@ impl Receiver {
     ///
     /// - Putting `stream` back into the `stream` field.
     /// - Other invariants as discussed in wait_on_message_for_impl.
+    #[allow(clippy::type_complexity)]
     fn read_until_message_for<'a, Q: QueueId>(
         &'a self,
         mut state_lock: MutexGuard<'a, ReceiverState>,
         stream: &mut PollingStream,
         queue_id: &Q,
     ) -> (
-        Result<ValidatedResponse, ShutdownError>,
+        Result<(Q::Tag, ValidatedResponse), ShutdownError>,
         MutexGuard<'a, ReceiverState>,
         AlertWhom,
     ) {
@@ -572,12 +594,14 @@ impl Receiver {
             };
 
             match queue_id.response_disposition(&mut state.pending, &response) {
-                ResponseDisposition::Return => {
+                ResponseDisposition::Return(tag) => {
                     // This only is for us, so there's no need to alert anybody specific
                     // or queue it.
-                    return (Ok(response), state_lock, AlertWhom::Anybody);
+                    return (Ok((tag, response)), state_lock, AlertWhom::Anybody);
                 }
-                ResponseDisposition::Forward(queue) => queue.push_back_and_alert(response),
+                ResponseDisposition::ForwardWaiting(queue) => {
+                    queue.push_back_and_alert((), response);
+                }
                 ResponseDisposition::Ignore => {
                     // Nothing wanted this response any longer.
                     // _Probably_ this means that we decided to cancel the
