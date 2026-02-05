@@ -23,9 +23,75 @@ use crate::{
 
 use super::{ProtoError, ShutdownError};
 
-/// State held by the [`RpcConn`] for a single request ID.
+/// An identifier for a [`ResponseQueue`] within a [`RequestMap`].
+trait QueueId {
+    /// Find the queue identified by this `QueueId` within `map`,
+    /// in order to wait for messages on it.
+    fn get_queue_mut<'a>(
+        &self,
+        map: &'a mut RequestMap,
+    ) -> Result<&'a mut ResponseQueue, ProtoError>;
+
+    /// Given that we are polling on the queue identified by `self`,
+    /// determine what we should do with `msg`.
+    ///
+    /// (Should we return it, drop it, or forward it to somebody else?)
+    fn response_disposition<'a>(
+        &self,
+        map: &'a mut RequestMap,
+        msg: &ValidatedResponse,
+    ) -> ResponseDisposition<'a>;
+
+    /// Remove any state from `map` associated with `msg_id`.
+    ///
+    /// (If `msg_id` is absent, an error occurred that was not associated with any message ID.)
+    fn remove_entry<'a>(&self, map: &'a mut RequestMap, msg_id: Option<&AnyRequestId>);
+
+    /// Create and return a new RequestState to track a request associated with this kind of ID.
+    fn new_entry() -> RequestState;
+}
+
+impl QueueId for AnyRequestId {
+    fn get_queue_mut<'a>(
+        &self,
+        map: &'a mut RequestMap,
+    ) -> Result<&'a mut ResponseQueue, ProtoError> {
+        match map.map.get_mut(self) {
+            Some(RequestState::Waiting(s)) => Ok(s),
+            None => Err(ProtoError::RequestCompleted),
+        }
+    }
+
+    fn response_disposition<'a>(
+        &self,
+        map: &'a mut RequestMap,
+        msg: &ValidatedResponse,
+    ) -> ResponseDisposition<'a> {
+        if self == msg.id() {
+            // This message is for us; no reason to look anything up.
+            return ResponseDisposition::Return;
+        }
+
+        match map.map.get_mut(msg.id()) {
+            Some(RequestState::Waiting(q)) => ResponseDisposition::Forward(q),
+            None => ResponseDisposition::Ignore,
+        }
+    }
+
+    fn remove_entry<'a>(&self, map: &'a mut RequestMap, _: Option<&AnyRequestId>) {
+        map.map.remove(self);
+    }
+
+    /// Create and return a new RequestState to track a request associated with this kind of ID.
+    fn new_entry() -> RequestState {
+        RequestState::Waiting(ResponseQueue::default())
+    }
+}
+
+/// A queue of responses used to alert a polling function about replies to
+/// one or more requests.
 #[derive(Default)]
-struct RequestState {
+struct ResponseQueue {
     /// A queue of replies received with this request's identity.
     queue: VecDeque<ValidatedResponse>,
     /// A condition variable used to wake a thread waiting for this request
@@ -45,7 +111,15 @@ struct RequestState {
     waiter: Option<Arc<Condvar>>,
 }
 
-impl RequestState {
+/// State held by the [`RpcConn`] for a single request ID.
+enum RequestState {
+    /// A request submitted by one of the `execute_*` functions:
+    /// The user must call a "wait" function for this request specifically in order to get
+    /// responses. This request has its own queue.
+    Waiting(ResponseQueue),
+}
+
+impl ResponseQueue {
     /// Helper: Pop and return the next message for this request.
     ///
     /// If there are no queued messages, but a fatal error has occurred on the connection,
@@ -62,6 +136,42 @@ impl RequestState {
             fatal.as_ref().map(|f| Err(f.clone()))
         }
     }
+
+    /// Queue `response` for this request, and alert the condvar (if any).
+    fn push_back_and_alert(&mut self, response: ValidatedResponse) {
+        self.queue.push_back(response);
+
+        if let Some(cv) = &self.waiter {
+            cv.notify_one();
+        }
+    }
+}
+
+/// A map from a [`QueueId`] to a request state.
+#[derive(Default)]
+struct RequestMap {
+    /// A map from request ID to the state for that request ID.
+    ///
+    /// Entries are added to this map when a request is sent,
+    /// and removed when the request encounters
+    /// an error or a final response.
+    map: HashMap<AnyRequestId, RequestState>,
+}
+
+/// An action to take with a given message.
+///
+/// Returned by [`QueueId::response_disposition`]
+enum ResponseDisposition<'a> {
+    /// This message is for the queue that we are waiting for;
+    /// we should return it to the caller.
+    Return,
+
+    /// This message if for a dead request that was probably cancelled;
+    /// we should drop it.
+    Ignore,
+
+    /// This message is for some other request; we should instead forward it to that request's queue.
+    Forward(&'a mut ResponseQueue),
 }
 
 /// Mutable state to implement receiving replies on an RpcConn.
@@ -77,7 +187,7 @@ struct ReceiverState {
     /// or we have cancelled that request.
     ///
     /// (TODO: We might handle cancelling differently.)
-    pending: HashMap<AnyRequestId, RequestState>,
+    pending: RequestMap,
     /// A steam that we use to send requests and receive replies from Arti.
     ///
     /// Invariants:
@@ -91,15 +201,18 @@ struct ReceiverState {
     stream: Option<PollingStream>,
 }
 
-impl ReceiverState {
+impl RequestMap {
     /// Notify an arbitrarily chosen request's condvar.
     fn alert_anybody(&self) {
         // TODO: This is O(n) in the worst case.
         //
         // But with luck, nobody will make a million requests and
         // then wait on them one at a time?
-        for ent in self.pending.values() {
-            if let Some(cv) = &ent.waiter {
+        for ent in self.map.values() {
+            if let RequestState::Waiting(ResponseQueue {
+                waiter: Some(cv), ..
+            }) = ent
+            {
                 cv.notify_one();
                 return;
             }
@@ -108,8 +221,11 @@ impl ReceiverState {
 
     /// Notify the condvar for every request.
     fn alert_everybody(&self) {
-        for ent in self.pending.values() {
-            if let Some(cv) = &ent.waiter {
+        for ent in self.map.values() {
+            if let RequestState::Waiting(ResponseQueue {
+                waiter: Some(cv), ..
+            }) = ent
+            {
                 // By our rules, each condvar is waited on by precisely one thread.
                 // So we call `notify_one` even though we are trying to wake up everyone.
                 cv.notify_one();
@@ -185,7 +301,7 @@ impl RpcConn {
                 state: Mutex::new(ReceiverState {
                     id_gen: IdGenerator::default(),
                     fatal: None,
-                    pending: HashMap::new(),
+                    pending: RequestMap::default(),
                     stream: Some(stream),
                 }),
             }),
@@ -204,6 +320,17 @@ impl RpcConn {
     /// Limitation: We don't preserved unrecognized fields in the framing and meta
     /// parts of `msg`.  See notes in `request.rs`.
     pub(super) fn send_request(&self, msg: &str) -> Result<super::RequestHandle, ProtoError> {
+        let id = self.send_request_impl::<AnyRequestId>(msg)?;
+        Ok(super::RequestHandle {
+            conn: Mutex::new(Arc::clone(&self.receiver)),
+            id,
+        })
+    }
+
+    /// Helper for send_request.
+    ///
+    /// We use the [`QueueId`] parameter to determine what kind of queue will
+    fn send_request_impl<Q: QueueId>(&self, msg: &str) -> Result<AnyRequestId, ProtoError> {
         use std::collections::hash_map::Entry::*;
 
         let mut state = self.receiver.state.lock().expect("poisoned");
@@ -219,10 +346,10 @@ impl RpcConn {
         // Do the necessary housekeeping before we send the request, so that
         // we'll be able to understand the replies.
         let id = valid.id().clone();
-        match state.pending.entry(id.clone()) {
+        match state.pending.map.entry(id.clone()) {
             Occupied(_) => return Err(ProtoError::RequestIdInUse),
             Vacant(v) => {
-                v.insert(RequestState::default());
+                v.insert(Q::new_entry());
             }
         }
         // Release the lock on the ReceiverState here; the two locks must not overlap.
@@ -238,31 +365,28 @@ impl RpcConn {
                 let mut state = self.receiver.state.lock().expect("poisoned");
                 if state.fatal.is_none() {
                     state.fatal = Some(e.clone());
-                    state.alert_everybody();
+                    state.pending.alert_everybody();
                 }
                 Err(e.into())
             }
 
-            Ok(()) => Ok(super::RequestHandle {
-                id,
-                conn: Mutex::new(Arc::clone(&self.receiver)),
-            }),
+            Ok(()) => Ok(id),
         }
     }
 }
 
 impl Receiver {
     /// Wait until there is either a fatal error on this connection,
-    /// _or_ there is a new message for the request with the provided `id`.
+    /// _or_ there is a new message for the queue with the provided `queue_id`.
     /// Return that message, or a copy of the fatal error.
     pub(super) fn wait_on_message_for(
         &self,
-        id: &AnyRequestId,
+        queue_id: &AnyRequestId,
     ) -> Result<ValidatedResponse, ProtoError> {
         // Here in wait_on_message_for_impl, we do the the actual work
         // of waiting for the message.
         let state = self.state.lock().expect("poisoned");
-        let (result, mut state, should_alert) = self.wait_on_message_for_impl(state, id);
+        let (result, mut state, should_alert) = self.wait_on_message_for_impl(state, queue_id);
 
         // Great; we have a message or a fatal error.  All we need to do now
         // is to restore our invariants before we drop state_lock.
@@ -273,9 +397,9 @@ impl Receiver {
         (|| {
             // "final" in this case means that we are not expecting any more
             // replies for this request.
-            let is_final = match &result {
-                Err(_) => true,
-                Ok(r) => r.is_final(),
+            let (msg_id, is_final) = match &result {
+                Err(_) => (None, true),
+                Ok(r) => (Some(r.id()), r.is_final()),
             };
 
             if is_final {
@@ -289,14 +413,14 @@ impl Receiver {
                 // Note 3: On DuplicateWait, it is not totally clear whether we should
                 // remove or not.  But that's an internal error that should never occur,
                 // so it is probably okay if we let the _other_ waiter keep on trying.
-                state.pending.remove(id);
+                queue_id.remove_entry(&mut state.pending, msg_id);
             }
 
             match should_alert {
                 AlertWhom::Nobody => {}
                 AlertWhom::Anybody if state.stream.is_none() => {}
-                AlertWhom::Anybody => state.alert_anybody(),
-                AlertWhom::Everybody => state.alert_everybody(),
+                AlertWhom::Anybody => state.pending.alert_anybody(),
+                AlertWhom::Everybody => state.pending.alert_everybody(),
             }
         })();
 
@@ -316,10 +440,10 @@ impl Receiver {
     ///   depending on the resulting `AlertWhom`.
     ///
     /// The caller must not drop the `MutexGuard` until it has done the above.
-    fn wait_on_message_for_impl<'a>(
+    fn wait_on_message_for_impl<'a, Q: QueueId>(
         &'a self,
         mut state_lock: MutexGuard<'a, ReceiverState>,
-        id: &AnyRequestId,
+        queue_id: &Q,
     ) -> (
         Result<ValidatedResponse, ProtoError>,
         MutexGuard<'a, ReceiverState>,
@@ -338,8 +462,9 @@ impl Receiver {
         let mut state: &mut ReceiverState = &mut state_lock;
 
         // Initialize `this_ent` to our own entry in the pending table.
-        let Some(mut this_ent) = state.pending.get_mut(id) else {
-            return (Err(ProtoError::RequestCompleted), state_lock, should_alert);
+        let mut this_ent = match queue_id.get_queue_mut(&mut state.pending) {
+            Ok(ent) => ent,
+            Err(err) => return (Err(err), state_lock, should_alert),
         };
 
         let mut stream = loop {
@@ -375,8 +500,9 @@ impl Receiver {
             state_lock = cv.wait(state_lock).expect("poisoned lock");
             state = &mut state_lock;
             // Restore `this_ent`...
-            let Some(e) = state.pending.get_mut(id) else {
-                return (Err(ProtoError::RequestCompleted), state_lock, should_alert);
+            let e = match queue_id.get_queue_mut(&mut state.pending) {
+                Ok(ent) => ent,
+                Err(err) => return (Err(err), state_lock, should_alert),
             };
             this_ent = e;
             // ... And un-register our condvar.
@@ -388,7 +514,7 @@ impl Receiver {
         };
 
         let (result, mut state_lock, should_alert) =
-            self.read_until_message_for(state_lock, &mut stream, id);
+            self.read_until_message_for(state_lock, &mut stream, queue_id);
         // Put the stream back.
         state_lock.stream = Some(stream);
 
@@ -397,7 +523,7 @@ impl Receiver {
 
     /// Interact with `stream`, writing any queued messages,
     /// reading messages, and
-    /// delivering them as appropriate, until we find one for `id`,
+    /// delivering them as appropriate, until we find one for the queue `queue_id`
     /// or a fatal error occurs.
     ///
     /// Return that message or error, along with a `MutexGuard`.
@@ -407,11 +533,11 @@ impl Receiver {
     ///
     /// - Putting `stream` back into the `stream` field.
     /// - Other invariants as discussed in wait_on_message_for_impl.
-    fn read_until_message_for<'a>(
+    fn read_until_message_for<'a, Q: QueueId>(
         &'a self,
         mut state_lock: MutexGuard<'a, ReceiverState>,
         stream: &mut PollingStream,
-        id: &AnyRequestId,
+        queue_id: &Q,
     ) -> (
         Result<ValidatedResponse, ShutdownError>,
         MutexGuard<'a, ReceiverState>,
@@ -431,38 +557,34 @@ impl Receiver {
             state_lock = self.state.lock().expect("poisoned lock");
             let state = &mut state_lock;
 
-            match result {
-                Ok(m) if m.id() == id => {
-                    // This only is for us, so there's no need to alert anybody
-                    // or queue it.
-                    return (Ok(m), state_lock, AlertWhom::Anybody);
-                }
+            let response = match result {
+                Ok(m) => m,
                 Err(e) => {
                     // This is a fatal error on the whole connection.
                     //
-                    // If it's the first one encountered, queue the error, and
-                    // return it.
+                    // If it's the first one encountered, queue the error.
+                    // In any case, return it.
                     if state.fatal.is_none() {
                         state.fatal = Some(e.clone());
                     }
                     return (Err(e), state_lock, AlertWhom::Everybody);
                 }
-                Ok(m) => {
-                    // This is a message for exactly one ID, that isn't us.
-                    // Queue it and notify them.
-                    if let Some(ent) = state.pending.get_mut(m.id()) {
-                        ent.queue.push_back(m);
-                        if let Some(cv) = &ent.waiter {
-                            cv.notify_one();
-                        }
-                    } else {
-                        // Nothing wanted this response any longer.
-                        // _Probably_ this means that we decided to cancel the
-                        // request but Arti sent this response before it handled
-                        // our cancellation.
-                    }
-                }
             };
+
+            match queue_id.response_disposition(&mut state.pending, &response) {
+                ResponseDisposition::Return => {
+                    // This only is for us, so there's no need to alert anybody specific
+                    // or queue it.
+                    return (Ok(response), state_lock, AlertWhom::Anybody);
+                }
+                ResponseDisposition::Forward(queue) => queue.push_back_and_alert(response),
+                ResponseDisposition::Ignore => {
+                    // Nothing wanted this response any longer.
+                    // _Probably_ this means that we decided to cancel the
+                    // request but Arti sent this response before it handled
+                    // our cancellation.
+                }
+            }
         }
     }
 }

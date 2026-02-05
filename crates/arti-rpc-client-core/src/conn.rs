@@ -429,6 +429,12 @@ pub enum ProtoError {
     #[error("Internal error while encoding request")]
     CouldNotEncode(#[source] Arc<serde_json::Error>),
 
+    /// We tried to wait on a request that was not created with a queue.
+    ///
+    /// (This should be impossible).
+    #[error("Internal error: waiting on a request created for polling.")]
+    RequestNotWaitable,
+
     /// We got a response to some internally generated request that wasn't what we expected.
     #[error("{0}")]
     InternalRequestFailed(#[source] UnexpectedReply),
@@ -624,6 +630,7 @@ impl HasClientErrorAction for ProtoError {
             | E::RequestIdInUse
             | E::RequestCompleted
             | E::DuplicateWait
+            | E::RequestNotWaitable
             | E::CouldNotEncode(_) => A::Abort,
         }
     }
