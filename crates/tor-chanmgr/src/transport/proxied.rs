@@ -201,7 +201,7 @@ impl From<std::io::Error> for ProxyError {
 
 impl From<ProxyError> for std::io::Error {
     fn from(e: ProxyError) -> Self {
-        std::io::Error::new(std::io::ErrorKind::Other, format!("{}", e))
+        std::io::Error::new(std::io::ErrorKind::Other, e)
     }
 }
 

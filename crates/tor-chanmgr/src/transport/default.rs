@@ -23,18 +23,12 @@ pub(crate) struct DefaultTransport<R: Runtime> {
     /// The runtime that we use for connecting.
     runtime: R,
     /// The outbound proxy to use, if any
-    outbound_proxy: Option<(crate::config::ProxyProtocol, std::net::SocketAddr)>,
+    outbound_proxy: Option<crate::config::ProxyProtocol>,
 }
 
 impl<R: Runtime> DefaultTransport<R> {
     /// Construct a new DefaultTransport
     pub(crate) fn new(runtime: R, outbound_proxy: Option<crate::config::ProxyProtocol>) -> Self {
-        let outbound_proxy = outbound_proxy.map(|proxy| {
-            let addr = match &proxy {
-                crate::config::ProxyProtocol::Socks { addr, .. } => *addr,
-            };
-            (proxy, addr)
-        });
         Self {
             runtime,
             outbound_proxy,
@@ -84,7 +78,7 @@ static CONNECTION_DELAY: Duration = Duration::from_millis(150);
 async fn connect_to_one<R: Runtime>(
     rt: &R,
     addrs: &[SocketAddr],
-    outbound_proxy: &Option<(crate::config::ProxyProtocol, std::net::SocketAddr)>,
+    outbound_proxy: &Option<crate::config::ProxyProtocol>,
 ) -> crate::Result<(<R as NetStreamProvider>::Stream, SocketAddr)> {
     // We need *some* addresses to connect to.
     if addrs.is_empty() {
@@ -110,15 +104,18 @@ async fn connect_to_one<R: Runtime>(
                 tracing::debug!("Connecting to {}", a);
                 let a = *a;
                 async move {
-                    let stream = if let Some((protocol, proxy_addr)) = proxy {
-                        // Use proxy
-                        let target = tor_linkspec::PtTargetAddr::IpPort(a);
-                        let protocol = match protocol {
-                            crate::config::ProxyProtocol::Socks { version, auth, .. } => {
-                                super::proxied::Protocol::Socks(version, auth)
-                            }
+                    let stream = if let Some(ref protocol) = proxy {
+                        // Use proxy - extract address and protocol details
+                        let (proxy_addr, version, auth) = match protocol {
+                            crate::config::ProxyProtocol::Socks {
+                                version,
+                                auth,
+                                addr,
+                            } => (*addr, *version, auth.clone()),
                         };
-                        super::proxied::connect_via_proxy(rt, &proxy_addr, &protocol, &target).await
+                        let target = tor_linkspec::PtTargetAddr::IpPort(a);
+                        let proto = super::proxied::Protocol::Socks(version, auth);
+                        super::proxied::connect_via_proxy(rt, &proxy_addr, &proto, &target).await
                     } else {
                         // Direct connection
                         rt.connect(&a)
@@ -145,11 +142,7 @@ async fn connect_to_one<R: Runtime>(
             Err((e, a)) => {
                 // We got a failure on one of the streams. Store the error.
                 // TODO(eta): ideally we'd start the next connection attempt immediately.
-                tor_error::warn_report!(
-                    Arc::new(std::io::Error::from(e.clone())),
-                    "Connection to {} failed",
-                    sv(a)
-                );
+                tor_error::warn_report!(&e, "Connection to {} failed", sv(a));
                 errors.push((e, a));
             }
         }
