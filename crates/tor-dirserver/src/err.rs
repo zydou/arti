@@ -1,6 +1,48 @@
 //! Error module for `tor-dirserver`.
 
 use thiserror::Error;
+use tor_netdoc::parse2;
+
+/// An error while performing a request at a directory authority.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum AuthorityRequestError {
+    /// TCP connection to the endpoint failed.
+    #[error("tcp connection error: {0}")]
+    TcpConnect(std::io::Error),
+
+    /// [`tor_dirclient`] failed at performing the request.
+    ///
+    /// This usually indicates some failures in HTTP/1.0, such as the response
+    /// not being valid HTTP/1.0; although Tor generally has some specialities
+    /// here and there with regard to this, hence why we have dirclient in the
+    /// first place.
+    #[error("dirclient error: {0}")]
+    Request(#[from] tor_dirclient::RequestFailedError),
+
+    /// Invalid netdoc received from the authority.
+    #[error("netdoc parse error: {0}")]
+    Parse(#[from] parse2::ParseError),
+
+    /// An internal error.
+    #[error("internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+impl AuthorityRequestError {
+    /// Checks whether the error is fatal.
+    ///
+    /// A fatal error means that the application should stop execution because
+    /// further retries are very likely (potentially impossible) to succeed at
+    /// all.
+    ///
+    /// Right now, the following variants are considered fatal:
+    /// * [`AuthorityRequestError::Bug`]
+    // TODO DIRMIRROR: Make this a trait to avoid duplication.
+    pub(crate) fn is_fatal(&self) -> bool {
+        matches!(&self, Self::Bug(_))
+    }
+}
 
 /// An error while interacting with a database.
 ///
@@ -50,6 +92,10 @@ pub(crate) enum DatabaseError {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum OperationError {
+    /// Request to a directory authority failed.
+    #[error("authority request error: {0}")]
+    AuthorityRequest(#[from] Box<AuthorityRequestError>),
+
     /// Access to the database failed for good.
     #[error("database error: {0}")]
     Database(#[from] DatabaseError),
@@ -57,6 +103,12 @@ pub(crate) enum OperationError {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+impl From<AuthorityRequestError> for OperationError {
+    fn from(value: AuthorityRequestError) -> Self {
+        Self::AuthorityRequest(Box::new(value))
+    }
 }
 
 impl OperationError {

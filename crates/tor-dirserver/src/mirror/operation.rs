@@ -21,6 +21,9 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::Transaction;
+use tokio::net::TcpStream;
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tor_dirclient::request::ConsensusRequest;
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::{internal, into_internal};
 use tor_netdoc::{
@@ -358,10 +361,15 @@ impl StaticEngine {
         &self,
         pool: &Pool<SqliteConnectionManager>,
         data: &mut ConsensusBoundData,
-        _endpoint: &[SocketAddr],
+        endpoint: &[SocketAddr],
         now: Timestamp,
         rng: &mut R,
     ) -> Result<(), OperationError> {
+        // We must check this because Tokio panics if it is empty.
+        if endpoint.is_empty() {
+            return Err(OperationError::Bug(internal!("empty endpoint?")));
+        }
+
         // TODO: Should we return DatabaseError or something like
         // StateDeterminationError?  Either way, both cases should be seriously
         // fatal.
@@ -370,7 +378,7 @@ impl StaticEngine {
 
         match state {
             State::LoadConsensus => self.load_consensus(pool, data, now, rng),
-            State::FetchConsensus => todo!(),
+            State::FetchConsensus => Ok(self.fetch_consensus(data, endpoint).await?),
             State::AuthCerts => todo!(),
             State::StoreConsensus => todo!(),
             State::Descriptors => todo!(),
@@ -450,6 +458,60 @@ impl StaticEngine {
         Ok(())
     }
 
+    /// Fetches a consensus from an upstream authority.
+    // TODO DIRMIRROR: Add logging.
+    async fn fetch_consensus(
+        &self,
+        data: &mut ConsensusBoundData,
+        endpoint: &[SocketAddr],
+    ) -> Result<(), AuthorityRequestError> {
+        assert!(!endpoint.is_empty());
+
+        // Open the TCP connection.
+        let mut stream = TcpStream::connect(endpoint)
+            .await
+            .map_err(AuthorityRequestError::TcpConnect)?
+            .compat();
+        let req = ConsensusRequest::new(self.flavor);
+
+        // Perform the request and map the result nicely.
+        let resp = tor_dirclient::send_request(&self.rt, &req, &mut stream, None)
+            .await
+            .map(|resp| resp.output_string().map(|resp| resp.to_owned()));
+
+        // We can immediately drop the connection now, no need to occupy even
+        // more resources from the authority.
+        drop(stream);
+
+        // Returning all request failed errors is okay; they all imply that
+        // retrying from a different authority is fine.
+        // TODO MSRV: If possible, use Result::flatten once MSRV 1.89.
+        let resp = match resp {
+            Ok(Ok(r)) => Ok(r),
+            Ok(Err(e)) => Err(e),
+            Err(tor_dirclient::Error::RequestFailed(e)) => Err(e),
+            Err(e) => {
+                return Err(AuthorityRequestError::Bug(internal!(
+                    "unhandled dirclient error: {e}"
+                )))
+            }
+        }?;
+
+        // Parse the returned consensus.
+        let consensus =
+            match self.flavor {
+                ConsensusFlavor::Plain => parse2::parse_netdoc(&ParseInput::new(&resp, ""))
+                    .map(FlavoredConsensusSigned::Ns),
+                ConsensusFlavor::Microdesc => parse2::parse_netdoc(&ParseInput::new(&resp, ""))
+                    .map(FlavoredConsensusSigned::Md),
+            }?;
+
+        // And store it.
+        *data = ConsensusBoundData::Unverified { consensus };
+
+        Ok(())
+    }
+
     /// Hibernates for the remaining lifetime of the consensus.
     async fn hibernate(
         &self,
@@ -517,7 +579,12 @@ mod test {
     use std::time::{Duration, SystemTime};
 
     use rusqlite::named_params;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_netdoc::parse2::NetdocUnverified;
 
     use crate::database::sql;
 
@@ -671,6 +738,52 @@ mod test {
                 assert!(micro_queue.is_empty());
             }
             _ => panic!("data is not verified"),
+        }
+    }
+
+    #[tokio::test]
+    async fn state_fetch_consensus() {
+        let pool = create_dummy_db();
+        let mut data = ConsensusBoundData::None;
+        let engine = StaticEngine {
+            flavor: ConsensusFlavor::Plain,
+            authorities: AuthorityContacts::default(),
+            tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
+        };
+
+        let state = db::read_tx(&pool, |tx| {
+            engine.determine_state(tx, &data, SystemTime::UNIX_EPOCH.into())
+        })
+        .unwrap()
+        .unwrap();
+        assert_eq!(state, State::FetchConsensus);
+
+        let server = TcpListener::bind("[::]:0").await.unwrap();
+        let saddr = server.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut stream, _) = server.accept().await.unwrap();
+            let mut buf = vec![0; 1024];
+            let _ = stream.read(&mut buf).await.unwrap();
+
+            let consensus = include_str!("../../testdata/consensus-ns");
+            let resp = format!(
+                "HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: {}\r\n\r\n{consensus}",
+                consensus.len()
+            );
+            stream.write_all(resp.as_bytes()).await.unwrap();
+        });
+
+        engine.fetch_consensus(&mut data, &[saddr]).await.unwrap();
+        match data {
+            ConsensusBoundData::Unverified { consensus } => match consensus {
+                FlavoredConsensusSigned::Ns(ns) => {
+                    // El-cheapo verification, this is not a parser unit test.
+                    assert_eq!(ns.unwrap_unverified().0.r.len(), 2);
+                }
+                _ => panic!("data is not unverified ns consensus"),
+            },
+            _ => panic!("data is not unverified"),
         }
     }
 }
