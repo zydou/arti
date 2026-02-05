@@ -24,6 +24,7 @@ use crate::{
 
 /// An enum combining both the possibility of a verifable (relay) or non verifiable channel
 /// (client/bridge).
+#[non_exhaustive]
 pub enum MaybeVerifiableRelayResponderChannel<
     T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,

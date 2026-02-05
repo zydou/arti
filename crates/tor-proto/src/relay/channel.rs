@@ -7,6 +7,8 @@ pub(crate) mod handshake;
 pub(crate) mod initiator;
 pub(crate) mod responder;
 
+pub use responder::MaybeVerifiableRelayResponderChannel;
+
 use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
 use rand::Rng;
