@@ -82,12 +82,13 @@ use std::{
 
 use crate::{
     UserTag,
+    conn::AnyResponse,
     msgs::{
         AnyRequestId, ObjectId,
         request::{IdGenerator, ValidatedRequest},
         response::ValidatedResponse,
     },
-    nb_stream::PollingStream,
+    nb_stream::{NonblockingStream, PollingStream, WantIo},
 };
 
 use super::{ProtoError, ShutdownError};
@@ -414,6 +415,23 @@ pub struct RpcConn {
     pub(super) session: Option<ObjectId>,
 }
 
+/// A handle used to poll for RPC responses within an [event-driven IO] loop.
+///
+/// Only one handle of this type can exist per [`RpcConn`].
+///
+/// This type is _not_ intended to be used by multiple threads at once: Only one thread at a time
+/// should ever invoke its [`poll`](RpcPoll::poll) method.
+/// (In Rust, this is enforced by having RpcPoll::poll take `&mut self`.)
+///
+/// [event-driven IO]: https://man7.org/linux/man-pages/man2/select.2.html
+pub struct RpcPoll {
+    /// The message-receiver that we're using to track request state and report responses.
+    receiver: Arc<Receiver>,
+
+    /// The underling stream that we're using to send and receive messages.
+    stream: NonblockingStream,
+}
+
 /// Instruction to alert some additional condvar(s) before releasing our lock and returning
 ///
 /// Any code which receives one of these must pass the instruction on to someone else,
@@ -452,6 +470,26 @@ impl RpcConn {
             writer,
             session: None,
         }
+    }
+
+    /// Return a new [`RpcPoll`] to use for managing an RpcConn using event-driven IO.
+    ///
+    /// Removes the `PollingStream` from this `RpcConn` and drops any mio resources associated with it.
+    /// After this method is called is called, only `RpcPoll::poll()` can interact with it.
+    ///
+    /// See caveats on [`RpcConnBuilder::connect_polling`](crate::RpcConnBuilder::connect_polling).
+    pub(crate) fn construct_rpc_poll(
+        &mut self,
+        new_waker: Box<dyn crate::nb_stream::Waker>,
+    ) -> Option<RpcPoll> {
+        let mut state = self.receiver.state.lock().expect("Lock poisoned");
+        // TODO nb: enforce that nobody else is holding the state?  Return an error?
+        let mut stream = state.stream.take()?.into_nonblocking();
+        stream.replace_waker(new_waker);
+        Some(RpcPoll {
+            receiver: Arc::clone(&self.receiver),
+            stream,
+        })
     }
 
     /// Send the request in `msg` on this connection, and return a RequestHandle
@@ -769,6 +807,71 @@ impl Receiver {
                     // our cancellation.
                 }
             }
+        }
+    }
+}
+
+impl RpcPoll {
+    #[cfg(unix)]
+    /// If possible, return a fd to use with an underlying event-driven IO code.
+    pub fn try_as_fd(&self) -> std::io::Result<std::os::fd::BorrowedFd<'_>> {
+        self.stream.try_as_handle()
+    }
+
+    #[cfg(windows)]
+    /// If possible, return a SOCKET to use with an underlying event-driven IO code.
+    pub fn try_as_socket(&self) -> std::io::Result<std::os::windows::io::BorrowedSocket<'_>> {
+        self.stream.try_as_handle()
+    }
+
+    /// Handle IO for the associated RPC connection, without blocking.
+    ///
+    /// This method reads and writes data from the RPC server,
+    /// and passes any responses to requests created with the [`RpcConn::execute`] methods.
+    /// If it finds a response to a request crated with [`RpcConn::submit`], it returns that response.
+    ///
+    /// If no further progress can be made without performing more IO, it returns a [`WantIo`] object.
+    /// The caller should then register the fd/socket for this [`RpcPoll`] in its event-driven IO framework,
+    /// waiting for read/write events as specified by the `WantIo`.
+    ///
+    /// Only one thread may call this method at a time.
+    /// (In Rust, this is enforced by having the method take a mutable reference.)
+    pub fn poll(&mut self) -> Result<Result<(UserTag, AnyResponse), ProtoError>, WantIo> {
+        use crate::nb_stream::PollStatus;
+        // We try reading _and_ writing regardless; it won't hurt anything.
+        loop {
+            let r = self.stream.interact_once(true, true);
+            let response = match r {
+                Ok(PollStatus::Msg(m)) => m.try_validate().map_err(ShutdownError::from),
+                Ok(PollStatus::Closed) => return Ok(Err(ShutdownError::ConnectionClosed.into())),
+                Ok(PollStatus::WouldBlock(want_io)) => return Err(want_io),
+                Err(io_error) => return Ok(Err(ShutdownError::Read(Arc::new(io_error)).into())),
+            };
+
+            let mut state = self.receiver.state.lock().expect("Poisoned lock");
+
+            let response = match response {
+                Ok(m) => m,
+                Err(e) => {
+                    if state.fatal.is_none() {
+                        state.fatal = Some(e.clone());
+                        state.pending.alert_everybody();
+                    }
+                    return Ok(Err(e.into()));
+                }
+            };
+
+            match PolledRequests.response_disposition(&mut state.pending, &response) {
+                ResponseDisposition::Return(tag) => {
+                    return Ok(Ok((tag, AnyResponse::from_validated(response))));
+                }
+                ResponseDisposition::Ignore => {}
+                ResponseDisposition::ForwardWaiting(response_queue) => {
+                    response_queue.push_back_and_alert((), response);
+                }
+                ResponseDisposition::ForwardPollable(_, _) => panic!("This should be unreachable"),
+            };
+            drop(state);
         }
     }
 }

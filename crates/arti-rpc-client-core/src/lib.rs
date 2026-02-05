@@ -60,7 +60,7 @@ mod testing;
 
 pub use conn::{
     BuilderError, ConnPtDescription, ConnectError, ConnectFailure, ProtoError, RpcConn,
-    RpcConnBuilder, StreamError, UserTag,
+    RpcConnBuilder, RpcPoll, StreamError, UserTag,
 };
 pub use msgs::{AnyRequestId, ObjectId, request::InvalidRequestError, response::RpcError};
-pub use nb_stream::SendRequestError;
+pub use nb_stream::{SendRequestError, Waker as RpcPollWaker, WantIo};
