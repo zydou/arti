@@ -6,13 +6,32 @@
 
 use std::net::SocketAddr;
 
+use derive_builder::Builder;
+use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, utf8_percent_encode};
+
+/// Characters that must be percent-encoded in URI userinfo (user:pass)
+/// Based on RFC 3986 section 3.2.1
+const USERINFO_ENCODE_SET: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'<')
+    .add(b'>')
+    .add(b'`')
+    .add(b'?')
+    .add(b'{')
+    .add(b'}')
+    .add(b'/')
+    .add(b':')
+    .add(b'@')
+    .add(b'[')
+    .add(b']')
+    .add(b'\\');
+use serde::{Deserialize, Serialize};
 use tor_config::impl_standard_builder;
 use tor_config::{ConfigBuildError, PaddingLevel};
 use tor_socksproto::SocksAuth;
 use tor_socksproto::SocksVersion;
-
-use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
 
 /// Error parsing a proxy URI string
 #[derive(Debug, Clone, thiserror::Error)]
@@ -30,11 +49,23 @@ pub enum ProxyProtocolParseError {
 
 /// Information about what proxy protocol to use, and how to use it.
 ///
-/// This type can be parsed from a URI-like string:
-/// - `socks4://host:port` - SOCKS4 proxy
-/// - `socks4a://host:port` - SOCKS4a proxy (same as socks4)
-/// - `socks5://host:port` - SOCKS5 proxy without auth
-/// - `socks5://user:pass@host:port` - SOCKS5 proxy with username/password auth
+/// This type can be parsed from a URI string using the same format as curl's
+/// proxy URL syntax (see <https://curl.se/docs/url-syntax.html>).
+///
+/// Supported formats:
+///
+/// - `socks4://ip:port` - SOCKS4 proxy
+/// - `socks4://user@ip:port` - SOCKS4 proxy with user ID
+/// - `socks4a://ip:port` - SOCKS4a proxy (treated same as socks4)
+/// - `socks5://ip:port` - SOCKS5 proxy without auth
+/// - `socks5://user:pass@ip:port` - SOCKS5 proxy with username/password auth
+/// - `socks5://user@ip:port` - SOCKS5 proxy with username only (empty password)
+/// - `socks5h://ip:port` - SOCKS5 with remote hostname resolution (treated same as socks5)
+///
+/// - Hostnames for the proxy server itself are not supported.
+/// - Credentials must be embedded in the URI; curl's `-U user:pass` style is not supported.
+/// - For `socks4://`, any password component is silently ignored (SOCKS4 only supports user ID).
+/// - Special characters in credentials are percent-encoded per RFC 3986 section 3.2.1.
 #[derive(
     Debug, Clone, Eq, PartialEq, serde_with::DeserializeFromStr, serde_with::SerializeDisplay,
 )]
@@ -63,7 +94,7 @@ impl std::str::FromStr for ProxyProtocol {
         let scheme_lower = scheme.to_ascii_lowercase();
         let version = match scheme_lower.as_str() {
             "socks4" | "socks4a" => SocksVersion::V4,
-            "socks5" => SocksVersion::V5,
+            "socks5" | "socks5h" => SocksVersion::V5,
             _ => {
                 return Err(ProxyProtocolParseError::UnsupportedScheme(
                     scheme.to_string(),
@@ -71,22 +102,33 @@ impl std::str::FromStr for ProxyProtocol {
             }
         };
 
-        // Check for authentication credentials (user:pass@host:port)
+        // Check for authentication credentials (user:pass@host:port or user@host:port)
         let (auth, host_port) = if let Some(at_pos) = rest.rfind('@') {
             let creds = &rest[..at_pos];
             let addr_part = &rest[at_pos + 1..];
 
-            let (user, pass) = creds.split_once(':').ok_or_else(|| {
-                ProxyProtocolParseError::InvalidFormat(
-                    "credentials must be in user:pass format".to_string(),
-                )
-            })?;
+            // Parse user:pass or just user.
+            // Password is optional; for SOCKS4 any password is silently ignored.
+            // Percent-decode credentials per RFC 3986 (e.g., %40 -> @)
+            let (user_encoded, pass_encoded) = match creds.split_once(':') {
+                Some((u, p)) => (u, Some(p)),
+                None => (creds, None),
+            };
 
-            // SOCKS4 uses Socks4 auth with user ID, SOCKS5 uses Username auth
+            // Decode percent-encoded characters in user/pass
+            let user_decoded = percent_decode_str(user_encoded).decode_utf8_lossy();
+            let pass_decoded = pass_encoded.map(|p| percent_decode_str(p).decode_utf8_lossy());
+
+            // SOCKS4 only supports user ID (password ignored if provided).
+            // SOCKS5 supports username/password authentication.
             let auth = match version {
-                SocksVersion::V4 => SocksAuth::Socks4(user.as_bytes().to_vec()),
+                SocksVersion::V4 => {
+                    // Note: password is silently discarded for SOCKS4
+                    SocksAuth::Socks4(user_decoded.as_bytes().to_vec())
+                }
                 SocksVersion::V5 => {
-                    SocksAuth::Username(user.as_bytes().to_vec(), pass.as_bytes().to_vec())
+                    let pass = pass_decoded.as_deref().unwrap_or("");
+                    SocksAuth::Username(user_decoded.as_bytes().to_vec(), pass.as_bytes().to_vec())
                 }
                 // Handle potential future SOCKS versions
                 _ => SocksAuth::NoAuth,
@@ -96,18 +138,11 @@ impl std::str::FromStr for ProxyProtocol {
             (SocksAuth::NoAuth, rest)
         };
 
-        // Parse the address. Handle IPv6 addresses in brackets: [::1]:port
-        let addr = if host_port.starts_with('[') {
-            // IPv6 address in brackets
-            host_port
-                .parse::<SocketAddr>()
-                .map_err(|_| ProxyProtocolParseError::InvalidAddress(host_port.to_string()))?
-        } else {
-            // IPv4 or hostname:port - try direct parse first
-            host_port
-                .parse::<SocketAddr>()
-                .map_err(|_| ProxyProtocolParseError::InvalidAddress(host_port.to_string()))?
-        };
+        // Parse the proxy address. Only IP addresses are supported, not hostnames.
+        // SocketAddr::parse handles both IPv4 (1.2.3.4:port) and IPv6 ([::1]:port).
+        let addr = host_port
+            .parse::<SocketAddr>()
+            .map_err(|_| ProxyProtocolParseError::InvalidAddress(host_port.to_string()))?;
 
         Ok(ProxyProtocol::Socks {
             version,
@@ -125,27 +160,31 @@ impl std::fmt::Display for ProxyProtocol {
                 auth,
                 addr,
             } => {
-                let scheme = match version {
-                    SocksVersion::V4 => "socks4",
-                    SocksVersion::V5 => "socks5",
-                    // Handle potential future SOCKS versions
-                    _ => "socks5",
-                };
-
+                // Use SocksVersion's Display impl for the scheme (e.g., "socks5")
                 match auth {
-                    SocksAuth::NoAuth => write!(f, "{}://{}", scheme, addr),
+                    SocksAuth::NoAuth => write!(f, "{}://{}", version, addr),
                     SocksAuth::Socks4(user_id) => {
-                        // Best effort: try to display user ID as UTF-8
+                        // SOCKS4: user@host format (no password in SOCKS4)
+                        // Percent-encode special characters per RFC 3986 section 3.2.1
                         let user = String::from_utf8_lossy(user_id);
-                        write!(f, "{}://{}@{}", scheme, user, addr)
+                        let user_encoded = utf8_percent_encode(&user, USERINFO_ENCODE_SET);
+                        write!(f, "{}://{}@{}", version, user_encoded, addr)
                     }
                     SocksAuth::Username(user, pass) => {
+                        // SOCKS5: user:pass@host format
+                        // Percent-encode special characters per RFC 3986 section 3.2.1
                         let user = String::from_utf8_lossy(user);
                         let pass = String::from_utf8_lossy(pass);
-                        write!(f, "{}://{}:{}@{}", scheme, user, pass, addr)
+                        let user_encoded = utf8_percent_encode(&user, USERINFO_ENCODE_SET);
+                        let pass_encoded = utf8_percent_encode(&pass, USERINFO_ENCODE_SET);
+                        write!(
+                            f,
+                            "{}://{}:{}@{}",
+                            version, user_encoded, pass_encoded, addr
+                        )
                     }
                     // Handle potential future auth types
-                    _ => write!(f, "{}://{}", scheme, addr),
+                    _ => write!(f, "{}://{}", version, addr),
                 }
             }
         }
@@ -323,5 +362,83 @@ mod test {
 
         assert_eq!(p1, p2);
         assert_eq!(p2, p3);
+    }
+
+    #[test]
+    fn proxy_protocol_parse_socks5h() {
+        // socks5h:// should be treated as socks5
+        let p: ProxyProtocol = "socks5h://127.0.0.1:1080".parse().unwrap();
+        match p {
+            ProxyProtocol::Socks { version, auth, .. } => {
+                assert_eq!(version, SocksVersion::V5);
+                assert_eq!(auth, SocksAuth::NoAuth);
+            }
+        }
+    }
+
+    #[test]
+    fn proxy_protocol_parse_socks4_user_only() {
+        // SOCKS4 with user only (no password)
+        let p: ProxyProtocol = "socks4://myuser@10.0.0.1:1080".parse().unwrap();
+        match p {
+            ProxyProtocol::Socks {
+                version,
+                auth,
+                addr,
+            } => {
+                assert_eq!(version, SocksVersion::V4);
+                assert_eq!(auth, SocksAuth::Socks4(b"myuser".to_vec()));
+                assert_eq!(addr, "10.0.0.1:1080".parse().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn proxy_protocol_parse_socks5_user_only() {
+        // SOCKS5 with user only (empty password)
+        let p: ProxyProtocol = "socks5://myuser@192.168.1.1:9050".parse().unwrap();
+        match p {
+            ProxyProtocol::Socks {
+                version,
+                auth,
+                addr,
+            } => {
+                assert_eq!(version, SocksVersion::V5);
+                assert_eq!(auth, SocksAuth::Username(b"myuser".to_vec(), b"".to_vec()));
+                assert_eq!(addr, "192.168.1.1:9050".parse().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn proxy_protocol_percent_encoding_roundtrip() {
+        // Test percent-encoding round-trip for special characters
+        // User with @ and : characters that need encoding
+        let p = ProxyProtocol::Socks {
+            version: SocksVersion::V5,
+            auth: SocksAuth::Username(b"user@domain".to_vec(), b"pass:word".to_vec()),
+            addr: "127.0.0.1:1080".parse().unwrap(),
+        };
+        let s = p.to_string();
+        // Should contain percent-encoded characters
+        assert!(s.contains("%40"), "@ should be encoded as %40");
+        assert!(
+            s.contains("%3A") || s.contains("%3a"),
+            ": in password should be encoded"
+        );
+
+        // Parse it back
+        let p2: ProxyProtocol = s.parse().unwrap();
+        assert_eq!(p, p2, "Round-trip failed for percent-encoded URI");
+    }
+
+    #[test]
+    fn proxy_protocol_socks4_user_roundtrip() {
+        // SOCKS4 user-only format should round-trip
+        let uri = "socks4://testuser@10.0.0.1:1080";
+        let p: ProxyProtocol = uri.parse().unwrap();
+        let s = p.to_string();
+        let p2: ProxyProtocol = s.parse().unwrap();
+        assert_eq!(p, p2, "SOCKS4 user-only round-trip failed");
     }
 }
