@@ -151,6 +151,12 @@ impl DirResponse {
             };
             return wrap_err(RequestError::HttpStatus(self.status_code(), msg));
         }
+
+        // We do not allow a successful response with an empty body.
+        if self.output.is_empty() {
+            return wrap_err(RequestError::EmptySuccessfulResponse);
+        }
+
         Ok(())
     }
 }
@@ -230,6 +236,9 @@ mod test {
         };
 
         with_error(&response);
+
+        response.output = vec![];
+        expect_error(&response, RequestError::EmptySuccessfulResponse);
 
         response.status = 404;
         response.status_message = Some("Not found".into());
