@@ -38,8 +38,6 @@ use crate::{
     err::{DatabaseError, OperationError},
 };
 
-mod download;
-
 /// The various states for the [`StaticEngine`].
 #[derive(Debug, Clone, Copy, strum::Display)]
 enum State {
