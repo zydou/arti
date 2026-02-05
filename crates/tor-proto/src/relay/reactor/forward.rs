@@ -128,8 +128,7 @@ impl Forward {
     /// which then reports back the result via the [`Self::event_tx`] MPSC stream.
     /// Note that this MPSC stream is polled from the `ForwardReactor` main loop,
     /// and each `CircEvent` is passed back to [`Self::handle_event()`[ for handling.
-    #[allow(clippy::unused_async)] // TODO(relay)
-    async fn handle_extend2<R: Runtime>(
+    fn handle_extend2<R: Runtime>(
         &mut self,
         runtime: &R,
         msg: UnparsedRelayMsg,
@@ -361,7 +360,7 @@ impl ForwardHandler for Forward {
     ) -> StdResult<(), ReactorError> {
         match msg.cmd() {
             RelayCmd::DROP => self.handle_drop(),
-            RelayCmd::EXTEND2 => self.handle_extend2(runtime, msg).await,
+            RelayCmd::EXTEND2 => self.handle_extend2(runtime, msg),
             RelayCmd::TRUNCATE => self.handle_truncate().await,
             cmd => Err(internal!("relay cmd {cmd} not supported").into()),
         }
