@@ -26,6 +26,22 @@ use serde::{Deserialize, de::DeserializeOwned};
 pub use stream::StreamError;
 use tor_rpc_connect::{HasClientErrorAction, auth::cookie::CookieAccessError};
 
+/// A user-provided tag used to identify requests provided to
+/// (XXXX document once the function exists).
+///
+/// Most users will want to crate tags that are unique
+/// for the lifetime of their associated requests.
+/// This is not enforced: the only drawback of duplicating tags
+/// is that you will not be able to use them to distinguish
+/// which reply is which.
+//
+// Note: The tag is chosen to be two pointers in size,
+// to accommodate C implementations that want to
+// stuff a `void fn(void*), void*` inside of one of these.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[allow(clippy::exhaustive_structs)]
+pub struct RequestTag(pub usize, pub usize);
+
 /// A handle to an open request.
 ///
 /// These handles are created with [`RpcConn::execute_with_handle`].
@@ -352,7 +368,6 @@ impl RequestHandle {
     pub fn wait_with_updates(&self) -> Result<AnyResponse, ProtoError> {
         let conn = self.conn.lock().expect("Poisoned lock");
         let validated = conn.wait_on_message_for(&self.id)?;
-
         Ok(AnyResponse::from_validated(validated))
     }
 

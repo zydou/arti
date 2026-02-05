@@ -59,7 +59,7 @@ mod util;
 mod testing;
 
 pub use conn::{
-    BuilderError, ConnPtDescription, ConnectError, ConnectFailure, ProtoError, RpcConn,
+    BuilderError, ConnPtDescription, ConnectError, ConnectFailure, ProtoError, RequestTag, RpcConn,
     RpcConnBuilder, StreamError,
 };
 pub use msgs::{AnyRequestId, ObjectId, request::InvalidRequestError, response::RpcError};

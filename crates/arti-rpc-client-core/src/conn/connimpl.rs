@@ -14,6 +14,7 @@ use std::{
 };
 
 use crate::{
+    RequestTag,
     msgs::{
         AnyRequestId, ObjectId,
         request::{IdGenerator, ValidatedRequest},
@@ -54,7 +55,7 @@ trait QueueId {
     fn remove_entry<'a>(&self, map: &'a mut RequestMap, msg_id: Option<&AnyRequestId>);
 
     /// Create and return a new RequestState to track a request associated with this kind of ID.
-    fn new_entry() -> RequestState;
+    fn new_entry(tag: Self::Tag) -> RequestState;
 }
 
 impl QueueId for AnyRequestId {
@@ -66,6 +67,7 @@ impl QueueId for AnyRequestId {
     ) -> Result<&'a mut ResponseQueue<Self>, ProtoError> {
         match map.map.get_mut(self) {
             Some(RequestState::Waiting(s)) => Ok(s),
+            Some(RequestState::Pollable(_)) => Err(ProtoError::RequestNotWaitable),
             None => Err(ProtoError::RequestCompleted),
         }
     }
@@ -82,6 +84,9 @@ impl QueueId for AnyRequestId {
 
         match map.map.get_mut(msg.id()) {
             Some(RequestState::Waiting(q)) => ResponseDisposition::ForwardWaiting(q),
+            Some(RequestState::Pollable(tag)) => {
+                ResponseDisposition::ForwardPollable(*tag, &mut map.polled_response_queue)
+            }
             None => ResponseDisposition::Ignore,
         }
     }
@@ -91,8 +96,54 @@ impl QueueId for AnyRequestId {
     }
 
     /// Create and return a new RequestState to track a request associated with this kind of ID.
-    fn new_entry() -> RequestState {
+    fn new_entry(_: Self::Tag) -> RequestState {
         RequestState::Waiting(ResponseQueue::default())
+    }
+}
+
+/// Identifier for the set of "Pollable" requests.
+///
+/// As distinct from "Waitable" requests, which are created with "execute*" methods and
+/// whose APIs expect the user to block while waiting for responses,
+/// polled requests are created with "submit*" methods,
+/// and their replies are returned, along with [`RequestTag`] instances,
+/// from the RpcConn directly.
+struct PolledRequests;
+
+impl QueueId for PolledRequests {
+    type Tag = RequestTag;
+
+    fn get_queue_mut<'a>(
+        &self,
+        map: &'a mut RequestMap,
+    ) -> Result<&'a mut ResponseQueue<Self>, ProtoError> {
+        Ok(&mut map.polled_response_queue)
+    }
+
+    fn response_disposition<'a>(
+        &self,
+        map: &'a mut RequestMap,
+        msg: &ValidatedResponse,
+    ) -> ResponseDisposition<'a, Self> {
+        match map.map.get_mut(msg.id()) {
+            Some(RequestState::Waiting(s)) => ResponseDisposition::ForwardWaiting(s),
+            Some(RequestState::Pollable(tag)) => ResponseDisposition::Return(*tag),
+            None => ResponseDisposition::Ignore,
+        }
+    }
+
+    fn remove_entry<'a>(&self, map: &'a mut RequestMap, msg_id: Option<&AnyRequestId>) {
+        let Some(msg_id) = msg_id else {
+            // This can only happen when we have an error that wasn't associated with a message ID.
+            // We can't actually remove the appropriate thing.
+            return;
+        };
+
+        map.map.remove(msg_id);
+    }
+
+    fn new_entry(tag: Self::Tag) -> RequestState {
+        RequestState::Pollable(tag)
     }
 }
 
@@ -126,6 +177,11 @@ enum RequestState {
     /// The user must call a "wait" function for this request specifically in order to get
     /// responses. This request has its own queue.
     Waiting(ResponseQueue<AnyRequestId>),
+
+    /// A request submitted by one of the `submit_*` functions:
+    /// the user must provide an associated [`RequestTag`],
+    /// and (poll XXXX document) to find responses.
+    Pollable(RequestTag),
 }
 
 impl<Q: QueueId + ?Sized> ResponseQueue<Q> {
@@ -165,6 +221,9 @@ struct RequestMap {
     /// and removed when the request encounters
     /// an error or a final response.
     map: HashMap<AnyRequestId, RequestState>,
+
+    /// A response queue to hold the responses for pollable requests.
+    polled_response_queue: ResponseQueue<PolledRequests>,
 }
 
 /// An action to take with a given message.
@@ -181,6 +240,10 @@ enum ResponseDisposition<'a, Q: QueueId + ?Sized> {
 
     /// This message is for some other request; we should instead forward it to that request's queue.
     ForwardWaiting(&'a mut ResponseQueue<AnyRequestId>),
+
+    /// This message is for some other request;
+    ///  we should instead forward it to the the polled request queue.
+    ForwardPollable(RequestTag, &'a mut ResponseQueue<PolledRequests>),
 }
 
 /// Mutable state to implement receiving replies on an RpcConn.
@@ -329,7 +392,7 @@ impl RpcConn {
     /// Limitation: We don't preserved unrecognized fields in the framing and meta
     /// parts of `msg`.  See notes in `request.rs`.
     pub(super) fn send_request(&self, msg: &str) -> Result<super::RequestHandle, ProtoError> {
-        let id = self.send_request_impl::<AnyRequestId>(msg)?;
+        let id = self.send_request_impl::<AnyRequestId>(msg, ())?;
         Ok(super::RequestHandle {
             conn: Mutex::new(Arc::clone(&self.receiver)),
             id,
@@ -339,7 +402,11 @@ impl RpcConn {
     /// Helper for send_request.
     ///
     /// We use the [`QueueId`] parameter to determine what kind of queue will
-    fn send_request_impl<Q: QueueId>(&self, msg: &str) -> Result<AnyRequestId, ProtoError> {
+    fn send_request_impl<Q: QueueId>(
+        &self,
+        msg: &str,
+        tag: Q::Tag,
+    ) -> Result<AnyRequestId, ProtoError> {
         use std::collections::hash_map::Entry::*;
 
         let mut state = self.receiver.state.lock().expect("poisoned");
@@ -358,7 +425,7 @@ impl RpcConn {
         match state.pending.map.entry(id.clone()) {
             Occupied(_) => return Err(ProtoError::RequestIdInUse),
             Vacant(v) => {
-                v.insert(Q::new_entry());
+                v.insert(Q::new_entry(tag));
             }
         }
         // Release the lock on the ReceiverState here; the two locks must not overlap.
@@ -601,6 +668,9 @@ impl Receiver {
                 }
                 ResponseDisposition::ForwardWaiting(queue) => {
                     queue.push_back_and_alert((), response);
+                }
+                ResponseDisposition::ForwardPollable(tag, queue) => {
+                    queue.push_back_and_alert(tag, response);
                 }
                 ResponseDisposition::Ignore => {
                     // Nothing wanted this response any longer.
