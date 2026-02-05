@@ -564,7 +564,12 @@ fn extract_proto_err<'a>(
         if let Some(downcast) = error.downcast_ref::<tor_proto::Error>() {
             return Some(downcast);
         }
-        if let Some(source) = error.source() {
+
+        if let Some(downcast) = error.downcast_ref::<std::io::Error>() {
+            error = downcast.get_ref()?;
+        } else if let Some(downcast) = error.downcast_ref::<Arc<std::io::Error>>() {
+            error = downcast.get_ref()?;
+        } else if let Some(source) = error.source() {
             error = source;
         } else {
             return None;
