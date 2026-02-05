@@ -27,7 +27,7 @@ pub use stream::StreamError;
 use tor_rpc_connect::{HasClientErrorAction, auth::cookie::CookieAccessError};
 
 /// A user-provided tag used to identify requests provided to
-/// (XXXX document once the function exists).
+/// [`RpcConn::submit`].
 ///
 /// Most users will want to crate tags that are unique
 /// for the lifetime of their associated requests.
@@ -298,7 +298,7 @@ impl RpcConn {
     /// Like `execute`, but don't wait.  This lets the caller see the
     /// request ID and  maybe cancel it.
     pub fn execute_with_handle(&self, cmd: &str) -> Result<RequestHandle, ProtoError> {
-        self.send_request(cmd)
+        self.send_waitable_request(cmd)
     }
     /// As execute(), but run update_cb for every update we receive.
     pub fn execute_with_updates<F>(
@@ -319,6 +319,17 @@ impl RpcConn {
         }
     }
 
+    /// As execute(), but do not wait for a response.
+    ///
+    /// Instead, the caller must provide a [`RequestTag`] to identify a particular request,
+    /// and must make sure that responses are being processed via [`wait()`](Self::wait).
+    ///
+    /// (If nobody is running `wait()`, then responses will never be handled,
+    /// and can potentially fill up memory.)
+    pub fn submit(&self, tag: RequestTag, cmd: &str) -> Result<(), ProtoError> {
+        self.send_pollable_request(tag, cmd)
+    }
+
     /// Helper: Tell Arti to release `obj`.
     ///
     /// Do not use this method for a user-provided object ID:
@@ -327,6 +338,20 @@ impl RpcConn {
         let release_request = crate::msgs::request::Request::new(obj, "rpc:release", NoParams {});
         let _empty_response: EmptyReply = self.execute_internal_ok(&release_request.encode()?)?;
         Ok(())
+    }
+
+    /// Wait for a response to arrive for a request that was sent via [`submit()`](Self::submit).
+    ///
+    /// Return that response,
+    /// along with the tag that was associated with its request.
+    ///
+    /// This method will never return responses to any requests made with one of the `execute` methods;
+    /// only to requests submitted with `submit()`.
+    ///
+    /// It is safe, but generally pointless, to call this method from multiple threads.
+    pub fn wait(&self) -> Result<(RequestTag, AnyResponse), ProtoError> {
+        let (tag, r) = self.receiver.wait_on_pollable_response()?;
+        Ok((tag, AnyResponse::from_validated(r)))
     }
 
     // TODO RPC: shutdown() on the socket on Drop.

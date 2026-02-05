@@ -180,7 +180,7 @@ enum RequestState {
 
     /// A request submitted by one of the `submit_*` functions:
     /// the user must provide an associated [`RequestTag`],
-    /// and (poll XXXX document) to find responses.
+    /// and call [`RpcConn::wait`] to find responses.
     Pollable(RequestTag),
 }
 
@@ -332,7 +332,7 @@ pub struct RpcConn {
     ///
     /// It's in an `Arc<>` so that we can share it with the RequestHandles.
     #[educe(Debug(ignore))]
-    receiver: Arc<Receiver>,
+    pub(super) receiver: Arc<Receiver>,
 
     /// A writer that we use to queue requests to be sent back to Arti.
     writer: crate::nb_stream::WriteHandle,
@@ -391,12 +391,26 @@ impl RpcConn {
     ///
     /// Limitation: We don't preserved unrecognized fields in the framing and meta
     /// parts of `msg`.  See notes in `request.rs`.
-    pub(super) fn send_request(&self, msg: &str) -> Result<super::RequestHandle, ProtoError> {
+    pub(super) fn send_waitable_request(
+        &self,
+        msg: &str,
+    ) -> Result<super::RequestHandle, ProtoError> {
         let id = self.send_request_impl::<AnyRequestId>(msg, ())?;
         Ok(super::RequestHandle {
             conn: Mutex::new(Arc::clone(&self.receiver)),
             id,
         })
+    }
+
+    /// As a`send_waitable_request`, but send a Polled request -- one without a RequestHandle,
+    /// where responses are returned via [`RpcConn::wait()`].
+    pub(super) fn send_pollable_request(
+        &self,
+        tag: RequestTag,
+        msg: &str,
+    ) -> Result<(), ProtoError> {
+        let _id = self.send_request_impl::<PolledRequests>(msg, tag)?;
+        Ok(())
     }
 
     /// Helper for send_request.
@@ -461,6 +475,14 @@ impl Receiver {
     ) -> Result<ValidatedResponse, ProtoError> {
         let ((), response) = self.wait_on_message_for_queue(id)?;
         Ok(response)
+    }
+
+    /// Wait until there is aeither a fatal error on this connection,
+    /// _or_ there is a new message for some pollable request.
+    pub(super) fn wait_on_pollable_response(
+        &self,
+    ) -> Result<(RequestTag, ValidatedResponse), ProtoError> {
+        self.wait_on_message_for_queue(&PolledRequests)
     }
 
     /// Wait until there is either a fatal error on this connection,
