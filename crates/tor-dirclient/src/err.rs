@@ -28,6 +28,10 @@ pub enum Error {
 }
 
 /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
+///
+/// Generally, all errors of these kinds imply that the interfacing application
+/// may retry the request, either at a different time or at a different endpoint
+/// and potentially even both.
 #[derive(Error, Debug, Clone)]
 #[allow(clippy::exhaustive_structs)] // TODO should not be exhaustive
 #[error("Request failed from {}: {error}", FromSource(.source))]
@@ -54,6 +58,8 @@ impl std::fmt::Display for FromSource<'_> {
 }
 
 /// An error originating from the tor-dirclient crate.
+///
+/// See [`RequestFailedError`] for notes on retrying failed requests.
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum RequestError {
