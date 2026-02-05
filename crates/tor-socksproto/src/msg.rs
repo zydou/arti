@@ -3,7 +3,6 @@
 use crate::{Error, Result};
 
 use caret::caret_int;
-use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::net::IpAddr;
 
@@ -16,7 +15,7 @@ use tor_error::bad_api_usage;
 use arbitrary::{Arbitrary, Result as ArbitraryResult, Unstructured};
 
 /// A supported SOCKS version.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 #[non_exhaustive]
 pub enum SocksVersion {
@@ -33,6 +32,15 @@ impl TryFrom<u8> for SocksVersion {
             4 => Ok(SocksVersion::V4),
             5 => Ok(SocksVersion::V5),
             _ => Err(Error::BadProtocol(v)),
+        }
+    }
+}
+
+impl fmt::Display for SocksVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SocksVersion::V4 => write!(f, "socks4"),
+            SocksVersion::V5 => write!(f, "socks5"),
         }
     }
 }
@@ -119,7 +127,7 @@ impl<'a> Arbitrary<'a> for SocksHostname {
 }
 
 /// Provided authentication from a SOCKS handshake
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 #[non_exhaustive]
 pub enum SocksAuth {
