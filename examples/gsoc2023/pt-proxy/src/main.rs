@@ -252,7 +252,7 @@ async fn run_socks5_server(endpoint: &str) -> Result<oneshot::Receiver<bool>> {
                             Duration::from_secs(10),
                             false,
                         )
-                        .await?;   
+                        .await?;
                     } else {
                         proto
                             .reply_error(&fast_socks5::ReplyError::CommandNotSupported)
