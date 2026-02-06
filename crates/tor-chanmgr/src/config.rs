@@ -37,12 +37,16 @@ use tor_socksproto::SocksVersion;
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum ProxyProtocolParseError {
+    /// Proxy URI has an unsupported or missing scheme.
     #[error("unsupported or missing proxy scheme: {0}")]
     UnsupportedScheme(String),
+    /// Proxy URI had an invalid or unparsable address.
     #[error("invalid proxy address: {0}")]
     InvalidAddress(String),
+    /// Proxy URI is missing a port or has an invalid port.
     #[error("missing or invalid port")]
     InvalidPort,
+    /// Proxy URI does not match the expected format.
     #[error("invalid proxy URI format: {0}")]
     InvalidFormat(String),
 }
@@ -202,6 +206,23 @@ impl ProxyProtocol {
     }
 }
 
+/// Deserialize an outbound proxy, treating empty strings as unset.
+fn deserialize_outbound_proxy<'de, D>(deserializer: D) -> Result<Option<ProxyProtocol>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    match value {
+        None => Ok(None),
+        Some(s) => {
+            if s.trim().is_empty() {
+                return Ok(None);
+            }
+            s.parse().map(Some).map_err(serde::de::Error::custom)
+        }
+    }
+}
+
 /// Channel configuration
 ///
 /// This type is immutable once constructed.  To build one, use
@@ -214,6 +235,7 @@ pub struct ChannelConfig {
     #[builder(default)]
     pub(crate) padding: PaddingLevel,
     /// Outbound proxy to use for all direct connections
+    #[serde(default, deserialize_with = "deserialize_outbound_proxy")]
     #[builder(default)]
     pub(crate) outbound_proxy: Option<ProxyProtocol>,
 }
