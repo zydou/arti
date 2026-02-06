@@ -1,14 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use fast_socks5::Socks5Command;
 use fast_socks5::client::{Config, Socks5Stream};
-#[allow(deprecated)] // TODO: #2335
-use fast_socks5::server::{AcceptAuthentication, Socks5Server};
+use fast_socks5::server::{DnsResolveHelper, Socks5ServerProtocol};
 use std::str::FromStr;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
-use tokio_stream::StreamExt;
 use tor_chanmgr::transport::proxied::{Protocol, settings_to_protocol};
 use tor_linkspec::PtTransportName;
 use tor_ptmgr::ipc::{
@@ -233,13 +232,36 @@ async fn run_forwarding_server(endpoint: &str, forward_creds: ForwardingCreds) -
 /// Run the final hop of the connection, which finally makes the actual
 /// network request to the intended host and relays it back
 async fn run_socks5_server(endpoint: &str) -> Result<oneshot::Receiver<bool>> {
-    #[allow(deprecated)] // TODO: #2335
-    let listener = Socks5Server::<AcceptAuthentication>::bind(endpoint).await?;
+    let listener = TcpListener::bind(endpoint).await?;
     let (tx, rx) = oneshot::channel::<bool>();
     tokio::spawn(async move {
-        while let Some(Ok(socks_socket)) = listener.incoming().next().await {
+        while let Ok((socket, _)) = listener.accept().await {
             tokio::spawn(async move {
-                if let Err(e) = socks_socket.upgrade_to_socks5().await {
+                let res = async {
+                    let (proto, cmd, target_addr) = Socks5ServerProtocol::accept_no_auth(socket)
+                        .await?
+                        .read_command()
+                        .await?
+                        .resolve_dns()
+                        .await?;
+
+                    if cmd == Socks5Command::TCPConnect {
+                        fast_socks5::server::run_tcp_proxy(
+                            proto,
+                            &target_addr,
+                            Duration::from_secs(10),
+                            false,
+                        )
+                        .await?;   
+                    } else {
+                        proto
+                            .reply_error(&fast_socks5::ReplyError::CommandNotSupported)
+                            .await?;
+                    }
+                    Ok::<(), anyhow::Error>(())
+                }
+                .await;
+                if let Err(e) = res {
                     eprintln!("{e:#?}");
                 }
             });
