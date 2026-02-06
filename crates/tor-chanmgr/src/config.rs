@@ -235,7 +235,7 @@ pub struct ChannelConfig {
     #[builder(default)]
     pub(crate) padding: PaddingLevel,
     /// Outbound proxy to use for all direct connections
-    #[serde(default, deserialize_with = "deserialize_outbound_proxy")]
+    #[builder_field_attr(serde(default, deserialize_with = "deserialize_outbound_proxy"))]
     #[builder(default)]
     pub(crate) outbound_proxy: Option<ProxyProtocol>,
 }
