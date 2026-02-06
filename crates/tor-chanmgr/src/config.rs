@@ -207,6 +207,7 @@ impl ProxyProtocol {
 }
 
 /// Deserialize an outbound proxy, treating empty strings as unset.
+#[allow(clippy::option_option)]
 fn deserialize_outbound_proxy<'de, D>(
     deserializer: D,
 ) -> Result<Option<Option<ProxyProtocol>>, D::Error>
