@@ -207,7 +207,9 @@ impl ProxyProtocol {
 }
 
 /// Deserialize an outbound proxy, treating empty strings as unset.
-fn deserialize_outbound_proxy<'de, D>(deserializer: D) -> Result<Option<ProxyProtocol>, D::Error>
+fn deserialize_outbound_proxy<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<ProxyProtocol>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -216,9 +218,10 @@ where
         None => Ok(None),
         Some(s) => {
             if s.trim().is_empty() {
-                return Ok(None);
+                return Ok(Some(None));
             }
-            s.parse().map(Some).map_err(serde::de::Error::custom)
+            let parsed = s.parse().map_err(serde::de::Error::custom)?;
+            Ok(Some(Some(parsed)))
         }
     }
 }
