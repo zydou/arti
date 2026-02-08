@@ -68,3 +68,6 @@ zeroize = "1"
 futures-await-test = "0.3.0"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.39.0" }
+
+[package.metadata.docs.rs]
+all-features = true

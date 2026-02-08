@@ -63,3 +63,6 @@ memquota = ["tor-memquota-cost/memquota"]
 testing = ["__is_experimental", "visibility"]
 experimental = ["testing"]
 __is_experimental = []
+
+[package.metadata.docs.rs]
+all-features = true

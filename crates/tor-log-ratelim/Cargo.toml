@@ -27,3 +27,6 @@ tracing = "0.1.36"
 weak-table = "0.3.0"
 
 [dev-dependencies]
+
+[package.metadata.docs.rs]
+all-features = true
