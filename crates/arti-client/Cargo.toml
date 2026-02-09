@@ -182,7 +182,7 @@ rand = "0.9.1"
 safelog = { path = "../safelog", version = "0.7.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "2"
-time = { version = "0.3.20", features = ["parsing", "macros"] }
+time = { version = "0.3.47", features = ["parsing", "macros"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.39.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.39.0" }

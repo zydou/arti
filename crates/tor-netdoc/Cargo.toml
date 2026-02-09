@@ -121,7 +121,7 @@ smallvec = "1.10"
 strum = { version = "0.27.1", features = ["derive"] }
 subtle = "2"
 thiserror = "2"
-time = { version = "0.3", features = ["std", "parsing", "macros", "formatting"] }
+time = { version = "0.3.47", features = ["std", "parsing", "macros", "formatting"] }
 tinystr = "0.8.0"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.39.0" }
