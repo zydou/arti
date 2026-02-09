@@ -1,13 +1,13 @@
 //! Module exposing types for representing circuits in the tunnel reactor.
 
 pub(crate) mod circhop;
-pub(super) mod create;
 pub(super) mod extender;
 
 use crate::channel::Channel;
 use crate::circuit::cell_sender::CircuitCellSender;
 use crate::circuit::celltypes::CreateResponse;
 use crate::circuit::circhop::HopSettings;
+use crate::circuit::create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
 use crate::circuit::padding::CircPaddingDisposition;
 use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
@@ -71,7 +71,6 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
-use create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
 use extender::HandshakeAuxDataHandler;
 
 #[cfg(feature = "hs-service")]

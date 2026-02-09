@@ -7,7 +7,7 @@ use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType};
 
 /// An object that can put a given handshake into a ChanMsg for a CREATE*
 /// cell, and unwrap a CREATED* cell.
-pub(super) trait CreateHandshakeWrap {
+pub(crate) trait CreateHandshakeWrap {
     /// Construct an appropriate ChanMsg to hold this kind of handshake.
     fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg;
     /// Decode a ChanMsg to an appropriate handshake value, checking
@@ -16,7 +16,7 @@ pub(super) trait CreateHandshakeWrap {
 }
 
 /// A CreateHandshakeWrap that generates CREATE_FAST and handles CREATED_FAST.
-pub(super) struct CreateFastWrap;
+pub(crate) struct CreateFastWrap;
 
 impl CreateHandshakeWrap for CreateFastWrap {
     fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg {
@@ -39,9 +39,9 @@ impl CreateHandshakeWrap for CreateFastWrap {
 }
 
 /// A CreateHandshakeWrap that generates CREATE2 and handles CREATED2
-pub(super) struct Create2Wrap {
+pub(crate) struct Create2Wrap {
     /// The handshake type to put in the CREATE2 cell.
-    pub(super) handshake_type: HandshakeType,
+    pub(crate) handshake_type: HandshakeType,
 }
 
 impl CreateHandshakeWrap for Create2Wrap {

@@ -65,6 +65,16 @@ pub enum Error {
         #[source]
         err: tor_bytes::EncodeError,
     },
+    /// An error occurred while trying to decode a link specifier.
+    #[error("Error while parsing {object}")]
+    #[cfg(feature = "relay")]
+    LinkspecDecodeErr {
+        /// The object we were trying to decode.
+        object: &'static str,
+        /// The error that occurred.
+        #[source]
+        err: tor_linkspec::decode::ChanTargetDecodeError,
+    },
     /// We found a problem with one of the certificates in the channel
     /// handshake.
     #[error("Problem with certificate on handshake")]
@@ -272,6 +282,9 @@ impl From<Error> for std::io::Error {
             | ExcessOutboundCells
             | ExcessPadding(_, _) => ErrorKind::InvalidData,
 
+            #[cfg(feature = "relay")]
+            LinkspecDecodeErr { .. } => ErrorKind::InvalidData,
+
             Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
 
             IdRangeFull | CircRefused(_) | ResolveError(_) | Bug(_) => ErrorKind::Other,
@@ -296,6 +309,8 @@ impl HasKind for Error {
             E::HandshakeCertErr(_) => EK::TorProtocolViolation,
             E::CellEncodeErr { err, .. } => err.kind(),
             E::CellDecodeErr { err, .. } => err.kind(),
+            #[cfg(feature = "relay")]
+            E::LinkspecDecodeErr { .. } => EK::TorProtocolViolation,
             E::EncodeErr { .. } => EK::BadApiUsage,
             E::InvalidKDFOutputLength => EK::Internal,
             E::NoSuchHop => EK::BadApiUsage,

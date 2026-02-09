@@ -90,7 +90,7 @@ impl<R: Runtime> Reactor<R> {
         crypto_in: Box<dyn InboundRelayLayer + Send>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         settings: &HopSettings,
-        chan_provider: Box<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+        chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
         timeouts: Arc<dyn TimeoutEstimator>,
@@ -117,7 +117,11 @@ impl<R: Runtime> Reactor<R> {
         // (TODO: for clients, we probably will need to store a bunch more state here)
         hop_mgr.add_hop(settings.clone())?;
 
-        let forward_foo = Forward::new(crypto_out);
+        // TODO(relay): currently we don't need buffering on this channel,
+        // but we might need it if we start using it for more than just EXTENDED2 events
+        #[allow(clippy::disallowed_methods)]
+        let (fwd_ev_tx, fwd_ev_rx) = mpsc::channel(0);
+        let forward_foo = Forward::new(unique_id, crypto_out, chan_provider, fwd_ev_tx);
         let backward_foo = Backward::new(crypto_in);
 
         let (inner, handle) = crate::circuit::reactor::Reactor::new(
@@ -132,8 +136,8 @@ impl<R: Runtime> Reactor<R> {
             padding_ctrl,
             padding_event_stream,
             stream_rx,
+            fwd_ev_rx,
             memquota,
-            chan_provider,
         );
 
         let reactor = Self(inner);

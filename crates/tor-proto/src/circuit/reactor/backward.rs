@@ -41,6 +41,9 @@ use crate::circuit::CircuitRxReceiver;
 #[cfg(feature = "circ-padding")]
 use crate::circuit::padding::{CircPaddingDisposition, padding_disposition};
 
+#[cfg(feature = "relay")]
+use tor_cell::relaycell::msg::Extended2;
+
 /// The "backward" circuit reactor of a relay.
 ///
 /// See the [`reactor`](crate::circuit::reactor) module-level docs.
@@ -68,6 +71,8 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     unique_id: UniqId,
     /// The circuit identifier on the backward Tor channel.
     circ_id: CircId,
+    /// The inbound Tor channel.
+    channel: Arc<Channel>,
     /// Implementation-dependent part of the reactor.
     ///
     /// This enables us to customize the behavior of the reactor,
@@ -184,11 +189,13 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         padding_event_stream: PaddingEventStream,
         stream_rx: mpsc::Receiver<ReadyStreamMsg>,
     ) -> Self {
+        let channel = Arc::clone(channel);
         let inbound_chan_tx = CircuitCellSender::from_channel_sender(channel.sender());
 
         Self {
             time_provider: DynTimeProvider::new(runtime),
             outbound_chan_rx: None,
+            channel,
             inner,
             hops,
             inbound_chan_tx,
@@ -587,6 +594,16 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                 self.handle_sendme(hop, sendme).await?;
                 return Ok(());
             }
+            #[cfg(feature = "relay")]
+            HandleCircuitExtended {
+                hop,
+                extended2,
+                outbound_chan_rx,
+            } => {
+                self.outbound_chan_rx = Some(outbound_chan_rx);
+                let msg = AnyRelayMsgOuter::new(None, extended2.into());
+                self.send_relay_msg(hop, msg).await?;
+            }
         }
 
         Ok(())
@@ -749,6 +766,13 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     }
 }
 
+impl<B: BackwardHandler> Drop for BackwardReactor<B> {
+    fn drop(&mut self) {
+        // This will send a DESTROY down the inbound Tor channel
+        let _ = self.channel.close_circuit(self.circ_id);
+    }
+}
+
 /// A circuit event that must be handled by the [`BackwardReactor`].
 enum CircuitEvent<M> {
     /// We received a cell that needs to be handled.
@@ -786,11 +810,34 @@ pub(crate) enum BackwardReactorCmd {
         /// The SENDME.
         sendme: Sendme,
     },
-    /// A SENDME we need to send back to the other endpoint.
+    /// A message we need to send back to the other endpoint.
     SendRelayMsg {
         /// The hop to encode the message for.
         hop: Option<HopNum>,
         /// The message to send.
         msg: AnyRelayMsgOuter,
+    },
+    /// This relay circuit was extended by another hop.
+    ///
+    /// This causes the reactor send the `extended2` message on its inbound channel,
+    /// and start reading from `outbound_chan_rx` in the main loop.
+    //
+    ///
+    // TODO: I wish we didn't need to expose this relay-specific variant
+    // in the generic reactor but we have no choice: abstracting it away
+    // means either introducing a mutex between the relay-side forward/backward
+    // handlers, or yet another mpsc between them.
+    #[cfg(feature = "relay")]
+    HandleCircuitExtended {
+        /// The hop to encode the message for.
+        ///
+        /// In practice, this is always None, because only relays use this.
+        hop: Option<HopNum>,
+        /// The cell to send to the specified hop,
+        extended2: Extended2,
+        /// The reading end of the outbound Tor channel, if we are not the last hop.
+        ///
+        /// Yields cells moving from the exit towards the client, if we are a middle relay.
+        outbound_chan_rx: CircuitRxReceiver,
     },
 }

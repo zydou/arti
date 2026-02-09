@@ -930,6 +930,11 @@ impl Extend2 {
     pub fn handshake(&self) -> &[u8] {
         &self.handshake[..]
     }
+
+    /// Return a reference to the link specifiers in this cell.
+    pub fn linkspecs(&self) -> &[EncodedLinkSpec] {
+        &self.linkspec
+    }
 }
 
 impl Body for Extend2 {

@@ -92,6 +92,9 @@ use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider, StreamOps
 #[cfg(feature = "circ-padding")]
 use tor_async_utils::counting_streams::{self, CountingSink, CountingStream};
 
+#[cfg(feature = "relay")]
+use crate::circuit::CircuitRxReceiver;
+
 /// Imports that are re-exported pub if feature `testing` is enabled
 ///
 /// Putting them together in a little module like this allows us to select the
@@ -843,6 +846,50 @@ impl Channel {
             padding_stream,
             timeouts,
         ))
+    }
+
+    /// Return a newly allocated outbound relay circuit with.
+    ///
+    /// A circuit ID is allocated, but no messages are sent, and no cryptography is done.
+    ///
+    // TODO(relay): this duplicates much of new_tunnel above, but I expect
+    // the implementations to diverge once we introduce a new CtrlMsg for
+    // allocating relay circuits.
+    #[cfg(feature = "relay")]
+    pub(crate) async fn new_outbound_circ(
+        self: &Arc<Self>,
+    ) -> Result<(CircId, CircuitRxReceiver, oneshot::Receiver<CreateResponse>)> {
+        if self.is_closing() {
+            return Err(ChannelClosed.into());
+        }
+
+        let time_prov = self.time_provider().clone();
+        let memquota = CircuitAccount::new(&self.details.memquota)?;
+
+        // TODO: blocking is risky, but so is unbounded.
+        let (sender, receiver) =
+            MpscSpec::new(128).new_mq(time_prov.clone(), memquota.as_raw_account())?;
+        let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
+
+        let (tx, rx) = oneshot::channel();
+
+        self.send_control(CtrlMsg::AllocateCircuit {
+            created_sender: createdsender,
+            sender,
+            tx,
+        })?;
+
+        // TODO(relay): I don't think we need circuit-level padding on this side of the circuit.
+        // This just drops the padding controller and corresponding event stream,
+        // but maybe it would be better to just not set it up in the first place?
+        // This suggests we might need a different control command for allocating
+        // the outbound relay circuits...
+        let (id, circ_unique_id, _padding_ctrl, _padding_stream) =
+            rx.await.map_err(|_| ChannelClosed)??;
+
+        trace!("{}: Allocated CircId {}", circ_unique_id, id);
+
+        Ok((id, receiver, createdreceiver))
     }
 
     /// Shut down this channel immediately, along with all circuits that

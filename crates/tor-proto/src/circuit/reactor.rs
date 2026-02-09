@@ -232,10 +232,6 @@ use macros::derive_deftly_template_CircuitReactor;
 /// The type of a oneshot channel used to inform reactor of the result of an operation.
 pub(crate) type ReactorResultChannel<T> = oneshot::Sender<crate::Result<T>>;
 
-// TODO(relay): avoid relay-specific types here, in the generic impl!
-#[cfg(feature = "relay")]
-use crate::relay::channel_provider::ChannelProvider;
-
 /// A handle for interacting with a circuit reactor.
 #[derive(derive_more::Debug)]
 pub(crate) struct CircReactorHandle<F: ForwardHandler, B: BackwardHandler> {
@@ -398,10 +394,8 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         padding_event_stream: PaddingEventStream,
         // The sending end of this channel should be in HopMgr
         bwd_rx: mpsc::Receiver<ReadyStreamMsg>,
+        fwd_events: mpsc::Receiver<F::CircEvent>,
         memquota: &CircuitAccount,
-        #[cfg(feature = "relay")] chan_provider: Box<
-            dyn ChannelProvider<BuildSpec = F::BuildSpec> + Send,
-        >,
     ) -> (Self, CircReactorHandle<F, B>) {
         // NOTE: not registering this channel with the memquota subsystem is okay,
         // because it has no buffering (if ever decide to make the size of this buffer
@@ -432,6 +426,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         /// Grab a handle to the hop list (it's needed by the BWD)
         let hops = Arc::clone(hop_mgr.hops());
         let forward = ForwardReactor::new(
+            runtime.clone(),
             unique_id,
             forward_impl,
             hop_mgr,
@@ -439,9 +434,8 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             fwd_control_rx,
             fwd_command_rx,
             backward_reactor_tx,
+            fwd_events,
             padding_ctrl.clone(),
-            #[cfg(feature = "relay")]
-            chan_provider,
         );
 
         let backward = BackwardReactor::new(
