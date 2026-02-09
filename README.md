@@ -137,7 +137,7 @@ for more details.
 
 ## Minimum supported Rust Version
 
-Our current Minimum Supported Rust Version (MSRV) is 1.86.
+Our current Minimum Supported Rust Version (MSRV) is 1.89.
 
 When increasing this MSRV, we won't require any Rust version released in the
 last six months. (That is, we'll only require Rust versions released at least
@@ -208,7 +208,7 @@ get our project manager to sign off on them.
 ## <a name="reporting-bugs"></a> How can I report bugs?
 
 When you find bugs, please report them
-[on our bugtracker](https://gitlab.torproject.org/tpo/core/arti/). 
+[on our bugtracker](https://gitlab.torproject.org/tpo/core/arti/).
 
 If you don't already have an account there, you can [report a bug anonymously](https://anonticket.torproject.org/) or you can [request an account](https://anonticket.torproject.org/user/gitlab-account/create/).
 
