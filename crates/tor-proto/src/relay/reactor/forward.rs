@@ -25,16 +25,14 @@ use tor_cell::relaycell::{RelayCellFormat, RelayCmd, UnparsedRelayMsg};
 use tor_error::{internal, into_internal, warn_report};
 use tor_linkspec::decode::Strictness;
 use tor_linkspec::{OwnedChanTarget, OwnedChanTargetBuilder};
-use tor_rtcompat::{Runtime, SleepProviderExt as _, SpawnExt as _};
+use tor_rtcompat::{Runtime, SpawnExt as _};
 
 use futures::channel::mpsc;
 use futures::{SinkExt as _, StreamExt as _, future};
-use tracing::warn;
 
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::task::Poll;
-use std::time::Duration;
 
 /// Placeholder for our custom control message type.
 type CtrlMsg = ();
@@ -177,7 +175,6 @@ impl Forward {
 
         let mut result_tx = self.event_tx.clone();
         let rt = runtime.clone();
-        let unique_id = self.unique_id;
 
         // TODO(relay): because we dispatch this the entire EXTEND2 handling to a background task,
         // we don't really need the channel provider to send us the outcome via an MPSC channel,
@@ -185,27 +182,7 @@ impl Forward {
         // because it runs in another task). Maybe we need to rethink the ChannelProvider API?
         runtime
             .spawn(async move {
-                /// The amount of time to wait for a CREATED2 and the corresponding
-                /// circ allocation in the new channel's circmap.
-                //
-                // TODO(relay): the 5 seconds is totally arbitrary,
-                // we should pick a better value here!
-                // I think this will need to be based on the circuit build timeout
-                const EXTEND_TIMEOUT: Duration = Duration::from_secs(5);
-
-                let res = rt
-                    .timeout(EXTEND_TIMEOUT, Self::extend_circuit(extend2, chan_rx))
-                    .await;
-
-                // Result::flatten() is not yet supported by our MSRV,
-                // so we have to map the nested result...
-                let res = match res {
-                    Ok(res) => res,
-                    Err(_) => {
-                        warn!(circ_id=%unique_id, "Circuit extension timed out");
-                        Err(ReactorError::Shutdown)
-                    }
-                };
+                let res = Self::extend_circuit(rt, extend2, chan_rx).await;
 
                 // Discard the error if the reactor shut down before we had
                 // a chance to complete the extend handshake
@@ -240,7 +217,10 @@ impl Forward {
     ///
     /// Note: this gets spawned in a background task from
     /// [`Self::handle_extend2`] so as not to block the reactor main loop.
-    async fn extend_circuit(
+    ///
+    #[allow(unused_variables)] // will become used once we implement CREATED2 timeouts
+    async fn extend_circuit<R: Runtime>(
+        _runtime: R,
         extend2: Extend2,
         mut chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
     ) -> StdResult<ExtendResult, ReactorError> {
@@ -276,6 +256,11 @@ impl Forward {
         let cell = AnyChanCell::new(Some(circ_id), create2);
         outbound_chan_tx.send((cell, None)).await?;
 
+        // TODO(relay): we need a timeout here, otherwise we might end up waiting forever
+        // for the CREATED2 to arrive.
+        //
+        // There is some complexity here, see
+        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3648#note_3340125
         let response = createdreceiver
             .await
             .map_err(|_| internal!("channel disappeared?"))?;
