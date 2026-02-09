@@ -36,3 +36,11 @@ $CARGO update --precise 1.9.0 futures-lite@1.2.0
 # We're getting this via `async-std`, which evidently doesn't have minimal-versions CI
 # and will now never have it.
 $CARGO update --precise 3.1.0 event-listener@3.0.0
+
+# The downgraded `async-io@1.0.1` has buggy behavior that makes some of our tests
+# misbehave.  1.1.5 appears to be the first version that fixes the issue.
+# We're getting this via `async-std@1.7.0`.
+#
+# (We use -Z minimal-dependencies here to avoid upgrading the several
+# dependencies of async-io.)
+$CARGO +nightly update -Z minimal-versions --precise 1.1.5 async-io@1.0.1
