@@ -60,6 +60,14 @@ pub(crate) struct Forward {
     /// with the *same* underlying Tor channel provider (`ChanMgr`),
     /// to enable the reuse of existing Tor channels where possible.
     chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+    /// Whether we have received an EXTEND2 on this circuit.
+    ///
+    // TODO(relay): bools can be finicky.
+    // Maybe we should combine this bool and the optional
+    // outbound into a new state machine type
+    // (with states Initial -> Extending -> Extended(Outbound))?
+    // But should not do this if it turns out more convoluted than the bool-based approach.
+    have_seen_extend2: bool,
     /// A stream of events to be read from the main loop of the reactor.
     event_tx: mpsc::Sender<CircEvent>,
 }
@@ -106,6 +114,7 @@ impl Forward {
             outbound: None,
             crypto_out,
             chan_provider,
+            have_seen_extend2: false,
             event_tx,
         }
     }
@@ -134,9 +143,11 @@ impl Forward {
         msg: UnparsedRelayMsg,
     ) -> StdResult<(), ReactorError> {
         // Check if we're in the right state before parsing the EXTEND2
-        if self.outbound.is_some() {
+        if self.have_seen_extend2 {
             return Err(Error::CircProto("got 2 EXTEND2 on the same circuit?!".into()).into());
         }
+
+        self.have_seen_extend2 = true;
 
         let to_bytes_err = |e| Error::from_bytes_err(e, "EXTEND2 message");
 
