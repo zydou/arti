@@ -511,6 +511,15 @@ impl StaticEngine {
     }
 
     /// Fetches, validates, and stores authority certificates.
+    //
+    // TODO DIRMIRROR: Right now, there is a torspec DoS issue.
+    // An attacker may add lots of garbage signatures and we will fetch them
+    // Even checking the ID PK against v3idents is not useful because an
+    // attacker may still use the same ID PK dozens of times with various
+    // SK PKs.  A good fix would include checking that no ID PK is duplicate
+    // AND to ignore all ID PKs we do not recognize.  Also, it would probably
+    // be best to move the v3idents structure to a HashMap based implementation,
+    // as well as the signatories result.
     async fn auth_certs(
         &self,
         pool: &Pool<SqliteConnectionManager>,
