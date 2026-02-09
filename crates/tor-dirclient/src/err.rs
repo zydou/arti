@@ -125,12 +125,12 @@ pub enum RequestError {
     #[error("We didn't have any objects to request")]
     EmptyRequest,
 
-    /// Successful response (i.e. status code 200) with an empty body.
+    /// Successful GET response (i.e. status code 200) with an empty body.
     ///
     /// This should not be returned as the only semantically valid purpose of
     /// an empty body would be a 404 response, which is treated differently.
     #[error("Empty successful response")]
-    EmptySuccessfulResponse,
+    EmptyResponse,
 
     /// HTTP status code indicates a not completely successful request
     #[error("HTTP status code {0}: {1:?}")]
@@ -214,7 +214,7 @@ impl HasKind for RequestError {
             E::ContentEncoding(_) => EK::TorProtocolViolation,
             E::TooMuchClockSkew => EK::TorDirectoryError,
             E::EmptyRequest => EK::Internal,
-            E::EmptySuccessfulResponse => EK::TorProtocolViolation,
+            E::EmptyResponse => EK::TorProtocolViolation,
             E::HttpStatus(_, _) => EK::TorDirectoryError,
             E::Tunnel(e) => e.kind(),
         }
@@ -273,7 +273,7 @@ impl RequestError {
             RequestError::ContentEncoding(_) => false,
             RequestError::TooMuchClockSkew => false,
             RequestError::EmptyRequest => false,
-            RequestError::EmptySuccessfulResponse => false,
+            RequestError::EmptyResponse => false,
             RequestError::HttpStatus(_, _) => false,
             RequestError::Tunnel(_) => false,
         }
