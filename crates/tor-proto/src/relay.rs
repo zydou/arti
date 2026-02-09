@@ -14,6 +14,8 @@ pub(crate) mod channel;
 pub mod channel_provider;
 pub(crate) mod reactor;
 
+pub use channel::MaybeVerifiableRelayResponderChannel;
+
 use derive_deftly::Deftly;
 use either::Either;
 use futures::StreamExt as _;

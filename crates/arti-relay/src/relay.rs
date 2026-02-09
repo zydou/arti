@@ -225,13 +225,16 @@ impl<R: Runtime> TorRelay<R> {
         let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
             .context("Failed to initialize memquota tracker")?;
 
-        let chanmgr = Arc::new(ChanMgr::new(
-            runtime.clone(),
-            ChanMgrConfig::new(inert.config.channel.clone()),
-            Dormancy::Active,
-            &NetParameters::default(),
-            memquota.clone(),
-        ));
+        let chanmgr = Arc::new(
+            ChanMgr::new(
+                runtime.clone(),
+                ChanMgrConfig::new(inert.config.channel.clone()),
+                Dormancy::Active,
+                &NetParameters::default(),
+                memquota.clone(),
+            )
+            .context("Failed to build chan manager")?,
+        );
 
         let client = RelayClient::new(
             runtime.clone(),

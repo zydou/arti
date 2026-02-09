@@ -375,6 +375,19 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         func(&mut inner.builder);
     }
 
+    /// Add an open channel into our list.
+    #[cfg(feature = "relay")]
+    pub(crate) fn add_open(&self, channel: Arc<C::Channel>) -> Result<()> {
+        let mut inner = self.inner.lock()?;
+        inner.channels.insert(ChannelState::Open(OpenEntry {
+            channel,
+            // TODO(relay): Relay need a different unused duration (if any). We can't use the
+            // client timeout value. Need to be figured out before production.
+            max_unused_duration: Self::random_max_unused_duration(),
+        }));
+        Ok(())
+    }
+
     /// Remove every unusable state from the map in this state.
     #[cfg(test)]
     pub(crate) fn remove_unusable(&self) -> Result<()> {
@@ -523,11 +536,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         }
         let new_entry = ChannelState::Open(OpenEntry {
             channel,
-            max_unused_duration: Duration::from_secs(
-                rand::rng()
-                    .gen_range_checked(180..270)
-                    .expect("not 180 < 270 !"),
-            ),
+            max_unused_duration: Self::random_max_unused_duration(),
         });
         inner.channels.insert(new_entry);
 
@@ -629,6 +638,15 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             .channels
             .retain(|chan| !chan.ready_to_expire(&mut ret));
         ret
+    }
+
+    /// Helper: Return the default max unused duration for a channel.
+    fn random_max_unused_duration() -> Duration {
+        Duration::from_secs(
+            rand::rng()
+                .gen_range_checked(180..270)
+                .expect("not 180 < 270 !"),
+        )
     }
 }
 

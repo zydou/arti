@@ -1284,7 +1284,8 @@ mod test {
             tor_chanmgr::Dormancy::Dormant,
             &Default::default(),
             ToplevelAccount::new_noop(),
-        );
+        )
+        .unwrap();
         let guardmgr = tor_guardmgr::GuardMgr::new(
             runtime.clone(),
             tor_persist::TestingStateMgr::new(),
