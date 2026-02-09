@@ -139,6 +139,7 @@ pub struct ChanMgr<R: Runtime> {
     bootstrap_status: event::ConnStatusEvents,
 
     /// The runtime. Needed to possibly spawn tasks.
+    #[allow(unused)] // Relay use this, not client yet. Keep it here instead of gating.
     runtime: R,
 }
 

@@ -376,6 +376,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     }
 
     /// Add an open channel into our list.
+    #[cfg(feature = "relay")]
     pub(crate) fn add_open(&self, channel: Arc<C::Channel>) -> Result<()> {
         let mut inner = self.inner.lock()?;
         inner.channels.insert(ChannelState::Open(OpenEntry {
