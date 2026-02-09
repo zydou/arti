@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#
+# Check if all published crates configure what features to document on docs.rs.
+# Not documenting one or all features is allowed but needs to be configured explicitly.
+
+set -euo pipefail
+
+: "${CARGO:=cargo}"
+
+readarray -t offending_crates < <(
+  "$CARGO" metadata --format-version 1 | jq -r '
+      .packages[]
+      | select(
+          (.id | startswith("path+file:///"))
+          and (.publish == null or .publish == true or .publish != [])
+          and (
+            .metadata.docs.rs == null or (
+              .metadata.docs.rs["all-features"] == null and .metadata.docs.rs.features == null
+            )
+          )
+        )
+      | .name'
+)
+
+count=${#offending_crates[@]}
+if [ "$count" -gt 0 ]; then
+    for crate in "${offending_crates[@]}"
+    do
+        echo "No features configured for package.metadata.docs.rs in Cargo.toml of $crate."
+    done
+    printf "\nFound %d offending crate%s.\n" "$count" "$([ "$count" -ne 1 ] && echo s)"
+    echo "Read https://docs.rs/about/metadata for more information."
+    exit 1
+else
+    echo "Hurray! All crates configure what feature(s) to (not) document in docs.rs."
+    exit 0
+fi
+

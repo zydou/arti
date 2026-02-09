@@ -197,6 +197,7 @@ rust-checks:
     - cargo fmt -- --check
     - ./maint/check-licenses
     - ./maint/check-msrv
+    - ./maint/check-docsrs-features
     - ./maint/cargo-sort
     - ./maint/check-cargo-tree
     - ./maint/check-all-lockfiles
