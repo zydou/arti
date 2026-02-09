@@ -24,24 +24,28 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::Transaction;
+use strum::IntoEnumIterator;
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
-use tor_dirclient::request::{ConsensusRequest, Requestable};
+use tor_dirclient::request::{AuthCertRequest, ConsensusRequest, Requestable};
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::{internal, into_internal};
 use tor_netdoc::{
-    doc::{authcert::AuthCertKeyIds, netstatus::ConsensusFlavor},
+    doc::{
+        authcert::{AuthCertKeyIds, AuthCertUnverified},
+        netstatus::ConsensusFlavor,
+    },
     parse2::{
         self,
         poc::netstatus::{cons, md, NdiDirectorySignature},
-        NetdocParseable, ParseInput,
+        NetdocParseable, NetdocUnverified, ParseInput,
     },
 };
 use tor_rtcompat::PreferredRuntime;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{
-    database::{self as db, AuthCertMeta, ConsensusMeta, Timestamp},
+    database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Timestamp},
     err::{AuthorityRequestError, DatabaseError, OperationError},
 };
 
@@ -380,7 +384,7 @@ impl StaticEngine {
         match state {
             State::LoadConsensus => self.load_consensus(pool, data, now, rng),
             State::FetchConsensus => Ok(self.fetch_consensus(data, endpoint).await?),
-            State::AuthCerts => todo!(),
+            State::AuthCerts => self.auth_certs(pool, data, endpoint, now).await,
             State::StoreConsensus => todo!(),
             State::Descriptors => todo!(),
             State::Hibernate => self.hibernate(data, now).await,
@@ -502,6 +506,87 @@ impl StaticEngine {
 
         // And store it.
         *data = ConsensusBoundData::Unverified { consensus, raw };
+
+        Ok(())
+    }
+
+    /// Fetches, validates, and stores authority certificates.
+    async fn auth_certs(
+        &self,
+        pool: &Pool<SqliteConnectionManager>,
+        data: &mut ConsensusBoundData,
+        endpoint: &[SocketAddr],
+        now: Timestamp,
+    ) -> Result<(), OperationError> {
+        // Obtain the signatories of the current unverified consensus.
+        let signatories = match data {
+            ConsensusBoundData::Unverified { consensus, .. } => consensus.signatories(),
+            _ => return Err(OperationError::Bug(internal!("data is not unverified"))),
+        };
+
+        // Obtain the missing certificate identifiers.
+        let (_, missing) = db::read_tx(pool, |tx| {
+            AuthCertMeta::query_recent(tx, &signatories, &self.tolerance, now)
+        })??;
+        if missing.is_empty() {
+            // Although not technically fatal, retrying when the database was
+            // externally modified does not make much sense.
+            return Err(OperationError::Bug(internal!(
+                "database externally modified?"
+            )));
+        }
+
+        // Compose the request.
+        let mut requ = AuthCertRequest::new();
+        for kp in missing.iter().copied() {
+            requ.push(kp);
+        }
+
+        // Fire it off.
+        let (resp, certs) = self
+            .send_request::<_, AuthCertUnverified>(endpoint, requ)
+            .await?;
+
+        // Verify each certificate.
+        for (unverified, start, end) in certs {
+            let unverified_body = unverified.inspect_unverified().0;
+            let kp = AuthCertKeyIds {
+                id_fingerprint: unverified_body.dir_identity_key.to_rsa_identity(),
+                sk_fingerprint: unverified_body.dir_signing_key.to_rsa_identity(),
+            };
+
+            // Skip certficates we did not asked for.
+            //
+            // Not much of an issue because certificate verification will
+            // usually fail anyways, except for this weird edge-case where we
+            // actually have that id fingerprint in the v3idents.
+            if !missing.contains(&kp) {
+                debug!("authority returned certificate we did not asked for: {kp:?}");
+                continue;
+            }
+
+            let verified = unverified.verify_self_signed(
+                self.authorities.v3idents(),
+                self.tolerance.pre_valid_tolerance(),
+                self.tolerance.post_valid_tolerance(),
+                now.into(),
+            );
+            let verified = match verified {
+                Ok(v) => v,
+                Err(e) => {
+                    // TODO DIRMIRROR: Log the actual cert.
+                    warn!("received invalid auth cert: {e}",);
+                    continue;
+                }
+            };
+
+            // We commit each certificate in its own transaction in order to
+            // not fail with zero progress.  Might be a bit more expensive but
+            // I do not think it matters a lot.
+            db::rw_tx(pool, |tx| {
+                AuthCertMeta::insert(tx, ContentEncoding::iter(), &verified, &resp[start..end])
+            })??;
+        }
 
         Ok(())
     }
@@ -835,5 +920,98 @@ mod test {
             },
             _ => panic!("data is not unverified"),
         }
+    }
+
+    #[tokio::test]
+    async fn state_auth_certs() {
+        let pool = create_dummy_db();
+        let mut data = ConsensusBoundData::Unverified {
+            consensus: FlavoredConsensusSigned::Ns(
+                parse2::parse_netdoc(&ParseInput::new(
+                    include_str!("../../testdata/consensus-ns"),
+                    "",
+                ))
+                .unwrap(),
+            ),
+            raw: include_str!("../../testdata/consensus-ns").to_owned(),
+        };
+        let engine = StaticEngine {
+            flavor: ConsensusFlavor::Plain,
+            authorities: AuthorityContacts::default(),
+            tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
+        };
+
+        assert_eq!(
+            db::read_tx(&pool, |tx| engine.determine_state(
+                tx,
+                &data,
+                SystemTime::UNIX_EPOCH.into()
+            ))
+            .unwrap()
+            .unwrap(),
+            State::AuthCerts
+        );
+
+        let server = TcpListener::bind("[::]:0").await.unwrap();
+        let saddr = server.local_addr().unwrap();
+        tokio::spawn(async move {
+            let mut buf = [0; 1024];
+            let (mut stream, _) = server.accept().await.unwrap();
+            let _ = stream.read(&mut buf).await.unwrap();
+
+            let authcerts = include_str!("../../testdata/authcert-all");
+
+            stream.write_all(format!(
+                "HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: {}\r\n\r\n{authcerts}",
+                authcerts.len()
+            ).as_bytes()).await.unwrap();
+        });
+
+        // Fetch all authcerts.
+        engine
+            .auth_certs(
+                &pool,
+                &mut data,
+                &[saddr],
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+            )
+            .await
+            .unwrap();
+
+        // Check whether we are done with all authcerts.
+        assert_eq!(
+            db::read_tx(&pool, |tx| engine.determine_state(
+                tx,
+                &data,
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+            ))
+            .unwrap()
+            .unwrap(),
+            State::StoreConsensus
+        );
+        let recent_authcerts = db::read_tx(&pool, |tx| {
+            AuthCertMeta::query_recent(
+                tx,
+                &FlavoredConsensusSigned::Ns(
+                    parse2::parse_netdoc(&ParseInput::new(
+                        include_str!("../../testdata/consensus-ns"),
+                        "",
+                    ))
+                    .unwrap(),
+                )
+                .signatories(),
+                &DirTolerance::default(),
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+            )
+        })
+        .unwrap()
+        .unwrap();
+        // TODO DIRMIRROR: Compare more than just length.
+        assert_eq!(
+            recent_authcerts.0.len(),
+            engine.authorities.v3idents().len()
+        );
+        assert!(recent_authcerts.1.is_empty());
     }
 }

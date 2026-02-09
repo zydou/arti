@@ -66,7 +66,10 @@ use saturating_time::SaturatingTime;
 use tor_basic_utils::RngExt;
 use tor_dircommon::config::DirTolerance;
 use tor_error::into_internal;
-use tor_netdoc::doc::{authcert::AuthCertKeyIds, netstatus::ConsensusFlavor};
+use tor_netdoc::doc::{
+    authcert::{AuthCert, AuthCertKeyIds},
+    netstatus::ConsensusFlavor,
+};
 
 use crate::err::DatabaseError;
 
@@ -689,9 +692,11 @@ pub(crate) struct AuthCertMeta {
     docid: DocumentId,
 
     /// The SHA-1 fingerprint of the identity key.
+    // TODO DIRMIRROR: Change this to RsaIdentity.
     kp_auth_id_rsa_sha1: Sha1,
 
     /// The SHA-1 fingerprint of the signign key.
+    // TODO DIRMIRROR: Change this to RsaIdentity.
     kp_auth_sign_rsa_sha1: Sha1,
 
     /// The timestamp after which this certificate will be valid.
@@ -805,6 +810,45 @@ impl AuthCertMeta {
         })?;
         let raw = String::from_utf8(raw).map_err(into_internal!("utf-8 constraint violated?"))?;
         Ok(raw)
+    }
+
+    /// Inserts a new authority certificate into the database.
+    ///
+    /// Keep in mind that the data in the [`AuthCert`] should correspond to the
+    /// data found in `data`, as this method performs no parsing.
+    pub(crate) fn insert<I: Iterator<Item = ContentEncoding>>(
+        tx: &Transaction<'_>,
+        encodings: I,
+        cert: &AuthCert,
+        data: &str,
+    ) -> Result<(), DatabaseError> {
+        // Inserts a new certificate into the meta table.
+        //
+        // Parameters:
+        // :docid - The document id.
+        // :id_rsa - The identity key fingerprint.
+        // :sign_rsa - The signing key fingerprint
+        // :published - The published timestamp.
+        // :expires - The expires timestamp.
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            INSERT INTO authority_key_certificate
+            (docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1, dir_key_published, dir_key_expires)
+            VALUES
+            (:docid, :id_rsa, :sign_rsa, :published, :expires)
+            "
+        ))?;
+
+        let docid = store_insert(tx, data.as_bytes(), encodings)?;
+        stmt.execute(named_params! {
+            ":docid": docid,
+            ":id_rsa": cert.dir_identity_key.to_rsa_identity().as_hex_upper(),
+            ":sign_rsa": cert.dir_signing_key.to_rsa_identity().as_hex_upper(),
+            ":published": Timestamp::from(cert.dir_key_published.0),
+            ":expires": Timestamp::from(cert.dir_key_expires.0),
+        })?;
+
+        Ok(())
     }
 }
 
