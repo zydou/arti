@@ -70,7 +70,7 @@ stream-ctrl = ["__is_experimental"]
 counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval", "flowctl-cc"]
 circ-padding = ["__is_experimental", "maybenot"]
 circ-padding-manual = ["__is_experimental", "circ-padding"]
-relay = ["tor-linkspec/decode", "__is_experimental", "flowctl-cc"]
+relay = ["tor-cert/x509", "tor-linkspec/decode", "__is_experimental", "flowctl-cc"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
@@ -124,7 +124,7 @@ tor-async-utils = { path = "../tor-async-utils", version = "0.39.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.39.0" }
 tor-cell = { path = "../tor-cell", version = "0.39.0" }
-tor-cert = { path = "../tor-cert", version = "0.39.0", features = ["x509"] }
+tor-cert = { path = "../tor-cert", version = "0.39.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.39.0" }
 tor-config = { path = "../tor-config", version = "0.39.0" }
 tor-error = { path = "../tor-error", version = "0.39.0" }
