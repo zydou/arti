@@ -117,8 +117,8 @@ fn tweak_toml_bareword(s: &str) -> Option<String> {
                 ((?:[a-zA-Z0-9_\-]+\.)*
                  [a-zA-Z0-9_\-]+)
                 [ \t]*=[ \t]*
-                # second group: one bareword without hyphens
-                ([a-zA-Z0-9_]+)
+                # second group: a string without hyphens (e.g. bareword, a disk path, etc.)
+                ([a-zA-Z0-9_:\./\\]+)
                 [ \t]*
                 $)"#,
         )
@@ -192,6 +192,10 @@ mod test {
         cl.push_toml_line("bcd=hello".to_string());
         cl.push_toml_line("ef=\"gh i\"".to_string());
         cl.push_toml_line("w=[1,2,3]".to_string());
+        cl.push_toml_line("dir1=.".to_string());
+        cl.push_toml_line("dir2=../".to_string());
+        cl.push_toml_line("dir3=../my_directory".to_string());
+        cl.push_toml_line("dir4=C:\\\\temp\\\\arti".to_string());
 
         let v = cl
             .data()
@@ -203,6 +207,10 @@ mod test {
         assert_eq!(v["bcd"], "hello".into());
         assert_eq!(v["ef"], "gh i".into());
         assert_eq!(v["w"], vec![1, 2, 3].into());
+        assert_eq!(v["dir1"], ".".into());
+        assert_eq!(v["dir2"], "../".into());
+        assert_eq!(v["dir3"], "../my_directory".into());
+        assert_eq!(v["dir4"], "C:\\temp\\arti".into());
     }
 
     #[test]
