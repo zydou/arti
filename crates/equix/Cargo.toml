@@ -38,3 +38,6 @@ visibility = "0.1.0"
 
 [dev-dependencies]
 permutohedron = "0.2.4"
+
+[package.metadata.docs.rs]
+all-features = true

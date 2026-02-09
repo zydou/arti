@@ -37,3 +37,6 @@ tor-persist = { path = "../tor-persist", version = "0.39.0" }
 
 [dev-dependencies]
 tor-keymgr = { version = "0.39.0", path = "../tor-keymgr", features = ["testing"] }
+
+[package.metadata.docs.rs]
+all-features = true

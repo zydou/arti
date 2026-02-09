@@ -36,3 +36,6 @@ thiserror = "2"
 
 [dev-dependencies]
 hex-literal = "1.0.0"
+
+[package.metadata.docs.rs]
+all-features = true

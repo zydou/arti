@@ -25,6 +25,9 @@ tor-error = { path = "../tor-error", version = "0.39.0" }
 tor-rtcompat = { version = "0.39.0", path = "../tor-rtcompat" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.39.0" }
 
+[package.metadata.docs.rs]
+all-features = true
+
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 

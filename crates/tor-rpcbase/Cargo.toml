@@ -36,3 +36,6 @@ serde_json = "1.0.50"
 [features]
 full = ["tor-async-utils/full", "tor-error/full", "describe-methods"]
 describe-methods = []
+
+[package.metadata.docs.rs]
+all-features = true

@@ -105,3 +105,6 @@ tor-persist = { path = "../tor-persist", version = "0.39.0", features = ["testin
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.39.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.39.0" }
 tracing-test = "0.2.4"
+
+[package.metadata.docs.rs]
+all-features = true

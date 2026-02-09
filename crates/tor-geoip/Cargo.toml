@@ -21,3 +21,6 @@ thiserror = "2"
 embedded-db = []
 default = ["embedded-db"]
 full = ["embedded-db"]
+
+[package.metadata.docs.rs]
+all-features = true
