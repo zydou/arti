@@ -15,7 +15,10 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::{collections::HashSet, net::SocketAddr};
+use std::{
+    collections::{HashSet, VecDeque},
+    net::SocketAddr,
+};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -23,7 +26,7 @@ use rand::Rng;
 use rusqlite::Transaction;
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
-use tor_dirclient::request::ConsensusRequest;
+use tor_dirclient::request::{ConsensusRequest, Requestable};
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::{internal, into_internal};
 use tor_netdoc::{
@@ -31,7 +34,7 @@ use tor_netdoc::{
     parse2::{
         self,
         poc::netstatus::{cons, md, NdiDirectorySignature},
-        ParseInput,
+        NetdocParseable, ParseInput,
     },
 };
 use tor_rtcompat::PreferredRuntime;
@@ -172,10 +175,13 @@ enum ConsensusBoundData {
 
     /// We have downloaded a consensus but it is not yet verified.
     Unverified {
-        /// The unverified consensus we have.
+        /// The unverified parsed consensus we have.
         // TODO DIRMIRROR: Make this optional, see comment in
         // StaticEngine::execute.
         consensus: FlavoredConsensusSigned,
+
+        /// The unparsed raw consensus we have.
+        raw: String,
     },
 
     /// We have downloaded and verified a consensus.
@@ -365,11 +371,6 @@ impl StaticEngine {
         now: Timestamp,
         rng: &mut R,
     ) -> Result<(), OperationError> {
-        // We must check this because Tokio panics if it is empty.
-        if endpoint.is_empty() {
-            return Err(OperationError::Bug(internal!("empty endpoint?")));
-        }
-
         // TODO: Should we return DatabaseError or something like
         // StateDeterminationError?  Either way, both cases should be seriously
         // fatal.
@@ -465,49 +466,42 @@ impl StaticEngine {
         data: &mut ConsensusBoundData,
         endpoint: &[SocketAddr],
     ) -> Result<(), AuthorityRequestError> {
-        assert!(!endpoint.is_empty());
-
-        // Open the TCP connection.
-        let mut stream = TcpStream::connect(endpoint)
-            .await
-            .map_err(AuthorityRequestError::TcpConnect)?
-            .compat();
-        let req = ConsensusRequest::new(self.flavor);
-
-        // Perform the request and map the result nicely.
-        let resp = tor_dirclient::send_request(&self.rt, &req, &mut stream, None)
-            .await
-            .map(|resp| resp.output_string().map(|resp| resp.to_owned()));
-
-        // We can immediately drop the connection now, no need to occupy even
-        // more resources from the authority.
-        drop(stream);
-
-        // Returning all request failed errors is okay; they all imply that
-        // retrying from a different authority is fine.
-        // TODO MSRV: If possible, use Result::flatten once MSRV 1.89.
-        let resp = match resp {
-            Ok(Ok(r)) => Ok(r),
-            Ok(Err(e)) => Err(e),
-            Err(tor_dirclient::Error::RequestFailed(e)) => Err(e),
-            Err(e) => {
-                return Err(AuthorityRequestError::Bug(internal!(
-                    "unhandled dirclient error: {e}"
-                )))
-            }
+        // Obtain the consensus.
+        let mut consensus: VecDeque<_> = match self.flavor {
+            ConsensusFlavor::Plain => self
+                .send_request(endpoint, ConsensusRequest::new(self.flavor))
+                .await
+                .map(|(raw, doc)| {
+                    doc.into_iter()
+                        .map(|(doc, start, end)| {
+                            (raw[start..end].to_owned(), FlavoredConsensusSigned::Ns(doc))
+                        })
+                        .collect()
+                }),
+            ConsensusFlavor::Microdesc => self
+                .send_request(endpoint, ConsensusRequest::new(self.flavor))
+                .await
+                .map(|(raw, doc)| {
+                    doc.into_iter()
+                        .map(|(doc, start, end)| {
+                            (raw[start..end].to_owned(), FlavoredConsensusSigned::Md(doc))
+                        })
+                        .collect()
+                }),
         }?;
 
-        // Parse the returned consensus.
-        let consensus =
-            match self.flavor {
-                ConsensusFlavor::Plain => parse2::parse_netdoc(&ParseInput::new(&resp, ""))
-                    .map(FlavoredConsensusSigned::Ns),
-                ConsensusFlavor::Microdesc => parse2::parse_netdoc(&ParseInput::new(&resp, ""))
-                    .map(FlavoredConsensusSigned::Md),
-            }?;
+        // Check for the correct number of results.
+        if consensus.len() != 1 {
+            return Err(AuthorityRequestError::Response(
+                "invalid number of consensus?",
+            ));
+        }
+
+        // expect is fine because we checked the length for one above.
+        let (raw, consensus) = consensus.pop_front().expect("pop_front");
 
         // And store it.
-        *data = ConsensusBoundData::Unverified { consensus };
+        *data = ConsensusBoundData::Unverified { consensus, raw };
 
         Ok(())
     }
@@ -532,6 +526,61 @@ impl StaticEngine {
         }
 
         Ok(())
+    }
+
+    /// Convenience wrapper around [`tor_dirclient::send_request()`].
+    ///
+    /// It opens a TCP connection, performs the request, and parses the result.
+    ///
+    /// Returns the raw response alongside the output of
+    /// [`parse2::parse_netdoc_multiple_with_offsets()`].
+    ///
+    /// The output is required because we need the raw document alongside the
+    /// offsets to have the actual data we will insert into the database later
+    /// on.
+    async fn send_request<R: Requestable, T: NetdocParseable>(
+        &self,
+        endpoint: &[SocketAddr],
+        requ: R,
+    ) -> Result<(String, Vec<(T, usize, usize)>), AuthorityRequestError> {
+        // The check is required to not let Tokio panic.
+        if endpoint.is_empty() {
+            return Err(AuthorityRequestError::Bug(internal!("empty endpoint?")));
+        }
+
+        // Open the TCP connection.
+        let mut stream = TcpStream::connect(endpoint)
+            .await
+            .map_err(AuthorityRequestError::TcpConnect)?
+            .compat();
+
+        // Perform the request and map the result nicely.
+        let resp = tor_dirclient::send_request(&self.rt, &requ, &mut stream, None)
+            .await
+            .map(|resp| resp.output_string().map(|resp| resp.to_owned()));
+
+        // We can immediately drop the connection now, no need to occupy even
+        // more resources from the authority.
+        drop(stream);
+
+        // Returning all request failed errors is okay; they all imply that
+        // retrying from a different authority is fine.
+        // TODO MSRV: If possible, use Result::flatten once MSRV 1.89.
+        let resp = match resp {
+            Ok(Ok(r)) => Ok(r),
+            Ok(Err(e)) => Err(e),
+            Err(tor_dirclient::Error::RequestFailed(e)) => Err(e),
+            Err(e) => {
+                return Err(AuthorityRequestError::Bug(internal!(
+                    "unhandled dirclient error: {e}"
+                )))
+            }
+        }?;
+
+        // Parse the response.
+        let parsed = parse2::parse_netdoc_multiple_with_offsets(&ParseInput::new(&resp, ""))?;
+
+        Ok((resp, parsed))
     }
 }
 
@@ -776,10 +825,11 @@ mod test {
 
         engine.fetch_consensus(&mut data, &[saddr]).await.unwrap();
         match data {
-            ConsensusBoundData::Unverified { consensus } => match consensus {
+            ConsensusBoundData::Unverified { consensus, raw } => match consensus {
                 FlavoredConsensusSigned::Ns(ns) => {
                     // El-cheapo verification, this is not a parser unit test.
                     assert_eq!(ns.unwrap_unverified().0.r.len(), 2);
+                    assert_eq!(raw, include_str!("../../testdata/consensus-ns"));
                 }
                 _ => panic!("data is not unverified ns consensus"),
             },

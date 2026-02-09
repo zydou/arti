@@ -34,6 +34,13 @@ pub(crate) enum AuthorityRequestError {
     #[error("dirclient error: {0}")]
     Request(#[from] tor_dirclient::RequestFailedError),
 
+    /// A response does not make semantic sense.
+    ///
+    /// This for example may include cases where we got more netdocs than we
+    /// requested for.
+    #[error("response error: {0}")]
+    Response(&'static str),
+
     /// Invalid netdoc received from the authority.
     #[error("netdoc parse error: {0}")]
     Parse(#[from] parse2::ParseError),
