@@ -109,17 +109,11 @@ where
     /// Important: The wrong channel type is returned if this is called before `with_identities()`
     /// is called.
     fn outbound_chan_type(&self) -> ChannelType {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "relay")] {
-                // This means that if the relay feature is set, all channels will be relay channels
-                // and thus if this builder is used for client circuits, it results in relay
-                // channels which is fine for a relay.
-                ChannelType::RelayInitiator
-            } else {
-                // No relay built in, always client.
-                ChannelType::ClientInitiator
-            }
+        #[cfg(feature = "relay")]
+        if self.identities.is_some() {
+            return ChannelType::RelayInitiator;
         }
+        ChannelType::ClientInitiator
     }
 }
 
