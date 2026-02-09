@@ -60,7 +60,7 @@ pub trait ChannelProvider {
     /// specified `reactor_id` which should only be used for logging purposes.
     ///
     /// Returns the requested channel via the specified [`OutboundChanSender`].
-    async fn get_or_launch(
+    fn get_or_launch(
         self: Arc<Self>,
         reactor_id: UniqId,
         target: Self::BuildSpec,
