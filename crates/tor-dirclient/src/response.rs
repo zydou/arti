@@ -61,7 +61,7 @@ impl DirResponse {
     }
 
     /// Construct a new successful DirResponse to a GET request from its body.
-    pub fn from_body(body: impl AsRef<[u8]>) -> Self {
+    pub fn from_get_body(body: impl AsRef<[u8]>) -> Self {
         Self::new(Method::GET, 200, None, None, body.as_ref().to_vec(), None)
     }
 
