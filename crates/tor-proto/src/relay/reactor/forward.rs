@@ -224,6 +224,7 @@ impl Forward {
         extend2: Extend2,
         mut chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
     ) -> StdResult<ExtendResult, ReactorError> {
+        // We expect the channel build timeout to be enforced by the ChannelProvider
         let chan_res = chan_rx
             .next()
             .await
@@ -242,6 +243,11 @@ impl Forward {
 
         // Now that we finally have a forward Tor channel,
         // it's time to forward the onion skin and extend the circuit...
+        //
+        // Note: the only reason we need to await here is because internally
+        // new_outbound_circ() sends a control message to the channel reactor handles,
+        // which is handled asynchronously. In practice, we're not actually waiting on
+        // the network here, so in theory we shouldn't need a timeout for this operation.
         let (circ_id, outbound_chan_rx, createdreceiver) = channel.new_outbound_circ().await?;
 
         // We have allocated a circuit in the channel's circmap,
