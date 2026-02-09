@@ -235,7 +235,6 @@ where
             MaybeVerifiableRelayResponderChannel::NonVerifiable(c) => {
                 c.finish().map_err(|e| map_proto(e, &target, None))?
             }
-            _ => return Err(Error::Internal(internal!("Unknown responder channel"))),
         };
 
         // Launch a task to run the channel reactor.
