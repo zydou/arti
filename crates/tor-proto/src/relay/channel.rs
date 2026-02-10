@@ -248,6 +248,10 @@ impl ChannelAuthenticationData {
     /// We should never check or build authentication data if the channel is not verified thus the
     /// requirement to pass the verified channel to this function.
     ///
+    /// The `our_cert` parameter is for the responder case only that is it contains our certificate
+    /// that we presented as the TLS server side. This MUST be Some() if auth_challenge_cell is
+    /// None.
+    ///
     /// Both initiator and responder handshake build this data in order to authenticate.
     ///
     /// IMPORTANT: The CLOG and SLOG from the framed_tls codec is consumed here so calling twice
@@ -256,6 +260,7 @@ impl ChannelAuthenticationData {
         auth_challenge_cell: Option<&msg::AuthChallenge>,
         identities: &Arc<RelayIdentities>,
         verified: &mut VerifiedChannel<T, S>,
+        our_cert: Option<[u8; 32]>,
     ) -> Result<ChannelAuthenticationData>
     where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
@@ -308,10 +313,7 @@ impl ChannelAuthenticationData {
         };
 
         let scert = if is_responder {
-            // TODO(relay): This is the peer certificate but as a responder, we need our
-            // certificate which requires lot more work and a rustls provider configured as a
-            // server side. See arti#2316.
-            todo!()
+            our_cert.ok_or(internal!("Responder channel without own certificate"))?
         } else {
             verified.peer_cert_digest
         };

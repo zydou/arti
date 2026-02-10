@@ -5,6 +5,7 @@
 //!
 //! It can then be used to get a fully working channel.
 
+use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
 use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::instrument;
@@ -12,6 +13,7 @@ use tracing::instrument;
 use tor_cell::chancell::msg;
 use tor_error::internal;
 use tor_linkspec::{ChannelMethod, OwnedChanTarget};
+use tor_llcrypto as ll;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::{
@@ -99,6 +101,8 @@ where
     /// 'peer_cert' is the x.509 certificate that the peer presented during its TLS handshake
     /// (ServerHello).
     ///
+    /// 'our_cert' is the x.509 certificate that we presented during the TLS handshake.
+    ///
     /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
     /// current time. It can be used for testing to override the current view of the time.
     ///
@@ -108,6 +112,7 @@ where
         self,
         peer: &OwnedChanTarget,
         peer_cert: &[u8],
+        our_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedResponderRelayChannel<T, S>> {
         // Get these object out as we consume "self" in the inner check().
@@ -118,11 +123,17 @@ where
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.check(peer, peer_cert, now)?;
+        let our_cert_digest = ll::d::Sha256::digest(our_cert).into();
 
         // By building the ChannelAuthenticationData, we are certain that the authentication type
         // of the initiator is supported by us.
-        let our_auth_cell = ChannelAuthenticationData::build(None, &identities, &mut verified)?
-            .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
+        let our_auth_cell = ChannelAuthenticationData::build(
+            None,
+            &identities,
+            &mut verified,
+            Some(our_cert_digest),
+        )?
+        .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
 
         // CRITICAL: This if is what authenticates a channel on the responder side. We compare
         // what we expected to what we received.
