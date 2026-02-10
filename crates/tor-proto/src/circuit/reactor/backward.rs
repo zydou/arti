@@ -169,6 +169,22 @@ pub(crate) trait BackwardHandler: ControlHandler {
         body: &mut RelayCellBody,
         hop: Option<HopNum>,
     ) -> SendmeTag;
+
+    /// Handle a cell that was read from the Tor outbound channel.
+    ///
+    /// Returns an error if the cell should cause the reactor to shut down,
+    /// or a [`BackwardCellDisposition`] specifying how it should be handled.
+    fn handle_backward_cell(
+        &mut self,
+        circ_id: UniqId,
+        cell: Self::CircChanMsg,
+    ) -> StdResult<BackwardCellDisposition, ReactorError>;
+}
+
+/// What action to take in response to a cell arriving on our outbound Tor channel.
+pub(crate) enum BackwardCellDisposition {
+    /// Forward the cell, writing it to the inbound Tor channel.
+    Forward(AnyChanMsg),
 }
 
 #[allow(unused)] // TODO(relay)

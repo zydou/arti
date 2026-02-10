@@ -1,8 +1,9 @@
 //! A relay's view of the backward (towards the client) state of a circuit.
 
 use crate::HopNum;
+use crate::circuit::UniqId;
 use crate::circuit::reactor::ControlHandler;
-use crate::circuit::reactor::backward::BackwardHandler;
+use crate::circuit::reactor::backward::{BackwardCellDisposition, BackwardHandler};
 use crate::crypto::cell::{InboundRelayLayer, RelayCellBody};
 use crate::relay::RelayCircChanMsg;
 use crate::util::err::ReactorError;
@@ -43,6 +44,14 @@ impl BackwardHandler for Backward {
         // TODO(DEDUP): the hop is used on the client side
         let _ = hop;
         self.crypto_in.originate(cmd, body)
+    }
+
+    fn handle_backward_cell(
+        &mut self,
+        circ_id: UniqId,
+        cell: RelayCircChanMsg,
+    ) -> StdResult<BackwardCellDisposition, ReactorError> {
+        todo!()
     }
 }
 
