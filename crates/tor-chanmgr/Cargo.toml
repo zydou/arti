@@ -75,6 +75,7 @@ tor-socksproto = { path = "../tor-socksproto", version = "0.39.0", default-featu
 ] }
 tor-units = { path = "../tor-units", version = "0.39.0" }
 tracing = "0.1.36"
+url = "2.5.8"
 void = "1"
 
 [dev-dependencies]
