@@ -555,7 +555,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         use CircuitEvent::*;
 
         match event {
-            Cell(cell) => self.handle_backward_cell(cell),
+            Cell(cell) => self.handle_backward_cell(cell).await,
             Send(msg) => {
                 let ReadyStreamMsg {
                     hop,
@@ -776,9 +776,16 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     }
 
     /// Handle a backward cell (moving from the exit towards the client).
-    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
-    fn handle_backward_cell(&mut self, _cell: B::CircChanMsg) -> StdResult<(), ReactorError> {
-        Err(internal!("Cell relaying is not implemented").into())
+    async fn handle_backward_cell(&mut self, cell: B::CircChanMsg) -> StdResult<(), ReactorError> {
+        match self.inner.handle_backward_cell(self.unique_id, cell)? {
+            BackwardCellDisposition::Forward(cell) => {
+                let cell = AnyChanCell::new(Some(self.circ_id), cell);
+                self.inbound_chan_tx
+                    .send((cell, None))
+                    .await
+                    .map_err(ReactorError::Err)
+            }
+        }
     }
 }
 
