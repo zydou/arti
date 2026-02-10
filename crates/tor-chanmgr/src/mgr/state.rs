@@ -946,6 +946,12 @@ mod test {
         params_update: Arc<Mutex<Option<Arc<ChannelPaddingInstructionsUpdates>>>>,
     }
     impl AbstractChannel for FakeChannel {
+        fn is_canonical(&self) -> bool {
+            unimplemented!()
+        }
+        fn is_canonical_to_peer(&self) -> bool {
+            unimplemented!()
+        }
         fn is_usable(&self) -> bool {
             self.usable
         }

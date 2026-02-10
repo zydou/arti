@@ -29,6 +29,10 @@ mod state;
 /// [`Channel`](tor_proto::channel::Channel) as `AbstractChanMgr`
 /// needs to use.
 pub(crate) trait AbstractChannel: HasRelayIds {
+    /// Return true iff this channel is considered canonical by us.
+    fn is_canonical(&self) -> bool;
+    /// Return true if we think the peer considers this channel as canonical.
+    fn is_canonical_to_peer(&self) -> bool;
     /// Return true if this channel is usable.
     ///
     /// A channel might be unusable because it is closed, because it has
@@ -530,6 +534,12 @@ mod test {
     }
 
     impl AbstractChannel for FakeChannel {
+        fn is_canonical(&self) -> bool {
+            unimplemented!()
+        }
+        fn is_canonical_to_peer(&self) -> bool {
+            unimplemented!()
+        }
         fn is_usable(&self) -> bool {
             !self.closing.load(Ordering::SeqCst)
         }

@@ -478,6 +478,12 @@ where
 }
 
 impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
+    fn is_canonical(&self) -> bool {
+        self.is_canonical()
+    }
+    fn is_canonical_to_peer(&self) -> bool {
+        self.is_canonical_to_peer()
+    }
     fn is_usable(&self) -> bool {
         !self.is_closing()
     }

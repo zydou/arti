@@ -149,11 +149,29 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
                     return Choice::First;
                 }
 
-                // TODO: prefer canonical channels
+                // Prefer a channel that we see as canonical.
+                let a_is_canonical = a.channel.is_canonical();
+                let b_is_canonical = b.channel.is_canonical();
+
+                if a_is_canonical && !b_is_canonical {
+                    return Choice::First;
+                }
+                if !a_is_canonical && b_is_canonical {
+                    return Choice::Second;
+                }
+
+                // Prefer a channel that the peer sees as canonical.
+                let a_is_canonical_to_peer = a.channel.is_canonical_to_peer();
+                let b_is_canonical_to_peer = b.channel.is_canonical_to_peer();
+
+                if a_is_canonical_to_peer && !b_is_canonical_to_peer {
+                    return Choice::First;
+                }
+                if !a_is_canonical_to_peer && b_is_canonical_to_peer {
+                    return Choice::Second;
+                }
 
                 // TODO: prefer a channel where the address matches the target
-
-                // TODO: prefer the one we think the peer will think is canonical
 
                 // TODO: prefer older channels
 
@@ -234,6 +252,12 @@ mod test {
     }
 
     impl AbstractChannel for FakeChannel {
+        fn is_canonical(&self) -> bool {
+            unimplemented!()
+        }
+        fn is_canonical_to_peer(&self) -> bool {
+            unimplemented!()
+        }
         fn is_usable(&self) -> bool {
             self.usable
         }

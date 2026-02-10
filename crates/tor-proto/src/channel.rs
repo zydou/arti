@@ -200,11 +200,9 @@ where
 pub(crate) struct Canonicity {
     /// The peer has proven this connection is canonical for its address: at least one NETINFO "my
     /// address" matches the observed TCP peer address.
-    #[expect(unused)] // TODO(relay): Remove.
     pub(crate) peer_is_canonical: bool,
     /// We appear canonical from the peer's perspective: its NETINFO "other address" matches our
     /// advertised relay address.
-    #[expect(unused)] // TODO(relay): Remove.
     pub(crate) canonical_to_peer: bool,
 }
 
@@ -300,7 +298,6 @@ pub struct Channel {
     /// Information shared with the reactor
     details: Arc<ChannelDetails>,
     /// Canonicity of this channel.
-    #[expect(unused)] // TODO(relay): Remove.
     canonicity: Canonicity,
 }
 
@@ -828,6 +825,16 @@ impl Channel {
     /// Return true if this channel is closed and therefore unusable.
     pub fn is_closing(&self) -> bool {
         self.reactor_closed_rx.is_ready()
+    }
+
+    /// Return true iff this channel is considered canonical by us.
+    pub fn is_canonical(&self) -> bool {
+        self.canonicity.peer_is_canonical
+    }
+
+    /// Return true if we think the peer considers this channel as canonical.
+    pub fn is_canonical_to_peer(&self) -> bool {
+        self.canonicity.canonical_to_peer
     }
 
     /// If the channel is not in use, return the amount of time
