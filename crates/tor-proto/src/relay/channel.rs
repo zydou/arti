@@ -16,6 +16,7 @@ use safelog::Sensitive;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
+use tor_linkspec::OwnedChanTarget;
 
 use tor_cell::chancell::msg;
 use tor_cert::x509::TlsKeyAndCert;
@@ -133,13 +134,14 @@ impl RelayChannelBuilder {
         sleep_prov: S,
         identities: Arc<RelayIdentities>,
         my_addrs: Vec<IpAddr>,
+        peer: &OwnedChanTarget,
         memquota: ChannelAccount,
     ) -> RelayInitiatorHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        RelayInitiatorHandshake::new(tls, sleep_prov, identities, my_addrs, memquota)
+        RelayInitiatorHandshake::new(tls, sleep_prov, identities, my_addrs, peer, memquota)
     }
 
     /// Accept a new handshake over a TLS stream.

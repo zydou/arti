@@ -428,6 +428,7 @@ where
                 self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
                 identities,
                 my_addrs,
+                peer,
                 memquota,
             )
             .connect(|| self.runtime.wallclock())

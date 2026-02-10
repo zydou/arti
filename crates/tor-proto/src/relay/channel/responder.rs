@@ -6,11 +6,16 @@
 //! It can then be used to get a fully working channel.
 
 use futures::{AsyncRead, AsyncWrite};
-use std::{ops::Deref, sync::Arc};
+use std::{
+    net::{IpAddr, SocketAddr},
+    ops::Deref,
+    sync::Arc,
+};
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
-use tor_linkspec::OwnedChanTarget;
+use tor_error::internal;
+use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::{
@@ -44,6 +49,10 @@ pub struct NonVerifiableResponderRelayChannel<
 > {
     /// The common unverified channel that both client and relays use.
     pub(crate) inner: UnverifiedChannel<T, S>,
+    /// The netinfo cell received from the initiator.
+    pub(crate) netinfo_cell: msg::Netinfo,
+    /// Our advertised addresses.
+    pub(crate) my_addrs: Vec<IpAddr>,
 }
 
 /// A verifiable relay responder channel that is currently unverified. This can only be a relay on
@@ -62,6 +71,8 @@ pub struct UnverifiedResponderRelayChannel<
     pub(crate) netinfo_cell: msg::Netinfo,
     /// Our identity keys needed for authentication.
     pub(crate) identities: Arc<RelayIdentities>,
+    /// Our advertised addresses.
+    pub(crate) my_addrs: Vec<IpAddr>,
 }
 
 /// A verified relay responder channel.
@@ -75,8 +86,9 @@ pub struct VerifiedResponderRelayChannel<
     /// The common unverified channel that both client and relays use.
     inner: VerifiedChannel<T, S>,
     /// The netinfo cell that we got from the relay. Canonicity decision.
-    #[expect(unused)]
     netinfo_cell: msg::Netinfo,
+    /// Our advertised addresses.
+    my_addrs: Vec<IpAddr>,
 }
 
 impl<T, S> UnverifiedResponderRelayChannel<T, S>
@@ -106,6 +118,7 @@ where
         let identities = self.identities;
         let netinfo_cell = self.netinfo_cell;
         let initiator_auth_cell = self.auth_cell;
+        let my_addrs = self.my_addrs;
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.check(peer, peer_cert, now)?;
@@ -135,6 +148,7 @@ where
         Ok(VerifiedResponderRelayChannel {
             inner: verified,
             netinfo_cell,
+            my_addrs,
         })
     }
 
@@ -155,12 +169,17 @@ where
     /// channel on which circuits can be opened.
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // TODO(relay): This would be the time to set a "is_canonical" flag to Channel which is
-        // true if the Netinfo address matches the address we are connected to. Canonical
-        // definition is if the address we are connected to is what we expect it to be. This only
-        // makes sense for relay channels.
-
-        self.inner.finish().await
+        let peer_ip = self
+            .inner
+            .target_method
+            .as_ref()
+            .and_then(ChannelMethod::socket_addrs)
+            .and_then(|addrs| addrs.first())
+            .map(SocketAddr::ip)
+            .ok_or(internal!("No peer IP on verified responder channel"))?;
+        self.inner
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
+            .await
     }
 }
 
@@ -176,7 +195,16 @@ where
     #[instrument(skip_all, level = "trace")]
     pub fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Non verifiable responder channel, we simply finalize our underlying channel and we are
-        // done. We are connect to a client or bridge.
-        self.inner.finish()
+        // done. We are connected to a client or bridge.
+        let peer_ip = self
+            .inner
+            .target_method
+            .as_ref()
+            .and_then(ChannelMethod::socket_addrs)
+            .and_then(|addrs| addrs.first())
+            .map(SocketAddr::ip)
+            .ok_or(internal!("No peer IP on non verifiable responder channel"))?;
+        self.inner
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
     }
 }

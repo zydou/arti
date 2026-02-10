@@ -142,6 +142,7 @@ impl<
                 sleep_prov: self.sleep_prov.clone(),
                 memquota: self.memquota.clone(),
             },
+            netinfo_cell,
         })
     }
 }
@@ -154,6 +155,8 @@ pub struct UnverifiedClientChannel<
 > {
     /// Inner generic unverified channel.
     inner: UnverifiedChannel<T, S>,
+    /// Received [`msg::Netinfo`] cell during the handshake.
+    netinfo_cell: msg::Netinfo,
 }
 
 impl<
@@ -183,7 +186,10 @@ impl<
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedClientChannel<T, S>> {
         let inner = self.inner.check(peer, peer_cert, now)?;
-        Ok(VerifiedClientChannel { inner })
+        Ok(VerifiedClientChannel {
+            inner,
+            netinfo_cell: self.netinfo_cell,
+        })
     }
 
     /// Return the clock skew of this channel.
@@ -209,6 +215,8 @@ pub struct VerifiedClientChannel<
 > {
     /// Inner generic verified channel.
     inner: VerifiedChannel<T, S>,
+    /// Received [`msg::Netinfo`] cell during the handshake.
+    netinfo_cell: msg::Netinfo,
 }
 
 impl<
@@ -230,12 +238,13 @@ impl<
             .as_ref()
             .and_then(ChannelMethod::socket_addrs)
             .and_then(|addrs| addrs.first())
-            .map(SocketAddr::ip);
-        let netinfo = msg::Netinfo::from_client(peer_ip);
+            .map(SocketAddr::ip)
+            .ok_or(tor_error::internal!("No peer IP on verified channel"))?;
+        let netinfo = msg::Netinfo::from_client(Some(peer_ip));
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 
         // Finish the channel to get a reactor.
-        self.inner.finish().await
+        self.inner.finish(&self.netinfo_cell, &[], peer_ip).await
     }
 }

@@ -6,7 +6,7 @@ use futures::stream::StreamExt;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_error::internal;
 
-use crate::channel::{ChannelFrame, UniqId};
+use crate::channel::{Canonicity, ChannelFrame, UniqId};
 use crate::memquota::ChannelAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
@@ -14,6 +14,7 @@ use safelog::Redacted;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -528,7 +529,12 @@ impl<
     // NOTE: Unfortunately, this function has duplicated code with the VerifiedChannel::finish()
     // so make sure any changes here is reflected there. A proper refactoring is welcome!
     #[instrument(skip_all, level = "trace")]
-    pub(crate) fn finish(mut self) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
+    pub(crate) fn finish(
+        mut self,
+        netinfo: &msg::Netinfo,
+        my_addrs: &[IpAddr],
+        peer_addr: IpAddr,
+    ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel as incoming traffic since all cells were exchanged.
         //
         // TODO: conceivably we should remember the time when we _got_ the
@@ -582,6 +588,7 @@ impl<
             self.clock_skew,
             self.sleep_prov,
             self.memquota,
+            Canonicity::from_netinfo(netinfo, my_addrs, peer_addr),
         )
     }
 }
@@ -603,6 +610,9 @@ impl<
     #[instrument(skip_all, level = "trace")]
     pub(crate) async fn finish(
         mut self,
+        netinfo: &msg::Netinfo,
+        my_addrs: &[IpAddr],
+        peer_addr: IpAddr,
     ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel -- that is to say, one where the
         // authentication is finished -- as incoming traffic.
@@ -667,6 +677,7 @@ impl<
             self.clock_skew,
             self.sleep_prov,
             self.memquota,
+            Canonicity::from_netinfo(netinfo, my_addrs, peer_addr),
         )
     }
 }
@@ -708,7 +719,7 @@ pub(super) mod test {
     use crate::channel::{ChannelType, new_frame};
     use crate::util::fake_mq;
     use crate::{Result, channel::ClientInitiatorHandshake};
-    use tor_cell::chancell::msg;
+    use tor_cell::chancell::msg::{self, Netinfo};
     use tor_linkspec::OwnedChanTarget;
     use tor_rtcompat::{PreferredRuntime, Runtime};
 
@@ -1200,7 +1211,10 @@ pub(super) mod test {
                 memquota: fake_mq(),
             };
 
-            let (_chan, _reactor) = ver.finish().await.unwrap();
+            let peer_ip = peer_addr.ip();
+            let netinfo = Netinfo::from_client(Some(peer_ip));
+
+            let (_chan, _reactor) = ver.finish(&netinfo, &[], peer_ip).await.unwrap();
 
             // TODO: check contents of netinfo cell
         });

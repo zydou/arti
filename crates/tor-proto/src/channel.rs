@@ -216,7 +216,6 @@ impl Canonicity {
     ///
     /// The `peer_addr` is the IP address we believe the peer has. In other words, it is either the
     /// IP we used to connect to or the address we see in the accept() phase of the connection.
-    #[expect(unused)] // TODO(relay): Remove.
     pub(crate) fn from_netinfo(netinfo: &Netinfo, my_addrs: &[IpAddr], peer_addr: IpAddr) -> Self {
         Self {
             // The "other addr" (our address as seen by the peer) matches the one we advertised.
@@ -231,7 +230,6 @@ impl Canonicity {
 
     /// Construct a fully canonical object.
     #[cfg(any(test, feature = "testing"))]
-    #[expect(unused)] // TODO(relay): Remove.
     pub(crate) fn new_canonical() -> Self {
         Self {
             peer_is_canonical: true,
@@ -299,9 +297,11 @@ pub struct Channel {
     opened_at: coarsetime::Instant,
     /// Mutable state used by the `Channel.
     mutable: Mutex<MutableDetails>,
-
     /// Information shared with the reactor
     details: Arc<ChannelDetails>,
+    /// Canonicity of this channel.
+    #[expect(unused)] // TODO(relay): Remove.
+    canonicity: Canonicity,
 }
 
 /// This is information shared between the reactor and the frontend (`Channel` object).
@@ -603,6 +603,7 @@ impl Channel {
         clock_skew: ClockSkew,
         sleep_prov: S,
         memquota: ChannelAccount,
+        canonicity: Canonicity,
     ) -> Result<(Arc<Self>, reactor::Reactor<S>)>
     where
         S: CoarseTimeProvider + SleepProvider,
@@ -648,6 +649,7 @@ impl Channel {
             opened_at: coarsetime::Instant::now(),
             mutable: Mutex::new(mutable),
             details: Arc::clone(&details),
+            canonicity,
         });
 
         // We start disabled; the channel manager will `reconfigure` us soon after creation.
@@ -1052,6 +1054,7 @@ impl Channel {
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),
             details,
+            canonicity: Canonicity::new_canonical(),
         };
         (channel, control_recv)
     }
@@ -1179,6 +1182,7 @@ pub(crate) mod test {
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),
             details: fake_channel_details(),
+            canonicity: Canonicity::new_canonical(),
         }
     }
 
