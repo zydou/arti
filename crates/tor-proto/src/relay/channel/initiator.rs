@@ -12,11 +12,7 @@
 //! process. The verify can be CPU intensive and thus in its own function.
 
 use futures::{AsyncRead, AsyncWrite, SinkExt};
-use std::{
-    net::{IpAddr, SocketAddr},
-    ops::Deref,
-    sync::Arc,
-};
+use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::trace;
 
 use tor_cell::chancell::msg;
@@ -165,10 +161,9 @@ where
             .inner
             .target_method
             .as_ref()
-            .and_then(ChannelMethod::socket_addrs)
-            .and_then(|addrs| addrs.first())
-            .map(SocketAddr::ip)
-            .ok_or(Error::from(internal!("Target method address invalid")))?;
+            .and_then(ChannelMethod::unique_direct_addr)
+            .ok_or(Error::from(internal!("Target method address invalid")))?
+            .ip();
         // Send our NETINFO cell. This will indicate the end of the handshake.
         let netinfo =
             super::build_netinfo_cell(peer_ip, self.my_addrs.clone(), &self.inner.sleep_prov)?;

@@ -6,11 +6,7 @@
 //! It can then be used to get a fully working channel.
 
 use futures::{AsyncRead, AsyncWrite};
-use std::{
-    net::{IpAddr, SocketAddr},
-    ops::Deref,
-    sync::Arc,
-};
+use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
@@ -173,10 +169,9 @@ where
             .inner
             .target_method
             .as_ref()
-            .and_then(ChannelMethod::socket_addrs)
-            .and_then(|addrs| addrs.first())
-            .map(SocketAddr::ip)
-            .ok_or(internal!("No peer IP on verified responder channel"))?;
+            .and_then(ChannelMethod::unique_direct_addr)
+            .ok_or(internal!("No peer IP on verified responder channel"))?
+            .ip();
         self.inner
             .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
             .await
@@ -200,10 +195,9 @@ where
             .inner
             .target_method
             .as_ref()
-            .and_then(ChannelMethod::socket_addrs)
-            .and_then(|addrs| addrs.first())
-            .map(SocketAddr::ip)
-            .ok_or(internal!("No peer IP on non verifiable responder channel"))?;
+            .and_then(ChannelMethod::unique_direct_addr)
+            .ok_or(internal!("No peer IP on non verifiable responder channel"))?
+            .ip();
         self.inner
             .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
     }

@@ -2,12 +2,11 @@
 
 use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tor_cell::chancell::msg;
 use tracing::{debug, instrument, trace};
 
+use tor_cell::chancell::msg;
 use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -236,10 +235,9 @@ impl<
             .inner
             .target_method
             .as_ref()
-            .and_then(ChannelMethod::socket_addrs)
-            .and_then(|addrs| addrs.first())
-            .map(SocketAddr::ip)
-            .ok_or(tor_error::internal!("No peer IP on verified channel"))?;
+            .and_then(ChannelMethod::unique_direct_addr)
+            .ok_or(tor_error::internal!("No peer IP on verified channel"))?
+            .ip();
         let netinfo = msg::Netinfo::from_client(Some(peer_ip));
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;

@@ -655,6 +655,26 @@ impl ChannelMethod {
         }
     }
 
+    /// Return the [`SocketAddr`] if this method is [`ChannelMethod::Direct`] and there is one and
+    /// only one available address.
+    ///
+    /// This is single address requirement is very important as this call is used during the
+    /// channel handshake on which we need the actual peer address we are connected to and not all
+    /// the possibilities.
+    ///
+    /// When connecting or accepting, that addres is put in the OwnedChanTarget and so this
+    /// extracts it.
+    pub fn unique_direct_addr(&self) -> Option<SocketAddr> {
+        match self {
+            Self::Direct(addrs) => match addrs.as_slice() {
+                [addr] => Some(*addr),
+                // Remember, more than one, we don't have a single address.
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// Return true if this is a method for a direct connection.
     pub fn is_direct(&self) -> bool {
         matches!(self, ChannelMethod::Direct(_))
