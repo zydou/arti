@@ -412,6 +412,19 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         //
         // If handling more than one event per loop turns out to be a problem, we may
         // need to dispatch this to a background task instead.
+        //
+        // TODO(relay): this loop is actually a problem.
+        // As mentioned in the run_once() docs, this will attempt to send up
+        // to 3 cells on the inbound tor Channel (or 2 cells, assuming no leaky pipe).
+        //
+        // The problem is that the readiness check above (see backward_chan_ready)
+        // only checks that the queue has enough room for 1 cell, not *2 cells*.
+        // Trying to send more than 2 cell when there is only room for one
+        // will cause the reactor to block (and because there is nothing
+        // driving the flushing of this channel, this will be a hard block).
+        //
+        // We need to rethink the strategy here (e.g. by flushing in parallel
+        // with handle_event())
         for event in events.into_iter().flatten() {
             self.handle_event(event).await?;
         }
