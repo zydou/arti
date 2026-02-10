@@ -638,6 +638,18 @@ impl Netinfo {
             Some(SystemTime::UNIX_EPOCH + Duration::from_secs(self.timestamp.into()))
         }
     }
+
+    /// Return a reference to the their address field.
+    ///
+    /// None is returned if their address is 0.0.0.0/:: (unspecified).
+    pub fn their_addr(&self) -> Option<&IpAddr> {
+        self.their_addr.as_ref()
+    }
+
+    /// Return a reference to the my address field.
+    pub fn my_addrs(&self) -> &[IpAddr] {
+        &self.my_addr
+    }
 }
 impl Body for Netinfo {
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
