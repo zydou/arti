@@ -6,7 +6,7 @@ use crate::circuit::UniqId;
 use crate::circuit::create::{Create2Wrap, CreateHandshakeWrap};
 use crate::circuit::reactor::ControlHandler;
 use crate::circuit::reactor::backward::BackwardReactorCmd;
-use crate::circuit::reactor::forward::{CellDecodeResult, ForwardHandler};
+use crate::circuit::reactor::forward::{CellDecodeResult, ForwardCellDisposition, ForwardHandler};
 use crate::circuit::reactor::hop_mgr::HopMgr;
 use crate::crypto::cell::OutboundRelayLayer;
 use crate::crypto::cell::RelayCellBody;
@@ -291,6 +291,31 @@ impl Forward {
         })
     }
 
+    /// Handle a RELAY or RELAY_EARLY cell.
+    fn handle_relay_cell<R: Runtime>(
+        &mut self,
+        hop_mgr: &mut HopMgr<R>,
+        cell: Relay,
+        early: bool,
+    ) -> StdResult<Option<ForwardCellDisposition>, ReactorError> {
+        // XXX: return a protocol error if we get too many RELAY_EARLY cells
+        let (hopnum, res) = self.decode_relay_cell(hop_mgr, cell)?;
+        let (tag, decode_res) = match res {
+            CellDecodeResult::Unrecognizd(body) => {
+                self.handle_unrecognized_cell(body, None)?;
+                return Ok(None);
+            }
+            CellDecodeResult::Recognized(tag, res) => (tag, res),
+        };
+
+        Ok(Some(ForwardCellDisposition::HandleRecognizedRelay {
+            cell: decode_res,
+            early,
+            hopnum,
+            tag,
+        }))
+    }
+
     /// Handle a TRUNCATE cell.
     #[allow(clippy::unused_async)] // TODO(relay)
     async fn handle_truncate(&mut self) -> StdResult<(), ReactorError> {
@@ -393,17 +418,21 @@ impl ForwardHandler for Forward {
     async fn handle_forward_cell<R: Runtime>(
         &mut self,
         hop_mgr: &mut HopMgr<R>,
-        cell: Self::CircChanMsg,
-    ) -> StdResult<(), ReactorError> {
+        cell: RelayCircChanMsg,
+    ) -> StdResult<Option<ForwardCellDisposition>, ReactorError> {
         use RelayCircChanMsg::*;
 
         match cell {
-            Relay(_) => {
-                Err(internal!("relay cell should've been handled in base reactor?!").into())
+            Relay(r) => self.handle_relay_cell(hop_mgr, r, false),
+            RelayEarly(r) => self.handle_relay_cell(hop_mgr, r.into(), true),
+            Destroy(d) => {
+                self.handle_destroy_cell(d)?;
+                Ok(None)
             }
-            RelayEarly(r) => self.handle_relay_early_cell(r),
-            Destroy(d) => self.handle_destroy_cell(d),
-            PaddingNegotiate(p) => self.handle_padding_negotiate(p),
+            PaddingNegotiate(p) => {
+                self.handle_padding_negotiate(p)?;
+                Ok(None)
+            }
         }
     }
 
