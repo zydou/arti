@@ -23,7 +23,6 @@ use crate::stream::incoming::{
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::msg::Relay;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg,
@@ -152,13 +151,6 @@ pub(crate) trait ForwardHandler: ControlHandler {
     /// The [`ForwardReactor`] polls an MPSC stream yielding `CircEvent`s from the main loop.
     /// Each event is passed to [`Self::handle_event`] for handling.
     type CircEvent;
-
-    /// Decode `cell`, returning its corresponding hop number, tag and decoded body.
-    fn decode_relay_cell<R: Runtime>(
-        &mut self,
-        hop_mgr: &mut HopMgr<R>,
-        cell: Relay,
-    ) -> Result<(Option<HopNum>, CellDecodeResult)>;
 
     /// Handle a non-SENDME RELAY message on this circuit with stream ID 0.
     async fn handle_meta_msg<R: Runtime>(
@@ -529,12 +521,4 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             ReactorError::Shutdown
         })
     }
-}
-
-/// The outcome of `decode_relay_cell`.
-pub(crate) enum CellDecodeResult {
-    /// A decrypted cell.
-    Recognized(SendmeTag, RelayCellDecoderResult),
-    /// A cell we could not decrypt.
-    Unrecognizd(RelayCellBody),
 }

@@ -6,7 +6,7 @@ use crate::circuit::UniqId;
 use crate::circuit::create::{Create2Wrap, CreateHandshakeWrap};
 use crate::circuit::reactor::ControlHandler;
 use crate::circuit::reactor::backward::BackwardReactorCmd;
-use crate::circuit::reactor::forward::{CellDecodeResult, ForwardCellDisposition, ForwardHandler};
+use crate::circuit::reactor::forward::{ForwardCellDisposition, ForwardHandler};
 use crate::circuit::reactor::hop_mgr::HopMgr;
 use crate::crypto::cell::OutboundRelayLayer;
 use crate::crypto::cell::RelayCellBody;
@@ -20,8 +20,8 @@ use crate::client::circuit::padding::QueuedCellPaddingInfo;
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult, OutboundChanSender};
 use tor_cell::chancell::msg::{AnyChanMsg, Destroy, PaddingNegotiate, Relay, RelayEarly};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
-use tor_cell::relaycell::msg::{Extend2, Extended2};
-use tor_cell::relaycell::{RelayCellFormat, RelayCmd, UnparsedRelayMsg};
+use tor_cell::relaycell::msg::{Extend2, Extended2, SendmeTag};
+use tor_cell::relaycell::{RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg};
 use tor_error::{internal, into_internal, warn_report};
 use tor_linkspec::decode::Strictness;
 use tor_linkspec::{OwnedChanTarget, OwnedChanTargetBuilder};
@@ -107,6 +107,14 @@ struct Outbound {
     outbound_chan_tx: ChannelSender,
 }
 
+/// The outcome of `decode_relay_cell`.
+enum CellDecodeResult {
+    /// A decrypted cell.
+    Recognized(SendmeTag, RelayCellDecoderResult),
+    /// A cell we could not decrypt.
+    Unrecognizd(RelayCellBody),
+}
+
 impl Forward {
     /// Create a new [`Forward`].
     pub(crate) fn new(
@@ -125,6 +133,31 @@ impl Forward {
             relay_early_count: 0,
             event_tx,
         }
+    }
+
+    /// Decode `cell`, returning its corresponding hop number, tag and decoded body.
+    fn decode_relay_cell<R: Runtime>(
+        &mut self,
+        hop_mgr: &mut HopMgr<R>,
+        cell: Relay,
+    ) -> Result<(Option<HopNum>, CellDecodeResult)> {
+        // Note: the client reactor will return the actual source hopnum
+        let hopnum = None;
+        let cmd = cell.cmd();
+        let mut body = cell.into_relay_body().into();
+        let Some(tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) else {
+            return Ok((hopnum, CellDecodeResult::Unrecognizd(body)));
+        };
+
+        // The message is addressed to us! Now it's time to handle it...
+        let mut hops = hop_mgr.hops().write().expect("poisoned lock");
+        let decode_res = hops
+            .get_mut(hopnum)
+            .ok_or_else(|| internal!("msg from non-existant hop???"))?
+            .inbound
+            .decode(body.into())?;
+
+        Ok((hopnum, CellDecodeResult::Recognized(tag, decode_res)))
     }
 
     /// Handle a DROP message.
@@ -376,30 +409,6 @@ impl ForwardHandler for Forward {
     type BuildSpec = OwnedChanTarget;
     type CircChanMsg = RelayCircChanMsg;
     type CircEvent = CircEvent;
-
-    fn decode_relay_cell<R: Runtime>(
-        &mut self,
-        hop_mgr: &mut HopMgr<R>,
-        cell: Relay,
-    ) -> Result<(Option<HopNum>, CellDecodeResult)> {
-        // Note: the client reactor will return the actual source hopnum
-        let hopnum = None;
-        let cmd = cell.cmd();
-        let mut body = cell.into_relay_body().into();
-        let Some(tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) else {
-            return Ok((hopnum, CellDecodeResult::Unrecognizd(body)));
-        };
-
-        // The message is addressed to us! Now it's time to handle it...
-        let mut hops = hop_mgr.hops().write().expect("poisoned lock");
-        let decode_res = hops
-            .get_mut(hopnum)
-            .ok_or_else(|| internal!("msg from non-existant hop???"))?
-            .inbound
-            .decode(body.into())?;
-
-        Ok((hopnum, CellDecodeResult::Recognized(tag, decode_res)))
-    }
 
     async fn handle_meta_msg<R: Runtime>(
         &mut self,
