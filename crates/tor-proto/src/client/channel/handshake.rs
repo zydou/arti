@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use tracing::{debug, instrument, trace};
 
 use tor_cell::chancell::msg;
-use tor_linkspec::{ChannelMethod, OwnedChanTarget};
+use tor_linkspec::{BridgeAddr, ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::ClockSkew;
@@ -230,14 +230,29 @@ impl<
     /// route incoming messages to their appropriate circuit.
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // Send the NETINFO message.
-        let peer_ip = self
+        // Get the target address for this channel. Unfortunately, as you can see, the interface of
+        // ChannelMethod is not great as it mixes "PT" and "Direct" concept so we have to do some
+        // hoops jumping to get the peer IpAddr.
+        //
+        // Without a peer IP, we can't send the NETINFO and can't finalize the channel as we need
+        // it for canonical checks.
+        let addr: Option<BridgeAddr> = self
             .inner
             .target_method
             .as_ref()
-            .and_then(ChannelMethod::unique_direct_addr)
-            .ok_or(tor_error::internal!("No peer IP on verified channel"))?
-            .ip();
+            .and_then(ChannelMethod::target_addr)
+            .ok_or(tor_error::internal!(
+                "No peer IP on verified client channel"
+            ))?
+            .clone()
+            .into();
+        let peer_ip =
+            addr.and_then(|b| b.as_socketaddr().map(|s| s.ip()))
+                .ok_or(tor_error::internal!(
+                    "Unable to use peer address on verified client channel"
+                ))?;
+
+        // Send the NETINFO message.
         let netinfo = msg::Netinfo::from_client(Some(peer_ip));
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
