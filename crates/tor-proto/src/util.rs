@@ -3,7 +3,6 @@
 pub(crate) mod ct;
 pub(crate) mod err;
 pub(crate) mod keyed_futures_unordered;
-pub(crate) mod msg;
 pub(crate) mod notify;
 pub(crate) mod oneshot_broadcast;
 pub(crate) mod poll_all;

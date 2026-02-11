@@ -11,7 +11,6 @@ use crate::crypto::cell::RelayCellBody;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::msg_streamid;
 use crate::util::err::ReactorError;
-use crate::util::msg::ToRelayMsg;
 use crate::{Error, HopNum, Result};
 
 #[cfg(any(feature = "hs-service", feature = "relay"))]
@@ -32,7 +31,6 @@ use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
 
 use derive_deftly::Deftly;
-use either::Either;
 use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt, select_biased};
@@ -144,7 +142,7 @@ pub(crate) trait ForwardHandler: ControlHandler {
     type BuildSpec: HasRelayIds;
 
     /// The subclass of ChanMsg that can arrive on this type of circuit.
-    type CircChanMsg: TryFrom<AnyChanMsg, Error = crate::Error> + ToRelayMsg;
+    type CircChanMsg: TryFrom<AnyChanMsg, Error = crate::Error>;
 
     /// An opaque event type.
     ///

@@ -17,7 +17,6 @@ pub(crate) mod reactor;
 pub use channel::MaybeVerifiableRelayResponderChannel;
 
 use derive_deftly::Deftly;
-use either::Either;
 use futures::StreamExt as _;
 use oneshot_fused_workaround as oneshot;
 
@@ -62,18 +61,6 @@ pub(crate) enum RelayCircChanMsg {
     Destroy(chanmsg::Destroy),
     /// A cell telling us to enable/disable channel padding.
     PaddingNegotiate(chanmsg::PaddingNegotiate),
-}
-
-impl crate::util::msg::ToRelayMsg for RelayCircChanMsg {
-    fn to_relay_msg(self) -> Either<chanmsg::Relay, Self> {
-        use Either::*;
-        use RelayCircChanMsg::*;
-
-        match self {
-            Relay(r) => Left(r),
-            m => Right(m),
-        }
-    }
 }
 
 /// A handle for interacting with a relay circuit.
