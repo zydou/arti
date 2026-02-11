@@ -510,8 +510,9 @@ mod test {
     use crate::ChannelUsage as CU;
     use tor_rtcompat::{Runtime, task::yield_now, test_with_one_runtime};
 
-    // Address we can use in tests.
+    // Two distinct addresses we can use in tests.
     const ADDR_A: SocketAddr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(1, 1, 1, 1), 443));
+    const ADDR_B: SocketAddr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(2, 2, 2, 2), 443));
 
     #[derive(Clone)]
     struct FakeChannelFactory<RT> {
@@ -695,6 +696,25 @@ mod test {
     }
 
     #[test]
+    fn connect_different_address() {
+        test_with_one_runtime!(|runtime| async {
+            let mgr = new_test_abstract_chanmgr(runtime);
+
+            // Two targets that have different addresses.
+            let target1 = FakeBuildSpec(413, '!', u32_to_ed(413), ADDR_A);
+            let mut target2 = target1.clone();
+            target2.3 = ADDR_B;
+
+            let chan1 = mgr.get_or_launch(target1, CU::UserTraffic).await.unwrap().0;
+            let chan2 = mgr.get_or_launch(target2, CU::UserTraffic).await.unwrap().0;
+
+            // Even with different addresses, the original channel is returned.
+            assert_eq!(chan1, chan2);
+            assert_eq!(mgr.get_nowait(&u32_to_ed(413)), vec![chan1]);
+        });
+    }
+
+    #[test]
     fn test_concurrent() {
         test_with_one_runtime!(|runtime| async {
             let mgr = new_test_abstract_chanmgr(runtime);
@@ -704,11 +724,13 @@ mod test {
             // TODO(nickm): figure out how to make these actually run
             // concurrently. Right now it seems that they don't actually
             // interact.
-            let (ch3a, ch3b, ch44a, ch44b, ch86a, ch86b) = join!(
+            let (ch3a, ch3b, ch44a, ch44b, ch50a, ch50b, ch86a, ch86b) = join!(
                 mgr.get_or_launch(FakeBuildSpec(3, 'a', u32_to_ed(3), ADDR_A), usage),
                 mgr.get_or_launch(FakeBuildSpec(3, 'b', u32_to_ed(3), ADDR_A), usage),
                 mgr.get_or_launch(FakeBuildSpec(44, 'a', u32_to_ed(44), ADDR_A), usage),
                 mgr.get_or_launch(FakeBuildSpec(44, 'b', u32_to_ed(44), ADDR_A), usage),
+                mgr.get_or_launch(FakeBuildSpec(50, 'a', u32_to_ed(50), ADDR_A), usage),
+                mgr.get_or_launch(FakeBuildSpec(50, 'b', u32_to_ed(50), ADDR_B), usage),
                 mgr.get_or_launch(FakeBuildSpec(86, '❌', u32_to_ed(86), ADDR_A), usage),
                 mgr.get_or_launch(FakeBuildSpec(86, '🔥', u32_to_ed(86), ADDR_A), usage),
             );
@@ -716,11 +738,14 @@ mod test {
             let ch3b = ch3b.unwrap();
             let ch44a = ch44a.unwrap();
             let ch44b = ch44b.unwrap();
+            let ch50a = ch50a.unwrap();
+            let ch50b = ch50b.unwrap();
             let err_a = ch86a.unwrap_err();
             let err_b = ch86b.unwrap_err();
 
             assert_eq!(ch3a, ch3b);
             assert_eq!(ch44a, ch44b);
+            assert_eq!(ch50a, ch50b);
             assert_ne!(ch44a, ch3a);
 
             assert!(matches!(err_a, Error::UnusableTarget(_)));
