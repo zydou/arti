@@ -10,11 +10,11 @@
 
 use std::time::Duration;
 
-use derive_builder::Builder;
+use derive_deftly::Deftly;
 use getset::{CopyGetters, Getters};
-use serde::{Deserialize, Serialize};
 use tor_checkable::timed::TimerangeBound;
-use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
+use tor_config::derive::prelude::*;
+use tor_config::{ConfigBuildError, define_list_builder_accessors};
 use tor_netdoc::doc::netstatus::Lifetime;
 
 use crate::{
@@ -31,9 +31,9 @@ use crate::{
 //
 // TODO: We should move this type around, since the fallbacks part will no longer be used in
 // dirmgr, but only in guardmgr.  Probably this type belongs in `arti-client`.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
-#[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Getters)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(pre_build = "Self::validate"))]
 #[non_exhaustive]
 pub struct NetworkConfig {
     /// List of locations to look in when downloading directory information, if
@@ -47,7 +47,7 @@ pub struct NetworkConfig {
     ///
     /// The default is to use a set of compiled-in fallback directories,
     /// whose addresses and public keys are shipped as part of the Arti source code.
-    #[builder(sub_builder, setter(custom))]
+    #[deftly(tor_config(sub_builder, setter(skip)))]
     #[getset(get = "pub")]
     fallback_caches: FallbackList,
 
@@ -61,14 +61,13 @@ pub struct NetworkConfig {
     ///
     /// The default is to use a set of compiled-in authorities,
     /// whose identities and public keys are shipped as part of the Arti source code.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     #[getset(get = "pub")]
     authorities: AuthorityContacts,
 }
 
-impl_standard_builder! { NetworkConfig }
-
+// TODO #2297: There ought to be a cleaner way to do this: the trouble is that
+// we are explicitly creating a list-builder object elsewhere, but exposing its accessors here.
 define_list_builder_accessors! {
     struct NetworkConfigBuilder {
         pub fallback_caches: [FallbackDirBuilder],
@@ -95,43 +94,30 @@ impl NetworkConfigBuilder {
 ///
 /// This type is immutable once constructed. To make one, use
 /// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters, CopyGetters)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Getters, CopyGetters)]
+#[derive_deftly(TorConfig)]
 #[non_exhaustive]
 pub struct DownloadScheduleConfig {
     /// Top-level configuration for how to retry our initial bootstrap attempt.
-    #[builder(
-        sub_builder,
-        field(build = "self.retry_bootstrap.build_retry_bootstrap()?")
-    )]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder(build_fn = "build_retry_bootstrap")))]
     #[getset(get_copy = "pub")]
     retry_bootstrap: DownloadSchedule,
 
     /// Configuration for how to retry a consensus download.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     #[getset(get_copy = "pub")]
     retry_consensus: DownloadSchedule,
 
     /// Configuration for how to retry an authority cert download.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     #[getset(get_copy = "pub")]
     retry_certs: DownloadSchedule,
 
     /// Configuration for how to retry a microdescriptor download.
-    #[builder(
-        sub_builder,
-        field(build = "self.retry_microdescs.build_retry_microdescs()?")
-    )]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder(build_fn = "build_retry_microdescs")))]
     #[getset(get_copy = "pub")]
     retry_microdescs: DownloadSchedule,
 }
-
-impl_standard_builder! { DownloadScheduleConfig }
 
 /// Configuration for how much much to extend the official tolerances of our
 /// directory information.
@@ -142,9 +128,8 @@ impl_standard_builder! { DownloadScheduleConfig }
 /// range of validity.
 ///
 /// TODO: Remove the [`Default`] because it is too tightly bound to a client.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters, CopyGetters)]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Getters, CopyGetters)]
+#[derive_deftly(TorConfig)]
 #[non_exhaustive]
 pub struct DirTolerance {
     /// For how long before a directory document is valid should we accept it?
@@ -152,8 +137,7 @@ pub struct DirTolerance {
     /// Having a nonzero value here allows us to tolerate a little clock skew.
     ///
     /// Defaults to 1 day.
-    #[builder(default = "Duration::from_secs(24 * 60 * 60)")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "Duration::from_secs(24 * 60 * 60)"))]
     #[getset(get_copy = "pub")]
     pre_valid_tolerance: Duration,
 
@@ -168,13 +152,10 @@ pub struct DirTolerance {
     ///
     /// [prop212]:
     ///     https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/212-using-old-consensus.txt
-    #[builder(default = "Duration::from_secs(3 * 24 * 60 * 60)")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "Duration::from_secs(3 * 24 * 60 * 60)"))]
     #[getset(get_copy = "pub")]
     post_valid_tolerance: Duration,
 }
-
-impl_standard_builder! { DirTolerance }
 
 impl DirTolerance {
     /// Return a new [`TimerangeBound`] that extends the validity interval of

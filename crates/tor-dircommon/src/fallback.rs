@@ -11,13 +11,12 @@
 //! `tor-dirmgr`: any changes here must be reflected there.
 
 use base64ct::{Base64Unpadded, Encoding as _};
-use derive_builder::Builder;
-use tor_config::{ConfigBuildError, define_list_builder_helper};
-use tor_config::{define_list_builder_accessors, impl_standard_builder, list_builder::VecBuilder};
+use derive_deftly::Deftly;
+use tor_config::derive::prelude::*;
+use tor_config::{ConfigBuildError, define_list_builder_accessors, define_list_builder_helper};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
-use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
 /// A directory whose location ships with Tor (or arti), and which we
@@ -27,43 +26,36 @@ use std::net::SocketAddr;
 // Note that we do *not* set serde(deny_unknown_fields) on this
 // structure: we want our fallback directory configuration format to
 // be future-proof against adding new info about each fallback.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(
+    no_default_trait,
+    post_build = "FallbackDirBuilder::post_build_validate"
+))]
 pub struct FallbackDir {
     /// RSA identity for the directory relay
+    #[deftly(tor_config(no_default))]
     rsa_identity: RsaIdentity,
     /// Ed25519 identity for the directory relay
+    #[deftly(tor_config(no_default))]
     ed_identity: Ed25519Identity,
     /// List of ORPorts for the directory relay
-    #[builder(sub_builder(fn_name = "build"), setter(custom))]
+    //
+    // NOTE that we are not using the list_builder pattern here.
+    // We could change that, but doing so could break compatibility.
+    #[deftly(tor_config(no_magic, setter(skip), no_default))]
     orports: Vec<SocketAddr>,
 }
 
-impl_standard_builder! { FallbackDir: !Default }
-
-define_list_builder_accessors! {
+define_list_builder_accessors!(
     struct FallbackDirBuilder {
         pub orports: [SocketAddr],
     }
-}
+);
 
 impl FallbackDirBuilder {
-    /// Make a new FallbackDirBuilder.
-    ///
-    /// You only need to use this if you're using a non-default set of
-    /// fallback directories.
-    pub fn new() -> Self {
-        Self::default()
-    }
-    /// Builds a new `FallbackDir`.
-    ///
-    /// ### Errors
-    ///
-    /// Errors unless both of `rsa_identity`, `ed_identity`, and at least one `orport`,
-    /// have been provided.
-    pub fn build(&self) -> std::result::Result<FallbackDir, ConfigBuildError> {
-        let built = self.build_unvalidated()?;
+    /// Checks whether the built FallbackDir obeys its configuration.
+    fn post_build_validate(built: FallbackDir) -> Result<FallbackDir, ConfigBuildError> {
         if built.orports.is_empty() {
             return Err(ConfigBuildError::Invalid {
                 field: "orport".to_string(),

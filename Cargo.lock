@@ -6801,7 +6801,7 @@ name = "tor-dircommon"
 version = "0.39.0"
 dependencies = [
  "base64ct",
- "derive_builder_fork_arti",
+ "derive-deftly",
  "getset",
  "humantime",
  "humantime-serde",
