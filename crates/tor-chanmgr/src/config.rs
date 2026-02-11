@@ -178,10 +178,7 @@ impl std::fmt::Display for ProxyProtocol {
                         let pass = String::from_utf8_lossy(pass);
                         match encode_userinfo(*version, *addr, &user, Some(&pass)) {
                             Some((user_encoded, pass_encoded)) => {
-                                let pass_encoded = match pass_encoded {
-                                    Some(pass_encoded) => pass_encoded,
-                                    None => String::new(),
-                                };
+                                let pass_encoded = pass_encoded.unwrap_or_default();
                                 write!(
                                     f,
                                     "{}://{}:{}@{}",
@@ -199,6 +196,10 @@ impl std::fmt::Display for ProxyProtocol {
     }
 }
 
+/// URL-encodes username and optional password for SOCKS proxy userinfo display.
+///
+/// Uses `Url` parsing to produce percent-encoded forms suitable for
+/// `socks://user:pass@host:port` style output.
 fn encode_userinfo(
     version: SocksVersion,
     addr: SocketAddr,
