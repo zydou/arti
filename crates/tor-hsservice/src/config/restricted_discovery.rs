@@ -108,6 +108,7 @@ use std::collections::btree_map::Entry;
 use amplify::Getters;
 use derive_more::{Display, Into};
 
+use tor_config::derive::prelude::*;
 use tor_config_path::CfgPathResolver;
 use tor_error::warn_report;
 use tor_persist::slug::BadSlug;
@@ -184,10 +185,9 @@ impl FromStr for HsClientNickname {
 /// its restricted discovery settings in order for the changes to be applied.
 ///
 /// See the [module-level documentation](self) for more details.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
-#[builder(build_fn(private, error = "ConfigBuildError", name = "build_unvalidated"))]
-#[builder(derive(Serialize, Deserialize, Debug, Deftly))]
-#[non_exhaustive]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Getters)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(post_build = "Self::post_build_validate"))]
 pub struct RestrictedDiscoveryConfig {
     /// Whether to enable restricted discovery mode.
     ///
@@ -200,12 +200,11 @@ pub struct RestrictedDiscoveryConfig {
     /// or the directories where the authorized client keys should be read from (via `key_dirs`).
     ///
     /// Restricted discovery mode is disabled by default.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     pub(crate) enabled: bool,
 
     /// If true, the provided `key_dirs` will be watched for changes.
-    #[builder(default)]
-    #[builder_field_attr(serde(skip))]
+    #[deftly(tor_config(default, serde = "skip"))]
     #[getter(as_mut, as_copy)]
     watch_configuration: bool,
 
@@ -214,16 +213,20 @@ pub struct RestrictedDiscoveryConfig {
     ///
     /// Each file in this directory must have a file name of the form `<nickname>.auth`,
     /// where `<nickname>` is a valid [`HsClientNickname`].
-    #[builder(default, sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    //
+    // TODO: Use the list-builder pattern instead. (Right now this uses the sub_builder pattern
+    // directly, since before migration to TorConfig, this builder didn't declare list accessors.)
+    #[deftly(tor_config(sub_builder, no_magic))]
     key_dirs: DirectoryKeyProviderList,
 
     /// A static mapping from client nicknames to keys.
     ///
     /// Each client key must be in the `descriptor:x25519:<base32-encoded-x25519-public-key>`
     /// format.
-    #[builder(default, sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    //
+    // TODO: We could eventually migrate to use the map-builder pattern, but that would
+    // be a breaking change.
+    #[deftly(tor_config(sub_builder))]
     static_keys: StaticKeyProvider,
 }
 
@@ -311,13 +314,15 @@ impl RestrictedDiscoveryConfigBuilder {
     ///   - restricted mode is enabled but the `restricted-discovery` feature is not enabled
     ///   - restricted mode is enabled but no client key providers are configured
     ///   - restricted mode is disabled, but some client key providers are configured
-    pub fn build(&self) -> Result<RestrictedDiscoveryConfig, ConfigBuildError> {
+    fn post_build_validate(
+        config: RestrictedDiscoveryConfig,
+    ) -> Result<RestrictedDiscoveryConfig, ConfigBuildError> {
         let RestrictedDiscoveryConfig {
             enabled,
             key_dirs,
             static_keys,
             watch_configuration,
-        } = self.build_unvalidated()?;
+        } = config;
         let key_list = static_keys.as_ref().iter().collect_vec();
 
         cfg_if::cfg_if! {
@@ -351,6 +356,10 @@ impl RestrictedDiscoveryConfigBuilder {
                 }
             } else {
                 // Restricted mode can only be enabled if the `experimental` feature is enabled.
+
+                // TODO: This could migrate to use tor_config(cfg) instead, but that would change
+                // these errors into warnings.  We could add error support for this into
+                // tor_config.
                 if enabled {
                     return Err(ConfigBuildError::NoCompileTimeSupport {
                         field: "enabled".into(),

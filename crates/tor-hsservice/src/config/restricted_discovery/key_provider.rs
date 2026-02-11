@@ -14,6 +14,8 @@ use amplify::Getters;
 use serde_with::DisplayFromStr;
 
 use tor_config::define_list_builder_helper;
+use tor_config::derive::prelude::*;
+use tor_config::extend_builder::extend_with_replace;
 use tor_config::mistrust::BuilderExt as _;
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_error::warn_report;
@@ -92,16 +94,19 @@ fn build_static(
 ///
 /// Each file in this directory must have a file name of the form `<nickname>.auth`,
 /// where `<nickname>` is a valid [`HsClientNickname`].
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
-#[builder(derive(Serialize, Deserialize, Debug))]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Getters)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 pub struct DirectoryKeyProvider {
     /// The path.
+    #[deftly(tor_config(no_default))]
     path: CfgPath,
 
     /// Configuration about which permissions we want to enforce on our files.
-    #[builder(sub_builder(fn_name = "build_for_arti"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(
+        sub_builder(build_fn = "build_for_arti"),
+        extend_with = "extend_with_replace"
+    ))]
     permissions: Mistrust,
 }
 
