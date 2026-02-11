@@ -6603,7 +6603,7 @@ dependencies = [
  "async-trait",
  "caret",
  "cfg-if",
- "derive_builder_fork_arti",
+ "derive-deftly",
  "derive_more",
  "educe",
  "float_eq",
