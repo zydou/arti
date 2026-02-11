@@ -81,7 +81,13 @@ tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio", "tokio-util"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
 
-onion-service-cli-extra = ["arti-client/onion-service-cli-extra", "tor-hsclient", "tor-hscrypto", "__is_experimental"]
+onion-service-cli-extra = [
+    "arti-client/onion-service-cli-extra",
+    "tor-hsservice/onion-service-cli-extra",
+    "tor-hsclient",
+    "tor-hscrypto",
+    "__is_experimental",
+]
 onion-service-service = ["arti-client/onion-service-service", "tor-hsrproxy", "tor-hsservice"]
 restricted-discovery = ["tor-hsservice/restricted-discovery"]
 vanguards = ["arti-client/vanguards"]
