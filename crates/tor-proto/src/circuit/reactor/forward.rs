@@ -421,7 +421,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         let (mut msgs, incomplete) = decode_res.into_parts();
         while let Some(msg) = msgs.next() {
             match self
-                .handle_relay_msg(hopnum, msg, relay_cell_format, c_t_w)
+                .handle_relay_msg(early, hopnum, msg, relay_cell_format, c_t_w)
                 .await
             {
                 Ok(()) => continue,
@@ -451,6 +451,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     /// Handle a single incoming RELAY message.
     async fn handle_relay_msg(
         &mut self,
+        early: bool,
         hop: Option<HopNum>,
         msg: UnparsedRelayMsg,
         relay_cell_format: RelayCellFormat,
@@ -463,7 +464,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         // If this doesn't have a StreamId, it's a meta cell,
         // not meant for a particular stream.
         let Some(sid) = streamid else {
-            return self.handle_meta_msg(hop, msg, relay_cell_format).await;
+            return self.handle_meta_msg(early, hop, msg, relay_cell_format).await;
         };
 
         let msg = StreamMsg {
@@ -480,9 +481,10 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         self.hop_mgr.send(hop, msg).await
     }
 
-    /// Handle a RELAY message on this circuit with stream ID 0.
+    /// Handle a RELAY or RELAY_EARLY message on this circuit with stream ID 0.
     async fn handle_meta_msg(
         &mut self,
+        early: bool,
         hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
         relay_cell_format: RelayCellFormat,
