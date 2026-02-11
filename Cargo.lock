@@ -7610,6 +7610,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "cfg-if",
+ "derive-deftly",
  "derive_builder_fork_arti",
  "fs-mistrust",
  "futures",

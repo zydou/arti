@@ -2,9 +2,9 @@
 
 use std::net::SocketAddr;
 
-use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
-use tor_config::{ConfigBuildError, impl_standard_builder};
+use derive_deftly::Deftly;
+use tor_config::ConfigBuildError;
+use tor_config::derive::prelude::*;
 use tor_config_path::CfgPath;
 use tor_linkspec::PtTransportName;
 
@@ -20,9 +20,9 @@ use {crate::PtClientMethod, tor_socksproto::SocksVersion};
 /// A pluggable transport can be either _managed_ (run as an external process
 /// that we launch and monitor), or _unmanaged_ (running on a local port, not
 /// controlled by Arti).
-#[derive(Clone, Debug, Builder, Eq, PartialEq)]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
+#[derive(Clone, Debug, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait, pre_build = "Self::validate"))]
 pub struct TransportConfig {
     /// Names of the transport protocols that we are willing to use from this transport.
     ///
@@ -31,6 +31,7 @@ pub struct TransportConfig {
     //
     // NOTE(eta): This doesn't use the list builder stuff, because you're not likely to
     //            set this field more than once.
+    #[deftly(tor_config(no_magic, no_default))]
     pub(crate) protocols: Vec<PtTransportName>,
 
     /// The path to the binary to run, if any.
@@ -38,7 +39,7 @@ pub struct TransportConfig {
     /// This needs to be the path to some executable file on disk.
     ///
     /// Present only for managed transports.
-    #[builder(default, setter(strip_option))]
+    #[deftly(tor_config(default, setter(strip_option)))]
     pub(crate) path: Option<CfgPath>,
 
     /// One or more command-line arguments to pass to the binary.
@@ -48,24 +49,22 @@ pub struct TransportConfig {
     //
     // NOTE(eta): This doesn't use the list builder stuff, because you're not likely to
     //            set this field more than once.
-    #[builder(default)]
+    #[deftly(tor_config(no_magic, default))]
     pub(crate) arguments: Vec<String>,
 
     /// The location at which to contact this transport.
     ///
     /// Present only for unmanaged transports.
-    #[builder(default, setter(strip_option))]
+    #[deftly(tor_config(default, setter(strip_option)))]
     pub(crate) proxy_addr: Option<SocketAddr>,
 
     /// If true, launch this transport on startup.  Otherwise, we launch
     /// it on demand.
     ///
     /// Meaningful only for managed transports.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     pub(crate) run_on_startup: bool,
 }
-
-impl_standard_builder! { TransportConfig: !Default }
 
 impl TransportConfigBuilder {
     /// Inspect the list of protocols (ie, transport names)
