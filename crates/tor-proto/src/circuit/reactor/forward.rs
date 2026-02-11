@@ -464,7 +464,9 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         // If this doesn't have a StreamId, it's a meta cell,
         // not meant for a particular stream.
         let Some(sid) = streamid else {
-            return self.handle_meta_msg(early, hop, msg, relay_cell_format).await;
+            return self
+                .handle_meta_msg(early, hop, msg, relay_cell_format)
+                .await;
         };
 
         let msg = StreamMsg {
