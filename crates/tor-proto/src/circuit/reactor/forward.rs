@@ -269,12 +269,9 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 };
 
                 let cell: F::CircChanMsg = cell.try_into()?;
-                match cell.to_relay_msg() {
-                    Either::Left(r) => self.handle_relay_cell(r).await,
-                    Either::Right(cell) => {
-                        self.inner.handle_forward_cell(cell).await
-                    }
-                }
+                // XXX: handle_forward_cell() will need to start handling
+                // RELAY/RELAY_EARLY cells too
+                self.inner.handle_forward_cell(cell).await
             },
         }
     }
