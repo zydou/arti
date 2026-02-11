@@ -2,6 +2,19 @@ include:
   - project: tpo/tpa/ci-templates
     file: static-shim-deploy.yml
 
+# The workflow rules allows us to specify which situations we want to execute
+# our CI pipelines. For more advanced GitLab CI features, such as rules for
+# individual jobs, this is needed to filter out events to avoid the execution
+# of duplicated jobs.
+workflow:
+  rules:
+    # These 2 are used to detect pushes, and scheduled builds:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # This rule handles when a maintainer pushes a tag to the source
+    # repository.
+    - if: $CI_COMMIT_TAG
+
 stages:
   - build
   - test
@@ -222,6 +235,15 @@ cargo-audit:
   cache:
     paths:
       - cache
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - "**/Cargo.lock"
+      allow_failure: false
+    - if: $CI_PIPELINE_SOURCE == "push"
+      allow_failure: true
+    - if: $CI_PIPELINE_SOURCE != "push"
+      allow_failure: false
 
 rust-test-recent:
   needs: []
