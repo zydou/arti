@@ -7,26 +7,7 @@
 use std::net::{IpAddr, SocketAddr};
 
 use derive_builder::Builder;
-use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, utf8_percent_encode};
-
-/// Characters that must be percent-encoded in URI userinfo (user:pass)
-/// Based on RFC 3986 section 3.2.1
-const USERINFO_ENCODE_SET: &AsciiSet = &CONTROLS
-    .add(b' ')
-    .add(b'"')
-    .add(b'#')
-    .add(b'<')
-    .add(b'>')
-    .add(b'`')
-    .add(b'?')
-    .add(b'{')
-    .add(b'}')
-    .add(b'/')
-    .add(b':')
-    .add(b'@')
-    .add(b'[')
-    .add(b']')
-    .add(b'\\');
+use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use tor_config::impl_standard_builder;
 use tor_config::{ConfigBuildError, PaddingLevel};
@@ -73,7 +54,8 @@ pub enum ProxyProtocolParseError {
 /// - Hostnames for the proxy server itself are not supported.
 /// - Credentials must be embedded in the URI; curl's `-U user:pass` style is not supported.
 /// - For `socks4://`, passwords are not supported and will return an error.
-/// - Special characters in credentials are percent-encoded per RFC 3986 section 3.2.1.
+/// - Special characters in credentials are percent-encoded using the `url` crate's
+///   userinfo encoding.
 #[derive(
     Debug, Clone, Eq, PartialEq, serde_with::DeserializeFromStr, serde_with::SerializeDisplay,
 )]
@@ -138,7 +120,7 @@ impl std::str::FromStr for ProxyProtocol {
         let addr = SocketAddr::new(ip, port);
 
         // Check for authentication credentials (user:pass@host:port or user@host:port).
-        // Percent-decoding is handled by the URL parser per RFC 3986.
+        // The URL parser returns percent-encoded userinfo, so decode it here.
         let user = url.username();
         let pass = url.password();
         if version == SocksVersion::V4 && pass.is_some() {
@@ -182,23 +164,32 @@ impl std::fmt::Display for ProxyProtocol {
                     SocksAuth::NoAuth => write!(f, "{}://{}", version, addr),
                     SocksAuth::Socks4(user_id) => {
                         // SOCKS4: user@host format (no password in SOCKS4)
-                        // Percent-encode special characters per RFC 3986 section 3.2.1
                         let user = String::from_utf8_lossy(user_id);
-                        let user_encoded = utf8_percent_encode(&user, USERINFO_ENCODE_SET);
-                        write!(f, "{}://{}@{}", version, user_encoded, addr)
+                        match encode_userinfo(*version, *addr, &user, None) {
+                            Some((user_encoded, _)) => {
+                                write!(f, "{}://{}@{}", version, user_encoded, addr)
+                            }
+                            None => write!(f, "{}://{}@{}", version, user, addr),
+                        }
                     }
                     SocksAuth::Username(user, pass) => {
                         // SOCKS5: user:pass@host format
-                        // Percent-encode special characters per RFC 3986 section 3.2.1
                         let user = String::from_utf8_lossy(user);
                         let pass = String::from_utf8_lossy(pass);
-                        let user_encoded = utf8_percent_encode(&user, USERINFO_ENCODE_SET);
-                        let pass_encoded = utf8_percent_encode(&pass, USERINFO_ENCODE_SET);
-                        write!(
-                            f,
-                            "{}://{}:{}@{}",
-                            version, user_encoded, pass_encoded, addr
-                        )
+                        match encode_userinfo(*version, *addr, &user, Some(&pass)) {
+                            Some((user_encoded, pass_encoded)) => {
+                                let pass_encoded = match pass_encoded {
+                                    Some(pass_encoded) => pass_encoded,
+                                    None => String::new(),
+                                };
+                                write!(
+                                    f,
+                                    "{}://{}:{}@{}",
+                                    version, user_encoded, pass_encoded, addr
+                                )
+                            }
+                            None => write!(f, "{}://{}:{}@{}", version, user, pass, addr),
+                        }
                     }
                     // Handle potential future auth types
                     _ => write!(f, "{}://{}", version, addr),
@@ -206,6 +197,28 @@ impl std::fmt::Display for ProxyProtocol {
             }
         }
     }
+}
+
+fn encode_userinfo(
+    version: SocksVersion,
+    addr: SocketAddr,
+    username: &str,
+    password: Option<&str>,
+) -> Option<(String, Option<String>)> {
+    let url_str = format!("{}://{}", version, addr);
+    let mut url = match Url::parse(&url_str) {
+        Ok(url) => url,
+        Err(_) => return None,
+    };
+    if url.set_username(username).is_err() {
+        return None;
+    }
+    if url.set_password(password).is_err() {
+        return None;
+    }
+    let user_encoded = url.username().to_string();
+    let pass_encoded = url.password().map(str::to_string);
+    Some((user_encoded, pass_encoded))
 }
 
 impl ProxyProtocol {
@@ -392,9 +405,11 @@ mod test {
         assert!("socks5://not-an-ip:1080".parse::<ProxyProtocol>().is_err());
 
         // SOCKS4 does not support passwords
-        assert!("socks4://user:pass@10.0.0.1:1080"
-            .parse::<ProxyProtocol>()
-            .is_err());
+        assert!(
+            "socks4://user:pass@10.0.0.1:1080"
+                .parse::<ProxyProtocol>()
+                .is_err()
+        );
     }
 
     #[test]
