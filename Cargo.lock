@@ -7103,7 +7103,6 @@ name = "tor-hsrproxy"
 version = "0.39.0"
 dependencies = [
  "derive-deftly",
- "derive_builder_fork_arti",
  "futures",
  "futures-copy",
  "itertools 0.14.0",

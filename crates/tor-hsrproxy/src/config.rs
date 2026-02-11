@@ -1,23 +1,21 @@
 //! Configuration logic for onion service reverse proxy.
 
-use derive_builder::Builder;
 use derive_deftly::Deftly;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, ops::RangeInclusive, str::FromStr};
+use tor_config::ConfigBuildError;
+use tor_config::derive::prelude::*;
 use tracing::warn;
-//use tor_config::derive_deftly_template_Flattenable;
-use tor_config::{ConfigBuildError, define_list_builder_accessors, define_list_builder_helper};
 
 /// Configuration for a reverse proxy running for one onion service.
-#[derive(Clone, Debug, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Debug, Serialize, Deserialize, Deftly, Eq, PartialEq))]
-#[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
+#[derive(Clone, Debug, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait, pre_build = "Self::validate"))]
 pub struct ProxyConfig {
     /// A list of rules to apply to incoming requests.  If no rule
     /// matches, we take the DestroyCircuit action.
-    #[builder(sub_builder, setter(custom))]
-    pub(crate) proxy_ports: ProxyRuleList,
+    #[deftly(tor_config(list(element(clone), listtype = "ProxyRuleList"), default = "vec![]"))]
+    pub(crate) proxy_ports: Vec<ProxyRule>,
     //
     // TODO: Someday we may want to allow udp, resolve, etc.  If we do, it will
     // be via another option, rather than adding another subtype to ProxySource.
@@ -65,25 +63,6 @@ impl ProxyConfigBuilder {
 
         Ok(())
     }
-}
-
-define_list_builder_accessors! {
-   struct ProxyConfigBuilder {
-       pub proxy_ports: [ProxyRule],
-   }
-}
-
-/// Helper to define builder for ProxyConfig.
-type ProxyRuleList = Vec<ProxyRule>;
-
-define_list_builder_helper! {
-   #[derive(Eq, PartialEq)]
-   pub struct ProxyRuleListBuilder {
-       pub(crate) values: [ProxyRule],
-   }
-   built: ProxyRuleList = values;
-   default = vec![];
-   item_build: |value| Ok(value.clone());
 }
 
 impl ProxyConfig {
