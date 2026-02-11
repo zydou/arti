@@ -148,8 +148,15 @@ impl Forward {
     fn handle_extend2<R: Runtime>(
         &mut self,
         runtime: &R,
+        early: bool,
         msg: UnparsedRelayMsg,
     ) -> StdResult<(), ReactorError> {
+        // TODO(relay): this should be allowed if the AllowNonearlyExtend consensus
+        // param is set (arti#2349)
+        if !early {
+            return Err(Error::CircProto("got EXTEND2 in a RELAY cell?!".into()).into());
+        }
+
         // Check if we're in the right state before parsing the EXTEND2
         if self.have_seen_extend2 {
             return Err(Error::CircProto("got 2 EXTEND2 on the same circuit?!".into()).into());
@@ -397,13 +404,14 @@ impl ForwardHandler for Forward {
     async fn handle_meta_msg<R: Runtime>(
         &mut self,
         runtime: &R,
+        early: bool,
         _hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
         _relay_cell_format: RelayCellFormat,
     ) -> StdResult<(), ReactorError> {
         match msg.cmd() {
             RelayCmd::DROP => self.handle_drop(),
-            RelayCmd::EXTEND2 => self.handle_extend2(runtime, msg),
+            RelayCmd::EXTEND2 => self.handle_extend2(runtime, early, msg),
             RelayCmd::TRUNCATE => self.handle_truncate().await,
             cmd => Err(internal!("relay cmd {cmd} not supported").into()),
         }

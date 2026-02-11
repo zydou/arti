@@ -164,6 +164,7 @@ pub(crate) trait ForwardHandler: ControlHandler {
     async fn handle_meta_msg<R: Runtime>(
         &mut self,
         runtime: &R,
+        early: bool,
         hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
         relay_cell_format: RelayCellFormat,
@@ -507,7 +508,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             }
             _ => {
                 self.inner
-                    .handle_meta_msg(&self.runtime, hopnum, msg, relay_cell_format)
+                    .handle_meta_msg(&self.runtime, early, hopnum, msg, relay_cell_format)
                     .await
             }
         }
