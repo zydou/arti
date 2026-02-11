@@ -18,7 +18,7 @@ use crate::{Error, HopNum, Result};
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
 
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult, OutboundChanSender};
-use tor_cell::chancell::msg::{AnyChanMsg, Destroy, PaddingNegotiate, Relay, RelayEarly};
+use tor_cell::chancell::msg::{AnyChanMsg, Destroy, PaddingNegotiate, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
 use tor_cell::relaycell::msg::{Extend2, Extended2, SendmeTag};
 use tor_cell::relaycell::{RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg};
@@ -384,12 +384,6 @@ impl Forward {
         //
         // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3487#note_3296035
         Err(internal!("TRUNCATE is not implemented").into())
-    }
-
-    /// Handle a RELAY_EARLY cell originating from the client.
-    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
-    fn handle_relay_early_cell(&mut self, _cell: RelayEarly) -> StdResult<(), ReactorError> {
-        Err(internal!("RELAY_EARLY is not implemented").into())
     }
 
     /// Handle a DESTROY cell originating from the client.
