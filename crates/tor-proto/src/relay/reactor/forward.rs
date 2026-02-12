@@ -6,7 +6,7 @@ use crate::circuit::UniqId;
 use crate::circuit::create::{Create2Wrap, CreateHandshakeWrap};
 use crate::circuit::reactor::ControlHandler;
 use crate::circuit::reactor::backward::BackwardReactorCmd;
-use crate::circuit::reactor::forward::{CellDecodeResult, ForwardHandler};
+use crate::circuit::reactor::forward::{ForwardCellDisposition, ForwardHandler};
 use crate::circuit::reactor::hop_mgr::HopMgr;
 use crate::crypto::cell::OutboundRelayLayer;
 use crate::crypto::cell::RelayCellBody;
@@ -18,10 +18,10 @@ use crate::{Error, HopNum, Result};
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
 
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult, OutboundChanSender};
-use tor_cell::chancell::msg::{AnyChanMsg, Destroy, PaddingNegotiate, Relay, RelayEarly};
+use tor_cell::chancell::msg::{AnyChanMsg, Destroy, PaddingNegotiate, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
-use tor_cell::relaycell::msg::{Extend2, Extended2};
-use tor_cell::relaycell::{RelayCellFormat, RelayCmd, UnparsedRelayMsg};
+use tor_cell::relaycell::msg::{Extend2, Extended2, SendmeTag};
+use tor_cell::relaycell::{RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg};
 use tor_error::{internal, into_internal, warn_report};
 use tor_linkspec::decode::Strictness;
 use tor_linkspec::{OwnedChanTarget, OwnedChanTargetBuilder};
@@ -39,6 +39,11 @@ type CtrlMsg = ();
 
 /// Placeholder for our custom control command type.
 type CtrlCmd = ();
+
+/// The maximum number of RELAY_EARLY cells allowed on a circuit.
+///
+// TODO(relay): should we come up with a consensus parameter for this? (arti#2349)
+const MAX_RELAY_EARLY_CELLS_PER_CIRCUIT: usize = 8;
 
 /// Relay-specific state for the forward reactor.
 pub(crate) struct Forward {
@@ -66,6 +71,10 @@ pub(crate) struct Forward {
     // (with states Initial -> Extending -> Extended(Outbound))?
     // But should not do this if it turns out more convoluted than the bool-based approach.
     have_seen_extend2: bool,
+    /// The number of RELAY_EARLY cells we have seen so far on this circuit.
+    ///
+    /// If we see more than [`MAX_RELAY_EARLY_CELLS_PER_CIRCUIT`] RELAY_EARLY cells, we tear down the circuit.
+    relay_early_count: usize,
     /// A stream of events to be read from the main loop of the reactor.
     event_tx: mpsc::Sender<CircEvent>,
 }
@@ -98,6 +107,14 @@ struct Outbound {
     outbound_chan_tx: ChannelSender,
 }
 
+/// The outcome of `decode_relay_cell`.
+enum CellDecodeResult {
+    /// A decrypted cell.
+    Recognized(SendmeTag, RelayCellDecoderResult),
+    /// A cell we could not decrypt.
+    Unrecognizd(RelayCellBody),
+}
+
 impl Forward {
     /// Create a new [`Forward`].
     pub(crate) fn new(
@@ -113,8 +130,34 @@ impl Forward {
             crypto_out,
             chan_provider,
             have_seen_extend2: false,
+            relay_early_count: 0,
             event_tx,
         }
+    }
+
+    /// Decode `cell`, returning its corresponding hop number, tag and decoded body.
+    fn decode_relay_cell<R: Runtime>(
+        &mut self,
+        hop_mgr: &mut HopMgr<R>,
+        cell: Relay,
+    ) -> Result<(Option<HopNum>, CellDecodeResult)> {
+        // Note: the client reactor will return the actual source hopnum
+        let hopnum = None;
+        let cmd = cell.cmd();
+        let mut body = cell.into_relay_body().into();
+        let Some(tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) else {
+            return Ok((hopnum, CellDecodeResult::Unrecognizd(body)));
+        };
+
+        // The message is addressed to us! Now it's time to handle it...
+        let mut hops = hop_mgr.hops().write().expect("poisoned lock");
+        let decode_res = hops
+            .get_mut(hopnum)
+            .ok_or_else(|| internal!("msg from non-existant hop???"))?
+            .inbound
+            .decode(body.into())?;
+
+        Ok((hopnum, CellDecodeResult::Recognized(tag, decode_res)))
     }
 
     /// Handle a DROP message.
@@ -138,8 +181,15 @@ impl Forward {
     fn handle_extend2<R: Runtime>(
         &mut self,
         runtime: &R,
+        early: bool,
         msg: UnparsedRelayMsg,
     ) -> StdResult<(), ReactorError> {
+        // TODO(relay): this should be allowed if the AllowNonearlyExtend consensus
+        // param is set (arti#2349)
+        if !early {
+            return Err(Error::CircProto("got EXTEND2 in a RELAY cell?!".into()).into());
+        }
+
         // Check if we're in the right state before parsing the EXTEND2
         if self.have_seen_extend2 {
             return Err(Error::CircProto("got 2 EXTEND2 on the same circuit?!".into()).into());
@@ -291,6 +341,40 @@ impl Forward {
         })
     }
 
+    /// Handle a RELAY or RELAY_EARLY cell.
+    fn handle_relay_cell<R: Runtime>(
+        &mut self,
+        hop_mgr: &mut HopMgr<R>,
+        cell: Relay,
+        early: bool,
+    ) -> StdResult<Option<ForwardCellDisposition>, ReactorError> {
+        if early {
+            self.relay_early_count += 1;
+
+            if self.relay_early_count > MAX_RELAY_EARLY_CELLS_PER_CIRCUIT {
+                return Err(
+                    Error::CircProto("Circuit received too many RELAY_EARLY cells".into()).into(),
+                );
+            }
+        }
+
+        let (hopnum, res) = self.decode_relay_cell(hop_mgr, cell)?;
+        let (tag, decode_res) = match res {
+            CellDecodeResult::Unrecognizd(body) => {
+                self.handle_unrecognized_cell(body, None)?;
+                return Ok(None);
+            }
+            CellDecodeResult::Recognized(tag, res) => (tag, res),
+        };
+
+        Ok(Some(ForwardCellDisposition::HandleRecognizedRelay {
+            cell: decode_res,
+            early,
+            hopnum,
+            tag,
+        }))
+    }
+
     /// Handle a TRUNCATE cell.
     #[allow(clippy::unused_async)] // TODO(relay)
     async fn handle_truncate(&mut self) -> StdResult<(), ReactorError> {
@@ -300,12 +384,6 @@ impl Forward {
         //
         // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3487#note_3296035
         Err(internal!("TRUNCATE is not implemented").into())
-    }
-
-    /// Handle a RELAY_EARLY cell originating from the client.
-    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
-    fn handle_relay_early_cell(&mut self, _cell: RelayEarly) -> StdResult<(), ReactorError> {
-        Err(internal!("RELAY_EARLY is not implemented").into())
     }
 
     /// Handle a DESTROY cell originating from the client.
@@ -326,40 +404,17 @@ impl ForwardHandler for Forward {
     type CircChanMsg = RelayCircChanMsg;
     type CircEvent = CircEvent;
 
-    fn decode_relay_cell<R: Runtime>(
-        &mut self,
-        hop_mgr: &mut HopMgr<R>,
-        cell: Relay,
-    ) -> Result<(Option<HopNum>, CellDecodeResult)> {
-        // Note: the client reactor will return the actual source hopnum
-        let hopnum = None;
-        let cmd = cell.cmd();
-        let mut body = cell.into_relay_body().into();
-        let Some(tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) else {
-            return Ok((hopnum, CellDecodeResult::Unrecognizd(body)));
-        };
-
-        // The message is addressed to us! Now it's time to handle it...
-        let mut hops = hop_mgr.hops().write().expect("poisoned lock");
-        let decode_res = hops
-            .get_mut(hopnum)
-            .ok_or_else(|| internal!("msg from non-existant hop???"))?
-            .inbound
-            .decode(body.into())?;
-
-        Ok((hopnum, CellDecodeResult::Recognized(tag, decode_res)))
-    }
-
     async fn handle_meta_msg<R: Runtime>(
         &mut self,
         runtime: &R,
+        early: bool,
         _hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
         _relay_cell_format: RelayCellFormat,
     ) -> StdResult<(), ReactorError> {
         match msg.cmd() {
             RelayCmd::DROP => self.handle_drop(),
-            RelayCmd::EXTEND2 => self.handle_extend2(runtime, msg),
+            RelayCmd::EXTEND2 => self.handle_extend2(runtime, early, msg),
             RelayCmd::TRUNCATE => self.handle_truncate().await,
             cmd => Err(internal!("relay cmd {cmd} not supported").into()),
         }
@@ -390,16 +445,24 @@ impl ForwardHandler for Forward {
         Ok(())
     }
 
-    async fn handle_forward_cell(&mut self, cell: RelayCircChanMsg) -> StdResult<(), ReactorError> {
+    async fn handle_forward_cell<R: Runtime>(
+        &mut self,
+        hop_mgr: &mut HopMgr<R>,
+        cell: RelayCircChanMsg,
+    ) -> StdResult<Option<ForwardCellDisposition>, ReactorError> {
         use RelayCircChanMsg::*;
 
         match cell {
-            Relay(_) => {
-                Err(internal!("relay cell should've been handled in base reactor?!").into())
+            Relay(r) => self.handle_relay_cell(hop_mgr, r, false),
+            RelayEarly(r) => self.handle_relay_cell(hop_mgr, r.into(), true),
+            Destroy(d) => {
+                self.handle_destroy_cell(d)?;
+                Ok(None)
             }
-            RelayEarly(r) => self.handle_relay_early_cell(r),
-            Destroy(d) => self.handle_destroy_cell(d),
-            PaddingNegotiate(p) => self.handle_padding_negotiate(p),
+            PaddingNegotiate(p) => {
+                self.handle_padding_negotiate(p)?;
+                Ok(None)
+            }
         }
     }
 

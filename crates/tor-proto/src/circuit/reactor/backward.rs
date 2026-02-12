@@ -10,7 +10,6 @@ use crate::circuit::reactor::stream::ReadyStreamMsg;
 use crate::congestion::{CongestionControl, sendme};
 use crate::crypto::cell::RelayCellBody;
 use crate::util::err::ReactorError;
-use crate::util::msg::ToRelayMsg;
 use crate::util::poll_all::PollAll;
 use crate::{Error, HopNum, Result};
 
@@ -160,7 +159,7 @@ pub(crate) enum CtrlCmd<C> {
 /// parts of the implementation into the generic one.
 pub(crate) trait BackwardHandler: ControlHandler {
     /// The subclass of ChanMsg that can arrive on this type of circuit.
-    type CircChanMsg: TryFrom<AnyChanMsg, Error = crate::Error> + ToRelayMsg + Send;
+    type CircChanMsg: TryFrom<AnyChanMsg, Error = crate::Error> + Send;
 
     /// Encrypt a RelayCellBody that is moving in the backward direction.
     fn encrypt_relay_cell(

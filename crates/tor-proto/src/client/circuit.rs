@@ -74,7 +74,6 @@ use crate::circuit::UniqId;
 
 use super::{ClientTunnel, TargetHop};
 
-use either::Either;
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
@@ -116,18 +115,6 @@ pub(super) enum ClientCircChanMsg {
     /// A cell telling us to destroy the circuit.
     Destroy(chanmsg::Destroy),
     // Note: RelayEarly is not valid for clients!
-}
-
-impl crate::util::msg::ToRelayMsg for ClientCircChanMsg {
-    fn to_relay_msg(self) -> Either<chanmsg::Relay, Self> {
-        use ClientCircChanMsg::*;
-        use Either::*;
-
-        match self {
-            Relay(r) => Left(r),
-            m => Right(m),
-        }
-    }
 }
 
 #[derive(Debug)]

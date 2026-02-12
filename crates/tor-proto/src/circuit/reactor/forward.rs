@@ -11,7 +11,6 @@ use crate::crypto::cell::RelayCellBody;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::msg_streamid;
 use crate::util::err::ReactorError;
-use crate::util::msg::ToRelayMsg;
 use crate::{Error, HopNum, Result};
 
 #[cfg(any(feature = "hs-service", feature = "relay"))]
@@ -23,7 +22,6 @@ use crate::stream::incoming::{
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::msg::Relay;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg,
@@ -33,7 +31,6 @@ use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
 
 use derive_deftly::Deftly;
-use either::Either;
 use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt, select_biased};
@@ -145,7 +142,7 @@ pub(crate) trait ForwardHandler: ControlHandler {
     type BuildSpec: HasRelayIds;
 
     /// The subclass of ChanMsg that can arrive on this type of circuit.
-    type CircChanMsg: TryFrom<AnyChanMsg, Error = crate::Error> + ToRelayMsg;
+    type CircChanMsg: TryFrom<AnyChanMsg, Error = crate::Error>;
 
     /// An opaque event type.
     ///
@@ -153,17 +150,11 @@ pub(crate) trait ForwardHandler: ControlHandler {
     /// Each event is passed to [`Self::handle_event`] for handling.
     type CircEvent;
 
-    /// Decode `cell`, returning its corresponding hop number, tag and decoded body.
-    fn decode_relay_cell<R: Runtime>(
-        &mut self,
-        hop_mgr: &mut HopMgr<R>,
-        cell: Relay,
-    ) -> Result<(Option<HopNum>, CellDecodeResult)>;
-
     /// Handle a non-SENDME RELAY message on this circuit with stream ID 0.
     async fn handle_meta_msg<R: Runtime>(
         &mut self,
         runtime: &R,
+        early: bool,
         hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
         relay_cell_format: RelayCellFormat,
@@ -183,8 +174,16 @@ pub(crate) trait ForwardHandler: ControlHandler {
     /// The cell is
     ///   - moving from the client towards the exit, if we're a relay
     ///   - moving from the guard towards us, if we're a client
-    async fn handle_forward_cell(&mut self, cell: Self::CircChanMsg)
-    -> StdResult<(), ReactorError>;
+    ///
+    /// Returns an error if the cell should cause the reactor to shut down,
+    /// or a [`ForwardCellDisposition`] specifying how it should be handled.
+    ///
+    /// Returns `None` if the cell was handled internally by this handler.
+    async fn handle_forward_cell<R: Runtime>(
+        &mut self,
+        hop_mgr: &mut HopMgr<R>,
+        cell: Self::CircChanMsg,
+    ) -> StdResult<Option<ForwardCellDisposition>, ReactorError>;
 
     /// Handle an implementation-specific circuit event.
     ///
@@ -199,6 +198,21 @@ pub(crate) trait ForwardHandler: ControlHandler {
     /// Resolves immediately if there is no outbound channel.
     /// Blocks if there is a pending outbound channel.
     async fn outbound_chan_ready(&mut self) -> Result<()>;
+}
+
+/// What action to take in response to a cell arriving on our inbound Tor channel.
+pub(crate) enum ForwardCellDisposition {
+    /// Handle a decoded RELAY or RELAY_EARLY cell in the [`ForwardReactor`].
+    HandleRecognizedRelay {
+        /// The decoded cell.
+        cell: RelayCellDecoderResult,
+        /// Whether this was a RELAY_EARLY.
+        early: bool,
+        /// The hop this cell was for.
+        hopnum: Option<HopNum>,
+        /// The SENDME tag.
+        tag: SendmeTag,
+    },
 }
 
 impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
@@ -269,10 +283,13 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 };
 
                 let cell: F::CircChanMsg = cell.try_into()?;
-                match cell.to_relay_msg() {
-                    Either::Left(r) => self.handle_relay_cell(r).await,
-                    Either::Right(cell) => {
-                        self.inner.handle_forward_cell(cell).await
+                let Some(disp) = self.inner.handle_forward_cell(&mut self.hop_mgr, cell).await? else {
+                    return Ok(());
+                };
+
+                match disp {
+                    ForwardCellDisposition::HandleRecognizedRelay { cell, early, hopnum, tag } => {
+                        self.handle_relay_cell(cell, early, hopnum, tag).await
                     }
                 }
             },
@@ -348,15 +365,13 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     /// Handle a RELAY cell.
     ///
     // TODO(DEDUP): very similar to Client::handle_relay_cell()
-    async fn handle_relay_cell(&mut self, cell: Relay) -> StdResult<(), ReactorError> {
-        let (hopnum, res) = self.inner.decode_relay_cell(&mut self.hop_mgr, cell)?;
-        let (tag, decode_res) = match res {
-            CellDecodeResult::Unrecognizd(body) => {
-                return self.inner.handle_unrecognized_cell(body, None);
-            }
-            CellDecodeResult::Recognized(tag, res) => (tag, res),
-        };
-
+    async fn handle_relay_cell(
+        &mut self,
+        decode_res: RelayCellDecoderResult,
+        early: bool,
+        hopnum: Option<HopNum>,
+        tag: SendmeTag,
+    ) -> StdResult<(), ReactorError> {
         // For padding purposes, if we are a relay, we set the hopnum to 0
         // TODO(relay): is this right?
         let hopnum_padding = hopnum.unwrap_or_else(|| HopNum::from(0));
@@ -397,7 +412,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         let (mut msgs, incomplete) = decode_res.into_parts();
         while let Some(msg) = msgs.next() {
             match self
-                .handle_relay_msg(hopnum, msg, relay_cell_format, c_t_w)
+                .handle_relay_msg(early, hopnum, msg, relay_cell_format, c_t_w)
                 .await
             {
                 Ok(()) => continue,
@@ -427,6 +442,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     /// Handle a single incoming RELAY message.
     async fn handle_relay_msg(
         &mut self,
+        early: bool,
         hop: Option<HopNum>,
         msg: UnparsedRelayMsg,
         relay_cell_format: RelayCellFormat,
@@ -439,7 +455,9 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         // If this doesn't have a StreamId, it's a meta cell,
         // not meant for a particular stream.
         let Some(sid) = streamid else {
-            return self.handle_meta_msg(hop, msg, relay_cell_format).await;
+            return self
+                .handle_meta_msg(early, hop, msg, relay_cell_format)
+                .await;
         };
 
         let msg = StreamMsg {
@@ -456,9 +474,10 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         self.hop_mgr.send(hop, msg).await
     }
 
-    /// Handle a RELAY message on this circuit with stream ID 0.
+    /// Handle a RELAY or RELAY_EARLY message on this circuit with stream ID 0.
     async fn handle_meta_msg(
         &mut self,
+        early: bool,
         hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
         relay_cell_format: RelayCellFormat,
@@ -479,7 +498,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             }
             _ => {
                 self.inner
-                    .handle_meta_msg(&self.runtime, hopnum, msg, relay_cell_format)
+                    .handle_meta_msg(&self.runtime, early, hopnum, msg, relay_cell_format)
                     .await
             }
         }
@@ -500,12 +519,4 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             ReactorError::Shutdown
         })
     }
-}
-
-/// The outcome of `decode_relay_cell`.
-pub(crate) enum CellDecodeResult {
-    /// A decrypted cell.
-    Recognized(SendmeTag, RelayCellDecoderResult),
-    /// A cell we could not decrypt.
-    Unrecognizd(RelayCellBody),
 }
