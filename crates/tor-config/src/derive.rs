@@ -1949,7 +1949,7 @@ define_derive_deftly! {
         ${when fmeta(tor_config(list))}
 
         $E::define_list_builder_helper! {
-            $BLD_FVIS struct $F_LST_BLD_TYPE {
+            $SETTER_VIS struct $F_LST_BLD_TYPE {
                 $BLD_FVIS $fname: [
                     $BLD_LIST_ELT_TYPE
                 ],
