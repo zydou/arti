@@ -13,12 +13,12 @@ use super::circuit::CircHopList;
 // If we need to hold more info in the future,
 // we'll need to decide whether to create additional types for the more complex variants,
 // or whether to try to stuff everything inside this type.
-pub(crate) struct ClientCircSyncView<'a> {
+pub(crate) struct CircSyncView<'a> {
     /// The hops of the circuit used to implement this view.
     pub(super) hops: &'a CircHopList,
 }
 
-impl<'a> ClientCircSyncView<'a> {
+impl<'a> CircSyncView<'a> {
     /// Construct a new view of a circuit, given a mutable reference to its
     /// reactor.
     pub(super) fn new(reactor: &'a CircHopList) -> Self {

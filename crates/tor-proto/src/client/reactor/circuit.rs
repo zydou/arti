@@ -835,7 +835,6 @@ impl Circuit {
         hop_num: HopNum,
         leg: UniqId,
     ) -> Result<Option<CircuitCmd>> {
-        use super::syncview::ClientCircSyncView;
         use tor_cell::relaycell::msg::EndReason;
         use tor_error::into_internal;
         use tor_log_ratelim::log_ratelim;
@@ -893,12 +892,12 @@ impl Circuit {
             use crate::client::stream::IncomingStreamRequestDisposition::*;
 
             let ctx = crate::client::stream::IncomingStreamRequestContext { request: &req };
-            // IMPORTANT: ClientCircSyncView::n_open_streams() (called via disposition() below)
+            // IMPORTANT: super::syncview::CircSyncView::n_open_streams() (called via disposition() below)
             // accesses the stream map mutexes!
             //
             // This means it's very important not to call this function while any of the hop's
             // stream map mutex is held.
-            let view = CircSyncView::new_client(ClientCircSyncView::new(&self.hops));
+            let view = CircSyncView::new_client(super::syncview::CircSyncView::new(&self.hops));
 
             match handler.filter.as_mut().disposition(&ctx, &view)? {
                 Accept => {}

@@ -1,14 +1,12 @@
 //! Implement synchronous views of circuit internals.
 
-use crate::client::circuit::ClientCircSyncView;
-
 /// An object that represents a view of a circuit's internals,
 /// usable in a synchronous callback.
 pub struct CircSyncView<'a>(CircSyncViewInner<'a>);
 
 impl<'a> CircSyncView<'a> {
     /// Create a new client circuit view.
-    pub(crate) fn new_client(c: ClientCircSyncView<'a>) -> Self {
+    pub(crate) fn new_client(c: crate::client::circuit::CircSyncView<'a>) -> Self {
         Self(c.into())
     }
 
@@ -24,7 +22,7 @@ impl<'a> CircSyncView<'a> {
 #[derive(derive_more::From)]
 pub(crate) enum CircSyncViewInner<'a> {
     /// A view of a client circuit's internals.
-    Client(ClientCircSyncView<'a>),
+    Client(crate::client::circuit::CircSyncView<'a>),
     /// A view of a relay circuit's internals.
     #[cfg(feature = "relay")]
     #[allow(dead_code)] // TODO(relay)
