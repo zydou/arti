@@ -2,21 +2,29 @@
 
 use crate::mgr::AbstractChannel;
 use crate::mgr::state::{ChannelState, OpenEntry, PendingEntry};
-use tor_linkspec::{HasRelayIds, RelayIds};
+use tor_linkspec::{HasAddrs, HasRelayIds, RelayIds};
 
 /// Returns `true` if the open channel is allowed to be used for a new channel request to the
 /// target.
 pub(crate) fn open_channel_is_allowed<C: AbstractChannel>(
     chan: &OpenEntry<C>,
-    target: &impl HasRelayIds,
+    target: &(impl HasRelayIds + HasAddrs),
 ) -> bool {
     Some(chan)
         // only usable channels
         .filter(|entry| entry.channel.is_usable())
         // only channels which have *all* the relay ids of `target`
         .filter(|entry| entry.channel.has_all_relay_ids_from(target))
-        // TODO: only channels which are canonical or have the same address as `target`
-        .filter(|_entry| true)
+        // TODO: only channels that satisfy the torspec rules at
+        // https://spec.torproject.org/tor-spec/creating-circuits.html#canonical-connections
+        .filter(|_entry| {
+            // Any of:
+            // - the IP matches the requested IP
+            // - the relay knows that the IP of the connection it's using is canonical because it
+            //   was listed in the NETINFO cell
+            // - the IP matches the relay address in the consensus
+            true
+        })
         .is_some()
 }
 
@@ -25,7 +33,7 @@ pub(crate) fn open_channel_is_allowed<C: AbstractChannel>(
 /// using it.
 pub(crate) fn pending_channel_maybe_allowed(
     chan: &PendingEntry,
-    target: &impl HasRelayIds,
+    target: &(impl HasRelayIds + HasAddrs),
 ) -> bool {
     /// An empty [`RelayIds`].
     const EMPTY_IDS: RelayIds = RelayIds::empty();
@@ -105,7 +113,7 @@ pub(crate) fn pending_channel_maybe_allowed(
 #[allow(clippy::only_used_in_recursion)]
 pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
     channels: impl IntoIterator<Item = &'a ChannelState<C>>,
-    target: &impl HasRelayIds,
+    target: &(impl HasRelayIds + HasAddrs),
 ) -> Option<&'a ChannelState<C>> {
     use ChannelState::*;
     use std::cmp::Ordering;
@@ -116,7 +124,7 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
     fn choose_channel<C: AbstractChannel>(
         a: &&ChannelState<C>,
         b: &&ChannelState<C>,
-        target: &impl HasRelayIds,
+        target: &(impl HasRelayIds + HasAddrs),
     ) -> Choice {
         // TODO: follow `channel_is_better` in C tor
         match (a, b) {
@@ -218,14 +226,17 @@ mod test {
 
     use super::*;
 
+    use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::sync::Arc;
     use std::time::Duration;
 
-    use tor_linkspec::RelayIds;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_proto::channel::ChannelPaddingInstructionsUpdates;
     use tor_proto::channel::kist::KistParams;
+
+    // Address we can use in tests.
+    const ADDR_A: SocketAddr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(1, 1, 1, 1), 443));
 
     #[derive(Debug)]
     struct FakeChannel {
@@ -264,11 +275,12 @@ mod test {
     #[derive(Clone, Debug)]
     struct FakeBuildSpec {
         ids: RelayIds,
+        addrs: Vec<SocketAddr>,
     }
 
     impl FakeBuildSpec {
-        fn new(ids: RelayIds) -> Self {
-            Self { ids }
+        fn new(ids: RelayIds, addrs: Vec<SocketAddr>) -> Self {
+            Self { ids, addrs }
         }
     }
 
@@ -278,6 +290,12 @@ mod test {
             key_type: tor_linkspec::RelayIdType,
         ) -> Option<tor_linkspec::RelayIdRef<'_>> {
             self.ids.identity(key_type)
+        }
+    }
+
+    impl HasAddrs for FakeBuildSpec {
+        fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
+            self.addrs.iter().cloned()
         }
     }
 
@@ -364,7 +382,7 @@ mod test {
         ];
 
         // should return the usable channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
             assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[0]));
         });
@@ -382,7 +400,7 @@ mod test {
         ];
 
         // should return the open channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
             assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[0]));
         });
@@ -397,7 +415,7 @@ mod test {
         ];
 
         // should return the pending channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
             assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[1]));
         });
@@ -421,7 +439,7 @@ mod test {
         ];
 
         // should return the open+usable channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
             assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[1]));
         });
@@ -430,7 +448,7 @@ mod test {
     #[test]
     fn test_open_channel_is_allowed() {
         // target with an ed relay id
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
 
         // not allowed: unusable channel
         assert!(!open_channel_is_allowed(
@@ -487,7 +505,7 @@ mod test {
         ));
 
         // target with no relay id
-        let target = FakeBuildSpec::new(ids(None, None));
+        let target = FakeBuildSpec::new(ids(None, None), vec![ADDR_A]);
 
         // not allowed: unusable channel
         assert!(!open_channel_is_allowed(
@@ -508,7 +526,7 @@ mod test {
         ));
 
         // target with multiple relay ids
-        let target = FakeBuildSpec::new(ids(rsa(b"X"), ed(b"A")));
+        let target = FakeBuildSpec::new(ids(rsa(b"X"), ed(b"A")), vec![ADDR_A]);
 
         // not allowed: unusable channel
         assert!(!open_channel_is_allowed(
@@ -564,7 +582,7 @@ mod test {
     #[test]
     fn test_pending_channel_maybe_allowed() {
         // target with an ed relay id
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
 
         // allowed: channel with same relay id
         assert!(pending_channel_maybe_allowed(
@@ -579,7 +597,7 @@ mod test {
         ));
 
         // target with multiple relay ids
-        let target = FakeBuildSpec::new(ids(rsa(b"X"), ed(b"A")));
+        let target = FakeBuildSpec::new(ids(rsa(b"X"), ed(b"A")), vec![ADDR_A]);
 
         // allowed: channel with same relay ids
         assert!(pending_channel_maybe_allowed(
@@ -604,7 +622,7 @@ mod test {
         ));
 
         // target with no relay ids
-        let target = FakeBuildSpec::new(ids(None, None));
+        let target = FakeBuildSpec::new(ids(None, None), vec![ADDR_A]);
 
         // not allowed: channel with a relay id
         assert!(!pending_channel_maybe_allowed(

@@ -26,7 +26,7 @@ use {safelog::Sensitive, std::net::IpAddr};
 
 use tor_cell::chancell::msg::PaddingNegotiateCmd;
 use tor_config::PaddingLevel;
-use tor_linkspec::{HasRelayIds, RelayIds};
+use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 use tor_netdir::NetDir;
 use tor_proto::channel::{Channel, CtrlMsg};
@@ -132,7 +132,7 @@ struct FakeChannelFactory {
 #[async_trait]
 impl AbstractChannelFactory for FakeChannelFactory {
     type Channel = Channel;
-    type BuildSpec = tor_linkspec::RelayIds;
+    type BuildSpec = tor_linkspec::OwnedChanTarget;
     type Stream = ();
 
     async fn build_channel(
@@ -186,7 +186,7 @@ async fn case(
     let (channel, recv) =
         Channel::new_fake(rt.clone(), tor_proto::channel::ChannelType::ClientInitiator);
     let peer_id = channel.target().ed_identity().unwrap().clone();
-    let relay_ids = RelayIds::builder()
+    let relay_ids = OwnedChanTarget::builder()
         .ed_identity(peer_id.clone())
         .build()
         .unwrap();
