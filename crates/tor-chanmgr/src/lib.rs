@@ -100,8 +100,7 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 ///
 /// Use the [`ChanMgr::get_or_launch`] function to create a new [`Channel`], or
 /// get one if it exists.  (For a slightly lower-level API that does no caching,
-/// see [`ChannelFactory`](factory::ChannelFactory) and its implementors.  For a
-/// much lower-level API, see [`tor_proto::channel::ChannelBuilder`].)
+/// see [`ChannelFactory`](factory::ChannelFactory) and its implementors.
 ///
 /// Each channel is kept open as long as there is a reference to it, or
 /// something else (such as the relay or a network error) kills the channel.

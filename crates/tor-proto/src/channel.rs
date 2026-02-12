@@ -14,7 +14,7 @@
 //! To launch a channel:
 //!
 //!  * Create a TLS connection as an object that implements AsyncRead +
-//!    AsyncWrite + StreamOps, and pass it to a [ChannelBuilder].  This will
+//!    AsyncWrite + StreamOps, and pass it to a channel builder. This will
 //!    yield an [crate::client::channel::handshake::ClientInitiatorHandshake] that represents
 //!    the state of the handshake.
 //!  * Call [crate::client::channel::handshake::ClientInitiatorHandshake::connect] on the result
@@ -64,7 +64,6 @@ pub use crate::channel::params::*;
 pub(crate) use crate::channel::reactor::Reactor;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream};
 pub use crate::channel::unique_id::UniqId;
-use crate::client::channel::ClientChannelBuilder;
 use crate::client::circuit::PendingClientTunnel;
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
@@ -88,7 +87,7 @@ use tor_cell::chancell::{AnyChanCell, CircId, msg::Netinfo, msg::PaddingNegotiat
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
-use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 #[cfg(feature = "circ-padding")]
 use tor_async_utils::counting_streams::{self, CountingSink, CountingStream};
@@ -249,7 +248,7 @@ impl Canonicity {
 ///
 /// # Channel life cycle
 ///
-/// Channels can be created directly here through the [`ChannelBuilder`] API.
+/// Channels can be created directly here through a channel builder (client or relay) API.
 /// For a higher-level API (with better support for TLS, pluggable transports,
 /// and channel reuse) see the `tor-chanmgr` crate.
 ///
@@ -514,68 +513,6 @@ impl Sink<ChanCellQueueEntry> for ChannelSender {
         Pin::new(&mut this.cell_tx)
             .poll_close(cx)
             .map_err(|_| ChannelClosed.into())
-    }
-}
-
-/// Structure for building and launching a Tor channel.
-//
-// TODO(relay): Remove this as we now have ClientChannelBuilder and soon RelayChannelBuilder.
-#[derive(Default)]
-pub struct ChannelBuilder {
-    /// If present, a description of the address we're trying to connect to,
-    /// and the way in which we are trying to connect to it.
-    ///
-    /// TODO: at some point, check this against the addresses in the netinfo
-    /// cell too.
-    target: Option<tor_linkspec::ChannelMethod>,
-}
-
-impl ChannelBuilder {
-    /// Construct a new ChannelBuilder.
-    pub fn new() -> Self {
-        ChannelBuilder::default()
-    }
-
-    /// Set the declared target method of this channel to correspond to a direct
-    /// connection to a given socket address.
-    #[deprecated(note = "use set_declared_method instead", since = "0.7.1")]
-    pub fn set_declared_addr(&mut self, target: std::net::SocketAddr) {
-        self.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec![target]));
-    }
-
-    /// Set the declared target method of this channel.
-    ///
-    /// Note that nothing enforces the correctness of this method: it
-    /// doesn't have to match the real method used to create the TLS
-    /// stream.
-    pub fn set_declared_method(&mut self, target: tor_linkspec::ChannelMethod) {
-        self.target = Some(target);
-    }
-
-    /// Launch a new client handshake over a TLS stream.
-    ///
-    /// After calling this function, you'll need to call `connect()` on
-    /// the result to start the handshake.  If that succeeds, you'll have
-    /// authentication info from the relay: call `check()` on the result
-    /// to check that.  Finally, to finish the handshake, call `finish()`
-    /// on the result of _that_.
-    pub fn launch_client<T, S>(
-        self,
-        tls: T,
-        sleep_prov: S,
-        memquota: ChannelAccount,
-    ) -> ClientInitiatorHandshake<T, S>
-    where
-        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
-        S: CoarseTimeProvider + SleepProvider,
-    {
-        // TODO(relay): We could just make the target be taken as a parameter instead of using a
-        // setter that is also replicated on the client builder? Food for thought on refactor here.
-        let mut builder = ClientChannelBuilder::new();
-        if let Some(target) = self.target {
-            builder.set_declared_method(target);
-        }
-        builder.launch(tls, sleep_prov, memquota)
     }
 }
 
@@ -1224,17 +1161,6 @@ pub(crate) mod test {
             // let got = output.next().await.unwrap();
             // assert!(matches!(got.msg(), ChanMsg::Create2(_)));
         });
-    }
-
-    #[test]
-    fn chanbuilder() {
-        let rt = PreferredRuntime::create().unwrap();
-        let mut builder = ChannelBuilder::default();
-        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec![
-            "127.0.0.1:9001".parse().unwrap(),
-        ]));
-        let tls = MsgBuf::new(&b""[..]);
-        let _outbound = builder.launch_client(tls, rt, fake_mq());
     }
 
     #[test]
