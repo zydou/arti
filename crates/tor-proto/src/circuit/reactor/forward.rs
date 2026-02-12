@@ -183,8 +183,11 @@ pub(crate) trait ForwardHandler: ControlHandler {
     /// The cell is
     ///   - moving from the client towards the exit, if we're a relay
     ///   - moving from the guard towards us, if we're a client
-    async fn handle_forward_cell(&mut self, cell: Self::CircChanMsg)
-    -> StdResult<(), ReactorError>;
+    async fn handle_forward_cell<R: Runtime>(
+        &mut self,
+        hop_mgr: &mut HopMgr<R>,
+        cell: Self::CircChanMsg,
+    ) -> StdResult<(), ReactorError>;
 
     /// Handle an implementation-specific circuit event.
     ///
@@ -271,7 +274,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 let cell: F::CircChanMsg = cell.try_into()?;
                 // XXX: handle_forward_cell() will need to start handling
                 // RELAY/RELAY_EARLY cells too
-                self.inner.handle_forward_cell(cell).await
+                self.inner.handle_forward_cell(&mut self.hop_mgr, cell).await
             },
         }
     }

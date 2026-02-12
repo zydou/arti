@@ -390,7 +390,11 @@ impl ForwardHandler for Forward {
         Ok(())
     }
 
-    async fn handle_forward_cell(&mut self, cell: RelayCircChanMsg) -> StdResult<(), ReactorError> {
+    async fn handle_forward_cell<R: Runtime>(
+        &mut self,
+        hop_mgr: &mut HopMgr<R>,
+        cell: Self::CircChanMsg,
+    ) -> StdResult<(), ReactorError> {
         use RelayCircChanMsg::*;
 
         match cell {
