@@ -1,8 +1,8 @@
 //! The stream reactor.
 
-use crate::circuit::{CircHopSyncView, UniqId};
 use crate::circuit::circhop::CircHopOutbound;
 use crate::circuit::reactor::macros::derive_deftly_template_CircuitReactor;
+use crate::circuit::{CircHopSyncView, UniqId};
 use crate::congestion::{CongestionControl, sendme};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::CloseStreamBehavior;
