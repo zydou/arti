@@ -526,9 +526,10 @@ impl_traits! { std::os::unix::net::UnixStream => mio::net::UnixStream }
 ///
 /// Panics if `n > v.len()`.
 fn vec_pop_from_front(v: &mut Vec<u8>, n: usize) {
-    v.copy_within(n.., 0);
-    let new_len = v.len() - n;
-    v.truncate(new_len);
+    // This returns an iterator, but we don't need to actually iterate over the elements.
+    // The compiler appears to be smart enough to optimize it away.
+    // (Cargo asm indicates that this optimizes down to a memmove.)
+    v.drain(0..n);
 }
 
 /// Retry `f` until it returns Ok() or an error whose kind is not `Interrupted`.
