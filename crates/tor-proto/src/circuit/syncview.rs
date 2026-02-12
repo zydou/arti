@@ -1,6 +1,6 @@
 //! Implement synchronous views of circuit internals.
 
-use crate::client::reactor::circuit::circhop::CircHopList;
+use crate::circuit::circhop::CircHopOutbound;
 
 /// A view of a [`ClientCirc`](crate::client::circuit::ClientCirc)'s internals, usable in a
 /// synchronous callback.
@@ -14,19 +14,26 @@ use crate::client::reactor::circuit::circhop::CircHopList;
 // we'll need to decide whether to create additional types for the more complex variants,
 // or whether to try to stuff everything inside this type.
 pub struct CircSyncView<'a> {
-    /// The hops of the circuit used to implement this view.
-    pub(super) hops: &'a CircHopList,
+    /// The hop of the circuit used to implement this view.
+    ///
+    /// XXX: now that we're using CircHopOutbound here,
+    /// our n_open_streams() implementation returns the number of
+    /// open streams on the hop the CircSyncView was created for,
+    /// and not the *total* number of streams on the circuit.
+    ///
+    /// This means that we need to rename n_open_streams() or CircSyncView
+    /// (because our CircSyncView is actually a CircHopSyncView).
+    pub(super) hop: &'a CircHopOutbound,
 }
 
 impl<'a> CircSyncView<'a> {
-    /// Construct a new view of a circuit, given a mutable reference to its
-    /// reactor.
-    pub(crate) fn new(reactor: &'a CircHopList) -> Self {
-        Self { hops: reactor }
+    /// Construct a new view of a circuit hop, given a mutable reference to its outbound hop view.
+    pub(crate) fn new(hop: &'a CircHopOutbound) -> Self {
+        Self { hop }
     }
 
     /// Return the number of streams currently open on this circuit.
     pub fn n_open_streams(&self) -> usize {
-        self.hops.n_open_streams()
+        self.hop.n_open_streams()
     }
 }
