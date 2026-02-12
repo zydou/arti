@@ -13,7 +13,7 @@ use crate::client::reactor::circuit::circhop::CircHopList;
 // If we need to hold more info in the future,
 // we'll need to decide whether to create additional types for the more complex variants,
 // or whether to try to stuff everything inside this type.
-pub(crate) struct CircSyncView<'a> {
+pub struct CircSyncView<'a> {
     /// The hops of the circuit used to implement this view.
     pub(super) hops: &'a CircHopList,
 }
@@ -21,12 +21,12 @@ pub(crate) struct CircSyncView<'a> {
 impl<'a> CircSyncView<'a> {
     /// Construct a new view of a circuit, given a mutable reference to its
     /// reactor.
-    pub(super) fn new(reactor: &'a CircHopList) -> Self {
+    pub(crate) fn new(reactor: &'a CircHopList) -> Self {
         Self { hops: reactor }
     }
 
     /// Return the number of streams currently open on this circuit.
-    pub(crate) fn n_open_streams(&self) -> usize {
+    pub fn n_open_streams(&self) -> usize {
         self.hops.n_open_streams()
     }
 }
