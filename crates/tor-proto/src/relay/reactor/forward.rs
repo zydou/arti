@@ -299,7 +299,7 @@ impl Forward {
         // we should try to flush them *before* tearing it down.
         //
         // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3487#note_3296035
-        todo!()
+        Err(internal!("TRUNCATE is not implemented").into())
     }
 
     /// Handle a RELAY_EARLY cell originating from the client.
