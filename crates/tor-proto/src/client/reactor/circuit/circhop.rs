@@ -194,15 +194,6 @@ impl CircHopList {
         })
     }
 
-    /// Return the number of streams currently open on this circuit.
-    pub(crate) fn n_open_streams(&self) -> usize {
-        self.hops
-            .iter()
-            .map(|hop| hop.n_open_streams())
-            // No need to worry about overflow; max streams per hop is U16_MAX
-            .sum()
-    }
-
     /// Return the most active [`TunnelActivity`] for any hop on this `CircHopList`.
     pub(crate) fn tunnel_activity(&self) -> TunnelActivity {
         self.hops
@@ -329,14 +320,6 @@ impl CircHop {
     #[cfg(test)]
     pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<SendmeTag>) {
         self.outbound.send_window_and_expected_tags()
-    }
-
-    /// Return the number of open streams on this hop.
-    ///
-    /// WARNING: because this locks the stream map mutex,
-    /// it should never be called from a context where that mutex is already locked.
-    pub(crate) fn n_open_streams(&self) -> usize {
-        self.outbound.n_open_streams()
     }
 
     /// Return a mutable reference to our CongestionControl object.
