@@ -2,13 +2,12 @@
 
 use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tor_cell::chancell::msg;
 use tracing::{debug, instrument, trace};
 
-use tor_linkspec::{ChannelMethod, OwnedChanTarget};
+use tor_cell::chancell::msg;
+use tor_linkspec::{BridgeAddr, ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::ClockSkew;
@@ -142,6 +141,7 @@ impl<
                 sleep_prov: self.sleep_prov.clone(),
                 memquota: self.memquota.clone(),
             },
+            netinfo_cell,
         })
     }
 }
@@ -154,6 +154,8 @@ pub struct UnverifiedClientChannel<
 > {
     /// Inner generic unverified channel.
     inner: UnverifiedChannel<T, S>,
+    /// Received [`msg::Netinfo`] cell during the handshake.
+    netinfo_cell: msg::Netinfo,
 }
 
 impl<
@@ -183,7 +185,10 @@ impl<
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedClientChannel<T, S>> {
         let inner = self.inner.check(peer, peer_cert, now)?;
-        Ok(VerifiedClientChannel { inner })
+        Ok(VerifiedClientChannel {
+            inner,
+            netinfo_cell: self.netinfo_cell,
+        })
     }
 
     /// Return the clock skew of this channel.
@@ -209,6 +214,8 @@ pub struct VerifiedClientChannel<
 > {
     /// Inner generic verified channel.
     inner: VerifiedChannel<T, S>,
+    /// Received [`msg::Netinfo`] cell during the handshake.
+    netinfo_cell: msg::Netinfo,
 }
 
 impl<
@@ -223,19 +230,34 @@ impl<
     /// route incoming messages to their appropriate circuit.
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // Send the NETINFO message.
-        let peer_ip = self
+        // Get the target address for this channel. Unfortunately, as you can see, the interface of
+        // ChannelMethod is not great as it mixes "PT" and "Direct" concept so we have to do some
+        // hoops jumping to get the peer IpAddr.
+        //
+        // Without a peer IP, we can't send the NETINFO and can't finalize the channel as we need
+        // it for canonical checks.
+        let addr: Option<BridgeAddr> = self
             .inner
             .target_method
             .as_ref()
-            .and_then(ChannelMethod::socket_addrs)
-            .and_then(|addrs| addrs.first())
-            .map(SocketAddr::ip);
-        let netinfo = msg::Netinfo::from_client(peer_ip);
+            .and_then(ChannelMethod::target_addr)
+            .ok_or(tor_error::internal!(
+                "No peer IP on verified client channel"
+            ))?
+            .clone()
+            .into();
+        let peer_ip =
+            addr.and_then(|b| b.as_socketaddr().map(|s| s.ip()))
+                .ok_or(tor_error::internal!(
+                    "Unable to use peer address on verified client channel"
+                ))?;
+
+        // Send the NETINFO message.
+        let netinfo = msg::Netinfo::from_client(Some(peer_ip));
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 
         // Finish the channel to get a reactor.
-        self.inner.finish().await
+        self.inner.finish(&self.netinfo_cell, &[], peer_ip).await
     }
 }

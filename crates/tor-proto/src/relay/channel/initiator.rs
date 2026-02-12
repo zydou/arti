@@ -12,11 +12,7 @@
 //! process. The verify can be CPU intensive and thus in its own function.
 
 use futures::{AsyncRead, AsyncWrite, SinkExt};
-use std::{
-    net::{IpAddr, SocketAddr},
-    ops::Deref,
-    sync::Arc,
-};
+use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::trace;
 
 use tor_cell::chancell::msg;
@@ -136,7 +132,6 @@ pub struct VerifiedInitiatorRelayChannel<
     /// Relay identities.
     identities: Arc<RelayIdentities>,
     /// The netinfo cell that we got from the relay.
-    #[expect(unused)]
     netinfo_cell: msg::Netinfo,
     /// The AUTHENTICATE cell built during verification process.
     auth_cell: msg::Authenticate,
@@ -155,8 +150,6 @@ where
     /// The resulting channel is considered, by Tor protocol standard, an authenticated relay
     /// channel on which circuits can be opened.
     pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // TODO(relay): Deal with the NETINFO responder's cell for the canonicity flag.
-
         // Send CERTS, AUTHENTICATE, NETINFO
         let certs = super::build_certs_cell(&self.identities, ChannelType::RelayInitiator);
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
@@ -168,16 +161,18 @@ where
             .inner
             .target_method
             .as_ref()
-            .and_then(ChannelMethod::socket_addrs)
-            .and_then(|addrs| addrs.first())
-            .map(SocketAddr::ip)
-            .ok_or(Error::from(internal!("Target method address invalid")))?;
+            .and_then(ChannelMethod::unique_direct_addr)
+            .ok_or(Error::from(internal!("Target method address invalid")))?
+            .ip();
         // Send our NETINFO cell. This will indicate the end of the handshake.
-        let netinfo = super::build_netinfo_cell(peer_ip, self.my_addrs, &self.inner.sleep_prov)?;
+        let netinfo =
+            super::build_netinfo_cell(peer_ip, self.my_addrs.clone(), &self.inner.sleep_prov)?;
         trace!(channel_id = %self.inner.unique_id, "Sending NETINFO as initiator cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 
         // Get a Channel and a Reactor.
-        self.inner.finish().await
+        self.inner
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
+            .await
     }
 }

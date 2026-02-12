@@ -14,7 +14,7 @@ use tor_cell::chancell::{
     msg::{self},
 };
 use tor_error::internal;
-use tor_linkspec::ChannelMethod;
+use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::channel::handshake::{
@@ -51,6 +51,8 @@ pub struct RelayInitiatorHandshake<
     unique_id: UniqId,
     /// Our identity keys needed for authentication.
     identities: Arc<RelayIdentities>,
+    /// The peer we are attempting to connect to.
+    target_method: ChannelMethod,
     /// Our advertised addresses. Needed for the NETINFO.
     my_addrs: Vec<IpAddr>,
 }
@@ -92,6 +94,7 @@ impl<
         sleep_prov: S,
         identities: Arc<RelayIdentities>,
         my_addrs: Vec<IpAddr>,
+        peer: &OwnedChanTarget,
         memquota: ChannelAccount,
     ) -> Self {
         Self {
@@ -101,6 +104,7 @@ impl<
             identities,
             memquota,
             my_addrs,
+            target_method: peer.chan_method(),
         }
     }
 
@@ -145,7 +149,7 @@ impl<
                 framed_tls: self.framed_tls,
                 clock_skew,
                 memquota: self.memquota,
-                target_method: None, // TODO(relay): We might use it for NETINFO canonicity.
+                target_method: Some(self.target_method),
                 unique_id: self.unique_id,
                 sleep_prov: self.sleep_prov.clone(),
                 certs_cell: Some(certs_cell),
@@ -276,10 +280,15 @@ impl<
                     auth_cell,
                     netinfo_cell,
                     identities: self.identities,
+                    my_addrs: self.my_addrs,
                 })
             }
             None => MaybeVerifiableRelayResponderChannel::NonVerifiable(
-                NonVerifiableResponderRelayChannel { inner },
+                NonVerifiableResponderRelayChannel {
+                    inner,
+                    netinfo_cell,
+                    my_addrs: self.my_addrs,
+                },
             ),
         })
     }
