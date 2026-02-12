@@ -22,6 +22,8 @@ cfg-if = "1.0.0"
 derive_more = { version = "2.0.1", features = ["full"] }
 educe = "0.4.22"
 fs-mistrust = { version = "0.13.1", path = "../fs-mistrust" }
+memchr = "2.5"
+mio = { version = "1.1.1", features = ["net", "os-poll"] }
 paste = { version = "1.0.3", optional = true }
 percent-encoding = "2.3.1"
 rand = "0.9.1"

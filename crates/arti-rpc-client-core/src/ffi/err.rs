@@ -325,6 +325,7 @@ impl IntoFfiError for crate::ConnectError {
             E::ServerAddressMismatch { .. } => F::ConnectPointNotUsable,
             E::CookieMismatch => F::ConnectPointNotUsable,
             E::LoadCookie(_) => F::ConnectPointNotUsable,
+            E::StreamTypeUnsupported => F::ConnectPointNotUsable,
         }
     }
 

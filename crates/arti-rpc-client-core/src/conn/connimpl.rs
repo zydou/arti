@@ -13,12 +13,12 @@ use std::{
 };
 
 use crate::{
-    llconn,
     msgs::{
         AnyRequestId, ObjectId,
         request::{IdGenerator, ValidatedRequest},
         response::ValidatedResponse,
     },
+    nb_stream::PollingStream,
 };
 
 use super::{ProtoError, ShutdownError};
@@ -35,9 +35,9 @@ struct RequestState {
     ///
     /// * When we queue a response for this request.
     /// * When we store a fatal error affecting all requests in the RpcConn.
-    /// * When the thread currently reading from the [`llconn::Reader`] for this
+    /// * When the thread currently interacting with he [`PollingStream`] for this
     ///   RpcConn stops doing so, and the request waiting
-    ///   on this thread has been chosen to take responsibility for reading.
+    ///   on this thread has been chosen to take responsibility for interacting.
     ///
     /// Invariants:
     /// * The condvar is Some if (and only if) some thread is waiting
@@ -78,17 +78,17 @@ struct ReceiverState {
     ///
     /// (TODO: We might handle cancelling differently.)
     pending: HashMap<AnyRequestId, RequestState>,
-    /// A reader that we use to receive replies from Arti.
+    /// A steam that we use to send requests and receive replies from Arti.
     ///
     /// Invariants:
     ///
-    /// * If this is None, a thread is reading and will take responsibility
+    /// * If this is None, a thread is polling and will take responsibility
     ///   for liveness.
-    /// * If this is Some, no-one is reading and anyone who cares about liveness
-    ///   must take on the reader role.
+    /// * If this is Some, no-one is polling and anyone who cares about liveness
+    ///   must take on the interactor role.
     ///
     /// (Therefore, when it becomes Some, we must signal a cv, if any is set.)
-    reader: Option<crate::llconn::Reader>,
+    stream: Option<PollingStream>,
 }
 
 impl ReceiverState {
@@ -123,7 +123,7 @@ impl ReceiverState {
 /// This is a crate-internal abstraction.
 /// It's separate from RpcConn for a few reasons:
 ///
-/// - So we can keep the reading side of the channel open while the RpcConn has
+/// - So we can keep polling the channel while the RpcConn has
 ///   been dropped.
 /// - So we can hold the lock on this part without being blocked on threads writing.
 /// - Because this is the only part that for which
@@ -131,8 +131,8 @@ impl ReceiverState {
 pub(super) struct Receiver {
     /// Mutable state.
     ///
-    /// This lock should only be held briefly, and never while reading from the
-    /// `llconn::Reader`.
+    /// This lock should only be held briefly, and never while interacting with the
+    /// `PollingStream`.
     state: Mutex<ReceiverState>,
 }
 
@@ -146,17 +146,8 @@ pub struct RpcConn {
     #[educe(Debug(ignore))]
     receiver: Arc<Receiver>,
 
-    /// A writer that we use to send requests to Arti.
-    ///
-    /// This has its own lock so that we do not have to lock the Receiver
-    /// just in order to write.
-    ///
-    /// This lock does not nest with the`receiver` lock.  You must never hold
-    /// both at the same time.
-    ///
-    /// (For now, this lock is _ONLY_ held in the send_request method.)
-    #[educe(Debug(ignore))]
-    writer: Mutex<llconn::Writer>,
+    /// A writer that we use to queue requests to be sent back to Arti.
+    writer: crate::nb_stream::WriteHandle,
 
     /// If set, we are authenticated and we have negotiated a session that has
     /// this ObjectID.
@@ -171,14 +162,14 @@ pub struct RpcConn {
 #[derive(Debug)]
 enum AlertWhom {
     /// We don't need to alert anybody;
-    /// we have not taken the reader, or registered our own condvar:
-    /// therefore nobody expects us to take the reader.
+    /// we have not taken the stream, or registered our own condvar:
+    /// therefore nobody expects us to take the stream.
     Nobody,
-    /// We have taken the reader or been alerted via our condvar:
+    /// We have taken the stream or been alerted via our condvar:
     /// therefore, we are responsible for making sure
-    /// that _somebody_ takes the reader.
+    /// that _somebody_ takes the stream.
     ///
-    /// We should therefore alert somebody if nobody currently has the reader.
+    /// We should therefore alert somebody if nobody currently has the stream.
     Anybody,
     /// We have been the first to encounter a fatal error.
     /// Therefore, we should inform _everybody_.
@@ -186,18 +177,19 @@ enum AlertWhom {
 }
 
 impl RpcConn {
-    /// Construct a new RpcConn with a given reader and writer.
-    pub(super) fn new(reader: llconn::Reader, writer: llconn::Writer) -> Self {
+    /// Construct a new RpcConn with a given PollingStream.
+    pub(super) fn new(stream: PollingStream) -> Self {
+        let writer = stream.writer();
         Self {
             receiver: Arc::new(Receiver {
                 state: Mutex::new(ReceiverState {
                     id_gen: IdGenerator::default(),
                     fatal: None,
                     pending: HashMap::new(),
-                    reader: Some(reader),
+                    stream: Some(stream),
                 }),
             }),
-            writer: Mutex::new(writer),
+            writer,
             session: None,
         }
     }
@@ -237,7 +229,7 @@ impl RpcConn {
         drop(state);
 
         // NOTE: This is the only block of code that holds the writer lock!
-        let write_outcome = { self.writer.lock().expect("poisoned").send_valid(&valid) };
+        let write_outcome = self.writer.send_valid(&valid);
 
         match write_outcome {
             Err(e) => {
@@ -302,7 +294,7 @@ impl Receiver {
 
             match should_alert {
                 AlertWhom::Nobody => {}
-                AlertWhom::Anybody if state.reader.is_none() => {}
+                AlertWhom::Anybody if state.stream.is_none() => {}
                 AlertWhom::Anybody => state.alert_anybody(),
                 AlertWhom::Everybody => state.alert_everybody(),
             }
@@ -334,8 +326,8 @@ impl Receiver {
         AlertWhom,
     ) {
         // At this point, we have not registered on a condvar, and we have not
-        // taken the reader.
-        // Therefore, we do not yet need to ensure that anybody else takes the reader.
+        // taken the PollingStream.
+        // Therefore, we do not yet need to ensure that anybody else takes the PollingStream.
         //
         // TODO: It is possibly too easy to forget to set this,
         // or to set it to a less "alerty" value.  Refactoring might help;
@@ -350,7 +342,7 @@ impl Receiver {
             return (Err(ProtoError::RequestCompleted), state_lock, should_alert);
         };
 
-        let mut reader = loop {
+        let mut stream = loop {
             // Note: It might be nice to use a hash_map::Entry here, but it
             // doesn't really work the way we want.  The `entry()` API is always
             // ready to insert, and requires that we clone `id`.  But what we
@@ -366,17 +358,17 @@ impl Receiver {
                 return (ready.map_err(ProtoError::from), state_lock, should_alert);
             }
 
-            // If we reach this point, we are about to either take the reader or
+            // If we reach this point, we are about to either take the stream or
             // register a cv.  This means that when we return, we need to make
             // sure that at least one other cv gets notified.
             should_alert = AlertWhom::Anybody;
 
-            if let Some(r) = state.reader.take() {
-                // Nobody else is reading; we have to do it.
+            if let Some(r) = state.stream.take() {
+                // Nobody else is polling; we have to do it.
                 break r;
             }
 
-            // Somebody else is reading; register a condvar.
+            // Somebody else is polling; register a condvar.
             let cv = Arc::new(Condvar::new());
             this_ent.waiter = Some(Arc::clone(&cv));
 
@@ -391,19 +383,21 @@ impl Receiver {
             this_ent.waiter = None;
 
             // We have been notified: either there is a reply or us,
-            // or we are supposed to take the reader.  We'll find out on our
+            // or we are supposed to take the stream.  We'll find out on our
             // next time through the loop.
         };
 
         let (result, mut state_lock, should_alert) =
-            self.read_until_message_for(state_lock, &mut reader, id);
-        // Put the reader back.
-        state_lock.reader = Some(reader);
+            self.read_until_message_for(state_lock, &mut stream, id);
+        // Put the stream back.
+        state_lock.stream = Some(stream);
 
         (result.map_err(ProtoError::from), state_lock, should_alert)
     }
 
-    /// Read messages, delivering them as appropriate, until we find one for `id`,
+    /// Interact with `stream`, writing any queued messages,
+    /// reading messages, and
+    /// delivering them as appropriate, until we find one for `id`,
     /// or a fatal error occurs.
     ///
     /// Return that message or error, along with a `MutexGuard`.
@@ -411,12 +405,12 @@ impl Receiver {
     /// The caller is responsible for restoring the following state before
     /// dropping the `MutexGuard`:
     ///
-    /// - Putting `reader` back into the `reader` field.
+    /// - Putting `stream` back into the `stream` field.
     /// - Other invariants as discussed in wait_on_message_for_impl.
     fn read_until_message_for<'a>(
         &'a self,
         mut state_lock: MutexGuard<'a, ReceiverState>,
-        reader: &mut llconn::Reader,
+        stream: &mut PollingStream,
         id: &AnyRequestId,
     ) -> (
         Result<ValidatedResponse, ShutdownError>,
@@ -424,11 +418,11 @@ impl Receiver {
         AlertWhom,
     ) {
         loop {
-            // Importantly, we drop the state lock while we are reading.
+            // Importantly, we drop the state lock while we are polling.
             // This is okay, since all our invariants should hold at this point.
             drop(state_lock);
 
-            let result: Result<ValidatedResponse, _> = match reader.read_msg() {
+            let result = match stream.interact() {
                 Err(e) => Err(ShutdownError::Read(Arc::new(e))),
                 Ok(None) => Err(ShutdownError::ConnectionClosed),
                 Ok(Some(m)) => m.try_validate().map_err(ShutdownError::from),

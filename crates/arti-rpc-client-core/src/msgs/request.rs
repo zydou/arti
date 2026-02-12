@@ -126,6 +126,8 @@ impl ValidatedRequest {
     }
 
     /// Try to construct a validated request using `s`.
+    // TODO nb: Expose or remove.
+    #[allow(dead_code)]
     pub(crate) fn from_string_strict(s: &str) -> Result<Self, InvalidRequestError> {
         let value: serde_json::Value =
             serde_json::from_str(s).map_err(|e| InvalidRequestError::InvalidJson(Arc::new(e)))?;

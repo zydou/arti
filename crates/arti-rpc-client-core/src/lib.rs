@@ -50,8 +50,8 @@
 mod conn;
 #[cfg(feature = "ffi")]
 pub mod ffi;
-pub mod llconn;
 mod msgs;
+mod nb_stream;
 #[macro_use]
 mod util;
 #[cfg(test)]
@@ -62,3 +62,4 @@ pub use conn::{
     RpcConnBuilder, StreamError,
 };
 pub use msgs::{AnyRequestId, ObjectId, request::InvalidRequestError, response::RpcError};
+pub use nb_stream::SendRequestError;

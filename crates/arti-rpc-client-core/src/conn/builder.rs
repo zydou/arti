@@ -1,11 +1,6 @@
 //! Functionality to connect to an RPC server.
 
-use std::{
-    collections::HashMap,
-    io::{self},
-    path::PathBuf,
-    str::FromStr as _,
-};
+use std::{collections::HashMap, path::PathBuf, str::FromStr as _, sync::Arc};
 
 use fs_mistrust::Mistrust;
 use tor_config_path::{CfgPath, CfgPathResolver};
@@ -15,7 +10,9 @@ use tor_rpc_connect::{
     load::{LoadError, LoadOptions},
 };
 
-use crate::{RpcConn, conn::ConnectError, llconn, msgs::response::UnparsedResponse};
+use crate::{
+    RpcConn, conn::ConnectError, msgs::response::UnparsedResponse, nb_stream::PollingStream,
+};
 
 use super::ConnectFailure;
 
@@ -332,20 +329,31 @@ fn try_connect(
     resolver: &CfgPathResolver,
     mistrust: &Mistrust,
 ) -> Result<RpcConn, ConnectError> {
-    let tor_rpc_connect::client::Connection {
-        reader,
-        writer,
-        auth,
-        ..
-    } = parsed.resolve(resolver)?.connect(mistrust)?;
-    let mut reader = llconn::Reader::new(io::BufReader::new(reader));
-    let banner = reader
-        .read_msg()
-        .map_err(|e| ConnectError::CannotConnect(e.into()))?
+    use tor_rpc_connect::client::Stream as S;
+    let tor_rpc_connect::client::Connection { stream, auth, .. } =
+        parsed.resolve(resolver)?.connect(mistrust)?;
+    let wrap_io_err = |e| tor_rpc_connect::ConnectError::Io(Arc::new(e));
+
+    let stream: Box<dyn crate::nb_stream::MioStream> = match stream {
+        S::Tcp(tcp_stream) => {
+            tcp_stream.set_nonblocking(true).map_err(wrap_io_err)?;
+            Box::new(mio::net::TcpStream::from_std(tcp_stream))
+        }
+        S::Unix(unix_stream) => {
+            unix_stream.set_nonblocking(true).map_err(wrap_io_err)?;
+            Box::new(mio::net::UnixStream::from_std(unix_stream))
+        }
+        _ => return Err(ConnectError::StreamTypeUnsupported),
+    };
+
+    let mut stream = PollingStream::new(stream).map_err(wrap_io_err)?;
+    let banner = stream
+        .interact()
+        .map_err(wrap_io_err)?
         .ok_or(ConnectError::InvalidBanner)?;
     check_banner(&banner)?;
 
-    let mut conn = RpcConn::new(reader, llconn::Writer::new(writer));
+    let mut conn = RpcConn::new(stream);
 
     // TODO RPC: remove this "scheme name" from the protocol?
     let session_id = match auth {

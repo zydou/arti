@@ -364,6 +364,8 @@ impl RequestHandle {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ShutdownError {
+    // TODO nb: Read/Write are no longer well separated in the API.
+    //
     /// Io error occurred while reading.
     #[error("Unable to read response")]
     Read(#[source] Arc<io::Error>),
@@ -537,6 +539,9 @@ pub enum ConnectError {
     /// IO error while connecting to Arti.
     #[error("Unable to make a connection")]
     CannotConnect(#[from] tor_rpc_connect::ConnectError),
+    /// The connect point told us to connect via a type of stream we don't know how to support.
+    #[error("Connect point stream type was unsupported")]
+    StreamTypeUnsupported,
     /// Opened a connection, but didn't get a banner message.
     ///
     /// (This isn't a `BadMessage`, since it is likelier to represent something that isn't
@@ -589,6 +594,7 @@ impl HasClientErrorAction for ConnectError {
             E::CannotResolvePath(_) => A::Abort,
             E::CannotResolveConnectPoint(e) => e.client_action(),
             E::CannotConnect(e) => e.client_action(),
+            E::StreamTypeUnsupported => A::Decline,
             E::InvalidBanner => A::Decline,
             E::RelativeConnectFile => A::Abort,
             E::AuthenticationFailed(_) => A::Decline,
@@ -683,8 +689,8 @@ mod test {
     use tor_basic_utils::{RngExt as _, test_rng::testing_rng};
 
     use crate::{
-        llconn,
         msgs::request::{JsonMap, Request, ValidatedRequest},
+        nb_stream::PollingStream,
     };
 
     use super::*;
@@ -692,9 +698,7 @@ mod test {
     /// helper: Return a dummy RpcConn, along with a socketpair for it to talk to.
     fn dummy_connected() -> (RpcConn, crate::testing::SocketpairStream) {
         let (s1, s2) = crate::testing::construct_socketpair().unwrap();
-        let s1_w = s1.try_clone().unwrap();
-        let s1_r = io::BufReader::new(s1);
-        let conn = RpcConn::new(llconn::Reader::new(s1_r), llconn::Writer::new(s1_w));
+        let conn = RpcConn::new(PollingStream::new(s1).unwrap());
 
         (conn, s2)
     }
