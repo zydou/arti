@@ -40,6 +40,11 @@ type CtrlMsg = ();
 /// Placeholder for our custom control command type.
 type CtrlCmd = ();
 
+/// The maximum number of RELAY_EARLY cells allowed on a circuit.
+///
+// TODO(relay): should we come up with a consensus parameter for this? (arti#2349)
+const MAX_RELAY_EARLY_CELLS_PER_CIRCUIT: usize = 8;
+
 /// Relay-specific state for the forward reactor.
 pub(crate) struct Forward {
     /// An identifier for logging about this reactor's circuit.
@@ -66,6 +71,10 @@ pub(crate) struct Forward {
     // (with states Initial -> Extending -> Extended(Outbound))?
     // But should not do this if it turns out more convoluted than the bool-based approach.
     have_seen_extend2: bool,
+    /// The number of RELAY_EARLY cells we have seen so far on this circuit.
+    ///
+    /// If we see more than [`MAX_RELAY_EARLY_CELLS_PER_CIRCUIT`] RELAY_EARLY cells, we tear down the circuit.
+    relay_early_count: usize,
     /// A stream of events to be read from the main loop of the reactor.
     event_tx: mpsc::Sender<CircEvent>,
 }
@@ -113,6 +122,7 @@ impl Forward {
             crypto_out,
             chan_provider,
             have_seen_extend2: false,
+            relay_early_count: 0,
             event_tx,
         }
     }
@@ -298,7 +308,16 @@ impl Forward {
         cell: Relay,
         early: bool,
     ) -> StdResult<Option<ForwardCellDisposition>, ReactorError> {
-        // XXX: return a protocol error if we get too many RELAY_EARLY cells
+        if early {
+            self.relay_early_count += 1;
+
+            if self.relay_early_count > MAX_RELAY_EARLY_CELLS_PER_CIRCUIT {
+                return Err(
+                    Error::CircProto("Circuit received too many RELAY_EARLY cells".into()).into(),
+                );
+            }
+        }
+
         let (hopnum, res) = self.decode_relay_cell(hop_mgr, cell)?;
         let (tag, decode_res) = match res {
             CellDecodeResult::Unrecognizd(body) => {
