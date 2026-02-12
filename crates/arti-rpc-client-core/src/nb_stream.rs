@@ -191,7 +191,7 @@ impl PollingStream {
 
 impl Drop for PollingStream {
     fn drop(&mut self) {
-        // IO SAFETY: See "Io Safety" note in documentation for PollingStream.
+        // IO SAFETY: See "IO Safety" note in documentation for PollingStream.
         let s = self
             .stream
             .stream
