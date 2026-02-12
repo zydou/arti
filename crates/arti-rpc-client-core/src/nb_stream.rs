@@ -60,6 +60,19 @@ pub(crate) struct PollingStream {
     /// The poll object.
     ///
     /// (This typically corresponds to a kqueue or epoll handle.)
+    ///
+    /// ## IO Safety
+    ///
+    /// This object (semantically) contains references to the `fd`s or `SOCKETS`
+    /// of any inserted [`mio::Source`].  Therefore it must not outlive those sources.
+    /// Further, according to `mio`'s documentation, every Source must be deregistered
+    /// before it can be dropped.
+    ///
+    /// We ensure these properties are obeyed as follows:
+    ///  - We hold the stream via `stream`, the NonblockingStream member of this struct.
+    ///    We do not let anybody outside this module have the stream or the `Poll`.
+    ///  - We declare a Drop implementation that deregisters the stream.
+    ///    This method ensures that the stream is dropped before it is closed.
     poll: mio::Poll,
 
     /// A small buffer to receive IO readiness events.
@@ -67,7 +80,8 @@ pub(crate) struct PollingStream {
 
     /// The underlying stream.
     ///
-    /// Invariant: `stream.stream` is a [`MioStream`].
+    /// Invariant: `stream.stream` is a [`MioStream`], so [`Stream::as_mio_stream`] will return
+    /// Some when we call it.
     stream: NonblockingStream,
 }
 
@@ -95,7 +109,7 @@ impl PollingStream {
         };
 
         // We register the stream here, since we want to use it exclusively with `reregister`
-        // later on.
+        // later on.  We do not deregister the stream until `Drop::drop` is called.
         cio.poll.registry().register(
             cio.stream
                 .stream
@@ -180,6 +194,21 @@ impl PollingStream {
                 }
             }
         }
+    }
+}
+
+impl Drop for PollingStream {
+    fn drop(&mut self) {
+        // IO SAFETY: See "Io Safety" note in documentation for PollingStream.
+        let s = self
+            .stream
+            .stream
+            .as_mio_stream()
+            .expect("Logic error: Stream was not a MIO stream.");
+        self.poll
+            .registry()
+            .deregister(s)
+            .expect("Deregister operation failed");
     }
 }
 
