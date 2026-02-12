@@ -671,6 +671,7 @@ impl ChannelMethod {
                 // Remember, more than one, we don't have a single address.
                 _ => None,
             },
+            #[cfg(feature = "pt-client")]
             _ => None,
         }
     }
