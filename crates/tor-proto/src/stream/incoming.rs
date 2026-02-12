@@ -13,7 +13,7 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
 use tor_rtcompat::DynTimeProvider;
 
-use crate::circuit::CircSyncView;
+use crate::circuit::CircHopSyncView;
 use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 use crate::stream::{CloseStreamBehavior, StreamComponents};
 use crate::{Error, Result};
@@ -261,7 +261,7 @@ pub trait IncomingStreamRequestFilter: Send + 'static {
     fn disposition(
         &mut self,
         ctx: &IncomingStreamRequestContext<'_>,
-        circ: &CircSyncView<'_>,
+        circ: &CircHopSyncView<'_>,
     ) -> Result<IncomingStreamRequestDisposition>;
 }
 

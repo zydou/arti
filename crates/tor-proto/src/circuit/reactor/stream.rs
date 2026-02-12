@@ -1,6 +1,6 @@
 //! The stream reactor.
 
-use crate::circuit::{CircSyncView, UniqId};
+use crate::circuit::{CircHopSyncView, UniqId};
 use crate::circuit::circhop::CircHopOutbound;
 use crate::circuit::reactor::macros::derive_deftly_template_CircuitReactor;
 use crate::congestion::{CongestionControl, sendme};
@@ -396,7 +396,7 @@ impl StreamReactor {
         }
 
         let req = parse_incoming_stream_req(msg)?;
-        let view = CircSyncView::new(&self.hop);
+        let view = CircHopSyncView::new(&self.hop);
 
         if let Some(reject) = Self::should_reject_incoming(handler, sid, &req, &view)? {
             // We can't honor this request, so we bail by sending an END.
@@ -502,7 +502,7 @@ impl StreamReactor {
         handler: &mut IncomingStreamRequestHandler,
         sid: StreamId,
         request: &IncomingStreamRequest,
-        view: &CircSyncView<'a>,
+        view: &CircHopSyncView<'a>,
     ) -> StdResult<Option<AnyRelayMsgOuter>, ReactorError> {
         use IncomingStreamRequestDisposition::*;
 

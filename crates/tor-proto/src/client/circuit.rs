@@ -2279,7 +2279,7 @@ pub(crate) mod test {
         fn disposition(
             &mut self,
             _ctx: &crate::client::stream::IncomingStreamRequestContext<'_>,
-            _circ: &crate::circuit::CircSyncView<'_>,
+            _circ: &crate::circuit::CircHopSyncView<'_>,
         ) -> Result<crate::client::stream::IncomingStreamRequestDisposition> {
             Ok(crate::client::stream::IncomingStreamRequestDisposition::Accept)
         }
