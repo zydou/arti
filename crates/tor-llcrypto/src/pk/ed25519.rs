@@ -300,6 +300,14 @@ impl Ed25519Identity {
     pub fn as_bytes(&self) -> &[u8] {
         &self.id.as_ref()[..]
     }
+    /// Decode an `Ed25519Identity` from a base64-encoded string.
+    ///
+    /// The string must have no padding, spaces, or any extra characters.
+    // We decode without padding to match the serde deserialize impl.
+    pub fn from_base64(s: &str) -> Option<Self> {
+        let bytes = Base64Unpadded::decode_vec(s).ok()?;
+        Ed25519Identity::from_bytes(&bytes)
+    }
 }
 
 impl From<[u8; ED25519_ID_LEN]> for Ed25519Identity {
@@ -552,5 +560,39 @@ impl Ed25519SigningKey for Keypair {
 impl Ed25519SigningKey for ExpandedKeypair {
     fn sign(&self, message: &[u8]) -> Signature {
         ExpandedKeypair::sign(self, message)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn ed_from_base64() {
+        let id =
+            Ed25519Identity::from_base64("qpL/LxLYVEXghU76iG3LsSI/UW7MBpIROZK0AB18560").unwrap();
+
+        assert_eq!(
+            id,
+            Ed25519Identity::from([
+                0xaa, 0x92, 0xff, 0x2f, 0x12, 0xd8, 0x54, 0x45, 0xe0, 0x85, 0x4e, 0xfa, 0x88, 0x6d,
+                0xcb, 0xb1, 0x22, 0x3f, 0x51, 0x6e, 0xcc, 0x06, 0x92, 0x11, 0x39, 0x92, 0xb4, 0x00,
+                0x1d, 0x7c, 0xe7, 0xad
+            ]),
+        );
     }
 }
