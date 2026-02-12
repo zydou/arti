@@ -64,6 +64,7 @@ pub(crate) mod conflux;
 mod congestion;
 mod crypto;
 pub mod memquota;
+pub mod peer;
 mod stream;
 pub(crate) mod streammap;
 pub(crate) mod tunnel;

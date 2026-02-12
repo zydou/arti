@@ -19,6 +19,7 @@ default = []
 full = [
     "hs-client",
     "hs-service",
+    "pt-client",
     "tokio",
     "send-control-msg",
     "safelog/full",
@@ -59,6 +60,7 @@ experimental = [
 ]
 conflux = ["tor-cell/conflux", "__is_experimental"]
 flowctl-cc = ["__is_experimental"]
+pt-client = ["tor-linkspec/pt-client"]
 
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
