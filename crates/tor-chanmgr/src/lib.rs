@@ -313,6 +313,12 @@ impl<R: Runtime> ChanMgr<R> {
     /// Try to get a suitable channel to the provided `target`,
     /// launching one if one does not exist.
     ///
+    /// This function does not guarantee that the returned channel
+    /// satisfies all of the properties of `target`. For example if an
+    /// existing channel is returned, it might not be connected to any
+    /// of the addresses specified in `target`.
+    // ^ see https://gitlab.torproject.org/tpo/core/arti/-/issues/2344
+    ///
     /// If there is already a channel launch attempt in progress, this
     /// function will wait until that launch is complete, and succeed
     /// or fail depending on its outcome.
