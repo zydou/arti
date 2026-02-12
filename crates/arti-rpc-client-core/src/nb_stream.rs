@@ -167,15 +167,7 @@ impl PollingStream {
 
             // Poll until the socket is ready to read or write,
             // _or_ until somebody invokes the Waker because they have queued more to write.
-            'inner: loop {
-                match self.poll.poll(&mut self.events, None) {
-                    Ok(()) => break 'inner,
-                    Err(e) if e.kind() == io::ErrorKind::Interrupted => {
-                        continue 'inner;
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
+            let () = retry_eintr(|| self.poll.poll(&mut self.events, None))?;
 
             // Now that we've been woken, see which events we've been woken with,
             // and adjust our plans accordingly on the next time through the loop.
@@ -447,8 +439,7 @@ impl NonblockingStream {
             let len_orig = self.read_buf.len();
             // TODO: Impose a maximum length?
             self.read_buf.resize(len_orig + READLEN, 0);
-            // TODO: Do I need to check for eintr?
-            let result = self.stream.read(&mut self.read_buf[len_orig..]);
+            let result = retry_eintr(|| self.stream.read(&mut self.read_buf[len_orig..]));
             match result {
                 Ok(0) => return Ok(None),
                 Ok(n) => {
@@ -471,8 +462,8 @@ impl NonblockingStream {
             if w.write_buf.is_empty() {
                 return Ok(());
             }
-            // TODO: Do I need to check for eintr?
-            let n = self.stream.write(&w.write_buf[..])?;
+
+            let n = retry_eintr(|| self.stream.write(&w.write_buf[..]))?;
             vec_pop_from_front(&mut w.write_buf, n);
             // TODO: DO I need to flush?
         }
@@ -535,6 +526,20 @@ fn vec_pop_from_front(v: &mut Vec<u8>, n: usize) {
     v.copy_within(n.., 0);
     let new_len = v.len() - n;
     v.truncate(new_len);
+}
+
+/// Retry `f` until it returns Ok() or an error whose kind is not `Interrupted`.
+fn retry_eintr<F, T>(mut f: F) -> io::Result<T>
+where
+    F: FnMut() -> io::Result<T>,
+{
+    loop {
+        let r = f();
+        match r {
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            _ => return r,
+        }
+    }
 }
 
 #[cfg(test)]
