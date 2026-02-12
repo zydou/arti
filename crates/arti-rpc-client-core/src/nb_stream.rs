@@ -40,6 +40,21 @@ use std::{
 /// that you can use to queue an outbound message.
 ///
 /// No messages are actually sent or received unless some thread is calling [`PollingStream::interact()`].
+///
+/// ## Concurrency and interior mutability
+///
+/// A `PollingStream` has (limited) interior mutability.
+///
+/// Only a single call to `interact` can be made at the same time.
+/// So only one thread can be waiting for responses, and
+/// the caller of `interact` must demultiplex responses as necessary.
+///
+/// But, one or more [`WriteHandle`]s can be created,
+/// and these are `'static + Send + Sync`.
+/// Using `WriteHandle`, multiple threads can enqueue requests,
+/// with [`send_valid`](WriteHandle::send_valid), concurrently.
+///
+/// (All these restrictions imposed on the caller are enforced by the Rust type system.)
 #[derive(Debug)]
 pub(crate) struct PollingStream {
     /// The poll object.
@@ -65,7 +80,8 @@ const STREAM_TOKEN: mio::Token = mio::Token(1);
 impl PollingStream {
     /// Create a new PollingStream.
     ///
-    /// The `stream` argument must support [`MioStream`], and must be set for nonblocking IO.
+    /// The `stream` will be set to use nonblocking IO;
+    /// on Unix this will affect the behaviour of other `dup`s of the same fd!
     pub(crate) fn new(stream: Box<dyn MioStream>) -> io::Result<Self> {
         let poll = mio::Poll::new()?;
         let waker = mio::Waker::new(poll.registry(), WAKE_TOKEN)?;
@@ -97,7 +113,13 @@ impl PollingStream {
         self.stream.writer()
     }
 
-    /// Interact with the underlying stream.
+    /// Interact with the peer until some response is received.
+    ///
+    /// Sends all requests given to [`WriteHandle::send_valid`]
+    /// (including calls to `send_valid` made while `interact` is running)
+    /// while looking for a response from the server.
+    /// Returns when the first response is received.
+    ///
     ///
     /// Returns an error if an IO condition has failed.
     /// Returns None if the other side has closed the stream.
@@ -378,8 +400,8 @@ impl NonblockingStream {
     /// Internal helper: Return true if there is any outgoing data queued to be written.
     fn has_data_to_write(&self) -> bool {
         let w = self.write_handle.inner.lock().expect("Lock poisoned");
-        // See TOCTOU note on WriteHandleImpl: We need to check whether we have data to write
-        // with the same lock used to hold the waker, so that we can't lose any data.
+        // See TOCTOU note on WriteHandleImpl: Our rule is to check whether we have data to write
+        // within the same lock used to hold the waker, so that we can't lose any data.
         !w.write_buf.is_empty()
     }
 
@@ -454,7 +476,7 @@ impl Waker for mio::Waker {
     }
 }
 
-/// Implement Stream and MioStream for a related pair of traits.
+/// Implement Stream and MioStream for a related pair of types.
 macro_rules! impl_traits {
     { $stream:ty => $mio_stream:ty } => {
         impl Stream for $stream {
