@@ -15,8 +15,16 @@ pub(crate) fn open_channel_is_allowed<C: AbstractChannel>(
         .filter(|entry| entry.channel.is_usable())
         // only channels which have *all* the relay ids of `target`
         .filter(|entry| entry.channel.has_all_relay_ids_from(target))
-        // TODO: only channels which are canonical or have the same address as `target`
-        .filter(|_entry| true)
+        // TODO: only channels that satisfy the torspec rules at
+        // https://spec.torproject.org/tor-spec/creating-circuits.html#canonical-connections
+        .filter(|_entry| {
+            // Any of:
+            // - the IP matches the requested IP
+            // - the relay knows that the IP of the connection it's using is canonical because it
+            //   was listed in the NETINFO cell
+            // - the IP matches the relay address in the consensus
+            true
+        })
         .is_some()
 }
 
