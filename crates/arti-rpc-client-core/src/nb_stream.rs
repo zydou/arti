@@ -64,7 +64,7 @@ pub(crate) struct PollingStream {
     /// ## IO Safety
     ///
     /// This object (semantically) contains references to the `fd`s or `SOCKETS`
-    /// of any inserted [`mio::Source`].  Therefore it must not outlive those sources.
+    /// of any inserted [`mio::event::Source`].  Therefore it must not outlive those sources.
     /// Further, according to `mio`'s documentation, every Source must be deregistered
     /// before it can be dropped.
     ///
