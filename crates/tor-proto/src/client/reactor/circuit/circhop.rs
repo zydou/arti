@@ -344,6 +344,11 @@ impl CircHop {
         self.outbound.ccontrol().lock().expect("poisoned lock")
     }
 
+    /// Return a reference to our CircHopOutbound object.
+    pub(crate) fn outbound(&self) -> &CircHopOutbound {
+        &self.outbound
+    }
+
     /// We're about to send `msg`.
     ///
     /// See [`OpenStreamEnt::about_to_send`](crate::streammap::OpenStreamEnt::about_to_send).
