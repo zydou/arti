@@ -183,20 +183,22 @@ where
     )
 }
 
-/// Resolves an `Option<Option<T>>` (in a builder) into an `Option<T>`, more generally
+/// Resolves an `Option<Option<&T>>` (in a builder) into an `Option<T>`, more generally
 ///
-/// Like `resolve_option`, but:
+/// Like [`resolve_option`], but:
 ///
-///  * Doesn't rely on `T`' being `Default + PartialEq`
+///  * Doesn't rely on `T` being `Default + PartialEq`
 ///    to determine whether it's the sentinel value;
-///    instead, taking `is_explicit`.
+///    instead, takes `is_sentinel`.
 ///
 ///  * Takes `Option<Option<&T>>` which is more general, but less like the usual call sites.
+///
+/// # Behavior
 ///
 ///  * If the input is `None`, this indicates that the user did not specify a value,
 ///    and we therefore use `def` to obtain the default value.
 ///
-///  * If the input is `Some(None)`, or `Some(Some(v)) where is_sentinel(v)`,
+///  * If the input is `Some(None)`, or `Some(Some(v))` where `is_sentinel(v)` returns true,
 ///    the user has explicitly specified that this config item should be null/none/nothing,
 ///    so we return `None`.
 ///
@@ -207,11 +209,38 @@ where
 /// # ⚠ Stability Warning ⚠
 ///
 /// We may significantly change this so that it is an method in an extension trait.
-//
-// TODO: it would be nice to have an example here, but right now I'm not sure
-// what type (or config setting) we could put in an example that would be natural enough
-// to add clarity.  See
-//  https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/685#note_2829951
+///
+/// # Example
+/// ```
+/// use tor_config::resolve_option_general;
+///
+/// // Use 0 as a sentinel meaning "explicitly clear" in this example
+/// let is_sentinel = |v: &i32| *v == 0;
+///
+/// // No value provided: use default
+/// assert_eq!(
+///     resolve_option_general(None, is_sentinel, || Some(10)),
+///     Some(10),
+/// );
+///
+/// // Explicitly None
+/// assert_eq!(
+///     resolve_option_general(Some(None), is_sentinel, || Some(10)),
+///     None,
+/// );
+///
+/// // Sentinel value (0) -> return None
+/// assert_eq!(
+///     resolve_option_general(Some(Some(&0)), is_sentinel, || Some(10)),
+///     None,
+/// );
+///
+/// // Set to actual value -> return that value
+/// assert_eq!(
+///     resolve_option_general(Some(Some(&5)), is_sentinel, || Some(10)),
+///     Some(5),
+/// );
+/// ```
 pub fn resolve_option_general<T, ISF, DF>(
     input: Option<Option<&T>>,
     is_sentinel: ISF,
