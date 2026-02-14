@@ -16,6 +16,7 @@ use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, Error as IoEr
 use futures::stream::StreamExt;
 use std::net::IpAddr;
 use std::sync::Arc;
+use tor_basic_utils::error_sources::ErrorSources;
 use tor_rtcompat::SpawnExt;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -558,23 +559,15 @@ where
 /// If any source of the provided `error` is a [`tor_proto::Error`], return a reference to that
 /// [`tor_proto::Error`].
 fn extract_proto_err<'a>(
-    mut error: &'a (dyn std::error::Error + 'static),
+    error: &'a (dyn std::error::Error + 'static),
 ) -> Option<&'a tor_proto::Error> {
-    loop {
+    for error in ErrorSources::new(error) {
         if let Some(downcast) = error.downcast_ref::<tor_proto::Error>() {
             return Some(downcast);
         }
-
-        if let Some(downcast) = error.downcast_ref::<std::io::Error>() {
-            error = downcast.get_ref()?;
-        } else if let Some(downcast) = error.downcast_ref::<Arc<std::io::Error>>() {
-            error = downcast.get_ref()?;
-        } else if let Some(source) = error.source() {
-            error = source;
-        } else {
-            return None;
-        }
     }
+
+    None
 }
 
 /// Report an error that occurred within a single proxy task.
