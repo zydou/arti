@@ -30,6 +30,3 @@ Read the hyper documentation to learn more about how to use hyper to understand 
 
 - [Docs.rs hyper](https://docs.rs/hyper/latest/hyper/)
 
-> [!WARNING]
-> **Notice for MacOS users:** This example uses `native-tls` which on MacOS might fail to perform a TLS handshake due to a known bug.
-> This will be fixed once `security-framework` 3.5.1 is used by `native-tls`. View issue [#2117](https://gitlab.torproject.org/tpo/core/arti/-/issues/2117) for more details.
