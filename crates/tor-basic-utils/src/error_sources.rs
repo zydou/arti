@@ -48,17 +48,9 @@ impl<'a> Iterator for ErrorSources<'a> {
             // The use of `get_ref` here is intentional because we want to save the error that
             // this `io::Error` is wrapping. If we used `source` that would give us the source of
             // the error that's being wrapped.
-            if let Some(error) = io_error.get_ref() {
-                self.error = Some(error);
-            } else {
-                self.error = None;
-            }
+            self.error = io_error.get_ref().map(|e| e as _);
         } else if let Some(io_error) = error.downcast_ref::<Arc<io::Error>>() {
-            if let Some(error) = io_error.get_ref() {
-                self.error = Some(error);
-            } else {
-                self.error = None;
-            }
+            self.error = io_error.get_ref().map(|e| e as _);
         } else {
             self.error = error.source();
         }
