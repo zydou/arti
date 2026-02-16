@@ -495,6 +495,10 @@ pub fn fmt_error_with_sources(mut e: &dyn Error, f: &mut fmt::Formatter) -> fmt:
     // quo here and avoid changing this behaviour without further discussion.
     let mut last = String::new();
     let mut sep = iter::once("").chain(iter::repeat(": "));
+
+    // Note that this loop does not use tor_basic_utils::ErrorSources.  We can't, because `e` is not
+    // `Error + 'static`.  But we shouldn't use ErrorSources here, since io::Error will format
+    // its inner by_ref() error, and so it's desirable that `source` skips over it.
     loop {
         let this = e.to_string();
         if !last.contains(&this) {
