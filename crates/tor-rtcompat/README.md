@@ -148,11 +148,6 @@ Features supported by this crate:
   `native-tls` crate).
 * `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support.
 
-> ⚠️ **Notice for MacOS users:** On MacOS `native-tls` might fail to perform a TLS handshake over a buffered stream due to a known bug.
-> This should not affect any of the arti- or tor- crates, which establish TLS connections between arti/tor instances over unbuffered
-> TCP connections. This will be fixed once `security-framework` 3.5.1 is used by `native-tls`.
-> View issue [#2117](https://gitlab.torproject.org/tpo/core/arti/-/issues/2117) for more details.
-
 ### Experimental and unstable features
 * `smol` -- build with [smol](https://github.com/smol-rs/smol) support.
 
