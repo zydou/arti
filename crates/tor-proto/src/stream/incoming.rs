@@ -257,8 +257,6 @@ impl CmdChecker for IncomingCmdChecker {
 /// be done on the [`IncomingStream`] objects as they are received.
 pub trait IncomingStreamRequestFilter: Send + 'static {
     /// Check an incoming stream request, and decide what to do with it.
-    ///
-    /// Implementations of this function should
     fn disposition(
         &mut self,
         ctx: &IncomingStreamRequestContext<'_>,
