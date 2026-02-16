@@ -8,7 +8,7 @@ use tor_error::internal;
 
 use crate::channel::{Canonicity, ChannelFrame, UniqId};
 use crate::memquota::ChannelAccount;
-use crate::peer::PeerAddr;
+use crate::peer::{PeerAddr, PeerInfoBuilder};
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use safelog::Redacted;
@@ -19,7 +19,7 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use tor_linkspec::{ChanTarget, ChannelMethod, OwnedChanTargetBuilder, RelayIds};
+use tor_linkspec::{ChanTarget, ChannelMethod, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -567,6 +567,11 @@ impl<
         let stream_ops = self.framed_tls.new_handle();
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
+        let peer = PeerInfoBuilder::default()
+            .addr(self.peer_addr)
+            .build()
+            .map_err(|e| internal!("Unable to build unverified peer info: {e}"))?;
+
         let mut peer_builder = OwnedChanTargetBuilder::default();
         if let Some(target_method) = self.target_method {
             if let Some(addrs) = target_method.socket_addrs() {
@@ -591,6 +596,7 @@ impl<
             stream_ops,
             self.unique_id,
             peer_id,
+            peer,
             self.clock_skew,
             self.sleep_prov,
             self.memquota,
@@ -653,6 +659,27 @@ impl<
         let stream_ops = self.framed_tls.new_handle();
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
+        // Build the peer info of this channel.
+        let mut peer_info_builder = PeerInfoBuilder::default();
+        peer_info_builder.addr(self.peer_addr);
+        let mut relay_ids = RelayIdsBuilder::default();
+        // Non authenticating channels won't have these identities. This is possible as a relay
+        // responder handling an incoming channel from a client/bridge.
+        if let Some(ed25519_id) = self.ed25519_id {
+            relay_ids.ed_identity(ed25519_id);
+        }
+        if let Some((rsa_id, _)) = self.rsa_id_cert_digest {
+            relay_ids.rsa_identity(rsa_id);
+        }
+        let peer = peer_info_builder
+            .ids(
+                relay_ids
+                    .build()
+                    .map_err(|e| internal!("Unable to build relay ids: {e}"))?,
+            )
+            .build()
+            .map_err(|e| internal!("Unable to build peer info for verified channel: {e}"))?;
+
         let mut peer_builder = OwnedChanTargetBuilder::default();
         if let Some(target_method) = self.target_method {
             if let Some(addrs) = target_method.socket_addrs() {
@@ -680,6 +707,7 @@ impl<
             stream_ops,
             self.unique_id,
             peer_id,
+            peer,
             self.clock_skew,
             self.sleep_prov,
             self.memquota,

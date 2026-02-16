@@ -67,6 +67,7 @@ pub use crate::channel::unique_id::UniqId;
 use crate::client::circuit::PendingClientTunnel;
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
+use crate::peer::PeerInfo;
 use crate::util::err::ChannelClosed;
 use crate::util::oneshot_broadcast;
 use crate::util::timeout::TimeoutEstimator;
@@ -293,8 +294,11 @@ pub struct Channel {
 
     /// A unique identifier for this channel.
     unique_id: UniqId,
-    /// Validated identity and address information for this peer.
+    /// Target identity and address information for this peer.
     peer_id: OwnedChanTarget,
+    /// Validated information for this peer.
+    #[expect(unused)] // TODO(relay) Remove once used un choose_channel()
+    peer: PeerInfo,
     /// The declared clock skew on this channel, at the time when this channel was
     /// created.
     clock_skew: ClockSkew,
@@ -542,6 +546,7 @@ impl Channel {
         streamops: BoxedChannelStreamOps,
         unique_id: UniqId,
         peer_id: OwnedChanTarget,
+        peer: PeerInfo,
         clock_skew: ClockSkew,
         sleep_prov: S,
         memquota: ChannelAccount,
@@ -587,6 +592,7 @@ impl Channel {
             padding_ctrl: padding_ctrl.clone(),
             unique_id,
             peer_id,
+            peer,
             clock_skew,
             opened_at: coarsetime::Instant::now(),
             mutable: Mutex::new(mutable),
@@ -1002,6 +1008,7 @@ impl Channel {
             padding_ctrl,
             unique_id,
             peer_id,
+            peer: Default::default(),
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),
@@ -1130,6 +1137,7 @@ pub(crate) mod test {
             padding_ctrl,
             unique_id,
             peer_id,
+            peer: Default::default(),
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),

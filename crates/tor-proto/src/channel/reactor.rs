@@ -799,6 +799,7 @@ pub(crate) mod test {
             Box::new(stream_ops),
             unique_id,
             dummy_target,
+            Default::default(),
             crate::ClockSkew::None,
             runtime,
             fake_mq(),
