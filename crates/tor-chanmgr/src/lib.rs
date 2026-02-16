@@ -238,7 +238,8 @@ impl<R: Runtime> ChanMgr<R> {
         let (sender, receiver) = event::channel();
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let reporter = BootstrapReporter(sender);
-        let transport = transport::DefaultTransport::new(runtime.clone());
+        let transport =
+            transport::DefaultTransport::new(runtime.clone(), config.cfg.outbound_proxy.clone());
         cfg_if::cfg_if! {
             if #[cfg(feature = "relay")] {
                 let builder = if let Some(identities) = &config.identities {

@@ -51,10 +51,12 @@ derive_more = { version = "2.0.1", features = ["full"] }
 educe = "0.4.22"
 futures = "0.3.14"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.5.0" }
+percent-encoding = "2.3.1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.9.1"
 safelog = { path = "../safelog", version = "0.7.0" }
 serde = { version = "1.0.103", features = ["derive"] }
+serde_with = "3.0.0"
 thiserror = "2"
 tor-async-utils = { version = "0.39.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0" }
@@ -73,6 +75,7 @@ tor-socksproto = { path = "../tor-socksproto", version = "0.39.0", default-featu
 ] }
 tor-units = { path = "../tor-units", version = "0.39.0" }
 tracing = "0.1.36"
+url = "2.5.8"
 void = "1"
 
 [dev-dependencies]

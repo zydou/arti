@@ -36,6 +36,15 @@ impl TryFrom<u8> for SocksVersion {
     }
 }
 
+impl fmt::Display for SocksVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SocksVersion::V4 => write!(f, "socks4"),
+            SocksVersion::V5 => write!(f, "socks5"),
+        }
+    }
+}
+
 /// A completed SOCKS request, as negotiated on a SOCKS connection.
 ///
 /// Once this request is done, we know where to connect.  Don't

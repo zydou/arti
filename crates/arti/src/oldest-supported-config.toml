@@ -222,6 +222,27 @@
 # by setting `override_net_params.nf_ito_low` et al.
 # (See torpsec/padding-spec.txt section 3.4.)
 
+# Configure an outbound proxy for connecting to the Tor network.
+#
+# If set, Arti will connect to the Tor network via this SOCKS proxy
+# instead of making direct connections to Tor relays.
+#
+# The proxy is specified as a URI string with the following formats:
+#   - socks4://host:port          - SOCKS4 proxy without authentication
+#   - socks4a://host:port         - SOCKS4a proxy (same as socks4)
+#   - socks5://host:port          - SOCKS5 proxy without authentication
+#   - socks5://user:pass@host:port - SOCKS5 proxy with username/password auth
+#
+# IPv6 addresses should be enclosed in brackets: socks5://[::1]:1080
+#
+# Examples:
+#   outbound_proxy = "socks5://127.0.0.1:1080"
+#   outbound_proxy = "socks5://user:pass@192.168.1.1:9050"
+#   outbound_proxy = "socks5://[::1]:1080"
+#
+# By default, no outbound proxy is used.
+#outbound_proxy = ""
+
 # Rules for how long circuits should survive, and how long pending
 # requests should wait for a circuit.
 [circuit_timing]
