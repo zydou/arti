@@ -11,13 +11,12 @@ semipublic_mod! {
     pub(crate) mod port_info;
 }
 
-use futures::FutureExt as _;
 use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, Error as IoError};
 use futures::stream::StreamExt;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tor_basic_utils::error_sources::ErrorSources;
-use tor_rtcompat::SpawnExt;
+use tor_rtcompat::{NetStreamProvider, SpawnExt};
 use tracing::{debug, error, info, instrument, warn};
 
 #[allow(unused)]
@@ -331,23 +330,34 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
     }
 }
 
-/// Launch a proxy to listen on a given set of ports, and run
-/// indefinitely.
+/// A stream proxy listening on one or more local ports, ready to relay traffic.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[must_use]
+pub(crate) struct StreamProxy<R: Runtime> {
+    /// A tor client to use when relaying traffic.
+    tor_client: TorClient<R>,
+    /// The listeners that we've actually bound to.
+    listeners: Vec<<R as NetStreamProvider>::Listener>,
+    /// An RPC manager to use when incoming requests are tied to streams.
+    rpc_mgr: Option<Arc<RpcMgr>>,
+}
+
+/// Launch a proxy to listen on a given set of ports.
 ///
 /// Requires a `runtime` to use for launching tasks and handling
 /// timeouts, and a `tor_client` to use in connecting over the Tor
 /// network.
 ///
-/// Returns a future that actually instantiates the proxy, and a list of the ports that we have
+/// Returns the proxy, and a list of the ports that we have
 /// bound to.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[instrument(skip_all, level = "trace")]
-pub(crate) async fn launch_proxy<R: Runtime>(
+pub(crate) async fn bind_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
     rpc_data: Option<RpcProxySupport>,
-) -> Result<(impl Future<Output = Result<()>>, Vec<port_info::Port>)> {
+) -> Result<(StreamProxy<R>, Vec<port_info::Port>)> {
     #[cfg(feature = "rpc")]
     let (rpc_mgr, mut rpc_state_sender) = match rpc_data {
         Some(RpcProxySupport {
@@ -428,14 +438,25 @@ pub(crate) async fn launch_proxy<R: Runtime>(
         .collect();
 
     Ok((
-        run_proxy_with_listeners(tor_client, listeners, rpc_mgr).map(move |r| {
-            // Ensure that rpc_state_sender lasts as long the future.
-            #[cfg_attr(not(feature = "rpc"), allow(dropping_copy_types))]
-            drop(rpc_state_sender);
-            r
-        }),
+        StreamProxy {
+            tor_client,
+            listeners,
+            rpc_mgr,
+        },
         ports,
     ))
+}
+
+impl<R: Runtime> StreamProxy<R> {
+    /// Run indefinitely, processing incoming connections and relaying traffic.
+    pub(crate) async fn run_proxy(self) -> Result<()> {
+        let StreamProxy {
+            tor_client,
+            listeners,
+            rpc_mgr,
+        } = self;
+        run_proxy_with_listeners(tor_client, listeners, rpc_mgr).await
+    }
 }
 
 /// Launch a proxy from a given set of already bound listeners.

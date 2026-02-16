@@ -190,12 +190,15 @@ async fn run_proxy<R: ToplevelRuntime>(
         #[cfg(not(feature = "http-connect"))]
         let listener_type = "SOCKS";
 
-        let (proxy_future, socks_ports) =
-            proxy::launch_proxy(runtime, client, socks_listen, rpc_data)
+        let (stream_proxy, socks_ports) =
+            proxy::bind_proxy(runtime, client, socks_listen, rpc_data)
                 .await
                 .with_context(|| format!("Unable to launch {listener_type} proxy"))?;
+
         let failure_message = format!("{listener_type} proxy died unexpectedly");
-        let proxy_future = proxy_future.map(|future_result| future_result.context(failure_message));
+        let proxy_future = stream_proxy
+            .run_proxy()
+            .map(|future_result| future_result.context(failure_message));
         proxy.push(Box::pin(proxy_future));
         ports.extend(socks_ports);
     }
