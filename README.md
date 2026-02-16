@@ -139,15 +139,13 @@ for more details.
 
 Our current Minimum Supported Rust Version (MSRV) is 1.89.
 
-When increasing this MSRV, we won't require any Rust version released in the
-last six months. (That is, we'll only require Rust versions released at least
-six months ago.)
-
-We will not increase MSRV on PATCH releases, though our dependencies might.
+We may increase this MSRV as new Rust versions become available from the
+upstream Rust project. We allow upgrades of our MSRV to Rust X.Y.Z if Rust X.Y.0
+was released within the last 7 months.
 
 We won't increase MSRV just because we can: we'll only do so when we have a
-reason. (We don't guarantee that you'll agree with our reasoning; only that
-it will exist.)
+reason. (We don't guarantee that you'll agree with our reasoning; only that it
+will exist.)
 
 ## Roadmap
 
