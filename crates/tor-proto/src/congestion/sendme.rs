@@ -159,7 +159,7 @@ where
 
     /// Return true iff the SENDME tag should be recorded.
     pub(crate) fn should_record_tag(&self) -> bool {
-        self.window % P::increment() == 0
+        self.window.is_multiple_of(P::increment())
     }
 
     /// Remove one item from this window (since we've sent a cell).

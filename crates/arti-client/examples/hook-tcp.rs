@@ -219,6 +219,7 @@ where
     ) -> Poll<IoResult<usize>> {
         let res = Pin::new(&mut self.inner).poll_read_vectored(cx, bufs);
 
+        #[allow(clippy::collapsible_if)] // See arti#2342
         if let Poll::Ready(Ok(0)) = res {
             if bufs.iter().any(|buf| !buf.is_empty()) {
                 match self.state {

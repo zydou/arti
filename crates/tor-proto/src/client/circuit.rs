@@ -3431,7 +3431,7 @@ pub(crate) mod test {
                         .data_recvd
                         .extend_from_slice(dat.as_ref());
 
-                    let is_next_cell_sendme = data_cells_received % 31 == 0;
+                    let is_next_cell_sendme = data_cells_received.is_multiple_of(31);
                     if is_next_cell_sendme {
                         if tags.is_empty() {
                             // Important: we need to make sure all the SENDMEs

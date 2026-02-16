@@ -3,7 +3,7 @@ name = "tor-persist"
 version = "0.39.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
-rust-version = "1.86"
+rust-version = "1.89"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Persistent state for the Arti Tor implementation"
@@ -45,7 +45,7 @@ sanitize-filename = "0.6.0"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 thiserror = "2"
-time = { version = "0.3", features = ["std", "parsing", "macros", "formatting"] }
+time = { version = "0.3.47", features = ["std", "parsing", "macros", "formatting"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.39.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0" }
 tor-error = { path = "../tor-error", version = "0.39.0", features = ["tracing"] }

@@ -2,7 +2,7 @@
 name = "arti-ureq"
 version = "0.39.0"
 edition = "2024"
-rust-version = "1.86"
+rust-version = "1.89"
 authors = ["The Tor Project, Inc.", "Niel Duysters"]
 license = "MIT OR Apache-2.0"
 description = "Library to use Arti in the ureq http client"

@@ -3,7 +3,7 @@ name = "tor-dirmgr"
 version = "0.39.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
-rust-version = "1.86"
+rust-version = "1.89"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Bootstrap and update an accurate Tor network directory"
@@ -88,7 +88,7 @@ signature = "2"
 static_assertions = "1"
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
-time = { version = "0.3.20", features = ["formatting", "parsing"] }
+time = { version = "0.3.47", features = ["formatting", "parsing"] }
 tor-async-utils = { version = "0.39.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.39.0" }

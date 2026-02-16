@@ -43,7 +43,7 @@ mod model {
             OpcodeSelector::Branch
         } else if n == 12 || n == 24 {
             OpcodeSelector::WideMul
-        } else if (n % 3) == 0 {
+        } else if n.is_multiple_of(3) {
             OpcodeSelector::Mul
         } else {
             match pass {

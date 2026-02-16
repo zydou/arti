@@ -45,6 +45,7 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 #![allow(clippy::needless_lifetimes)] // See arti#1765
 #![allow(mismatched_lifetime_syntaxes)] // temporary workaround for arti#2060
+#![allow(clippy::collapsible_if)] // See arti#2342
 #![deny(clippy::unused_async)]
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 // This file uses `unwrap()` a fair deal, but this is fine in test/bench code
@@ -749,7 +750,7 @@ impl StreamIsolationTracker {
             self.cur_run = run;
             self.next_stream = 0;
             self.cur_token = IsolationToken::new();
-        } else if self.next_stream % self.streams_per_circ == 0 {
+        } else if self.next_stream.is_multiple_of(self.streams_per_circ) {
             self.cur_token = IsolationToken::new();
         }
         self.next_stream += 1;

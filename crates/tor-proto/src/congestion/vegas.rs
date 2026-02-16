@@ -130,7 +130,7 @@ impl CongestionControlAlgorithm for Vegas {
     fn is_next_cell_sendme(&self) -> bool {
         // Matching inflight number to the SENDME increment, time to send a SENDME. Contrary to
         // C-tor, this is called after num_inflight is incremented.
-        self.num_inflight % self.cwnd.sendme_inc() == 0
+        self.num_inflight.is_multiple_of(self.cwnd.sendme_inc())
     }
 
     fn can_send(&self) -> bool {
