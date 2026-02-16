@@ -213,7 +213,13 @@ impl Canonicity {
     ///
     /// The `peer_addr` is the IP address we believe the peer has. In other words, it is either the
     /// IP we used to connect to or the address we see in the accept() phase of the connection.
-    pub(crate) fn from_netinfo(netinfo: &Netinfo, my_addrs: &[IpAddr], peer_addr: IpAddr) -> Self {
+    ///
+    /// It can be None if we used a non-IP address to connect to the peer (PT).
+    pub(crate) fn from_netinfo(
+        netinfo: &Netinfo,
+        my_addrs: &[IpAddr],
+        peer_addr: Option<IpAddr>,
+    ) -> Self {
         Self {
             // The "other addr" (our address as seen by the peer) matches the one we advertised.
             canonical_to_peer: netinfo
@@ -221,7 +227,9 @@ impl Canonicity {
                 .is_some_and(|a: &IpAddr| my_addrs.contains(a)),
             // The "my addresses" (the peer addresses that it claims to have) matches the one we
             // see on the connection or that we attempted to connect to.
-            peer_is_canonical: netinfo.my_addrs().contains(&peer_addr),
+            peer_is_canonical: peer_addr
+                .map(|a| netinfo.my_addrs().contains(&a))
+                .unwrap_or_default(),
         }
     }
 

@@ -11,8 +11,7 @@ use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
-use tor_error::internal;
-use tor_linkspec::{ChannelMethod, OwnedChanTarget};
+use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto as ll;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -176,13 +175,7 @@ where
     /// channel on which circuits can be opened.
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        let peer_ip = self
-            .inner
-            .target_method
-            .as_ref()
-            .and_then(ChannelMethod::unique_direct_addr)
-            .ok_or(internal!("No peer IP on verified responder channel"))?
-            .ip();
+        let peer_ip = self.inner.peer_addr.netinfo_addr();
         self.inner
             .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
             .await
@@ -202,13 +195,7 @@ where
     pub fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Non verifiable responder channel, we simply finalize our underlying channel and we are
         // done. We are connected to a client or bridge.
-        let peer_ip = self
-            .inner
-            .target_method
-            .as_ref()
-            .and_then(ChannelMethod::unique_direct_addr)
-            .ok_or(internal!("No peer IP on non verifiable responder channel"))?
-            .ip();
+        let peer_ip = self.inner.peer_addr.netinfo_addr();
         self.inner
             .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
     }

@@ -16,12 +16,11 @@ use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::trace;
 
 use tor_cell::chancell::msg;
-use tor_error::internal;
-use tor_linkspec::{ChannelMethod, OwnedChanTarget};
+use tor_linkspec::OwnedChanTarget;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::{
-    ClockSkew, Error, RelayIdentities, Result,
+    ClockSkew, RelayIdentities, Result,
     channel::{
         Channel, ChannelType, Reactor,
         handshake::{UnverifiedChannel, VerifiedChannel},
@@ -158,13 +157,7 @@ where
         trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");
         self.inner.framed_tls.send(self.auth_cell.into()).await?;
 
-        let peer_ip = self
-            .inner
-            .target_method
-            .as_ref()
-            .and_then(ChannelMethod::unique_direct_addr)
-            .ok_or(Error::from(internal!("Target method address invalid")))?
-            .ip();
+        let peer_ip = self.inner.peer_addr.netinfo_addr();
         // Send our NETINFO cell. This will indicate the end of the handshake.
         let netinfo =
             super::build_netinfo_cell(peer_ip, self.my_addrs.clone(), &self.inner.sleep_prov)?;

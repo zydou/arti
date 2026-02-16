@@ -32,6 +32,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::channel::ChannelType;
 use crate::channel::handshake::VerifiedChannel;
+use crate::peer::PeerAddr;
 use crate::relay::channel::handshake::{AUTHTYPE_ED25519_SHA256_RFC5705, RelayResponderHandshake};
 use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 
@@ -128,9 +129,11 @@ impl RelayChannelBuilder {
     /// handshake.  If that succeeds, you'll have authentication info from the relay: call
     /// `check()` on the result to check that.  Finally, to finish the handshake, call `finish()`
     /// on the result of _that_.
+    #[allow(clippy::too_many_arguments)] // TODO consider if we want a builder
     pub fn launch<T, S>(
         self,
         tls: T,
+        peer_addr: PeerAddr,
         sleep_prov: S,
         identities: Arc<RelayIdentities>,
         my_addrs: Vec<IpAddr>,
@@ -141,7 +144,9 @@ impl RelayChannelBuilder {
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        RelayInitiatorHandshake::new(tls, sleep_prov, identities, my_addrs, peer, memquota)
+        RelayInitiatorHandshake::new(
+            tls, peer_addr, sleep_prov, identities, my_addrs, peer, memquota,
+        )
     }
 
     /// Accept a new handshake over a TLS stream.
@@ -158,7 +163,14 @@ impl RelayChannelBuilder {
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        RelayResponderHandshake::new(peer, my_addrs, tls, sleep_prov, identities, memquota)
+        RelayResponderHandshake::new(
+            peer.into_inner().into(),
+            my_addrs,
+            tls,
+            sleep_prov,
+            identities,
+            memquota,
+        )
     }
 }
 
@@ -381,7 +393,7 @@ pub(crate) fn build_certs_cell(
 ///
 /// Both relay initiator and responder handshake use this.
 pub(crate) fn build_netinfo_cell<S>(
-    peer_ip: IpAddr,
+    peer_ip: Option<IpAddr>,
     my_addrs: Vec<IpAddr>,
     sleep_prov: &S,
 ) -> Result<msg::Netinfo>
@@ -397,5 +409,5 @@ where
         .as_secs()
         .try_into()
         .map_err(|e| internal!("Wallclock secs fail to convert to 32bit: {e}"))?;
-    Ok(msg::Netinfo::from_relay(timestamp, Some(peer_ip), my_addrs))
+    Ok(msg::Netinfo::from_relay(timestamp, peer_ip, my_addrs))
 }

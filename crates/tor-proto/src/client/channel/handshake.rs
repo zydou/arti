@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use tracing::{debug, instrument, trace};
 
 use tor_cell::chancell::msg;
-use tor_linkspec::{BridgeAddr, ChannelMethod, OwnedChanTarget};
+use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::ClockSkew;
@@ -18,6 +18,7 @@ use crate::channel::handshake::{
 };
 use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
+use crate::peer::PeerAddr;
 
 /// A raw client channel on which nothing has been done.
 pub struct ClientInitiatorHandshake<
@@ -38,6 +39,9 @@ pub struct ClientInitiatorHandshake<
 
     /// Declared target method for this channel, if any.
     target_method: Option<ChannelMethod>,
+
+    /// Peer address.
+    peer_addr: PeerAddr,
 
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
@@ -77,6 +81,7 @@ impl<
     /// Construct a new ClientInitiatorHandshake.
     pub(crate) fn new(
         tls: T,
+        peer_addr: PeerAddr,
         target_method: Option<ChannelMethod>,
         sleep_prov: S,
         memquota: ChannelAccount,
@@ -84,6 +89,7 @@ impl<
         Self {
             framed_tls: new_frame(tls, ChannelType::ClientInitiator),
             target_method,
+            peer_addr,
             unique_id: UniqId::new(),
             sleep_prov,
             memquota,
@@ -137,6 +143,7 @@ impl<
                 certs_cell: Some(certs_cell),
                 clock_skew,
                 target_method: self.target_method.take(),
+                peer_addr: self.peer_addr,
                 unique_id: self.unique_id,
                 sleep_prov: self.sleep_prov.clone(),
                 memquota: self.memquota.clone(),
@@ -230,30 +237,10 @@ impl<
     /// route incoming messages to their appropriate circuit.
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // Get the target address for this channel. Unfortunately, as you can see, the interface of
-        // ChannelMethod is not great as it mixes "PT" and "Direct" concept so we have to do some
-        // hoops jumping to get the peer IpAddr.
-        //
-        // Without a peer IP, we can't send the NETINFO and can't finalize the channel as we need
-        // it for canonical checks.
-        let addr: Option<BridgeAddr> = self
-            .inner
-            .target_method
-            .as_ref()
-            .and_then(ChannelMethod::target_addr)
-            .ok_or(tor_error::internal!(
-                "No peer IP on verified client channel"
-            ))?
-            .clone()
-            .into();
-        let peer_ip =
-            addr.and_then(|b| b.as_socketaddr().map(|s| s.ip()))
-                .ok_or(tor_error::internal!(
-                    "Unable to use peer address on verified client channel"
-                ))?;
+        let peer_ip = self.inner.peer_addr.netinfo_addr();
 
         // Send the NETINFO message.
-        let netinfo = msg::Netinfo::from_client(Some(peer_ip));
+        let netinfo = msg::Netinfo::from_client(peer_ip);
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 

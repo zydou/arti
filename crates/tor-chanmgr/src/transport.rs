@@ -13,6 +13,7 @@ pub(crate) use default::DefaultTransport;
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 pub use proxied::ExternalProxyPlugin;
 pub use proxied::ProxyError;
+use tor_proto::peer::PeerAddr;
 use tor_rtcompat::StreamOps;
 
 /// A convenient API for defining transports for use in Tor and elsewhere.
@@ -47,8 +48,5 @@ pub trait TransportImplHelper {
     /// caller provides a target with the wrong
     /// [`TransportId`](tor_linkspec::TransportId), this method should return
     /// [`Error::NoSuchTransport`](crate::Error::NoSuchTransport).
-    async fn connect(
-        &self,
-        target: &OwnedChanTarget,
-    ) -> crate::Result<(OwnedChanTarget, Self::Stream)>;
+    async fn connect(&self, target: &OwnedChanTarget) -> crate::Result<(PeerAddr, Self::Stream)>;
 }
