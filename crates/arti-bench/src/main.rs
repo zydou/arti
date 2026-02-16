@@ -750,7 +750,7 @@ impl StreamIsolationTracker {
             self.cur_run = run;
             self.next_stream = 0;
             self.cur_token = IsolationToken::new();
-        } else if self.next_stream % self.streams_per_circ == 0 {
+        } else if self.next_stream.is_multiple_of(self.streams_per_circ) {
             self.cur_token = IsolationToken::new();
         }
         self.next_stream += 1;
