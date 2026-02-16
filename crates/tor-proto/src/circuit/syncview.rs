@@ -1,46 +1,32 @@
 //! Implement synchronous views of circuit internals.
 
-/// An object that represents a view of a circuit's internals,
-/// usable in a synchronous callback.
-pub struct CircSyncView<'a>(CircSyncViewInner<'a>);
+use crate::client::reactor::circuit::circhop::CircHopList;
 
-impl<'a> CircSyncView<'a> {
-    /// Create a new client circuit view.
-    pub(crate) fn new_client(c: crate::client::circuit::CircSyncView<'a>) -> Self {
-        Self(c.into())
-    }
-
-    /// Create a new relay circuit view.
-    #[allow(dead_code)] // TODO(relay)
-    #[cfg(feature = "relay")]
-    pub(crate) fn new_relay() -> Self {
-        Self(CircSyncViewInner::Relay( /* TODO(relay) */))
-    }
-}
-
-/// The internal representation of a [`CircSyncView`].
-#[derive(derive_more::From)]
-pub(crate) enum CircSyncViewInner<'a> {
-    /// A view of a client circuit's internals.
-    Client(crate::client::circuit::CircSyncView<'a>),
-    /// A view of a relay circuit's internals.
-    #[cfg(feature = "relay")]
-    #[allow(dead_code)] // TODO(relay)
-    Relay(/* TODO(relay) */),
+/// A view of a [`ClientCirc`](crate::client::circuit::ClientCirc)'s internals, usable in a
+/// synchronous callback.
+//
+// TODO: I would rather have this type have a mutable reference to the reactor itself,
+// rather than just an immutable reference to a piece of it.
+// But that creates borrow-checker problems, so instead for now,
+// we only hold references to the pieces we need.
+//
+// If we need to hold more info in the future,
+// we'll need to decide whether to create additional types for the more complex variants,
+// or whether to try to stuff everything inside this type.
+pub struct CircSyncView<'a> {
+    /// The hops of the circuit used to implement this view.
+    pub(super) hops: &'a CircHopList,
 }
 
 impl<'a> CircSyncView<'a> {
+    /// Construct a new view of a circuit, given a mutable reference to its
+    /// reactor.
+    pub(crate) fn new(reactor: &'a CircHopList) -> Self {
+        Self { hops: reactor }
+    }
+
     /// Return the number of streams currently open on this circuit.
     pub fn n_open_streams(&self) -> usize {
-        use CircSyncViewInner::*;
-
-        match &self.0 {
-            Client(c) => c.n_open_streams(),
-            #[cfg(feature = "relay")]
-            Relay() => todo!(),
-        }
+        self.hops.n_open_streams()
     }
-
-    // TODO: We will eventually want to add more functionality here, but we
-    // should do so judiciously.
 }

@@ -897,7 +897,7 @@ impl Circuit {
             //
             // This means it's very important not to call this function while any of the hop's
             // stream map mutex is held.
-            let view = CircSyncView::new_client(super::syncview::CircSyncView::new(&self.hops));
+            let view = CircSyncView::new(&self.hops);
 
             match handler.filter.as_mut().disposition(&ctx, &view)? {
                 Accept => {}
