@@ -1,7 +1,8 @@
 //! Implement a simple DNS resolver that relay request over Tor.
 //!
-//! A resolver is launched with [`launch_dns_resolver()`], which launches a task to listen for
-//! DNS requests, and send back replies in response.
+//! A resolver is created with [`bind_dns_resolver()`], which opens a set of listener ports.
+//! `DnsProxy::run_dns_proxy` then listens for
+//! DNS requests, and sends back replies in response.
 
 use futures::lock::Mutex;
 use futures::stream::StreamExt;

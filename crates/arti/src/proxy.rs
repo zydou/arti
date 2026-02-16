@@ -1,6 +1,7 @@
 //! Implement a simple proxy that relays connections over Tor.
 //!
-//! A proxy is launched with [`launch_proxy()`], which starts a task to listen for new
+//! A proxy is launched with [`bind_proxy()`], which opens listener ports.
+//! `StreamProxy::run_proxy` then listens for new
 //! connections, handles an appropriate handshake,
 //! and then relays traffic as appropriate.
 
