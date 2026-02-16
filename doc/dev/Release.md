@@ -303,9 +303,6 @@ before you continue!
 
 ## Post-release
 
-3. [ ] Tell `network-team` (via email and IRC) that the tree is open
-   for new MRs to be merged!
-
 1. [ ] Remove all of the semver.md files:
    `git rm crates/*/semver.md`.
 
@@ -313,6 +310,9 @@ before you continue!
    so that the relevant `semver.md` entries
    are present in the tagged commit,
    and easy to find for reference.)
+
+3. [ ] Tell `network-team` (via email and IRC) that the tree is open
+   for new MRs to be merged!
 
 2. [ ] Write and publish a blog post.
 
