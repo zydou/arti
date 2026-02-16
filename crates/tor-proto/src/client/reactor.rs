@@ -20,7 +20,6 @@
 pub(crate) mod circuit;
 mod conflux;
 mod control;
-pub(super) mod syncview;
 
 use crate::circuit::circhop::SendRelayCell;
 use crate::circuit::{CircuitRxReceiver, UniqId};

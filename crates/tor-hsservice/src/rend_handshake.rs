@@ -216,7 +216,7 @@ impl IncomingStreamRequestFilter for RequestFilter {
     fn disposition(
         &mut self,
         _ctx: &tor_proto::client::stream::IncomingStreamRequestContext<'_>,
-        circ: &tor_proto::circuit::CircSyncView<'_>,
+        circ: &tor_proto::circuit::CircHopSyncView<'_>,
     ) -> tor_proto::Result<tor_proto::client::stream::IncomingStreamRequestDisposition> {
         if circ.n_open_streams() >= self.max_concurrent_streams {
             // TODO: We may want to have a way to send back an END message as

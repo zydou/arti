@@ -1,8 +1,8 @@
 //! The stream reactor.
 
-use crate::circuit::UniqId;
 use crate::circuit::circhop::CircHopOutbound;
 use crate::circuit::reactor::macros::derive_deftly_template_CircuitReactor;
+use crate::circuit::{CircHopSyncView, UniqId};
 use crate::congestion::{CongestionControl, sendme};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::CloseStreamBehavior;
@@ -396,7 +396,9 @@ impl StreamReactor {
         }
 
         let req = parse_incoming_stream_req(msg)?;
-        if let Some(reject) = Self::should_reject_incoming(handler, sid, &req)? {
+        let view = CircHopSyncView::new(&self.hop);
+
+        if let Some(reject) = Self::should_reject_incoming(handler, sid, &req, &view)? {
             // We can't honor this request, so we bail by sending an END.
             return Ok(Some(reject));
         };
@@ -496,27 +498,19 @@ impl StreamReactor {
     ///`
     /// Any error returned from this function will shut down the reactor.
     #[cfg(any(feature = "hs-service", feature = "relay"))]
-    fn should_reject_incoming(
+    fn should_reject_incoming<'a>(
         handler: &mut IncomingStreamRequestHandler,
         sid: StreamId,
         request: &IncomingStreamRequest,
+        view: &CircHopSyncView<'a>,
     ) -> StdResult<Option<AnyRelayMsgOuter>, ReactorError> {
         use IncomingStreamRequestDisposition::*;
 
         let ctx = IncomingStreamRequestContext { request };
 
-        // TODO: this is supposed to take either a CircSyncView::Client,
-        // or a CircSynvView::Relay, but this function is implementation-agnostic,
-        // so we don't know whether we're a client or a relay!
-        //
-        // This needs a bit of a redesign: perhaps CircSynvView shouldn't be an enum,
-        // but instead an implementation-agnostic wrapper object that provides
-        // the n_open_streams() API.
-        let view = todo!();
-
         // Run the externally provided filter to check if we should
         // open the stream or not.
-        match handler.filter.as_mut().disposition(&ctx, &view)? {
+        match handler.filter.as_mut().disposition(&ctx, view)? {
             Accept => {
                 // All is well, we can accept the stream request
                 Ok(None)

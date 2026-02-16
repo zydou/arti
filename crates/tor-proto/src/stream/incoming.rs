@@ -13,7 +13,7 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
 use tor_rtcompat::DynTimeProvider;
 
-use crate::circuit::CircSyncView;
+use crate::circuit::CircHopSyncView;
 use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 use crate::stream::{CloseStreamBehavior, StreamComponents};
 use crate::{Error, Result};
@@ -252,16 +252,15 @@ impl CmdChecker for IncomingCmdChecker {
 /// immediately on its receipt.
 ///
 /// This should only be used for checks that need to be done immediately, with a
-/// view of the state of the circuit.  Any other checks should, if possible, be
-/// done on the [`IncomingStream`] objects as they are received.
+/// view of the state of the circuit hop the stream request arrived on.
+/// Any other checks should, if possible,
+/// be done on the [`IncomingStream`] objects as they are received.
 pub trait IncomingStreamRequestFilter: Send + 'static {
     /// Check an incoming stream request, and decide what to do with it.
-    ///
-    /// Implementations of this function should
     fn disposition(
         &mut self,
         ctx: &IncomingStreamRequestContext<'_>,
-        circ: &CircSyncView<'_>,
+        circ: &CircHopSyncView<'_>,
     ) -> Result<IncomingStreamRequestDisposition>;
 }
 

@@ -12,7 +12,7 @@ pub(crate) mod syncview;
 pub(crate) mod unique_id;
 
 pub use crate::memquota::StreamAccount;
-pub use syncview::CircSyncView;
+pub use syncview::CircHopSyncView;
 pub use unique_id::UniqId;
 
 use crate::ccparams::CongestionControlParams;
