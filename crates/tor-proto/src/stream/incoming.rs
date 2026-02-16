@@ -252,8 +252,9 @@ impl CmdChecker for IncomingCmdChecker {
 /// immediately on its receipt.
 ///
 /// This should only be used for checks that need to be done immediately, with a
-/// view of the state of the circuit.  Any other checks should, if possible, be
-/// done on the [`IncomingStream`] objects as they are received.
+/// view of the state of the circuit hop the stream request arrived on.
+/// Any other checks should, if possible,
+/// be done on the [`IncomingStream`] objects as they are received.
 pub trait IncomingStreamRequestFilter: Send + 'static {
     /// Check an incoming stream request, and decide what to do with it.
     ///
