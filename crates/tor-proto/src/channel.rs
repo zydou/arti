@@ -1108,12 +1108,10 @@ pub(crate) mod test {
     // reactor code; there are just a few more cases to examine here.
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::channel::handler::test::MsgBuf;
     pub(crate) use crate::channel::reactor::test::{CodecResult, new_reactor};
-    use crate::util::fake_mq;
     use tor_cell::chancell::msg::HandshakeType;
     use tor_cell::chancell::{AnyChanCell, msg};
-    use tor_rtcompat::{PreferredRuntime, test_with_one_runtime};
+    use tor_rtcompat::test_with_one_runtime;
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     pub(crate) fn fake_channel(
