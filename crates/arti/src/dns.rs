@@ -257,7 +257,7 @@ pub(crate) async fn bind_dns_resolver<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
-) -> Result<(DnsProxy<R>, Vec<port_info::Port>)> {
+) -> Result<DnsProxy<R>> {
     if !listen.is_loopback_only() {
         warn!(
             "Configured to listen for DNS on non-local addresses. This is usually insecure! We recommend listening on localhost only."
@@ -265,7 +265,6 @@ pub(crate) async fn bind_dns_resolver<R: Runtime>(
     }
 
     let mut listeners = Vec::new();
-    let mut listening_on = Vec::new();
 
     // Try to bind to the DNS ports.
     match listen.ip_addrs() {
@@ -279,7 +278,6 @@ pub(crate) async fn bind_dns_resolver<R: Runtime>(
                             let bound_addr = listener.local_addr()?;
                             info!("Listening on {:?}.", bound_addr);
                             listeners.push(listener);
-                            listening_on.push(bound_addr);
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -301,21 +299,10 @@ pub(crate) async fn bind_dns_resolver<R: Runtime>(
         return Err(anyhow!("Couldn't open any DNS listeners"));
     }
 
-    let ports = listening_on
-        .iter()
-        .map(|sockaddr| port_info::Port {
-            protocol: port_info::SupportedProtocol::DnsUdp,
-            address: (*sockaddr).into(),
-        })
-        .collect();
-
-    Ok((
-        DnsProxy {
-            tor_client,
-            udp_sockets: listeners,
-        },
-        ports,
-    ))
+    Ok(DnsProxy {
+        tor_client,
+        udp_sockets: listeners,
+    })
 }
 
 impl<R: Runtime> DnsProxy<R> {
@@ -326,6 +313,20 @@ impl<R: Runtime> DnsProxy<R> {
             udp_sockets,
         } = self;
         run_dns_resolver_with_listeners(tor_client.runtime().clone(), tor_client, udp_sockets).await
+    }
+
+    /// Return a list of the port addresses that we have bound.
+    pub(crate) fn port_info(&self) -> Result<Vec<port_info::Port>> {
+        Ok(self
+            .udp_sockets
+            .iter()
+            .map(|socket| {
+                socket.local_addr().map(|address| port_info::Port {
+                    protocol: port_info::SupportedProtocol::DnsUdp,
+                    address: address.into(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?)
     }
 }
 

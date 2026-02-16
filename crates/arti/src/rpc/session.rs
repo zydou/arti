@@ -4,10 +4,12 @@ use arti_client::TorClient;
 use arti_rpcserver::RpcAuthentication;
 use derive_deftly::Deftly;
 use futures::stream::StreamExt as _;
-use std::{net::SocketAddr, sync::Arc};
+use std::sync::Arc;
 use tor_async_utils::{DropNotifyEofSignallable, DropNotifyWatchSender};
 use tor_rpcbase::{self as rpc};
 use tor_rtcompat::Runtime;
+
+use crate::proxy::port_info;
 
 use super::proxyinfo::{self, ProxyInfo};
 
@@ -133,29 +135,17 @@ impl RpcVisibleArtiState {
 }
 
 impl RpcStateSender {
-    /// Set the list of socks listener addresses on this state.
+    /// Set the list of stream listener addresses on this state.
     ///
     /// This method may only be called once per state.
-    pub(crate) fn set_socks_listeners(&mut self, addrs: &[SocketAddr]) {
+    pub(crate) fn set_stream_listeners(&mut self, ports: &[port_info::Port]) {
         let info = ProxyInfo {
-            proxies: addrs
+            proxies: ports
                 .iter()
-                .flat_map(|a| {
-                    [
-                        proxyinfo::Proxy {
-                            listener: proxyinfo::ProxyListener::Socks5 {
-                                tcp_address: Some(*a),
-                            },
-                        },
-                        // When http-connect is enabled, every SOCKS proxy is also an HTTP CONNECT
-                        // proxy.
-                        #[cfg(feature = "http-connect")]
-                        proxyinfo::Proxy {
-                            listener: proxyinfo::ProxyListener::HttpConnect {
-                                tcp_address: Some(*a),
-                            },
-                        },
-                    ]
+                .filter_map(|port| {
+                    Some(proxyinfo::Proxy {
+                        listener: proxyinfo::ProxyListener::try_from_portinfo(port)?,
+                    })
                 })
                 .collect(),
         };
@@ -189,7 +179,10 @@ mod test {
         MockRuntime::test_with_various(|rt| async move {
             let (state, mut sender) = RpcVisibleArtiState::new();
             let _task = rt.clone().spawn_with_handle(async move {
-                sender.set_socks_listeners(&["8.8.4.4:99".parse().unwrap()]);
+                sender.set_stream_listeners(&[port_info::Port {
+                    protocol: port_info::SupportedProtocol::Socks,
+                    address: "8.8.8.8:40".parse().unwrap(),
+                }]);
                 sender // keep sender alive
             });
 

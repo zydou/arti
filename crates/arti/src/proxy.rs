@@ -31,8 +31,6 @@ use tor_socksproto::SocksAuth;
 
 use anyhow::{Context, Result, anyhow};
 
-use crate::rpc::RpcProxySupport;
-
 /// Placeholder type when RPC is disabled at compile time.
 #[cfg(not(feature = "rpc"))]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
@@ -356,19 +354,8 @@ pub(crate) async fn bind_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
-    rpc_data: Option<RpcProxySupport>,
-) -> Result<(StreamProxy<R>, Vec<port_info::Port>)> {
-    #[cfg(feature = "rpc")]
-    let (rpc_mgr, mut rpc_state_sender) = match rpc_data {
-        Some(RpcProxySupport {
-            rpc_mgr,
-            rpc_state_sender,
-        }) => (Some(rpc_mgr), Some(rpc_state_sender)),
-        None => (None, None),
-    };
-    #[cfg(not(feature = "rpc"))]
-    let (rpc_mgr, rpc_state_sender) = (None, None::<()>);
-
+    rpc_mgr: Option<Arc<RpcMgr>>,
+) -> Result<StreamProxy<R>> {
     if !listen.is_loopback_only() {
         warn!(
             "Configured to listen for proxy connections on non-local addresses. \
@@ -377,7 +364,6 @@ pub(crate) async fn bind_proxy<R: Runtime>(
     }
 
     let mut listeners = Vec::new();
-    let mut listening_on_addrs = Vec::new();
 
     // Try to bind to the listener ports.
     match listen.ip_addrs() {
@@ -389,7 +375,6 @@ pub(crate) async fn bind_proxy<R: Runtime>(
                             let bound_addr = listener.local_addr()?;
                             info!("Listening on {:?}", bound_addr);
                             listeners.push(listener);
-                            listening_on_addrs.push(bound_addr);
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -412,39 +397,11 @@ pub(crate) async fn bind_proxy<R: Runtime>(
         return Err(anyhow!("Couldn't open listeners"));
     }
 
-    cfg_if::cfg_if! {
-        if #[cfg(feature="rpc")] {
-            if let Some(rpc_state_sender) = &mut rpc_state_sender {
-                rpc_state_sender.set_socks_listeners(&listening_on_addrs[..]);
-            }
-        }
-    }
-    let ports = listening_on_addrs
-        .iter()
-        .flat_map(|sockaddr| {
-            [
-                port_info::Port {
-                    protocol: port_info::SupportedProtocol::Socks,
-                    address: (*sockaddr).into(),
-                },
-                // If http-connect is enabled, every socks proxy is also http.
-                #[cfg(feature = "http-connect")]
-                port_info::Port {
-                    protocol: port_info::SupportedProtocol::Http,
-                    address: (*sockaddr).into(),
-                },
-            ]
-        })
-        .collect();
-
-    Ok((
-        StreamProxy {
-            tor_client,
-            listeners,
-            rpc_mgr,
-        },
-        ports,
-    ))
+    Ok(StreamProxy {
+        tor_client,
+        listeners,
+        rpc_mgr,
+    })
 }
 
 impl<R: Runtime> StreamProxy<R> {
@@ -456,6 +413,28 @@ impl<R: Runtime> StreamProxy<R> {
             rpc_mgr,
         } = self;
         run_proxy_with_listeners(tor_client, listeners, rpc_mgr).await
+    }
+
+    /// Return a list of the ports that we've bound to.
+    pub(crate) fn port_info(&self) -> Result<Vec<port_info::Port>> {
+        let mut ports = Vec::new();
+        for listener in &self.listeners {
+            let address = listener.local_addr()?;
+            ports.extend([
+                port_info::Port {
+                    protocol: port_info::SupportedProtocol::Socks,
+                    address: address.into(),
+                },
+                // If http-connect is enabled, every socks proxy is also http.
+                #[cfg(feature = "http-connect")]
+                port_info::Port {
+                    protocol: port_info::SupportedProtocol::Http,
+                    address: address.into(),
+                },
+            ]);
+        }
+
+        Ok(ports)
     }
 }
 

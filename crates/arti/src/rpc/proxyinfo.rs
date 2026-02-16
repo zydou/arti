@@ -4,6 +4,8 @@ use std::{net::SocketAddr, sync::Arc};
 use tor_error::{ErrorKind, HasKind};
 use tor_rpcbase::{self as rpc};
 
+use crate::proxy::port_info;
+
 use super::session::ArtiRpcSession;
 
 /// Representation of a single proxy, as delivered by the RPC API.
@@ -32,6 +34,30 @@ pub(super) enum ProxyListener {
         /// The address at which we're listening for HTTP CONNECT connections.
         tcp_address: Option<SocketAddr>,
     },
+}
+
+impl ProxyListener {
+    /// Try to represent the given port as a ProxyListener.
+    ///
+    /// Return None if it cannot be represented.
+    pub(crate) fn try_from_portinfo(port: &port_info::Port) -> Option<Self> {
+        use port_info::SupportedProtocol as SP;
+        use tor_rtcompat::general::{self, SocketAddr::Inet};
+
+        match (&port.address, &port.protocol) {
+            (Inet(a), SP::Socks) => Some(Self::Socks5 {
+                tcp_address: Some(*a),
+            }),
+            #[cfg(feature = "http-connect")]
+            (Inet(a), SP::Http) => Some(Self::HttpConnect {
+                tcp_address: Some(*a),
+            }),
+            (Inet(_), SP::DnsUdp) => None,
+            // TODO: Handle unix addresses once we can bind to them
+            (general::SocketAddr::Unix(_), _) => None,
+            (_, _) => None,
+        }
+    }
 }
 
 /// A representation of the set of proxy addresses available from the RPC API.
