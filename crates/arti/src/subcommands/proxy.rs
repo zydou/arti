@@ -204,11 +204,12 @@ async fn run_proxy<R: ToplevelRuntime>(
     if !dns_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
-        let (proxy_future, dns_ports) = dns::launch_dns_resolver(runtime, client, dns_listen)
+        let (dns_proxy, dns_ports) = dns::bind_dns_resolver(runtime, client, dns_listen)
             .await
             .context("Unable to launch DNS proxy")?;
-        let proxy_future =
-            proxy_future.map(|future_result| future_result.context("DNS proxy died unexpectedly"));
+        let proxy_future = dns_proxy
+            .run_dns_proxy()
+            .map(|future_result| future_result.context("DNS proxy died unexpectedly"));
         proxy.push(Box::pin(proxy_future));
         ports.extend(dns_ports);
     }

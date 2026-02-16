@@ -13,7 +13,7 @@ use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
-use tor_rtcompat::SpawnExt;
+use tor_rtcompat::{SpawnExt, UdpProvider};
 use tracing::{debug, error, info, warn};
 
 use arti_client::{Error, HasKind, StreamPrefs, TorClient};
@@ -238,16 +238,26 @@ where
     Ok(())
 }
 
-/// Launch a DNS resolver to listen on a given local port, and run indefinitely.
+/// A DNS proxy server that can run indefinitely.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[must_use]
+pub(crate) struct DnsProxy<R: Runtime> {
+    /// A list of bound UDP sockets.
+    udp_sockets: Vec<<R as UdpProvider>::UdpSocket>,
+    /// A tor client to handle DNS requests.
+    tor_client: TorClient<R>,
+}
+
+/// Bind to a set of DNS ports, and return a new DnsProxy.
 ///
-/// Return a future that implements the DNS resolver.
+/// Takes no action until `run_dns_proxy` is called.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor
-pub(crate) async fn launch_dns_resolver<R: Runtime>(
+pub(crate) async fn bind_dns_resolver<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
-) -> Result<(impl Future<Output = Result<()>>, Vec<port_info::Port>)> {
+) -> Result<(DnsProxy<R>, Vec<port_info::Port>)> {
     if !listen.is_loopback_only() {
         warn!(
             "Configured to listen for DNS on non-local addresses. This is usually insecure! We recommend listening on localhost only."
@@ -300,9 +310,23 @@ pub(crate) async fn launch_dns_resolver<R: Runtime>(
         .collect();
 
     Ok((
-        run_dns_resolver_with_listeners(runtime, tor_client, listeners),
+        DnsProxy {
+            tor_client,
+            udp_sockets: listeners,
+        },
         ports,
     ))
+}
+
+impl<R: Runtime> DnsProxy<R> {
+    /// Run indefinitely, receiving incoming DNS requests and processing them.
+    pub(crate) async fn run_dns_proxy(self) -> Result<()> {
+        let DnsProxy {
+            tor_client,
+            udp_sockets,
+        } = self;
+        run_dns_resolver_with_listeners(tor_client.runtime().clone(), tor_client, udp_sockets).await
+    }
 }
 
 /// Inner task: Receive incoming DNS requests and process them.
