@@ -256,6 +256,56 @@ async fn consume_remaining_headers<R: NetStreamProvider + Send + Sync>(
     Ok(())
 }
 
+/// Send HTTP CONNECT request to proxy.
+async fn send_http_connect_request<R: NetStreamProvider + Send + Sync>(
+    stream: &mut R::Stream,
+    auth: &Option<(Sensitive<String>, Sensitive<String>)>,
+    target_str: &str,
+) -> Result<(), ProxyError> {
+    let request = build_http_connect_request(target_str, auth);
+    trace!("Sending HTTP CONNECT request for {}", target_str);
+    stream.write_all(request.as_bytes()).await?;
+    stream.flush().await?;
+    Ok(())
+}
+
+/// Read and validate HTTP status line from proxy response.
+async fn read_and_validate_status_line<R: NetStreamProvider + Send + Sync>(
+    reader: &mut BufReader<R::Stream>,
+) -> Result<(String, usize), ProxyError> {
+    let mut status_line = String::new();
+    let total_header_bytes = reader.read_line(&mut status_line).await?;
+    if total_header_bytes == 0 || total_header_bytes > MAX_HTTP_HEADER_BYTES {
+        return Err(ProxyError::HttpConnectMalformed);
+    }
+    Ok((status_line, total_header_bytes))
+}
+
+/// Validate HTTP CONNECT response: check status code, consume headers, verify no unexpected data.
+async fn validate_http_connect_response<R: NetStreamProvider + Send + Sync>(
+    reader: &mut BufReader<R::Stream>,
+    status_line: &str,
+    total_header_bytes: &mut usize,
+) -> Result<u16, ProxyError> {
+    // Parse status line and check status code
+    let status_code = parse_status_line(status_line)?;
+    if !(200..300).contains(&status_code) {
+        trace!("HTTP CONNECT failed with status {}", status_code);
+        return Err(ProxyError::HttpConnectError(status_code));
+    }
+
+    // Consume remaining headers until blank line
+    consume_remaining_headers::<R>(reader, total_header_bytes).await?;
+
+    // If the proxy pipelined any bytes after headers, we can't preserve them.
+    let buf = reader.buffer();
+    if !buf.is_empty() {
+        return Err(ProxyError::UnexpectedData);
+    }
+
+    Ok(status_code)
+}
+
 /// Perform HTTP CONNECT proxy handshake (RFC 7231, RFC 7617 for Basic auth).
 async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
     mut stream: R::Stream,
@@ -265,34 +315,17 @@ async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
     let target_str = format_connect_target(target)?;
 
     // Build and send CONNECT request
-    let request = build_http_connect_request(&target_str, auth);
-    trace!("Sending HTTP CONNECT request for {}", target_str);
-    stream.write_all(request.as_bytes()).await?;
-    stream.flush().await?;
+    send_http_connect_request::<R>(&mut stream, auth, &target_str).await?;
 
     // Read response until end of headers (\r\n\r\n)
     let mut reader = BufReader::new(stream);
-    let mut status_line = String::new();
-    let mut total_header_bytes = reader.read_line(&mut status_line).await?;
-    if total_header_bytes == 0 || total_header_bytes > MAX_HTTP_HEADER_BYTES {
-        return Err(ProxyError::HttpConnectMalformed);
-    }
+    let (status_line, mut total_header_bytes) =
+        read_and_validate_status_line::<R>(&mut reader).await?;
 
-    // Parse status line and check status code
-    let status_code = parse_status_line(&status_line)?;
-    if !(200..300).contains(&status_code) {
-        trace!("HTTP CONNECT failed with status {}", status_code);
-        return Err(ProxyError::HttpConnectError(status_code));
-    }
-
-    // Consume remaining headers until blank line
-    consume_remaining_headers::<R>(&mut reader, &mut total_header_bytes).await?;
-
-    // If the proxy pipelined any bytes after headers, we can't preserve them.
-    let buf = reader.buffer();
-    if !buf.is_empty() {
-        return Err(ProxyError::UnexpectedData);
-    }
+    // Validate response: status code, headers, and check for unexpected data
+    let status_code =
+        validate_http_connect_response::<R>(&mut reader, &status_line, &mut total_header_bytes)
+            .await?;
 
     trace!("HTTP CONNECT handshake succeeded, status {}", status_code);
     Ok(reader.into_inner())
