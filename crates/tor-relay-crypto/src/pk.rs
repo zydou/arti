@@ -225,10 +225,7 @@ mod test {
         );
 
         assert_eq!(
-            cert_spec
-                .subject_key_specifier()
-                .arti_path()
-                .unwrap(),
+            cert_spec.subject_key_specifier().arti_path().unwrap(),
             pubkey_spec.arti_path().unwrap()
         );
     }
