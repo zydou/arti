@@ -55,6 +55,12 @@ pub enum ProxyProtocolParseError {
 /// - For `socks4://`, passwords are not supported and will return an error.
 /// - Special characters in credentials are percent-encoded using the `url` crate's
 ///   userinfo encoding.
+///
+/// HTTP CONNECT:
+///
+/// - `http://ip:port` - HTTP CONNECT proxy without auth
+/// - `http://user:pass@ip:port` - HTTP CONNECT proxy with Basic auth (RFC 7617)
+/// - `http://user@ip:port` - HTTP CONNECT proxy with username only (empty password)
 #[derive(
     Debug, Clone, Eq, PartialEq, serde_with::DeserializeFromStr, serde_with::SerializeDisplay,
 )]
@@ -68,6 +74,15 @@ pub enum ProxyProtocol {
         auth: SocksAuth,
         /// The proxy server address
         addr: SocketAddr,
+    },
+    /// Connect via HTTP CONNECT proxy.
+    HttpConnect {
+        /// The proxy server address
+        addr: SocketAddr,
+        /// Optional username for Basic auth
+        username: Option<String>,
+        /// Optional password for Basic auth (requires username)
+        password: Option<String>,
     },
 }
 
@@ -86,15 +101,6 @@ impl std::str::FromStr for ProxyProtocol {
         })?;
 
         let scheme_lower = url.scheme().to_ascii_lowercase();
-        let version = match scheme_lower.as_str() {
-            "socks4" | "socks4a" => SocksVersion::V4,
-            "socks5" | "socks5h" => SocksVersion::V5,
-            _ => {
-                return Err(ProxyProtocolParseError::UnsupportedScheme(
-                    url.scheme().to_string(),
-                ));
-            }
-        };
 
         if url.query().is_some() || url.fragment().is_some() {
             return Err(ProxyProtocolParseError::InvalidFormat(s.to_string()));
@@ -118,35 +124,70 @@ impl std::str::FromStr for ProxyProtocol {
         };
         let addr = SocketAddr::new(ip, port);
 
-        // Check for authentication credentials (user:pass@host:port or user@host:port).
-        // The URL parser returns percent-encoded userinfo, so decode it here.
-        let user = url.username();
-        let pass = url.password();
-        if version == SocksVersion::V4 && pass.is_some() {
-            return Err(ProxyProtocolParseError::UnsupportedPassword(
-                url.scheme().to_string(),
-            ));
-        }
-        let user_decoded = percent_decode_str(user).decode_utf8_lossy();
-        let pass_decoded = pass.map(|p| percent_decode_str(p).decode_utf8_lossy());
-        let auth = if user.is_empty() && pass.is_none() {
-            SocksAuth::NoAuth
-        } else {
-            match version {
-                SocksVersion::V4 => SocksAuth::Socks4(user_decoded.as_bytes().to_vec()),
-                SocksVersion::V5 => {
-                    let pass = pass_decoded.as_deref().unwrap_or("");
-                    SocksAuth::Username(user_decoded.as_bytes().to_vec(), pass.as_bytes().to_vec())
+        match scheme_lower.as_str() {
+            "http" => {
+                // HTTP CONNECT: optional Basic auth via user:pass@host:port
+                let user = url.username();
+                let pass = url.password();
+                // Reject password-only auth (http://:pass@host:port) - username is required
+                if user.is_empty() && pass.is_some() {
+                    return Err(ProxyProtocolParseError::InvalidFormat(
+                        "password without username not supported".to_string(),
+                    ));
                 }
-                _ => SocksAuth::NoAuth,
+                let username = if user.is_empty() {
+                    None
+                } else {
+                    Some(percent_decode_str(user).decode_utf8_lossy().into_owned())
+                };
+                let password = pass.map(|p| percent_decode_str(p).decode_utf8_lossy().into_owned());
+                Ok(ProxyProtocol::HttpConnect {
+                    addr,
+                    username,
+                    password,
+                })
             }
-        };
-
-        Ok(ProxyProtocol::Socks {
-            version,
-            auth,
-            addr,
-        })
+            "socks4" | "socks4a" | "socks5" | "socks5h" => {
+                let version = match scheme_lower.as_str() {
+                    "socks4" | "socks4a" => SocksVersion::V4,
+                    "socks5" | "socks5h" => SocksVersion::V5,
+                    _ => unreachable!(),
+                };
+                // Check for authentication credentials (user:pass@host:port or user@host:port).
+                let user = url.username();
+                let pass = url.password();
+                if version == SocksVersion::V4 && pass.is_some() {
+                    return Err(ProxyProtocolParseError::UnsupportedPassword(
+                        url.scheme().to_string(),
+                    ));
+                }
+                let user_decoded = percent_decode_str(user).decode_utf8_lossy();
+                let pass_decoded = pass.map(|p| percent_decode_str(p).decode_utf8_lossy());
+                let auth = if user.is_empty() && pass.is_none() {
+                    SocksAuth::NoAuth
+                } else {
+                    match version {
+                        SocksVersion::V4 => SocksAuth::Socks4(user_decoded.as_bytes().to_vec()),
+                        SocksVersion::V5 => {
+                            let pass = pass_decoded.as_deref().unwrap_or("");
+                            SocksAuth::Username(
+                                user_decoded.as_bytes().to_vec(),
+                                pass.as_bytes().to_vec(),
+                            )
+                        }
+                        _ => SocksAuth::NoAuth,
+                    }
+                };
+                Ok(ProxyProtocol::Socks {
+                    version,
+                    auth,
+                    addr,
+                })
+            }
+            _ => Err(ProxyProtocolParseError::UnsupportedScheme(
+                url.scheme().to_string(),
+            )),
+        }
     }
 }
 
@@ -191,8 +232,53 @@ impl std::fmt::Display for ProxyProtocol {
                     _ => write!(f, "{}://{}", version, addr),
                 }
             }
+            ProxyProtocol::HttpConnect {
+                addr,
+                username,
+                password,
+            } => {
+                if let Some(user) = username {
+                    match encode_userinfo_http(*addr, user, password.as_deref()) {
+                        Some((user_encoded, pass_encoded)) => {
+                            if let Some(p) = pass_encoded {
+                                write!(f, "http://{}:{}@{}", user_encoded, p, addr)
+                            } else {
+                                write!(f, "http://{}@{}", user_encoded, addr)
+                            }
+                        }
+                        None => {
+                            if let Some(p) = password {
+                                write!(f, "http://{}:{}@{}", user, p, addr)
+                            } else {
+                                write!(f, "http://{}@{}", user, addr)
+                            }
+                        }
+                    }
+                } else {
+                    write!(f, "http://{}", addr)
+                }
+            }
         }
     }
+}
+
+/// URL-encodes username and optional password for HTTP CONNECT proxy userinfo display.
+fn encode_userinfo_http(
+    addr: SocketAddr,
+    username: &str,
+    password: Option<&str>,
+) -> Option<(String, Option<String>)> {
+    let url_str = format!("http://{}", addr);
+    let mut url = Url::parse(&url_str).ok()?;
+    if url.set_username(username).is_err() {
+        return None;
+    }
+    if url.set_password(password).is_err() {
+        return None;
+    }
+    let user_encoded = url.username().to_string();
+    let pass_encoded = url.password().map(str::to_string);
+    Some((user_encoded, pass_encoded))
 }
 
 /// URL-encodes username and optional password for SOCKS proxy userinfo display.
@@ -317,6 +403,7 @@ mod test {
                 assert_eq!(auth, SocksAuth::NoAuth);
                 assert_eq!(addr, "127.0.0.1:1080".parse().unwrap());
             }
+            ProxyProtocol::HttpConnect { .. } => panic!("expected Socks"),
         }
     }
 
@@ -336,6 +423,7 @@ mod test {
                 );
                 assert_eq!(addr, "192.168.1.1:9050".parse().unwrap());
             }
+            ProxyProtocol::HttpConnect { .. } => panic!("expected Socks"),
         }
     }
 
@@ -352,6 +440,7 @@ mod test {
                 assert_eq!(auth, SocksAuth::NoAuth);
                 assert_eq!(addr, "10.0.0.1:1080".parse().unwrap());
             }
+            ProxyProtocol::HttpConnect { .. } => panic!("expected Socks"),
         }
     }
 
@@ -363,6 +452,7 @@ mod test {
                 assert_eq!(version, SocksVersion::V4);
                 assert_eq!(auth, SocksAuth::NoAuth);
             }
+            ProxyProtocol::HttpConnect { .. } => panic!("expected Socks"),
         }
     }
 
@@ -373,6 +463,7 @@ mod test {
             ProxyProtocol::Socks { addr, .. } => {
                 assert_eq!(addr, "[::1]:1080".parse().unwrap());
             }
+            ProxyProtocol::HttpConnect { .. } => panic!("expected Socks"),
         }
     }
 
@@ -383,6 +474,8 @@ mod test {
             "socks4://10.0.0.1:9050",
             "socks5://user:pass@192.168.1.1:1080",
             "socks5://[::1]:1080",
+            "http://127.0.0.1:8080",
+            "http://user:pass@192.168.1.1:3128",
         ] {
             let p: ProxyProtocol = uri.parse().unwrap();
             let s = p.to_string();
@@ -433,6 +526,7 @@ mod test {
                 assert_eq!(version, SocksVersion::V5);
                 assert_eq!(auth, SocksAuth::NoAuth);
             }
+            ProxyProtocol::HttpConnect { .. } => panic!("expected Socks"),
         }
     }
 
@@ -450,6 +544,7 @@ mod test {
                 assert_eq!(auth, SocksAuth::Socks4(b"myuser".to_vec()));
                 assert_eq!(addr, "10.0.0.1:1080".parse().unwrap());
             }
+            ProxyProtocol::HttpConnect { .. } => panic!("expected Socks"),
         }
     }
 
@@ -467,6 +562,7 @@ mod test {
                 assert_eq!(auth, SocksAuth::Username(b"myuser".to_vec(), b"".to_vec()));
                 assert_eq!(addr, "192.168.1.1:9050".parse().unwrap());
             }
+            ProxyProtocol::HttpConnect { .. } => panic!("expected Socks"),
         }
     }
 
@@ -500,5 +596,78 @@ mod test {
         let s = p.to_string();
         let p2: ProxyProtocol = s.parse().unwrap();
         assert_eq!(p, p2, "SOCKS4 user-only round-trip failed");
+    }
+
+    #[test]
+    fn proxy_protocol_parse_http_connect_basic() {
+        let p: ProxyProtocol = "http://127.0.0.1:8080".parse().unwrap();
+        match p {
+            ProxyProtocol::HttpConnect {
+                addr,
+                username,
+                password,
+            } => {
+                assert_eq!(addr, "127.0.0.1:8080".parse().unwrap());
+                assert!(username.is_none());
+                assert!(password.is_none());
+            }
+            _ => panic!("expected HttpConnect"),
+        }
+    }
+
+    #[test]
+    fn proxy_protocol_parse_http_connect_with_auth() {
+        let p: ProxyProtocol = "http://myuser:mypass@192.168.1.1:3128".parse().unwrap();
+        match p {
+            ProxyProtocol::HttpConnect {
+                addr,
+                username,
+                password,
+            } => {
+                assert_eq!(addr, "192.168.1.1:3128".parse().unwrap());
+                assert_eq!(username.as_deref(), Some("myuser"));
+                assert_eq!(password.as_deref(), Some("mypass"));
+            }
+            _ => panic!("expected HttpConnect"),
+        }
+    }
+
+    #[test]
+    fn proxy_protocol_parse_http_connect_ipv6() {
+        let p: ProxyProtocol = "http://[::1]:8080".parse().unwrap();
+        match p {
+            ProxyProtocol::HttpConnect { addr, .. } => {
+                assert_eq!(addr, "[::1]:8080".parse().unwrap());
+            }
+            _ => panic!("expected HttpConnect"),
+        }
+    }
+
+    #[test]
+    fn proxy_protocol_parse_http_connect_user_only() {
+        // user@host means username only; password is None (empty when building Basic auth)
+        let p: ProxyProtocol = "http://myuser@127.0.0.1:8080".parse().unwrap();
+        match p {
+            ProxyProtocol::HttpConnect {
+                username, password, ..
+            } => {
+                assert_eq!(username.as_deref(), Some("myuser"));
+                assert!(password.is_none());
+            }
+            _ => panic!("expected HttpConnect"),
+        }
+    }
+
+    #[test]
+    fn proxy_protocol_reject_password_only() {
+        // http://:pass@host:port is invalid - username is required for auth
+        let result: Result<ProxyProtocol, _> = "http://:secretpass@127.0.0.1:8080".parse();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("password without username"),
+            "error should mention password without username: {}",
+            err
+        );
     }
 }
