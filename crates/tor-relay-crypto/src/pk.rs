@@ -92,6 +92,13 @@ pub struct RelaySigningKeypairSpecifier {
     pub(crate) valid_until: Timestamp,
 }
 
+impl RelaySigningKeypairSpecifier {
+    /// Returns the time at which this key becomes invalid.
+    pub fn valid_until(&self) -> Timestamp {
+        self.valid_until
+    }
+}
+
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
@@ -139,6 +146,12 @@ pub struct Timestamp(Iso8601TimeSlug);
 impl From<SystemTime> for Timestamp {
     fn from(t: SystemTime) -> Self {
         Self(t.into())
+    }
+}
+
+impl From<Timestamp> for SystemTime {
+    fn from(t: Timestamp) -> Self {
+        t.0.into()
     }
 }
 
