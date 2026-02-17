@@ -197,14 +197,11 @@ fn format_connect_target(target: &PtTargetAddr) -> Result<String, ProxyError> {
     }
 }
 
-/// Perform HTTP CONNECT proxy handshake (RFC 7231, RFC 7617 for Basic auth).
-async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
-    mut stream: R::Stream,
+/// Build HTTP CONNECT request string with optional Basic auth.
+fn build_http_connect_request(
+    target_str: &str,
     auth: &Option<(Sensitive<String>, Sensitive<String>)>,
-    target: &PtTargetAddr,
-) -> Result<R::Stream, ProxyError> {
-    let target_str = format_connect_target(target)?;
-
+) -> String {
     // Build CONNECT request: CONNECT host:port HTTP/1.1\r\nHost: host:port\r\n[...]\r\n
     let mut request = format!(
         "CONNECT {} HTTP/1.1\r\nHost: {}\r\n",
@@ -219,7 +216,56 @@ async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
     }
 
     request.push_str("\r\n");
+    request
+}
 
+/// Parse HTTP status line and extract status code.
+fn parse_status_line(status_line: &str) -> Result<u16, ProxyError> {
+    // Parse "HTTP/1.x STATUS_CODE ..."
+    let status_line = status_line.trim_end_matches(['\r', '\n']);
+    if !status_line.starts_with("HTTP/") {
+        return Err(ProxyError::HttpConnectMalformed);
+    }
+    status_line
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse::<u16>().ok())
+        .ok_or(ProxyError::HttpConnectMalformed)
+}
+
+/// Consume remaining HTTP headers until blank line.
+async fn consume_remaining_headers<R: NetStreamProvider + Send + Sync>(
+    reader: &mut BufReader<R::Stream>,
+    total_header_bytes: &mut usize,
+) -> Result<(), ProxyError> {
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let n = reader.read_line(&mut line).await?;
+        *total_header_bytes += n;
+        if *total_header_bytes > MAX_HTTP_HEADER_BYTES {
+            return Err(ProxyError::HttpConnectMalformed);
+        }
+        if n == 0 {
+            return Err(ProxyError::HttpConnectMalformed);
+        }
+        if line == "\r\n" || line == "\n" {
+            break;
+        }
+    }
+    Ok(())
+}
+
+/// Perform HTTP CONNECT proxy handshake (RFC 7231, RFC 7617 for Basic auth).
+async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
+    mut stream: R::Stream,
+    auth: &Option<(Sensitive<String>, Sensitive<String>)>,
+    target: &PtTargetAddr,
+) -> Result<R::Stream, ProxyError> {
+    let target_str = format_connect_target(target)?;
+
+    // Build and send CONNECT request
+    let request = build_http_connect_request(&target_str, auth);
     trace!("Sending HTTP CONNECT request for {}", target_str);
     stream.write_all(request.as_bytes()).await?;
     stream.flush().await?;
@@ -232,38 +278,15 @@ async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
         return Err(ProxyError::HttpConnectMalformed);
     }
 
-    // Parse "HTTP/1.x STATUS_CODE ..."
-    let status_line = status_line.trim_end_matches(|c| c == '\r' || c == '\n');
-    if !status_line.starts_with("HTTP/") {
-        return Err(ProxyError::HttpConnectMalformed);
-    }
-    let status_code = status_line
-        .split_whitespace()
-        .nth(1)
-        .and_then(|s| s.parse::<u16>().ok())
-        .ok_or(ProxyError::HttpConnectMalformed)?;
-
+    // Parse status line and check status code
+    let status_code = parse_status_line(&status_line)?;
     if !(200..300).contains(&status_code) {
         trace!("HTTP CONNECT failed with status {}", status_code);
         return Err(ProxyError::HttpConnectError(status_code));
     }
 
     // Consume remaining headers until blank line
-    let mut line = String::new();
-    loop {
-        line.clear();
-        let n = reader.read_line(&mut line).await?;
-        total_header_bytes += n;
-        if total_header_bytes > MAX_HTTP_HEADER_BYTES {
-            return Err(ProxyError::HttpConnectMalformed);
-        }
-        if n == 0 {
-            return Err(ProxyError::HttpConnectMalformed);
-        }
-        if line == "\r\n" || line == "\n" {
-            break;
-        }
-    }
+    consume_remaining_headers(&mut reader, &mut total_header_bytes).await?;
 
     // If the proxy pipelined any bytes after headers, we can't preserve them.
     let buf = reader.buffer();
