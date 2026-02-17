@@ -6688,6 +6688,7 @@ name = "tor-chanmgr"
 version = "0.40.0"
 dependencies = [
  "async-trait",
+ "base64ct",
  "caret",
  "cfg-if",
  "derive-deftly",

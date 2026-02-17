@@ -682,7 +682,7 @@ impl ChannelMethod {
                 _ => None,
             },
             #[cfg(feature = "pt-client")]
-            _ => None,
+            Self::Pluggable(_) => None,
         }
     }
 

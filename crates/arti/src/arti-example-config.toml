@@ -501,20 +501,29 @@
 
 # Configure an outbound proxy for connecting to the Tor network.
 #
-# If set, Arti will connect to the Tor network via this SOCKS proxy
+# If set, Arti will connect to the Tor network via this proxy
 # instead of making direct connections to Tor relays.
 #
-# The proxy is specified as a URI string with the following formats:
-#   - socks4://host:port          - SOCKS4 proxy without authentication
-#   - socks4a://host:port         - SOCKS4a proxy (same as socks4)
-#   - socks5://host:port          - SOCKS5 proxy without authentication
-#   - socks5://user:pass@host:port - SOCKS5 proxy with username/password auth
+# Supported proxy types:
+#
+#   SOCKS:
+#     - socks4://ip:port            - SOCKS4 proxy without authentication
+#     - socks4a://ip:port           - SOCKS4a proxy (same as socks4)
+#     - socks5://ip:port            - SOCKS5 proxy without authentication
+#     - socks5://user:pass@ip:port  - SOCKS5 proxy with username/password auth
+#
+#   HTTP CONNECT:
+#     - http://ip:port              - HTTP CONNECT proxy without authentication
+#     - http://user:pass@ip:port    - HTTP CONNECT proxy with Basic authentication
+#
+# Proxy server hostnames are not currently supported; use an IP literal.
 #
 # IPv6 addresses should be enclosed in brackets: socks5://[::1]:1080
 #
 # Examples:
 #   outbound_proxy = "socks5://127.0.0.1:1080"
-#   outbound_proxy = "socks5://user:pass@192.168.1.1:9050"
+#   outbound_proxy = "http://127.0.0.1:8080"
+#   outbound_proxy = "http://user:pass@192.168.1.1:3128"
 #   outbound_proxy = "socks5://[::1]:1080"
 #
 # By default, no outbound proxy is used.
