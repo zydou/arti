@@ -7,15 +7,25 @@ use crate::hsc::ctor_migrate_util::{
     ONION_ADDR_SERVICE_2,
 };
 
-use crate::hsc::key_util::{ADDR_LEN, ArtiHscKeyCmd, ONION_ADDR, build_hsc_key_cmd};
+use crate::hsc::key_util::{ADDR_LEN, ArtiHscKeyCmd, KeyCmdBuilder, ONION_ADDR};
+
+/// Error message displayed by `key get` when the service discovery key is not found and the
+/// `--generate=no` flag is provided.
+const ERR_MSG: &str = "Service discovery key not found. Rerun with --generate=if-needed to generate a new service discovery keypair";
 
 #[test]
 fn gen_key() {
     let state_dir = tempfile::TempDir::new().unwrap();
     let state_dir = state_dir.path();
-    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Get, state_dir);
-    cmd.write_stdin(ONION_ADDR);
-    let output = cmd.output().unwrap();
+
+    let cmd = KeyCmdBuilder::default()
+        .subcommand(ArtiHscKeyCmd::Get { generate: true })
+        .state_dir(state_dir.to_path_buf())
+        .build()
+        .unwrap();
+
+    let output = cmd.run().unwrap();
+
     assert!(output.status.success());
     assert!(
         String::from_utf8(output.stdout)
@@ -23,36 +33,51 @@ fn gen_key() {
             .contains("descriptor:x25519:")
     );
 
-    let keystore_path = state_dir
-        .join("keystore/client")
-        .join(&ONION_ADDR[..ADDR_LEN]);
     // Assert new private key has been generated
-    assert_eq!(
-        keystore_path
-            .read_dir()
-            .unwrap()
-            .flatten()
-            .next()
-            .unwrap()
-            .file_name(),
-        "ks_hsc_desc_enc.x25519_private"
-    );
+    assert!(cmd.keystore_contains_priv_key(ONION_ADDR));
+}
+
+/// The `arti hsc key get` command fails if no valid keys exist for the given onion address
+/// and the `--generate=no` flag is specified.
+#[test]
+fn get_fails_if_no_gen_and_no_key() {
+    let state_dir = tempfile::TempDir::new().unwrap();
+    let state_dir = state_dir.path();
+
+    let cmd = KeyCmdBuilder::default()
+        .subcommand(ArtiHscKeyCmd::Get { generate: false })
+        .state_dir(state_dir.to_path_buf())
+        .build()
+        .unwrap();
+
+    let output = cmd.run().unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8(output.stderr).unwrap().contains(ERR_MSG));
 }
 
 #[test]
 fn generate_then_rotate() {
     let state_dir = tempfile::TempDir::new().unwrap();
     let state_dir = state_dir.path();
-    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Get, state_dir);
-    cmd.write_stdin(ONION_ADDR);
-    let output = cmd.output().unwrap();
+
+    let cmd = KeyCmdBuilder::default()
+        .subcommand(ArtiHscKeyCmd::Get { generate: true })
+        .state_dir(state_dir.to_path_buf())
+        .build()
+        .unwrap();
+    let output = cmd.run().unwrap();
+
     assert!(output.status.success());
     let descriptor = String::from_utf8(output.stdout).unwrap();
     assert!(descriptor.contains("descriptor:x25519:"));
 
-    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Rotate, state_dir);
-    cmd.write_stdin(ONION_ADDR);
-    let output = cmd.output().unwrap();
+    let cmd = KeyCmdBuilder::default()
+        .subcommand(ArtiHscKeyCmd::Rotate)
+        .state_dir(state_dir.to_path_buf())
+        .build()
+        .unwrap();
+    let output = cmd.run().unwrap();
+
     assert!(output.status.success());
     let rotated_descriptor = String::from_utf8(output.stdout).unwrap();
     assert!(rotated_descriptor.contains("descriptor:x25519:"));
@@ -60,29 +85,22 @@ fn generate_then_rotate() {
     // Assert key has been rotated
     assert_ne!(descriptor, rotated_descriptor);
 
-    let keystore_path = state_dir
-        .join("keystore/client")
-        .join(&ONION_ADDR[..ADDR_LEN]);
     // Assert new private key has been generated
-    assert_eq!(
-        keystore_path
-            .read_dir()
-            .unwrap()
-            .flatten()
-            .next()
-            .unwrap()
-            .file_name(),
-        "ks_hsc_desc_enc.x25519_private"
-    );
+    assert!(cmd.keystore_contains_priv_key(ONION_ADDR));
 }
 
 #[test]
 fn generate_then_remove() {
     let state_dir = tempfile::TempDir::new().unwrap();
     let state_dir = state_dir.path();
-    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Get, state_dir);
-    cmd.write_stdin(ONION_ADDR);
-    let output = cmd.output().unwrap();
+
+    let cmd = KeyCmdBuilder::default()
+        .subcommand(ArtiHscKeyCmd::Get { generate: true })
+        .state_dir(state_dir.to_path_buf())
+        .build()
+        .unwrap();
+
+    let output = cmd.run().unwrap();
     assert!(output.status.success());
     assert!(
         String::from_utf8(output.stdout)
@@ -90,9 +108,13 @@ fn generate_then_remove() {
             .contains("descriptor:x25519:")
     );
 
-    let mut cmd = build_hsc_key_cmd(ArtiHscKeyCmd::Remove, state_dir);
-    cmd.write_stdin(ONION_ADDR);
-    cmd.assert().success();
+    let cmd = KeyCmdBuilder::default()
+        .subcommand(ArtiHscKeyCmd::Remove)
+        .state_dir(state_dir.to_path_buf())
+        .build()
+        .unwrap();
+    let output = cmd.run().unwrap();
+    assert!(output.status.success());
 
     let keystore_path = state_dir
         .join("keystore/client")
@@ -111,9 +133,7 @@ fn simple_ctor_migration() {
 
     let assert_key_is_missing = |svc: &str| {
         let err = migrate_cmd.keystore_contains_client_key(svc).unwrap_err();
-        assert!(err.to_string().contains(
-          "arti: error: Service discovery key not found. Rerun with --generate=if-needed to generate a new service discovery keypair"
-       ));
+        assert!(err.to_string().contains(ERR_MSG));
     };
 
     // The client keystore doesn't have keys for either of the two services before the migration

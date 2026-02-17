@@ -74,7 +74,10 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use tempfile::TempDir;
 use toml::{Table, Value};
 
-use crate::util::{clone_dir, create_state_dir_entry};
+use crate::{
+    hsc::key_util::{ArtiHscKeyCmd, KeyCmdBuilder},
+    util::{clone_dir, create_state_dir_entry},
+};
 
 /// Path to a test specific configuration for `arti hsc ctor-migrate`.
 pub(super) const CFG_PATH_CTOR_MIGRATE: &str = "./tests/testcases/hsc-extra/conf/hsc.toml";
@@ -175,25 +178,13 @@ impl CTorMigrateCmd {
     ///
     /// Returns the command output if successful.
     pub(super) fn keystore_contains_client_key(&self, addr: &str) -> Result<String, anyhow::Error> {
-        let opts = create_state_dir_entry(self.state_dir_path.to_string_lossy().as_ref());
-        let mut cmd = cargo_bin_cmd!("arti");
-        cmd.args([
-            "-c",
-            CFG_PATH_CTOR_MIGRATE,
-            "-o",
-            &opts,
-            "hsc",
-            "key",
-            "get",
-            "--batch",
-            "--key-type=service-discovery",
-            "--output",
-            "-",
-            "--generate",
-            "no",
-        ]);
-        cmd.write_stdin(addr);
-        let output = cmd.output()?;
+        let cmd = KeyCmdBuilder::default()
+            .config(CFG_PATH_CTOR_MIGRATE.into())
+            .state_dir(self.state_dir_path.clone())
+            .subcommand(ArtiHscKeyCmd::Get { generate: false })
+            .stdin(addr.into())
+            .build()?;
+        let output = cmd.run()?;
         if output.status.success() {
             Ok(String::from_utf8(output.stdout)?)
         } else {

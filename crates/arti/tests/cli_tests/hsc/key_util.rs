@@ -1,8 +1,8 @@
 //! Helpers for testing the `arti hsc key` subcommand.
 
-use std::path::Path;
+use std::{path::PathBuf, process::Output};
 
-use assert_cmd::{Command, cargo::cargo_bin_cmd};
+use assert_cmd::cargo::cargo_bin_cmd;
 
 use crate::util::create_state_dir_entry;
 
@@ -16,40 +16,88 @@ const CFG_PATH_KEY: &str = "./tests/testcases/hsc-common/conf/hsc.toml";
 
 /// An `arti hsc key` subcommand.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, derive_more::Display)]
-pub(super) enum ArtiHscKeyCmd {
+pub(crate) enum ArtiHscKeyCmd {
+    /// If `generate` is true, passes `--generate no` to the `arti hsc key get` command.
     #[display("get")]
-    Get,
+    Get { generate: bool },
     #[display("rotate")]
     Rotate,
     #[display("remove")]
     Remove,
 }
 
-/// Build an `arti hsc key` command, setting the state directory to `state_dir`.
-pub(super) fn build_hsc_key_cmd(sub_cmd: ArtiHscKeyCmd, state_dir: &Path) -> Command {
-    let opts = create_state_dir_entry(state_dir.to_string_lossy().as_ref());
-    let mut cmd = cargo_bin_cmd!("arti");
-    cmd.args([
-        "-c",
-        CFG_PATH_KEY,
-        "-o",
-        &opts,
-        "hsc",
-        "key",
-        &sub_cmd.to_string(),
-        "--batch",
-    ]);
+/// A struct that represents the subcommand `hsc key`.
+#[derive(Debug, Clone, Eq, PartialEq, derive_builder::Builder)]
+pub(crate) struct KeyCmd {
+    /// Path to the configuration file.
+    ///
+    /// Defaults to [`CFG_PATH_KEY`].
+    #[builder(default = "CFG_PATH_KEY.into()")]
+    config: String,
+    /// `arti hsc key` subcommand.
+    subcommand: ArtiHscKeyCmd,
+    /// Path to the state directory to use.
+    state_dir: PathBuf,
+    /// When `true`, the `--batch` flag will be used, making the command run
+    /// non-interactively (without accepting input from `stdin`)
+    ///
+    /// Defaults to `true`.
+    #[builder(default = "true")]
+    batch: bool,
+    /// The value to write to the command's `stdin`.
+    ///
+    /// `arti hsc key {get, rotate, remove}` always require an onion address to be passed via `stdin`.
+    ///
+    /// Defaults to [`ONION_ADDR`].
+    #[builder(default = "ONION_ADDR.into()")]
+    stdin: String,
+}
 
-    // Add subcommand-specific args
-    match sub_cmd {
-        ArtiHscKeyCmd::Get => {
-            cmd.args(["--key-type=service-discovery", "--output", "-"]);
+impl KeyCmd {
+    /// Execute the command and return its output as an [`Output`].
+    pub(crate) fn run(&self) -> std::io::Result<Output> {
+        let path_to_state_dir = create_state_dir_entry(self.state_dir.to_string_lossy().as_ref());
+        let mut cmd = cargo_bin_cmd!("arti");
+        cmd.args([
+            "-c",
+            &self.config,
+            "-o",
+            &path_to_state_dir,
+            "hsc",
+            "key",
+            &self.subcommand.to_string(),
+        ]);
+        if self.batch {
+            cmd.arg("--batch");
         }
-        ArtiHscKeyCmd::Rotate => {
-            cmd.args(["--output", "-"]);
+        match self.subcommand {
+            ArtiHscKeyCmd::Get { generate } => {
+                cmd.args(["--output", "-"]);
+                if !generate {
+                    cmd.args(["--generate", "no"]);
+                }
+            }
+            ArtiHscKeyCmd::Rotate => {
+                cmd.args(["--output", "-"]);
+            }
+            ArtiHscKeyCmd::Remove => {}
         }
-        ArtiHscKeyCmd::Remove => {}
+        cmd.write_stdin(&*self.stdin);
+        cmd.output()
     }
 
-    cmd
+    /// Returns `true` if the state directory contains a client key for the service indicated by `addr`.
+    pub(crate) fn keystore_contains_priv_key(&self, addr: &str) -> bool {
+        let keystore_path = &self
+            .state_dir
+            .join("keystore/client")
+            .join(&addr[..ADDR_LEN]);
+
+        for f in keystore_path.read_dir().unwrap().flatten() {
+            if f.file_name() == "ks_hsc_desc_enc.x25519_private" {
+                return true;
+            }
+        }
+        false
+    }
 }
