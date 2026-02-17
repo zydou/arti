@@ -3,10 +3,9 @@
 //! Some of these are re-exported from lower-level crates.
 
 use crate::err::ErrorDetail;
-use derive_builder::Builder;
+use derive_deftly::Deftly;
 use derive_more::AsRef;
 use fs_mistrust::{Mistrust, MistrustBuilder};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -15,6 +14,8 @@ use std::time::Duration;
 
 pub use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 pub use tor_config::convert_helper_via_multi_line_list_builder;
+use tor_config::derive::prelude::*;
+use tor_config::extend_builder::extend_with_replace;
 pub use tor_config::impl_standard_builder;
 pub use tor_config::list_builder::{MultilineListBuilder, MultilineListBuilderError};
 pub use tor_config::mistrust::BuilderExt as _;
@@ -102,25 +103,25 @@ static DISABLED_VANGUARDS: LazyLock<Box<VanguardConfig>> = LazyLock::new(|| {
 /// You can replace this configuration on a running Arti client.  Doing so will
 /// affect new streams and requests, but will have no effect on existing streams
 /// and requests.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 pub struct ClientAddrConfig {
     /// Should we allow attempts to make Tor connections to local addresses?
     ///
     /// This option is off by default, since (by default) Tor exits will
     /// always reject connections to such addresses.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     pub(crate) allow_local_addrs: bool,
 
     /// Should we allow attempts to connect to hidden services (`.onion` services)?
     ///
     /// This option is on by default.
+    //
+    // NOTE: This could use tor_config(cfg) instead, but that would change the API.
     #[cfg(feature = "onion-service-client")]
-    #[builder(default = "true")]
+    #[deftly(tor_config(default = "true"))]
     pub(crate) allow_onion_addrs: bool,
 }
-impl_standard_builder! { ClientAddrConfig }
 
 /// Configuration for client behavior relating to stream connection timeouts
 ///
@@ -130,29 +131,24 @@ impl_standard_builder! { ClientAddrConfig }
 /// You can replace this configuration on a running Arti client.  Doing so will
 /// affect new streams and requests, but will have no effect on existing streams
 /// and requests—even those that are currently waiting.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[non_exhaustive]
 pub struct StreamTimeoutConfig {
     /// How long should we wait before timing out a stream when connecting
     /// to a host?
-    #[builder(default = "default_connect_timeout()")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "default_connect_timeout()"))]
     pub(crate) connect_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS record?
-    #[builder(default = "default_dns_resolve_timeout()")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "default_dns_resolve_timeout()"))]
     pub(crate) resolve_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS
     /// PTR record?
-    #[builder(default = "default_dns_resolve_ptr_timeout()")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "default_dns_resolve_ptr_timeout()"))]
     pub(crate) resolve_ptr_timeout: Duration,
 }
-impl_standard_builder! { StreamTimeoutConfig }
 
 /// Return the default stream timeout
 fn default_connect_timeout() -> Duration {
@@ -176,15 +172,23 @@ fn default_dns_resolve_ptr_timeout() -> Duration {
 /// We only check these configuration values when we receive a new consensus,
 /// or when we're starting up.  Therefore, if you change these values,
 /// they won't have any effect until the next consensus is received.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 pub struct SoftwareStatusOverrideConfig {
     /// A list of protocols to pretend that we have,
     /// when checking whether our software is obsolete.
     //
     // We make this type a String in the builder, to avoid exposing Protocols in our API.
-    #[builder(field(type = "String", build = "self.parse_protos()?"))]
+    //
+    // NOTE: Emulating the old behavior for this was pretty tricky, but we are slated to
+    // (possibly) deprecate this option entirely.
+    #[deftly(tor_config(
+        no_magic,
+        field(ty = "String"),
+        setter(skip),
+        try_build = "Self::parse_protos",
+        extend_with = "extend_with_replace"
+    ))]
     pub(crate) ignore_missing_required_protocols: tor_protover::Protocols,
 }
 
@@ -192,12 +196,20 @@ impl SoftwareStatusOverrideConfigBuilder {
     /// Helper: Parse the ignore_missing_required_protocols field.
     fn parse_protos(&self) -> Result<tor_protover::Protocols, ConfigBuildError> {
         use std::str::FromStr as _;
+
         tor_protover::Protocols::from_str(&self.ignore_missing_required_protocols).map_err(|e| {
             ConfigBuildError::Invalid {
                 field: "ignore_missing_required_protocols".to_string(),
                 problem: e.to_string(),
             }
         })
+    }
+
+    /// Set a list of protocols that we pretend that we have
+    /// when checking whether our software is obsolete.
+    pub fn ignore_missing_required_protocols(&mut self, s: impl AsRef<str>) -> &mut Self {
+        self.ignore_missing_required_protocols = s.as_ref().to_string();
+        self
     }
 }
 
@@ -216,10 +228,8 @@ impl SoftwareStatusOverrideConfigBuilder {
 /// This section is for read/write storage.
 ///
 /// You cannot change this section on a running Arti client.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[non_exhaustive]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 pub struct StorageConfig {
     /// Location on disk for cached information.
     ///
@@ -236,26 +246,28 @@ pub struct StorageConfig {
     // tor-dirmgr receives cache_dir, and appends components such as "dir_blobs".
     //
     // (This consistency rule is not current always followed by every component.)
-    #[builder(setter(into), default = "default_cache_dir()")]
+    #[deftly(tor_config(default = "default_cache_dir()", setter(into)))]
     cache_dir: CfgPath,
 
     /// Location on disk for less-sensitive persistent state information.
     // Usage note: see the note for `cache_dir`, above.
-    #[builder(setter(into), default = "default_state_dir()")]
+    #[deftly(tor_config(default = "default_state_dir()", setter(into)))]
     state_dir: CfgPath,
 
     /// Location on disk for the Arti keystore.
+    //
+    // NOTE: This could use tor_config(cfg) instead, but that would change the API.
     #[cfg(feature = "keymgr")]
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     keystore: ArtiKeystoreConfig,
 
     /// Configuration about which permissions we want to enforce on our files.
-    #[builder(sub_builder(fn_name = "build_for_arti"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(
+        sub_builder(build_fn = "build_for_arti"),
+        extend_with = "extend_with_replace"
+    ))]
     permissions: Mistrust,
 }
-impl_standard_builder! { StorageConfig }
 
 /// Return the default cache directory.
 fn default_cache_dir() -> CfgPath {
@@ -385,11 +397,10 @@ impl StorageConfig {
 //
 // We leave this as an empty struct even when bridge support is disabled,
 // as otherwise the default config file would generate an unknown section warning.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(validate = "validate_bridges_config", error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(pre_build = "validate_bridges_config", attr = "non_exhaustive"))]
 #[non_exhaustive]
-#[builder_struct_attr(non_exhaustive)] // This struct can be empty.
 pub struct BridgesConfig {
     /// Should we use configured bridges?
     ///
@@ -397,42 +408,24 @@ pub struct BridgesConfig {
     /// `false` means to not use even configured bridges.
     /// `true` means to insist on the use of bridges;
     /// if none are configured, that's then an error.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     pub(crate) enabled: BoolOrAuto,
 
     /// Configured list of bridges (possibly via pluggable transports)
-    #[builder(sub_builder, setter(custom))]
-    #[builder_field_attr(serde(default))]
+    //
+    // NOTE: This isn't using the automatic list_builder code, because it doesn't yet
+    // support MultilineListBuilder.
+    #[deftly(tor_config(no_magic, sub_builder, setter(skip)))]
     bridges: BridgeList,
 
     /// Configured list of pluggable transports.
-    #[builder(sub_builder, setter(custom))]
-    #[builder_field_attr(serde(default))]
-    #[cfg(feature = "pt-client")]
-    pub(crate) transports: TransportConfigList,
+    #[cfg(feature = "pt-client")] // NOTE: Could use tor_config(cfg)
+    #[deftly(tor_config(
+        list(element(build), listtype = "TransportConfigList"),
+        default = "vec![]"
+    ))]
+    pub(crate) transports: Vec<pt::TransportConfig>,
 }
-
-/// A list of configured transport binaries (type alias for macrology).
-#[cfg(feature = "pt-client")]
-type TransportConfigList = Vec<pt::TransportConfig>;
-
-#[cfg(feature = "pt-client")]
-define_list_builder_helper! {
-    pub struct TransportConfigListBuilder {
-        transports: [pt::TransportConfigBuilder],
-    }
-    built: TransportConfigList = transports;
-    default = vec![];
-}
-
-#[cfg(feature = "pt-client")]
-define_list_builder_accessors! {
-    struct BridgesConfigBuilder {
-        pub transports: [pt::TransportConfigBuilder],
-    }
-}
-
-impl_standard_builder! { BridgesConfig }
 
 #[cfg(feature = "pt-client")]
 /// Determine if we need any pluggable transports.
@@ -597,25 +590,21 @@ define_list_builder_accessors! {
 ///
 /// Finally, you can get fine-grained control over the members of a
 /// TorClientConfig using [`TorClientConfigBuilder`].
-#[derive(Clone, Builder, Debug, AsRef, educe::Educe)]
+#[derive(Clone, Deftly, Debug, AsRef, educe::Educe)]
 #[educe(PartialEq, Eq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Serialize, Deserialize, Debug))]
+#[derive_deftly(TorConfig)]
 #[non_exhaustive]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     tor_network: dir::NetworkConfig,
 
     /// Directories for storing information on disk
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) storage: StorageConfig,
 
     /// Information about when and how often to download directory information
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     download_schedule: dir::DownloadScheduleConfig,
 
     /// Information about how premature or expired our directories are allowed
@@ -624,30 +613,25 @@ pub struct TorClientConfig {
     /// These options help us tolerate clock skew, and help survive the case
     /// where the directory authorities are unable to reach consensus for a
     /// while.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     directory_tolerance: dir::DirTolerance,
 
     /// Facility to override network parameters from the values set in the
     /// consensus.
-    #[builder(
-        sub_builder,
-        field(
-            type = "HashMap<String, i32>",
-            build = "default_extend(self.override_net_params.clone())"
-        )
-    )]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(
+        setter(skip), // See note on accessor. This isn't the best way to do this.
+        field(ty = "HashMap<String, i32>"),
+        build = "|this: &Self| default_extend(this.override_net_params.clone())",
+        extend_with = "extend_with_replace"
+    ))]
     pub(crate) override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
 
     /// Information about bridges, pluggable transports, and so on
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) bridges: BridgesConfig,
 
     /// Information about how to build paths through the network.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) channel: ChannelConfig,
 
     /// Configuration for system resources used by Arti
@@ -655,48 +639,40 @@ pub struct TorClientConfig {
     /// Note that there are other settings in this section,
     /// in `arti::cfg::SystemConfig` -
     /// these two structs overlay here.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) system: SystemConfig,
 
     /// Information about how to build paths through the network.
     #[as_ref]
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     path_rules: circ::PathConfig,
 
     /// Information about preemptive circuits.
     #[as_ref]
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     preemptive_circuits: circ::PreemptiveCircuitConfig,
 
     /// Information about how to retry and expire circuits and request for circuits.
     #[as_ref]
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     circuit_timing: circ::CircuitTiming,
 
     /// Rules about which addresses the client is willing to connect to.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) address_filter: ClientAddrConfig,
 
     /// Information about timing out client requests.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) stream_timeouts: StreamTimeoutConfig,
 
     /// Information about vanguards.
     // NOTE: Don't use `#[as_ref]` below, since we provide our own AsRef impl to handle when
     // vanguards are disabled.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) vanguards: vanguards::VanguardConfig,
 
     /// Support for running with known-obsolete versions.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) use_obsolete_software: SoftwareStatusOverrideConfig,
 
     /// Resolves paths in this configuration.
@@ -707,13 +683,10 @@ pub struct TorClientConfig {
     // TorClientConfig maybe isn't the best place for this, but this is where it needs to go to not
     // require public API changes.
     #[as_ref]
-    #[builder(setter(skip))]
-    #[builder_field_attr(serde(skip))]
+    #[deftly(tor_config(skip, build = "|_| tor_config_path::arti_client_base_resolver()"))]
     #[educe(PartialEq(ignore), Eq(ignore))]
-    #[builder(default = "tor_config_path::arti_client_base_resolver()")]
     pub(crate) path_resolver: CfgPathResolver,
 }
-impl_standard_builder! { TorClientConfig }
 
 impl tor_config::load::TopLevel for TorClientConfig {
     type Builder = TorClientConfigBuilder;
@@ -732,17 +705,14 @@ fn default_extend<T: Default + Extend<X>, X>(to_add: impl IntoIterator<Item = X>
 ///
 /// Note that there are other settings in this section,
 /// in `arti_client::config::SystemConfig`.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[non_exhaustive]
 pub struct SystemConfig {
     /// Memory limits (approximate)
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) memory: tor_memquota::Config,
 }
-impl_standard_builder! { SystemConfig }
 
 impl AsRef<tor_guardmgr::VanguardConfig> for TorClientConfig {
     fn as_ref(&self) -> &tor_guardmgr::VanguardConfig {
@@ -884,6 +854,15 @@ impl TorClientConfigBuilder {
             .state_dir(CfgPath::new_literal(state_dir.as_ref()));
 
         builder
+    }
+
+    /// Return a mutable reference to a HashMap of `override_net_params`
+    ///
+    /// These parameters, if set, replace those that arrive in the network consensus document.
+    //
+    // NOTE: This is necessary for now because sub_builder isn't compatible with build().
+    pub fn override_net_params(&mut self) -> &mut HashMap<String, i32> {
+        &mut self.override_net_params
     }
 }
 
