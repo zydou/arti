@@ -201,7 +201,6 @@ pub(crate) struct TorRelay<R: Runtime> {
     chanmgr: Arc<ChanMgr<R>>,
 
     /// See [`InertTorRelay::keymgr`].
-    #[expect(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
 
     /// Listening OR ports.
@@ -337,6 +336,13 @@ impl<R: Runtime> TorRelay<R> {
                 .context("Failed to run OR listener task")
             }
         });
+
+        // Start the key rotation tasks.
+        crate::tasks::crypto::start_task(
+            &mut task_handles,
+            self.runtime.clone(),
+            self.keymgr.clone(),
+        );
 
         // Launch client tasks.
         //
