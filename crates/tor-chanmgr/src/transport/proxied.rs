@@ -6,20 +6,22 @@
 //!   2. To support users who are behind a firewall that requires them to use a
 //!      SOCKS proxy to connect.
 //!
-//! Currently only SOCKS proxies are supported.
-//
-// TODO: Add support for `HTTP(S) CONNECT` someday?
+//! Supports SOCKS4/4a/5 and HTTP CONNECT proxies.
 //
 // TODO: Maybe refactor this so that tor-ptmgr can exist in a more freestanding
 // way, with fewer arti dependencies.
 #![allow(dead_code)]
 
 use std::{
+    fmt,
     net::{IpAddr, SocketAddr},
     sync::Arc,
 };
 
+use base64ct::{Base64, Encoding};
+use futures::io::{AsyncBufReadExt, BufReader};
 use futures::{AsyncReadExt, AsyncWriteExt};
+use safelog::Sensitive;
 use tor_linkspec::PtTargetAddr;
 use tor_rtcompat::NetStreamProvider;
 use tor_socksproto::{
@@ -40,15 +42,38 @@ use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_proto::peer::PeerAddr;
 
 /// Information about what proxy protocol to use, and how to use it.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Protocol {
     /// Connect via SOCKS 4, SOCKS 4a, or SOCKS 5.
     Socks(SocksVersion, SocksAuth),
+    /// Connect via HTTP CONNECT proxy (RFC 7231).
+    HttpConnect {
+        /// Optional Basic auth credentials (username, password) for Proxy-Authorization header.
+        auth: Option<(Sensitive<String>, Sensitive<String>)>,
+    },
+}
+
+impl fmt::Debug for Protocol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Protocol::Socks(version, auth) => {
+                f.debug_tuple("Socks").field(version).field(auth).finish()
+            }
+            Protocol::HttpConnect { auth } => {
+                let redacted_auth = auth.as_ref().map(|_| "<redacted>");
+                f.debug_struct("HttpConnect")
+                    .field("auth", &redacted_auth)
+                    .finish()
+            }
+        }
+    }
 }
 
 /// An address to use when told to connect to "no address."
 const NO_ADDR: IpAddr = IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 1));
+/// Maximum number of bytes allowed in HTTP response headers from proxy.
+const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
 
 /// Open a connection to `target` via the proxy at `proxy`, using the protocol
 /// at `protocol`.
@@ -76,14 +101,29 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
         "Launching a proxied connection to {} via proxy at {} using {:?}",
         target, proxy, protocol
     );
-    let mut stream = runtime
+    let stream = runtime
         .connect(proxy)
         .await
         .map_err(|e| ProxyError::ProxyConnect(Arc::new(e)))?;
 
-    let Protocol::Socks(version, auth) = protocol;
+    match protocol {
+        Protocol::Socks(version, auth) => {
+            do_socks_handshake::<R>(stream, version, auth, target).await
+        }
+        Protocol::HttpConnect { auth } => {
+            do_http_connect_handshake::<R>(stream, auth, target).await
+        }
+    }
+}
 
-    let (target_addr, target_port): (tor_socksproto::SocksAddr, u16) = match target {
+/// Perform SOCKS proxy handshake.
+async fn do_socks_handshake<R: NetStreamProvider + Send + Sync>(
+    mut stream: R::Stream,
+    version: &SocksVersion,
+    auth: &SocksAuth,
+    target: &PtTargetAddr,
+) -> Result<R::Stream, ProxyError> {
+    let (target_addr, target_port): (SocksAddr, u16) = match target {
         PtTargetAddr::IpPort(a) => (SocksAddr::Ip(a.ip()), a.port()),
         #[cfg(feature = "pt-client")]
         PtTargetAddr::HostPort(host, port) => (
@@ -109,9 +149,6 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
     .map_err(ProxyError::InvalidSocksRequest)?;
     let mut handshake = SocksClientHandshake::new(request);
 
-    // TODO: This code is largely copied from the socks server wrapper code in
-    // arti::proxy. Perhaps we should condense them into a single thing, if we
-    // don't just revise the SOCKS code completely.
     let mut buf = tor_socksproto::Buffer::new();
     let reply = loop {
         use tor_socksproto::NextStep as NS;
@@ -133,16 +170,109 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
     };
 
     let status = reply.status();
-    trace!(
-        "SOCKS handshake with {} succeeded, with status {:?}",
-        proxy, status
-    );
+    trace!("SOCKS handshake succeeded, status {:?}", status);
 
     if status != SocksStatus::SUCCEEDED {
         return Err(ProxyError::SocksError(status));
     }
 
     Ok(stream)
+}
+
+/// Format target address for HTTP CONNECT request line and Host header.
+fn format_connect_target(target: &PtTargetAddr) -> Result<String, ProxyError> {
+    match target {
+        PtTargetAddr::IpPort(a) => {
+            let host = match a.ip() {
+                IpAddr::V4(ip) => ip.to_string(),
+                IpAddr::V6(ip) => format!("[{}]", ip),
+            };
+            Ok(format!("{}:{}", host, a.port()))
+        }
+        #[cfg(feature = "pt-client")]
+        PtTargetAddr::HostPort(host, port) => Ok(format!("{}:{}", host, port)),
+        #[cfg(feature = "pt-client")]
+        PtTargetAddr::None => Err(ProxyError::UnrecognizedAddr),
+        _ => Err(ProxyError::UnrecognizedAddr),
+    }
+}
+
+/// Perform HTTP CONNECT proxy handshake (RFC 7231, RFC 7617 for Basic auth).
+async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
+    mut stream: R::Stream,
+    auth: &Option<(Sensitive<String>, Sensitive<String>)>,
+    target: &PtTargetAddr,
+) -> Result<R::Stream, ProxyError> {
+    let target_str = format_connect_target(target)?;
+
+    // Build CONNECT request: CONNECT host:port HTTP/1.1\r\nHost: host:port\r\n[...]\r\n
+    let mut request = format!(
+        "CONNECT {} HTTP/1.1\r\nHost: {}\r\n",
+        target_str, target_str
+    );
+
+    if let Some((user, pass)) = auth {
+        // Proxy-Authorization: Basic base64(username:password) per RFC 7617
+        let credentials = format!("{}:{}", user.as_ref(), pass.as_ref());
+        let encoded = Base64::encode_string(credentials.as_bytes());
+        request.push_str(&format!("Proxy-Authorization: Basic {}\r\n", encoded));
+    }
+
+    request.push_str("\r\n");
+
+    trace!("Sending HTTP CONNECT request for {}", target_str);
+    stream.write_all(request.as_bytes()).await?;
+    stream.flush().await?;
+
+    // Read response until end of headers (\r\n\r\n)
+    let mut reader = BufReader::new(stream);
+    let mut status_line = String::new();
+    let mut total_header_bytes = reader.read_line(&mut status_line).await?;
+    if total_header_bytes == 0 || total_header_bytes > MAX_HTTP_HEADER_BYTES {
+        return Err(ProxyError::HttpConnectMalformed);
+    }
+
+    // Parse "HTTP/1.x STATUS_CODE ..."
+    let status_line = status_line.trim_end_matches(|c| c == '\r' || c == '\n');
+    if !status_line.starts_with("HTTP/") {
+        return Err(ProxyError::HttpConnectMalformed);
+    }
+    let status_code = status_line
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse::<u16>().ok())
+        .ok_or(ProxyError::HttpConnectMalformed)?;
+
+    if !(200..300).contains(&status_code) {
+        trace!("HTTP CONNECT failed with status {}", status_code);
+        return Err(ProxyError::HttpConnectError(status_code));
+    }
+
+    // Consume remaining headers until blank line
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let n = reader.read_line(&mut line).await?;
+        total_header_bytes += n;
+        if total_header_bytes > MAX_HTTP_HEADER_BYTES {
+            return Err(ProxyError::HttpConnectMalformed);
+        }
+        if n == 0 {
+            return Err(ProxyError::HttpConnectMalformed);
+        }
+        if line == "\r\n" || line == "\n" {
+            break;
+        }
+    }
+
+    // If the proxy pipelined any bytes after headers, we can't preserve them.
+    let buf = reader.buffer();
+    if !buf.is_empty() {
+        return Err(ProxyError::UnexpectedData);
+    }
+
+    trace!("HTTP CONNECT handshake succeeded, status {}", status_code);
+    Ok(reader.into_inner())
 }
 
 /// An error that occurs while negotiating a connection with a proxy.
@@ -193,6 +323,14 @@ pub enum ProxyError {
     /// The proxy told us that our attempt failed.
     #[error("SOCKS proxy reported an error: {0}")]
     SocksError(SocksStatus),
+
+    /// HTTP CONNECT proxy returned a non-2xx status code.
+    #[error("HTTP CONNECT proxy returned status: {0}")]
+    HttpConnectError(u16),
+
+    /// HTTP CONNECT proxy returned a malformed response.
+    #[error("HTTP CONNECT proxy returned invalid response")]
+    HttpConnectMalformed,
 }
 
 impl From<std::io::Error> for ProxyError {
@@ -219,6 +357,7 @@ impl tor_error::HasKind for ProxyError {
             E::Bug(e) => e.kind(),
             E::UnexpectedData => EK::NotImplemented,
             E::SocksError(_) => EK::LocalProtocolViolation,
+            E::HttpConnectError(_) | E::HttpConnectMalformed => EK::LocalProtocolViolation,
         }
     }
 }
@@ -244,6 +383,15 @@ impl tor_error::HasRetryTime for ProxyError {
                 | S::TTL_EXPIRED => RT::AfterWaiting,
                 _ => RT::Never,
             },
+            E::HttpConnectError(code) => {
+                // 502/503/504 may be transient; auth and policy errors are not.
+                if *code == 502 || *code == 503 || *code == 504 {
+                    RT::AfterWaiting
+                } else {
+                    RT::Never
+                }
+            }
+            E::HttpConnectMalformed => RT::Never,
         }
     }
 }

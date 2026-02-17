@@ -101,16 +101,34 @@ async fn connect_to_one<R: Runtime>(
                 async move {
                     let stream = if let Some(ref protocol) = proxy {
                         // Use proxy - extract address and protocol details
-                        let (proxy_addr, version, auth) = match protocol {
+                        let target = tor_linkspec::PtTargetAddr::IpPort(a);
+                        match protocol {
                             crate::config::ProxyProtocol::Socks {
                                 version,
                                 auth,
                                 addr,
-                            } => (*addr, *version, auth.clone()),
-                        };
-                        let target = tor_linkspec::PtTargetAddr::IpPort(a);
-                        let proto = super::proxied::Protocol::Socks(version, auth);
-                        super::proxied::connect_via_proxy(rt, &proxy_addr, &proto, &target).await
+                            } => {
+                                let proto =
+                                    super::proxied::Protocol::Socks(*version, auth.clone());
+                                super::proxied::connect_via_proxy(rt, addr, &proto, &target).await
+                            }
+                            crate::config::ProxyProtocol::HttpConnect {
+                                addr,
+                                username,
+                                password,
+                            } => {
+                                // Wrap credentials in Sensitive to avoid accidental logging.
+                                let auth = username.as_ref().map(|u| {
+                                    (
+                                        safelog::Sensitive::new(u.clone()),
+                                        safelog::Sensitive::new(password.clone().unwrap_or_default()),
+                                    )
+                                });
+                                let proto =
+                                    super::proxied::Protocol::HttpConnect { auth };
+                                super::proxied::connect_via_proxy(rt, addr, &proto, &target).await
+                            }
+                        }
                     } else {
                         // Direct connection
                         rt.connect(&a)
