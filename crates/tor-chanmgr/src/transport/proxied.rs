@@ -286,7 +286,7 @@ async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
     }
 
     // Consume remaining headers until blank line
-    consume_remaining_headers(&mut reader, &mut total_header_bytes).await?;
+    consume_remaining_headers::<R>(&mut reader, &mut total_header_bytes).await?;
 
     // If the proxy pipelined any bytes after headers, we can't preserve them.
     let buf = reader.buffer();

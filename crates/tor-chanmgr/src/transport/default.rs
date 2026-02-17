@@ -108,8 +108,7 @@ async fn connect_to_one<R: Runtime>(
                                 auth,
                                 addr,
                             } => {
-                                let proto =
-                                    super::proxied::Protocol::Socks(*version, auth.clone());
+                                let proto = super::proxied::Protocol::Socks(*version, auth.clone());
                                 super::proxied::connect_via_proxy(rt, addr, &proto, &target).await
                             }
                             crate::config::ProxyProtocol::HttpConnect {
@@ -121,11 +120,12 @@ async fn connect_to_one<R: Runtime>(
                                 let auth = username.as_ref().map(|u| {
                                     (
                                         safelog::Sensitive::new(u.clone()),
-                                        safelog::Sensitive::new(password.clone().unwrap_or_default()),
+                                        safelog::Sensitive::new(
+                                            password.clone().unwrap_or_default(),
+                                        ),
                                     )
                                 });
-                                let proto =
-                                    super::proxied::Protocol::HttpConnect { auth };
+                                let proto = super::proxied::Protocol::HttpConnect { auth };
                                 super::proxied::connect_via_proxy(rt, addr, &proto, &target).await
                             }
                         }
