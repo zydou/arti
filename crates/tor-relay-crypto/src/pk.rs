@@ -22,7 +22,7 @@ define_ed25519_keypair!(
 );
 
 #[non_exhaustive]
-#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relayid_ed")]
@@ -31,7 +31,7 @@ define_ed25519_keypair!(
 pub struct RelayIdentityKeypairSpecifier;
 
 #[non_exhaustive]
-#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relayid_ed")]
@@ -45,7 +45,7 @@ define_rsa_keypair!(
 );
 
 #[non_exhaustive]
-#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relayid_rsa")]
@@ -54,7 +54,7 @@ define_rsa_keypair!(
 pub struct RelayIdentityRsaKeypairSpecifier;
 
 #[non_exhaustive]
-#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relayid_rsa")]
@@ -67,7 +67,7 @@ define_ed25519_keypair!(
     pub RelaySigning
 );
 
-#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relaysign_ed")]
