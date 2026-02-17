@@ -169,6 +169,38 @@ define_ed25519_keypair!(
     pub RelayLinkSigning
 );
 
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "relay")]
+#[deftly(role = "KS_link_ed")]
+#[deftly(summary = "Relay short-term link authentication keypair")]
+/// The key specifier of the relay link authentication key.
+pub struct RelayLinkSigningKeypairSpecifier {
+    /// The expiration time of this key.
+    ///
+    /// This **must** be the same as the expiration timestamp from the
+    /// `KP_link_ed` certificate of this key.
+    ///
+    /// This serves as a unique identifier for this key instance,
+    /// and is used for deciding which `KP_link_ed` key to use
+    /// (we use the newest key that is not yet expired according to
+    /// the `valid_until` timestamp from its specifier).
+    ///
+    /// **Important**: this timestamp should not be used for anything other than
+    /// distinguishing between different signing keypair instances.
+    /// In particular, it should **not** be used for validating the keypair,
+    /// or for checking its timeliness.
+    #[deftly(denotator)]
+    pub(crate) valid_until: Timestamp,
+}
+
+impl RelayLinkSigningKeypairSpecifier {
+    /// Returns the time at which this key becomes invalid.
+    pub fn valid_until(&self) -> Timestamp {
+        self.valid_until
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
