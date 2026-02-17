@@ -12,14 +12,11 @@ use fs_mistrust::Mistrust;
 use tor_chanmgr::{ChanMgr, ChanMgrConfig, Dormancy};
 use tor_config_path::CfgPathResolver;
 use tor_dirmgr::DirMgrConfig;
-use tor_keymgr::{
-    ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
-};
+use tor_keymgr::{ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 use tor_memquota::MemoryQuotaTracker;
 use tor_netdir::params::NetParameters;
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
-use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
 use tor_rtcompat::{NetStreamProvider, Runtime};
 
 use crate::client::RelayClient;
@@ -124,7 +121,7 @@ impl InertTorRelay {
     /// Connect the [`InertTorRelay`] to the Tor network.
     pub(crate) async fn init<R: Runtime>(self, runtime: R) -> anyhow::Result<TorRelay<R>> {
         // Attempt to generate any missing keys/cert from the KeyMgr.
-        Self::try_generate_keys(&self.keymgr).context("Failed to generate keys")?;
+        crate::tasks::crypto::try_generate_keys(&self.keymgr).context("Failed to generate keys")?;
 
         TorRelay::init(runtime, self).await
     }
@@ -153,35 +150,6 @@ impl InertTorRelay {
         // TODO: support C-tor keystore
 
         Ok(keymgr)
-    }
-
-    /// Generate the relay keys.
-    fn try_generate_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
-        let mut rng = tor_llcrypto::rng::CautiousRng;
-
-        // Attempt to get the relay long-term identity key from the key manager. If not present,
-        // generate it. We need this key to sign the signing certificates.
-        let _kp_relay_id = keymgr
-            .get_or_generate::<RelayIdentityKeypair>(
-                &RelayIdentityKeypairSpecifier::new(),
-                KeystoreSelector::default(),
-                &mut rng,
-            )
-            .context("Failed to get or generate the long-term identity key")?;
-
-        // TODO #1598: We need to get_or_generate RSA keys here, but that currently fails because
-        // upstream ssh-key doesn't support 1024 bit keys. Once they do, we should add that here.
-
-        // TODO: Once certificate supports is added to the KeyMgr, we need to get/gen the
-        // RelaySigning (KP_relaysign_ed) certs from the native persistent store.
-        //
-        // If present, rotate it if expired. Else, generate it. Rotation or creation require the
-        // relay identity keypair (above) in order to sign the RelaySigning.
-        //
-        // We then need to generate the RelayLink (KP_link_ed) certificate which is in turn signed
-        // by the RelaySigning cert.
-
-        Ok(())
     }
 }
 

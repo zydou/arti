@@ -11,7 +11,8 @@ use tor_keymgr::{
     KeyMgr, KeyPath, KeySpecifier, KeySpecifierPattern, Keygen, KeystoreSelector, ToEncodableKey,
 };
 use tor_relay_crypto::pk::{
-    RelayLinkSigningKeypair, RelayLinkSigningKeypairSpecifier,
+    RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
+    RelayIdentityRsaKeypairSpecifier, RelayLinkSigningKeypair, RelayLinkSigningKeypairSpecifier,
     RelayLinkSigningKeypairSpecifierPattern, RelaySigningKeypair, RelaySigningKeypairSpecifier,
     RelaySigningKeypairSpecifierPattern, Timestamp,
 };
@@ -157,16 +158,37 @@ where
     Ok(())
 }
 
+/// Attempt to rotate all rotatable keys.
+fn try_rotate_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
+    // Attempt to rotate the KP_relaysign_ed.
+    rotate_key::<RelaySigningKeypair>(keymgr)?;
+    // Attempt to rotate the KP_link_ed.
+    rotate_key::<RelayLinkSigningKeypair>(keymgr)?;
+    Ok(())
+}
+
+/// Attempt to generate all keys.
+///
+/// This function is only called when our relay bootstraps in order to attempt to generate any
+/// missing keys or/and rotate expired keys.
+pub(crate) fn try_generate_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
+    // Note that generate_key() won't error if the key already exists.
+
+    // Attempt to generate our identity keys (ed and RSA). Those keys DO NOT rotate.
+    generate_key::<RelayIdentityKeypair>(keymgr, &RelayIdentityKeypairSpecifier::new())?;
+    generate_key::<RelayIdentityRsaKeypair>(keymgr, &RelayIdentityRsaKeypairSpecifier::new())?;
+    // Attempt to rotate the rotatable keys which will generate any missing.
+    try_rotate_keys(keymgr)
+}
+
 /// Task to rotate keys when they need to be rotated.
 pub(crate) async fn rotate_keys_task<R: Runtime>(
     runtime: R,
     keymgr: Arc<KeyMgr>,
 ) -> anyhow::Result<void::Void> {
     loop {
-        // Attempt to rotate the KP_relaysign_ed.
-        rotate_key::<RelaySigningKeypair>(&keymgr)?;
-        // Attempt to rotate the KP_link_ed.
-        rotate_key::<RelayLinkSigningKeypair>(&keymgr)?;
+        // Attempt a rotation of all keys.
+        try_rotate_keys(&keymgr)?;
 
         // Wake up every minute.
         let next_wake = SystemTime::now() + KEY_ROTATION_SLEEP_DURATION;
