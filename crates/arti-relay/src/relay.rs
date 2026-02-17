@@ -12,7 +12,7 @@ use fs_mistrust::Mistrust;
 use tor_chanmgr::{ChanMgr, ChanMgrConfig, Dormancy};
 use tor_config_path::CfgPathResolver;
 use tor_dirmgr::DirMgrConfig;
-use tor_keymgr::{ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
+use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 use tor_memquota::MemoryQuotaTracker;
 use tor_netdir::params::NetParameters;
 use tor_persist::state_dir::StateDirectory;
@@ -130,9 +130,6 @@ impl InertTorRelay {
     fn create_keymgr(state_path: &Path, mistrust: &Mistrust) -> anyhow::Result<Arc<KeyMgr>> {
         let key_store_dir = state_path.join("keystore");
 
-        // Store for the short-term keys that we don't need to keep on disk. The store identifier
-        // is relay explicit because it can be used in other crates for channel and circuit.
-        let ephemeral_store = ArtiEphemeralKeystore::new("relay-ephemeral".into());
         let persistent_store = ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, mistrust)
             .context("Failed to construct the native keystore")?;
 
@@ -142,7 +139,6 @@ impl InertTorRelay {
 
         let keymgr = KeyMgrBuilder::default()
             .primary_store(Box::new(persistent_store))
-            .set_secondary_stores(vec![Box::new(ephemeral_store)])
             .build()
             .context("Failed to build the 'KeyMgr'")?;
         let keymgr = Arc::new(keymgr);
