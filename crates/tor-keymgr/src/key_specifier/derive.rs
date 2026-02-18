@@ -79,6 +79,34 @@ fn arti_path_string_from_components(
     Ok(path)
 }
 
+/// Make a string like `pc/pc/pc/pd+pd+pd@cd+cd+cd+cd`
+fn cert_arti_path_string_from_components(
+    subj_comp: &str,
+    leaf_comps: &[&dyn RawKeySpecifierComponent],
+) -> Result<String, Bug> {
+    if leaf_comps.is_empty() {
+        return Ok(subj_comp.to_string());
+    }
+
+    let mut path = if subj_comp.contains('+') {
+        format!("{subj_comp}@")
+    } else {
+        format!("{subj_comp}+@")
+    };
+
+    for (delim, comp) in izip!(
+        iter::once(None).chain(iter::repeat(Some(DENOTATOR_SEP))),
+        leaf_comps,
+    ) {
+        if let Some(delim) = delim {
+            path.push(delim);
+        }
+        comp.append_to(&mut path)?;
+    }
+
+    Ok(path)
+}
+
 /// Make an `ArtiPath` like `pc/pc/pc/lc_lc_lc`
 ///
 /// This is the engine for the `KeySpecifier` macro's `arti_path()` impls.
@@ -109,6 +137,16 @@ pub fn arti_pattern_from_components(
 ) -> Result<KeyPathPattern, Bug> {
     Ok(KeyPathPattern::Arti(arti_path_string_from_components(
         path_comps, leaf_comps,
+    )?))
+}
+
+/// Make a `KeyPathPattern::Arti` for a certificate specifier
+pub fn cert_arti_pattern_from_components(
+    subj_path: &str,
+    leaf_comps: &[&dyn RawKeySpecifierComponent],
+) -> Result<KeyPathPattern, Bug> {
+    Ok(KeyPathPattern::Arti(cert_arti_path_string_from_components(
+        subj_path, leaf_comps,
     )?))
 }
 
@@ -247,6 +285,25 @@ pub fn parse_arti_path(
 
     extract(path, '/', path_parsers, &mut keys)?;
     extract(Some(leaf), DENOTATOR_SEP, leaf_parsers, &mut keys)?;
+    Ok(())
+}
+
+/// Parse the denotators from the `ArtiPath` of a certificate.
+///
+/// The specified `cert_denos` should be the substring of an `ArtiPath`
+/// containing the certificate denotator group.
+///
+/// The `leaf_parses` and `keys` arguments serve the same purpose as in
+/// [`parse_arti_path`].
+pub fn parse_cert_denotators(
+    cert_denos: &str,
+    keys: &&[&str],
+    leaf_parsers: &mut Parsers,
+) -> Result<(), ArtiPathError> {
+    let mut keys: &[&str] = keys;
+
+    extract(Some(cert_denos), DENOTATOR_SEP, leaf_parsers, &mut keys)?;
+
     Ok(())
 }
 
@@ -722,4 +779,250 @@ define_derive_deftly! {
 
     // Register the info extractor with `KeyMgr`.
     $crate::inventory::submit!(&$< $tname InfoExtractor > as &dyn $crate::KeyPathInfoExtractor);
+}
+
+#[cfg(feature = "experimental-api")]
+define_derive_deftly! {
+    /// A helper for implementing [`KeyCertificateSpecifier`]s.
+    ///
+    /// ### Results of applying this macro
+    ///
+    /// `#[derive(Deftly)] #[derive_deftly(CertSpecifier)] struct SomeCertSpec ...`
+    /// generates:
+    ///
+    ///  * `impl `[`KeyCertificateSpecifier`]` for SomeCertSpec`
+    ///  * `struct SomeCertSpecPattern`,
+    ///    a derived struct which contains an `Option` for each denotator field,
+    ///    and a non-optional field for the subject key `KeyPathPattern`.
+    ///    `None` in the pattern means "any".
+    ///  * `impl `[`CertSpecifierPattern`]` for SomeCertSpecPattern`
+    ///  * `impl TryFrom<`[`KeyPath`]> for SomeCertSpec`
+    ///
+    ///
+    /// ### Custom attributes
+    ///
+    ///  * **`#[deftly(subject)]`** (mandatory, field):
+    ///    Designates a field that represents the subject key specifier.
+    ///    This should only be applied to **one** field.
+    ///
+    ///  * **`#[deftly(denotator)]`** (field):
+    ///    Designates a field that should be represented
+    ///    in the key file leafname.
+    ///    The `ArtiPath` of the certificate is derived from the `ArtiPath`
+    ///    of the subject key,  by concatenating the `ArtiPath` of the subject
+    ///    key with provided denotators provided.
+    ///    If no there are no denotators, the `ArtiPath` of the certificate
+    ///    is the same as the `ArtiPath` of the subject key.
+    export CertSpecifier beta_deftly, for struct:
+
+    // Ensure exactly one field annotated with #[deftly(subject)]
+    ${if not(approx_equal(${for fields { ${when fmeta(subject)} 1 }}, 1))
+        { ${error "Exactly one field must be #[deftly(subject)]"} }
+    }
+
+    // All fields must be either #[deftly(subject)] or #[deftly(denotator)]
+    $(
+        ${when not(any(
+            fmeta(subject),
+            fmeta(denotator),
+        ))}
+
+        ${error
+            message=${concat $fname " must be #[deftly(subject)] or #[deftly(denotator)]"}
+        }
+    )
+
+    ${define SUBJ_FNAME
+        ${for fields {
+            ${if fmeta(subject) {
+                &self.$fname
+            }}
+        }}
+    }
+
+    ${define SUBJ_FTYPE
+        ${for fields {
+            ${if fmeta(subject) {
+                $ftype
+            }}
+        }}
+    }
+
+    ${define SUBJ_PATTERN_FTYPE
+        ${for fields {
+            ${if fmeta(subject) {
+                $<$ftype Pattern>
+            }}
+        }}
+    }
+
+    impl<$tgens> $crate::KeyCertificateSpecifier for $tname<$tdefgens>
+    where $twheres
+    {
+        fn cert_denotators(&self) -> Vec<&dyn $crate::KeySpecifierComponent> {
+            vec![
+                ${for fields {
+                    // #[deftly(denotator)]
+                    ${if fmeta(denotator) { &self.$fname, }}
+                }}
+            ]
+        }
+
+        fn subject_key_specifier(&self) -> &dyn $crate::KeySpecifier {
+            ${SUBJ_FNAME}
+        }
+    }
+
+    #[doc = concat!("Pattern matching some or all [`", stringify!($tname), "`]")]
+    #[allow(dead_code)] // Not everyone will need the pattern feature
+    #[non_exhaustive]
+    $tvis struct $<$tname Pattern><$tdefgens>
+    where $twheres
+    {
+        ${for fields {
+            // The subject key specifier pattern is non-optional,
+            // because we derive the fixed part of the pattern from it
+            ${if fmeta(subject) {
+                ${fattrs doc}
+                $fvis $fname: $<$ftype Pattern>,
+            }}
+            // The denotators are optional
+            ${if fmeta(denotator) {
+                ${fattrs doc}
+                $fvis $fname: Option<$ftype>,
+            }}
+        }}
+    }
+
+    ${define DO_FIELD { &self.$fname, }}
+
+    ${define ARTI_LEAF_COMPONENTS {
+        ${for fields {
+            // #[deftly(denotator)]
+            ${if fmeta(denotator) { $DO_FIELD }}
+        }}
+    }}
+
+    impl<$tgens> $crate::CertSpecifierPattern for $<$tname Pattern><$tdefgens>
+    where $twheres
+    {
+        type SubjectKeySpecifierPattern = ${SUBJ_PATTERN_FTYPE};
+
+        fn arti_pattern(
+            &self,
+        ) -> std::result::Result<$crate::KeyPathPattern, $crate::key_specifier_derive::Bug> {
+            use $crate::key_specifier_derive::*;
+            use $crate::KeyPathPattern::*;
+            use $crate::KeySpecifierPattern as _;
+
+            let subj_path_pat = ${SUBJ_FNAME}.arti_pattern()?;
+            let subj_path = match subj_path_pat {
+                Arti(path) => path,
+                _ => {
+                    return Err(
+                        tor_error::internal!("subject key pattern is not an Arti pattern?!").into()
+                    );
+                }
+            };
+
+            cert_arti_pattern_from_components(
+                &subj_path,
+                &[ $ARTI_LEAF_COMPONENTS ],
+            )
+        }
+
+        fn new_any() -> Self {
+            // Build the "any" pattern of the subject key.
+            let spec =
+                < <$<$tname Pattern>::<$tgens> as $crate::CertSpecifierPattern>::SubjectKeySpecifierPattern
+                    as $crate::KeySpecifierPattern>::new_any();
+
+            $< $tname Pattern > {
+                $(
+                    ${if fmeta(subject) { $fname: spec, }}
+                )
+                $(
+                    ${if fmeta(denotator) { $fname: None, }}
+                )
+            }
+        }
+    }
+
+    impl<$tgens> TryFrom<&$crate::KeyPath> for $tname
+    where $twheres
+    {
+        type Error = $crate::KeyPathError;
+
+        fn try_from(path: &$crate::KeyPath) -> std::result::Result<$tname, Self::Error> {
+            use $crate::key_specifier_derive::*;
+
+            let arti_path = match path {
+                $crate::KeyPath::Arti(path) => path,
+                &_ => {
+                    return Err(tor_error::bad_api_usage!("Cert specifiers never have non-ArtiPaths").into());
+                }
+            };
+
+            #[allow(unused_mut)] // not needed if there are no fields
+            #[allow(unused_variables)] // not needed if there are no fields
+            let mut builder =
+                <$<$tname Pattern>::<$tgens> as $crate::CertSpecifierPattern>::new_any();
+
+            let subj_key = if let Some((key_path, cert_denos)) = arti_path.split_once($crate::DENOTATOR_GROUP_SEP) {
+
+                // Handle the special case where the subject key ArtiPath has no denotators,
+                // but the cert ArtiPath *does*. This translates to paths that contain
+                // the slightly odd +@ construction, where + designates the beginning
+                // of the denotator section, followed by an empty denotator group.
+                let key_path = match key_path.strip_suffix('+') {
+                    Some(p) => p,
+                    None => key_path,
+                };
+
+                let key_arti_path = $crate::ArtiPath::new(key_path.to_string())
+                    .map_err(tor_error::into_internal!("cert path contains invalid key ArtiPath?!"))?;
+
+                static FIELD_KEYS: &[&str] = &[
+                    ${for fields {
+                        // #[deftly(denotator)]
+                        ${if fmeta(denotator) { stringify!($fname), }}
+                    }}
+                ];
+
+                parse_cert_denotators(
+                    cert_denos,
+                    &FIELD_KEYS,
+                    ${define DO_FIELD { &mut builder.$fname, }}
+                    &mut [ $ARTI_LEAF_COMPONENTS ],
+                ).map_err(|err| $crate::KeyPathError::Arti { path: arti_path.clone(), err })?;
+
+                let key_spec = $crate::KeyPath::Arti(key_arti_path);
+
+                $SUBJ_FTYPE::try_from(&key_spec)?
+            } else {
+                // Cert has no denotators, so the whole path is the path
+                // of the subject key specifier
+                $SUBJ_FTYPE::try_from(path)?
+            };
+
+            #[allow(unused_variables)] // not needed if there are no fields
+            let handle_none = || internal!("bad RawKeySpecifierComponentParser impl");
+
+            Ok($tname {
+                ${for fields {
+                    // The denotators are optional...
+                    ${if fmeta(denotator) {
+                        $fname: builder.$fname.ok_or_else(handle_none)?,
+                    }}
+                    // ...but subject key specifier pattern is not
+                    ${if fmeta(subject) {
+                        $fname: subj_key,
+                    }}
+                }}
+            })
+        }
+    }
+
+    // TODO: generate and register a KeyPathInfoExtractor impl for cert specifiers
+    // (so that KeyMgr::describe() can describe them)
 }
