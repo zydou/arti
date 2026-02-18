@@ -132,6 +132,34 @@ pub trait KeySpecifierPattern {
     fn arti_pattern(&self) -> Result<KeyPathPattern, Bug>;
 }
 
+/// A pattern specifying some or all of a kind of certificate
+///
+/// Generally implemented on `SomeCertSpecifierPattern` by applying
+/// [`#[derive_deftly(CertSpecifier)`](crate::derive_deftly_template_CertSpecifier)
+/// to `SomeCertSpecifier`.
+#[cfg(feature = "experimental-api")]
+pub trait CertSpecifierPattern {
+    /// The key specifier pattern of the subject key.
+    ///
+    /// Used to build the first part of the certificate specifier pattern
+    /// (certificate paths consist of the ArtiPath of its subject key,
+    /// followed by the cert denotators)
+    type SubjectKeySpecifierPattern: KeySpecifierPattern;
+
+    /// Obtain a pattern template that matches all certs of this type.
+    ///
+    /// The pattern consists of the [`KeySpecifierPattern::new_any`]
+    /// of the `SubjectKeySpecifierPattern`, followed by a pattern
+    /// that matches all the certificate denotators, if there are any.
+    fn new_any() -> Self
+    where
+        Self: Sized;
+
+    /// Get a [`KeyPathPattern`] that can match the [`ArtiPath`]s
+    /// of some or all the keys of this type.
+    fn arti_pattern(&self) -> Result<KeyPathPattern, Bug>;
+}
+
 /// An error while attempting to extract information about a key given its path
 ///
 /// For example, from a [`KeyPathInfoExtractor`].

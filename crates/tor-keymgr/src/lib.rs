@@ -82,6 +82,9 @@ pub use key_specifier::{
 #[cfg(feature = "onion-service-cli-extra")]
 pub use raw::{RawEntryId, RawKeystoreEntry};
 
+#[cfg(feature = "experimental-api")]
+pub use key_specifier::CertSpecifierPattern;
+
 #[cfg(feature = "keymgr")]
 pub use {
     keystore::arti::ArtiNativeKeystore,
