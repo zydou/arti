@@ -19,6 +19,7 @@ impl HsPowClientV1 {
     pub(super) fn increase_effort(&mut self) {}
 
     /// Stub; always returns None
+    #[expect(clippy::unused_async)]
     pub(super) async fn solve(&self) -> Result<Option<ProofOfWorkV1>, ProofOfWorkError> {
         Ok(None)
     }
