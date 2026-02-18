@@ -88,7 +88,7 @@ where
         use tor_rtcompat::tls::TlsAcceptorSettings;
 
         // Build the TLS acceptor.
-        let tls_settings = TlsAcceptorSettings::new(identities.tls_key_and_cert())
+        let tls_settings = TlsAcceptorSettings::new(identities.tls_key_and_cert().clone())
             .map_err(into_internal!("Unable to build TLS acceptor setting"))?;
         let tls_acceptor = <R as TlsProvider<H::Stream>>::tls_acceptor(&runtime, tls_settings)
             .map_err(into_internal!("Unable to build TLS acceptor"))?;

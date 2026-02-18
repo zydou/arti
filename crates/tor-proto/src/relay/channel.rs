@@ -16,11 +16,12 @@ use safelog::Sensitive;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
+use tor_cert::EncodedEd25519Cert;
 use tor_linkspec::OwnedChanTarget;
 
 use tor_cell::chancell::msg;
+use tor_cert::rsa::EncodedRsaCrosscert;
 use tor_cert::x509::TlsKeyAndCert;
-use tor_cert::{Ed25519Cert, rsa::RsaCrosscert};
 use tor_error::internal;
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{
@@ -54,16 +55,18 @@ pub struct RelayIdentities {
     /// As a relay, our link signing keypair.
     pub(crate) link_sign_kp: RelayLinkSigningKeypair,
     /// The Ed25519 identity signing cert (CertType 4)
-    pub(crate) cert_id_sign_ed: Ed25519Cert,
+    pub(crate) cert_id_sign_ed: EncodedEd25519Cert,
     /// The Ed25519 signing TLS cert (CertType 5)
-    pub(crate) cert_sign_tls_ed: Ed25519Cert,
+    pub(crate) cert_sign_tls_ed: EncodedEd25519Cert,
     /// The Ed25519 signing link auth cert (CertType 6)
-    pub(crate) cert_sign_link_auth_ed: Ed25519Cert,
+    pub(crate) cert_sign_link_auth_ed: EncodedEd25519Cert,
     /// Legacy: the RSA identity X509 cert (CertType 2). We only have the bytes here as
     /// create_legacy_rsa_id_cert() takes a key and gives us back the encoded cert.
     pub(crate) cert_id_x509_rsa: Vec<u8>,
     /// Legacy: the RSA identity cert (CertType 7)
-    pub(crate) cert_id_rsa: RsaCrosscert,
+    pub(crate) cert_id_rsa: EncodedRsaCrosscert,
+    /// Tls key and cert.
+    pub(crate) tls_key_and_cert: TlsKeyAndCert,
 }
 
 impl RelayIdentities {
@@ -73,11 +76,12 @@ impl RelayIdentities {
         rsa_id: RsaIdentity,
         ed_id: Ed25519Identity,
         link_sign_kp: RelayLinkSigningKeypair,
-        cert_id_sign_ed: Ed25519Cert,
-        cert_sign_tls_ed: Ed25519Cert,
-        cert_sign_link_auth_ed: Ed25519Cert,
+        cert_id_sign_ed: EncodedEd25519Cert,
+        cert_sign_tls_ed: EncodedEd25519Cert,
+        cert_sign_link_auth_ed: EncodedEd25519Cert,
         cert_id_x509_rsa: Vec<u8>,
-        cert_id_rsa: RsaCrosscert,
+        cert_id_rsa: EncodedRsaCrosscert,
+        tls_key_and_cert: TlsKeyAndCert,
     ) -> Self {
         Self {
             rsa_id,
@@ -88,16 +92,15 @@ impl RelayIdentities {
             cert_sign_link_auth_ed,
             cert_id_x509_rsa,
             cert_id_rsa,
+            tls_key_and_cert,
         }
     }
 
     /// Return the TLS key and certificate to use for the underlying TLS provider.
     ///
     /// This is used by the TLS acceptor that acts as the TLS server provider.
-    pub fn tls_key_and_cert(&self) -> TlsKeyAndCert {
-        // TODO(relay) Hold the TlsKeyAndCert in the struct as it is created by arti-relay at
-        // startup.
-        todo!()
+    pub fn tls_key_and_cert(&self) -> &TlsKeyAndCert {
+        &self.tls_key_and_cert
     }
 
     /// Return our Ed identity key (KP_relayid_ed) as bytes.
