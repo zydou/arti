@@ -1949,6 +1949,7 @@ define_derive_deftly! {
         ${when fmeta(tor_config(list))}
 
         $E::define_list_builder_helper! {
+            #[doc = ${concat "Builder for the `" $ftype "` type.\n\n"}]
             $SETTER_VIS struct $F_LST_BLD_TYPE {
                 $BLD_FVIS $fname: [
                     $BLD_LIST_ELT_TYPE
@@ -1964,6 +1965,7 @@ define_derive_deftly! {
         ${when fmeta(tor_config(map))}
 
         $E::define_map_builder! {
+            #[doc = ${concat "Builder for the `" $F_MAP_TYPE "` type.\n\n"}]
             $SETTER_VIS struct $F_MAP_BLD_TYPE =>
             $BLD_FVIS type $F_MAP_TYPE = {
                 map: $ftype,

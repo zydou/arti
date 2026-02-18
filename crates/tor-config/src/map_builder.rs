@@ -221,6 +221,7 @@ macro_rules! define_map_builder {
         $b_v struct $btype( $bmtype );
 
         impl $btype {
+            /// Construct the final map.
             $b_v fn build(&self) -> ::std::result::Result<$maptype, $crate::ConfigBuildError> {
                 self.0
                     .iter()
