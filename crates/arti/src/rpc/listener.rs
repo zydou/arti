@@ -8,14 +8,13 @@ use std::{
 };
 use tracing::debug;
 
-use derive_builder::Builder;
 use derive_deftly::Deftly;
 use fs_mistrust::{Mistrust, anon_home::PathExt as _};
-use serde::{Deserialize, Serialize};
 use tor_basic_utils::PathExt as _;
+use tor_config::derive::prelude::*;
 use tor_config::{
-    ConfigBuildError, define_map_builder, derive_deftly_template_ExtendBuilder,
-    extend_builder::ExtendBuilder as _, extend_builder::ExtendStrategy, impl_standard_builder,
+    ConfigBuildError, define_map_builder,
+    extend_builder::{ExtendBuilder, ExtendStrategy},
 };
 use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_error::internal;
@@ -27,16 +26,8 @@ use tor_rpc_connect::{
 };
 use tor_rtcompat::{Runtime, general};
 
-define_map_builder! {
-    /// Builder for a map of RpcListenerSetConfig.
-    pub(crate) struct RpcListenerMapBuilder =>
-    pub(crate) type RpcListenerMap = BTreeMap<String, RpcListenerSetConfig>;
-
-    defaults: listener_map_defaults();
-}
-
 /// Return defaults for RpcListenerMapBuilder.
-fn listener_map_defaults() -> BTreeMap<String, RpcListenerSetConfigBuilder> {
+pub(super) fn listener_map_defaults() -> BTreeMap<String, RpcListenerSetConfigBuilder> {
     toml::from_str(
         r#"
         ["user-default"]
@@ -56,10 +47,11 @@ fn listener_map_defaults() -> BTreeMap<String, RpcListenerSetConfigBuilder> {
 ///
 /// This can configure either a connect point from a single toml file,
 /// or a set of connect points from a directory of toml files.
-#[derive(Debug, Clone, Deftly, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[derive_deftly(ExtendBuilder)]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait, no_flattenable_trait, pre_build = "Self::validate"))]
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct RpcListenerSetConfig {
     /// An builder to determine default connect point options.
     ///
@@ -68,46 +60,43 @@ pub(crate) struct RpcListenerSetConfig {
     ///
     /// If `dir` is set, this builder defines a set of defaults
     /// that we can override for each connect point in `file_options`.
-    #[builder(
-        sub_builder(fn_name = "build"),
+    #[deftly(tor_config(
+        setter(skip),
+        serde = "flatten",
         field(
             // This lets us hold a Builder in the Config too,
             // so we can use `ExtendBuilder` on it.
-            type = "ConnectPointOptionsBuilder",
-            build = "self.listener_options.clone()"
-        )
-    )]
-    #[builder_field_attr(serde(flatten, default))]
-    #[deftly(extend_builder(sub_builder))]
+            ty = "ConnectPointOptionsBuilder"),
+            build = "|this: &Self| this.listener_options.clone()",
+        extend_with = "ExtendBuilder::extend_from"
+    ))]
     listener_options: ConnectPointOptionsBuilder,
 
     /// A path to a file on disk containing a connect string.
     ///
     /// Exactly one of `file` or `dir` may be set.
-    #[builder(setter(strip_option), default)]
+    #[deftly(tor_config(setter(strip_option), default))]
     file: Option<CfgPath>,
+
     /// A path to a directory on disk containing one or more connect strings.
     ///
     /// Only files whose names end with ``.toml` are considered.
     ///
-    /// Exactly one of `file` or `dir` may be set.
-    #[builder(setter(strip_option), default)]
+    #[deftly(tor_config(setter(strip_option), default))]
     dir: Option<CfgPath>,
+
     /// Map from file name within `dir` to builders for options on the individual files.
     ///
     /// We hold builders here so that we can use `ExtendBuilder` to derive settings
     /// using `listener_options` as the defaults.
-    #[builder(
-        sub_builder(fn_name = "build"),
-        // This lets us hold a Builder in the Config too,
-        // so we can use `ExtendBuilder` on it.
-        field(type = "FileOptionsMapBuilder", build = "self.file_options.clone()")
-    )]
-    #[builder_field_attr(serde(default))]
-    #[deftly(extend_builder(sub_builder))]
+    #[deftly(tor_config(
+        setter(skip),
+        field(ty = "FileOptionsMapBuilder"),
+        build = "|this: &Self| this.file_options.clone()",
+        extend_with = "ExtendBuilder::extend_from"
+    ))]
     file_options: FileOptionsMapBuilder,
 }
-impl_standard_builder! { RpcListenerSetConfig: !Deserialize !Default }
 
 impl RpcListenerSetConfigBuilder {
     /// Return an error if this builder isn't valid.
@@ -127,11 +116,37 @@ impl RpcListenerSetConfigBuilder {
             }),
         }
     }
+
+    /// Return a mutable reference to the listener options.
+    ///
+    /// This field determines the default connect point options.
+    ///
+    /// If `file` is set, this builder is used directly
+    /// to determine the options for the connect points.
+    ///
+    /// If `dir` is set, this builder defines a set of defaults
+    /// that we can override for each connect point in `file_options`.
+    #[cfg(any(test, feature = "experimental-api"))]
+    pub fn listener_options(&mut self) -> &mut ConnectPointOptionsBuilder {
+        &mut self.listener_options
+    }
+
+    /// Return a mutable reference to the file options
+    ///
+    /// This field is a map from file name within `dir` to builders for options on the individual files.
+    ///
+    /// We hold builders here so that we can use `ExtendBuilder` to derive settings
+    /// using `listener_options` as the defaults.
+    #[cfg(any(test, feature = "experimental-api"))]
+    pub fn file_options(&mut self) -> &mut FileOptionsMapBuilder {
+        &mut self.file_options
+    }
 }
 
 define_map_builder! {
     /// Builder for the `FileOptionsMap` within an `RpcListenerSetConfig`.
     #[derive(Eq, PartialEq)]
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
     pub(crate) struct FileOptionsMapBuilder =>
     type FileOptionsMap = BTreeMap<String, ConnectPointOptions>;
 }
@@ -151,16 +166,16 @@ define_map_builder! {
 /// as a set of defaults,
 /// and we extend those defaults from any entry we find in the `file_options` map
 /// corresponding to the connect point's filename.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Deftly)]
-#[derive_deftly(ExtendBuilder)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize, Eq, PartialEq))]
+#[derive(Debug, Clone, Eq, PartialEq, Deftly)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(attr = "derive(PartialEq, Eq)"))]
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct ConnectPointOptions {
     /// Used to explicitly disable an entry in a connect point directory.
-    #[builder(default = "true")]
+    #[deftly(tor_config(default = "true"))]
     enable: bool,
 }
-impl_standard_builder! { ConnectPointOptions }
 
 impl ConnectPointOptionsBuilder {
     /// Return true if this builder represents an enabled connect point.

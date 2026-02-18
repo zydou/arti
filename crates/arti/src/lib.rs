@@ -111,9 +111,9 @@ semipublic_mod! {
     mod process;
     mod reload_cfg;
     mod proxy;
+    #[cfg_attr(not(feature = "rpc"), path = "rpc_stub.rs")]
+    mod rpc;
 }
-#[cfg_attr(not(feature = "rpc"), path = "rpc_stub.rs")]
-mod rpc;
 
 use std::ffi::OsString;
 use std::fmt::Write;

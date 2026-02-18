@@ -2,14 +2,13 @@
 
 use anyhow::Result;
 use arti_rpcserver::RpcMgr;
-use derive_builder::Builder;
+use derive_deftly::Deftly;
 use fs_mistrust::Mistrust;
 use futures::{AsyncReadExt, stream::StreamExt};
-use listener::{RpcListenerMap, RpcListenerMapBuilder};
-use serde::{Deserialize, Serialize};
 use session::ArtiRpcSession;
+use std::collections::BTreeMap;
 use std::{io::Result as IoResult, sync::Arc};
-use tor_config::{ConfigBuildError, define_list_builder_helper, impl_standard_builder};
+use tor_config::derive::prelude::*;
 use tor_config_path::CfgPathResolver;
 use tracing::{debug, info};
 
@@ -21,44 +20,30 @@ pub(crate) mod listener;
 mod proxyinfo;
 mod session;
 
+semipublic_use! {
+    use listener::RpcListenerSetConfig;
+}
+
 pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
 
 /// Configuration for Arti's RPC subsystem.
 ///
 /// You cannot change this section on a running Arti client.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder_struct_attr(non_exhaustive)]
-#[non_exhaustive]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 pub struct RpcConfig {
     /// If true, then the RPC subsystem is enabled and will listen for connections.
-    #[builder(default = "false")] // TODO RPC make this true once we are stable.
+    #[deftly(tor_config(default = "false"))] // TODO RPC make this true once we are stable.
     enable: bool,
 
     /// A set of named locations in which to find connect files.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
-    listen: RpcListenerMap,
+    #[deftly(tor_config(map, default = "listener::listener_map_defaults()"))]
+    listen: BTreeMap<String, RpcListenerSetConfig>,
 
     /// A list of default connect points to bind
     /// if no enabled connect points are found under `listen`.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
-    listen_default: ListenDefaults,
-}
-impl_standard_builder! { RpcConfig }
-
-/// Type alias to enable sub_builder to work.
-type ListenDefaults = Vec<String>;
-
-define_list_builder_helper! {
-    pub struct ListenDefaultsBuilder {
-        values: [String],
-    }
-    built: Vec<String> = values;
-    default = listen_defaults_defaults();
-    item_build: |item| Ok(item.clone());
+    #[deftly(tor_config(list(element(clone)), default = "listen_defaults_defaults()"))]
+    listen_default: Vec<String>,
 }
 
 /// Return default values for `RpcConfig.listen_default`
