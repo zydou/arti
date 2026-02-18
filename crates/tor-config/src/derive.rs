@@ -2300,6 +2300,18 @@ define_derive_deftly! {
                 ${for fields {
                     ${when not(fmeta(tor_config(skip)))}
 
+                    ${if fmeta(tor_config(cfg)) {
+                        // For conditionally present features, it doesn't matter what we put
+                        // in the field, so long as we make it set whenever _either_ config is set.
+                        #[cfg(not( ${fmeta(tor_config(cfg)) as token_stream} ))]
+                        if other.$fname.is_some() {
+                            self.$fname = other.$fname;
+                        }
+                    }}
+
+                    ${if fmeta(tor_config(cfg)) {
+                        #[cfg( ${fmeta(tor_config(cfg)) as token_stream} )]
+                    }}
                     ${if fmeta(tor_config(extend_with)) {
                         ${fmeta(tor_config(extend_with)) as expr}(&mut self.$fname, other.$fname, strategy);
                     } else if fmeta(tor_config(extend_with_replace)) {
