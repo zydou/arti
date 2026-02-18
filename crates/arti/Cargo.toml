@@ -98,7 +98,7 @@ ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
 flowctl-cc = ["arti-client/flowctl-cc", "__is_experimental"]
 counter-galois-onion = ["arti-client/counter-galois-onion", "flowctl-cc", "__is_experimental"]
 
-rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect"]
+rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "arti-client/rpc"]
 
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
