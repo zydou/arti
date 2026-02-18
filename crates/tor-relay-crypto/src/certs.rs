@@ -21,14 +21,14 @@ pub fn gen_signing_cert(
     kp_relay_id: &RelayIdentityKeypair,
     kp_relaysign_id: &RelaySigningKeypair,
     expiry: SystemTime,
-) -> Result<RelayLinkSigningKeyCert, CertEncodeError> {
+) -> Result<RelaySigningKeyCert, CertEncodeError> {
     Ed25519Cert::constructor()
-        .cert_type(RelayLinkSigningKeyCert::cert_type())
+        .cert_type(RelaySigningKeyCert::cert_type())
         .expiration(expiry)
         .signing_key(kp_relay_id.to_ed25519_id())
         .cert_key(CertifiedKey::Ed25519(kp_relaysign_id.to_ed25519_id()))
         .encode_and_sign(kp_relay_id)
-        .map(RelayLinkSigningKeyCert::from)
+        .map(RelaySigningKeyCert::from)
 }
 
 /// Generate the relay link certificate from the given relay signing keypair and the relay
