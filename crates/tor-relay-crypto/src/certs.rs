@@ -47,6 +47,21 @@ pub fn gen_link_cert(
         .map(RelayLinkSigningKeyCert::from)
 }
 
+/// Generate the signed TLS certificate from the given relay signing keypair and the TLS cert
+/// digest.
+pub fn gen_tls_cert(
+    kp_relaysign_id: &RelaySigningKeypair,
+    tls_digest: [u8; 32],
+    expiry: SystemTime,
+) -> Result<EncodedEd25519Cert, CertEncodeError> {
+    Ed25519Cert::constructor()
+        .cert_type(CertType::SIGNING_V_TLS_CERT)
+        .expiration(expiry)
+        .signing_key(kp_relaysign_id.to_ed25519_id())
+        .cert_key(CertifiedKey::X509Sha256Digest(tls_digest))
+        .encode_and_sign(kp_relaysign_id)
+}
+
 /// Certificate for the medium-term relay signing key (`K_relaysign_ed`).
 ///
 /// This is an ed25519 certificate encoded in Tor's

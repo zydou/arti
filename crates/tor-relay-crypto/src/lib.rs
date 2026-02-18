@@ -50,4 +50,6 @@ pub mod certs;
 pub mod pk;
 
 // Pleasant re-export.
-pub use certs::{RelayLinkSigningKeyCert, RelaySigningKeyCert, gen_link_cert, gen_signing_cert};
+pub use certs::{
+    RelayLinkSigningKeyCert, RelaySigningKeyCert, gen_link_cert, gen_signing_cert, gen_tls_cert,
+};
