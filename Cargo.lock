@@ -374,7 +374,7 @@ version = "0.39.0"
 dependencies = [
  "anyhow",
  "clap",
- "derive_builder_fork_arti",
+ "derive-deftly",
  "derive_more",
  "directories",
  "fs-mistrust",

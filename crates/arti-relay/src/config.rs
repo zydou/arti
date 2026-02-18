@@ -10,7 +10,7 @@ use std::borrow::Cow;
 use std::net::{IpAddr, SocketAddrV4, SocketAddrV6};
 use std::path::PathBuf;
 
-use derive_builder::Builder;
+use derive_deftly::Deftly;
 use derive_more::AsRef;
 use directories::ProjectDirs;
 use fs_mistrust::{Mistrust, MistrustBuilder};
@@ -18,7 +18,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 use tor_circmgr::{CircuitTiming, PathConfig, PreemptiveCircuitConfig};
-use tor_config::{ConfigBuildError, ExplicitOrAuto, impl_standard_builder, mistrust::BuilderExt};
+use tor_config::derive::prelude::*;
+use tor_config::{
+    ConfigBuildError, ExplicitOrAuto, extend_builder::extend_with_replace, mistrust::BuilderExt,
+};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
 use tor_dircommon::fallback::FallbackList;
@@ -114,84 +117,72 @@ fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
 ///
 /// This is a builder so that it works with tor-config.
 /// We don't expect to ever use it as a builder since we don't provide this as a public rust API.
-#[derive(Clone, Builder, Debug, Eq, PartialEq, AsRef)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Serialize, Deserialize, Debug))]
+#[derive(Clone, Deftly, Debug, Eq, PartialEq, AsRef)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 #[non_exhaustive]
 pub(crate) struct TorRelayConfig {
     /// Configuration for the "relay" part of the relay.
     // TODO: Add a better doc comment here once we figure out exactly how we want the config to be
     // structured.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) relay: RelayConfig,
 
     /// Information about the Tor network we want to connect to.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) tor_network: NetworkConfig,
 
     /// Logging configuration
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) logging: LoggingConfig,
 
     /// Directories for storing information on disk
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) storage: StorageConfig,
 
     /// Information about how to build paths through the network.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) channel: ChannelConfig,
 
     /// Configuration for system resources
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) system: SystemConfig,
 
     /// Information about how to build paths through the network.
     // We don't expose this field in the config.
-    #[builder(setter(skip))]
-    #[builder_field_attr(serde(skip))]
-    #[builder(default)]
+    #[deftly(tor_config(skip, build = "|_| Default::default()"))]
     // Needed to implement `CircMgrConfig`.
     #[as_ref]
     pub(crate) path_rules: PathConfig,
 
     /// Information about vanguards.
     // We don't expose this field in the config.
-    #[builder(setter(skip))]
-    #[builder_field_attr(serde(skip))]
-    #[builder(default = r#"
+    #[deftly(tor_config(
+        skip,
+        build = r#"|_|
         VanguardConfigBuilder::default()
             .mode(ExplicitOrAuto::Explicit(VanguardMode::Disabled))
             .build()
-            .expect("Could not build a disabled `VanguardConfig`")"#)]
+            .expect("Could not build a disabled `VanguardConfig`")"#
+    ))]
     // Needed to implement `CircMgrConfig`.
     #[as_ref]
     pub(crate) vanguards: VanguardConfig,
 
     /// Information about how to retry and expire circuits and request for circuits.
     // We don't expose this field in the config.
-    #[builder(setter(skip))]
-    #[builder_field_attr(serde(skip))]
-    #[builder(default)]
+    #[deftly(tor_config(skip, build = "|_| Default::default()"))]
     // Needed to implement `CircMgrConfig`.
     #[as_ref]
     pub(crate) circuit_timing: CircuitTiming,
 
     /// Information about preemptive circuits.
     // We don't expose this field in the config.
-    #[builder(setter(skip))]
-    #[builder_field_attr(serde(skip))]
-    #[builder(default)]
+    #[deftly(tor_config(skip, build = "|_| Default::default()"))]
     // Needed to implement `CircMgrConfig`.
     #[as_ref]
     pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
 }
-impl_standard_builder! { TorRelayConfig: !Default }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
     type Builder = TorRelayConfigBuilder;
@@ -229,20 +220,21 @@ impl tor_guardmgr::GuardMgrConfig for TorRelayConfig {
 ///
 /// TODO: There's a high-level issue for discussing these options:
 /// <https://gitlab.torproject.org/tpo/core/arti/-/issues/2252>
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 pub(crate) struct RelayConfig {
     /// Addresses to listen on for incoming OR connections.
+    #[deftly(tor_config(no_default))]
     pub(crate) listen: Listen,
 
     /// Addresses to advertise on the network for receiving OR connections.
     // For now, we've decided that we don't want to include any IP address auto-detection in
     // arti-relay, so we require users to provide the addresses to advertise. (So no `Option` and
     // `builder(default)` here).
+    #[deftly(tor_config(no_default))]
     pub(crate) advertise: Advertise,
 }
-impl_standard_builder! { RelayConfig: !Default }
 
 /// The address(es) to advertise on the network.
 // TODO: We'll want to make sure we check that the addresses are valid before uploading them in a
@@ -275,9 +267,9 @@ impl Advertise {
 pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::INFO;
 
 /// Logging configuration options.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(pre_build = "Self::validate"))]
 #[non_exhaustive]
 pub(crate) struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
@@ -286,7 +278,7 @@ pub(crate) struct LoggingConfig {
     /// You can override this setting with the `-l`, `--log-level` command line parameter.
     ///
     /// Example: "info,tor_proto::channel=trace"
-    #[builder(default = "DEFAULT_LOG_LEVEL.to_string()", setter(into))]
+    #[deftly(tor_config(default = "DEFAULT_LOG_LEVEL.to_string()"))]
     pub(crate) console: String,
 }
 
@@ -320,9 +312,8 @@ impl LoggingConfigBuilder {
 /// This section is for read/write storage.
 ///
 /// You cannot change this section on a running relay.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[non_exhaustive]
 pub(crate) struct StorageConfig {
     /// Location on disk for cached information.
@@ -343,7 +334,7 @@ pub(crate) struct StorageConfig {
     // tor-dirmgr receives cache_dir, and appends components such as "dir_blobs".
     //
     // (This consistency rule is not current always followed by every component.)
-    #[builder(setter(into), default = "default_cache_dir()")]
+    #[deftly(tor_config(default = "default_cache_dir()", setter(into)))]
     cache_dir: CfgPath,
 
     /// Location on disk for less-sensitive persistent state information.
@@ -351,12 +342,11 @@ pub(crate) struct StorageConfig {
     /// Should be accessed through the `state_dir()` getter to provide better error messages when
     /// resolving the path.
     // Usage note: see the note for `cache_dir`, above.
-    #[builder(setter(into), default = "default_state_dir()")]
+    #[deftly(tor_config(default = "default_state_dir()", setter(into)))]
     state_dir: CfgPath,
 
     /// Location on disk for the Arti keystore.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     keystore: ArtiKeystoreConfig,
 
     /// Configuration about which permissions we want to enforce on our files.
@@ -366,11 +356,12 @@ pub(crate) struct StorageConfig {
     // libraries like `tor-hsservice` also use 'build_for_arti()'. So we're stuck with it for now.
     // It might be confusing in the future if relays use some environment variables prefixed with
     // "ARTI_" and others with "ARTI_RELAY_", so we should probably stick to just "ARTI_".
-    #[builder(sub_builder(fn_name = "build_for_arti"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(
+        sub_builder(build_fn = "build_for_arti"),
+        extend_with = "extend_with_replace"
+    ))]
     permissions: Mistrust,
 }
-impl_standard_builder! { StorageConfig }
 
 impl StorageConfig {
     /// Return the FS permissions to use for state and cache directories.
@@ -396,17 +387,14 @@ impl StorageConfig {
 }
 
 /// Configuration for system resources used by the relay.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[non_exhaustive]
 pub(crate) struct SystemConfig {
     /// Memory limits (approximate)
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) memory: tor_memquota::Config,
 }
-impl_standard_builder! { SystemConfig }
 
 /// Return the default cache directory.
 fn default_cache_dir() -> CfgPath {
