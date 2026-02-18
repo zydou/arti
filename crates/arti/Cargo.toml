@@ -83,6 +83,7 @@ onion-service-client = ["arti-client/onion-service-client"]
 
 onion-service-cli-extra = [
     "arti-client/onion-service-cli-extra",
+    "arti-client/experimental-api",
     "tor-hsservice/onion-service-cli-extra",
     "tor-hsclient",
     "tor-hscrypto",
