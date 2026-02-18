@@ -50,4 +50,13 @@ pub enum CertEncodeError {
     /// probably a bug in the calling code.
     #[error("Tried to generate a cert we couldn't encode.")]
     Bytes(#[from] tor_bytes::EncodeError),
+
+    /// We tried to use an expiration time that couldn't be represented in the
+    /// given certificate type.
+    #[error("Tried to create a cert with an impossible expiration time")]
+    InvalidExpiration,
+
+    /// For some reason, we were unable to generate an RSA signature.
+    #[error("Unable to generate RSA signature")]
+    RsaSignatureFailed,
 }
