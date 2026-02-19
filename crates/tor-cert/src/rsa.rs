@@ -11,6 +11,11 @@ use digest::Digest;
 
 use crate::CertType;
 
+#[cfg(feature = "encode")]
+mod encode;
+#[cfg(feature = "encode")]
+pub use encode::EncodedRsaCrosscert;
+
 /// A RSA->Ed25519 cross-certificate
 ///
 /// This kind of certificate is used in the channel handshake to prove
@@ -31,10 +36,24 @@ pub struct RsaCrosscert {
     signature: Vec<u8>,
 }
 
+/// Number of seconds in an hour.
+const SECS_PER_HOUR: u64 = 3600;
+
+/// Prefix appended when generating a digest for an RsaCrosscert
+const PREFIX: &[u8] = b"Tor TLS RSA/Ed25519 cross-certificate";
+
+/// Compute the SHA256 digest of `c`, prefixed with PREFIX.
+fn compute_digest(c: &[u8]) -> [u8; 32] {
+    let mut d = ll::d::Sha256::new();
+    d.update(PREFIX);
+    d.update(c);
+    d.finalize().into()
+}
+
 impl RsaCrosscert {
     /// Return the time at which this certificate becomes expired
     pub fn expiry(&self) -> std::time::SystemTime {
-        let d = std::time::Duration::new(u64::from(self.exp_hours) * 3600, 0);
+        let d = std::time::Duration::new(u64::from(self.exp_hours) * SECS_PER_HOUR, 0);
         std::time::SystemTime::UNIX_EPOCH + d
     }
 
@@ -62,10 +81,7 @@ impl RsaCrosscert {
         let siglen = r.take_u8()?;
         let signature = r.take(siglen as usize)?.into();
 
-        let mut d = ll::d::Sha256::new();
-        d.update(&b"Tor TLS RSA/Ed25519 cross-certificate"[..]);
-        d.update(signed_portion);
-        let digest = d.finalize().into();
+        let digest = compute_digest(signed_portion);
 
         let cc = RsaCrosscert {
             subject_key,
