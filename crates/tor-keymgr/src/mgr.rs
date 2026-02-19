@@ -4,7 +4,7 @@
 
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    ArtiPath, BoxedKeystore, KeyCertificateSpecifier, KeyPath, KeyPathInfo, KeyPathInfoExtractor,
+    ArtiPath, BoxedKeystore, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoExtractor,
     KeyPathPattern, KeySpecifier, KeystoreCorruptionError, KeystoreEntryResult, KeystoreId,
     KeystoreSelector, Result,
 };
@@ -16,6 +16,9 @@ use tor_error::{bad_api_usage, internal, into_bad_api_usage};
 use tor_key_forge::{
     ItemType, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey,
 };
+
+#[cfg(feature = "experimental-api")]
+use crate::KeyCertificateSpecifier;
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
@@ -200,6 +203,45 @@ impl KeyMgr {
         let selector = entry.keystore_id().into();
         let store = self.select_keystore(&selector)?;
         self.get_from_store(entry.key_path(), entry.key_type(), [store].into_iter())
+    }
+
+    /// Retrieve the specified keystore certificate entry and the corresponding
+    /// subject and signing keys, deserializing the subject key as `K::Key`,
+    /// the cert as `C::Cert`, and the signing key as `C::SigningKey`.
+    ///
+    /// The `S` type parameter is the [`KeyCertificateSpecifier`] of the certificate.
+    ///
+    /// The key returned is retrieved from the key store specified in the [`KeystoreEntry`].
+    ///
+    /// Returns `Ok(None)` if the key store does not contain the requested entry.
+    ///
+    /// Returns an error if the item type of the [`KeystoreEntry`] does not match `C::item_type()`,
+    /// or if the certificate is not valid according to [`ToEncodableCert::validate`],
+    /// or if the [`ArtiPath`] of the entry cannot be converted to a certificate specifier
+    /// of type `S`.
+    #[cfg(feature = "experimental-api")]
+    pub fn get_cert_entry<
+        S: KeyCertificateSpecifier + for<'a> TryFrom<&'a KeyPath, Error = KeyPathError>,
+        K: ToEncodableKey,
+        C: ToEncodableCert<K>,
+    >(
+        &self,
+        entry: &KeystoreEntry,
+        signing_key_spec: &dyn KeySpecifier,
+    ) -> Result<Option<C>> {
+        let selector = entry.keystore_id().into();
+        let store = self.select_keystore(&selector)?;
+        let cert_spec = S::try_from(entry.key_path())
+            .map_err(into_bad_api_usage!("wrong cert specifier for entry?!"))?;
+        let subject_key_spec = cert_spec.subject_key_specifier();
+
+        self.get_cert_from_store(
+            entry.key_path(),
+            entry.key_type(),
+            signing_key_spec,
+            subject_key_spec,
+            [store].into_iter(),
+        )
     }
 
     /// Read the key identified by `key_spec`.
@@ -512,6 +554,33 @@ impl KeyMgr {
         }
 
         Ok(None)
+    }
+
+    /// Attempt to retrieve a certificate from one of the specified `stores`.
+    #[cfg(feature = "experimental-api")]
+    fn get_cert_from_store<'a, K: ToEncodableKey, C: ToEncodableCert<K>>(
+        &self,
+        cert_spec: &dyn KeySpecifier,
+        cert_type: &KeystoreItemType,
+        signing_cert_spec: &dyn KeySpecifier,
+        subject_cert_spec: &dyn KeySpecifier,
+        stores: impl Iterator<Item = &'a BoxedKeystore>,
+    ) -> Result<Option<C>> {
+        let Some(cert) = self.get_from_store_raw::<C::ParsedCert>(cert_spec, cert_type, stores)?
+        else {
+            return Ok(None);
+        };
+
+        // Get the subject key...
+        let Some(subject) =
+            self.get_from_store::<K>(subject_cert_spec, &K::Key::item_type(), self.all_stores())?
+        else {
+            return Ok(None);
+        };
+        let signed_with = self.get_cert_signing_key::<K, C>(signing_cert_spec)?;
+        let cert = C::validate(cert, &subject, &signed_with)?;
+
+        Ok(Some(cert))
     }
 
     /// Attempt to retrieve a key from one of the specified `stores`.
