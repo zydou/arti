@@ -6,15 +6,23 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio::task::JoinSet;
+use tor_basic_utils::rand_hostname;
+use tor_cert::x509::TlsKeyAndCert;
+use tor_proto::RelayIdentities;
 
+use tor_key_forge::ToEncodableCert;
 use tor_keymgr::{
     KeyMgr, KeyPath, KeySpecifier, KeySpecifierPattern, Keygen, KeystoreSelector, ToEncodableKey,
 };
-use tor_relay_crypto::pk::{
-    RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
-    RelayIdentityRsaKeypairSpecifier, RelayLinkSigningKeypair, RelayLinkSigningKeypairSpecifier,
-    RelayLinkSigningKeypairSpecifierPattern, RelaySigningKeypair, RelaySigningKeypairSpecifier,
-    RelaySigningKeypairSpecifierPattern, Timestamp,
+use tor_relay_crypto::{
+    gen_link_cert, gen_signing_cert, gen_tls_cert,
+    pk::{
+        RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
+        RelayIdentityRsaKeypairSpecifier, RelayLinkSigningKeypair,
+        RelayLinkSigningKeypairSpecifier, RelayLinkSigningKeypairSpecifierPattern,
+        RelaySigningKeypair, RelaySigningKeypairSpecifier, RelaySigningKeypairSpecifierPattern,
+        Timestamp,
+    },
 };
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
@@ -167,7 +175,100 @@ fn try_rotate_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Attempt to generate all keys.
+/// Build a fresh [`RelayIdentities`] object using a [`KeyMgr`].
+///
+/// Every single certificate is generated in this function.
+///
+/// This function assumes that all required keys are in the keymgr.
+#[expect(unused)] // TODO(relay): remove
+fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
+    let mut rng = tor_llcrypto::rng::CautiousRng;
+    let now = SystemTime::now();
+
+    // Get the identity keypairs.
+    let rsa_id_kp: RelayIdentityRsaKeypair = keymgr
+        .get(&RelayIdentityRsaKeypairSpecifier::new())?
+        .context("Missing RSA identity")?;
+    let ed_id_kp: RelayIdentityKeypair = keymgr
+        .get(&RelayIdentityKeypairSpecifier::new())?
+        .context("Missing Ed25519 identity")?;
+    // We have to list match here because the key specifier here uses a valid_until. We don't know
+    // what it is so we list and take the first one.
+    let link_sign_kp: RelayLinkSigningKeypair = keymgr
+        .get_entry(
+            keymgr
+                .list_matching(&RelayLinkSigningKeypairSpecifierPattern::new_any().arti_pattern()?)?
+                .first()
+                .context("No store entry for link authentication key")?,
+        )?
+        .context("Missing link authentication key")?;
+    let kp_relaysign_id: RelaySigningKeypair = keymgr
+        .get_entry(
+            keymgr
+                .list_matching(&RelaySigningKeypairSpecifierPattern::new_any().arti_pattern()?)?
+                .first()
+                .context("No store entry for signing key")?,
+        )?
+        .context("Missing signing key")?;
+
+    // TLS key and cert. Random hostname like C-tor. We re-use the issuer_hostname for the RSA
+    // legacy cert.
+    let issuer_hostname = rand_hostname::random_hostname(&mut rng);
+    let subject_hostname = rand_hostname::random_hostname(&mut rng);
+    let tls_key_and_cert =
+        TlsKeyAndCert::create(&mut rng, now, &issuer_hostname, &subject_hostname)?;
+
+    // Create the RSA X509 certificate.
+    let cert_id_x509_rsa = tor_cert::x509::create_legacy_rsa_id_cert(
+        &mut rng,
+        SystemTime::now(),
+        &issuer_hostname,
+        rsa_id_kp.keypair(),
+    )?;
+
+    // Taken from C-tor.
+    let lifetime_2days = now + Duration::from_secs(2 * 24 * 60 * 60);
+    let lifetime_30days = now + Duration::from_secs(30 * 24 * 60 * 60);
+    let lifetime_6months = now + Duration::from_secs(6 * 30 * 24 * 60 * 60);
+
+    let cert_id_rsa = tor_cert::rsa::EncodedRsaCrosscert::encode_and_sign(
+        rsa_id_kp.keypair(),
+        &ed_id_kp.to_ed25519_id(),
+        lifetime_6months,
+    )?;
+
+    // Create the signing key cert, link cert and tls cert.
+    //
+    // TODO(relay): We need to check the KeyMgr for the signing cert but for now the KeyMgr API
+    // doesn't allow us to get it out. We will do a re-design of the cert API there. This is fine
+    // as long as we don't support offline keys.
+    let cert_id_sign_ed = gen_signing_cert(&ed_id_kp, &kp_relaysign_id, lifetime_30days)?;
+    let cert_sign_link_auth_ed = gen_link_cert(&kp_relaysign_id, &link_sign_kp, lifetime_2days)?;
+    let cert_sign_tls_ed = gen_tls_cert(
+        &kp_relaysign_id,
+        *tls_key_and_cert.link_cert_sha256(),
+        lifetime_2days,
+    )?;
+
+    Ok(RelayIdentities::new(
+        rsa_id_kp.to_rsa_identity(),
+        ed_id_kp.to_ed25519_id(),
+        link_sign_kp,
+        cert_id_sign_ed.to_encodable_cert(),
+        cert_sign_tls_ed,
+        cert_sign_link_auth_ed.to_encodable_cert(),
+        cert_id_x509_rsa,
+        cert_id_rsa,
+        tls_key_and_cert,
+    ))
+}
+
+/// Attempt to generate all keys. The list of keys is:
+///
+/// * Identity Ed25519 keypair [`RelayIdentityKeypair`].
+/// * Identity RSA [`RelayIdentityRsaKeypair`].
+/// * Relay signing keypair [`RelaySigningKeypair`].
+/// * Relay link signing keypair [`RelayLinkSigningKeypair`].
 ///
 /// This function is only called when our relay bootstraps in order to attempt to generate any
 /// missing keys or/and rotate expired keys.
