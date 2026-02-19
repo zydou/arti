@@ -279,6 +279,10 @@ where
         // The returned PeerAddr is the actual address we are connected to.
         let (peer_addr, stream) = self.transport.connect(target).await?;
 
+        // TODO(relay): We put the `target` in the error but actually, we should use the
+        // `peer_addr` as it is the address used while the target is possibly a bunch of addresses.
+        // This will also require us to implement "Sensitive" for a PeerAddr to avoid leaking IPs.
+
         let map_ioe = |action: &'static str| {
             let peer: Option<BridgeAddr> = (&peer_addr).into();
             move |ioe: io::Error| Error::Io {
