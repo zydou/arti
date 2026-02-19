@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use tokio::task::JoinSet;
+use tor_proto::RelayIdentities;
 use tracing::{debug, warn};
 
 use fs_mistrust::Mistrust;
@@ -121,9 +122,10 @@ impl InertTorRelay {
     /// Connect the [`InertTorRelay`] to the Tor network.
     pub(crate) async fn init<R: Runtime>(self, runtime: R) -> anyhow::Result<TorRelay<R>> {
         // Attempt to generate any missing keys/cert from the KeyMgr.
-        crate::tasks::crypto::try_generate_keys(&self.keymgr).context("Failed to generate keys")?;
+        let identities = crate::tasks::crypto::try_generate_keys(&self.keymgr)
+            .context("Failed to generate keys")?;
 
-        TorRelay::init(runtime, self).await
+        TorRelay::init(runtime, self, identities).await
     }
 
     /// Create the [key manager](KeyMgr).
@@ -184,14 +186,20 @@ impl<R: Runtime> TorRelay<R> {
     /// Doing work with these components should happen in [`TorRelay::run()`].
     ///
     /// Expected to be called from [`InertTorRelay::init()`].
-    async fn init(runtime: R, inert: InertTorRelay) -> anyhow::Result<Self> {
+    async fn init(
+        runtime: R,
+        inert: InertTorRelay,
+        identities: RelayIdentities,
+    ) -> anyhow::Result<Self> {
         let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
             .context("Failed to initialize memquota tracker")?;
 
+        let config =
+            ChanMgrConfig::new(inert.config.channel.clone()).with_identities(Arc::new(identities));
         let chanmgr = Arc::new(
             ChanMgr::new(
                 runtime.clone(),
-                ChanMgrConfig::new(inert.config.channel.clone()),
+                config,
                 Dormancy::Active,
                 &NetParameters::default(),
                 memquota.clone(),

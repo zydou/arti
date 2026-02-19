@@ -180,7 +180,6 @@ fn try_rotate_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
 /// Every single certificate is generated in this function.
 ///
 /// This function assumes that all required keys are in the keymgr.
-#[expect(unused)] // TODO(relay): remove
 fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
     let mut rng = tor_llcrypto::rng::CautiousRng;
     let now = SystemTime::now();
@@ -272,14 +271,17 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
 ///
 /// This function is only called when our relay bootstraps in order to attempt to generate any
 /// missing keys or/and rotate expired keys.
-pub(crate) fn try_generate_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
+pub(crate) fn try_generate_keys(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
     // Note that generate_key() won't error if the key already exists.
 
     // Attempt to generate our identity keys (ed and RSA). Those keys DO NOT rotate.
     generate_key::<RelayIdentityKeypair>(keymgr, &RelayIdentityKeypairSpecifier::new())?;
     generate_key::<RelayIdentityRsaKeypair>(keymgr, &RelayIdentityRsaKeypairSpecifier::new())?;
     // Attempt to rotate the rotatable keys which will generate any missing.
-    try_rotate_keys(keymgr)
+    try_rotate_keys(keymgr)?;
+
+    // Now that we have our up-to-date keys, build the RelayIdentities object.
+    build_proto_identities(keymgr)
 }
 
 /// Task to rotate keys when they need to be rotated.
