@@ -347,7 +347,6 @@ where
                 let unverified = builder
                     .launch(
                         tls,
-                        peer_addr,
                         self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
                         memquota,
                     )
@@ -368,7 +367,7 @@ where
                         }
                         _ => Error::from_proto_no_skew(source, target),
                     })?
-                    .finish()
+                    .finish(peer_addr)
                     .await
                     .map_err(|e| map_proto(e, target, Some(clock_skew)))?;
 
@@ -437,7 +436,6 @@ where
         let unverified = builder
             .launch(
                 tls,
-                peer_addr,
                 self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
                 identities,
                 my_addrs,
@@ -466,7 +464,7 @@ where
                 }
                 _ => Error::from_proto_no_skew(source, target),
             })?
-            .finish()
+            .finish(peer_addr)
             .await
             .map_err(|source| Error::Proto {
                 source,

@@ -53,8 +53,6 @@ pub struct RelayInitiatorHandshake<
     identities: Arc<RelayIdentities>,
     /// The peer we are attempting to connect to.
     target_method: ChannelMethod,
-    /// Peer address.
-    peer_addr: PeerAddr,
     /// Our advertised addresses. Needed for the NETINFO.
     my_addrs: Vec<IpAddr>,
 }
@@ -93,7 +91,6 @@ impl<
     /// Constructor.
     pub(crate) fn new(
         tls: T,
-        peer_addr: PeerAddr,
         sleep_prov: S,
         identities: Arc<RelayIdentities>,
         my_addrs: Vec<IpAddr>,
@@ -108,7 +105,6 @@ impl<
             memquota,
             my_addrs,
             target_method: peer.chan_method(),
-            peer_addr,
         }
     }
 
@@ -154,7 +150,6 @@ impl<
                 clock_skew,
                 memquota: self.memquota,
                 target_method: Some(self.target_method),
-                peer_addr: self.peer_addr,
                 unique_id: self.unique_id,
                 sleep_prov: self.sleep_prov.clone(),
                 certs_cell: Some(certs_cell),
@@ -272,7 +267,6 @@ impl<
             clock_skew,
             memquota: self.memquota,
             target_method: None,
-            peer_addr: self.peer,
             unique_id: self.unique_id,
             sleep_prov: self.sleep_prov,
             certs_cell,
@@ -287,6 +281,7 @@ impl<
                     netinfo_cell,
                     identities: self.identities,
                     my_addrs: self.my_addrs,
+                    peer_addr: self.peer,
                 })
             }
             None => MaybeVerifiableRelayResponderChannel::NonVerifiable(
@@ -294,6 +289,7 @@ impl<
                     inner,
                     netinfo_cell,
                     my_addrs: self.my_addrs,
+                    peer_addr: self.peer,
                 },
             ),
         })

@@ -40,9 +40,6 @@ pub struct ClientInitiatorHandshake<
     /// Declared target method for this channel, if any.
     target_method: Option<ChannelMethod>,
 
-    /// Peer address.
-    peer_addr: PeerAddr,
-
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
 }
@@ -81,7 +78,6 @@ impl<
     /// Construct a new ClientInitiatorHandshake.
     pub(crate) fn new(
         tls: T,
-        peer_addr: PeerAddr,
         target_method: Option<ChannelMethod>,
         sleep_prov: S,
         memquota: ChannelAccount,
@@ -89,7 +85,6 @@ impl<
         Self {
             framed_tls: new_frame(tls, ChannelType::ClientInitiator),
             target_method,
-            peer_addr,
             unique_id: UniqId::new(),
             sleep_prov,
             memquota,
@@ -143,7 +138,6 @@ impl<
                 certs_cell: Some(certs_cell),
                 clock_skew,
                 target_method: self.target_method.take(),
-                peer_addr: self.peer_addr,
                 unique_id: self.unique_id,
                 sleep_prov: self.sleep_prov.clone(),
                 memquota: self.memquota.clone(),
@@ -236,8 +230,8 @@ impl<
     /// The channel is used to send cells, and to create outgoing circuits. The reactor is used to
     /// route incoming messages to their appropriate circuit.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        let peer_ip = self.inner.peer_addr.netinfo_addr();
+    pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
+        let peer_ip = peer_addr.netinfo_addr();
 
         // Send the NETINFO message.
         let netinfo = msg::Netinfo::from_client(peer_ip);
@@ -245,6 +239,6 @@ impl<
         self.inner.framed_tls.send(netinfo.into()).await?;
 
         // Finish the channel to get a reactor.
-        self.inner.finish(&self.netinfo_cell, &[], peer_ip).await
+        self.inner.finish(&self.netinfo_cell, &[], peer_addr).await
     }
 }

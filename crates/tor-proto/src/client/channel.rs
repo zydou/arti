@@ -11,7 +11,7 @@ use futures::{AsyncRead, AsyncWrite};
 
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
-use crate::{memquota::ChannelAccount, peer::PeerAddr};
+use crate::memquota::ChannelAccount;
 
 /// Structure for building and launching a client Tor channel.
 #[derive(Default)]
@@ -50,7 +50,6 @@ impl ClientChannelBuilder {
     pub fn launch<T, S>(
         self,
         tls: T,
-        peer_addr: PeerAddr,
         sleep_prov: S,
         memquota: ChannelAccount,
     ) -> ClientInitiatorHandshake<T, S>
@@ -58,6 +57,6 @@ impl ClientChannelBuilder {
         T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        handshake::ClientInitiatorHandshake::new(tls, peer_addr, self.target, sleep_prov, memquota)
+        handshake::ClientInitiatorHandshake::new(tls, self.target, sleep_prov, memquota)
     }
 }

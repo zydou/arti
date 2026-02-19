@@ -32,7 +32,6 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::channel::ChannelType;
 use crate::channel::handshake::VerifiedChannel;
-use crate::peer::PeerAddr;
 use crate::relay::channel::handshake::{AUTHTYPE_ED25519_SHA256_RFC5705, RelayResponderHandshake};
 use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 
@@ -133,7 +132,6 @@ impl RelayChannelBuilder {
     pub fn launch<T, S>(
         self,
         tls: T,
-        peer_addr: PeerAddr,
         sleep_prov: S,
         identities: Arc<RelayIdentities>,
         my_addrs: Vec<IpAddr>,
@@ -144,9 +142,7 @@ impl RelayChannelBuilder {
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        RelayInitiatorHandshake::new(
-            tls, peer_addr, sleep_prov, identities, my_addrs, peer, memquota,
-        )
+        RelayInitiatorHandshake::new(tls, sleep_prov, identities, my_addrs, peer, memquota)
     }
 
     /// Accept a new handshake over a TLS stream.

@@ -25,6 +25,7 @@ use crate::{
         Channel, ChannelType, Reactor,
         handshake::{UnverifiedChannel, VerifiedChannel},
     },
+    peer::PeerAddr,
     relay::channel::ChannelAuthenticationData,
 };
 
@@ -149,7 +150,7 @@ where
     ///
     /// The resulting channel is considered, by Tor protocol standard, an authenticated relay
     /// channel on which circuits can be opened.
-    pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
+    pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Send CERTS, AUTHENTICATE, NETINFO
         let certs = super::build_certs_cell(&self.identities, ChannelType::RelayInitiator);
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
@@ -157,7 +158,7 @@ where
         trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");
         self.inner.framed_tls.send(self.auth_cell.into()).await?;
 
-        let peer_ip = self.inner.peer_addr.netinfo_addr();
+        let peer_ip = peer_addr.netinfo_addr();
         // Send our NETINFO cell. This will indicate the end of the handshake.
         let netinfo =
             super::build_netinfo_cell(peer_ip, self.my_addrs.clone(), &self.inner.sleep_prov)?;
@@ -166,7 +167,7 @@ where
 
         // Get a Channel and a Reactor.
         self.inner
-            .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_addr)
             .await
     }
 }

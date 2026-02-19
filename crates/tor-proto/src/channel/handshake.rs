@@ -224,8 +224,6 @@ pub(crate) struct UnverifiedChannel<
     pub(crate) certs_cell: Option<msg::Certs>,
     /// Declared target method for this channel, if any.
     pub(crate) target_method: Option<ChannelMethod>,
-    /// Peer address.
-    pub(crate) peer_addr: PeerAddr,
     /// How much clock skew did we detect in this handshake?
     ///
     /// This value is _unauthenticated_, since we have not yet checked whether
@@ -257,8 +255,6 @@ pub(crate) struct VerifiedChannel<
     pub(crate) framed_tls: ChannelFrame<T>,
     /// Declared target method for this stream, if any.
     pub(crate) target_method: Option<ChannelMethod>,
-    /// Peer address.
-    pub(crate) peer_addr: PeerAddr,
     /// Logging identifier for this stream.  (Used for logging only.)
     pub(crate) unique_id: UniqId,
     /// Validated Ed25519 identity for this peer.
@@ -513,7 +509,6 @@ impl<
             framed_tls: self.framed_tls,
             unique_id: self.unique_id,
             target_method: self.target_method,
-            peer_addr: self.peer_addr,
             ed25519_id: Some(*identity_key),
             rsa_id_cert_digest: Some((rsa_id, *rsa_cert.digest())),
             peer_cert_digest,
@@ -539,7 +534,7 @@ impl<
         mut self,
         netinfo: &msg::Netinfo,
         my_addrs: &[IpAddr],
-        peer_addr: Option<IpAddr>,
+        peer_addr: PeerAddr,
     ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel as incoming traffic since all cells were exchanged.
         //
@@ -567,9 +562,10 @@ impl<
         let stream_ops = self.framed_tls.new_handle();
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
+        let netinfo_addr = peer_addr.netinfo_addr();
         // Unverified channel means we don't have identities. This is the case of a relay responder
         // channel for which the peer is a client or bridge.
-        let peer = PeerInfo::new(self.peer_addr, RelayIds::empty());
+        let peer = PeerInfo::new(peer_addr, RelayIds::empty());
 
         let mut peer_builder = OwnedChanTargetBuilder::default();
         if let Some(target_method) = self.target_method {
@@ -599,7 +595,7 @@ impl<
             self.clock_skew,
             self.sleep_prov,
             self.memquota,
-            Canonicity::from_netinfo(netinfo, my_addrs, peer_addr),
+            Canonicity::from_netinfo(netinfo, my_addrs, netinfo_addr),
         )
     }
 }
@@ -623,7 +619,7 @@ impl<
         mut self,
         netinfo: &msg::Netinfo,
         my_addrs: &[IpAddr],
-        peer_addr: Option<IpAddr>,
+        peer_addr: PeerAddr,
     ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel -- that is to say, one where the
         // authentication is finished -- as incoming traffic.
@@ -668,8 +664,9 @@ impl<
         if let Some((rsa_id, _)) = self.rsa_id_cert_digest {
             relay_ids.rsa_identity(rsa_id);
         }
+        let netinfo_addr = peer_addr.netinfo_addr();
         let peer = PeerInfo::new(
-            self.peer_addr,
+            peer_addr,
             relay_ids
                 .build()
                 .map_err(|e| internal!("Unable to build relay ids: {e}"))?,
@@ -706,7 +703,7 @@ impl<
             self.clock_skew,
             self.sleep_prov,
             self.memquota,
-            Canonicity::from_netinfo(netinfo, my_addrs, peer_addr),
+            Canonicity::from_netinfo(netinfo, my_addrs, netinfo_addr),
         )
     }
 }
@@ -746,7 +743,6 @@ pub(super) mod test {
     use super::*;
     use crate::channel::handler::test::MsgBuf;
     use crate::channel::{ChannelType, new_frame};
-    use crate::peer::PeerAddr;
     use crate::util::fake_mq;
     use crate::{Result, channel::ClientInitiatorHandshake};
     use tor_cell::chancell::msg::{self, Netinfo};
@@ -798,13 +794,7 @@ pub(super) mod test {
             // netinfo cell -- quite minimal.
             add_padded(&mut buf, NETINFO_PREFIX);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake = ClientInitiatorHandshake::new(
-                mb,
-                PeerAddr::UNSPECIFIED,
-                None,
-                rt.clone(),
-                fake_mq(),
-            );
+            let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now).await?;
 
             assert_eq!(unverified.link_protocol(), 5);
@@ -820,13 +810,7 @@ pub(super) mod test {
             buf.extend_from_slice(VPADDING);
             add_padded(&mut buf, NETINFO_PREFIX_WITH_TIME);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake = ClientInitiatorHandshake::new(
-                mb,
-                PeerAddr::UNSPECIFIED,
-                None,
-                rt.clone(),
-                fake_mq(),
-            );
+            let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now).await?;
             // Correct timestamp in the NETINFO, so no skew.
             assert_eq!(unverified.clock_skew(), ClockSkew::None);
@@ -834,13 +818,7 @@ pub(super) mod test {
             // Now pretend our clock is fast.
             let now2 = now + Duration::from_secs(3600);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake = ClientInitiatorHandshake::new(
-                mb,
-                PeerAddr::UNSPECIFIED,
-                None,
-                rt.clone(),
-                fake_mq(),
-            );
+            let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now2).await?;
             assert_eq!(
                 unverified.clock_skew(),
@@ -856,8 +834,7 @@ pub(super) mod test {
         S: CoarseTimeProvider + SleepProvider,
     {
         let mb = MsgBuf::new(input);
-        let handshake =
-            ClientInitiatorHandshake::new(mb, PeerAddr::UNSPECIFIED, None, sleep_prov, fake_mq());
+        let handshake = ClientInitiatorHandshake::new(mb, None, sleep_prov, fake_mq());
         handshake.connect(SystemTime::now).await.err().unwrap()
     }
 
@@ -982,7 +959,6 @@ pub(super) mod test {
             certs_cell: Some(certs),
             clock_skew,
             target_method: None,
-            peer_addr: PeerAddr::UNSPECIFIED,
             unique_id: UniqId::new(),
             sleep_prov: runtime,
             memquota: fake_mq(),
@@ -1253,7 +1229,6 @@ pub(super) mod test {
                 framed_tls,
                 unique_id: UniqId::new(),
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
-                peer_addr: peer_addr.into(),
                 ed25519_id,
                 rsa_id_cert_digest: Some((rsa_id, [0; 32])),
                 peer_cert_digest: [0; 32],
@@ -1265,7 +1240,7 @@ pub(super) mod test {
             let peer_ip = peer_addr.ip();
             let netinfo = Netinfo::from_client(Some(peer_ip));
 
-            let (_chan, _reactor) = ver.finish(&netinfo, &[], Some(peer_ip)).await.unwrap();
+            let (_chan, _reactor) = ver.finish(&netinfo, &[], peer_addr.into()).await.unwrap();
 
             // TODO: check contents of netinfo cell
         });
