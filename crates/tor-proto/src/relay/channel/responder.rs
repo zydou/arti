@@ -11,8 +11,7 @@ use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
-use tor_error::internal;
-use tor_linkspec::{ChannelMethod, OwnedChanTarget};
+use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto as ll;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -22,6 +21,7 @@ use crate::{
         Channel, Reactor,
         handshake::{UnverifiedChannel, VerifiedChannel},
     },
+    peer::PeerAddr,
     relay::channel::ChannelAuthenticationData,
 };
 
@@ -51,6 +51,8 @@ pub struct NonVerifiableResponderRelayChannel<
     pub(crate) netinfo_cell: msg::Netinfo,
     /// Our advertised addresses.
     pub(crate) my_addrs: Vec<IpAddr>,
+    /// The peer address.
+    pub(crate) peer_addr: PeerAddr,
 }
 
 /// A verifiable relay responder channel that is currently unverified. This can only be a relay on
@@ -71,6 +73,8 @@ pub struct UnverifiedResponderRelayChannel<
     pub(crate) identities: Arc<RelayIdentities>,
     /// Our advertised addresses.
     pub(crate) my_addrs: Vec<IpAddr>,
+    /// The peer address.
+    pub(crate) peer_addr: PeerAddr,
 }
 
 /// A verified relay responder channel.
@@ -87,6 +91,8 @@ pub struct VerifiedResponderRelayChannel<
     netinfo_cell: msg::Netinfo,
     /// Our advertised addresses.
     my_addrs: Vec<IpAddr>,
+    /// The peer address.
+    peer_addr: PeerAddr,
 }
 
 impl<T, S> UnverifiedResponderRelayChannel<T, S>
@@ -156,6 +162,7 @@ where
             inner: verified,
             netinfo_cell,
             my_addrs,
+            peer_addr: self.peer_addr,
         })
     }
 
@@ -176,15 +183,8 @@ where
     /// channel on which circuits can be opened.
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        let peer_ip = self
-            .inner
-            .target_method
-            .as_ref()
-            .and_then(ChannelMethod::unique_direct_addr)
-            .ok_or(internal!("No peer IP on verified responder channel"))?
-            .ip();
         self.inner
-            .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
+            .finish(&self.netinfo_cell, &self.my_addrs, self.peer_addr)
             .await
     }
 }
@@ -202,14 +202,7 @@ where
     pub fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Non verifiable responder channel, we simply finalize our underlying channel and we are
         // done. We are connected to a client or bridge.
-        let peer_ip = self
-            .inner
-            .target_method
-            .as_ref()
-            .and_then(ChannelMethod::unique_direct_addr)
-            .ok_or(internal!("No peer IP on non verifiable responder channel"))?
-            .ip();
         self.inner
-            .finish(&self.netinfo_cell, &self.my_addrs, peer_ip)
+            .finish(&self.netinfo_cell, &self.my_addrs, self.peer_addr)
     }
 }

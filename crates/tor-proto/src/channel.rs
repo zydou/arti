@@ -14,7 +14,7 @@
 //! To launch a channel:
 //!
 //!  * Create a TLS connection as an object that implements AsyncRead +
-//!    AsyncWrite + StreamOps, and pass it to a [ChannelBuilder].  This will
+//!    AsyncWrite + StreamOps, and pass it to a channel builder. This will
 //!    yield an [crate::client::channel::handshake::ClientInitiatorHandshake] that represents
 //!    the state of the handshake.
 //!  * Call [crate::client::channel::handshake::ClientInitiatorHandshake::connect] on the result
@@ -64,10 +64,10 @@ pub use crate::channel::params::*;
 pub(crate) use crate::channel::reactor::Reactor;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream};
 pub use crate::channel::unique_id::UniqId;
-use crate::client::channel::ClientChannelBuilder;
 use crate::client::circuit::PendingClientTunnel;
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
+use crate::peer::PeerInfo;
 use crate::util::err::ChannelClosed;
 use crate::util::oneshot_broadcast;
 use crate::util::timeout::TimeoutEstimator;
@@ -88,7 +88,7 @@ use tor_cell::chancell::{AnyChanCell, CircId, msg::Netinfo, msg::PaddingNegotiat
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
-use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 #[cfg(feature = "circ-padding")]
 use tor_async_utils::counting_streams::{self, CountingSink, CountingStream};
@@ -214,7 +214,13 @@ impl Canonicity {
     ///
     /// The `peer_addr` is the IP address we believe the peer has. In other words, it is either the
     /// IP we used to connect to or the address we see in the accept() phase of the connection.
-    pub(crate) fn from_netinfo(netinfo: &Netinfo, my_addrs: &[IpAddr], peer_addr: IpAddr) -> Self {
+    ///
+    /// It can be None if we used a non-IP address to connect to the peer (PT).
+    pub(crate) fn from_netinfo(
+        netinfo: &Netinfo,
+        my_addrs: &[IpAddr],
+        peer_addr: Option<IpAddr>,
+    ) -> Self {
         Self {
             // The "other addr" (our address as seen by the peer) matches the one we advertised.
             canonical_to_peer: netinfo
@@ -222,7 +228,9 @@ impl Canonicity {
                 .is_some_and(|a: &IpAddr| my_addrs.contains(a)),
             // The "my addresses" (the peer addresses that it claims to have) matches the one we
             // see on the connection or that we attempted to connect to.
-            peer_is_canonical: netinfo.my_addrs().contains(&peer_addr),
+            peer_is_canonical: peer_addr
+                .map(|a| netinfo.my_addrs().contains(&a))
+                .unwrap_or_default(),
         }
     }
 
@@ -249,7 +257,7 @@ impl Canonicity {
 ///
 /// # Channel life cycle
 ///
-/// Channels can be created directly here through the [`ChannelBuilder`] API.
+/// Channels can be created directly here through a channel builder (client or relay) API.
 /// For a higher-level API (with better support for TLS, pluggable transports,
 /// and channel reuse) see the `tor-chanmgr` crate.
 ///
@@ -286,8 +294,11 @@ pub struct Channel {
 
     /// A unique identifier for this channel.
     unique_id: UniqId,
-    /// Validated identity and address information for this peer.
+    /// Target identity and address information for this peer.
     peer_id: OwnedChanTarget,
+    /// Validated information for this peer.
+    #[expect(unused)] // TODO(relay) Remove once used un choose_channel()
+    peer: PeerInfo,
     /// The declared clock skew on this channel, at the time when this channel was
     /// created.
     clock_skew: ClockSkew,
@@ -517,68 +528,6 @@ impl Sink<ChanCellQueueEntry> for ChannelSender {
     }
 }
 
-/// Structure for building and launching a Tor channel.
-//
-// TODO(relay): Remove this as we now have ClientChannelBuilder and soon RelayChannelBuilder.
-#[derive(Default)]
-pub struct ChannelBuilder {
-    /// If present, a description of the address we're trying to connect to,
-    /// and the way in which we are trying to connect to it.
-    ///
-    /// TODO: at some point, check this against the addresses in the netinfo
-    /// cell too.
-    target: Option<tor_linkspec::ChannelMethod>,
-}
-
-impl ChannelBuilder {
-    /// Construct a new ChannelBuilder.
-    pub fn new() -> Self {
-        ChannelBuilder::default()
-    }
-
-    /// Set the declared target method of this channel to correspond to a direct
-    /// connection to a given socket address.
-    #[deprecated(note = "use set_declared_method instead", since = "0.7.1")]
-    pub fn set_declared_addr(&mut self, target: std::net::SocketAddr) {
-        self.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec![target]));
-    }
-
-    /// Set the declared target method of this channel.
-    ///
-    /// Note that nothing enforces the correctness of this method: it
-    /// doesn't have to match the real method used to create the TLS
-    /// stream.
-    pub fn set_declared_method(&mut self, target: tor_linkspec::ChannelMethod) {
-        self.target = Some(target);
-    }
-
-    /// Launch a new client handshake over a TLS stream.
-    ///
-    /// After calling this function, you'll need to call `connect()` on
-    /// the result to start the handshake.  If that succeeds, you'll have
-    /// authentication info from the relay: call `check()` on the result
-    /// to check that.  Finally, to finish the handshake, call `finish()`
-    /// on the result of _that_.
-    pub fn launch_client<T, S>(
-        self,
-        tls: T,
-        sleep_prov: S,
-        memquota: ChannelAccount,
-    ) -> ClientInitiatorHandshake<T, S>
-    where
-        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
-        S: CoarseTimeProvider + SleepProvider,
-    {
-        // TODO(relay): We could just make the target be taken as a parameter instead of using a
-        // setter that is also replicated on the client builder? Food for thought on refactor here.
-        let mut builder = ClientChannelBuilder::new();
-        if let Some(target) = self.target {
-            builder.set_declared_method(target);
-        }
-        builder.launch(tls, sleep_prov, memquota)
-    }
-}
-
 impl Channel {
     /// Construct a channel and reactor.
     ///
@@ -597,6 +546,7 @@ impl Channel {
         streamops: BoxedChannelStreamOps,
         unique_id: UniqId,
         peer_id: OwnedChanTarget,
+        peer: PeerInfo,
         clock_skew: ClockSkew,
         sleep_prov: S,
         memquota: ChannelAccount,
@@ -642,6 +592,7 @@ impl Channel {
             padding_ctrl: padding_ctrl.clone(),
             unique_id,
             peer_id,
+            peer,
             clock_skew,
             opened_at: coarsetime::Instant::now(),
             mutable: Mutex::new(mutable),
@@ -1057,6 +1008,7 @@ impl Channel {
             padding_ctrl,
             unique_id,
             peer_id,
+            peer: PeerInfo::EMPTY,
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),
@@ -1156,12 +1108,10 @@ pub(crate) mod test {
     // reactor code; there are just a few more cases to examine here.
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::channel::handler::test::MsgBuf;
     pub(crate) use crate::channel::reactor::test::{CodecResult, new_reactor};
-    use crate::util::fake_mq;
     use tor_cell::chancell::msg::HandshakeType;
     use tor_cell::chancell::{AnyChanCell, msg};
-    use tor_rtcompat::{PreferredRuntime, test_with_one_runtime};
+    use tor_rtcompat::test_with_one_runtime;
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     pub(crate) fn fake_channel(
@@ -1185,6 +1135,7 @@ pub(crate) mod test {
             padding_ctrl,
             unique_id,
             peer_id,
+            peer: PeerInfo::EMPTY,
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),
@@ -1224,17 +1175,6 @@ pub(crate) mod test {
             // let got = output.next().await.unwrap();
             // assert!(matches!(got.msg(), ChanMsg::Create2(_)));
         });
-    }
-
-    #[test]
-    fn chanbuilder() {
-        let rt = PreferredRuntime::create().unwrap();
-        let mut builder = ChannelBuilder::default();
-        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec![
-            "127.0.0.1:9001".parse().unwrap(),
-        ]));
-        let tls = MsgBuf::new(&b""[..]);
-        let _outbound = builder.launch_client(tls, rt, fake_mq());
     }
 
     #[test]

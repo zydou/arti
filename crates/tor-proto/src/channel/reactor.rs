@@ -756,6 +756,7 @@ pub(crate) mod test {
     use crate::client::circuit::CircParameters;
     use crate::client::circuit::padding::new_padding;
     use crate::fake_mpsc;
+    use crate::peer::PeerInfo;
     use crate::util::{DummyTimeoutEstimator, fake_mq};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
@@ -799,6 +800,7 @@ pub(crate) mod test {
             Box::new(stream_ops),
             unique_id,
             dummy_target,
+            PeerInfo::EMPTY,
             crate::ClockSkew::None,
             runtime,
             fake_mq(),

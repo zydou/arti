@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use tracing::{debug, instrument, trace};
 
 use tor_cell::chancell::msg;
-use tor_linkspec::{BridgeAddr, ChannelMethod, OwnedChanTarget};
+use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::ClockSkew;
@@ -18,6 +18,7 @@ use crate::channel::handshake::{
 };
 use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
+use crate::peer::PeerAddr;
 
 /// A raw client channel on which nothing has been done.
 pub struct ClientInitiatorHandshake<
@@ -229,35 +230,15 @@ impl<
     /// The channel is used to send cells, and to create outgoing circuits. The reactor is used to
     /// route incoming messages to their appropriate circuit.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // Get the target address for this channel. Unfortunately, as you can see, the interface of
-        // ChannelMethod is not great as it mixes "PT" and "Direct" concept so we have to do some
-        // hoops jumping to get the peer IpAddr.
-        //
-        // Without a peer IP, we can't send the NETINFO and can't finalize the channel as we need
-        // it for canonical checks.
-        let addr: Option<BridgeAddr> = self
-            .inner
-            .target_method
-            .as_ref()
-            .and_then(ChannelMethod::target_addr)
-            .ok_or(tor_error::internal!(
-                "No peer IP on verified client channel"
-            ))?
-            .clone()
-            .into();
-        let peer_ip =
-            addr.and_then(|b| b.as_socketaddr().map(|s| s.ip()))
-                .ok_or(tor_error::internal!(
-                    "Unable to use peer address on verified client channel"
-                ))?;
+    pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
+        let peer_ip = peer_addr.netinfo_addr();
 
         // Send the NETINFO message.
-        let netinfo = msg::Netinfo::from_client(Some(peer_ip));
+        let netinfo = msg::Netinfo::from_client(peer_ip);
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 
         // Finish the channel to get a reactor.
-        self.inner.finish(&self.netinfo_cell, &[], peer_ip).await
+        self.inner.finish(&self.netinfo_cell, &[], peer_addr).await
     }
 }

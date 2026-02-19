@@ -36,7 +36,7 @@ full = [
     "caret/full",
 ]
 
-pt-client = ["tor-linkspec/pt-client"]
+pt-client = ["tor-linkspec/pt-client", "tor-proto/pt-client"]
 
 relay = ["__is_experimental", "tor-proto/relay", "tor-rtcompat/tls-server"]
 testing = ["__is_experimental"]

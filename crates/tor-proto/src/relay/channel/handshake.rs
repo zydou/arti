@@ -8,7 +8,6 @@ use std::net::IpAddr;
 use std::{sync::Arc, time::SystemTime};
 use tracing::trace;
 
-use safelog::Sensitive;
 use tor_cell::chancell::{
     ChanMsg,
     msg::{self},
@@ -22,6 +21,7 @@ use crate::channel::handshake::{
 };
 use crate::channel::{ChannelFrame, ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
+use crate::peer::PeerAddr;
 use crate::relay::channel::initiator::UnverifiedInitiatorRelayChannel;
 use crate::relay::channel::responder::{
     MaybeVerifiableRelayResponderChannel, NonVerifiableResponderRelayChannel,
@@ -177,7 +177,7 @@ pub struct RelayResponderHandshake<
     /// connection won't be secure.)
     framed_tls: ChannelFrame<T>,
     /// The peer IP address as in the address the initiator is connecting from.
-    peer: Sensitive<std::net::SocketAddr>,
+    peer: PeerAddr,
     /// Our advertised addresses. Needed for the NETINFO.
     my_addrs: Vec<IpAddr>,
     /// Logging identifier for this stream.  (Used for logging only.)
@@ -207,7 +207,7 @@ impl<
 {
     /// Constructor.
     pub(crate) fn new(
-        peer: Sensitive<std::net::SocketAddr>,
+        peer: PeerAddr,
         my_addrs: Vec<IpAddr>,
         tls: T,
         sleep_prov: S,
@@ -266,7 +266,7 @@ impl<
             framed_tls: self.framed_tls,
             clock_skew,
             memquota: self.memquota,
-            target_method: Some(ChannelMethod::Direct(vec![self.peer.into_inner()])),
+            target_method: None,
             unique_id: self.unique_id,
             sleep_prov: self.sleep_prov,
             certs_cell,
@@ -281,6 +281,7 @@ impl<
                     netinfo_cell,
                     identities: self.identities,
                     my_addrs: self.my_addrs,
+                    peer_addr: self.peer,
                 })
             }
             None => MaybeVerifiableRelayResponderChannel::NonVerifiable(
@@ -288,6 +289,7 @@ impl<
                     inner,
                     netinfo_cell,
                     my_addrs: self.my_addrs,
+                    peer_addr: self.peer,
                 },
             ),
         })
@@ -397,7 +399,7 @@ impl<
         self.framed_tls.send(auth_challenge.into()).await?;
 
         // Send the NETINFO message.
-        let peer_ip = self.peer.into_inner().ip();
+        let peer_ip = self.peer.netinfo_addr();
         let netinfo = build_netinfo_cell(peer_ip, self.my_addrs.clone(), &self.sleep_prov)?;
         trace!(channel_id = %self.unique_id, "Sending NETINFO as responder cell.");
         self.framed_tls.send(netinfo.into()).await?;

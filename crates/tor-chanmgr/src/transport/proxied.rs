@@ -36,6 +36,8 @@ use async_trait::async_trait;
 use tor_error::bad_api_usage;
 #[cfg(feature = "pt-client")]
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
+#[cfg(feature = "pt-client")]
+use tor_proto::peer::PeerAddr;
 
 /// Information about what proxy protocol to use, and how to use it.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -276,10 +278,7 @@ impl<R: NetStreamProvider + Send + Sync> ExternalProxyPlugin<R> {
 impl<R: NetStreamProvider + Send + Sync> TransportImplHelper for ExternalProxyPlugin<R> {
     type Stream = R::Stream;
 
-    async fn connect(
-        &self,
-        target: &OwnedChanTarget,
-    ) -> crate::Result<(OwnedChanTarget, R::Stream)> {
+    async fn connect(&self, target: &OwnedChanTarget) -> crate::Result<(PeerAddr, R::Stream)> {
         let pt_target = match target.chan_method() {
             ChannelMethod::Direct(_) => {
                 return Err(crate::Error::UnusableTarget(bad_api_usage!(
@@ -297,11 +296,10 @@ impl<R: NetStreamProvider + Send + Sync> TransportImplHelper for ExternalProxyPl
 
         let protocol =
             settings_to_protocol(self.proxy_version, encode_settings(pt_target.settings()))?;
+        let stream =
+            connect_via_proxy(&self.runtime, &self.proxy_addr, &protocol, pt_target.addr()).await?;
 
-        Ok((
-            target.clone(),
-            connect_via_proxy(&self.runtime, &self.proxy_addr, &protocol, pt_target.addr()).await?,
-        ))
+        Ok((pt_target.into(), stream))
     }
 }
 

@@ -4,21 +4,24 @@ use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_error::internal;
+use tor_error::{internal, into_internal};
 
 use crate::channel::{Canonicity, ChannelFrame, UniqId};
 use crate::memquota::ChannelAccount;
+use crate::peer::{PeerAddr, PeerInfo};
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use safelog::Redacted;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use tor_linkspec::{ChanTarget, ChannelMethod, OwnedChanTargetBuilder, RelayIds};
+use tor_linkspec::{
+    ChanTarget, ChannelMethod, OwnedChanTarget, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder,
+};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -533,7 +536,7 @@ impl<
         mut self,
         netinfo: &msg::Netinfo,
         my_addrs: &[IpAddr],
-        peer_addr: IpAddr,
+        peer_addr: PeerAddr,
     ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel as incoming traffic since all cells were exchanged.
         //
@@ -561,16 +564,13 @@ impl<
         let stream_ops = self.framed_tls.new_handle();
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
-        let mut peer_builder = OwnedChanTargetBuilder::default();
-        if let Some(target_method) = self.target_method {
-            if let Some(addrs) = target_method.socket_addrs() {
-                peer_builder.addrs(addrs.to_owned());
-            }
-            peer_builder.method(target_method);
-        }
-        let peer_id = peer_builder
-            .build()
-            .expect("OwnedChanTarget builder failed");
+        let netinfo_addr = peer_addr.netinfo_addr();
+        let peer_sockaddr = peer_addr.socket_addr();
+        // Unverified channel means we don't have identities. This is the case of a relay responder
+        // channel for which the peer is a client or bridge.
+        let peer = PeerInfo::new(peer_addr, RelayIds::empty());
+
+        let peer_id = build_filtered_chan_target(self.target_method.take(), peer_sockaddr, None);
 
         debug!(
             stream_id = %self.unique_id,
@@ -585,10 +585,11 @@ impl<
             stream_ops,
             self.unique_id,
             peer_id,
+            peer,
             self.clock_skew,
             self.sleep_prov,
             self.memquota,
-            Canonicity::from_netinfo(netinfo, my_addrs, peer_addr),
+            Canonicity::from_netinfo(netinfo, my_addrs, netinfo_addr),
         )
     }
 }
@@ -612,7 +613,7 @@ impl<
         mut self,
         netinfo: &msg::Netinfo,
         my_addrs: &[IpAddr],
-        peer_addr: IpAddr,
+        peer_addr: PeerAddr,
     ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel -- that is to say, one where the
         // authentication is finished -- as incoming traffic.
@@ -647,24 +648,30 @@ impl<
         let stream_ops = self.framed_tls.new_handle();
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
-        let mut peer_builder = OwnedChanTargetBuilder::default();
-        if let Some(target_method) = self.target_method {
-            if let Some(addrs) = target_method.socket_addrs() {
-                peer_builder.addrs(addrs.to_owned());
-            }
-            peer_builder.method(target_method);
-        }
+        // Build the peer info of this channel.
+        let mut relay_ids_builder = RelayIdsBuilder::default();
         // Non authenticating channels won't have these identities. This is possible as a relay
         // responder handling an incoming channel from a client/bridge.
         if let Some(ed25519_id) = self.ed25519_id {
-            peer_builder.ed_identity(ed25519_id);
+            relay_ids_builder.ed_identity(ed25519_id);
         }
         if let Some((rsa_id, _)) = self.rsa_id_cert_digest {
-            peer_builder.rsa_identity(rsa_id);
+            relay_ids_builder.rsa_identity(rsa_id);
         }
-        let peer_id = peer_builder
+        let netinfo_addr = peer_addr.netinfo_addr();
+        let peer_sockaddr = peer_addr.socket_addr();
+        // Keep a dup here so we can put it in the OwnedChanTargetBuilder below.
+        let relay_ids_builder_dup = relay_ids_builder.clone();
+        let relay_ids = relay_ids_builder
             .build()
-            .expect("OwnedChanTarget builder failed");
+            .map_err(into_internal!("Unable to build relay ids"))?;
+        let peer = PeerInfo::new(peer_addr, relay_ids);
+
+        let peer_id = build_filtered_chan_target(
+            self.target_method.take(),
+            peer_sockaddr,
+            Some(relay_ids_builder_dup),
+        );
 
         super::Channel::new(
             channel_type,
@@ -674,10 +681,11 @@ impl<
             stream_ops,
             self.unique_id,
             peer_id,
+            peer,
             self.clock_skew,
             self.sleep_prov,
             self.memquota,
-            Canonicity::from_netinfo(netinfo, my_addrs, peer_addr),
+            Canonicity::from_netinfo(netinfo, my_addrs, netinfo_addr),
         )
     }
 }
@@ -705,6 +713,29 @@ pub(crate) fn unauthenticated_clock_skew(
     } else {
         ClockSkew::None
     }
+}
+
+/// Helper: Build a OwnedChanTarget that retains only the address that was actually used.
+fn build_filtered_chan_target(
+    target_method: Option<ChannelMethod>,
+    peer_sockaddr: Option<SocketAddr>,
+    relay_ids_builder: Option<RelayIdsBuilder>,
+) -> OwnedChanTarget {
+    let mut peer_builder = OwnedChanTargetBuilder::default();
+    if let Some(mut method) = target_method {
+        // Retain only the address that was actually used to connect.
+        if let Some(addr) = peer_sockaddr {
+            let _ = method.retain_addrs(|socket_addr| socket_addr == &addr);
+            peer_builder.addrs(vec![addr]);
+        }
+        peer_builder.method(method);
+    }
+    if let Some(ids) = relay_ids_builder {
+        *peer_builder.ids() = ids;
+    }
+    peer_builder
+        .build()
+        .expect("OwnedChanTarget builder failed")
 }
 
 #[cfg(test)]
@@ -1214,7 +1245,7 @@ pub(super) mod test {
             let peer_ip = peer_addr.ip();
             let netinfo = Netinfo::from_client(Some(peer_ip));
 
-            let (_chan, _reactor) = ver.finish(&netinfo, &[], peer_ip).await.unwrap();
+            let (_chan, _reactor) = ver.finish(&netinfo, &[], peer_addr.into()).await.unwrap();
 
             // TODO: check contents of netinfo cell
         });

@@ -8,6 +8,7 @@ use futures::{FutureExt, StreamExt, TryFutureExt, stream::FuturesUnordered};
 use safelog::sensitive as sv;
 use tor_error::bad_api_usage;
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
+use tor_proto::peer::PeerAddr;
 use tor_rtcompat::{NetStreamProvider, Runtime};
 use tracing::{instrument, trace};
 
@@ -43,10 +44,7 @@ impl<R: Runtime> crate::transport::TransportImplHelper for DefaultTransport<R> {
     /// Implements the transport: makes a TCP connection (possibly
     /// tunneled over whatever protocol) if possible.
     #[instrument(skip_all, level = "trace")]
-    async fn connect(
-        &self,
-        target: &OwnedChanTarget,
-    ) -> crate::Result<(OwnedChanTarget, Self::Stream)> {
+    async fn connect(&self, target: &OwnedChanTarget) -> crate::Result<(PeerAddr, Self::Stream)> {
         let direct_addrs: Vec<_> = match target.chan_method() {
             ChannelMethod::Direct(addrs) => addrs,
             #[allow(unreachable_patterns)]
@@ -61,10 +59,7 @@ impl<R: Runtime> crate::transport::TransportImplHelper for DefaultTransport<R> {
 
         let (stream, addr) =
             connect_to_one(&self.runtime, &direct_addrs, &self.outbound_proxy).await?;
-        let mut using_target = target.clone();
-        let _ignore = using_target.chan_method_mut().retain_addrs(|a| a == &addr);
-
-        Ok((using_target, stream))
+        Ok((addr.into(), stream))
     }
 }
 

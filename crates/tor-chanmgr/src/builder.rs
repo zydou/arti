@@ -25,7 +25,7 @@ use {
     futures::{AsyncRead, AsyncWrite},
     safelog::Sensitive,
     std::net::IpAddr,
-    tor_proto::RelayIdentities,
+    tor_proto::{RelayIdentities, peer::PeerAddr},
     tor_rtcompat::{CertifiedConn, StreamOps},
 };
 
@@ -276,22 +276,15 @@ where
 
         // 1a. Negotiate the TCP connection or other stream.
 
-        // Notice here that we overwrite "target" because we now only care about what we are
-        // actually connected to. For instance, it now holds the actual IP address we have used
-        // instead of all the possible addresses.
-        //
-        // This is important because below we do validation on the actual methods that were used
-        // which includes canonicity that requires the real IP address.
-        let (target, stream) = self.transport.connect(target).await?;
-        let using_method = target.chan_method();
-        let peer = using_method.target_addr();
-        let peer_ref = &peer;
+        // The returned PeerAddr is the actual address we are connected to.
+        let (peer_addr, stream) = self.transport.connect(target).await?;
+
+        // TODO(relay): We put the `target` in the error but actually, we should use the
+        // `peer_addr` as it is the address used while the target is possibly a bunch of addresses.
+        // This will also require us to implement "Sensitive" for a PeerAddr to avoid leaking IPs.
 
         let map_ioe = |action: &'static str| {
-            let peer: Option<BridgeAddr> = peer_ref.as_ref().and_then(|peer| {
-                let peer: Option<BridgeAddr> = peer.clone().into();
-                peer
-            });
+            let peer: Option<BridgeAddr> = (&peer_addr).into();
             move |ioe: io::Error| Error::Io {
                 action,
                 peer: peer.map(Into::into),
@@ -359,24 +352,24 @@ where
                     )
                     .connect(|| self.runtime.wallclock())
                     .await
-                    .map_err(|e| Error::from_proto_no_skew(e, &target))?;
+                    .map_err(|e| Error::from_proto_no_skew(e, target))?;
 
                 let clock_skew = unverified.clock_skew();
                 let (chan, reactor) = unverified
-                    .verify(&target, &peer_cert, Some(now))
+                    .verify(target, &peer_cert, Some(now))
                     .map_err(|source| match &source {
                         tor_proto::Error::HandshakeCertsExpired { .. } => {
                             event_sender
                                 .lock()
                                 .expect("Lock poisoned")
                                 .record_handshake_done_with_skewed_clock();
-                            map_proto(source, &target, Some(clock_skew))
+                            map_proto(source, target, Some(clock_skew))
                         }
-                        _ => Error::from_proto_no_skew(source, &target),
+                        _ => Error::from_proto_no_skew(source, target),
                     })?
-                    .finish()
+                    .finish(peer_addr)
                     .await
-                    .map_err(|e| map_proto(e, &target, Some(clock_skew)))?;
+                    .map_err(|e| map_proto(e, target, Some(clock_skew)))?;
 
                 // Launch a task to run the channel reactor.
                 self.runtime
@@ -388,8 +381,15 @@ where
             }
             #[cfg(feature = "relay")]
             ChannelType::RelayInitiator => {
-                self.build_relay_channel(tls, &target, &peer_cert, memquota, event_sender.clone())
-                    .await?
+                self.build_relay_channel(
+                    tls,
+                    peer_addr,
+                    target,
+                    &peer_cert,
+                    memquota,
+                    event_sender.clone(),
+                )
+                .await?
             }
             _ => {
                 return Err(Error::Internal(internal!(
@@ -413,7 +413,8 @@ where
     async fn build_relay_channel<T>(
         &self,
         tls: T,
-        peer: &OwnedChanTarget,
+        peer_addr: PeerAddr,
+        target: &OwnedChanTarget,
         peer_cert: &[u8],
         memquota: ChannelAccount,
         event_sender: Arc<Mutex<ChanMgrEventSender>>,
@@ -438,17 +439,17 @@ where
                 self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
                 identities,
                 my_addrs,
-                peer,
+                target,
                 memquota,
             )
             .connect(|| self.runtime.wallclock())
             .await
-            .map_err(|e| Error::from_proto_no_skew(e, peer))?;
+            .map_err(|e| Error::from_proto_no_skew(e, target))?;
 
         let now = self.runtime.wallclock();
         let clock_skew = unverified.clock_skew();
         let (chan, reactor) = unverified
-            .verify(peer, peer_cert, Some(now))
+            .verify(target, peer_cert, Some(now))
             .map_err(|source| match &source {
                 tor_proto::Error::HandshakeCertsExpired { .. } => {
                     event_sender
@@ -457,17 +458,17 @@ where
                         .record_handshake_done_with_skewed_clock();
                     Error::Proto {
                         source,
-                        peer: peer.to_logged(),
+                        peer: target.to_logged(),
                         clock_skew: Some(clock_skew),
                     }
                 }
-                _ => Error::from_proto_no_skew(source, peer),
+                _ => Error::from_proto_no_skew(source, target),
             })?
-            .finish()
+            .finish(peer_addr)
             .await
             .map_err(|source| Error::Proto {
                 source,
-                peer: peer.to_logged(),
+                peer: target.to_logged(),
                 clock_skew: Some(clock_skew),
             })?;
 
