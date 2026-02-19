@@ -20,10 +20,7 @@ pub(crate) mod listener;
 mod proxyinfo;
 mod session;
 
-semipublic_use! {
-    use listener::RpcListenerSetConfig;
-}
-
+use listener::RpcListenerSetConfig;
 pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
 
 /// Configuration for Arti's RPC subsystem.
@@ -31,7 +28,9 @@ pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
 /// You cannot change this section on a running Arti client.
 #[derive(Debug, Clone, Deftly, Eq, PartialEq)]
 #[derive_deftly(TorConfig)]
-pub struct RpcConfig {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
+pub(crate) struct RpcConfig {
     /// If true, then the RPC subsystem is enabled and will listen for connections.
     #[deftly(tor_config(default = "false"))] // TODO RPC make this true once we are stable.
     enable: bool,

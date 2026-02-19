@@ -10,7 +10,12 @@ use crate::onion_proxy::{
     OnionServiceProxyConfigBuilder, OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder,
 };
 #[cfg(feature = "rpc")]
-pub use crate::rpc::{RpcConfig, RpcConfigBuilder};
+semipublic_use! {
+    use crate::rpc::{
+        RpcConfig, RpcConfigBuilder,
+        listener::{RpcListenerSetConfig, RpcListenerSetConfigBuilder},
+    };
+}
 use arti_client::TorClientConfig;
 #[cfg(feature = "onion-service-service")]
 use tor_config::define_list_builder_accessors;
