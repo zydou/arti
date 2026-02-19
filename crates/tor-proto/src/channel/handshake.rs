@@ -15,11 +15,13 @@ use safelog::Redacted;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use tor_linkspec::{ChanTarget, ChannelMethod, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder};
+use tor_linkspec::{
+    ChanTarget, ChannelMethod, OwnedChanTarget, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder,
+};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -563,20 +565,12 @@ impl<
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
         let netinfo_addr = peer_addr.netinfo_addr();
+        let peer_sockaddr = peer_addr.socket_addr();
         // Unverified channel means we don't have identities. This is the case of a relay responder
         // channel for which the peer is a client or bridge.
         let peer = PeerInfo::new(peer_addr, RelayIds::empty());
 
-        let mut peer_builder = OwnedChanTargetBuilder::default();
-        if let Some(target_method) = self.target_method {
-            if let Some(addrs) = target_method.socket_addrs() {
-                peer_builder.addrs(addrs.to_owned());
-            }
-            peer_builder.method(target_method);
-        }
-        let peer_id = peer_builder
-            .build()
-            .expect("OwnedChanTarget builder failed");
+        let peer_id = build_filtered_chan_target(self.target_method.take(), peer_sockaddr, None);
 
         debug!(
             stream_id = %self.unique_id,
@@ -665,6 +659,7 @@ impl<
             relay_ids_builder.rsa_identity(rsa_id);
         }
         let netinfo_addr = peer_addr.netinfo_addr();
+        let peer_sockaddr = peer_addr.socket_addr();
         // Keep a dup here so we can put it in the OwnedChanTargetBuilder below.
         let relay_ids_builder_dup = relay_ids_builder.clone();
         let relay_ids = relay_ids_builder
@@ -672,17 +667,11 @@ impl<
             .map_err(into_internal!("Unable to build relay ids"))?;
         let peer = PeerInfo::new(peer_addr, relay_ids);
 
-        let mut peer_builder = OwnedChanTargetBuilder::default();
-        if let Some(target_method) = self.target_method {
-            if let Some(addrs) = target_method.socket_addrs() {
-                peer_builder.addrs(addrs.to_owned());
-            }
-            peer_builder.method(target_method);
-        }
-        *peer_builder.ids() = relay_ids_builder_dup;
-        let peer_id = peer_builder
-            .build()
-            .expect("OwnedChanTarget builder failed");
+        let peer_id = build_filtered_chan_target(
+            self.target_method.take(),
+            peer_sockaddr,
+            Some(relay_ids_builder_dup),
+        );
 
         super::Channel::new(
             channel_type,
@@ -724,6 +713,29 @@ pub(crate) fn unauthenticated_clock_skew(
     } else {
         ClockSkew::None
     }
+}
+
+/// Helper: Build a OwnedChanTarget that retains only the address that was actually used.
+fn build_filtered_chan_target(
+    target_method: Option<ChannelMethod>,
+    peer_sockaddr: Option<SocketAddr>,
+    relay_ids_builder: Option<RelayIdsBuilder>,
+) -> OwnedChanTarget {
+    let mut peer_builder = OwnedChanTargetBuilder::default();
+    if let Some(mut method) = target_method {
+        // Retain only the address that was actually used to connect.
+        if let Some(addr) = peer_sockaddr {
+            let _ = method.retain_addrs(|socket_addr| socket_addr == &addr);
+            peer_builder.addrs(vec![addr]);
+        }
+        peer_builder.method(method);
+    }
+    if let Some(ids) = relay_ids_builder {
+        *peer_builder.ids() = ids;
+    }
+    peer_builder
+        .build()
+        .expect("OwnedChanTarget builder failed")
 }
 
 #[cfg(test)]
