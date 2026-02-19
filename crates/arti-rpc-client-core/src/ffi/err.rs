@@ -236,6 +236,10 @@ pub(crate) trait IntoFfiError: Display + Sized {
     fn os_error_code(&self) -> Option<i32> {
         let mut err = self.as_error()?;
 
+        // Note that we aren't using tor_basic_utils::ErrorSources here:
+        // it exists to work around the case where an error is nested inside an IoError.
+        // But in this code, we are only looking for the outermost IoError, so it isn't
+        // necessary.
         loop {
             if let Some(io_error) = err.downcast_ref::<IoError>() {
                 return io_error.raw_os_error() as Option<i32>;

@@ -1,5 +1,7 @@
 //! Facility for error-hinting
 
+use tor_basic_utils::error_sources::ErrorSources;
+
 use super::ErrorHint;
 use std::error::Error as StdError;
 
@@ -45,15 +47,9 @@ impl HintableError for anyhow::Error {
 /// Return the best hint possible from `err`, by looking for the first error in
 /// the chain defined by `err` and its sources that provides a value for
 /// HintableErrorImpl::hint.
-fn best_hint<'a>(mut err: &'a (dyn StdError + 'static)) -> Option<ErrorHint<'a>> {
-    loop {
-        if let Some(hint) =
-            downcast_to_hintable_impl(err).and_then(HintableErrorImpl::hint_specific)
-        {
-            return Some(hint);
-        }
-        err = err.source()?;
-    }
+fn best_hint<'a>(err: &'a (dyn StdError + 'static)) -> Option<ErrorHint<'a>> {
+    ErrorSources::new(err)
+        .find_map(|e| downcast_to_hintable_impl(e).and_then(HintableErrorImpl::hint_specific))
 }
 
 /// Trait for an error that can provide a hint _directly_.
