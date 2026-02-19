@@ -5,7 +5,6 @@
 
 use std::net::{IpAddr, SocketAddr};
 
-use tor_config::impl_standard_builder;
 use tor_linkspec::{BridgeAddr, ChannelMethod, HasRelayIds, RelayIdRef, RelayIdType, RelayIds};
 
 #[cfg(feature = "pt-client")]
@@ -101,14 +100,13 @@ impl From<&PeerAddr> for Option<BridgeAddr> {
 ///
 /// This struct resolves that ambiguity by storing the concrete peer information that was actually
 /// used. It provides clear, unambiguous guarantees about the peer associated with the channel.
-#[derive(Clone, Debug, derive_builder::Builder)]
+#[derive(Clone, Debug)]
 pub struct PeerInfo {
     /// Actual target address used for the channel connection.
     addr: PeerAddr,
     /// Identities that this relay provides.
     ids: RelayIds,
 }
-impl_standard_builder! { PeerInfo : !Builder + !Default + !Deserialize }
 
 impl PeerInfo {
     /// Empty peer info used for placeholder in unit tests.
@@ -117,6 +115,11 @@ impl PeerInfo {
         addr: PeerAddr::UNSPECIFIED,
         ids: RelayIds::empty(),
     };
+
+    /// Constructor.
+    pub(crate) fn new(addr: PeerAddr, ids: RelayIds) -> Self {
+        Self { addr, ids }
+    }
 
     /// Return a reference to the target address.
     fn addr(&self) -> &PeerAddr {

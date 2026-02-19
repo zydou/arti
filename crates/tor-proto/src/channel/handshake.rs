@@ -8,7 +8,7 @@ use tor_error::internal;
 
 use crate::channel::{Canonicity, ChannelFrame, UniqId};
 use crate::memquota::ChannelAccount;
-use crate::peer::{PeerAddr, PeerInfoBuilder};
+use crate::peer::{PeerAddr, PeerInfo};
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use safelog::Redacted;
@@ -567,10 +567,9 @@ impl<
         let stream_ops = self.framed_tls.new_handle();
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
-        let peer = PeerInfoBuilder::default()
-            .addr(self.peer_addr)
-            .build()
-            .map_err(|e| internal!("Unable to build unverified peer info: {e}"))?;
+        // Unverified channel means we don't have identities. This is the case of a relay responder
+        // channel for which the peer is a client or bridge.
+        let peer = PeerInfo::new(self.peer_addr, RelayIds::empty());
 
         let mut peer_builder = OwnedChanTargetBuilder::default();
         if let Some(target_method) = self.target_method {
@@ -660,8 +659,6 @@ impl<
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
         // Build the peer info of this channel.
-        let mut peer_info_builder = PeerInfoBuilder::default();
-        peer_info_builder.addr(self.peer_addr);
         let mut relay_ids = RelayIdsBuilder::default();
         // Non authenticating channels won't have these identities. This is possible as a relay
         // responder handling an incoming channel from a client/bridge.
@@ -671,14 +668,12 @@ impl<
         if let Some((rsa_id, _)) = self.rsa_id_cert_digest {
             relay_ids.rsa_identity(rsa_id);
         }
-        let peer = peer_info_builder
-            .ids(
-                relay_ids
-                    .build()
-                    .map_err(|e| internal!("Unable to build relay ids: {e}"))?,
-            )
-            .build()
-            .map_err(|e| internal!("Unable to build peer info for verified channel: {e}"))?;
+        let peer = PeerInfo::new(
+            self.peer_addr,
+            relay_ids
+                .build()
+                .map_err(|e| internal!("Unable to build relay ids: {e}"))?,
+        );
 
         let mut peer_builder = OwnedChanTargetBuilder::default();
         if let Some(target_method) = self.target_method {
