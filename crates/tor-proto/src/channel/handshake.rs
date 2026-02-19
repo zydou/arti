@@ -4,7 +4,7 @@ use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_error::internal;
+use tor_error::{internal, into_internal};
 
 use crate::channel::{Canonicity, ChannelFrame, UniqId};
 use crate::memquota::ChannelAccount;
@@ -655,22 +655,22 @@ impl<
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
         // Build the peer info of this channel.
-        let mut relay_ids = RelayIdsBuilder::default();
+        let mut relay_ids_builder = RelayIdsBuilder::default();
         // Non authenticating channels won't have these identities. This is possible as a relay
         // responder handling an incoming channel from a client/bridge.
         if let Some(ed25519_id) = self.ed25519_id {
-            relay_ids.ed_identity(ed25519_id);
+            relay_ids_builder.ed_identity(ed25519_id);
         }
         if let Some((rsa_id, _)) = self.rsa_id_cert_digest {
-            relay_ids.rsa_identity(rsa_id);
+            relay_ids_builder.rsa_identity(rsa_id);
         }
         let netinfo_addr = peer_addr.netinfo_addr();
-        let peer = PeerInfo::new(
-            peer_addr,
-            relay_ids
-                .build()
-                .map_err(|e| internal!("Unable to build relay ids: {e}"))?,
-        );
+        // Keep a dup here so we can put it in the OwnedChanTargetBuilder below.
+        let relay_ids_builder_dup = relay_ids_builder.clone();
+        let relay_ids = relay_ids_builder
+            .build()
+            .map_err(into_internal!("Unable to build relay ids"))?;
+        let peer = PeerInfo::new(peer_addr, relay_ids);
 
         let mut peer_builder = OwnedChanTargetBuilder::default();
         if let Some(target_method) = self.target_method {
@@ -679,14 +679,7 @@ impl<
             }
             peer_builder.method(target_method);
         }
-        // Non authenticating channels won't have these identities. This is possible as a relay
-        // responder handling an incoming channel from a client/bridge.
-        if let Some(ed25519_id) = self.ed25519_id {
-            peer_builder.ed_identity(ed25519_id);
-        }
-        if let Some((rsa_id, _)) = self.rsa_id_cert_digest {
-            peer_builder.rsa_identity(rsa_id);
-        }
+        *peer_builder.ids() = relay_ids_builder_dup;
         let peer_id = peer_builder
             .build()
             .expect("OwnedChanTarget builder failed");
