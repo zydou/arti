@@ -276,12 +276,7 @@ where
 
         // 1a. Negotiate the TCP connection or other stream.
 
-        // Notice here that we overwrite "target" because we now only care about what we are
-        // actually connected to. For instance, it now holds the actual IP address we have used
-        // instead of all the possible addresses.
-        //
-        // This is important because below we do validation on the actual methods that were used
-        // which includes canonicity that requires the real IP address.
+        // The returned PeerAddr is the actual address we are connected to.
         let (peer_addr, stream) = self.transport.connect(target).await?;
 
         let map_ioe = |action: &'static str| {
