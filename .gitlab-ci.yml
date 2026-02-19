@@ -238,7 +238,9 @@ cargo-audit:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
       changes:
-        - "**/Cargo.lock"
+        compare_to: "refs/heads/main"
+        paths:
+          - "**/Cargo.lock"
       allow_failure: false
     - if: $CI_PIPELINE_SOURCE == "push"
       allow_failure: true
