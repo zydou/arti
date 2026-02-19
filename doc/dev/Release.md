@@ -311,12 +311,12 @@ before you continue!
    are present in the tagged commit,
    and easy to find for reference.)
 
-3. [ ] Tell `network-team` (via email and IRC) that the tree is open
+2. [ ] Tell `network-team` (via email and IRC) that the tree is open
    for new MRs to be merged!
 
-2. [ ] Write and publish a blog post.
+3. [ ] Write and publish a blog post.
 
-3. [ ] If new crates published, add appropriate owners.
+4. [ ] If new crates published, add appropriate owners.
 
    Did you create any new crates?
    If so, you need to make sure that they are owned (on crates.io)
@@ -325,14 +325,14 @@ before you continue!
    You can then use `cargo owner --add <username> <crate-name>`
    to add them as owners for the new crates.
 
-4. [ ] Run `cargo update`, to obtain non-breaking changes in our dependencies
+5. [ ] Run `cargo update`, to obtain non-breaking changes in our dependencies
 
    Check for non-breaking changes to our dependencies with
    `cargo update`.
    This will replace each of our dependencies in Cargo.lock
    with the latest version.
 
-5. [ ] Consider dependency updates for breaking changes in our dependencies.
+6. [ ] Consider dependency updates for breaking changes in our dependencies.
 
    Check for breaking changes to our dependencies with
    `cargo upgrade --dry-run --compatible=ignore --incompatible=allow`.
@@ -358,7 +358,7 @@ before you continue!
    If the reason you can't upgrade is a bug in the dependency,
    or _accidental_ MSRV breakage, file a bug upstream.
 
-6. [ ] Consider updating CI Docker images.
+7. [ ] Consider updating CI Docker images.
 
    Look in `.gitlab-ci.yml` for docker images that we specify a specific version for.
    These are the `image:` items within each job.
@@ -370,7 +370,7 @@ before you continue!
    Note that some images may intentionally specify older versions,
    such as our `minimal-versions` test which is currently used to test our MSRV as well.
 
-7. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
+8. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
 
    If anything was janky or didn't go as planned, and you can see how
    to improve it, please fix it - here or in the relevant tooling.
