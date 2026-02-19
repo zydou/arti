@@ -1,7 +1,8 @@
 //! Implement a simple DNS resolver that relay request over Tor.
 //!
-//! A resolver is launched with [`launch_dns_resolver()`], which launches a task to listen for
-//! DNS requests, and send back replies in response.
+//! A resolver is created with [`bind_dns_resolver()`], which opens a set of listener ports.
+//! `DnsProxy::run_dns_proxy` then listens for
+//! DNS requests, and sends back replies in response.
 
 use futures::lock::Mutex;
 use futures::stream::StreamExt;
@@ -13,7 +14,7 @@ use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
-use tor_rtcompat::SpawnExt;
+use tor_rtcompat::{SpawnExt, UdpProvider};
 use tracing::{debug, error, info, warn};
 
 use arti_client::{Error, HasKind, StreamPrefs, TorClient};
@@ -238,16 +239,26 @@ where
     Ok(())
 }
 
-/// Launch a DNS resolver to listen on a given local port, and run indefinitely.
+/// A DNS proxy server that can run indefinitely.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[must_use]
+pub(crate) struct DnsProxy<R: Runtime> {
+    /// A list of bound UDP sockets.
+    udp_sockets: Vec<<R as UdpProvider>::UdpSocket>,
+    /// A tor client to handle DNS requests.
+    tor_client: TorClient<R>,
+}
+
+/// Bind to a set of DNS ports, and return a new DnsProxy.
 ///
-/// Return a future that implements the DNS resolver.
+/// Takes no action until `run_dns_proxy` is called.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor
-pub(crate) async fn launch_dns_resolver<R: Runtime>(
+pub(crate) async fn bind_dns_resolver<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
-) -> Result<(impl Future<Output = Result<()>>, Vec<port_info::Port>)> {
+) -> Result<DnsProxy<R>> {
     if !listen.is_loopback_only() {
         warn!(
             "Configured to listen for DNS on non-local addresses. This is usually insecure! We recommend listening on localhost only."
@@ -255,7 +266,6 @@ pub(crate) async fn launch_dns_resolver<R: Runtime>(
     }
 
     let mut listeners = Vec::new();
-    let mut listening_on = Vec::new();
 
     // Try to bind to the DNS ports.
     match listen.ip_addrs() {
@@ -269,7 +279,6 @@ pub(crate) async fn launch_dns_resolver<R: Runtime>(
                             let bound_addr = listener.local_addr()?;
                             info!("Listening on {:?}.", bound_addr);
                             listeners.push(listener);
-                            listening_on.push(bound_addr);
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -291,18 +300,35 @@ pub(crate) async fn launch_dns_resolver<R: Runtime>(
         return Err(anyhow!("Couldn't open any DNS listeners"));
     }
 
-    let ports = listening_on
-        .iter()
-        .map(|sockaddr| port_info::Port {
-            protocol: port_info::SupportedProtocol::DnsUdp,
-            address: (*sockaddr).into(),
-        })
-        .collect();
+    Ok(DnsProxy {
+        tor_client,
+        udp_sockets: listeners,
+    })
+}
 
-    Ok((
-        run_dns_resolver_with_listeners(runtime, tor_client, listeners),
-        ports,
-    ))
+impl<R: Runtime> DnsProxy<R> {
+    /// Run indefinitely, receiving incoming DNS requests and processing them.
+    pub(crate) async fn run_dns_proxy(self) -> Result<()> {
+        let DnsProxy {
+            tor_client,
+            udp_sockets,
+        } = self;
+        run_dns_resolver_with_listeners(tor_client.runtime().clone(), tor_client, udp_sockets).await
+    }
+
+    /// Return a list of the port addresses that we have bound.
+    pub(crate) fn port_info(&self) -> Result<Vec<port_info::Port>> {
+        Ok(self
+            .udp_sockets
+            .iter()
+            .map(|socket| {
+                socket.local_addr().map(|address| port_info::Port {
+                    protocol: port_info::SupportedProtocol::DnsUdp,
+                    address: address.into(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?)
+    }
 }
 
 /// Inner task: Receive incoming DNS requests and process them.

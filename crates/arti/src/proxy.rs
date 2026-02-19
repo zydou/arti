@@ -1,6 +1,7 @@
 //! Implement a simple proxy that relays connections over Tor.
 //!
-//! A proxy is launched with [`launch_proxy()`], which starts a task to listen for new
+//! A proxy is launched with [`bind_proxy()`], which opens listener ports.
+//! `StreamProxy::run_proxy` then listens for new
 //! connections, handles an appropriate handshake,
 //! and then relays traffic as appropriate.
 
@@ -11,13 +12,12 @@ semipublic_mod! {
     pub(crate) mod port_info;
 }
 
-use futures::FutureExt as _;
 use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, Error as IoError};
 use futures::stream::StreamExt;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tor_basic_utils::error_sources::ErrorSources;
-use tor_rtcompat::SpawnExt;
+use tor_rtcompat::{NetStreamProvider, SpawnExt};
 use tracing::{debug, error, info, instrument, warn};
 
 #[allow(unused)]
@@ -31,8 +31,6 @@ use tor_rtcompat::{NetStreamListener, Runtime};
 use tor_socksproto::SocksAuth;
 
 use anyhow::{Context, Result, anyhow};
-
-use crate::rpc::RpcProxySupport;
 
 /// Placeholder type when RPC is disabled at compile time.
 #[cfg(not(feature = "rpc"))]
@@ -331,34 +329,34 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
     }
 }
 
-/// Launch a proxy to listen on a given set of ports, and run
-/// indefinitely.
+/// A stream proxy listening on one or more local ports, ready to relay traffic.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[must_use]
+pub(crate) struct StreamProxy<R: Runtime> {
+    /// A tor client to use when relaying traffic.
+    tor_client: TorClient<R>,
+    /// The listeners that we've actually bound to.
+    listeners: Vec<<R as NetStreamProvider>::Listener>,
+    /// An RPC manager to use when incoming requests are tied to streams.
+    rpc_mgr: Option<Arc<RpcMgr>>,
+}
+
+/// Launch a proxy to listen on a given set of ports.
 ///
 /// Requires a `runtime` to use for launching tasks and handling
 /// timeouts, and a `tor_client` to use in connecting over the Tor
 /// network.
 ///
-/// Returns a future that actually instantiates the proxy, and a list of the ports that we have
+/// Returns the proxy, and a list of the ports that we have
 /// bound to.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[instrument(skip_all, level = "trace")]
-pub(crate) async fn launch_proxy<R: Runtime>(
+pub(crate) async fn bind_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
-    rpc_data: Option<RpcProxySupport>,
-) -> Result<(impl Future<Output = Result<()>>, Vec<port_info::Port>)> {
-    #[cfg(feature = "rpc")]
-    let (rpc_mgr, mut rpc_state_sender) = match rpc_data {
-        Some(RpcProxySupport {
-            rpc_mgr,
-            rpc_state_sender,
-        }) => (Some(rpc_mgr), Some(rpc_state_sender)),
-        None => (None, None),
-    };
-    #[cfg(not(feature = "rpc"))]
-    let (rpc_mgr, rpc_state_sender) = (None, None::<()>);
-
+    rpc_mgr: Option<Arc<RpcMgr>>,
+) -> Result<StreamProxy<R>> {
     if !listen.is_loopback_only() {
         warn!(
             "Configured to listen for proxy connections on non-local addresses. \
@@ -367,7 +365,6 @@ pub(crate) async fn launch_proxy<R: Runtime>(
     }
 
     let mut listeners = Vec::new();
-    let mut listening_on_addrs = Vec::new();
 
     // Try to bind to the listener ports.
     match listen.ip_addrs() {
@@ -379,7 +376,6 @@ pub(crate) async fn launch_proxy<R: Runtime>(
                             let bound_addr = listener.local_addr()?;
                             info!("Listening on {:?}", bound_addr);
                             listeners.push(listener);
-                            listening_on_addrs.push(bound_addr);
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -402,40 +398,45 @@ pub(crate) async fn launch_proxy<R: Runtime>(
         return Err(anyhow!("Couldn't open listeners"));
     }
 
-    cfg_if::cfg_if! {
-        if #[cfg(feature="rpc")] {
-            if let Some(rpc_state_sender) = &mut rpc_state_sender {
-                rpc_state_sender.set_socks_listeners(&listening_on_addrs[..]);
-            }
-        }
+    Ok(StreamProxy {
+        tor_client,
+        listeners,
+        rpc_mgr,
+    })
+}
+
+impl<R: Runtime> StreamProxy<R> {
+    /// Run indefinitely, processing incoming connections and relaying traffic.
+    pub(crate) async fn run_proxy(self) -> Result<()> {
+        let StreamProxy {
+            tor_client,
+            listeners,
+            rpc_mgr,
+        } = self;
+        run_proxy_with_listeners(tor_client, listeners, rpc_mgr).await
     }
-    let ports = listening_on_addrs
-        .iter()
-        .flat_map(|sockaddr| {
-            [
+
+    /// Return a list of the ports that we've bound to.
+    pub(crate) fn port_info(&self) -> Result<Vec<port_info::Port>> {
+        let mut ports = Vec::new();
+        for listener in &self.listeners {
+            let address = listener.local_addr()?;
+            ports.extend([
                 port_info::Port {
                     protocol: port_info::SupportedProtocol::Socks,
-                    address: (*sockaddr).into(),
+                    address: address.into(),
                 },
                 // If http-connect is enabled, every socks proxy is also http.
                 #[cfg(feature = "http-connect")]
                 port_info::Port {
                     protocol: port_info::SupportedProtocol::Http,
-                    address: (*sockaddr).into(),
+                    address: address.into(),
                 },
-            ]
-        })
-        .collect();
+            ]);
+        }
 
-    Ok((
-        run_proxy_with_listeners(tor_client, listeners, rpc_mgr).map(move |r| {
-            // Ensure that rpc_state_sender lasts as long the future.
-            #[cfg_attr(not(feature = "rpc"), allow(dropping_copy_types))]
-            drop(rpc_state_sender);
-            r
-        }),
-        ports,
-    ))
+        Ok(ports)
+    }
 }
 
 /// Launch a proxy from a given set of already bound listeners.

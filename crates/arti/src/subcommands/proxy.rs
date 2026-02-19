@@ -174,8 +174,11 @@ async fn run_proxy<R: ToplevelRuntime>(
                 client.clone(),
             )
             .await?;
+            let (rpc_mgr, mut rpc_state_sender) = rpc_data
+                .map(|d| (d.rpc_mgr, d.rpc_state_sender))
+                .unzip();
         } else {
-            let rpc_data = None;
+            let rpc_mgr = None;
         }
     }
 
@@ -190,27 +193,32 @@ async fn run_proxy<R: ToplevelRuntime>(
         #[cfg(not(feature = "http-connect"))]
         let listener_type = "SOCKS";
 
-        let (proxy_future, socks_ports) =
-            proxy::launch_proxy(runtime, client, socks_listen, rpc_data)
-                .await
-                .with_context(|| format!("Unable to launch {listener_type} proxy"))?;
+        let stream_proxy = proxy::bind_proxy(runtime, client, socks_listen, rpc_mgr)
+            .await
+            .with_context(|| format!("Unable to launch {listener_type} proxy"))?;
+        let port_info = stream_proxy.port_info()?;
+
+        ports.extend(port_info);
+
         let failure_message = format!("{listener_type} proxy died unexpectedly");
-        let proxy_future = proxy_future.map(|future_result| future_result.context(failure_message));
+        let proxy_future = stream_proxy
+            .run_proxy()
+            .map(|future_result| future_result.context(failure_message));
         proxy.push(Box::pin(proxy_future));
-        ports.extend(socks_ports);
     }
 
     #[cfg(feature = "dns-proxy")]
     if !dns_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
-        let (proxy_future, dns_ports) = dns::launch_dns_resolver(runtime, client, dns_listen)
+        let dns_proxy = dns::bind_dns_resolver(runtime, client, dns_listen)
             .await
             .context("Unable to launch DNS proxy")?;
-        let proxy_future =
-            proxy_future.map(|future_result| future_result.context("DNS proxy died unexpectedly"));
+        ports.extend(dns_proxy.port_info().context("Unable to find DNS ports")?);
+        let proxy_future = dns_proxy
+            .run_dns_proxy()
+            .map(|future_result| future_result.context("DNS proxy died unexpectedly"));
         proxy.push(Box::pin(proxy_future));
-        ports.extend(dns_ports);
     }
 
     #[cfg(not(feature = "dns-proxy"))]
@@ -235,6 +243,14 @@ async fn run_proxy<R: ToplevelRuntime>(
             // Push a dummy future to appease future::select_all,
             // which expects a non-empty list
             proxy.push(Box::pin(futures::future::pending()));
+        }
+    }
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature="rpc")] {
+            if let Some(rpc_state_sender) = &mut rpc_state_sender {
+                rpc_state_sender.set_stream_listeners(&ports[..]);
+            }
         }
     }
 
