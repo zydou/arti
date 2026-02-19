@@ -803,8 +803,13 @@ pub(super) mod test {
             // netinfo cell -- quite minimal.
             add_padded(&mut buf, NETINFO_PREFIX);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake =
-                ClientInitiatorHandshake::new(mb, Default::default(), None, rt.clone(), fake_mq());
+            let handshake = ClientInitiatorHandshake::new(
+                mb,
+                PeerAddr::UNSPECIFIED,
+                None,
+                rt.clone(),
+                fake_mq(),
+            );
             let unverified = handshake.connect(|| now).await?;
 
             assert_eq!(unverified.link_protocol(), 5);
@@ -820,8 +825,13 @@ pub(super) mod test {
             buf.extend_from_slice(VPADDING);
             add_padded(&mut buf, NETINFO_PREFIX_WITH_TIME);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake =
-                ClientInitiatorHandshake::new(mb, Default::default(), None, rt.clone(), fake_mq());
+            let handshake = ClientInitiatorHandshake::new(
+                mb,
+                PeerAddr::UNSPECIFIED,
+                None,
+                rt.clone(),
+                fake_mq(),
+            );
             let unverified = handshake.connect(|| now).await?;
             // Correct timestamp in the NETINFO, so no skew.
             assert_eq!(unverified.clock_skew(), ClockSkew::None);
@@ -829,8 +839,13 @@ pub(super) mod test {
             // Now pretend our clock is fast.
             let now2 = now + Duration::from_secs(3600);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake =
-                ClientInitiatorHandshake::new(mb, Default::default(), None, rt.clone(), fake_mq());
+            let handshake = ClientInitiatorHandshake::new(
+                mb,
+                PeerAddr::UNSPECIFIED,
+                None,
+                rt.clone(),
+                fake_mq(),
+            );
             let unverified = handshake.connect(|| now2).await?;
             assert_eq!(
                 unverified.clock_skew(),
@@ -847,7 +862,7 @@ pub(super) mod test {
     {
         let mb = MsgBuf::new(input);
         let handshake =
-            ClientInitiatorHandshake::new(mb, PeerAddr::default(), None, sleep_prov, fake_mq());
+            ClientInitiatorHandshake::new(mb, PeerAddr::UNSPECIFIED, None, sleep_prov, fake_mq());
         handshake.connect(SystemTime::now).await.err().unwrap()
     }
 
@@ -972,7 +987,7 @@ pub(super) mod test {
             certs_cell: Some(certs),
             clock_skew,
             target_method: None,
-            peer_addr: Default::default(),
+            peer_addr: PeerAddr::UNSPECIFIED,
             unique_id: UniqId::new(),
             sleep_prov: runtime,
             memquota: fake_mq(),

@@ -31,6 +31,13 @@ pub enum PeerAddr {
 }
 
 impl PeerAddr {
+    /// Unspecified address used for placeholder in unit tests.
+    #[cfg(any(test, feature = "testing"))]
+    pub(crate) const UNSPECIFIED: Self = Self::Direct(SocketAddr::new(
+        IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+        0,
+    ));
+
     /// Return the IP address that should be used in the NETINFO cell.
     ///
     /// A None value implies we didn't use an IP address to connect (see [`PtTarget`]). The
@@ -53,15 +60,6 @@ impl PeerAddr {
                 _ => None,
             },
         }
-    }
-}
-
-/// Testing placeholder.
-#[cfg(any(test, feature = "testing"))]
-impl Default for PeerAddr {
-    fn default() -> Self {
-        use std::net::Ipv4Addr;
-        Self::Direct(SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0))
     }
 }
 
@@ -113,6 +111,13 @@ pub struct PeerInfo {
 impl_standard_builder! { PeerInfo : !Builder + !Default + !Deserialize }
 
 impl PeerInfo {
+    /// Empty peer info used for placeholder in unit tests.
+    #[cfg(any(test, feature = "testing"))]
+    pub(crate) const EMPTY: Self = Self {
+        addr: PeerAddr::UNSPECIFIED,
+        ids: RelayIds::empty(),
+    };
+
     /// Return a reference to the target address.
     fn addr(&self) -> &PeerAddr {
         &self.addr
@@ -145,16 +150,5 @@ impl PeerInfo {
 impl HasRelayIds for PeerInfo {
     fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
         self.ids().identity(key_type)
-    }
-}
-
-/// Testing placeholder.
-#[cfg(any(test, feature = "testing"))]
-impl Default for PeerInfo {
-    fn default() -> Self {
-        Self {
-            addr: PeerAddr::default(),
-            ids: RelayIds::empty(),
-        }
     }
 }
