@@ -7,8 +7,7 @@ pub(crate) mod net {
     use super::SmolRuntime;
     use crate::{impls, traits};
     use async_trait::async_trait;
-    use futures::future::Future;
-    use futures::stream::Stream;
+    use futures::stream::{self, Stream};
     use paste::paste;
     use smol::Async;
     #[cfg(unix)]
@@ -28,34 +27,20 @@ pub(crate) mod net {
 
             /// A `Stream` of incoming streams.
             pub struct [<Incoming $kind Streams>] {
-                /// A state object, stored in an Option so we can take ownership of it
-                // TODO: Currently this is an Option so we can take ownership of it using `.take()`.
-                // Check if this approach can be improved once supporting Rust 2024.
-                state: Option<[<Incoming $kind StreamsState>]>,
-            }
-
-            /// The result type returned by `take_and_poll_*`.
-            type [<$kind FResult>] = (IoResult<([<$kind Stream>], $addr)>, [<$kind Listener>]);
-
-            /// Helper to implement `Incoming*Streams`
-            async fn [<take_and_poll_ $kind:lower>](lis: [<$kind Listener>]) -> [<$kind FResult>] {
-                let result = lis.accept().await;
-                (result, lis)
-            }
-
-            /// The possible states for an `Incoming*Streams`.
-            enum [<Incoming $kind StreamsState>] {
-                /// We're ready to call `accept` on the listener again.
-                Ready([<$kind Listener>]),
-
-                /// We've called `accept` on the listener, and we're waiting
-                Accepting(Pin<Box<dyn Future<Output = [<$kind FResult>]> + Send + Sync>>),
+                /// Underlying stream of incoming connections.
+                inner: Pin<Box<dyn Stream<Item = IoResult<([<$kind Stream>], $addr)>> + Send + Sync>>,
             }
 
             impl [<Incoming $kind Streams>] {
                 /// Create a new `Incoming*Streams` from a listener.
                 pub fn from_listener(lis: [<$kind Listener>]) -> Self {
-                    Self { state: Some([<Incoming $kind StreamsState>]::Ready(lis)) }
+                    let stream = stream::unfold(lis, |lis| async move {
+                        let result = lis.accept().await;
+                        Some((result, lis))
+                    });
+                    Self {
+                        inner: Box::pin(stream),
+                    }
                 }
             }
 
@@ -63,22 +48,7 @@ pub(crate) mod net {
                 type Item = IoResult<([<$kind Stream>], $addr)>;
 
                 fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-                    use [<Incoming $kind StreamsState>] as St;
-                    let state = self.state.take().expect("No valid state!");
-                    let mut future = match state {
-                        St::Ready(lis) => Box::pin([<take_and_poll_ $kind:lower>](lis)),
-                        St::Accepting(fut) => fut,
-                    };
-                    match future.as_mut().poll(cx) {
-                        Poll::Ready((val, lis)) => {
-                            self.state = Some(St::Ready(lis));
-                            Poll::Ready(Some(val))
-                        }
-                        Poll::Pending => {
-                            self.state = Some(St::Accepting(future));
-                            Poll::Pending
-                        }
-                    }
+                    self.inner.as_mut().poll_next(cx)
                 }
             }
 
