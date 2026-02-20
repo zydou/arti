@@ -144,6 +144,14 @@ define_derive_deftly! {
     }
 }
 
+/// Helper for `derive_deftly(TorConfig)`: implements ExtendBuilder for a field by replacing
+/// one value with another.
+///
+/// This is the default behavior for non-subbuilder fields.
+pub fn extend_with_replace<T>(cfg: &mut T, value: T, _strategy: ExtendStrategy) {
+    *cfg = value;
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

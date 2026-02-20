@@ -6,46 +6,30 @@
 use std::num::{NonZeroU8, NonZeroU32};
 use std::time::Duration;
 
-use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
+use derive_deftly::Deftly;
 use tor_basic_utils::retry::RetryDelay;
-use tor_config::{ConfigBuildError, impl_standard_builder};
+use tor_config::ConfigBuildError;
+use tor_config::derive::prelude::*;
 
 /// Configuration for how many times to retry a download, with what
 /// frequency.
-#[derive(Debug, Builder, Copy, Clone, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Deftly, Copy, Clone, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 pub struct DownloadSchedule {
     /// How many attempts to make before giving up?
-    #[builder(
-        setter(strip_option),
-        field(
-            type = "Option<u32>",
-            build = r#"build_nonzero(self.attempts, 3, "attempts")?"#
-        )
-    )]
+    #[deftly(tor_config(default = r#"NonZeroU32::new(3).expect("Somehow 3==0")"#))]
     attempts: NonZeroU32,
 
     /// The amount of time to delay after the first failure, and a
     /// lower-bound for future delays.
-    #[builder(default = "Duration::from_millis(1000)")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "Duration::from_millis(1000)"))]
     initial_delay: Duration,
 
     /// When we want to download a bunch of these at a time, how many
     /// attempts should we try to launch at once?
-    #[builder(
-        setter(strip_option),
-        field(
-            type = "Option<u8>",
-            build = r#"build_nonzero(self.parallelism, 1, "parallelism")?"#
-        )
-    )]
+    #[deftly(tor_config(default = r#"NonZeroU8::new(1).expect("Somehow 1==0")"#))]
     parallelism: NonZeroU8,
 }
-
-impl_standard_builder! { DownloadSchedule }
 
 impl DownloadScheduleBuilder {
     /// Default value for retry_bootstrap in DownloadScheduleConfig.
@@ -65,22 +49,6 @@ impl DownloadScheduleBuilder {
         bld.parallelism.get_or_insert(4);
         bld.build()
     }
-}
-
-/// Helper for building a NonZero* field
-fn build_nonzero<NZ, I>(
-    spec: Option<I>,
-    default: I,
-    field: &'static str,
-) -> Result<NZ, ConfigBuildError>
-where
-    I: TryInto<NZ>,
-{
-    spec.unwrap_or(default).try_into().map_err(|_| {
-        let field = field.into();
-        let problem = "zero specified, but not permitted".to_string();
-        ConfigBuildError::Invalid { field, problem }
-    })
 }
 
 impl DownloadSchedule {

@@ -5,6 +5,7 @@ use crate::internal_prelude::*;
 use amplify::Getters;
 use derive_deftly::derive_deftly_adhoc;
 use tor_cell::relaycell::hs::est_intro;
+use tor_config::derive::prelude::*;
 
 use crate::config::restricted_discovery::{
     RestrictedDiscoveryConfig, RestrictedDiscoveryConfigBuilder,
@@ -21,23 +22,23 @@ pub mod restricted_discovery;
 pub(crate) mod restricted_discovery;
 
 /// Configuration for one onion service.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Deftly, Getters)]
-#[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Serialize, Deserialize, Debug, Deftly))]
-#[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
+#[derive(Debug, Clone, Eq, PartialEq, Deftly, Getters)]
+#[derive_deftly(TorConfig)]
 #[derive_deftly_adhoc]
+#[deftly(tor_config(no_default_trait, pre_build = "Self::validate"))]
 pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc.
     #[deftly(publisher_view)]
+    #[deftly(tor_config(no_default))]
     pub(crate) nickname: HsNickname,
 
     /// If true, this service will be started. It should be available to
     /// commands that don't require it to start regardless.
-    #[builder(default = "true")]
+    #[deftly(tor_config(default = "true"))]
     pub(crate) enabled: bool,
 
     /// Number of intro points; defaults to 3; max 20.
-    #[builder(default = "DEFAULT_NUM_INTRO_POINTS")]
+    #[deftly(tor_config(default = "DEFAULT_NUM_INTRO_POINTS"))]
     pub(crate) num_intro_points: u8,
 
     /// A rate-limit on the acceptable rate of introduction requests.
@@ -51,7 +52,7 @@ pub struct OnionServiceConfig {
     ///
     /// This configuration is sent as a `DOS_PARAMS` extension, as documented in
     /// <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     rate_limit_at_intro: Option<TokenBucketConfig>,
 
     /// How many streams will we allow to be open at once for a single circuit on
@@ -61,11 +62,11 @@ pub struct OnionServiceConfig {
     /// the circuit will be torn down.
     ///
     /// Equivalent to C Tor's HiddenServiceMaxStreamsCloseCircuit option.
-    #[builder(default = "65535")]
+    #[deftly(tor_config(default = "65535"))]
     max_concurrent_streams_per_circuit: u32,
 
     /// If true, we will require proof-of-work when we're under heavy load.
-    #[builder(default = "false")]
+    #[deftly(tor_config(default = "false"))]
     #[deftly(publisher_view)]
     pub(crate) enable_pow: bool,
 
@@ -80,18 +81,18 @@ pub struct OnionServiceConfig {
     // that crate (and in my willingness to go implement ways of checking the
     // size of external types), it might be somewhat off. The ~32MB value is
     // based on the idea that each RendRequest is 4KB.
-    #[builder(default = "8192")]
+    #[deftly(tor_config(default = "8192"))]
     pub(crate) pow_rend_queue_depth: usize,
 
     /// Configure restricted discovery mode.
     ///
     /// When this is enabled, we encrypt our list of introduction point and keys
     /// so that only clients holding one of the listed keys can decrypt it.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     #[deftly(publisher_view)]
     #[getter(as_mut)]
     pub(crate) restricted_discovery: RestrictedDiscoveryConfig,
+
     // TODO(#727): add support for single onion services
     //
     // TODO: Perhaps this belongs at a higher level.  Perhaps we don't need it
@@ -106,7 +107,7 @@ pub struct OnionServiceConfig {
     // pub(crate) anonymity: crate::Anonymity,
     /// Whether to use the compiled backend for proof-of-work.
     // TODO: Consider making this a global option instead?
-    #[builder(default = "false")]
+    #[deftly(tor_config(default = "false"))]
     disable_pow_compilation: bool,
 }
 

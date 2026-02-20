@@ -55,6 +55,7 @@
 //     confirmed
 //     filtered
 
+use derive_deftly::Deftly;
 use futures::channel::mpsc;
 use itertools::Either;
 use serde::{Deserialize, Serialize};
@@ -71,6 +72,7 @@ use tor_rtcompat::SpawnExt;
 use tor_units::BoundedInt32;
 use tracing::{debug, info, instrument, trace, warn};
 
+use tor_config::derive::prelude::*;
 use tor_config::{ExplicitOrAuto, impl_standard_builder};
 use tor_config::{ReconfigureError, impl_not_auto_value};
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
@@ -121,8 +123,6 @@ use pending::{PendingRequest, RequestId};
 use sample::{GuardSet, Universe, UniverseRef};
 
 use crate::ids::{FirstHopIdInner, GuardId};
-
-use tor_config::ConfigBuildError;
 
 /// A "guard manager" that selects and remembers a persistent set of
 /// guard nodes.
@@ -1921,13 +1921,11 @@ impl VanguardMode {
 impl_not_auto_value!(VanguardMode);
 
 /// Vanguards configuration.
-#[derive(Debug, Default, Clone, Eq, PartialEq, derive_builder::Builder)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Deftly, Clone, Debug, PartialEq, Eq)]
+#[derive_deftly(TorConfig)]
 pub struct VanguardConfig {
     /// The kind of vanguards to use.
-    #[builder_field_attr(serde(default))]
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     mode: ExplicitOrAuto<VanguardMode>,
 }
 

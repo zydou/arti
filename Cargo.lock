@@ -6603,7 +6603,7 @@ dependencies = [
  "async-trait",
  "caret",
  "cfg-if",
- "derive_builder_fork_arti",
+ "derive-deftly",
  "derive_more",
  "educe",
  "float_eq",
@@ -6801,7 +6801,7 @@ name = "tor-dircommon"
 version = "0.39.0"
 dependencies = [
  "base64ct",
- "derive_builder_fork_arti",
+ "derive-deftly",
  "getset",
  "humantime",
  "humantime-serde",
@@ -7103,7 +7103,6 @@ name = "tor-hsrproxy"
 version = "0.39.0"
 dependencies = [
  "derive-deftly",
- "derive_builder_fork_arti",
  "futures",
  "futures-copy",
  "itertools 0.14.0",
@@ -7610,6 +7609,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "cfg-if",
+ "derive-deftly",
  "derive_builder_fork_arti",
  "fs-mistrust",
  "futures",

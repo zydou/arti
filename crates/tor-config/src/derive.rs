@@ -1949,7 +1949,7 @@ define_derive_deftly! {
         ${when fmeta(tor_config(list))}
 
         $E::define_list_builder_helper! {
-            $BLD_FVIS struct $F_LST_BLD_TYPE {
+            $SETTER_VIS struct $F_LST_BLD_TYPE {
                 $BLD_FVIS $fname: [
                     $BLD_LIST_ELT_TYPE
                 ],
@@ -2300,12 +2300,16 @@ define_derive_deftly! {
                 ${for fields {
                     ${when not(fmeta(tor_config(skip)))}
 
-                    ${if any(fmeta(tor_config(sub_builder)),
+                    ${if fmeta(tor_config(extend_with)) {
+                        ${fmeta(tor_config(extend_with)) as expr}(&mut self.$fname, other.$fname, strategy);
+                    } else if fmeta(tor_config(extend_with_replace)) {
+                        if let Some(other_val) = other.$fname {
+                            self.$fname = Some(other_val);
+                        }
+                    } else if any(fmeta(tor_config(sub_builder)),
                              fmeta(tor_config(list)),
                              fmeta(tor_config(map))) {
                         $E::ExtendBuilder::extend_from(&mut self.$fname, other.$fname, strategy);
-                    } else if fmeta(tor_config(extend_with)) {
-                        ${fmeta(tor_config(extend_with)) as expr}(&mut self.$fname, other.$fname, strategy);
                     } else {
                         if let Some(other_val) = other.$fname {
                             self.$fname = Some(other_val);

@@ -5,10 +5,10 @@
 
 use std::net::SocketAddr;
 
-use derive_builder::Builder;
+use derive_deftly::Deftly;
 use getset::Getters;
-use serde::{Deserialize, Serialize};
-use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
+use tor_config::define_list_builder_accessors;
+use tor_config::derive::prelude::*;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 /// The contact information for all directory authorities this implementation is
@@ -16,14 +16,19 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 ///
 /// This data structure makes use of proposal 330 in order to distinguish
 /// authorities by their responsibilities, hence why the fields are divided.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Getters)]
+#[derive_deftly(TorConfig)]
 pub struct AuthorityContacts {
+    // NOTE: We aren't using list builders here, since these never actually used sub-builders,
+    // and therefore has a slightly different API.
+    // We might later decide to change these to proper list-builders;
+    // if so, it will be an API break.
+    //
     /// The [`RsaIdentity`] keys that may be used to sign valid consensus documents.
-    #[builder(setter(custom), default = "default_v3idents()")]
+    #[deftly(tor_config(no_magic, setter(skip), default = "default_v3idents()"))]
     #[getset(get = "pub")]
     v3idents: Vec<RsaIdentity>,
+
     /// The endpoints of authorities where upload of router descriptors and other
     /// documents is possible.
     ///
@@ -31,30 +36,30 @@ pub struct AuthorityContacts {
     ///
     /// The use of nested a [`Vec`] serves the purpose to assign multiple IPs to
     /// a single logical authority, such as having an IPv4 and IPv6 address.
-    #[builder(setter(custom), default = "default_uploads()")]
+    #[deftly(tor_config(no_magic, setter(skip), default = "default_uploads()"))]
     #[getset(get = "pub")]
     uploads: Vec<Vec<SocketAddr>>,
-    #[builder(setter(custom), default = "default_downloads()")]
+
     /// The endpoints of authorities where download of network documents is possible.
     ///
     /// This section is primarily of interest for directory mirrors.
     ///
     /// The use of nested a [`Vec`] serves the purpose to assign multiple IPs to
     /// a single logical authority, such as having an IPv4 and IPv6 address.
+    #[deftly(tor_config(no_magic, setter(skip), default = "default_downloads()"))]
     #[getset(get = "pub")]
     downloads: Vec<Vec<SocketAddr>>,
-    #[builder(setter(custom), default = "default_votes()")]
-    #[getset(get = "pub")]
+
     /// The endpoints of authorities where voting for consensus documents is possible.
     ///
     /// This section is primarily of interest for other directory authorities.
     ///
     /// The use of nested a [`Vec`] serves the purpose to assign multiple IPs to
     /// a single logical authority, such as having an IPv4 and IPv6 address.
+    #[deftly(tor_config(no_magic, setter(skip), default = "default_votes()"))]
+    #[getset(get = "pub")]
     votes: Vec<Vec<SocketAddr>>,
 }
-
-impl_standard_builder! { AuthorityContacts }
 
 define_list_builder_accessors! {
     struct AuthorityContactsBuilder {

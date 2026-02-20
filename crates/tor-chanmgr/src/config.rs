@@ -4,13 +4,12 @@
 //!
 //! Most types in this module are re-exported by `arti-client`.
 
-use std::net::{IpAddr, SocketAddr};
-
-use derive_builder::Builder;
+use derive_deftly::Deftly;
 use percent_encoding::percent_decode_str;
-use serde::{Deserialize, Serialize};
-use tor_config::impl_standard_builder;
-use tor_config::{ConfigBuildError, PaddingLevel};
+use serde::Deserialize;
+use std::net::{IpAddr, SocketAddr};
+use tor_config::PaddingLevel;
+use tor_config::derive::prelude::*;
 use tor_socksproto::SocksAuth;
 use tor_socksproto::SocksVersion;
 use url::{Host, Url};
@@ -258,19 +257,20 @@ where
 ///
 /// This type is immutable once constructed.  To build one, use
 /// [`ChannelConfigBuilder`], or deserialize it from a string.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 pub struct ChannelConfig {
     /// Control of channel padding
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     pub(crate) padding: PaddingLevel,
+
     /// Outbound proxy to use for all direct connections
-    #[builder_field_attr(serde(default, deserialize_with = "deserialize_outbound_proxy"))]
-    #[builder(default)]
+    #[deftly(tor_config(
+        default,
+        serde = r#" deserialize_with = "deserialize_outbound_proxy" "#
+    ))]
     pub(crate) outbound_proxy: Option<ProxyProtocol>,
 }
-impl_standard_builder! { ChannelConfig }
 
 #[cfg(feature = "testing")]
 impl ChannelConfig {
