@@ -248,9 +248,7 @@ mod specifier {
         pub(crate) denotator: Vec<String>,
     }
 
-    impl<SUBJ: KeySpecifier> KeyCertificateSpecifier
-        for TestCertSpecifier<SUBJ>
-    {
+    impl<SUBJ: KeySpecifier> KeyCertificateSpecifier for TestCertSpecifier<SUBJ> {
         fn cert_denotators(&self) -> Vec<&dyn KeySpecifierComponent> {
             self.denotator
                 .iter()
