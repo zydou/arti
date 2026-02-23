@@ -5,7 +5,6 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
-use tokio::task::JoinSet;
 use tor_basic_utils::rand_hostname;
 use tor_cert::x509::TlsKeyAndCert;
 use tor_proto::RelayIdentities;
@@ -93,22 +92,7 @@ impl RotatableKeySpec for RelayLinkSigningKeypair {
     }
 }
 
-/// Start the rotation key task.
-pub(crate) fn start_task<R: Runtime>(
-    task_set: &mut JoinSet<Result<void::Void, anyhow::Error>>,
-    runtime: R,
-    keymgr: Arc<KeyMgr>,
-) {
-    task_set.spawn({
-        async {
-            rotate_keys_task(runtime, keymgr)
-                .await
-                .context("Failed to run key rotation task")
-        }
-    });
-}
-
-/// Generate a key implementing the [`RotatableKeySpec`] directly into the key manager.
+/// Generate a key `K` directly into the key manager.
 ///
 /// If the key already exists, the error is ignored as this could happen if the system time drifts
 /// between the get and the generate.

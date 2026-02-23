@@ -310,11 +310,15 @@ impl<R: Runtime> TorRelay<R> {
         });
 
         // Start the key rotation tasks.
-        crate::tasks::crypto::start_task(
-            &mut task_handles,
-            self.runtime.clone(),
-            self.keymgr.clone(),
-        );
+        task_handles.spawn({
+            let runtime = self.runtime.clone();
+            let keymgr = self.keymgr.clone();
+            async {
+                crate::tasks::crypto::rotate_keys_task(runtime, keymgr)
+                    .await
+                    .context("Failed to run key rotation task")
+            }
+        });
 
         // Launch client tasks.
         //
