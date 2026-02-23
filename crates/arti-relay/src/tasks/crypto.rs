@@ -28,6 +28,13 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 /// Sleep duration of the key rotation task.
 const KEY_ROTATION_SLEEP_DURATION: Duration = Duration::from_secs(60);
 
+/// Key lifefime duration of 2 days
+const KEY_DURATION_2DAYS: Duration = Duration::from_secs(2 * 24 * 60 * 60);
+/// Key lifefime duration of 30 days
+const KEY_DURATION_30DAYS: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+/// Key lifefime duration of 6 months
+const KEY_DURATION_6MONTHS: Duration = Duration::from_secs(6 * 30 * 24 * 60 * 60);
+
 /// Trait to help us specify what we need for key rotation. This allows us to have the generic
 /// function `rotate_key()`.
 trait RotatableKeySpec {
@@ -206,15 +213,12 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
         rsa_id_kp.keypair(),
     )?;
 
-    // Taken from C-tor.
-    let lifetime_2days = now + Duration::from_secs(2 * 24 * 60 * 60);
-    let lifetime_30days = now + Duration::from_secs(30 * 24 * 60 * 60);
-    let lifetime_6months = now + Duration::from_secs(6 * 30 * 24 * 60 * 60);
+    // The following expiry duration have been taken from C-tor.
 
     let cert_id_rsa = tor_cert::rsa::EncodedRsaCrosscert::encode_and_sign(
         rsa_id_kp.keypair(),
         &ed_id_kp.to_ed25519_id(),
-        lifetime_6months,
+        now + KEY_DURATION_6MONTHS,
     )?;
 
     // Create the signing key cert, link cert and tls cert.
@@ -222,12 +226,13 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
     // TODO(relay): We need to check the KeyMgr for the signing cert but for now the KeyMgr API
     // doesn't allow us to get it out. We will do a re-design of the cert API there. This is fine
     // as long as we don't support offline keys.
-    let cert_id_sign_ed = gen_signing_cert(&ed_id_kp, &kp_relaysign_id, lifetime_30days)?;
-    let cert_sign_link_auth_ed = gen_link_cert(&kp_relaysign_id, &link_sign_kp, lifetime_2days)?;
+    let cert_id_sign_ed = gen_signing_cert(&ed_id_kp, &kp_relaysign_id, now + KEY_DURATION_30DAYS)?;
+    let cert_sign_link_auth_ed =
+        gen_link_cert(&kp_relaysign_id, &link_sign_kp, now + KEY_DURATION_2DAYS)?;
     let cert_sign_tls_ed = gen_tls_cert(
         &kp_relaysign_id,
         *tls_key_and_cert.link_cert_sha256(),
-        lifetime_2days,
+        now + KEY_DURATION_2DAYS,
     )?;
 
     Ok(RelayIdentities::new(
