@@ -21,22 +21,22 @@ define_ed25519_keypair!(
     pub RelayIdentity
 );
 
+/// The key specifier of the relay long-term identity key (RelayIdentityKeypair)
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relayid_ed")]
 #[deftly(summary = "Relay long-term identity keypair")]
-/// The key specifier of the relay long-term identity key (RelayIdentityKeypair)
 pub struct RelayIdentityKeypairSpecifier;
 
+/// The public part of the long-term identity key of the relay.
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relayid_ed")]
 #[deftly(summary = "Public part of the relay long-term identity keypair")]
-/// The public part of the long-term identity key of the relay.
 pub struct RelayIdentityPublicKeySpecifier;
 
 define_rsa_keypair!(
@@ -44,22 +44,22 @@ define_rsa_keypair!(
     pub RelayIdentityRsa
 );
 
+/// The key specifier of the legacy RSA relay long-term identity key (RelayIdentityRsaKeypair)
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relayid_rsa")]
 #[deftly(summary = "Legacy RSA long-term relay identity keypair")]
-/// The key specifier of the legacy RSA relay long-term identity key (RelayIdentityRsaKeypair)
 pub struct RelayIdentityRsaKeypairSpecifier;
 
+/// The public part of the long-term identity key of the relay.
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relayid_rsa")]
 #[deftly(summary = "Public part of the relay long-term identity keypair")]
-/// The public part of the long-term identity key of the relay.
 pub struct RelayIdentityRsaPublicKeySpecifier;
 
 define_ed25519_keypair!(
@@ -67,12 +67,12 @@ define_ed25519_keypair!(
     pub RelaySigning
 );
 
+/// The key specifier of the relay medium-term signing key.
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relaysign_ed")]
 #[deftly(summary = "Relay medium-term signing keypair")]
-/// The key specifier of the relay medium-term signing key.
 pub struct RelaySigningKeypairSpecifier {
     /// The expiration time of this key.
     ///
@@ -99,6 +99,7 @@ impl RelaySigningKeypairSpecifier {
     }
 }
 
+/// The key specifier of the public part of the relay medium-term signing key.
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
@@ -109,7 +110,6 @@ impl RelaySigningKeypairSpecifier {
     signed_with = "RelayIdentityKeypairSpecifier",
 ))]
 #[deftly(keypair_specifier = "RelaySigningKeypairSpecifier")]
-/// The key specifier of the public part of the relay medium-term signing key.
 pub struct RelaySigningPublicKeySpecifier {
     /// The expiration time of this key.
     ///
@@ -182,12 +182,12 @@ define_ed25519_keypair!(
     pub RelayLinkSigning
 );
 
+/// The key specifier of the relay link authentication key.
 #[derive(Deftly, PartialEq, Debug, Constructor)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_link_ed")]
 #[deftly(summary = "Relay short-term link authentication keypair")]
-/// The key specifier of the relay link authentication key.
 pub struct RelayLinkSigningKeypairSpecifier {
     /// The expiration time of this key.
     ///
