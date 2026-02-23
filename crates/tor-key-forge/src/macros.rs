@@ -440,6 +440,11 @@ define_derive_deftly! {
             $PK_NAME((&self.$KP_NAME).into())
         }
 
+        /// Reference to the internal keypair.
+        $tvis fn keypair(&self) -> &$crate::macro_deps::rsa::KeyPair {
+            &self.0
+        }
+
         /// Sign the given message.
         $tvis fn sign(&self, message: &[u8]) -> Result<Vec<u8>, $crate::macro_deps::rsa::Error> {
             self.0.sign(message)

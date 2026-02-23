@@ -21,22 +21,22 @@ define_ed25519_keypair!(
     pub RelayIdentity
 );
 
+/// The key specifier of the relay long-term identity key (RelayIdentityKeypair)
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relayid_ed")]
 #[deftly(summary = "Relay long-term identity keypair")]
-/// The key specifier of the relay long-term identity key (RelayIdentityKeypair)
 pub struct RelayIdentityKeypairSpecifier;
 
+/// The public part of the long-term identity key of the relay.
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relayid_ed")]
 #[deftly(summary = "Public part of the relay long-term identity keypair")]
-/// The public part of the long-term identity key of the relay.
 pub struct RelayIdentityPublicKeySpecifier;
 
 define_rsa_keypair!(
@@ -44,22 +44,22 @@ define_rsa_keypair!(
     pub RelayIdentityRsa
 );
 
+/// The key specifier of the legacy RSA relay long-term identity key (RelayIdentityRsaKeypair)
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relayid_rsa")]
 #[deftly(summary = "Legacy RSA long-term relay identity keypair")]
-/// The key specifier of the legacy RSA relay long-term identity key (RelayIdentityRsaKeypair)
 pub struct RelayIdentityRsaKeypairSpecifier;
 
+/// The public part of the long-term identity key of the relay.
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relayid_rsa")]
 #[deftly(summary = "Public part of the relay long-term identity keypair")]
-/// The public part of the long-term identity key of the relay.
 pub struct RelayIdentityRsaPublicKeySpecifier;
 
 define_ed25519_keypair!(
@@ -67,12 +67,12 @@ define_ed25519_keypair!(
     pub RelaySigning
 );
 
+/// The key specifier of the relay medium-term signing key.
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relaysign_ed")]
 #[deftly(summary = "Relay medium-term signing keypair")]
-/// The key specifier of the relay medium-term signing key.
 pub struct RelaySigningKeypairSpecifier {
     /// The expiration time of this key.
     ///
@@ -92,6 +92,14 @@ pub struct RelaySigningKeypairSpecifier {
     pub(crate) valid_until: Timestamp,
 }
 
+impl RelaySigningKeypairSpecifier {
+    /// Returns the time at which this key becomes invalid.
+    pub fn valid_until(&self) -> Timestamp {
+        self.valid_until
+    }
+}
+
+/// The key specifier of the public part of the relay medium-term signing key.
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
@@ -102,7 +110,6 @@ pub struct RelaySigningKeypairSpecifier {
     signed_with = "RelayIdentityKeypairSpecifier",
 ))]
 #[deftly(keypair_specifier = "RelaySigningKeypairSpecifier")]
-/// The key specifier of the public part of the relay medium-term signing key.
 pub struct RelaySigningPublicKeySpecifier {
     /// The expiration time of this key.
     ///
@@ -142,6 +149,12 @@ impl From<SystemTime> for Timestamp {
     }
 }
 
+impl From<Timestamp> for SystemTime {
+    fn from(t: Timestamp) -> Self {
+        t.0.into()
+    }
+}
+
 impl KeySpecifierComponent for Timestamp {
     fn to_slug(&self) -> Result<Slug, Bug> {
         self.0.try_into()
@@ -168,6 +181,38 @@ define_ed25519_keypair!(
     /// [KP_link_ed] Short-term signing keypair for link authentication. Rotated frequently.
     pub RelayLinkSigning
 );
+
+/// The key specifier of the relay link authentication key.
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "relay")]
+#[deftly(role = "KS_link_ed")]
+#[deftly(summary = "Relay short-term link authentication keypair")]
+pub struct RelayLinkSigningKeypairSpecifier {
+    /// The expiration time of this key.
+    ///
+    /// This **must** be the same as the expiration timestamp from the
+    /// `KP_link_ed` certificate of this key.
+    ///
+    /// This serves as a unique identifier for this key instance,
+    /// and is used for deciding which `KP_link_ed` key to use
+    /// (we use the newest key that is not yet expired according to
+    /// the `valid_until` timestamp from its specifier).
+    ///
+    /// **Important**: this timestamp should not be used for anything other than
+    /// distinguishing between different signing keypair instances.
+    /// In particular, it should **not** be used for validating the keypair,
+    /// or for checking its timeliness.
+    #[deftly(denotator)]
+    pub(crate) valid_until: Timestamp,
+}
+
+impl RelayLinkSigningKeypairSpecifier {
+    /// Returns the time at which this key becomes invalid.
+    pub fn valid_until(&self) -> Timestamp {
+        self.valid_until
+    }
+}
 
 #[cfg(test)]
 mod test {
