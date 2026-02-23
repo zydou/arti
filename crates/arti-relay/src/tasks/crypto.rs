@@ -42,8 +42,6 @@ trait RotatableKeySpec {
     fn label() -> &'static str;
     /// Build a specifier from a [`KeyPath`]
     fn spec_from_keypath(keypath: &KeyPath) -> Result<Self::Specifier, tor_keymgr::KeyPathError>;
-    /// The key `valid_until`.
-    fn valid_until() -> Timestamp;
     /// The `valid_until` of the given key specifier.
     fn valid_until_from_spec(spec: &Self::Specifier) -> Timestamp;
 }
@@ -53,17 +51,14 @@ impl RotatableKeySpec for RelaySigningKeypair {
     type Pattern = RelaySigningKeypairSpecifierPattern;
 
     fn key_specifier() -> Self::Specifier {
-        Self::Specifier::new(Self::valid_until())
+        let valid_until = Timestamp::from(SystemTime::now() + Duration::from_secs(30 * 86400));
+        Self::Specifier::new(valid_until)
     }
     fn label() -> &'static str {
         "KP_relaysign_ed"
     }
     fn spec_from_keypath(keypath: &KeyPath) -> Result<Self::Specifier, tor_keymgr::KeyPathError> {
         keypath.try_into()
-    }
-    fn valid_until() -> Timestamp {
-        // Taken from C-tor.
-        Timestamp::from(SystemTime::now() + Duration::from_secs(30 * 86400))
     }
     fn valid_until_from_spec(spec: &Self::Specifier) -> Timestamp {
         spec.valid_until()
@@ -75,17 +70,14 @@ impl RotatableKeySpec for RelayLinkSigningKeypair {
     type Pattern = RelayLinkSigningKeypairSpecifierPattern;
 
     fn key_specifier() -> Self::Specifier {
-        Self::Specifier::new(Self::valid_until())
+        let valid_until = Timestamp::from(SystemTime::now() + Duration::from_secs(2 * 86400));
+        Self::Specifier::new(valid_until)
     }
     fn label() -> &'static str {
         "KP_link_ed"
     }
     fn spec_from_keypath(keypath: &KeyPath) -> Result<Self::Specifier, tor_keymgr::KeyPathError> {
         keypath.try_into()
-    }
-    fn valid_until() -> Timestamp {
-        // Taken from C-tor.
-        Timestamp::from(SystemTime::now() + Duration::from_secs(2 * 86400))
     }
     fn valid_until_from_spec(spec: &Self::Specifier) -> Timestamp {
         spec.valid_until()
@@ -118,15 +110,17 @@ where
 /// valid_until value of the key store entry. If expired, the key is removed from the key manager.
 fn rotate_key<K>(keymgr: &KeyMgr) -> anyhow::Result<()>
 where
-    K: RotatableKeySpec,
-    <K::Keypair as ToEncodableKey>::Key: Keygen,
+    K: RotatableKeySpec + ToEncodableKey,
+    <K as ToEncodableKey>::Key: Keygen,
 {
     // Select all signing keypair in the keystore because we need to inspect the valid_until
     // field and rotate if expired.
     let key_entries = keymgr.list_matching(&K::Pattern::new_any().arti_pattern()?)?;
 
+    let key_specifier = K::key_specifier();
+
     if key_entries.is_empty() {
-        generate_key::<K::Keypair>(keymgr, &K::key_specifier())?;
+        generate_key::<K>(keymgr, &key_specifier)?;
         return Ok(());
     }
 
@@ -140,10 +134,10 @@ where
             tracing::info!(
                 "Rotating {} key. Next expiry timestamp {:?}",
                 K::label(),
-                K::valid_until()
+                K::valid_until_from_spec(&key_specifier),
             );
             keymgr.remove_entry(&key)?;
-            generate_key::<K::Keypair>(keymgr, &K::key_specifier())?;
+            generate_key::<K>(keymgr, &key_specifier)?;
         };
     }
 
