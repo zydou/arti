@@ -162,10 +162,19 @@ fn rustls_server_config(settings: &TlsAcceptorSettings) -> IoResult<RustlsServer
         pki::PrivateKeyDer::Pkcs8(pki::PrivatePkcs8KeyDer::from(key_der.as_ref())).clone_key();
 
     // Initialize the ServerConfig.
-    let config = RustlsServerConfig::builder_with_protocol_versions(&[&TLS12, &TLS13]) // 1.2 and 1.3 only.
+    let mut config = RustlsServerConfig::builder_with_protocol_versions(&[&TLS12, &TLS13]) // 1.2 and 1.3 only.
         .with_no_client_auth() // Don't require client authentication.
         .with_single_cert(cert_chain, key_der)
         .map_err(|e| IoError::new(std::io::ErrorKind::InvalidData, e))?;
+
+    // tor-spec:
+    // > Implementations SHOULD NOT allow TLS session resumption – it can exacerbate some attacks
+    // > (e.g. the “Triple Handshake” attack from Feb 2013), and it plays havoc with forward secrecy
+    // > guarantees.
+    //
+    // rustls:
+    // > If this is 0, no tickets are sent and clients will not be able to do any resumption.
+    config.send_tls13_tickets = 0;
 
     // TODO: Possibly, modify config.  There are numerous fields we could adjust.
 
