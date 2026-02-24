@@ -194,8 +194,9 @@ impl<R: Runtime> TorRelay<R> {
         let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
             .context("Failed to initialize memquota tracker")?;
 
-        let config =
-            ChanMgrConfig::new(inert.config.channel.clone()).with_identities(Arc::new(identities));
+        let config = ChanMgrConfig::new(inert.config.channel.clone())
+            .with_my_addrs(inert.config.relay.advertise.all_ips())
+            .with_identities(Arc::new(identities));
         let chanmgr = Arc::new(
             ChanMgr::new(
                 runtime.clone(),
