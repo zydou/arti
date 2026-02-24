@@ -103,9 +103,10 @@ where
     let mut rng = tor_llcrypto::rng::CautiousRng;
 
     match keymgr.generate::<K>(spec, KeystoreSelector::default(), &mut rng, false) {
+        Ok(_) => {}
         // Key already existing can happen due to wall clock strangeness,
         // so simply ignore it.
-        Ok(_) | Err(tor_keymgr::Error::KeyAlreadyExists) => tracing::warn!(
+        Err(tor_keymgr::Error::KeyAlreadyExists) => tracing::warn!(
             "Failed to generate key at {:?} because one already exists. Clock drift?",
             spec.arti_path(),
         ),
@@ -174,10 +175,12 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
 
     // Get the identity keypairs.
     let rsa_id_kp: RelayIdentityRsaKeypair = keymgr
-        .get(&RelayIdentityRsaKeypairSpecifier::new())?
+        .get(&RelayIdentityRsaKeypairSpecifier::new())
+        .context("Failed to get RSA identity from key manager")?
         .context("Missing RSA identity")?;
     let ed_id_kp: RelayIdentityKeypair = keymgr
-        .get(&RelayIdentityKeypairSpecifier::new())?
+        .get(&RelayIdentityKeypairSpecifier::new())
+        .context("Failed to get Ed25519 identity from key manager")?
         .context("Missing Ed25519 identity")?;
     // We have to list match here because the key specifier here uses a valid_until. We don't know
     // what it is so we list and take the first one.
@@ -187,7 +190,8 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
                 .list_matching(&RelayLinkSigningKeypairSpecifierPattern::new_any().arti_pattern()?)?
                 .first()
                 .context("No store entry for link authentication key")?,
-        )?
+        )
+        .context("Failed to get link authentication key from key manager")?
         .context("Missing link authentication key")?;
     let kp_relaysign_id: RelaySigningKeypair = keymgr
         .get_entry(
@@ -195,7 +199,8 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
                 .list_matching(&RelaySigningKeypairSpecifierPattern::new_any().arti_pattern()?)?
                 .first()
                 .context("No store entry for signing key")?,
-        )?
+        )
+        .context("Failed to get signing key from key manager")?
         .context("Missing signing key")?;
 
     // TLS key and cert. Random hostname like C-tor. We re-use the issuer_hostname for the RSA
@@ -203,7 +208,8 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
     let issuer_hostname = rand_hostname::random_hostname(&mut rng);
     let subject_hostname = rand_hostname::random_hostname(&mut rng);
     let tls_key_and_cert =
-        TlsKeyAndCert::create(&mut rng, now, &issuer_hostname, &subject_hostname)?;
+        TlsKeyAndCert::create(&mut rng, now, &issuer_hostname, &subject_hostname)
+            .context("Failed to create TLS keys and certificates")?;
 
     // Create the RSA X509 certificate.
     let cert_id_x509_rsa = tor_cert::x509::create_legacy_rsa_id_cert(
@@ -211,7 +217,8 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
         SystemTime::now(),
         &issuer_hostname,
         rsa_id_kp.keypair(),
-    )?;
+    )
+    .context("Failed to create legacy RSA identity certificate")?;
 
     // The following expiry duration have been taken from C-tor.
 

@@ -28,7 +28,7 @@ use crate::config::TorRelayConfig;
 /// This intentionally does not have access to the runtime to prevent it from doing network io.
 ///
 /// The idea is that we can build up the relay's components in an `InertTorRelay` without a runtime,
-/// and then call `bootstrap()` on it and provide a runtime to turn it into a network-capable relay.
+/// and then call `init()` on it and provide a runtime to turn it into a network-capable relay.
 /// This gives us two advantages:
 ///
 /// - We can initialize the internal data structures in the `InertTorRelay` (load the keystores,
