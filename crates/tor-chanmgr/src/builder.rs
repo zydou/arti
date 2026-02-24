@@ -1,14 +1,15 @@
 //! Implement a concrete type to build channels over a transport.
 
+use async_trait::async_trait;
 use std::io;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tracing::instrument;
 
 use crate::factory::{BootstrapReporter, ChannelFactory, IncomingChannelFactory};
 use crate::transport::TransportImplHelper;
 use crate::{Error, event::ChanMgrEventSender};
 
-use async_trait::async_trait;
-use std::time::Duration;
 use tor_basic_utils::rand_hostname;
 use tor_error::internal;
 use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
@@ -18,7 +19,6 @@ use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::ChannelAccount;
 use tor_rtcompat::SpawnExt;
 use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
-use tracing::instrument;
 
 #[cfg(feature = "relay")]
 use {
@@ -285,6 +285,11 @@ where
             event_sender.lock().expect("Lock poisoned").record_attempt();
         }
 
+        // Before actually doing the connect, we need to validate the channel target for the relay
+        // case. There are restrictions we need to apply.
+        #[cfg(feature = "relay")]
+        self.validate_relay_target(target)?;
+
         // 1a. Negotiate the TCP connection or other stream.
 
         // The returned PeerAddr is the actual address we are connected to.
@@ -415,6 +420,31 @@ where
             .record_handshake_done();
 
         Ok(chan)
+    }
+
+    /// Validate the given target as in if it is fine to connect to it.
+    ///
+    /// We avoid building channels to ourselves as a relay.
+    #[cfg(feature = "relay")]
+    fn validate_relay_target(&self, _target: &OwnedChanTarget) -> crate::Result<()> {
+        use tor_linkspec::HasRelayIds;
+        // Client with the relay feature won't have identities. A relay without identities is not
+        // possible but even if it was, it won't be able to build a channel to itself as a relay
+        // channel. Hence, returning Ok(()) here is fine as without identities ourself, we can
+        // connect wherever.
+        let Some(identities) = &self.identities else {
+            return Ok(());
+        };
+        identities
+            .has_any_relay_id_from(_target)
+            .then_some(())
+            .ok_or(Error::Proto {
+                source: tor_proto::Error::ChanProto(
+                    "Refusing to build channel to ourselves".into(),
+                ),
+                peer: _target.clone().into(),
+                clock_skew: None,
+            })
     }
 
     /// Build a relay initiator channel.
