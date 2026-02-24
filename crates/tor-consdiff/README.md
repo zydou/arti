@@ -15,7 +15,4 @@ have.
 This crate provides a function to apply one of these diffs to an older
 consensus document, to get a newer one.
 
-TODO: Eventually, when we add relay support, we will need to generate
-these diffs as well as consume them.
-
 License: MIT OR Apache-2.0

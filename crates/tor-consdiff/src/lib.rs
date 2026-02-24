@@ -51,10 +51,158 @@ use std::num::NonZeroUsize;
 use std::str::FromStr;
 
 mod err;
+use digest::Digest;
 pub use err::Error;
+use imara_diff::{Algorithm, Diff, InternedInput};
+use tor_netdoc::parse2::{ErrorProblem, ItemStream, ParseError, ParseInput};
 
 /// Result type used by this crate
 type Result<T> = std::result::Result<T, Error>;
+
+/// Generates a consensus diff.
+///
+/// This implementation is different from the one in CTor, because it uses a
+/// different algorithm, namely [`Algorithm::Myers`] from the [`imara_diff`]
+/// crate, which is more efficient than CTor in terms of runtime and about as
+/// equally efficient as CTor in output size.
+///
+/// The CTor implementation makes heavy use of the fact that the input is a
+/// valid consensus and that the routers in it are ordered.  This allows for
+/// some divide-and-conquer mechanisms and the cost of requiring more parsing.
+///
+/// Here, we only minimally parse the consensus, in order to only obtain the
+/// first `directory-signature` item and to cut everything including itself off
+/// from the input, as demanded by the specification.
+///
+/// All outputs of this function are guaranteed to work with this
+/// [`apply_diff()`] implementation as a check is performed before returning,
+/// because returning an unusable diff would be terrible.
+pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
+    // Throw away the signature.
+    let signature_lno = find_directory_signature_lno(base)?;
+    let base_signed = base
+        .lines()
+        .take(signature_lno - 1)
+        .map(|line| line.to_string() + "\n")
+        .collect::<String>();
+
+    // Compute the hashes for the header.
+    let base_signed_hash = hex::encode_upper({
+        let mut h = tor_llcrypto::d::Sha3_256::new();
+        h.update(&base_signed);
+        h.update("directory-signature ");
+        h.finalize()
+    });
+    let target_hash = hex::encode_upper(tor_llcrypto::d::Sha3_256::digest(target.as_bytes()));
+
+    // Compose the result with header.
+    let mut result = String::new();
+    result += "network-status-diff-version 1\n";
+    result += &format!("hash {base_signed_hash} {target_hash}\n");
+    result += &format!("{signature_lno},$d\n");
+    result += &gen_ed_diff(&base_signed, target);
+
+    // Ensure it is valid, refuse to emit an invalid diff.
+    let check =
+        apply_diff(base, &result, None).map_err(|_| Error::GenDiffCheck("apply call failed"))?;
+    if check.to_string() != target {
+        return Err(Error::GenDiffCheck("result does not match"));
+    }
+
+    Ok(result)
+}
+
+/// Returns the first `directory-signature` 1-indexed line number, if any.
+fn find_directory_signature_lno(input: &str) -> Result<usize> {
+    let parse_input = ParseInput::new(input, "");
+    let mut items = ItemStream::new(&parse_input)?;
+
+    // Parse the consensus line by line until the first `directory-signature`.
+    let mut lno = None;
+    while let Some(item) = items.next() {
+        let item = item.map_err(|e| ParseError::new(e, "consdiff", "", items.lno(), None))?;
+        if item.keyword() == "directory-signature" {
+            lno = Some(items.lno());
+            break;
+        }
+    }
+
+    // Return the lno or an error.
+    lno.ok_or(Error::InvalidInput(ParseError::new(
+        ErrorProblem::MissingItem {
+            keyword: "directory-signature",
+        },
+        "consdiff",
+        "",
+        items.lno(),
+        None,
+    )))
+}
+
+/// Generates an input agnostic ed diff.
+///
+/// This function does the general logic of [`gen_cons_diff()`] but works in a
+/// document agnostic fashion, i.e. the input does not have to be a consensus,
+/// but please see the note on line endings below.  It uses [`Diff::compute()`]
+/// for the majority of the work.
+///
+/// # Line Endings
+///
+/// For simplicity, we split our input into lines using [`str::lines()`] and
+/// reconstruct it again by appending `\n` to the splitted lines.  As a
+/// consequence, this means that this function generates invalid diffs if the
+/// inputs contain non-Unix line-endings or ends without a final `\n`.
+/// This is okay because netdoc's are required to follow this format.
+fn gen_ed_diff(base: &str, target: &str) -> String {
+    let mut result = String::new();
+
+    let tlines = target.lines().collect::<Vec<_>>();
+
+    // We use Myers' algorithm as benchmarks have shown that it provides an
+    // equal diff size as the ctor one while keeping an acceptable performance.
+    let input = InternedInput::new(base, target);
+    let mut diff = Diff::compute(Algorithm::Myers, &input);
+    diff.postprocess_lines(&input);
+
+    // Iterate through every a hunk, with a hunk being a block of changes.
+    let hunks = diff.hunks().collect::<Vec<_>>();
+    for hunk in hunks.into_iter().rev() {
+        // Stupid imara-diff stores indices as u32 so we convert it here.
+        let range = (hunk.after.start as usize)..(hunk.after.end as usize);
+
+        // Check on whether to use append, delete, or change.
+        if hunk.is_pure_insertion() {
+            // Append
+
+            // No need to use +1 here, because we are inserting AFTER the line.
+            result += &format!("{}a\n", hunk.before.start);
+            result += &tlines[range].join("\n");
+            result += "\n.\n";
+        } else if hunk.is_pure_removal() {
+            // Remove
+
+            if hunk.before.start + 1 == hunk.before.end {
+                result += &format!("{}d\n", hunk.before.start + 1);
+            } else {
+                // No need to +1 end because it is an excluding range.
+                result += &format!("{},{}d\n", hunk.before.start + 1, hunk.before.end);
+            }
+        } else {
+            // Change
+
+            if hunk.before.start + 1 == hunk.before.end {
+                result += &format!("{}c\n", hunk.before.start + 1);
+            } else {
+                // No need to +1 end because it is an excluding range.
+                result += &format!("{},{}c\n", hunk.before.start + 1, hunk.before.end);
+            }
+            result += &tlines[range].join("\n");
+            result += "\n.\n";
+        }
+    }
+
+    result
+}
 
 /// Return true if `s` looks more like a consensus diff than some other kind
 /// of document.
@@ -577,6 +725,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use names::Generator;
+
     use super::*;
 
     #[test]
@@ -908,5 +1058,26 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         assert!(cmds("5,5d\n5,6d\n").is_err());
 
         Ok(())
+    }
+
+    /// Test for cons diff using a random word generator.
+    ///
+    /// It is not super useful to use something static here, because the diff
+    /// algorithms are heuristic and are not perfectly stable.
+    #[test]
+    fn cons_diff() {
+        let mut generator = Generator::default();
+        let mut left = (0..1000)
+            .map(|_| generator.next().unwrap() + "\n")
+            .collect::<String>();
+        left += "directory-signature foo bar\n";
+        let mut right = (0..1015)
+            .map(|_| generator.next().unwrap() + "\n")
+            .collect::<String>();
+        right += "directory-signature foo baz\n";
+
+        let diff = gen_cons_diff(&left, &right).unwrap();
+        let check = apply_diff(&left, &diff, None).unwrap().to_string();
+        assert_eq!(right, check);
     }
 }

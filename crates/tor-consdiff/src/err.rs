@@ -1,6 +1,7 @@
 //! Declare an error type for the tor-consdiff crate.
 
 use thiserror::Error;
+use tor_netdoc::parse2;
 
 use std::num::ParseIntError;
 
@@ -18,6 +19,15 @@ pub enum Error {
     /// to the given input.
     #[error("Diff didn't apply to input: {0}")]
     CantApply(&'static str),
+
+    /// Invalid input for consdiff computation supplied, most likely not a valid
+    /// consensus.
+    #[error("Invalid input supplied: {0}")]
+    InvalidInput(parse2::ParseError),
+
+    /// The computed diff does not work.
+    #[error("Computed diff does not match when applied: {0}")]
+    GenDiffCheck(&'static str),
 }
 
 impl From<ParseIntError> for Error {
@@ -28,5 +38,11 @@ impl From<ParseIntError> for Error {
 impl From<hex::FromHexError> for Error {
     fn from(_e: hex::FromHexError) -> Error {
         Error::BadDiff("invalid hexadecimal in 'hash' line")
+    }
+}
+
+impl From<parse2::ParseError> for Error {
+    fn from(e: parse2::ParseError) -> Self {
+        Self::InvalidInput(e)
     }
 }
