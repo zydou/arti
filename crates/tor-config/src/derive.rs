@@ -922,6 +922,9 @@ pub mod doc_generated_code {}
 /// the generated `build()` code will emit a warning via [`tracing`] at runtime telling them
 /// what feature they would need to turn on.
 ///
+/// If an error is more appropriate than a warning, additionally use
+/// [`cfg_reject`].
+///
 /// > Note that you _cannot_ use this along with a regular [`cfg`] attribute,
 /// > since a regular [`cfg`] attribute would suppress the field altogether.
 /// > Therefore, the field will still be present in the configuration struct
@@ -960,7 +963,19 @@ pub mod doc_generated_code {}
 ///      to use an option that is not recognized.
 ///      We may want to provide a variant that produces an error instead. -->
 ///
-/// <div id="fmeta:no_magic">
+/// <div id="fmeta:cfg_reject">
+///
+/// ### `deftly(tor_config(cfg_reject))` — Reject the configuration when a feature is missing.
+///
+/// </div>
+///
+/// Used alongside [`tor_config(cfg)`](#fmeta:cfg); see also that attribute's documentation.
+///
+/// Usually, `tor_config(cfg)` causes a warning if values are provided
+/// for a compiled-out configuration option.
+/// When this attribute is present, then `tor_config(cfg)` causes an error instead.
+///
+/// <div id="fmeta:cfg_desc">
 ///
 /// ### `deftly(tor_config(cfg_desc = "..")))` — Description of when a field is present.
 ///
@@ -982,6 +997,7 @@ pub mod doc_generated_code {}
 /// [`build`]: crate::derive::doc_ref_attrs#fmeta:build
 /// [`Buildable`]: crate::load::Buildable
 /// [`ConfigBuildError`]: crate::ConfigBuildError
+/// [`cfg_reject`]: crate::derive::doc_ref_attrs#fmeta:cfg_reject
 /// [`default =`]: crate::derive::doc_ref_attrs#fmeta:default_equals
 /// [`default`]: crate::derive::doc_ref_attrs#fmeta:default_default
 /// [`extend_with`]: crate::derive::doc_ref_attrs#fmeta:extend_with
@@ -1949,6 +1965,7 @@ define_derive_deftly! {
         ${when fmeta(tor_config(list))}
 
         $E::define_list_builder_helper! {
+            #[doc = ${concat "Builder for the `" $ftype "` type.\n\n"}]
             $SETTER_VIS struct $F_LST_BLD_TYPE {
                 $BLD_FVIS $fname: [
                     $BLD_LIST_ELT_TYPE
@@ -1964,6 +1981,7 @@ define_derive_deftly! {
         ${when fmeta(tor_config(map))}
 
         $E::define_map_builder! {
+            #[doc = ${concat "Builder for the `" $F_MAP_TYPE "` type.\n\n"}]
             $SETTER_VIS struct $F_MAP_BLD_TYPE =>
             $BLD_FVIS type $F_MAP_TYPE = {
                 map: $ftype,
@@ -2224,11 +2242,20 @@ define_derive_deftly! {
                 ${if fmeta(tor_config(cfg)) {
                     #[cfg(not( ${fmeta(tor_config(cfg)) as token_stream} ))]
                     if self.$fname.is_some() {
-                        $E::tracing::warn!(
-                            ${concat "Ignored configuration for '" $fname
-                              "'. This option has no effect unless the program is built "
-                              ${fmeta(tor_config(cfg_desc)) as str} "'"}
-                        )
+                        ${if fmeta(tor_config(cfg_reject)) {
+                            return Err($E::ConfigBuildError::NoCompileTimeSupport {
+                                field: stringify!($fname).to_string(),
+                                problem: ${concat "The program was not built "
+                                    ${fmeta(tor_config(cfg_desc)) as str}
+                                }.to_string()
+                            });
+                        } else {
+                            $E::tracing::warn!(
+                                ${concat "Ignored configuration for '" $fname
+                                "'. This option has no effect unless the program is built "
+                                ${fmeta(tor_config(cfg_desc)) as str} "'"}
+                            )
+                        }}
                     }
                 }}
             )
@@ -2300,21 +2327,33 @@ define_derive_deftly! {
                 ${for fields {
                     ${when not(fmeta(tor_config(skip)))}
 
-                    ${if fmeta(tor_config(extend_with)) {
-                        ${fmeta(tor_config(extend_with)) as expr}(&mut self.$fname, other.$fname, strategy);
-                    } else if fmeta(tor_config(extend_with_replace)) {
-                        if let Some(other_val) = other.$fname {
-                            self.$fname = Some(other_val);
+                    ${if fmeta(tor_config(cfg)) {
+                        // For conditionally present features, it doesn't matter what we put
+                        // in the field, so long as we make it set whenever _either_ config is set.
+                        #[cfg(not( ${fmeta(tor_config(cfg)) as token_stream} ))]
+                        if other.$fname.is_some() {
+                            self.$fname = other.$fname;
                         }
-                    } else if any(fmeta(tor_config(sub_builder)),
-                             fmeta(tor_config(list)),
-                             fmeta(tor_config(map))) {
-                        $E::ExtendBuilder::extend_from(&mut self.$fname, other.$fname, strategy);
-                    } else {
-                        if let Some(other_val) = other.$fname {
-                            self.$fname = Some(other_val);
-                        }
+
+                        #[cfg( ${fmeta(tor_config(cfg)) as token_stream} )]
                     }}
+                    {
+                        ${if fmeta(tor_config(extend_with)) {
+                            ${fmeta(tor_config(extend_with)) as expr}(&mut self.$fname, other.$fname, strategy);
+                        } else if fmeta(tor_config(extend_with_replace)) {
+                            if let Some(other_val) = other.$fname {
+                                self.$fname = Some(other_val);
+                            }
+                        } else if any(fmeta(tor_config(sub_builder)),
+                                fmeta(tor_config(list)),
+                                fmeta(tor_config(map))) {
+                            $E::ExtendBuilder::extend_from(&mut self.$fname, other.$fname, strategy);
+                        } else {
+                            if let Some(other_val) = other.$fname {
+                                self.$fname = Some(other_val);
+                            }
+                        }}
+                    }
                 }}
             }
         }
@@ -2474,6 +2513,14 @@ mod test {
                 cfg_desc = "with eschaton immenentization"
             ))]
             pub(super) flower_power: u32,
+            // MSRV 1.88: Use "true" instead.
+            #[deftly(tor_config(
+                default,
+                cfg = "all()",
+                cfg_reject,
+                cfg_desc = "with eschaton immenentization"
+            ))]
+            pub(super) flower_power_err: u32,
         }
 
         #[derive(Deftly, Clone, Debug, PartialEq)]
@@ -2486,6 +2533,13 @@ mod test {
                 cfg_desc = "with resublimated thiotimoline"
             ))]
             pub(super) time_travel: u32,
+            #[deftly(tor_config(
+                default,
+                cfg = "any()",
+                cfg_reject,
+                cfg_desc = "with resublimated thiotimoline"
+            ))]
+            pub(super) time_travel_err: u32,
         }
 
         #[derive(Deftly, Clone, Debug, PartialEq)]
@@ -2815,10 +2869,12 @@ mod test {
     fn test_cfg_enabled() {
         let s = r#"
         flower_power = 12
+        flower_power_err = 14
         "#;
         let b: t::CfgEnabledBuilder = toml::from_str(s).unwrap();
         let v = b.build().unwrap();
         assert_eq!(v.flower_power, 12);
+        assert_eq!(v.flower_power_err, 14);
         assert!(!logs_contain("no effect"));
     }
 
@@ -2835,6 +2891,13 @@ mod test {
             "Ignored configuration for 'time_travel'. \
             This option has no effect unless the program is built with resublimated thiotimoline"
         ));
+
+        let s = r#"
+        time_travel_err = "hello world"
+        "#;
+        let b: t::CfgDisabledBuilder = toml::from_str(s).unwrap();
+        let e = b.build().unwrap_err();
+        assert_matches!(e, ConfigBuildError::NoCompileTimeSupport { .. });
     }
 
     #[test]

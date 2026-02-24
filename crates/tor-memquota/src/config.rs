@@ -84,6 +84,19 @@ pub struct ConfigBuilder {
     low_water: Option<ExplicitOrAuto<Qty>>,
 }
 
+// NOTE: We derive this manually since the derive_deftly ExtendBuilder macro applies to the
+// _config_ type. :/
+impl tor_config::extend_builder::ExtendBuilder for ConfigBuilder {
+    fn extend_from(&mut self, other: Self, _: tor_config::extend_builder::ExtendStrategy) {
+        if let Some(max) = other.max {
+            self.max = Some(max);
+        }
+        if let Some(low_water) = other.low_water {
+            self.low_water = Some(low_water);
+        }
+    }
+}
+
 /// Configuration, if enabled
 #[derive(Debug, Clone, Eq, PartialEq, Deftly)]
 #[cfg_attr(

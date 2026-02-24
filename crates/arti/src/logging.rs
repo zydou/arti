@@ -1,7 +1,7 @@
 //! Configure tracing subscribers for Arti
 
 use anyhow::{Context, Result, anyhow};
-use derive_builder::Builder;
+use derive_deftly::Deftly;
 use fs_mistrust::Mistrust;
 use serde::{Deserialize, Serialize};
 use std::io::IsTerminal as _;
@@ -10,8 +10,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use tor_basic_utils::PathExt as _;
 use tor_config::ConfigBuildError;
-use tor_config::impl_standard_builder;
-use tor_config::{define_list_builder_accessors, define_list_builder_helper};
+use tor_config::derive::prelude::*;
 use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_error::warn_report;
 use tracing::{Subscriber, error};
@@ -26,12 +25,10 @@ mod otlp_file_exporter;
 mod time;
 
 /// Structure to hold our logging configuration options
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
-#[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr>
@@ -39,52 +36,38 @@ pub(crate) struct LoggingConfig {
     /// You can override this setting with the -l, --log-level command line parameter.
     ///
     /// Example: "info,tor_proto::channel=trace"
-    #[builder(default = "default_console_filter()", setter(into, strip_option))]
+    #[deftly(tor_config(default = "default_console_filter()"))]
     console: Option<String>,
 
     /// Filtering directives for the journald logger.
     ///
     /// Only takes effect if Arti is built with the `journald` filter.
-    #[builder(
-        setter(into),
-        field(build = r#"tor_config::resolve_option(&self.journald, || None)"#)
-    )]
+    #[deftly(tor_config(
+        build = r#"|this: &Self| tor_config::resolve_option(&this.journald, || None)"#
+    ))]
     journald: Option<String>,
 
     /// Configuration for logging spans with OpenTelemetry.
-    #[cfg(feature = "opentelemetry")]
-    #[builder_field_attr(serde(default))]
-    #[builder(default)]
+    #[deftly(tor_config(
+        sub_builder,
+        cfg = r#" feature = "opentelemetry" "#,
+        cfg_desc = "with opentelemetry support"
+    ))]
     opentelemetry: OpentelemetryConfig,
 
-    /// Configuration for opentelemetry (disabled)
-    //
-    // (See comments on crate::cfg::ArtiConfig::rpc for an explanation of this pattern.)
-    #[cfg(not(feature = "opentelemetry"))]
-    #[builder_field_attr(serde(default))]
-    #[builder(field(type = "Option<toml::Value>", build = "()"), private)]
-    opentelemetry: (),
-
     /// Configuration for passing information to tokio-console.
-    #[cfg(feature = "tokio-console")]
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(
+        sub_builder,
+        cfg = r#" feature = "tokio-console" "#,
+        cfg_desc = "with tokio-console support"
+    ))]
     tokio_console: TokioConsoleConfig,
-
-    /// Configuration for tokio-console (disabled)
-    //
-    // (See comments on crate::cfg::ArtiConfig::rpc for an explanation of this pattern.)
-    #[cfg(not(feature = "tokio-console"))]
-    #[builder_field_attr(serde(default))]
-    #[builder(field(type = "Option<toml::Value>", build = "()"), private)]
-    tokio_console: (),
 
     /// Configuration for one or more logfiles.
     ///
     /// The default is not to log to any files.
-    #[builder_field_attr(serde(default))]
-    #[builder(sub_builder(fn_name = "build"), setter(custom))]
-    files: LogfileListConfig,
+    #[deftly(tor_config(list(element(build), listtype = "LogfileList"), default = "vec![]"))]
+    files: Vec<LogfileConfig>,
 
     /// If set to true, we disable safe logging on _all logs_, and store
     /// potentially sensitive information at level `info` or higher.
@@ -97,8 +80,7 @@ pub(crate) struct LoggingConfig {
     // per-log mechanism to turn off unsafe logging. Alternatively, we might do
     // that by extending the filter syntax implemented by `tracing` to have an
     // "unsafe" flag on particular lines.
-    #[builder_field_attr(serde(default))]
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     log_sensitive_information: bool,
 
     /// An approximate granularity with which log times should be displayed.
@@ -110,34 +92,8 @@ pub(crate) struct LoggingConfig {
     /// "2.5s", we may treat it as if you had said "3s."
     ///
     /// The default is "1s", or one second.
-    #[builder(default = "std::time::Duration::new(1,0)")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "std::time::Duration::new(1,0)"))]
     time_granularity: std::time::Duration,
-}
-impl_standard_builder! { LoggingConfig }
-
-impl LoggingConfigBuilder {
-    /// Build the [`LoggingConfig`].
-    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-    pub(crate) fn build(&self) -> Result<LoggingConfig, ConfigBuildError> {
-        let config = self.build_unvalidated()?;
-
-        #[cfg(not(feature = "tokio-console"))]
-        if self.tokio_console.is_some() {
-            tracing::warn!(
-                "tokio-console options were set, but Arti was built without support for tokio-console."
-            );
-        }
-
-        #[cfg(not(feature = "opentelemetry"))]
-        if self.opentelemetry.is_some() {
-            tracing::warn!(
-                "opentelemetry options were set, but Arti was built without support for opentelemetry."
-            );
-        }
-
-        Ok(config)
-    }
 }
 
 /// Return a default tracing filter value for `logging.console`.
@@ -146,40 +102,23 @@ fn default_console_filter() -> Option<String> {
     Some("info".to_owned())
 }
 
-/// Local type alias, mostly helpful for derive_builder to DTRT
-type LogfileListConfig = Vec<LogfileConfig>;
-
-define_list_builder_helper! {
-    struct LogfileListConfigBuilder {
-        files: [LogfileConfigBuilder],
-    }
-    built: LogfileListConfig = files;
-    default = vec![];
-}
-
-define_list_builder_accessors! {
-    struct LoggingConfigBuilder {
-        pub files: [LogfileConfigBuilder],
-    }
-}
-
 /// Configuration information for an (optionally rotating) logfile.
-#[derive(Debug, Builder, Clone, Eq, PartialEq)]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[derive(Debug, Deftly, Clone, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct LogfileConfig {
     /// How often to rotate the file?
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     rotate: LogRotation,
     /// Where to write the files?
+    #[deftly(tor_config(no_default))]
     path: CfgPath,
     /// Filter to apply before writing
+    #[deftly(tor_config(no_default))]
     filter: String,
 }
-
-impl_standard_builder! { LogfileConfig: !Default }
 
 /// How often to rotate a log file
 #[derive(Debug, Default, Clone, Serialize, Deserialize, Copy, Eq, PartialEq)]
@@ -197,83 +136,80 @@ pub(crate) enum LogRotation {
 }
 
 /// Configuration for exporting spans with OpenTelemetry.
-#[derive(Debug, Builder, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[derive(Debug, Deftly, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct OpentelemetryConfig {
     /// Write spans to a file in OTLP JSON format.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     file: Option<OpentelemetryFileExporterConfig>,
     /// Export spans via HTTP.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     http: Option<OpentelemetryHttpExporterConfig>,
 }
-impl_standard_builder! { OpentelemetryConfig }
 
 /// Configuration for the OpenTelemetry HTTP exporter.
-#[derive(Debug, Builder, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[derive(Debug, Deftly, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct OpentelemetryHttpExporterConfig {
     /// HTTP(S) endpoint to send spans to.
     ///
     /// For Jaeger, this should be something like: `http://localhost:4318/v1/traces`
+    #[deftly(tor_config(no_default))]
     endpoint: String,
     /// Configuration for how to batch exports.
-    // TODO: If we can figure out the right macro invocations, this shouldn't need to be a Option.
-    batch: Option<OpentelemetryBatchConfig>,
+    #[deftly(tor_config(sub_builder))]
+    batch: OpentelemetryBatchConfig,
     /// Timeout for sending data.
     ///
     /// If this is set to [`None`], it will be left at the OpenTelemetry default, which is
     /// currently 10 seconds unless overrided with a environment variable.
-    #[serde(default)]
-    #[serde(with = "humantime_serde")]
+    //
+    // NOTE: there is no way to actually override this with None, so we have to say
+    // "no magic" to tell dd(TorConfig) not to worry about that.
+    #[deftly(tor_config(no_magic, default))]
     timeout: Option<Duration>,
     // TODO: Once opentelemetry-otlp supports more than one protocol over HTTP, add a config option
     // to choose protocol here.
 }
-impl_standard_builder! { OpentelemetryHttpExporterConfig: !Default }
 
 /// Configuration for the OpenTelemetry HTTP exporter.
-#[derive(Debug, Builder, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[derive(Debug, Deftly, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct OpentelemetryFileExporterConfig {
     /// The path to write the JSON file to.
+    #[deftly(tor_config(no_default))]
     path: CfgPath,
     /// Configuration for how to batch writes.
-    // TODO: If we can figure out the right macro invocations, this shouldn't need to be a Option.
-    batch: Option<OpentelemetryBatchConfig>,
+    #[deftly(tor_config(sub_builder))]
+    batch: OpentelemetryBatchConfig,
 }
-impl_standard_builder! { OpentelemetryFileExporterConfig: !Default }
 
 /// Configuration for the Opentelemetry batch exporting.
 ///
 /// This is a copy of [`opentelemetry_sdk::trace::BatchConfig`].
-#[derive(Debug, Builder, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[derive(Debug, Deftly, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct OpentelemetryBatchConfig {
     /// Maximum queue size. See [`opentelemetry_sdk::trace::BatchConfig::max_queue_size`].
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     max_queue_size: Option<usize>,
     /// Maximum export batch size. See [`opentelemetry_sdk::trace::BatchConfig::max_export_batch_size`].
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     max_export_batch_size: Option<usize>,
     /// Scheduled delay. See [`opentelemetry_sdk::trace::BatchConfig::scheduled_delay`].
-    #[builder(default)]
-    #[serde(with = "humantime_serde")]
+    #[deftly(tor_config(no_magic, default))]
     scheduled_delay: Option<Duration>,
 }
-impl_standard_builder! { OpentelemetryBatchConfig }
 
 #[cfg(feature = "opentelemetry")]
 impl From<OpentelemetryBatchConfig> for opentelemetry_sdk::trace::BatchConfig {
@@ -303,20 +239,23 @@ impl From<OpentelemetryBatchConfig> for opentelemetry_sdk::trace::BatchConfig {
 }
 
 /// Configuration for logging to the tokio console.
-#[derive(Debug, Builder, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[derive(Debug, Deftly, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive_deftly(TorConfig)]
 #[cfg(feature = "tokio-console")]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct TokioConsoleConfig {
     /// If true, the tokio console subscriber should be enabled.
     ///
     /// This requires that tokio (and hence arti) is built with `--cfg tokio_unstable`
     /// in RUSTFLAGS.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     enabled: bool,
 }
+
+/// Placeholder for unused tokio console config.
+#[cfg(not(feature = "tokio-console"))]
+type TokioConsoleConfig = ();
 
 /// As [`Targets::from_str`], but wrapped in an [`anyhow::Result`].
 //
@@ -407,7 +346,7 @@ where
         let exporter = otlp_file_exporter::FileExporter::new(file, resource.clone());
 
         opentelemetry_sdk::trace::BatchSpanProcessor::builder(exporter)
-            .with_batch_config(otel_file_config.batch.unwrap_or_default().into())
+            .with_batch_config(otel_file_config.batch.into())
             .build()
     } else if let Some(otel_http_config) = &config.opentelemetry.http {
         if otel_http_config.endpoint.starts_with("http://")
@@ -433,7 +372,7 @@ where
         let exporter = exporter.build()?;
 
         opentelemetry_sdk::trace::BatchSpanProcessor::builder(exporter)
-            .with_batch_config(otel_http_config.batch.unwrap_or_default().into())
+            .with_batch_config(otel_http_config.batch.into())
             .build()
     } else {
         return Ok(None);

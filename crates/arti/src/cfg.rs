@@ -2,22 +2,25 @@
 //
 // (This module is called `cfg` to avoid name clash with the `config` crate, which we use.)
 
-use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
+use derive_deftly::Deftly;
 use tor_config_path::CfgPath;
 
 #[cfg(feature = "onion-service-service")]
 use crate::onion_proxy::{
     OnionServiceProxyConfigBuilder, OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder,
 };
-#[cfg(not(feature = "onion-service-service"))]
-use crate::onion_proxy_disabled::{OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder};
 #[cfg(feature = "rpc")]
-pub use crate::rpc::{RpcConfig, RpcConfigBuilder};
+semipublic_use! {
+    use crate::rpc::{
+        RpcConfig, RpcConfigBuilder,
+        listener::{RpcListenerSetConfig, RpcListenerSetConfigBuilder},
+    };
+}
 use arti_client::TorClientConfig;
 #[cfg(feature = "onion-service-service")]
 use tor_config::define_list_builder_accessors;
-pub(crate) use tor_config::{ConfigBuildError, Listen, impl_standard_builder};
+use tor_config::derive::prelude::*;
+pub(crate) use tor_config::{ConfigBuildError, Listen};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
@@ -47,12 +50,19 @@ pub(crate) const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-exampl
 #[cfg(test)]
 const OLDEST_SUPPORTED_CONFIG: &str = concat!(include_str!("./oldest-supported-config.toml"),);
 
+/// Replacement for rpc config when the rpc feature is disabled.
+#[cfg(not(feature = "rpc"))]
+type RpcConfig = ();
+
+/// Replacement for onion service config when the onion service feature is disabled.
+#[cfg(not(feature = "onion-service-service"))]
+type OnionServiceProxyConfigMap = ();
+
 /// Structure to hold our application configuration options
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct ApplicationConfig {
     /// If true, we should watch our configuration files for changes, and reload
     /// our configuration when they change.
@@ -61,7 +71,7 @@ pub(crate) struct ApplicationConfig {
     /// directory holding our configuration files changes its identity (because
     /// an intermediate symlink is changed, because the directory is removed and
     /// recreated, or for some other reason).
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     pub(crate) watch_configuration: bool,
 
     /// If true, we should allow other applications not owned by the system
@@ -73,51 +83,45 @@ pub(crate) struct ApplicationConfig {
     /// This option has no effect when arti is built without the `harden`
     /// feature.  When `harden` is not enabled, debugger attachment is permitted
     /// whether this option is set or not.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     pub(crate) permit_debugging: bool,
 
     /// If true, then we do not exit when we are running as `root`.
     ///
     /// This has no effect on Windows.
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     pub(crate) allow_running_as_root: bool,
 }
-impl_standard_builder! { ApplicationConfig }
 
 /// Configuration for one or more proxy listeners.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[allow(clippy::option_option)] // Builder port fields: Some(None) = specified to disable
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct ProxyConfig {
     /// Addresses to listen on for incoming SOCKS connections.
     //
     // TODO: Once http-connect is non-experimental, we should rename this option in a backward-compatible way.
-    #[builder(default = "Listen::new_localhost(9150)")]
+    #[deftly(tor_config(default = "Listen::new_localhost(9150)"))]
     pub(crate) socks_listen: Listen,
 
     /// Addresses to listen on for incoming DNS connections.
-    #[builder(default = "Listen::new_none()")]
+    #[deftly(tor_config(default = "Listen::new_none()"))]
     pub(crate) dns_listen: Listen,
 }
-impl_standard_builder! { ProxyConfig }
 
 /// Configuration for arti-specific storage locations.
 ///
 /// See also [`arti_client::config::StorageConfig`].
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct ArtiStorageConfig {
     /// A file in which to write information about the ports we're listening on.
-    #[builder(setter(into), default = "default_port_info_file()")]
+    #[deftly(tor_config(setter(into), default = "default_port_info_file()"))]
     pub(crate) port_info_file: CfgPath,
 }
-impl_standard_builder! { ArtiStorageConfig }
 
 /// Return the default ports_info_file location.
 fn default_port_info_file() -> CfgPath {
@@ -137,18 +141,16 @@ fn default_port_info_file() -> CfgPath {
 //  2. tor-memquota's configuration is used by the MemoryQuotaTracker in TorClient
 //  3. File descriptor limits are enforced here in arti because it's done process-global
 //  4. Nevertheless, logically, these things want to be in the same section of the file.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[non_exhaustive]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
+#[non_exhaustive]
 pub(crate) struct SystemConfig {
     /// Maximum number of file descriptors we should launch with
-    #[builder(setter(into), default = "default_max_files()")]
+    #[deftly(tor_config(setter(into), default = "default_max_files()"))]
     pub(crate) max_files: u64,
 }
-impl_standard_builder! { SystemConfig }
 
 /// Return the default maximum number of file descriptors to launch with.
 fn default_max_files() -> u64 {
@@ -169,69 +171,49 @@ fn default_max_files() -> u64 {
 ///
 /// NOTE: These are NOT the final options or their final layout. Expect NO
 /// stability here.
-#[derive(Debug, Builder, Clone, Eq, PartialEq)]
-#[builder(derive(Serialize, Deserialize, Debug))]
-#[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
+#[derive(Debug, Deftly, Clone, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(post_build = "Self::post_build"))]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct ArtiConfig {
     /// Configuration for application behavior.
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     application: ApplicationConfig,
 
     /// Configuration for proxy listeners
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     proxy: ProxyConfig,
 
     /// Logging configuration
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     logging: LoggingConfig,
 
     /// Metrics configuration
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) metrics: MetricsConfig,
 
     /// Configuration for RPC subsystem
-    #[cfg(feature = "rpc")]
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(
+        sub_builder,
+        cfg = r#" feature = "rpc" "#,
+        cfg_desc = "with RPC support"
+    ))]
     pub(crate) rpc: RpcConfig,
-
-    /// Configuration for the RPC subsystem (disabled)
-    //
-    // This set of options allows us to detect and warn
-    // when anything is set under "rpc" in the config.
-    //
-    // The incantations are a bit subtle: we use an Option<toml::Value> in the builder,
-    // to ensure that our configuration will continue to round-trip thorough serde.
-    // We use () in the configuration type, since toml::Value isn't Eq,
-    // and since we don't want to expose whatever spurious options were in the config.
-    // We use builder(private), since using builder(setter(skip))
-    // would (apparently) override the type of the field in builder and make it a PhantomData.
-    #[cfg(not(feature = "rpc"))]
-    #[builder_field_attr(serde(default))]
-    #[builder(field(type = "Option<toml::Value>", build = "()"), private)]
-    rpc: (),
 
     /// Information on system resources used by Arti.
     ///
     /// Note that there are other settings in this section,
     /// in [`arti_client::config::SystemConfig`] -
     /// these two structs overlay here.
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) system: SystemConfig,
 
     /// Information on where things are stored by Arti.
     ///
     /// Note that [`TorClientConfig`] also has a storage configuration;
     /// our configuration logic should merge them correctly.
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) storage: ArtiStorageConfig,
 
     /// Configured list of proxied onion services.
@@ -242,30 +224,28 @@ pub(crate) struct ArtiConfig {
     /// The purpose of this stub type is to give an error if somebody tries to
     /// configure onion services when the `onion-service-service` feature is
     /// disabled.
-    #[builder(sub_builder(fn_name = "build"), setter(custom))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(
+        setter(skip),
+        sub_builder,
+        cfg = r#" feature = "onion-service-service" "#,
+        cfg_reject,
+        cfg_desc = "with onion service support"
+    ))]
     pub(crate) onion_services: OnionServiceProxyConfigMap,
 }
 
-impl_standard_builder! { ArtiConfig }
-
 impl ArtiConfigBuilder {
-    /// Build the [`ArtiConfig`].
-    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-    pub(crate) fn build(&self) -> Result<ArtiConfig, ConfigBuildError> {
+    /// validate the [`ArtiConfig`] after building.
+    #[allow(clippy::unnecessary_wraps)]
+    fn post_build(config: ArtiConfig) -> Result<ArtiConfig, ConfigBuildError> {
         #[cfg_attr(not(feature = "onion-service-service"), allow(unused_mut))]
-        let mut config = self.build_unvalidated()?;
+        let mut config = config;
         #[cfg(feature = "onion-service-service")]
         for svc in config.onion_services.values_mut() {
             // Pass the application-level watch_configuration to each restricted discovery config.
             *svc.svc_cfg
                 .restricted_discovery_mut()
                 .watch_configuration_mut() = config.application.watch_configuration;
-        }
-
-        #[cfg(not(feature = "rpc"))]
-        if self.rpc.is_some() {
-            tracing::warn!("rpc options were set, but Arti was built without support for rpc.");
         }
 
         Ok(config)
@@ -295,26 +275,21 @@ define_list_builder_accessors! {
 pub(crate) type ArtiCombinedConfig = (ArtiConfig, TorClientConfig);
 
 /// Configuration for exporting metrics (eg, perf data)
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct MetricsConfig {
     /// Where to listen for incoming HTTP connections.
-    #[builder(sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     pub(crate) prometheus: PrometheusConfig,
 }
-impl_standard_builder! { MetricsConfig }
 
 /// Configuration for one or more proxy listeners.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[allow(clippy::option_option)] // Builder port fields: Some(None) = specified to disable
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", builder(public))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
 pub(crate) struct PrometheusConfig {
     /// Port on which to establish a Prometheus scrape endpoint
     ///
@@ -324,11 +299,9 @@ pub(crate) struct PrometheusConfig {
     /// Alternatively, (only) a single address and port can be specified.
     /// These restrictions are due to upstream limitations:
     /// <https://github.com/metrics-rs/metrics/issues/567>.
-    #[builder(default)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(default))]
     pub(crate) listen: Listen,
 }
-impl_standard_builder! { PrometheusConfig }
 
 impl ArtiConfig {
     /// Return the [`ApplicationConfig`] for this configuration.
@@ -1427,7 +1400,7 @@ example config file {which:?}, uncommented={uncommented:?}
         }
         #[cfg(not(feature = "onion-service-service"))]
         {
-            expect_err_contains(result.unwrap_err(), "no support for running onion services");
+            expect_err_contains(result.unwrap_err(), "not built with onion service support");
         }
     }
 

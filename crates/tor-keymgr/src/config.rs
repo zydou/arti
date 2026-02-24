@@ -4,12 +4,10 @@ pub use tor_config::{ConfigBuildError, ConfigurationSource, Reconfigure};
 pub use tor_config_path::{CfgPath, CfgPathError};
 
 use amplify::Getters;
-use derive_builder::Builder;
+use derive_deftly::Deftly;
 use serde::{Deserialize, Serialize};
-use tor_config::{
-    BoolOrAuto, ExplicitOrAuto, define_list_builder_helper, impl_not_auto_value,
-    impl_standard_builder,
-};
+use tor_config::derive::prelude::*;
+use tor_config::{BoolOrAuto, ExplicitOrAuto, define_list_builder_helper, impl_not_auto_value};
 use tor_persist::hsnickname::HsNickname;
 
 use std::collections::BTreeMap;
@@ -31,20 +29,16 @@ pub enum ArtiKeystoreKind {
 impl_not_auto_value! {ArtiKeystoreKind}
 
 /// [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize, Getters)]
-#[builder(derive(Serialize, Deserialize, Debug))]
-#[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
-#[non_exhaustive]
-#[builder_struct_attr(non_exhaustive)]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Serialize, Deserialize, Getters)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(pre_build = "Self::validate"))]
 pub struct ArtiKeystoreConfig {
     /// Whether keystore use is enabled.
-    #[builder_field_attr(serde(default))]
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     enabled: BoolOrAuto,
 
     /// The primary keystore.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     primary: PrimaryKeystoreConfig,
 
     /// Optionally configure C Tor keystores for arti to use.
@@ -55,48 +49,41 @@ pub struct ArtiKeystoreConfig {
     ///
     /// Each C Tor keystore **must** have a unique identifier.
     /// It is an error to configure multiple keystores with the same [`KeystoreId`].
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[deftly(tor_config(sub_builder))]
     ctor: CTorKeystoreConfig,
 }
 
 /// [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize, Getters)]
-#[builder(derive(Serialize, Deserialize, Debug))]
-#[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
-#[non_exhaustive]
-#[builder_struct_attr(non_exhaustive)]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Serialize, Deserialize, Getters)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(pre_build = "Self::validate"))]
 pub struct CTorKeystoreConfig {
     /// C Tor hidden service keystores.
-    #[builder(default, sub_builder(fn_name = "build"), setter(custom))]
-    #[builder_field_attr(serde(default))]
+    //
+    // NOTE: This could become a map builder, but it would change the API.
+    #[deftly(tor_config(sub_builder))]
     services: CTorServiceKeystoreConfigMap,
 
     /// C Tor hidden service client keystores.
-    #[builder(default, sub_builder(fn_name = "build"))]
-    #[builder_field_attr(serde(default))]
+    //
+    // NOTE: This could become a list builder, but it would change the API.
+    #[deftly(tor_config(no_magic, sub_builder))]
     clients: CTorClientKeystoreConfigList,
 }
 
 /// Primary [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize)]
-#[builder(derive(Serialize, Deserialize, Debug))]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[non_exhaustive]
-#[builder_struct_attr(non_exhaustive)]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Serialize, Deserialize)]
+#[derive_deftly(TorConfig)]
 pub struct PrimaryKeystoreConfig {
     /// The type of keystore to use, or none at all.
-    #[builder_field_attr(serde(default))]
-    #[builder(default)]
+    #[deftly(tor_config(default))]
     kind: ExplicitOrAuto<ArtiKeystoreKind>,
 }
 
 /// C Tor [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize, Getters)]
-#[builder(derive(Serialize, Deserialize, Debug))]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[non_exhaustive]
-#[builder_struct_attr(non_exhaustive)]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Serialize, Deserialize, Getters)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 pub struct CTorServiceKeystoreConfig {
     /// The identifier of this keystore.
     ///
@@ -106,6 +93,7 @@ pub struct CTorServiceKeystoreConfig {
     ///     with the same [`KeystoreId`].
     ///   * have a corresponding arti hidden service configured in the
     ///     `[onion_services]` section with the same nickname
+    #[deftly(tor_config(no_default))]
     id: KeystoreId,
 
     /// The root directory of this keystore.
@@ -115,9 +103,11 @@ pub struct CTorServiceKeystoreConfig {
     /// (Note: if your service is running in restricted discovery mode, you must also set the
     /// `[[onion_services."<the nickname of your svc>".restricted_discovery.key_dirs]]`
     /// to `HiddenServiceDirectory/client_keys`).
+    #[deftly(tor_config(no_default))]
     path: PathBuf,
 
     /// The nickname of the service this keystore is to be used with.
+    #[deftly(tor_config(no_default))]
     nickname: HsNickname,
 }
 
@@ -220,16 +210,15 @@ fn build_ctor_service_list(
 }
 
 /// C Tor [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize, Getters)]
-#[builder(derive(Serialize, Deserialize, Debug))]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[non_exhaustive]
-#[builder_struct_attr(non_exhaustive)]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Serialize, Deserialize, Getters)]
+#[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 pub struct CTorClientKeystoreConfig {
     /// The identifier of this keystore.
     ///
     /// Each keystore **must** have a unique identifier.
     /// It is an error to configure multiple keystores with the same [`KeystoreId`].
+    #[deftly(tor_config(no_default))]
     id: KeystoreId,
 
     /// The root directory of this keystore.
@@ -243,6 +232,7 @@ pub struct CTorClientKeystoreConfig {
     /// `<56-char-onion-addr-without-.onion-part>:descriptor:x25519:<x25519 private key in base32>`.
     ///
     /// Malformed files, and files that don't have the `.auth_private` extension, will be ignored.
+    #[deftly(tor_config(no_default))]
     path: PathBuf,
 }
 
@@ -312,8 +302,6 @@ impl ArtiKeystoreConfig {
     }
 }
 
-impl_standard_builder! { ArtiKeystoreConfig }
-
 impl ArtiKeystoreConfigBuilder {
     /// Check that the keystore configuration is valid
     #[cfg(not(feature = "keymgr"))]
@@ -321,6 +309,7 @@ impl ArtiKeystoreConfigBuilder {
     fn validate(&self) -> Result<(), ConfigBuildError> {
         use BoolOrAuto as BoA;
         use ExplicitOrAuto as EoA;
+        // NOTE: This could use #[deftly(tor_config(cfg))], but that would change the behavior a little.
 
         // Keystore support is disabled unless the `keymgr` feature is enabled.
         if self.enabled == Some(BoA::Explicit(true)) {

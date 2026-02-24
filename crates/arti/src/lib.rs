@@ -52,9 +52,6 @@
 #![allow(clippy::print_stderr)]
 #![allow(clippy::print_stdout)]
 
-#[cfg(not(feature = "onion-service-service"))]
-mod onion_proxy_disabled;
-
 mod subcommands;
 
 /// Helper:
@@ -71,11 +68,12 @@ macro_rules! semipublic_mod {
         )*
     }  => {
         $(
-            $( #[$meta])*
             cfg_if::cfg_if! {
                 if #[cfg(feature="experimental-api")] {
+                   $( #[$meta])*
                    pub mod $name;
                 } else {
+                   $( #[$meta])*
                    $dflt_vis mod $name;
                 }
             }
@@ -112,8 +110,20 @@ semipublic_mod! {
     mod reload_cfg;
     mod proxy;
 }
-#[cfg_attr(not(feature = "rpc"), path = "rpc_stub.rs")]
-mod rpc;
+
+cfg_if::cfg_if! {
+    if #[cfg(all(feature="experimental-api", feature="rpc"))] {
+        pub mod rpc;
+    } else if #[cfg(all(feature="experimental-api", not(feature="rpc")))] {
+        #[path = "rpc_stub.rs"]
+        pub mod rpc;
+    } else if #[cfg(feature = "rpc")] {
+        mod rpc;
+    } else {
+        #[path = "rpc_stub.rs"]
+        mod rpc;
+    }
+}
 
 use std::ffi::OsString;
 use std::fmt::Write;
