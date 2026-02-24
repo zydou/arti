@@ -16,13 +16,13 @@ use safelog::Sensitive;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
-use tor_cert::EncodedEd25519Cert;
-use tor_linkspec::OwnedChanTarget;
 
 use tor_cell::chancell::msg;
+use tor_cert::EncodedEd25519Cert;
 use tor_cert::rsa::EncodedRsaCrosscert;
 use tor_cert::x509::TlsKeyAndCert;
 use tor_error::internal;
+use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIdRef, RelayIdType};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{
     ed25519::{Ed25519Identity, Ed25519SigningKey},
@@ -111,6 +111,16 @@ impl RelayIdentities {
     /// Return the digest of the RSA x509 certificate (CertType 2) as bytes.
     pub(crate) fn rsa_x509_digest(&self) -> [u8; 32] {
         ll::d::Sha256::digest(&self.cert_id_x509_rsa).into()
+    }
+}
+
+impl HasRelayIds for RelayIdentities {
+    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
+        match key_type {
+            RelayIdType::Ed25519 => Some(RelayIdRef::from(&self.ed_id)),
+            RelayIdType::Rsa => Some(RelayIdRef::from(&self.rsa_id)),
+            _ => None, // Non-exhaustive...
+        }
     }
 }
 
