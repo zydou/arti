@@ -101,6 +101,17 @@ where
         Ok(builder)
     }
 
+    /// Build a new `ChanBuilder` with the given `identities`, cloning our runtime and transport.
+    ///
+    /// This is needed because the relay identities rotate over time.
+    #[cfg(feature = "relay")]
+    pub fn rebuild_with_identities(&self, identities: Arc<RelayIdentities>) -> crate::Result<Self>
+    where
+        H: Clone,
+    {
+        Self::new_relay(self.runtime.clone(), self.transport.clone(), identities)
+    }
+
     /// Return the outbound channel type of this config.
     ///
     /// The channel type is used when creating outbound channels. Relays always initiate channels

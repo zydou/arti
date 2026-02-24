@@ -7,6 +7,7 @@ use std::{
 };
 use tor_basic_utils::rand_hostname;
 use tor_cert::x509::TlsKeyAndCert;
+use tor_chanmgr::ChanMgr;
 use tor_proto::RelayIdentities;
 
 use tor_key_forge::ToEncodableCert;
@@ -119,11 +120,13 @@ where
 ///
 /// Rotation is done by listing all keys matching the key specifier pattern and validting the
 /// valid_until value of the key store entry. If expired, the key is removed from the key manager.
-fn rotate_key<K>(keymgr: &KeyMgr) -> anyhow::Result<()>
+fn rotate_key<K>(keymgr: &KeyMgr) -> anyhow::Result<bool>
 where
     K: RotatableKeySpec + ToEncodableKey,
     <K as ToEncodableKey>::Key: Keygen,
 {
+    // Indicate if the key was rotated.
+    let mut have_rotated = false;
     // Select all signing keypair in the keystore because we need to inspect the valid_until
     // field and rotate if expired.
     let key_entries = keymgr.list_matching(&K::Pattern::new_any().arti_pattern()?)?;
@@ -132,7 +135,7 @@ where
 
     if key_entries.is_empty() {
         generate_key::<K>(keymgr, &key_specifier)?;
-        return Ok(());
+        return Ok(true);
     }
 
     for key in key_entries {
@@ -149,19 +152,20 @@ where
             );
             keymgr.remove_entry(&key)?;
             generate_key::<K>(keymgr, &key_specifier)?;
+            have_rotated = true;
         };
     }
 
-    Ok(())
+    Ok(have_rotated)
 }
 
 /// Attempt to rotate all rotatable keys.
-fn try_rotate_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
+fn try_rotate_keys(keymgr: &KeyMgr) -> anyhow::Result<bool> {
     // Attempt to rotate the KP_relaysign_ed.
-    rotate_key::<RelaySigningKeypair>(keymgr)?;
+    let mut have_rotated = rotate_key::<RelaySigningKeypair>(keymgr)?;
     // Attempt to rotate the KP_link_ed.
-    rotate_key::<RelayLinkSigningKeypair>(keymgr)?;
-    Ok(())
+    have_rotated |= rotate_key::<RelayLinkSigningKeypair>(keymgr)?;
+    Ok(have_rotated)
 }
 
 /// Build a fresh [`RelayIdentities`] object using a [`KeyMgr`].
@@ -281,10 +285,16 @@ pub(crate) fn try_generate_keys(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentiti
 pub(crate) async fn rotate_keys_task<R: Runtime>(
     runtime: R,
     keymgr: Arc<KeyMgr>,
+    chanmgr: Arc<ChanMgr<R>>,
 ) -> anyhow::Result<void::Void> {
     loop {
         // Attempt a rotation of all keys.
-        try_rotate_keys(&keymgr)?;
+        if try_rotate_keys(&keymgr)? {
+            let ids = build_proto_identities(&keymgr)?;
+            chanmgr
+                .set_relay_identities(Arc::new(ids))
+                .context("Failed to set relay identities on ChanMgr")?;
+        }
 
         // Wake up every minute.
         let next_wake = SystemTime::now() + KEY_ROTATION_SLEEP_DURATION;

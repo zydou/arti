@@ -399,6 +399,23 @@ impl<R: Runtime> ChanMgr<R> {
         self.mgr.with_mut_builder(|f| f.replace_ptmgr(ptmgr));
     }
 
+    /// Replace the relay identities used for building new channels.
+    ///
+    /// This rebuilds the internal channel builder with the provided `identities`, which includes a
+    /// new TLS cert and key. Existing channels are not affected, only newly created channels will
+    /// use the new identities.
+    #[cfg(feature = "relay")]
+    pub fn set_relay_identities(&self, identities: Arc<tor_proto::RelayIdentities>) -> Result<()> {
+        let mut result = Ok(());
+        self.mgr.with_mut_builder(|f| {
+            match f.default_factory().rebuild_with_identities(identities) {
+                Ok(b) => f.replace_default_factory(Arc::new(b)),
+                Err(e) => result = Err(e),
+            }
+        });
+        result
+    }
+
     /// Try to create a new, unmanaged channel to `target`.
     ///
     /// Unlike [`get_or_launch`](ChanMgr::get_or_launch), this function always
