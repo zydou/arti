@@ -246,4 +246,16 @@ impl<CF: ChannelFactory + 'static> CompoundFactory<CF> {
     pub(crate) fn replace_ptmgr(&mut self, ptmgr: Arc<dyn AbstractPtMgr + 'static>) {
         self.ptmgr = Some(ptmgr);
     }
+
+    /// Return a reference to the default channel factory.
+    #[cfg(feature = "relay")]
+    pub(crate) fn default_factory(&self) -> &CF {
+        &self.default_factory
+    }
+
+    /// Replace the default channel factory.
+    #[cfg(feature = "relay")]
+    pub(crate) fn replace_default_factory(&mut self, factory: Arc<CF>) {
+        self.default_factory = factory;
+    }
 }

@@ -366,7 +366,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     /// # Deadlock
     ///
     /// Calling a method on [`MgrState`] from within `func` may cause a deadlock.
-    #[allow(dead_code)]
+    #[allow(unused)]
     pub(crate) fn with_mut_builder<F>(&self, func: F)
     where
         F: FnOnce(&mut C),
