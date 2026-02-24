@@ -14,7 +14,7 @@ setupdir () {
 case "$1" in
 	configure)
 		# checking _arti account
-		pwent=$(getent passwd _arti)
+		pwent=$(getent passwd _arti ||:)
 		uid=$(echo "$pwent" | cut -d ":" -f 3)
 		home=$(echo "$pwent" | cut -d ":" -f 6)
 
