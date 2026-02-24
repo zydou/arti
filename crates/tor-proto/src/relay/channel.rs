@@ -300,7 +300,7 @@ impl ChannelAuthenticationData {
             .ok_or(Error::BadCellAuth)?;
         // The ordering matter based on if initiator or responder.
         let cid = identities.rsa_x509_digest();
-        let sid = verified.rsa_id_cert_digest.1;
+        let sid = verified.rsa_cert_digest;
         let cid_ed = identities.ed_id_bytes();
         let sid_ed = verified.ed25519_id.into();
         // Both values are consumed from the underlying codec.

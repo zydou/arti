@@ -261,8 +261,10 @@ pub(crate) struct VerifiedChannel<
     pub(crate) unique_id: UniqId,
     /// Validated Ed25519 identity for this peer.
     pub(crate) ed25519_id: Ed25519Identity,
-    /// Validated RSA identity and cert digets for this peer.
-    pub(crate) rsa_id_cert_digest: (RsaIdentity, [u8; 32]),
+    /// Validated RSA identity for this peer.
+    pub(crate) rsa_id: RsaIdentity,
+    /// Validated RSA cert digest for this peer.
+    pub(crate) rsa_cert_digest: [u8; 32],
     /// Peer TLS certificate digest
     pub(crate) peer_cert_digest: [u8; 32],
     /// Authenticated clock skew for this peer.
@@ -512,7 +514,8 @@ impl<
             unique_id: self.unique_id,
             target_method: self.target_method,
             ed25519_id: *identity_key,
-            rsa_id_cert_digest: (rsa_id, *rsa_cert.digest()),
+            rsa_id,
+            rsa_cert_digest: *rsa_cert.digest(),
             peer_cert_digest,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
@@ -636,7 +639,7 @@ impl<
         debug!(
             stream_id = %self.unique_id,
             "Completed handshake with {:?} [{:?}]",
-            self.ed25519_id, self.rsa_id_cert_digest
+            self.ed25519_id, (self.rsa_id, self.rsa_cert_digest),
         );
 
         // Grab a new handle on which we can apply StreamOps (needed for KIST).
@@ -651,7 +654,7 @@ impl<
         // Build the peer info of this channel.
         let mut relay_ids_builder = RelayIdsBuilder::default();
         relay_ids_builder.ed_identity(self.ed25519_id);
-        relay_ids_builder.rsa_identity(self.rsa_id_cert_digest.0);
+        relay_ids_builder.rsa_identity(self.rsa_id);
         let netinfo_addr = peer_addr.netinfo_addr();
         let peer_sockaddr = peer_addr.socket_addr();
         // Keep a dup here so we can put it in the OwnedChanTargetBuilder below.
@@ -1229,7 +1232,8 @@ pub(super) mod test {
                 unique_id: UniqId::new(),
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
                 ed25519_id,
-                rsa_id_cert_digest: (rsa_id, [0; 32]),
+                rsa_id,
+                rsa_cert_digest: [0; 32],
                 peer_cert_digest: [0; 32],
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,
