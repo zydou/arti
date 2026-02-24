@@ -112,6 +112,10 @@ pub struct ChanMgrConfig {
     /// Relay identities needed for relay channels.
     #[cfg(feature = "relay")]
     pub(crate) identities: Option<Arc<RelayIdentities>>,
+    /// Our address(es). When building outgoing channel, we need our addresses in order to send
+    /// them in the NETINFO cell.
+    #[cfg(feature = "relay")]
+    pub(crate) my_addrs: Vec<IpAddr>,
     // TODO: Would be good to add more things such as NetParameters and Dormancy maybe?
 }
 
@@ -122,6 +126,8 @@ impl ChanMgrConfig {
             cfg,
             #[cfg(feature = "relay")]
             identities: None,
+            #[cfg(feature = "relay")]
+            my_addrs: Vec::new(),
         }
     }
 
@@ -129,6 +135,13 @@ impl ChanMgrConfig {
     #[cfg(feature = "relay")]
     pub fn with_identities(mut self, ids: Arc<RelayIdentities>) -> Self {
         self.identities = Some(ids);
+        self
+    }
+
+    /// Set our addresses that we advertise to the world.
+    #[cfg(feature = "relay")]
+    pub fn with_my_addrs(mut self, my_addrs: Vec<IpAddr>) -> Self {
+        self.my_addrs = my_addrs;
         self
     }
 }
