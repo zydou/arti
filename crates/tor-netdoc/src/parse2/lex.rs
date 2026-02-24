@@ -137,12 +137,12 @@ impl<'s> ItemStream<'s> {
         })
     }
 
-    /// Line number for reporting an error we have just discovered
+    /// Current line number of the [`ItemStream`], useful for error reporting.
     ///
     /// If we have recent peeked, we report the line number of the peeked keyword line.
     ///
     /// Otherwise, we report the line number of the most-recently yielded item.
-    pub fn lno_for_error(&self) -> usize {
+    pub fn lno(&self) -> usize {
         match self.peeked {
             PeekState::Some { .. } => {
                 // The error was presumably caused by whatever was seen in the peek.
