@@ -185,7 +185,6 @@ where
     async fn accept_from_transport(
         &self,
         peer: Sensitive<std::net::SocketAddr>,
-        my_addrs: Vec<IpAddr>,
         stream: Self::Stream,
         memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
@@ -242,7 +241,7 @@ where
         let unverified = builder
             .accept(
                 peer,
-                my_addrs,
+                self.my_addrs.clone(),
                 tls,
                 self.runtime.clone(),
                 identities,

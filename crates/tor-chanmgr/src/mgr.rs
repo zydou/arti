@@ -98,7 +98,6 @@ pub(crate) trait AbstractChannelFactory {
     async fn build_channel_using_incoming(
         &self,
         peer: Sensitive<std::net::SocketAddr>,
-        my_addrs: Vec<IpAddr>,
         stream: Self::Stream,
         memquota: ChannelAccount,
     ) -> Result<Arc<Self::Channel>>;
@@ -214,13 +213,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     pub(crate) async fn handle_incoming(
         &self,
         src: Sensitive<std::net::SocketAddr>,
-        my_addrs: Vec<IpAddr>,
         stream: CF::Stream,
     ) -> Result<Arc<CF::Channel>> {
         let chan_builder = self.channels.builder();
         let memquota = ChannelAccount::new(&self.memquota)?;
         let channel = chan_builder
-            .build_channel_using_incoming(src, my_addrs, stream, memquota)
+            .build_channel_using_incoming(src, stream, memquota)
             .await?;
         // Add it to our list.
         self.channels.add_open(channel.clone())?;
@@ -679,7 +677,6 @@ mod test {
         async fn build_channel_using_incoming(
             &self,
             _peer: Sensitive<std::net::SocketAddr>,
-            _my_addrs: Vec<IpAddr>,
             _stream: Self::Stream,
             _memquota: ChannelAccount,
         ) -> Result<Arc<Self::Channel>> {
