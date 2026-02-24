@@ -638,8 +638,8 @@ impl<
 
         debug!(
             stream_id = %self.unique_id,
-            "Completed handshake with {:?} [{:?}]",
-            self.ed25519_id, (self.rsa_id, self.rsa_cert_digest),
+            "Completed handshake with ed25519:{} [{}]",
+            self.ed25519_id, self.rsa_id,
         );
 
         // Grab a new handle on which we can apply StreamOps (needed for KIST).
