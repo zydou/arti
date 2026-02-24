@@ -103,9 +103,10 @@ where
     let mut rng = tor_llcrypto::rng::CautiousRng;
 
     match keymgr.generate::<K>(spec, KeystoreSelector::default(), &mut rng, false) {
+        Ok(_) => {}
         // Key already existing can happen due to wall clock strangeness,
         // so simply ignore it.
-        Ok(_) | Err(tor_keymgr::Error::KeyAlreadyExists) => tracing::warn!(
+        Err(tor_keymgr::Error::KeyAlreadyExists) => tracing::warn!(
             "Failed to generate key at {:?} because one already exists. Clock drift?",
             spec.arti_path(),
         ),
