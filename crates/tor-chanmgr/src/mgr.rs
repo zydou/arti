@@ -98,7 +98,6 @@ pub(crate) trait AbstractChannelFactory {
     async fn build_channel_using_incoming(
         &self,
         peer: Sensitive<std::net::SocketAddr>,
-        my_addrs: Vec<IpAddr>,
         stream: Self::Stream,
         memquota: ChannelAccount,
     ) -> Result<Arc<Self::Channel>>;
@@ -112,6 +111,10 @@ pub struct ChanMgrConfig {
     /// Relay identities needed for relay channels.
     #[cfg(feature = "relay")]
     pub(crate) identities: Option<Arc<RelayIdentities>>,
+    /// Our address(es). When building outgoing channel, we need our addresses in order to send
+    /// them in the NETINFO cell.
+    #[cfg(feature = "relay")]
+    pub(crate) my_addrs: Vec<IpAddr>,
     // TODO: Would be good to add more things such as NetParameters and Dormancy maybe?
 }
 
@@ -122,6 +125,8 @@ impl ChanMgrConfig {
             cfg,
             #[cfg(feature = "relay")]
             identities: None,
+            #[cfg(feature = "relay")]
+            my_addrs: Vec::new(),
         }
     }
 
@@ -129,6 +134,13 @@ impl ChanMgrConfig {
     #[cfg(feature = "relay")]
     pub fn with_identities(mut self, ids: Arc<RelayIdentities>) -> Self {
         self.identities = Some(ids);
+        self
+    }
+
+    /// Set our addresses that we advertise to the world.
+    #[cfg(feature = "relay")]
+    pub fn with_my_addrs(mut self, my_addrs: Vec<IpAddr>) -> Self {
+        self.my_addrs = my_addrs;
         self
     }
 }
@@ -201,13 +213,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     pub(crate) async fn handle_incoming(
         &self,
         src: Sensitive<std::net::SocketAddr>,
-        my_addrs: Vec<IpAddr>,
         stream: CF::Stream,
     ) -> Result<Arc<CF::Channel>> {
         let chan_builder = self.channels.builder();
         let memquota = ChannelAccount::new(&self.memquota)?;
         let channel = chan_builder
-            .build_channel_using_incoming(src, my_addrs, stream, memquota)
+            .build_channel_using_incoming(src, stream, memquota)
             .await?;
         // Add it to our list.
         self.channels.add_open(channel.clone())?;
@@ -666,7 +677,6 @@ mod test {
         async fn build_channel_using_incoming(
             &self,
             _peer: Sensitive<std::net::SocketAddr>,
-            _my_addrs: Vec<IpAddr>,
             _stream: Self::Stream,
             _memquota: ChannelAccount,
         ) -> Result<Arc<Self::Channel>> {
