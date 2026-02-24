@@ -59,6 +59,25 @@ pub struct ParseError {
     pub column: Option<usize>,
 }
 
+impl ParseError {
+    /// Constructs a new [`ParseError`].
+    pub fn new(
+        problem: ErrorProblem,
+        doctype: &'static str,
+        file: &str,
+        lno: usize,
+        column: Option<usize>,
+    ) -> Self {
+        Self {
+            problem,
+            doctype,
+            file: file.to_owned(),
+            lno,
+            column,
+        }
+    }
+}
+
 /// Problem found when parsing a document
 ///
 /// Just the nature of the problem, including possibly which field or argument
