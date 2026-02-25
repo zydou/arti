@@ -2,13 +2,13 @@
 
 use crate::mgr::AbstractChannel;
 use crate::mgr::state::{ChannelState, OpenEntry, PendingEntry};
-use tor_linkspec::{HasAddrs, HasRelayIds, RelayIds};
+use tor_linkspec::{HasChanMethod, HasRelayIds, RelayIds};
 
 /// Returns `true` if the open channel is allowed to be used for a new channel request to the
 /// target.
 pub(crate) fn open_channel_is_allowed<C: AbstractChannel>(
     chan: &OpenEntry<C>,
-    target: &(impl HasRelayIds + HasAddrs),
+    target: &(impl HasRelayIds + HasChanMethod),
 ) -> bool {
     Some(chan)
         // only usable channels
@@ -33,7 +33,7 @@ pub(crate) fn open_channel_is_allowed<C: AbstractChannel>(
 /// using it.
 pub(crate) fn pending_channel_maybe_allowed(
     chan: &PendingEntry,
-    target: &(impl HasRelayIds + HasAddrs),
+    target: &(impl HasRelayIds + HasChanMethod),
 ) -> bool {
     /// An empty [`RelayIds`].
     const EMPTY_IDS: RelayIds = RelayIds::empty();
@@ -113,7 +113,7 @@ pub(crate) fn pending_channel_maybe_allowed(
 #[allow(clippy::only_used_in_recursion)]
 pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
     channels: impl IntoIterator<Item = &'a ChannelState<C>>,
-    target: &(impl HasRelayIds + HasAddrs),
+    target: &(impl HasRelayIds + HasChanMethod),
 ) -> Option<&'a ChannelState<C>> {
     use ChannelState::*;
     use std::cmp::Ordering;
@@ -124,7 +124,7 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
     fn choose_channel<C: AbstractChannel>(
         a: &&ChannelState<C>,
         b: &&ChannelState<C>,
-        target: &(impl HasRelayIds + HasAddrs),
+        target: &(impl HasRelayIds + HasChanMethod),
     ) -> Choice {
         // TODO: follow `channel_is_better` in C tor
         match (a, b) {
@@ -248,6 +248,7 @@ mod test {
     use std::sync::Arc;
     use std::time::Duration;
 
+    use tor_linkspec::ChannelMethod;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_proto::channel::ChannelPaddingInstructionsUpdates;
@@ -317,9 +318,9 @@ mod test {
         }
     }
 
-    impl HasAddrs for FakeBuildSpec {
-        fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
-            self.addrs.iter().cloned()
+    impl HasChanMethod for FakeBuildSpec {
+        fn chan_method(&self) -> ChannelMethod {
+            ChannelMethod::Direct(self.addrs.clone())
         }
     }
 
