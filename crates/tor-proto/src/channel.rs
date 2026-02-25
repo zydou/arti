@@ -556,7 +556,11 @@ impl Channel {
         S: CoarseTimeProvider + SleepProvider,
     {
         use circmap::{CircIdRange, CircMap};
-        let circmap = CircMap::new(CircIdRange::High);
+        let circid_range = match channel_type {
+            ChannelType::RelayResponder { .. } => CircIdRange::Low,
+            ChannelType::ClientInitiator | ChannelType::RelayInitiator => CircIdRange::High,
+        };
+        let circmap = CircMap::new(circid_range);
         let dyn_time = DynTimeProvider::new(sleep_prov.clone());
 
         let (control_tx, control_rx) = mpsc::unbounded();
