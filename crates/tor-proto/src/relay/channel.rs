@@ -300,19 +300,9 @@ impl ChannelAuthenticationData {
             .ok_or(Error::BadCellAuth)?;
         // The ordering matter based on if initiator or responder.
         let cid = identities.rsa_x509_digest();
-        let sid = verified
-            .rsa_id_cert_digest
-            .ok_or(Error::from(internal!(
-                "Verified channel without a RSA identity"
-            )))?
-            .1;
+        let sid = verified.rsa_cert_digest;
         let cid_ed = identities.ed_id_bytes();
-        let sid_ed = verified
-            .ed25519_id
-            .ok_or(Error::from(internal!(
-                "Verified channel without an ed25519 identity"
-            )))?
-            .into();
+        let sid_ed = verified.ed25519_id.into();
         // Both values are consumed from the underlying codec.
         let clog = verified.framed_tls.codec_mut().get_clog_digest()?;
         let slog = verified.framed_tls.codec_mut().get_slog_digest()?;
