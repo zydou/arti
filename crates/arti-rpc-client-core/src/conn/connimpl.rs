@@ -7,6 +7,70 @@
 //! NOTE that many of the types and fields here have documented invariants.
 //! Except if noted otherwise, these invariants only hold when nobody
 //! is holding the lock on [`RequestState`].
+//!
+//! # Overview
+//!
+//! Each connection supports both:
+//!  - requests that the caller will block on (a Waitable request)
+//1  - requests that the caller will poll for (a Pollable request).
+//!
+//! ## Identifying requests
+//!
+//! Each request has a corresponding value of a type that implements QueueId
+//! to identify which queue responses for the request should go into.
+//!
+//! - Waitable requests have [`AnyRequestId`]. which implements [`QueueId`]
+//! - Pollable requests have [`PolledRequests`], a ZST that implements `QueueId``
+//!
+//! (Requests themselves all have an [`AnyRequestId`]` --
+//! the actual ID that we send out in the request,
+//! which the RPC server sends back in all responses.
+//! Additionally, Pollable requests are created with a client-defined [`RequestTag`],
+//! which the client can use to identify their particular requests.
+//! `RequestTag` is a separate type to help FFI-style programs
+//! that want to put things like pointers in it.)
+//!
+//! # Data structure
+//!
+//! The connection has
+//!   - an outbound queue for outbound messages, in its [`PollingStream`].
+//!   - [`RequestMap`], a data structure containing outstanding requests,
+//!     which is used for knowing what to do with inbound messages
+//!
+//! If the request is Waitable,
+//! its `RequestMap` entry is [`RequestState::Waiting`], and contains its own [`ResponseQueue`].
+//!
+//! If the request is Pollable,
+//! its `RequestMap` entry is [`RequestState::Pollable`],
+//! and contains the Tag that the application will use
+//! to distinguish responses ot that request.
+//! All responses to _all_ Pollable requests
+//! are queued within `RequestMap::polled_response_queue`.
+//!
+//! # Operation
+//!
+//! When we make a request, we add an entry to the `RequestMap::map`.
+//! The entry stays there until we receive a final response to the request.
+//!
+//! At any given time,
+//! multiple threads can be waiting for responses on the same RpcConn object.
+//! Exactly of them will actually be holding the [`PollingStream`]
+//! and trying to read from the network.
+//!
+//! There are two kinds of queue:
+//! A per-request queue used by Waitable requests, and a single queue shared by all Polled requests.
+//! Every queue has its  own associated condvar.
+//!
+//! The two kinds of queue are slightly different.
+//! (We represent their differences with the QueueId trait):
+//!     - Pollable responses need to carry a `RequestTag``;
+//!       Waitable responses don't. This is [`QueueId::Tag`].
+//!     - We need to treat final responses a bit differently
+//!       in terms of how we find what to remove.
+//!       This is [`QueueId::remove_entry`].
+//!     - If we're holding the connection and waiting for responses on a given queue,
+//!       we need to answer the "is this for us?" question a little differently.
+//!       This is [`QueueId::response_disposition`]`.
 
 use std::{
     collections::{HashMap, VecDeque},
