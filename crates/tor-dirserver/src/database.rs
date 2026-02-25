@@ -89,6 +89,25 @@ PRAGMA busy_timeout=1000;
 );
 
 /// Convience macro for implementing a hash type in a rusqlite compatible fashion.
+///
+/// This macro accepts the following parameters:
+/// 1. `name` for specifying an identifier of the type, such as [`Sha256`].
+/// 2. `algo` for specifying the type from the rust-crypto [`digest`] ecosystem,
+///    such as [`sha2::Sha256`].
+/// 3. The size in bytes of the hash output, such as `32` for [`Sha256`].
+///     * Unfortunately, we cannot use something like [`Digest::output_size()`]
+///       because it is not a constant.
+///
+/// It generates a struct with `name` as the identifier, which implements the
+/// following methods:
+/// * `digest` for wrapping around [`Digest::digest()`].
+///
+/// It also implements the following traits:
+/// * [`Display`]
+/// * [`FromSql`]
+/// * [`ToSql`]
+/// * [`PartialEq<&str>`] for base16 comparisons
+/// * [`From<u8; $size>`] but only in tests
 macro_rules! impl_hash_wrapper {
     ($name:ident, $algo:ty, $size:literal) => {
         /// Database wrapper type.
