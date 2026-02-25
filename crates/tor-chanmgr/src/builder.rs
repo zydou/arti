@@ -195,6 +195,8 @@ where
             .addrs(vec![peer.into_inner()])
             .build()
             .map_err(|e| internal!("Unable to build chan target from peer sockaddr: {e}"))?;
+        // Convert into a PeerAddr but keep it sensitive, this can be a client/bridge.
+        let peer_addr: Sensitive<PeerAddr> = Sensitive::new(peer.into_inner().into());
 
         // Helpers: For error mapping.
         let map_ioe = |ioe, action| Error::Io {
@@ -240,7 +242,7 @@ where
 
         let unverified = builder
             .accept(
-                peer,
+                peer_addr,
                 self.my_addrs.clone(),
                 tls,
                 self.runtime.clone(),
@@ -372,6 +374,9 @@ where
                 // Get the client specific channel builder.
                 let mut builder = tor_proto::ClientChannelBuilder::new();
                 builder.set_declared_method(target.chan_method());
+                // Becasue we can be connecting to a bridge, we'll consider the address sensitive.
+                // Furthermore, it can be the client's Guard so we have to be safe.
+                let peer_addr = Sensitive::new(peer_addr);
 
                 let unverified = builder
                     .launch(

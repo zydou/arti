@@ -2,6 +2,7 @@
 
 use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
+use safelog::Sensitive;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, instrument, trace};
@@ -227,10 +228,15 @@ impl<
     /// Send a NETINFO message to the relay to finish the handshake, and create an open channel and
     /// reactor.
     ///
+    /// The `peer_addr` is sensitive because it can be a secret bridge or guard.
+    ///
     /// The channel is used to send cells, and to create outgoing circuits. The reactor is used to
     /// route incoming messages to their appropriate circuit.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
+    pub async fn finish(
+        mut self,
+        peer_addr: Sensitive<PeerAddr>,
+    ) -> Result<(Arc<Channel>, Reactor<S>)> {
         let peer_ip = peer_addr.netinfo_addr();
 
         // Send the NETINFO message.
@@ -239,6 +245,8 @@ impl<
         self.inner.framed_tls.send(netinfo.into()).await?;
 
         // Finish the channel to get a reactor.
-        self.inner.finish(&self.netinfo_cell, &[], peer_addr).await
+        self.inner
+            .finish(&self.netinfo_cell, &[], peer_addr.into_inner())
+            .await
     }
 }

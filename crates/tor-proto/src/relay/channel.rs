@@ -33,6 +33,7 @@ use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::channel::handshake::VerifiedChannel;
+use crate::peer::PeerAddr;
 use crate::relay::channel::handshake::{AUTHTYPE_ED25519_SHA256_RFC5705, RelayResponderHandshake};
 use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 
@@ -162,7 +163,7 @@ impl RelayChannelBuilder {
     /// Accept a new handshake over a TLS stream.
     pub fn accept<T, S>(
         self,
-        peer: Sensitive<std::net::SocketAddr>,
+        peer_addr: Sensitive<PeerAddr>,
         my_addrs: Vec<IpAddr>,
         tls: T,
         sleep_prov: S,
@@ -173,14 +174,7 @@ impl RelayChannelBuilder {
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        RelayResponderHandshake::new(
-            peer.into_inner().into(),
-            my_addrs,
-            tls,
-            sleep_prov,
-            identities,
-            memquota,
-        )
+        RelayResponderHandshake::new(peer_addr, my_addrs, tls, sleep_prov, identities, memquota)
     }
 }
 

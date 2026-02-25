@@ -11,7 +11,7 @@ use crate::memquota::ChannelAccount;
 use crate::peer::{PeerAddr, PeerInfo};
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
-use safelog::Redacted;
+use safelog::{Redacted, Sensitive};
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -545,7 +545,7 @@ impl<
         mut self,
         netinfo: &msg::Netinfo,
         my_addrs: &[IpAddr],
-        peer_addr: PeerAddr,
+        peer_addr: Sensitive<PeerAddr>,
     ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel as incoming traffic since all cells were exchanged.
         //
@@ -577,7 +577,10 @@ impl<
         let peer_sockaddr = peer_addr.socket_addr();
         // Unverified channel means we don't have identities. This is the case of a relay responder
         // channel for which the peer is a client or bridge.
-        let peer = PeerInfo::new(peer_addr, RelayIds::empty());
+        // TODO(relay): We should have inside `PeerInfo` a way to either have a sensitive or not
+        // `PeerAddr` because once the Channel starts logging `PeerInfo`, we can leak the client
+        // IP. Lets not take the chance, lets have this by design.
+        let peer = PeerInfo::new(peer_addr.into_inner(), RelayIds::empty());
 
         let peer_id = build_filtered_chan_target(self.target_method.take(), peer_sockaddr, None);
 

@@ -7,6 +7,7 @@
 
 use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
+use safelog::Sensitive;
 use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::instrument;
 
@@ -51,8 +52,8 @@ pub struct NonVerifiableResponderRelayChannel<
     pub(crate) netinfo_cell: msg::Netinfo,
     /// Our advertised addresses.
     pub(crate) my_addrs: Vec<IpAddr>,
-    /// The peer address.
-    pub(crate) peer_addr: PeerAddr,
+    /// The peer address which is sensitive considering it is either client or bridge.
+    pub(crate) peer_addr: Sensitive<PeerAddr>,
 }
 
 /// A verifiable relay responder channel that is currently unverified. This can only be a relay on
@@ -73,7 +74,7 @@ pub struct UnverifiedResponderRelayChannel<
     pub(crate) identities: Arc<RelayIdentities>,
     /// Our advertised addresses.
     pub(crate) my_addrs: Vec<IpAddr>,
-    /// The peer address.
+    /// The peer address which we know is a relay.
     pub(crate) peer_addr: PeerAddr,
 }
 
@@ -91,7 +92,7 @@ pub struct VerifiedResponderRelayChannel<
     netinfo_cell: msg::Netinfo,
     /// Our advertised addresses.
     my_addrs: Vec<IpAddr>,
-    /// The peer address.
+    /// The peer address which we know is a relay.
     peer_addr: PeerAddr,
 }
 
