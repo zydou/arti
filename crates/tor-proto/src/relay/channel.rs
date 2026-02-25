@@ -18,9 +18,9 @@ use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
 use tor_cell::chancell::msg;
-use tor_cert::EncodedEd25519Cert;
 use tor_cert::rsa::EncodedRsaCrosscert;
 use tor_cert::x509::TlsKeyAndCert;
+use tor_cert::{CertType, EncodedEd25519Cert};
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIdRef, RelayIdType};
 use tor_llcrypto as ll;
@@ -31,7 +31,6 @@ use tor_llcrypto::pk::{
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
-use crate::channel::ChannelType;
 use crate::channel::handshake::VerifiedChannel;
 use crate::relay::channel::handshake::{AUTHTYPE_ED25519_SHA256_RFC5705, RelayResponderHandshake};
 use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAccount};
@@ -46,7 +45,6 @@ pub(crate) static LINK_AUTH: &[u16] = &[AUTHTYPE_ED25519_SHA256_RFC5705];
 ///
 /// We use this intermediary object in order to not have tor-proto crate have access to the KeyMgr
 /// meaning access to all keys. This restricts the view to what is needed.
-#[expect(unused)] // TODO(relay). remove
 pub struct RelayIdentities {
     /// As a relay, our RSA identity key: KP_relayid_rsa
     pub(crate) rsa_id: RsaIdentity,
@@ -347,7 +345,7 @@ impl ChannelAuthenticationData {
 /// Both relay initiator and responder handshake use this.
 pub(crate) fn build_certs_cell(
     identities: &Arc<RelayIdentities>,
-    _chan_type: ChannelType,
+    is_responder: bool,
 ) -> msg::Certs {
     let mut certs = msg::Certs::new_empty();
     // Push into the cell the CertType 2 RSA
@@ -355,36 +353,29 @@ pub(crate) fn build_certs_cell(
         tor_cert::CertType::RSA_ID_X509,
         identities.cert_id_x509_rsa.clone(),
     );
-    /* TODO(relay): Need to push these into the CERTS. The current types in RelayIdentities are
-     * wrong as they are not encodable. The types returned by the KeyMgr has encodable cert types
-     * so we'll use then when addressing this.
 
     // Push into the cell the CertType 7 RSA
-    certs.push_cert_body(
-        self.identities.cert_id_rsa.cert_type(),
-        &self.identities.cert_id_rsa,
-    );
+    certs.push_cert_body(CertType::RSA_ID_V_IDENTITY, identities.cert_id_rsa.clone());
 
     // Push into the cell the CertType 4 Ed25519
     certs.push_cert_body(
-        self.identities.cert_id_sign_ed.cert_type(),
-        &self.identities.cert_id_sign_ed,
+        CertType::IDENTITY_V_SIGNING,
+        identities.cert_id_sign_ed.clone(),
     );
     // Push into the cell the CertType 5/6 Ed25519
-    if chan_type.is_responder() {
+    if is_responder {
         // Responder has CertType 5
         certs.push_cert_body(
-            self.identities.cert_sign_tls_ed.cert_type(),
-            &self.identities.cert_sign_tls_ed,
+            CertType::SIGNING_V_TLS_CERT,
+            identities.cert_sign_tls_ed.clone(),
         );
     } else {
         // Initiator has CertType 6
         certs.push_cert_body(
-            self.identities.cert_sign_link_auth_ed.cert_type(),
-            &self.identities.cert_sign_link_auth_ed,
+            CertType::SIGNING_V_LINK_AUTH,
+            identities.cert_sign_link_auth_ed.clone(),
         );
     }
-    */
     certs
 }
 

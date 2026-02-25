@@ -22,7 +22,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::{
     ClockSkew, RelayIdentities, Result,
     channel::{
-        Channel, ChannelType, Reactor,
+        Channel, Reactor,
         handshake::{UnverifiedChannel, VerifiedChannel},
     },
     peer::PeerAddr,
@@ -152,7 +152,7 @@ where
     /// channel on which circuits can be opened.
     pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Send CERTS, AUTHENTICATE, NETINFO
-        let certs = super::build_certs_cell(&self.identities, ChannelType::RelayInitiator);
+        let certs = super::build_certs_cell(&self.identities, /* is_responder */ false);
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
         self.inner.framed_tls.send(certs.into()).await?;
         trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");
