@@ -432,12 +432,9 @@ impl ConsensusMeta {
             "
         ))?;
 
-        let mut missing = HashSet::new();
-        let rows = stmt.query_map(named_params! {":docid": self.docid}, |row| row.get(0))?;
-        for row in rows {
-            missing.insert(row?);
-        }
-
+        let missing = stmt
+            .query_map(named_params! {":docid": self.docid}, |row| row.get(0))?
+            .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
 
@@ -482,12 +479,9 @@ impl ConsensusMeta {
             "
         ))?;
 
-        let mut missing = HashSet::new();
-        let rows = stmt.query_map(named_params! {":docid": self.docid}, |row| row.get(0))?;
-        for row in rows {
-            missing.insert(row?);
-        }
-
+        let missing = stmt
+            .query_map(named_params! {":docid": self.docid}, |row| row.get(0))?
+            .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
 
@@ -524,12 +518,9 @@ impl ConsensusMeta {
             "
         ))?;
 
-        let mut missing = HashSet::new();
-        let rows = stmt.query_map(named_params! {":docid": self.docid}, |row| row.get(0))?;
-        for row in rows {
-            missing.insert(row?);
-        }
-
+        let missing = stmt
+            .query_map(named_params! {":docid": self.docid}, |row| row.get(0))?
+            .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
 }
