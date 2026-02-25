@@ -10,9 +10,10 @@ use crate::factory::{BootstrapReporter, ChannelFactory, IncomingChannelFactory};
 use crate::transport::TransportImplHelper;
 use crate::{Error, event::ChanMgrEventSender};
 
+use safelog::{MaybeSensitive, Sensitive};
 use tor_basic_utils::rand_hostname;
 use tor_error::internal;
-use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
+use tor_linkspec::{HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::channel::ChannelType;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
@@ -23,7 +24,6 @@ use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
 #[cfg(feature = "relay")]
 use {
     futures::{AsyncRead, AsyncWrite},
-    safelog::Sensitive,
     std::net::IpAddr,
     tor_proto::{RelayIdentities, peer::PeerAddr},
     tor_rtcompat::{CertifiedConn, StreamOps},
@@ -196,12 +196,12 @@ where
             .build()
             .map_err(|e| internal!("Unable to build chan target from peer sockaddr: {e}"))?;
         // Convert into a PeerAddr but keep it sensitive, this can be a client/bridge.
-        let peer_addr: Sensitive<PeerAddr> = Sensitive::new(peer.into_inner().into());
+        let peer_addr: MaybeSensitive<PeerAddr> = MaybeSensitive::hidden(peer.into_inner().into());
 
         // Helpers: For error mapping.
         let map_ioe = |ioe, action| Error::Io {
             action,
-            peer: Some(BridgeAddr::new_addr_from_sockaddr(peer.into_inner()).into()),
+            peer: peer_addr.clone(),
             source: ioe,
         };
         let map_proto = |source, target: &OwnedChanTarget, clock_skew| Error::Proto {
@@ -242,7 +242,7 @@ where
 
         let unverified = builder
             .accept(
-                peer_addr,
+                Sensitive::new(peer_addr.inner()),
                 self.my_addrs.clone(),
                 tls,
                 self.runtime.clone(),
@@ -309,21 +309,28 @@ where
 
         // The returned PeerAddr is the actual address we are connected to.
         let (peer_addr, stream) = self.transport.connect(target).await?;
-
-        // TODO(relay): We put the `target` in the error but actually, we should use the
-        // `peer_addr` as it is the address used while the target is possibly a bunch of addresses.
-        // This will also require us to implement "Sensitive" for a PeerAddr to avoid leaking IPs.
+        // The peer could be a bridge/guard or a relay. We have to shield it right away to avoid
+        // leaking the info in the logs but we also want the info for a relay<-> relay.
+        let peer_addr = match self.outbound_chan_type() {
+            ChannelType::ClientInitiator => MaybeSensitive::hidden(peer_addr),
+            ChannelType::RelayInitiator => MaybeSensitive::visible(peer_addr),
+            _ => return Err(Error::Internal(internal!("Unknown outbound channel type"))),
+        };
 
         let map_ioe = |action: &'static str| {
-            let peer: Option<BridgeAddr> = (&peer_addr).into();
+            let peer = peer_addr.clone();
             move |ioe: io::Error| Error::Io {
                 action,
-                peer: peer.map(Into::into),
+                peer,
                 source: ioe.into(),
             }
         };
 
         // Helper to map protocol level error.
+        //
+        // We are logging the `target` here as these protocol error happens during the handshake
+        // and we need to log the identities that are being tried but it will honor safe logging
+        // for the relay <-> relay case which is not ideal but a tradeoff in complexity.
         let map_proto = |source, target: &OwnedChanTarget, clock_skew| Error::Proto {
             source,
             peer: target.to_logged(),
@@ -374,9 +381,8 @@ where
                 // Get the client specific channel builder.
                 let mut builder = tor_proto::ClientChannelBuilder::new();
                 builder.set_declared_method(target.chan_method());
-                // Becasue we can be connecting to a bridge, we'll consider the address sensitive.
-                // Furthermore, it can be the client's Guard so we have to be safe.
-                let peer_addr = Sensitive::new(peer_addr);
+                // Going full sensitive.
+                let peer_addr = Sensitive::new(peer_addr.inner());
 
                 let unverified = builder
                     .launch(
@@ -417,7 +423,7 @@ where
             ChannelType::RelayInitiator => {
                 self.build_relay_channel(
                     tls,
-                    peer_addr,
+                    peer_addr.inner(),
                     target,
                     &peer_cert,
                     memquota,

@@ -8,14 +8,14 @@ use thiserror::Error;
 
 use crate::factory::AbstractPtError;
 use tor_error::{ErrorKind, internal};
-use tor_linkspec::{BridgeAddr, ChanTarget, IntoOwnedChanTarget, LoggedChanTarget};
+use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, LoggedChanTarget};
 use tor_proto::ClockSkew;
 
 // We use "ChanSensitive" for values which are sensitive because they relate to
 // channel-layer trouble, rather than circuit-layer or higher.  This will let us find these later:
 // if we want to change `LoggedChanTarget` to `Redacted` (say), we should change these too.
 // (`Redacted` like https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/882)
-use safelog::{BoxSensitive as BoxChanSensitive, Sensitive as ChanSensitive};
+use safelog::{MaybeSensitive, Sensitive as ChanSensitive};
 
 use crate::transport::proxied::ProxyError;
 
@@ -58,7 +58,7 @@ pub enum Error {
     #[error("Network IO error, or TLS error, in {action}, talking to {peer:?}")]
     Io {
         /// Who we were talking to
-        peer: Option<BoxChanSensitive<BridgeAddr>>,
+        peer: MaybeSensitive<tor_proto::peer::PeerAddr>,
 
         /// What we were doing
         action: &'static str,
