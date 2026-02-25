@@ -26,8 +26,12 @@ use tor_relay_crypto::{
 };
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
-/// Sleep duration of the key rotation task.
-const KEY_ROTATION_SLEEP_DURATION: Duration = Duration::from_secs(60);
+/// Buffer time before key expiry to trigger rotation. This ensures we rotate slightly before the
+/// key actually expires rather than right at or after expiry.
+///
+/// C-tor uses 3 hours for the link/auth key and 1 day for the signing key. Let's use 3 hours here,
+/// it should be plenty to make it happen even if hiccups happen.
+const KEY_ROTATION_EXPIRE_BUFFER: Duration = Duration::from_secs(3 * 60 * 60);
 
 /// Key lifefime duration of 2 days
 const KEY_DURATION_2DAYS: Duration = Duration::from_secs(2 * 24 * 60 * 60);
@@ -118,15 +122,16 @@ where
 
 /// Rotate a key implementing the [`RotatableKeySpec`] trait.
 ///
-/// Rotation is done by listing all keys matching the key specifier pattern and validting the
+/// Rotation is done by listing all keys matching the key specifier pattern and validating the
 /// valid_until value of the key store entry. If expired, the key is removed from the key manager.
-fn rotate_key<K>(keymgr: &KeyMgr) -> anyhow::Result<bool>
+///
+/// Returns a tuple of (rotated, valid_until) where `rotated` indicates if the key was rotated and
+/// `valid_until` is the earliest expiry time across all keys of this type.
+fn rotate_key<K>(keymgr: &KeyMgr) -> anyhow::Result<(bool, SystemTime)>
 where
     K: RotatableKeySpec + ToEncodableKey,
     <K as ToEncodableKey>::Key: Keygen,
 {
-    // Indicate if the key was rotated.
-    let mut have_rotated = false;
     // Select all signing keypair in the keystore because we need to inspect the valid_until
     // field and rotate if expired.
     let key_entries = keymgr.list_matching(&K::Pattern::new_any().arti_pattern()?)?;
@@ -135,15 +140,30 @@ where
 
     if key_entries.is_empty() {
         generate_key::<K>(keymgr, &key_specifier)?;
-        return Ok(true);
+        let valid_until = K::valid_until_from_spec(&key_specifier).into();
+        return Ok((true, valid_until));
     }
+
+    let mut have_rotated = false;
+    // Smallest valid_until timestamp of all the keys we are about to look at. Start with the
+    // biggest value so the first value will change this immediately.
+    //
+    // NOTE: This is dicy because if the loop below would not run, we would return a sleep time
+    // that is massive. The is_empty() above guarantees it won't happen but still. Anyway, this is
+    // better than an Option<> and dealing with a None at the end.
+    let mut min_valid_until = None;
 
     for key in key_entries {
         let entry_key_spec: K::Specifier = K::spec_from_keypath(key.key_path())?;
+        // Min the entry key valid_until.
+        let entry_valid_until = K::valid_until_from_spec(&entry_key_spec);
+        min_valid_until = Some(
+            min_valid_until.map_or(entry_valid_until, |v: Timestamp| v.min(entry_valid_until)),
+        );
 
-        // Account for the sleep time of the task so we don't expire in between runs.
+        // Account for the buffer time so we rotate before the key actually expires.
         if K::valid_until_from_spec(&entry_key_spec)
-            <= Timestamp::from(SystemTime::now() + KEY_ROTATION_SLEEP_DURATION)
+            <= Timestamp::from(SystemTime::now() + KEY_ROTATION_EXPIRE_BUFFER)
         {
             tracing::info!(
                 "Rotating {} key. Next expiry timestamp {:?}",
@@ -153,19 +173,30 @@ where
             keymgr.remove_entry(&key)?;
             generate_key::<K>(keymgr, &key_specifier)?;
             have_rotated = true;
-        };
+            // Min the new key valid_until.
+            let new_valid_until = K::valid_until_from_spec(&key_specifier);
+            min_valid_until =
+                Some(min_valid_until.map_or(new_valid_until, |v| v.min(new_valid_until)));
+        }
     }
 
-    Ok(have_rotated)
+    Ok((
+        have_rotated,
+        min_valid_until.expect("valid_until is empty").into(),
+    ))
 }
 
 /// Attempt to rotate all rotatable keys.
-fn try_rotate_keys(keymgr: &KeyMgr) -> anyhow::Result<bool> {
+///
+/// Returns a tuple of (rotated, next_expiry) where `rotated` indicates if any key was rotated and
+/// `next_expiry` is the earliest expiry time across all rotatable keys.
+fn try_rotate_keys(keymgr: &KeyMgr) -> anyhow::Result<(bool, SystemTime)> {
     // Attempt to rotate the KP_relaysign_ed.
-    let mut have_rotated = rotate_key::<RelaySigningKeypair>(keymgr)?;
+    let (mut have_rotated, sign_expiry) = rotate_key::<RelaySigningKeypair>(keymgr)?;
     // Attempt to rotate the KP_link_ed.
-    have_rotated |= rotate_key::<RelayLinkSigningKeypair>(keymgr)?;
-    Ok(have_rotated)
+    let (link_rotated, link_expiry) = rotate_key::<RelayLinkSigningKeypair>(keymgr)?;
+    have_rotated |= link_rotated;
+    Ok((have_rotated, sign_expiry.min(link_expiry)))
 }
 
 /// Build a fresh [`RelayIdentities`] object using a [`KeyMgr`].
@@ -275,7 +306,7 @@ pub(crate) fn try_generate_keys(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentiti
     generate_key::<RelayIdentityKeypair>(keymgr, &RelayIdentityKeypairSpecifier::new())?;
     generate_key::<RelayIdentityRsaKeypair>(keymgr, &RelayIdentityRsaKeypairSpecifier::new())?;
     // Attempt to rotate the rotatable keys which will generate any missing.
-    try_rotate_keys(keymgr)?;
+    let _expiry = try_rotate_keys(keymgr)?;
 
     // Now that we have our up-to-date keys, build the RelayIdentities object.
     build_proto_identities(keymgr)
@@ -289,15 +320,19 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
 ) -> anyhow::Result<void::Void> {
     loop {
         // Attempt a rotation of all keys.
-        if try_rotate_keys(&keymgr)? {
+        let (have_rotated, next_expiry) = try_rotate_keys(&keymgr)?;
+        if have_rotated {
             let ids = build_proto_identities(&keymgr)?;
             chanmgr
                 .set_relay_identities(Arc::new(ids))
                 .context("Failed to set relay identities on ChanMgr")?;
         }
 
-        // Wake up every minute.
-        let next_wake = SystemTime::now() + KEY_ROTATION_SLEEP_DURATION;
+        // Sleep until the earliest key expiry minus buffer so we rotate before it expires.
+        // If the subtraction would underflow, wake up immediately to rotate the expired key.
+        let next_wake = next_expiry
+            .checked_sub(KEY_ROTATION_EXPIRE_BUFFER)
+            .unwrap_or(SystemTime::now());
         runtime.sleep_until_wallclock(next_wake).await;
     }
 }
