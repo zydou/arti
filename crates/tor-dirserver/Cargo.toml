@@ -44,9 +44,6 @@ retry-error = { version = "0.11.0", path = "../retry-error" }
 # NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
 rusqlite = ">=0.36.0, <0.39.0"
 saturating-time = "0.3.0"
-sha1 = "0.10.6"
-sha2 = "0.10.9"
-sha3 = "0.10.8"
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full", "test-util"] }

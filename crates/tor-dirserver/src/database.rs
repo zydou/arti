@@ -93,7 +93,7 @@ PRAGMA busy_timeout=1000;
 /// This macro accepts the following parameters:
 /// 1. `name` for specifying an identifier of the type, such as [`Sha256`].
 /// 2. `algo` for specifying the type from the rust-crypto [`digest`] ecosystem,
-///    such as [`sha2::Sha256`].
+///    such as [`tor_llcrypto::d::Sha256`].
 /// 3. The size in bytes of the hash output, such as `32` for [`Sha256`].
 ///     * Unfortunately, we cannot use something like [`Digest::output_size()`]
 ///       because it is not a constant.
@@ -174,9 +174,9 @@ macro_rules! impl_hash_wrapper {
     };
 }
 
-impl_hash_wrapper!(Sha1, sha1::Sha1, 20);
-impl_hash_wrapper!(Sha256, sha2::Sha256, 32);
-impl_hash_wrapper!(Sha3_256, sha3::Sha3_256, 32);
+impl_hash_wrapper!(Sha1, tor_llcrypto::d::Sha1, 20);
+impl_hash_wrapper!(Sha256, tor_llcrypto::d::Sha256, 32);
+impl_hash_wrapper!(Sha3_256, tor_llcrypto::d::Sha3_256, 32);
 
 /// The identifier for documents in the content-addressable cache.
 ///
