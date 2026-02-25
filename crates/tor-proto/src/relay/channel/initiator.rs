@@ -12,6 +12,7 @@
 //! process. The verify can be CPU intensive and thus in its own function.
 
 use futures::{AsyncRead, AsyncWrite, SinkExt};
+use safelog::MaybeSensitive;
 use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::trace;
 
@@ -25,7 +26,7 @@ use crate::{
         Channel, Reactor,
         handshake::{UnverifiedChannel, VerifiedChannel},
     },
-    peer::PeerAddr,
+    peer::{PeerAddr, PeerInfo},
     relay::channel::ChannelAuthenticationData,
 };
 
@@ -165,9 +166,12 @@ where
         trace!(channel_id = %self.inner.unique_id, "Sending NETINFO as initiator cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 
+        // Relay only initiate to another relay so NOT sensitive.
+        let peer_info = MaybeSensitive::visible(PeerInfo::new(peer_addr, self.inner.relay_ids()?));
+
         // Get a Channel and a Reactor.
         self.inner
-            .finish(&self.netinfo_cell, &self.my_addrs, peer_addr)
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_info)
             .await
     }
 }

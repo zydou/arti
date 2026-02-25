@@ -800,7 +800,7 @@ pub(crate) mod test {
             Box::new(stream_ops),
             unique_id,
             dummy_target,
-            PeerInfo::EMPTY,
+            safelog::MaybeSensitive::visible(PeerInfo::EMPTY),
             crate::ClockSkew::None,
             runtime,
             fake_mq(),

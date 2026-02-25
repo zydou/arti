@@ -7,12 +7,12 @@
 
 use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
-use safelog::Sensitive;
+use safelog::{MaybeSensitive, Sensitive};
 use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
-use tor_linkspec::OwnedChanTarget;
+use tor_linkspec::{OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -22,7 +22,7 @@ use crate::{
         Channel, Reactor,
         handshake::{UnverifiedChannel, VerifiedChannel},
     },
-    peer::PeerAddr,
+    peer::{PeerAddr, PeerInfo},
     relay::channel::ChannelAuthenticationData,
 };
 
@@ -184,8 +184,11 @@ where
     /// channel on which circuits can be opened.
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
+        // Relay<->Relay channels are NOT sensitive as we need their info in the log.
+        let peer_info =
+            MaybeSensitive::visible(PeerInfo::new(self.peer_addr, self.inner.relay_ids()?));
         self.inner
-            .finish(&self.netinfo_cell, &self.my_addrs, self.peer_addr)
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_info)
             .await
     }
 }
@@ -201,9 +204,14 @@ where
     /// channel meaning not authenticated. Circuit can be opened on it.
     #[instrument(skip_all, level = "trace")]
     pub fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
+        // This is either a client or a bridge so very sensitive.
+        let peer_info = MaybeSensitive::hidden(PeerInfo::new(
+            self.peer_addr.into_inner(),
+            RelayIds::empty(),
+        ));
         // Non verifiable responder channel, we simply finalize our underlying channel and we are
         // done. We are connected to a client or bridge.
         self.inner
-            .finish(&self.netinfo_cell, &self.my_addrs, self.peer_addr)
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_info)
     }
 }

@@ -76,7 +76,7 @@ use crate::{ClockSkew, client};
 use crate::{Error, Result};
 use cfg_if::cfg_if;
 use reactor::BoxedChannelStreamOps;
-use safelog::sensitive as sv;
+use safelog::{MaybeSensitive, sensitive as sv};
 use std::future::{Future, IntoFuture};
 use std::net::IpAddr;
 use std::pin::Pin;
@@ -273,7 +273,6 @@ impl Canonicity {
 /// Note that in cases 1-3, the [`Channel`] object itself will still exist: it
 /// will just be unusable for most purposes.  Most operations on it will fail
 /// with an error.
-#[derive(Debug)]
 pub struct Channel {
     /// The channel type.
     #[expect(unused)] // TODO: Remove once used.
@@ -298,7 +297,7 @@ pub struct Channel {
     peer_id: OwnedChanTarget,
     /// Validated information for this peer.
     #[expect(unused)] // TODO(relay) Remove once used un choose_channel()
-    peer: PeerInfo,
+    peer: MaybeSensitive<PeerInfo>,
     /// The declared clock skew on this channel, at the time when this channel was
     /// created.
     clock_skew: ClockSkew,
@@ -546,7 +545,7 @@ impl Channel {
         streamops: BoxedChannelStreamOps,
         unique_id: UniqId,
         peer_id: OwnedChanTarget,
-        peer: PeerInfo,
+        peer: MaybeSensitive<PeerInfo>,
         clock_skew: ClockSkew,
         sleep_prov: S,
         memquota: ChannelAccount,
@@ -1012,7 +1011,7 @@ impl Channel {
             padding_ctrl,
             unique_id,
             peer_id,
-            peer: PeerInfo::EMPTY,
+            peer: MaybeSensitive::visible(PeerInfo::EMPTY),
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),
@@ -1139,7 +1138,7 @@ pub(crate) mod test {
             padding_ctrl,
             unique_id,
             peer_id,
-            peer: PeerInfo::EMPTY,
+            peer: MaybeSensitive::visible(PeerInfo::EMPTY),
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),
