@@ -12,7 +12,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
 use tor_error::{error_report, internal};
-use tor_linkspec::{HasAddrs, HasRelayIds};
+use tor_linkspec::{HasChanMethod, HasRelayIds};
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
@@ -76,7 +76,7 @@ pub(crate) trait AbstractChannelFactory {
     /// The type of channel that this factory can build.
     type Channel: AbstractChannel;
     /// Type that explains how to build an outgoing channel.
-    type BuildSpec: HasRelayIds + HasAddrs;
+    type BuildSpec: HasRelayIds + HasChanMethod;
     /// The type of byte stream that's required to build channels for incoming connections.
     type Stream;
 
@@ -519,6 +519,7 @@ mod test {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
     use tor_error::bad_api_usage;
+    use tor_linkspec::ChannelMethod;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 
@@ -626,9 +627,9 @@ mod test {
         }
     }
 
-    impl HasAddrs for FakeBuildSpec {
-        fn addrs(&self) -> impl Iterator<Item = std::net::SocketAddr> {
-            std::iter::once(self.3.clone())
+    impl HasChanMethod for FakeBuildSpec {
+        fn chan_method(&self) -> ChannelMethod {
+            ChannelMethod::Direct(vec![self.3.clone()])
         }
     }
 
