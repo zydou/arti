@@ -383,12 +383,7 @@ impl<
             self.send_versions_cell(now_fn).await?;
 
         // Send the CERTS message.
-        let certs = build_certs_cell(
-            &self.identities,
-            ChannelType::RelayResponder {
-                authenticated: false,
-            },
-        );
+        let certs = build_certs_cell(&self.identities, /* is_responder */ true);
         trace!(channel_id = %self.unique_id, "Sending CERTS as responder cell.");
         self.framed_tls.send(certs.into()).await?;
 
