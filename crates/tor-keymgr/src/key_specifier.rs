@@ -611,6 +611,19 @@ impl Display for KeySpecifierComponentPrettyHelper<'_> {
 ///
 /// Certificates can only be fetched from Arti key stores
 /// (we will not support loading certs from C Tor's key directory)
+///
+/// Types implementing this trait get an auto-generated [`KeySpecifier`] implementation
+/// that returns the `ArtiPath` of the certificate.
+///
+/// The generated [`KeySpecifier::arti_path()`] returns
+///
+///   * the `ArtiPath` of the [`KeyCertificateSpecifier::subject_key_specifier`],
+///     if [`KeyCertificateSpecifier::cert_denotators`] is empty, or
+///   * the `ArtiPath` of the [`KeyCertificateSpecifier::subject_key_specifier`],
+///     followed by a [`DENOTATOR_GROUP_SEP`](crate::DENOTATOR_GROUP_SEP) character and the
+///     [`KeyCertificateSpecifier::cert_denotators`] encoded as described
+///     in the [`ArtiPath`] docs,
+///     if [`KeyCertificateSpecifier::cert_denotators`] is non-empty
 pub trait KeyCertificateSpecifier {
     /// The denotators of the certificate.
     ///
@@ -631,6 +644,30 @@ pub trait KeyCertificateSpecifier {
     fn signing_key_specifier(&self) -> Option<&dyn KeySpecifier>;
     /// The key specifier of the subject key.
     fn subject_key_specifier(&self) -> &dyn KeySpecifier;
+}
+
+impl<T: KeyCertificateSpecifier + ?Sized> KeySpecifier for T {
+    fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {
+        let subject_key_arti_path = self
+            .subject_key_specifier()
+            .arti_path()
+            .map_err(|_| internal!("subject key does not have an ArtiPath?!"))?;
+
+        let path =
+            ArtiPath::from_path_and_denotators(subject_key_arti_path, &self.cert_denotators())
+                .map_err(into_internal!("invalid certificate specifier"))?;
+
+        Ok(path)
+    }
+
+    fn ctor_path(&self) -> Option<CTorPath> {
+        // Certificates don't have a CTorPath
+        None
+    }
+
+    fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+        None
+    }
 }
 
 /// A trait for converting key specifiers to and from [`CTorPath`].
