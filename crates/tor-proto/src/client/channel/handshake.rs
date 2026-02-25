@@ -237,10 +237,8 @@ impl<
         mut self,
         peer_addr: Sensitive<PeerAddr>,
     ) -> Result<(Arc<Channel>, Reactor<S>)> {
-        let peer_ip = peer_addr.netinfo_addr();
-
         // Send the NETINFO message.
-        let netinfo = msg::Netinfo::from_client(peer_ip);
+        let netinfo = msg::Netinfo::from_client(peer_addr.netinfo_addr());
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 

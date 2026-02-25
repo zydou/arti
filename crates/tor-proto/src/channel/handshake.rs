@@ -572,7 +572,8 @@ impl<
         let stream_ops = self.framed_tls.new_handle();
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
-        let netinfo_addr = peer_info.addr().netinfo_addr();
+        let canonicity =
+            Canonicity::from_netinfo(netinfo, my_addrs, peer_info.addr().netinfo_addr());
 
         let peer_id = build_filtered_chan_target(self.target_method.take(), &peer_info);
 
@@ -593,7 +594,7 @@ impl<
             self.clock_skew,
             self.sleep_prov,
             self.memquota,
-            Canonicity::from_netinfo(netinfo, my_addrs, netinfo_addr),
+            canonicity,
         )
     }
 }
@@ -660,8 +661,8 @@ impl<
         let stream_ops = self.framed_tls.new_handle();
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
-        // Build the peer info of this channel.
-        let netinfo_addr = peer_info.addr().netinfo_addr();
+        let canonicity =
+            Canonicity::from_netinfo(netinfo, my_addrs, peer_info.addr().netinfo_addr());
 
         let peer_id = build_filtered_chan_target(self.target_method.take(), &peer_info);
 
@@ -677,7 +678,7 @@ impl<
             self.clock_skew,
             self.sleep_prov,
             self.memquota,
-            Canonicity::from_netinfo(netinfo, my_addrs, netinfo_addr),
+            canonicity,
         )
     }
 }

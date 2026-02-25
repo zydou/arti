@@ -159,10 +159,12 @@ where
         trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");
         self.inner.framed_tls.send(self.auth_cell.into()).await?;
 
-        let peer_ip = peer_addr.netinfo_addr();
         // Send our NETINFO cell. This will indicate the end of the handshake.
-        let netinfo =
-            super::build_netinfo_cell(peer_ip, self.my_addrs.clone(), &self.inner.sleep_prov)?;
+        let netinfo = super::build_netinfo_cell(
+            peer_addr.netinfo_addr(),
+            self.my_addrs.clone(),
+            &self.inner.sleep_prov,
+        )?;
         trace!(channel_id = %self.inner.unique_id, "Sending NETINFO as initiator cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 
