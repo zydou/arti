@@ -56,6 +56,9 @@
 //! multiple threads can be waiting for responses on the same RpcConn object.
 //! Exactly of them will actually be holding the [`PollingStream`]
 //! and trying to read from the network.
+//! If it finds a response for itself, it returns that response.
+//! Otherwise, it puts the response in the appropriate queue,
+//! and signal's the condvar associated with that queue.
 //!
 //! There are two kinds of queue:
 //! A per-request queue used by Waitable requests, and a single queue shared by all Polled requests.
