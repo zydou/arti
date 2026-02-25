@@ -15,7 +15,7 @@ use tor_linkspec::{PtTarget, PtTargetAddr};
 /// Clever observer here would see that this is basically a [`tor_linkspec::ChannelMethod`] which
 /// has a Direct variant with a vector of address which is incoherent with the semantic of "where we
 /// are connected to".
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, derive_more::Display, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum PeerAddr {
     /// The socket address we are directly connected to.
