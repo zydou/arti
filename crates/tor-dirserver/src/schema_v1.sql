@@ -64,11 +64,7 @@ CREATE TABLE router_descriptor(
     CHECK(LENGTH(unsigned_sha1) == 40),
     CHECK(LENGTH(unsigned_sha2) == 64),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40),
-    CHECK(LENGTH(extra_unsigned_sha1) == 40),
-    CHECK(
-      flavor = 'ns' AND extra_unsigned_sha1 IS NOT NULL
-      OR flavor = 'microdesc' AND extra_unsigned_sha1 IS NULL
-    )
+    CHECK(LENGTH(extra_unsigned_sha1) == 40)
 ) STRICT;
 
 -- Stores extra-info documents.
