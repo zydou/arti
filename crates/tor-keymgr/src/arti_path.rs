@@ -225,15 +225,26 @@ impl ArtiPath {
             return Ok(path);
         }
 
-        let path: String = [Ok(path.0)]
-            .into_iter()
-            .chain(
-                cert_denotators
-                    .iter()
-                    .map(|s| s.to_slug().map(|s| s.to_string())),
-            )
+        let cert_denotators = cert_denotators
+            .iter()
+            .map(|s| s.to_slug().map(|s| s.to_string()))
             .collect::<Result<Vec<_>, _>>()?
             .join(&DENOTATOR_SEP.to_string());
+
+        let path = if cert_denotators.is_empty() {
+            format!("{path}")
+        } else {
+            // If the path already contains some denotators,
+            // we need to use the denotator group separator
+            // to separate them from the certificate denotators.
+            // Otherwise, we simply use the regular DENOTATOR_SEP
+            // to indicate the start of the denotator section.
+            if path.contains("+") {
+                format!("{path}{DENOTATOR_GROUP_SEP}{cert_denotators}")
+            } else {
+                format!("{path}{DENOTATOR_SEP}{cert_denotators}")
+            }
+        };
 
         ArtiPath::new(path)
     }
