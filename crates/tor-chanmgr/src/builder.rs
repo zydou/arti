@@ -439,7 +439,7 @@ where
     ///
     /// We avoid building channels to ourselves as a relay.
     #[cfg(feature = "relay")]
-    fn validate_relay_target(&self, _target: &OwnedChanTarget) -> crate::Result<()> {
+    fn validate_relay_target(&self, target: &OwnedChanTarget) -> crate::Result<()> {
         use tor_linkspec::HasRelayIds;
         // Client with the relay feature won't have identities. A relay without identities is not
         // possible but even if it was, it won't be able to build a channel to itself as a relay
@@ -449,12 +449,12 @@ where
             return Ok(());
         };
         // Any of our identities match the given target, we are connecting to ourselves, refuse.
-        if identities.has_any_relay_id_from(_target) {
+        if identities.has_any_relay_id_from(target) {
             Err(Error::Proto {
                 source: tor_proto::Error::ChanProto(
                     "Refusing to build channel to ourselves".into(),
                 ),
-                peer: _target.clone().into(),
+                peer: target.clone().into(),
                 clock_skew: None,
             })
         } else {
