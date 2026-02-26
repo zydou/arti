@@ -84,7 +84,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> CertifiedConn for RustlsServerStream<S> 
     ) -> IoResult<Vec<u8>> {
         let (_, session) = self.stream.get_ref();
         session
-            .export_keying_material(Vec::with_capacity(len), label, context)
+            .export_keying_material(vec![0_u8; len], label, context)
             .map_err(|e| IoError::new(std::io::ErrorKind::InvalidData, e))
     }
 
