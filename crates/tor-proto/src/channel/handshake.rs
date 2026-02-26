@@ -263,8 +263,8 @@ pub(crate) struct VerifiedChannel<
     pub(crate) ed25519_id: Ed25519Identity,
     /// Validated RSA identity for this peer.
     pub(crate) rsa_id: RsaIdentity,
-    /// Validated RSA cert digest for this peer.
-    pub(crate) rsa_cert_digest: [u8; 32],
+    /// Validated RSA identity digest of the DER format for this peer.
+    pub(crate) rsa_id_digest: [u8; 32],
     /// Peer TLS certificate digest
     pub(crate) peer_cert_digest: [u8; 32],
     /// Authenticated clock skew for this peer.
@@ -434,10 +434,15 @@ impl<
         //
         // (We don't actually check this self-signed certificate, and we use
         // a kludge to extract the RSA key)
-        let pkrsa = c
+        let rsa_id_cert_bytes = c
             .cert_body(CertType::RSA_ID_X509)
-            .and_then(ll::util::x509_extract_rsa_subject_kludge)
-            .ok_or_else(|| Error::HandshakeProto("Couldn't find RSA identity key".into()))?;
+            .ok_or_else(|| Error::HandshakeProto("Couldn't find RSA identity cert".into()))?;
+        let pkrsa =
+            ll::util::x509_extract_rsa_subject_kludge(rsa_id_cert_bytes).ok_or_else(|| {
+                Error::HandshakeProto(
+                    "Couldn't find RSA SubjectPublicKey from RSA identity cert".into(),
+                )
+            })?;
 
         // Now verify the RSA identity -> Ed Identity crosscert.
         //
@@ -459,6 +464,7 @@ impl<
             ));
         }
 
+        let rsa_id_digest: [u8; 32] = ll::d::Sha256::digest(pkrsa.to_der()).into();
         let rsa_id = pkrsa.to_rsa_identity();
 
         trace!(
@@ -515,7 +521,7 @@ impl<
             target_method: self.target_method,
             ed25519_id: *identity_key,
             rsa_id,
-            rsa_cert_digest: *rsa_cert.digest(),
+            rsa_id_digest,
             peer_cert_digest,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
@@ -1039,7 +1045,7 @@ pub(super) mod test {
     fn certs_missing() {
         let rt = PreferredRuntime::create().unwrap();
         let all_certs = [
-            (2, certs::CERT_T2, "Couldn't find RSA identity key"),
+            (2, certs::CERT_T2, "Couldn't find RSA identity cert"),
             (7, certs::CERT_T7, "No RSA->Ed crosscert"),
             (4, certs::CERT_T4, "Missing IDENTITY_V_SIGNING certificate"),
             (5, certs::CERT_T5, "Missing SIGNING_V_TLS_CERT certificate"),
@@ -1233,7 +1239,7 @@ pub(super) mod test {
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
                 ed25519_id,
                 rsa_id,
-                rsa_cert_digest: [0; 32],
+                rsa_id_digest: [0; 32],
                 peer_cert_digest: [0; 32],
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,
