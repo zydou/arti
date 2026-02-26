@@ -350,15 +350,15 @@ mod tests {
             let path = ArtiPath::new(base_path.to_string()).unwrap();
             let expected_path = ArtiPath::new(expected_path.to_string()).unwrap();
 
-        assert_eq!(
-            ArtiPath::from_path_and_denotators(path.clone(), &denotators[..]).unwrap(),
-            expected_path
-        );
+            assert_eq!(
+                ArtiPath::from_path_and_denotators(path.clone(), &denotators[..]).unwrap(),
+                expected_path
+            );
 
-        assert_eq!(
-            ArtiPath::from_path_and_denotators(path.clone(), &[]).unwrap(),
-            path
-        );
+            assert_eq!(
+                ArtiPath::from_path_and_denotators(path.clone(), &[]).unwrap(),
+                path
+            );
         }
     }
 
