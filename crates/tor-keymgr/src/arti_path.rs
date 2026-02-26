@@ -62,11 +62,26 @@ define_derive_deftly! {
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
 /// The last component of the path may optionally contain the encoded (string) representation
+/// of one or more *denotator groups*.
+/// A denotator group consists
 /// of one or more
 /// [`KeySpecifierComponent`]
 /// s representing the denotators of the key.
-/// They are separated from the rest of the component, and from each other,
+/// [`DENOTATOR_SEP`] denotes the beginning of the denotator groups.
+///
+/// Within a denotator group, denotators are separated
 /// by [`DENOTATOR_SEP`] characters.
+///
+/// Denotator groups are separated from each other
+/// by [`DENOTATOR_GROUP_SEP`] characters.
+///
+/// Empty denotator groups are allowed,
+/// but trailing empty denotator groups are not represented in `ArtiPath`s.
+/// Consequently, two abstract paths which differ only
+/// in trailing empty denotator groups cannot be distinguished;
+/// or to put it another way, the number of denotator groups
+/// is not recoverable from the path.
+///
 /// Denotators are encoded using their
 /// [`KeySpecifierComponent::to_slug`]
 /// implementation.
@@ -74,8 +89,11 @@ define_derive_deftly! {
 /// Denotator strings are validated in the same way as [`Slug`](tor-persist::slug::Slug)s.
 ///
 /// For example, the last component of the path `"foo/bar/bax+denotator_example+1"`
-/// is `"bax+denotator_example+1"`.
+/// is the denotator group `"denotator_example+1"`.
 /// Its denotators are `"denotator_example"` and `"1"` (encoded as strings).
+/// As another example, the path `"foo/bar/bax+denotator_example+1@foo+bar@baz"`
+/// has three denotator groups, separated by `@`,
+/// `"denotator_example+1"`, `foo+bar`, and `baz`.
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
@@ -157,7 +175,7 @@ impl ArtiPath {
     ///
     /// If `cert_denotators` is empty, returns the specified `path` as-is.
     /// Otherwise, returns an `ArtiPath` that consists of the specified `path`
-    /// followed by a [`DENOTATOR_SEP`] character and the specified denotators
+    /// followed by a [`DENOTATOR_GROUP_SEP`] character and the specified denotators
     /// (the denotators are encoded as described in the [`ArtiPath`] docs).
     ///
     /// Returns an error if any of the specified denotators are not valid `Slug`s.
