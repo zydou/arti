@@ -12,7 +12,7 @@ use tor_error::Bug;
 use tor_key_forge::{define_ed25519_keypair, define_rsa_keypair};
 use tor_keymgr::{
     InvalidKeyPathComponentValue, KeySpecifier, KeySpecifierComponent,
-    derive_deftly_template_KeySpecifier,
+    derive_deftly_template_CertSpecifier, derive_deftly_template_KeySpecifier,
 };
 use tor_persist::slug::{Slug, timestamp::Iso8601TimeSlug};
 
@@ -105,9 +105,6 @@ impl RelaySigningKeypairSpecifier {
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relaysign_ed")]
 #[deftly(summary = "Public part of the relay medium-term signing keypair")]
-#[deftly(has_certificate(
-    certificate = "RelaySigningKeyCertSpecifier",
-))]
 #[deftly(keypair_specifier = "RelaySigningKeypairSpecifier")]
 pub struct RelaySigningPublicKeySpecifier {
     /// The expiration time of this key.
@@ -132,6 +129,17 @@ impl From<&RelaySigningPublicKeySpecifier> for RelaySigningKeypairSpecifier {
     fn from(public_key_specifier: &RelaySigningPublicKeySpecifier) -> RelaySigningKeypairSpecifier {
         RelaySigningKeypairSpecifier::new(public_key_specifier.valid_until)
     }
+}
+
+/// Certificate specifier for the [`RelaySigningPublicKeySpecifier`] certificate.
+///
+/// Represents `KP_relaysign_ed` signed by the `KS_relayid_ed` identity key.
+#[derive(Deftly, Constructor)]
+#[derive_deftly(CertSpecifier)]
+pub struct RelaySigningKeyCertSpecifier {
+    /// The subject key of this certificate.
+    #[deftly(subject)]
+    subject: RelaySigningPublicKeySpecifier,
 }
 
 /// The approximate time when a [`RelaySigningKeypairSpecifier`] was generated.
