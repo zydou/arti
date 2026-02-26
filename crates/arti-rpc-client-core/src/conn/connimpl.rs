@@ -12,7 +12,7 @@
 //!
 //! Each connection supports both:
 //!  - requests that the caller will block on (a Waitable request)
-//1  - requests that the caller will poll for (a Pollable request).
+//!  - requests that the caller will poll for (a Pollable request).
 //!
 //! ## Identifying requests
 //!
@@ -22,7 +22,7 @@
 //! - Waitable requests have [`AnyRequestId`]. which implements [`QueueId`]
 //! - Pollable requests have [`PolledRequests`], a ZST that implements `QueueId``
 //!
-//! (Requests themselves all have an [`AnyRequestId`]` --
+//! (Requests themselves all have an [`AnyRequestId`] --
 //! the actual ID that we send out in the request,
 //! which the RPC server sends back in all responses.
 //! Additionally, Pollable requests are created with a client-defined [`RequestTag`],
@@ -38,7 +38,7 @@
 //!     which is used for knowing what to do with inbound messages
 //!
 //! If the request is Waitable,
-//! its `RequestMap` entry is [`RequestState::Waiting`], and contains its own [`ResponseQueue`].
+//! its `RequestMap.map` entry is [`RequestState::Waiting`], and contains its own [`ResponseQueue`].
 //!
 //! If the request is Pollable,
 //! its `RequestMap` entry is [`RequestState::Pollable`],
@@ -110,6 +110,11 @@ trait QueueId {
     /// determine what we should do with `msg`.
     ///
     /// (Should we return it, drop it, or forward it to somebody else?)
+    ///
+    /// This is used by the core waiting code in `read_until_message_for`,
+    /// which needs to be able to handle any incoming response,
+    /// even one which is for a different context / different caller,
+    /// and reroute the message to the appropriate place.
     fn response_disposition<'a>(
         &self,
         map: &'a mut RequestMap,
