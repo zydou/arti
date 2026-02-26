@@ -113,15 +113,20 @@ pub(crate) const PATH_SEP: char = '/';
 ///
 /// This separator can only appear within the last component of an [`ArtiPath`],
 /// and the substring that follows it is assumed to be the string representation
-/// of the denotators of the path.
+/// of the denotator groups of the path.
 pub const DENOTATOR_SEP: char = '+';
+
+/// A separator for separating individual denotator groups from each other.
+pub const DENOTATOR_GROUP_SEP: char = '@';
 
 impl ArtiPath {
     /// Validate the underlying representation of an `ArtiPath`
     fn validate_str(inner: &str) -> Result<(), ArtiPathSyntaxError> {
         // Validate the denotators, if there are any.
-        let path = if let Some((main_part, denotators)) = inner.split_once(DENOTATOR_SEP) {
-            let () = validate_denotator_group(denotators)?;
+        let path = if let Some((main_part, denotator_groups)) = inner.split_once(DENOTATOR_SEP) {
+            for denotators in denotator_groups.split(DENOTATOR_GROUP_SEP) {
+                let () = validate_denotator_group(denotators)?;
+            }
 
             main_part
         } else {
@@ -236,6 +241,11 @@ impl ArtiPath {
 
 /// Validate a single denotator group.
 fn validate_denotator_group(denotators: &str) -> Result<(), ArtiPathSyntaxError> {
+    // Empty denotator groups are allowed
+    if denotators.is_empty() {
+        return Ok(());
+    }
+
     for d in denotators.split(DENOTATOR_SEP) {
         let () = slug::check_syntax(d)?;
     }

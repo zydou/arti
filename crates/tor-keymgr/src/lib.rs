@@ -68,7 +68,7 @@ mod mgr;
 #[cfg(not(feature = "keymgr"))]
 mod dummy;
 
-pub use arti_path::{ArtiPath, DENOTATOR_SEP};
+pub use arti_path::{ArtiPath, DENOTATOR_SEP, DENOTATOR_GROUP_SEP};
 pub use err::{
     ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError, UnknownKeyTypeError,
     UnrecognizedEntry, UnrecognizedEntryError,
