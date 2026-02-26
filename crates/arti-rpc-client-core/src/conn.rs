@@ -34,6 +34,14 @@ use tor_rpc_connect::{HasClientErrorAction, auth::cookie::CookieAccessError};
 /// This is not enforced: the only drawback of duplicating tags
 /// is that you will not be able to use them to distinguish
 /// which reply is which.
+///
+/// This is distinct from the request ID type (represented by [`AnyRequestId`])
+/// that is sent to the RPC server with each request
+/// and returned along with each corresponding response.
+/// By contrast, a `UserTag` is never sent to the RPC server,
+/// and therefore is safe to use with information
+/// (like callback and data pointers)
+/// which it would not be safe to take from an untrusted source.
 //
 // Note: The tag is chosen to be two pointers in size,
 // to accommodate C implementations that want to
