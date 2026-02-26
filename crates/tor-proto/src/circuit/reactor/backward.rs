@@ -29,7 +29,7 @@ use derive_deftly::Deftly;
 use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt, future, select_biased};
-use tracing::trace;
+use tracing::{debug, trace};
 
 use std::pin::Pin;
 use std::result::Result as StdResult;
@@ -631,6 +631,11 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                 self.outbound_chan_rx = Some(outbound_chan_rx);
                 let msg = AnyRelayMsgOuter::new(None, extended2.into());
                 self.send_relay_msg(hop, msg).await?;
+
+                debug!(
+                    circ_id = %self.unique_id,
+                    "Extended circuit to the next hop"
+                );
             }
         }
 
@@ -645,6 +650,16 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     ) -> StdResult<(), ReactorError> {
         let (relay_cell_format, ccontrol) = self.hop_info(hopnum)?;
         let cmd = msg.cmd();
+
+        // TODO(relay): remove this log once we add some tests
+        // and confirm relaying cells works as expected
+        // (in practice it will be too noisy to be useful, even at trace level).
+        trace!(
+            circ_id = %self.unique_id,
+            hopnum=?hopnum,
+            cmd = %cmd,
+            "Sending backward cell"
+        );
 
         self.send_relay_cell(hopnum, relay_cell_format, msg, false, &ccontrol)
             .await?;

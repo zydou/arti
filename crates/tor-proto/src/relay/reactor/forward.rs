@@ -29,6 +29,7 @@ use tor_rtcompat::{Runtime, SpawnExt as _};
 
 use futures::channel::mpsc;
 use futures::{SinkExt as _, StreamExt as _, future};
+use tracing::{debug, trace};
 
 use std::result::Result as StdResult;
 use std::sync::Arc;
@@ -225,6 +226,7 @@ impl Forward {
 
         let mut result_tx = self.event_tx.clone();
         let rt = runtime.clone();
+        let unique_id = self.unique_id;
 
         // TODO(relay): because we dispatch this the entire EXTEND2 handling to a background task,
         // we don't really need the channel provider to send us the outcome via an MPSC channel,
@@ -232,7 +234,7 @@ impl Forward {
         // because it runs in another task). Maybe we need to rethink the ChannelProvider API?
         runtime
             .spawn(async move {
-                let res = Self::extend_circuit(rt, extend2, chan_rx).await;
+                let res = Self::extend_circuit(rt, unique_id, extend2, chan_rx).await;
 
                 // Discard the error if the reactor shut down before we had
                 // a chance to complete the extend handshake
@@ -271,6 +273,7 @@ impl Forward {
     #[allow(unused_variables)] // will become used once we implement CREATED2 timeouts
     async fn extend_circuit<R: Runtime>(
         _runtime: R,
+        unique_id: UniqId,
         extend2: Extend2,
         mut chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
     ) -> StdResult<ExtendResult, ReactorError> {
@@ -291,6 +294,11 @@ impl Forward {
             }
         };
 
+        debug!(
+            circ_id = %unique_id,
+            "Launched channel to the next hop"
+        );
+
         // Now that we finally have a forward Tor channel,
         // it's time to forward the onion skin and extend the circuit...
         //
@@ -310,6 +318,12 @@ impl Forward {
         // Time to write the CREATE2 to the outbound channel...
         let mut outbound_chan_tx = channel.sender();
         let cell = AnyChanCell::new(Some(circ_id), create2);
+
+        trace!(
+            circ_id = %unique_id,
+            "Sending CREATE2 to the next hop"
+        );
+
         outbound_chan_tx.send((cell, None)).await?;
 
         // TODO(relay): we need a timeout here, otherwise we might end up waiting forever
@@ -320,6 +334,11 @@ impl Forward {
         let response = createdreceiver
             .await
             .map_err(|_| internal!("channel disappeared?"))?;
+
+        trace!(
+            circ_id = %unique_id,
+            "Got CREATED2 response from next hop"
+        );
 
         let outbound = Outbound {
             circ_id,
@@ -425,6 +444,14 @@ impl ForwardHandler for Forward {
         body: RelayCellBody,
         info: Option<QueuedCellPaddingInfo>,
     ) -> StdResult<(), ReactorError> {
+        // TODO(relay): remove this log once we add some tests
+        // and confirm relaying cells works as expected
+        // (in practice it will be too noisy to be useful, even at trace level).
+        trace!(
+            circ_id = %self.unique_id,
+            "Forwarding unrecognized cell"
+        );
+
         let Some(chan) = self.outbound.as_mut() else {
             // The client shouldn't try to send us any cells before it gets
             // an EXTENDED2 cell from us
