@@ -121,9 +121,7 @@ impl ArtiPath {
     fn validate_str(inner: &str) -> Result<(), ArtiPathSyntaxError> {
         // Validate the denotators, if there are any.
         let path = if let Some((main_part, denotators)) = inner.split_once(DENOTATOR_SEP) {
-            for d in denotators.split(DENOTATOR_SEP) {
-                let () = slug::check_syntax(d)?;
-            }
+            let () = validate_denotator_group(denotators)?;
 
             main_part
         } else {
@@ -234,6 +232,15 @@ impl ArtiPath {
 
         ArtiPath::new(path)
     }
+}
+
+/// Validate a single denotator group.
+fn validate_denotator_group(denotators: &str) -> Result<(), ArtiPathSyntaxError> {
+    for d in denotators.split(DENOTATOR_SEP) {
+        let () = slug::check_syntax(d)?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
