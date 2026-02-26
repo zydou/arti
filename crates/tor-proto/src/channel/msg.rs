@@ -115,6 +115,8 @@ pub(super) mod linkv4 {
         pub(super) enum OpenChanMsgR2R : ChanMsg {
             // No Vpadding, only sent during handshake.
             // No Create/Created, it is obsolete (TAP).
+            CreateFast,
+            CreatedFast,
             Create2,
             Created2,
             Destroy,
@@ -291,6 +293,8 @@ pub(super) mod linkv5 {
         #[derive(Clone, Debug)]
         pub(super) enum OpenChanMsgR2R : ChanMsg {
             // No Create/Created, it is obsolete (TAP).
+            CreateFast,
+            CreatedFast,
             Create2,
             Created2,
             Destroy,

@@ -21,8 +21,6 @@ pub type ChannelResult = Result<Arc<Channel>>;
 //
 // Note: this channel is unbounded, because the limit should be imposed
 // by the [`ChannelProvider`].
-#[allow(unreachable_pub)] // TODO(#1447)
-#[allow(unused)]
 pub struct OutboundChanSender(pub(crate) mpsc::UnboundedSender<ChannelResult>);
 
 impl OutboundChanSender {
@@ -39,7 +37,6 @@ impl OutboundChanSender {
     /// Send the specified channel result to the requester.
     ///
     /// See [`ChannelProvider::get_or_launch`].
-    #[allow(dead_code)] // TODO(relay)
     pub fn send(self, result: ChannelResult) {
         // Don't care if the receiver goes away
         let _ = self.0.unbounded_send(result);

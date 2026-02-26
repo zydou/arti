@@ -206,7 +206,6 @@ pub(crate) struct ChannelAuthenticationData {
     pub(crate) scert: [u8; 32],
 }
 
-#[expect(unused)] // TODO(relay). remove
 impl ChannelAuthenticationData {
     /// Helper: return the authentication type string from the given link auth version.
     const fn auth_type_bytes(link_auth: u16) -> Result<&'static [u8]> {
@@ -252,7 +251,6 @@ impl ChannelAuthenticationData {
         body.extend_from_slice(tls_secrets.as_slice());
 
         // Add the random bytes.
-        let mut rng = rand::rng();
         let random: [u8; 24] = rand::rng().random();
         body.extend_from_slice(&random);
 

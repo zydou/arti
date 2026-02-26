@@ -78,7 +78,7 @@ impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
     ) -> IoResult<Vec<u8>> {
         let (_, session) = self.get_ref();
         session
-            .export_keying_material(Vec::with_capacity(len), label, context)
+            .export_keying_material(vec![0_u8; len], label, context)
             .map_err(|e| IoError::new(io::ErrorKind::InvalidData, e))
     }
 
