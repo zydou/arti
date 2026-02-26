@@ -25,9 +25,9 @@
 //! (Requests themselves all have an [`AnyRequestId`] --
 //! the actual ID that we send out in the request,
 //! which the RPC server sends back in all responses.
-//! Additionally, Pollable requests are created with a client-defined [`RequestTag`],
+//! Additionally, Pollable requests are created with a client-defined [`UserTag`],
 //! which the client can use to identify their particular requests.
-//! `RequestTag` is a separate type to help FFI-style programs
+//! `UserTag is a separate type to help FFI-style programs
 //! that want to put things like pointers in it.)
 //!
 //! # Data structure
@@ -66,8 +66,8 @@
 //!
 //! The two kinds of queue are slightly different.
 //! (We represent their differences with the QueueId trait):
-//!     - Pollable responses need to carry a `RequestTag``;
-//!       Waitable responses don't. This is [`QueueId::Tag`].
+//!     - Pollable responses need to carry a `UserTag`;
+//!       Waitable responses don't. This is [`QueueId::UserTag`].
 //!     - We need to treat final responses a bit differently
 //!       in terms of how we find what to remove.
 //!       This is [`QueueId::remove_entry`].
@@ -81,7 +81,7 @@ use std::{
 };
 
 use crate::{
-    RequestTag,
+    UserTag,
     msgs::{
         AnyRequestId, ObjectId,
         request::{IdGenerator, ValidatedRequest},
@@ -96,8 +96,8 @@ use super::{ProtoError, ShutdownError};
 trait QueueId {
     /// A tag type associated with responses in the identified queue.
     ///
-    /// ("Polling" requests use tags to tell the user which response goes with which request.)
-    type Tag: Sized;
+    /// ("Polling" requests use [`UserTag`]s to tell the user which response goes with which request.)
+    type UserTag: Sized;
 
     /// Find the queue identified by this `QueueId` within `map`,
     /// in order to wait for messages on it.
@@ -127,11 +127,11 @@ trait QueueId {
     fn remove_entry<'a>(&self, map: &'a mut RequestMap, msg_id: Option<&AnyRequestId>);
 
     /// Create and return a new RequestState to track a request associated with this kind of ID.
-    fn new_entry(tag: Self::Tag) -> RequestState;
+    fn new_entry(tag: Self::UserTag) -> RequestState;
 }
 
 impl QueueId for AnyRequestId {
-    type Tag = ();
+    type UserTag = ();
 
     fn get_queue_mut<'a>(
         &self,
@@ -168,7 +168,7 @@ impl QueueId for AnyRequestId {
     }
 
     /// Create and return a new RequestState to track a request associated with this kind of ID.
-    fn new_entry(_: Self::Tag) -> RequestState {
+    fn new_entry(_: Self::UserTag) -> RequestState {
         RequestState::Waiting(ResponseQueue::default())
     }
 }
@@ -178,12 +178,12 @@ impl QueueId for AnyRequestId {
 /// As distinct from "Waitable" requests, which are created with "execute*" methods and
 /// whose APIs expect the user to block while waiting for responses,
 /// polled requests are created with "submit*" methods,
-/// and their replies are returned, along with [`RequestTag`] instances,
+/// and their replies are returned, along with [`UserTag`] instances,
 /// from the RpcConn directly.
 struct PolledRequests;
 
 impl QueueId for PolledRequests {
-    type Tag = RequestTag;
+    type UserTag = UserTag;
 
     fn get_queue_mut<'a>(
         &self,
@@ -214,7 +214,7 @@ impl QueueId for PolledRequests {
         map.map.remove(msg_id);
     }
 
-    fn new_entry(tag: Self::Tag) -> RequestState {
+    fn new_entry(tag: Self::UserTag) -> RequestState {
         RequestState::Pollable(tag)
     }
 }
@@ -225,7 +225,7 @@ impl QueueId for PolledRequests {
 #[educe(Default)]
 struct ResponseQueue<Q: QueueId + ?Sized> {
     /// A queue of replies received with this request's identity.
-    queue: VecDeque<(Q::Tag, ValidatedResponse)>,
+    queue: VecDeque<(Q::UserTag, ValidatedResponse)>,
     /// A condition variable used to wake a thread waiting for this request
     /// to have messages.
     ///
@@ -251,9 +251,9 @@ enum RequestState {
     Waiting(ResponseQueue<AnyRequestId>),
 
     /// A request submitted by one of the `submit_*` functions:
-    /// the user must provide an associated [`RequestTag`],
+    /// the user must provide an associated [`UserTag`],
     /// and call [`RpcConn::wait`] to find responses.
-    Pollable(RequestTag),
+    Pollable(UserTag),
 }
 
 impl<Q: QueueId + ?Sized> ResponseQueue<Q> {
@@ -266,7 +266,7 @@ impl<Q: QueueId + ?Sized> ResponseQueue<Q> {
     fn pop_next_msg(
         &mut self,
         fatal: &Option<ShutdownError>,
-    ) -> Option<Result<(Q::Tag, ValidatedResponse), ShutdownError>> {
+    ) -> Option<Result<(Q::UserTag, ValidatedResponse), ShutdownError>> {
         if let Some(m) = self.queue.pop_front() {
             Some(Ok(m))
         } else {
@@ -275,7 +275,7 @@ impl<Q: QueueId + ?Sized> ResponseQueue<Q> {
     }
 
     /// Queue `response` for this request, and alert the condvar (if any).
-    fn push_back_and_alert(&mut self, tag: Q::Tag, response: ValidatedResponse) {
+    fn push_back_and_alert(&mut self, tag: Q::UserTag, response: ValidatedResponse) {
         self.queue.push_back((tag, response));
 
         if let Some(cv) = &self.waiter {
@@ -304,7 +304,7 @@ struct RequestMap {
 enum ResponseDisposition<'a, Q: QueueId + ?Sized> {
     /// This message is for the queue that we are waiting for;
     /// we should return it to the caller.
-    Return(Q::Tag),
+    Return(Q::UserTag),
 
     /// This message if for a dead request that was probably cancelled;
     /// we should drop it.
@@ -315,7 +315,7 @@ enum ResponseDisposition<'a, Q: QueueId + ?Sized> {
 
     /// This message is for some other request;
     ///  we should instead forward it to the the polled request queue.
-    ForwardPollable(RequestTag, &'a mut ResponseQueue<PolledRequests>),
+    ForwardPollable(UserTag, &'a mut ResponseQueue<PolledRequests>),
 }
 
 /// Mutable state to implement receiving replies on an RpcConn.
@@ -476,11 +476,7 @@ impl RpcConn {
 
     /// As a`send_waitable_request`, but send a Polled request -- one without a RequestHandle,
     /// where responses are returned via [`RpcConn::wait()`].
-    pub(super) fn send_pollable_request(
-        &self,
-        tag: RequestTag,
-        msg: &str,
-    ) -> Result<(), ProtoError> {
+    pub(super) fn send_pollable_request(&self, tag: UserTag, msg: &str) -> Result<(), ProtoError> {
         let _id = self.send_request_impl::<PolledRequests>(msg, tag)?;
         Ok(())
     }
@@ -491,7 +487,7 @@ impl RpcConn {
     fn send_request_impl<Q: QueueId>(
         &self,
         msg: &str,
-        tag: Q::Tag,
+        tag: Q::UserTag,
     ) -> Result<AnyRequestId, ProtoError> {
         use std::collections::hash_map::Entry::*;
 
@@ -553,7 +549,7 @@ impl Receiver {
     /// _or_ there is a new message for some pollable request.
     pub(super) fn wait_on_pollable_response(
         &self,
-    ) -> Result<(RequestTag, ValidatedResponse), ProtoError> {
+    ) -> Result<(UserTag, ValidatedResponse), ProtoError> {
         self.wait_on_message_for_queue(&PolledRequests)
     }
 
@@ -563,7 +559,7 @@ impl Receiver {
     fn wait_on_message_for_queue<Q: QueueId>(
         &self,
         queue_id: &Q,
-    ) -> Result<(Q::Tag, ValidatedResponse), ProtoError> {
+    ) -> Result<(Q::UserTag, ValidatedResponse), ProtoError> {
         // Here in wait_on_message_for_impl, we do the the actual work
         // of waiting for the message.
         let state = self.state.lock().expect("poisoned");
@@ -627,7 +623,7 @@ impl Receiver {
         mut state_lock: MutexGuard<'a, ReceiverState>,
         queue_id: &Q,
     ) -> (
-        Result<(Q::Tag, ValidatedResponse), ProtoError>,
+        Result<(Q::UserTag, ValidatedResponse), ProtoError>,
         MutexGuard<'a, ReceiverState>,
         AlertWhom,
     ) {
@@ -722,7 +718,7 @@ impl Receiver {
         stream: &mut PollingStream,
         queue_id: &Q,
     ) -> (
-        Result<(Q::Tag, ValidatedResponse), ShutdownError>,
+        Result<(Q::UserTag, ValidatedResponse), ShutdownError>,
         MutexGuard<'a, ReceiverState>,
         AlertWhom,
     ) {
