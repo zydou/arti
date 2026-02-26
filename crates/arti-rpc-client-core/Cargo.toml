@@ -39,6 +39,7 @@ tor-socksproto = { path = "../tor-socksproto", version = "0.39.0", default-featu
 void = "1"
 
 [dev-dependencies]
+assert_matches = "1.5.0"
 rand = "0.9.1"
 rand_chacha = "0.9"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0" }

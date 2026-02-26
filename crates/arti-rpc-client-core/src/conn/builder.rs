@@ -323,24 +323,21 @@ impl RpcConnBuilder {
     /// As [`connect`](Self::connect), but return an `RpcConn` suitable for use with event-driven IO,
     /// and an [`RpcPoll`] to drive that IO.
     ///
-    /// Requires an [`RpcPollWaker`](crate::RpcPollWaker) which,
-    /// when invoked, will cause the event-driven IO loop to wake up,
-    /// *and* will cause [`RpcPoll::poll()`] to be invoked.
-    /// (You can implement this using `EVFILT_USER` with kqueue,
-    /// `eventfd` on linux, or a `pipe()` with most other operating systems.
-    /// On windows you can use an IOCP or some kind of ersatz socketpair.)
+    /// Requires an [`EventLoop`](crate::EventLoop) which,
+    /// when invoked, will cause the events registered for the `RpcPoll` to be changed.
+    /// (See `EventLoop` documentation for implementation suggestions.)
     ///
     /// Once you have received an RpcPoll from this function,
-    /// you _must_ begin using [`RpcPoll:poll()`] as documented;
+    /// you _must_ begin using [`RpcPoll::poll()`] as documented;
     /// otherwise, no requests--even those crated with `execute` methods--will receive responses.
     pub fn connect_polling(
         &self,
-        waker: Box<dyn crate::RpcPollWaker>,
+        event_loop: Box<dyn crate::EventLoop>,
     ) -> Result<(RpcConn, RpcPoll), ConnectFailure> {
         let mut conn = self.connect()?;
 
         let poll = conn
-            .construct_rpc_poll(waker)
+            .construct_rpc_poll(event_loop)
             // This can only occur if somebody else is blocking on the receiver for this RpcConn,
             // which should be impossible, since we just created it with Self::connect.
             .expect("Unable to construct RpcPoll implementation");

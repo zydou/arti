@@ -88,7 +88,7 @@ use crate::{
         request::{IdGenerator, ValidatedRequest},
         response::ValidatedResponse,
     },
-    nb_stream::{NonblockingStream, PollingStream, WantIo},
+    nb_stream::{NonblockingStream, PollingStream},
 };
 
 use super::{ProtoError, ShutdownError};
@@ -480,12 +480,12 @@ impl RpcConn {
     /// See caveats on [`RpcConnBuilder::connect_polling`](crate::RpcConnBuilder::connect_polling).
     pub(crate) fn construct_rpc_poll(
         &mut self,
-        new_waker: Box<dyn crate::nb_stream::Waker>,
+        event_loop: Box<dyn crate::nb_stream::EventLoop>,
     ) -> Option<RpcPoll> {
         let mut state = self.receiver.state.lock().expect("Lock poisoned");
         // TODO nb: enforce that nobody else is holding the state?  Return an error?
         let mut stream = state.stream.take()?.into_nonblocking();
-        stream.replace_waker(new_waker);
+        stream.replace_event_loop_handle(event_loop);
         Some(RpcPoll {
             receiver: Arc::clone(&self.receiver),
             stream,
@@ -811,6 +811,12 @@ impl Receiver {
     }
 }
 
+/// Type returned by [`RpcPoll::poll`] when no progress can be made until the underlying
+/// connection has more data to read or write.
+#[derive(Copy, Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct WouldBlock;
+
 impl RpcPoll {
     #[cfg(unix)]
     /// If possible, return a fd to use with an underlying event-driven IO code.
@@ -830,21 +836,21 @@ impl RpcPoll {
     /// and passes any responses to requests created with the [`RpcConn::execute`] methods.
     /// If it finds a response to a request crated with [`RpcConn::submit`], it returns that response.
     ///
-    /// If no further progress can be made without performing more IO, it returns a [`WantIo`] object.
+    /// If no further progress can be made without performing more IO, it returns [`WouldBlock`].
     /// The caller should then register the fd/socket for this [`RpcPoll`] in its event-driven IO framework,
     /// waiting for read/write events as specified by the `WantIo`.
     ///
     /// Only one thread may call this method at a time.
     /// (In Rust, this is enforced by having the method take a mutable reference.)
-    pub fn poll(&mut self) -> Result<Result<(UserTag, AnyResponse), ProtoError>, WantIo> {
+    pub fn poll(&mut self) -> Result<Result<(UserTag, AnyResponse), ProtoError>, WouldBlock> {
         use crate::nb_stream::PollStatus;
         // We try reading _and_ writing regardless; it won't hurt anything.
         loop {
-            let r = self.stream.interact_once(true, true);
+            let r = self.stream.interact_once();
             let response = match r {
                 Ok(PollStatus::Msg(m)) => m.try_validate().map_err(ShutdownError::from),
                 Ok(PollStatus::Closed) => return Ok(Err(ShutdownError::ConnectionClosed.into())),
-                Ok(PollStatus::WouldBlock(want_io)) => return Err(want_io),
+                Ok(PollStatus::WouldBlock) => return Err(WouldBlock),
                 Err(io_error) => return Ok(Err(ShutdownError::Read(Arc::new(io_error)).into())),
             };
 

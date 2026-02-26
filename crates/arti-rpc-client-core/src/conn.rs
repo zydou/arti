@@ -21,7 +21,7 @@ mod stream;
 
 use crate::util::Utf8CString;
 pub use builder::{BuilderError, ConnPtDescription, RpcConnBuilder};
-pub use connimpl::{RpcConn, RpcPoll};
+pub use connimpl::{RpcConn, RpcPoll, WouldBlock};
 use serde::{Deserialize, de::DeserializeOwned};
 pub use stream::StreamError;
 use tor_rpc_connect::{HasClientErrorAction, auth::cookie::CookieAccessError};

@@ -418,6 +418,7 @@ dependencies = [
 name = "arti-rpc-client-core"
 version = "0.39.0"
 dependencies = [
+ "assert_matches",
  "caret",
  "cfg-if",
  "derive_more",
