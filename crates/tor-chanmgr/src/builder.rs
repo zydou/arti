@@ -448,16 +448,18 @@ where
         let Some(identities) = &self.identities else {
             return Ok(());
         };
-        identities
-            .has_any_relay_id_from(_target)
-            .then_some(())
-            .ok_or(Error::Proto {
+        // Any of our identities match the given target, we are connecting to ourselves, refuse.
+        if identities.has_any_relay_id_from(_target) {
+            Err(Error::Proto {
                 source: tor_proto::Error::ChanProto(
                     "Refusing to build channel to ourselves".into(),
                 ),
                 peer: _target.clone().into(),
                 clock_skew: None,
             })
+        } else {
+            Ok(())
+        }
     }
 
     /// Build a relay initiator channel.
