@@ -278,7 +278,7 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
     )?;
 
     Ok(RelayIdentities::new(
-        rsa_id_kp.to_rsa_identity(),
+        &rsa_id_kp.public().into(),
         ed_id_kp.to_ed25519_id(),
         link_sign_kp,
         cert_id_sign_ed.to_encodable_cert(),

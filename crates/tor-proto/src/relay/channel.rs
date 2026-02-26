@@ -26,6 +26,7 @@ use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIdRef, RelayIdType};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{
     ed25519::{Ed25519Identity, Ed25519SigningKey},
+    rsa,
     rsa::RsaIdentity,
 };
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
@@ -46,24 +47,30 @@ pub(crate) static LINK_AUTH: &[u16] = &[AUTHTYPE_ED25519_SHA256_RFC5705];
 /// We use this intermediary object in order to not have tor-proto crate have access to the KeyMgr
 /// meaning access to all keys. This restricts the view to what is needed.
 pub struct RelayIdentities {
-    /// As a relay, our RSA identity key: KP_relayid_rsa
+    /// The SHA256(DER(KP_relayid_rsa)) digest for the AUTHENTICATE cell CID.
+    pub(crate) rsa_id_der_digest: [u8; 32],
+    /// Our RSA identity `KP_relayid_rsa` (SHA1). Needed for HasRelayIds which is required to
+    /// compare this with a [`tor_linkspec::ChanTarget`].
     pub(crate) rsa_id: RsaIdentity,
-    /// As a relay, our Ed identity key: KP_relayid_ed
+    /// Our Ed identity key (KP_relayid_ed). For the [`msg::Authenticate`] cell CID_ED field.
     pub(crate) ed_id: Ed25519Identity,
-    /// As a relay, our link signing keypair.
+    /// Our link signing keypair. Used to sign the [`msg::Authenticate`] cell.
     pub(crate) link_sign_kp: RelayLinkSigningKeypair,
-    /// The Ed25519 identity signing cert (CertType 4)
+    /// The Ed25519 identity signing cert (CertType 4) for the [`msg::Certs`] cell.
     pub(crate) cert_id_sign_ed: EncodedEd25519Cert,
-    /// The Ed25519 signing TLS cert (CertType 5)
+    /// The Ed25519 signing TLS cert (CertType 5) for the [`msg::Certs`] cell.
     pub(crate) cert_sign_tls_ed: EncodedEd25519Cert,
-    /// The Ed25519 signing link auth cert (CertType 6)
+    /// The Ed25519 signing link auth cert (CertType 6) for the [`msg::Certs`] cell.
     pub(crate) cert_sign_link_auth_ed: EncodedEd25519Cert,
-    /// Legacy: the RSA identity X509 cert (CertType 2). We only have the bytes here as
-    /// create_legacy_rsa_id_cert() takes a key and gives us back the encoded cert.
+    /// Legacy: the RSA identity X509 cert (CertType 2) for the [`msg::Certs`] cell.
+    ///
+    /// We only have the bytes here as create_legacy_rsa_id_cert() takes a key and gives us back
+    /// the encoded cert.
     pub(crate) cert_id_x509_rsa: Vec<u8>,
-    /// Legacy: the RSA identity cert (CertType 7)
+    /// Legacy: the RSA identity cert (CertType 7) for the [`msg::Certs`] cell.
     pub(crate) cert_id_rsa: EncodedRsaCrosscert,
-    /// Tls key and cert.
+    /// Tls key and cert. This is for the TLS acceptor object needed to be a responder (TLS server
+    /// side).
     pub(crate) tls_key_and_cert: TlsKeyAndCert,
 }
 
@@ -71,7 +78,7 @@ impl RelayIdentities {
     /// Constructor.
     #[allow(clippy::too_many_arguments)] // Yes, plethora of keys...
     pub fn new(
-        rsa_id: RsaIdentity,
+        rsa_id_pk: &rsa::PublicKey,
         ed_id: Ed25519Identity,
         link_sign_kp: RelayLinkSigningKeypair,
         cert_id_sign_ed: EncodedEd25519Cert,
@@ -82,7 +89,8 @@ impl RelayIdentities {
         tls_key_and_cert: TlsKeyAndCert,
     ) -> Self {
         Self {
-            rsa_id,
+            rsa_id_der_digest: ll::d::Sha256::digest(rsa_id_pk.to_der()).into(),
+            rsa_id: rsa_id_pk.to_rsa_identity(),
             ed_id,
             link_sign_kp,
             cert_id_sign_ed,
@@ -104,11 +112,6 @@ impl RelayIdentities {
     /// Return our Ed identity key (KP_relayid_ed) as bytes.
     pub(crate) fn ed_id_bytes(&self) -> [u8; 32] {
         self.ed_id.into()
-    }
-
-    /// Return the digest of the RSA x509 certificate (CertType 2) as bytes.
-    pub(crate) fn rsa_x509_digest(&self) -> [u8; 32] {
-        ll::d::Sha256::digest(&self.cert_id_x509_rsa).into()
     }
 }
 
@@ -297,8 +300,8 @@ impl ChannelAuthenticationData {
             .max()
             .ok_or(Error::BadCellAuth)?;
         // The ordering matter based on if initiator or responder.
-        let cid = identities.rsa_x509_digest();
-        let sid = verified.rsa_cert_digest;
+        let cid = identities.rsa_id_der_digest;
+        let sid = verified.rsa_id_digest;
         let cid_ed = identities.ed_id_bytes();
         let sid_ed = verified.ed25519_id.into();
         // Both values are consumed from the underlying codec.
