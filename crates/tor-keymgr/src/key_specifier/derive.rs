@@ -684,14 +684,12 @@ define_derive_deftly! {
 
     // Whether *all* the required tmeta fields were specified at the top level
     ${defcond HAS_ALL_CERT_FIELDS
-        all(tmeta(has_certificate(certificate)),
-            tmeta(has_certificate(signed_with)))
+        all(tmeta(has_certificate(certificate)))
     }
 
     ${if HAS_CERT {
         ${if HAS_ALL_CERT_FIELDS {
 
-            ${define SIGNING_KEY_SPEC ${tmeta(has_certificate(signed_with)) as ident}}
             ${define CERT_SPEC ${tmeta(has_certificate(certificate)) as ident}}
 
             #[doc = concat!("The certificate specifier of a [`", stringify!($tname), "`]")]
@@ -699,14 +697,6 @@ define_derive_deftly! {
             $tvis struct $CERT_SPEC<$tdefgens>
             where $twheres
             ${vdefbody $vname $(
-                /// The specifier of the signing key.
-                ///
-                // TODO: in practice this is currently non-optional. However, the reason I made it
-                // an `Option` is because later down the line we might want to support certificates
-                // signed with keys that do not have a key specifier at all.
-                //
-                // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2565#note_3126535
-                $fvis signed_with: Option<$SIGNING_KEY_SPEC>,
                 /// The specifier of the subject key.
                 $fvis subject: $ttype,
 
@@ -721,21 +711,12 @@ define_derive_deftly! {
                     vec![]
                 }
 
-                fn signing_key_specifier(&self) -> Option<&dyn $crate::KeySpecifier> {
-                    self.signed_with.as_ref().map(|key| key as &dyn $crate::KeySpecifier)
-                }
-
                 fn subject_key_specifier(&self) -> &dyn $crate::KeySpecifier {
                     &self.subject
                 }
             }
         } else {
-            // TODO: we might want to make signed_with optional later down the line
-            // (but when we do, we also should change all the certificate APIs to
-            // take an optional signing key argument)
-            //
-            // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2565#note_3126535
-            ${error "has_certificate requires both \"certificate\" and \"signed_with\""}
+            ${error "has_certificate requires \"certificate\""}
         }}
     }}
 

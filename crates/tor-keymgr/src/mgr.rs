@@ -549,6 +549,7 @@ impl KeyMgr {
     pub fn get_key_and_cert<K, C>(
         &self,
         spec: &dyn KeyCertificateSpecifier,
+        signing_key_spec: &dyn KeySpecifier,
     ) -> Result<Option<(K, C)>>
     where
         K: ToEncodableKey,
@@ -576,7 +577,7 @@ impl KeyMgr {
         };
 
         // Finally, get the signing key and validate the cert
-        let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
+        let signed_with = self.get_cert_signing_key::<K, C>(signing_key_spec)?;
         let cert = C::validate(cert, &key, &signed_with)?;
 
         Ok(Some((key, cert)))
@@ -621,6 +622,7 @@ impl KeyMgr {
     pub fn get_or_generate_key_and_cert<K, C>(
         &self,
         spec: &dyn KeyCertificateSpecifier,
+        signing_key_spec: &dyn KeySpecifier,
         make_certificate: impl FnOnce(&K, &<C as ToEncodableCert<K>>::SigningKey) -> C,
         selector: KeystoreSelector,
         rng: &mut dyn KeygenRng,
@@ -660,7 +662,7 @@ impl KeyMgr {
             _ => self.generate(subject_key_spec, selector, rng, false)?,
         };
 
-        let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
+        let signed_with = self.get_cert_signing_key::<K, C>(signing_key_spec)?;
         let cert = match maybe_cert {
             Some(cert) => C::validate(cert, &subject_key, &signed_with)?,
             None => {
@@ -708,19 +710,12 @@ impl KeyMgr {
     #[cfg(feature = "experimental-api")]
     fn get_cert_signing_key<K, C>(
         &self,
-        spec: &dyn KeyCertificateSpecifier,
+        signing_key_spec: &dyn KeySpecifier,
     ) -> Result<C::SigningKey>
     where
         K: ToEncodableKey,
         C: ToEncodableCert<K>,
     {
-        let Some(signing_key_spec) = spec.signing_key_specifier() else {
-            return Err(bad_api_usage!(
-                "signing key specifier is None, but external signing key was not provided?"
-            )
-            .into());
-        };
-
         let Some(signing_key) = self.get_from_store::<C::SigningKey>(
             signing_key_spec,
             &<C::SigningKey as ToEncodableKey>::Key::item_type(),
@@ -1879,7 +1874,6 @@ mod tests {
 
             let spec = crate::test_utils::TestCertSpecifier {
                 subject_key_spec: TestKeySpecifier1,
-                signing_key_spec: TestKeySpecifier2,
                 denotator: vec!["foo".into()],
             };
 
@@ -1937,9 +1931,11 @@ mod tests {
                 })
             };
 
+            let signing_key_spec = TestKeySpecifier2;
             let res = mgr
                 .get_or_generate_key_and_cert::<TestItem, AlwaysValidCert>(
                     &spec,
+                    &signing_key_spec,
                     &make_certificate,
                     KeystoreSelector::Primary,
                     &mut rng,

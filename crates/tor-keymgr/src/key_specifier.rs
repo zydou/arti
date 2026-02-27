@@ -662,14 +662,6 @@ pub trait KeyCertificateSpecifier {
     /// with a `+` between the `ArtiPath` of the subject key and
     /// the denotators (the `+` is omitted if there are no denotators).
     fn cert_denotators(&self) -> Vec<&dyn KeySpecifierComponent>;
-    /// The key specifier of the signing key.
-    ///
-    /// Returns `None` if the signing key should not be retrieved from the keystore.
-    ///
-    /// Note: a return value of `None` means the signing key will be provided
-    /// as an argument to the `KeyMgr` accessor this `KeyCertificateSpecifier`
-    /// will be used with.
-    fn signing_key_specifier(&self) -> Option<&dyn KeySpecifier>;
     /// The key specifier of the subject key.
     fn subject_key_specifier(&self) -> &dyn KeySpecifier;
 }

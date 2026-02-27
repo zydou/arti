@@ -107,7 +107,6 @@ impl RelaySigningKeypairSpecifier {
 #[deftly(summary = "Public part of the relay medium-term signing keypair")]
 #[deftly(has_certificate(
     certificate = "RelaySigningKeyCertSpecifier",
-    signed_with = "RelayIdentityKeypairSpecifier",
 ))]
 #[deftly(keypair_specifier = "RelaySigningKeypairSpecifier")]
 pub struct RelaySigningPublicKeySpecifier {
@@ -254,20 +253,9 @@ mod test {
         );
 
         check_key_specifier(&pubkey_spec, "relay/kp_relaysign_ed+19700101000000");
-        let relayid_spec = RelayIdentityKeypairSpecifier::new();
         let cert_spec = RelaySigningKeyCertSpecifier {
-            signed_with: Some(relayid_spec),
             subject: pubkey_spec,
         };
-
-        assert_eq!(
-            cert_spec
-                .signing_key_specifier()
-                .unwrap()
-                .arti_path()
-                .unwrap(),
-            relayid_spec.arti_path().unwrap()
-        );
 
         assert_eq!(
             cert_spec.subject_key_specifier().arti_path().unwrap(),
