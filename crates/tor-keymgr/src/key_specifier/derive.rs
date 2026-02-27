@@ -426,14 +426,6 @@ define_derive_deftly! {
     ///    If not specified, the generated [`KeySpecifier::ctor_path`]
     ///    implementation will always return `None`.
     ///
-    ///  * **`#[deftly(has_certificate(certificate = "<type>", signed_with = <spec>")]`** (toplevel):
-    ///    Specifies that this key is the subject key of a certificate.
-    ///
-    ///    If specified, this will auto-generate a new certificate specifier type `<type>`
-    ///    that implements [`KeyCertificateSpecifier`].
-    ///
-    ///    The `<spec>` value is the key specifier type of the signing key.
-    ///
     ///  * **`#[deftly(fixed_path_component = "component")]`** (field):
     ///    Before this field insert a fixed path component `component`.
     ///    (Can be even used before a denotator component,
@@ -731,50 +723,6 @@ define_derive_deftly! {
         }
     }
 
-    }}
-
-    // #[deftly(has_certificate = ...)] on the toplevel
-    ${defcond HAS_CERT
-        any(tmeta(has_certificate(certificate)),
-            tmeta(has_certificate(signed_with)))
-    }
-
-    // Whether *all* the required tmeta fields were specified at the top level
-    ${defcond HAS_ALL_CERT_FIELDS
-        all(tmeta(has_certificate(certificate)))
-    }
-
-    ${if HAS_CERT {
-        ${if HAS_ALL_CERT_FIELDS {
-
-            ${define CERT_SPEC ${tmeta(has_certificate(certificate)) as ident}}
-
-            #[doc = concat!("The certificate specifier of a [`", stringify!($tname), "`]")]
-            #[non_exhaustive]
-            $tvis struct $CERT_SPEC<$tdefgens>
-            where $twheres
-            ${vdefbody $vname $(
-                /// The specifier of the subject key.
-                $fvis subject: $ttype,
-
-                // TODO: support certificate denotators?
-            ) }
-
-            impl<$tgens> $crate::KeyCertificateSpecifier for $CERT_SPEC<$tdefgens>
-            where $twheres
-            {
-                fn cert_denotators(&self) -> Vec<&dyn $crate::KeySpecifierComponent> {
-                    // TODO: support certificate denotators?
-                    vec![]
-                }
-
-                fn subject_key_specifier(&self) -> &dyn $crate::KeySpecifier {
-                    &self.subject
-                }
-            }
-        } else {
-            ${error "has_certificate requires \"certificate\""}
-        }}
     }}
 
     // Register the info extractor with `KeyMgr`.
