@@ -339,6 +339,7 @@ fn try_connect(
             tcp_stream.set_nonblocking(true).map_err(wrap_io_err)?;
             Box::new(mio::net::TcpStream::from_std(tcp_stream))
         }
+        #[cfg(unix)]
         S::Unix(unix_stream) => {
             unix_stream.set_nonblocking(true).map_err(wrap_io_err)?;
             Box::new(mio::net::UnixStream::from_std(unix_stream))
