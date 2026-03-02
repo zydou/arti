@@ -204,7 +204,7 @@ Niel Duysters, Nihal, Nuhiat-Arefin, Robert Bartlensky, carti-it, hjrgrn,
 moumenalaoui, robertb, sjcobb.
 
 Also, our deep thanks to
-the [Bureau of Democracy, Human Rights and Labor],
+the [Bureau of Democracy, Human Rights, and Labor],
 and our [other sponsors]
 for funding the development of Arti!
 
@@ -315,7 +315,7 @@ for funding the development of Arti!
 [#2367]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2367
 [#2368]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2368
 [8dd6708d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/8dd6708d9ac2f7ff9899ca44637f29b667521ada
-[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[Bureau of Democracy, Human Rights, and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
 [MSRV policy]: https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version
 [RUSTSEC-2026-0007]: https://rustsec.org/advisories/RUSTSEC-2026-0007
 [RUSTSEC-2026-0009]: https://rustsec.org/advisories/RUSTSEC-2026-0009
