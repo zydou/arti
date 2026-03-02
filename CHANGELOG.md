@@ -115,7 +115,7 @@ which are documented below.
 
 ### RPC development
 
-- New nonblocking backend for `arti-rpc-client` core. ([#1856], [!3644])
+- New nonblocking backend for `arti-rpc-client-core` crate. ([#1856], [!3644])
 
 ### Testing
 
