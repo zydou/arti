@@ -197,6 +197,8 @@ They are included for backwards compatibility.
 Note that these features will still be enabled if you build with the
 `--all-features` cargo flag.
 
+* `derive-deftly`
+
 -->
 
 [#1795]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1795

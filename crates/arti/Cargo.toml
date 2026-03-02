@@ -73,6 +73,8 @@ full = [
 async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "async-signal"]
 bridge-client = ["arti-client/bridge-client"]
 default-runtime = ["tokio", "native-tls"]
+# Note: this feature is deprecated and should not be used (it is a no-op).
+derive-deftly = []
 dns-proxy = ["hickory-proto"]
 experimental-api = ["arti-client/experimental-api", "visibility", "__is_experimental"]
 harden = ["secmem-proc"]
@@ -98,7 +100,7 @@ ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
 flowctl-cc = ["arti-client/flowctl-cc", "__is_experimental"]
 counter-galois-onion = ["arti-client/counter-galois-onion", "flowctl-cc", "__is_experimental"]
 
-rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "arti-client/rpc"]
+rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "arti-client/rpc", "derive-deftly"]
 
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
