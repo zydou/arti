@@ -95,34 +95,42 @@ impl ChannelCellHandler {
         Ok(())
     }
 
-    /// Return the CLOG digest.
+    /// The digest of bytes sent on this channel.
     ///
-    /// An error is returned if we are trying to get the CLOG digest without a handshake handler.
-    #[allow(unused)] // Remove is when used
-    pub(crate) fn get_clog_digest(&mut self) -> Result<[u8; 32], ChanError> {
+    /// This should only ever be called once as it consumes the send log.
+    ///
+    /// This will return an error if one of:
+    /// - The channel is not recording the send log.
+    /// - The send log digest has already been taken.
+    /// - This cell handler is not using a handshake handler.
+    pub(crate) fn take_send_log_digest(&mut self) -> Result<[u8; 32], ChanError> {
         if let Self::Handshake(handler) = self {
             handler
-                .take_clog()
-                .ok_or(ChanError::Bug(internal!("No clog digest on channel")))
+                .take_send_log_digest()
+                .ok_or(ChanError::Bug(internal!("No send log digest on channel")))
         } else {
             Err(ChanError::Bug(internal!(
-                "Getting CLOG without a handshake handler"
+                "Getting send log digest without a handshake handler"
             )))
         }
     }
 
-    /// Return the SLOG digest.
+    /// The digest of bytes received on this channel.
     ///
-    /// An error is returned if we are trying to get the SLOG digest without a handshake handler.
-    #[allow(unused)] // Remove is when used
-    pub(crate) fn get_slog_digest(&mut self) -> Result<[u8; 32], ChanError> {
+    /// This should only ever be called once as it consumes the receive log.
+    ///
+    /// This will return `None` if one of:
+    /// - The channel is not recording the receive log.
+    /// - The receive log digest has already been taken.
+    /// - This cell handler is not using a handshake handler.
+    pub(crate) fn take_recv_log_digest(&mut self) -> Result<[u8; 32], ChanError> {
         if let Self::Handshake(handler) = self {
             handler
-                .take_slog()
-                .ok_or(ChanError::Bug(internal!("No slog digest on channel")))
+                .take_recv_log_digest()
+                .ok_or(ChanError::Bug(internal!("No recv log digest on channel")))
         } else {
             Err(ChanError::Bug(internal!(
-                "Getting SLOG without a handshake handler"
+                "Getting recv log digest without a handshake handler"
             )))
         }
     }
@@ -190,10 +198,14 @@ impl futures_codec::Encoder for ChannelCellHandler {
 pub(crate) struct NewChannelHandler {
     /// The channel type for this handler.
     channel_type: ChannelType,
-    /// The CLOG digest needed for authenticated channels.
-    clog: Option<ll::d::Sha256>,
-    /// The SLOG digest needed for authenticated channels.
-    slog: Option<ll::d::Sha256>,
+    /// The digest of bytes sent on this channel.
+    ///
+    /// Will be used for the SLOG or CLOG of the AUTHENTICATE cell.
+    send_log: Option<ll::d::Sha256>,
+    /// The digest of bytes received on this channel.
+    ///
+    /// Will be used for the SLOG or CLOG of the AUTHENTICATE cell.
+    recv_log: Option<ll::d::Sha256>,
 }
 
 impl NewChannelHandler {
@@ -208,15 +220,15 @@ impl From<ChannelType> for NewChannelHandler {
         match channel_type {
             ChannelType::ClientInitiator => Self {
                 channel_type,
-                clog: None,
-                slog: None,
+                send_log: None,
+                recv_log: None,
             },
             // Relay responder might not need clog/slog but that is fine. We don't know until the
             // end of the handshake.
             ChannelType::RelayInitiator | ChannelType::RelayResponder { .. } => Self {
                 channel_type,
-                clog: Some(ll::d::Sha256::new()),
-                slog: Some(ll::d::Sha256::new()),
+                send_log: Some(ll::d::Sha256::new()),
+                recv_log: Some(ll::d::Sha256::new()),
             },
         }
     }
@@ -287,11 +299,11 @@ impl futures_codec::Decoder for NewChannelHandler {
         // Extract the exact data we will be looking at.
         let mut data = src.split_to(wanted_bytes);
 
-        // Update the SLOG digest with the entire cell up to the end of the payload hence the data
-        // we are looking at (and not the whole source). Even on error, this doesn't matter because
-        // if decoding fails, the channel is closed.
-        if let Some(slog) = self.slog.as_mut() {
-            slog.update(&data);
+        // Update the receive log digest with the entire cell up to the end of the payload hence the
+        // data we are looking at (and not the whole source). Even on error, this doesn't matter
+        // because if decoding fails, the channel is closed.
+        if let Some(recv_log) = self.recv_log.as_mut() {
+            recv_log.update(&data);
         }
 
         // Get the actual boddy from the data.
@@ -313,9 +325,9 @@ impl futures_codec::Encoder for NewChannelHandler {
         let encoded_bytes = item
             .encode_for_handshake()
             .map_err(|e| Self::Error::from_bytes_enc(e, "new cell handler"))?;
-        // Update the CLOG digest.
-        if let Some(clog) = self.clog.as_mut() {
-            clog.update(&encoded_bytes);
+        // Update the send log digest.
+        if let Some(send_log) = self.send_log.as_mut() {
+            send_log.update(&encoded_bytes);
         }
         // Special encoding for the VERSIONS cell.
         dst.extend_from_slice(&encoded_bytes);
@@ -330,10 +342,14 @@ pub(crate) struct HandshakeChannelHandler {
     filter: MessageFilter,
     /// The cell codec that we'll use to encode and decode our cells.
     inner: codec::ChannelCodec,
-    /// The CLOG digest needed for authenticated channels.
-    clog: Option<ll::d::Sha256>,
-    /// The SLOG digest needed for authenticated channels.
-    slog: Option<ll::d::Sha256>,
+    /// The digest of bytes sent on this channel.
+    ///
+    /// Will be used for the SLOG or CLOG of the AUTHENTICATE cell.
+    send_log: Option<ll::d::Sha256>,
+    /// The digest of bytes received on this channel.
+    ///
+    /// Will be used for the SLOG or CLOG of the AUTHENTICATE cell.
+    recv_log: Option<ll::d::Sha256>,
 }
 
 impl HandshakeChannelHandler {
@@ -345,8 +361,8 @@ impl HandshakeChannelHandler {
                 new_handler.channel_type,
                 super::msg::MessageStage::Handshake,
             ),
-            clog: new_handler.clog.take(),
-            slog: new_handler.slog.take(),
+            send_log: new_handler.send_log.take(),
+            recv_log: new_handler.recv_log.take(),
             inner: codec::ChannelCodec::new(link_version.value()),
         }
     }
@@ -368,14 +384,26 @@ impl HandshakeChannelHandler {
         )
     }
 
-    /// Return the digest of the CLOG consuming it.
-    pub(crate) fn take_clog(&mut self) -> Option<[u8; 32]> {
-        Self::finalize_log(self.clog.take())
+    /// The digest of bytes sent on this channel.
+    ///
+    /// This should only ever be called once as it consumes the send log.
+    ///
+    /// This will return `None` if one of:
+    /// - The channel is not recording the send log.
+    /// - The send log digest has already been taken.
+    pub(crate) fn take_send_log_digest(&mut self) -> Option<[u8; 32]> {
+        Self::finalize_log(self.send_log.take())
     }
 
-    /// Return the digest of the SLOG consuming it.
-    pub(crate) fn take_slog(&mut self) -> Option<[u8; 32]> {
-        Self::finalize_log(self.slog.take())
+    /// The digest of bytes received on this channel.
+    ///
+    /// This should only ever be called once as it consumes the receive log.
+    ///
+    /// This will return `None` if one of:
+    /// - The channel is not recording the receive log.
+    /// - The receive log digest has already been taken.
+    pub(crate) fn take_recv_log_digest(&mut self) -> Option<[u8; 32]> {
+        Self::finalize_log(self.recv_log.take())
     }
 
     /// Return the [`ChannelType`] of this handler.
@@ -401,10 +429,10 @@ impl futures_codec::Encoder for HandshakeChannelHandler {
         let before_dst_len = dst.len();
         self.filter.encode_cell(item, &mut self.inner, dst)?;
         let after_dst_len = dst.len();
-        if let Some(clog) = self.clog.as_mut() {
+        if let Some(send_log) = self.send_log.as_mut() {
             // Only use what we actually wrote. Variable length cell are not padded and thus this
             // won't catch a bunch of padding.
-            clog.update(&dst[before_dst_len..after_dst_len]);
+            send_log.update(&dst[before_dst_len..after_dst_len]);
         }
         Ok(())
     }
@@ -420,9 +448,9 @@ impl futures_codec::Decoder for HandshakeChannelHandler {
     ) -> std::result::Result<Option<Self::Item>, Self::Error> {
         let orig = src.clone(); // NOTE: Not fun. But This is only done during handshake.
         let cell = self.filter.decode_cell(&mut self.inner, src)?;
-        if let Some(slog) = self.slog.as_mut() {
+        if let Some(recv_log) = self.recv_log.as_mut() {
             let n_used = orig.len() - src.len();
-            slog.update(&orig[..n_used]);
+            recv_log.update(&orig[..n_used]);
         }
         Ok(cell)
     }
@@ -641,7 +669,7 @@ pub(crate) mod test {
 
             // Final CLOG should match.
             let clog_hash: [u8; 32] = our_clog.finalize().into();
-            assert_eq!(frame.codec_mut().get_clog_digest().unwrap(), clog_hash);
+            assert_eq!(frame.codec_mut().take_send_log_digest().unwrap(), clog_hash);
         });
     }
 
@@ -691,7 +719,7 @@ pub(crate) mod test {
 
             // Final SLOG should match.
             let slog_hash: [u8; 32] = our_slog.finalize().into();
-            assert_eq!(frame.codec_mut().get_slog_digest().unwrap(), slog_hash);
+            assert_eq!(frame.codec_mut().take_recv_log_digest().unwrap(), slog_hash);
         });
     }
 }
