@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# stdlib imports
 import argparse
 import dataclasses
 import os
@@ -9,8 +10,12 @@ import subprocess
 import sys
 import textwrap
 
+# stdlib "from" imports
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
+
+# "local" imports
+from config import Config
 
 _SCRIPT_NAME = Path(sys.argv[0]).name
 _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
@@ -147,16 +152,6 @@ class ChutneyNetworkResolver:
         return args.network or "--net-from-script-path=" + str(
             _SCRIPT_DIR.joinpath("networks", "arti-ci")
         )
-
-
-@dataclasses.dataclass
-class Config:
-    chutney: Path
-    arti: Path
-    arti_bench: Path
-    jq: Path
-    chutney_data_dir: Path
-    network: str
 
 
 class ConfigResolver:
