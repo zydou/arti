@@ -6,10 +6,10 @@ from pathlib import Path
 
 @dataclasses.dataclass
 class Config:
-    chutney: Path
-    arti: Path
-    arti_bench: Path
-    jq: Path
-    chutney_data_dir: Path
+    chutney: str
+    arti: str
+    arti_bench: str
+    jq: str
+    chutney_data_dir: str
     network: str
 

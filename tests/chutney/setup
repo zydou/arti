@@ -165,11 +165,11 @@ class ConfigResolver:
 
     def resolve(self, args: Namespace) -> Config:
         return Config(
-            chutney=self._chutney_resolver.resolve(args),
-            arti=self._arti_resolver.resolve(args),
-            arti_bench=self._arti_bench_resolver.resolve(args),
-            jq=self._jq_resolver.resolve(args),
-            chutney_data_dir=self._chutney_data_dir_resolver.resolve(args),
+            chutney=str(self._chutney_resolver.resolve(args)),
+            arti=str(self._arti_resolver.resolve(args)),
+            arti_bench=str(self._arti_bench_resolver.resolve(args)),
+            jq=str(self._jq_resolver.resolve(args)),
+            chutney_data_dir=str(self._chutney_data_dir_resolver.resolve(args)),
             network=self._network_resolver.resolve(args),
         )
 
