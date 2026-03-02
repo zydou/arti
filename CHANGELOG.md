@@ -36,6 +36,11 @@ which are documented below.
 
 - Updated to the latest list of Tor fallback directories. ([!3688])
 
+### Deprecated functionality
+
+- In `arti`, the `derive-deftly` feature is deprecated (its `derive-deftly`
+  dependency is now unconditional).
+
 ### Breaking changes in lower-level crates
 
 - In `arti-client`, `StorageConfigBuilder::cache_dir()` and
