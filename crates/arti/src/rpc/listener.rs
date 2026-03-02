@@ -19,7 +19,7 @@ use tor_config::{
 use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_error::internal;
 use tor_rpc_connect::{
-    ParsedConnectPoint,
+    ParsedConnectPoint, SuperuserPermission,
     auth::RpcAuth,
     load::{LoadError, LoadOptions, LoadOptionsBuilder},
     server::ListenerGuard,
@@ -210,6 +210,9 @@ pub(super) struct RpcConnInfo {
     /// The options for this connect point.
     #[allow(unused)] // TODO: Once there are more options than "enable", this will be used.
     pub(super) options: ConnectPointOptions,
+    /// If true, we allow successful connections on this connect point
+    /// to get superuser capabilities.
+    pub(super) allow_superuser: SuperuserPermission,
 }
 
 impl RpcConnInfo {
@@ -218,17 +221,19 @@ impl RpcConnInfo {
     /// Uses `display_name`
     /// to name the connect point for human-readable logs.
     ///
-    /// Uses `auth` and `options` as settings to initialize new connections.
+    /// Uses `auth`, `options`, and `allow_superuser` as settings to initialize new connections.
     #[allow(clippy::unnecessary_wraps)]
     fn new(
         display_name: String,
         auth: RpcAuth,
         options: ConnectPointOptions,
+        allow_superuser: SuperuserPermission,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             name: display_name,
             auth,
             options,
+            allow_superuser,
         })
     }
 }
@@ -290,6 +295,7 @@ impl RpcListenerSetConfig {
                     format!("rpc.listen.\"{}\"", config_key),
                     auth,
                     options,
+                    conn_pt.superuser_permission(),
                 )?),
                 guard,
             )]);
@@ -367,6 +373,7 @@ impl RpcListenerSetConfig {
                         format!("rpc.listen.\"{}\" ({})", config_key, path.display_lossy()),
                         auth,
                         options,
+                        conn_pt.superuser_permission(),
                     )?),
                     guard,
                 ));
@@ -411,6 +418,7 @@ pub(super) async fn bind_string<R: Runtime>(
             format!("rpc.listen_default[(#{})]", index),
             auth,
             ConnectPointOptions::default(),
+            conn_pt.superuser_permission(),
         )?),
         guard,
     ))

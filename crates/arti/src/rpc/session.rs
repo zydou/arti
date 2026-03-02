@@ -6,10 +6,14 @@ use derive_deftly::Deftly;
 use futures::stream::StreamExt as _;
 use std::sync::Arc;
 use tor_async_utils::{DropNotifyEofSignallable, DropNotifyWatchSender};
+use tor_rpc_connect::SuperuserPermission;
 use tor_rpcbase::{self as rpc};
 use tor_rtcompat::Runtime;
 
-use crate::proxy::port_info;
+use crate::{
+    proxy::port_info,
+    rpc::{listener::RpcConnInfo, superuser::RpcSuperuser},
+};
 
 use super::proxyinfo::{self, ProxyInfo};
 
@@ -76,14 +80,17 @@ impl ArtiRpcSession {
         auth: &RpcAuthentication,
         client_root: &TorClient<R>,
         arti_state: &Arc<RpcVisibleArtiState>,
+        listener_info: &RpcConnInfo,
     ) -> Arc<Self> {
         let _ = auth; // This is currently unused; any authentication gives the same result.
         let client = client_root.isolated_client();
         let session = arti_rpcserver::RpcSession::new_with_client(Arc::new(client));
-        let arti_state = Arc::clone(arti_state);
+        if listener_info.allow_superuser == SuperuserPermission::Allowed {
+            session.provide_superuser_permission(Arc::new(RpcSuperuser::new()) as _);
+        }
         Arc::new(ArtiRpcSession {
             session,
-            arti_state,
+            arti_state: arti_state.clone(),
         })
     }
 }

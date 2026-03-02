@@ -19,6 +19,7 @@ pub(crate) mod conntarget;
 pub(crate) mod listener;
 mod proxyinfo;
 mod session;
+mod superuser;
 
 use listener::RpcListenerSetConfig;
 pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
@@ -176,11 +177,10 @@ async fn run_rpc_listener<R: Runtime>(
     while let Some((stream, _addr, info)) = incoming.next().await.transpose()? {
         debug!("Received incoming RPC connection from {}", &info.name);
 
-        // XXXX Might as well pass these  by reference.
         let client_clone = client.clone();
         let rpc_state_clone = rpc_state.clone();
         let connection = rpc_mgr.new_connection(info.auth.clone(), move |auth| {
-            ArtiRpcSession::new(auth, &client_clone, &rpc_state_clone) as _
+            ArtiRpcSession::new(auth, &client_clone, &rpc_state_clone, &info) as _
         });
         let (input, output) = stream.split();
 
