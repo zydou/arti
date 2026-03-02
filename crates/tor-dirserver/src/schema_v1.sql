@@ -135,6 +135,17 @@ CREATE TABLE compressed_document(
 -- consensuses.
 CREATE TABLE consensus_router_descriptor_member(
     consensus_docid         TEXT NOT NULL,
+    -- These two fields contain the SHA-1 and SHA-2 of the router descriptors
+    -- without signatures.
+    --
+    -- This is required to query/check server descriptors and micro descriptors.
+    -- Unfortuantely, server descriptors use SHA-1 exclusively whereas
+    -- micro descriptors use SHA-2 exclusively.  We compute and store both
+    -- although that would not be required.  Unfortunately, SQL does not offer
+    -- a nicer way to model this.  Storing either 40 or 64 bytes and deciding
+    -- upon this at runtime feels weird; similar behavior applies for xor the
+    -- NULL on one of these two fields.  Besides, we already store both fields
+    -- in the `router_descriptor` table.
     unsigned_sha1           TEXT NOT NULL,
     unsigned_sha2           TEXT NOT NULL,
     PRIMARY KEY(consensus_docid, unsigned_sha1, unsigned_sha2),
