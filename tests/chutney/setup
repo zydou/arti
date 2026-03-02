@@ -2,7 +2,6 @@
 
 # stdlib imports
 import argparse
-import dataclasses
 import os
 import shutil
 import shlex
@@ -193,6 +192,9 @@ def _main() -> None:
             f"export CHUTNEY_DATA_DIR={shlex.quote(str(config.chutney_data_dir))}",
             file=c,
         )
+
+    # Also dump as json, for use by python scripts
+    config.dump_json(_SCRIPT_DIR.joinpath("arti.run.json"))
 
 
 if __name__ == "__main__":
