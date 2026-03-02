@@ -24,6 +24,7 @@ full = [
     "tls-server",
     "tor-error/full",
     "tor-general-addr/full",
+    "tor-cert-x509?/full",
 ]
 
 experimental = ["smol"]
