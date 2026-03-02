@@ -443,6 +443,9 @@ impl StaticEngine {
         // version is a sensible idea, with upgrades and downgrades leading to
         // a parsing of all network documents within the database, throwing the
         // ones out we do not understand (anymore).
+        //
+        // See also the relevant MR discussion:
+        // <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3664#note_3352723>
         let consensus = match self.flavor {
             ConsensusFlavor::Plain => FlavoredConsensus::Ns(
                 parse2::parse_netdoc(&ParseInput::new(&consensus, ""))
