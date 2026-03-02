@@ -60,13 +60,13 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 downcast-rs = "2.0.1"
 dyn-clone = "1.0.11"
-fs-mistrust = { path = "../fs-mistrust", version = "0.13.1", features = ["serde", "walkdir"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.14.0", features = ["serde", "walkdir"] }
 glob-match = "0.2.1"
 humantime = "2"
 inventory = "0.3.13"
 itertools = "0.14.0"
 rand = "0.9.1"
-safelog = { path = "../safelog", version = "0.7.0" }
+safelog = { path = "../safelog", version = "0.8.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "2"
 ssh-key = { version = "0.6.1", features = ["std"] }

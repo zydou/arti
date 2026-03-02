@@ -37,7 +37,7 @@ experimental-api = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
-caret = { path = "../caret", version = "0.8.0" }
+caret = { path = "../caret", version = "0.9.0" }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti", optional = true }
 derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"

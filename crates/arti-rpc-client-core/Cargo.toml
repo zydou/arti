@@ -17,11 +17,11 @@ crate-type = ["cdylib", "lib", "staticlib"] # staticlib needed for iOS + macOS
 
 [dependencies]
 
-caret = { path = "../caret", version = "0.8.0" }
+caret = { path = "../caret", version = "0.9.0" }
 cfg-if = "1.0.0"
 derive_more = { version = "2.0.1", features = ["full"] }
 educe = "0.4.22"
-fs-mistrust = { version = "0.13.1", path = "../fs-mistrust" }
+fs-mistrust = { version = "0.14.0", path = "../fs-mistrust" }
 memchr = "2.5"
 mio = { version = "1.1.1", features = ["net", "os-poll"] }
 paste = { version = "1.0.3", optional = true }

@@ -42,7 +42,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 educe = "0.4.22"
 either = "1"
 figment = { version = "0.10.18", features = ["toml"] }
-fs-mistrust = { path = "../fs-mistrust", version = "0.13.1" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.14.0" }
 futures = "0.3.14"
 humantime-serde = "1.1.1"
 itertools = "0.14.0"
@@ -66,7 +66,7 @@ void = "1"
 assert_matches = "1.5.0"
 serde_json = "1.0.50"
 tempfile = "3"
-test-temp-dir = { version = "0.6.0", path = "../test-temp-dir" }
+test-temp-dir = { version = "0.7.0", path = "../test-temp-dir" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.39.0", features = ["serde"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.39.0", features = ["tokio", "native-tls"] }
 tracing-test = "0.2.4"
