@@ -65,10 +65,6 @@ where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 {
-    fn is_expecting_auth_challenge(&self) -> bool {
-        // Client never authenticate with a responder, only relay do.
-        false
-    }
 }
 
 impl<

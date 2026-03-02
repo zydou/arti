@@ -118,11 +118,6 @@ pub(crate) trait ChannelInitiatorHandshake<T>: ChannelBaseHandshake<T>
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
 {
-    /// Return true iff this handshake is expecting to receive an AUTH_CHALLENGE from the
-    /// responder. As a handshake initiator, we always know if we expect one or not. A client or
-    /// bridge do not authenticate with the responder while relays will always do.
-    fn is_expecting_auth_challenge(&self) -> bool;
-
     /// As an initiator, we are expecting the responder's cells which are (not in that order):
     ///     - [msg::AuthChallenge], [msg::Certs], [msg::Netinfo]
     ///
@@ -195,7 +190,7 @@ where
             return Err(Error::HandshakeProto("Missing CERTS cell".into()));
         };
         // If we plan to authenticate, we require an AUTH_CHALLENGE cell from the responder.
-        if self.is_expecting_auth_challenge() && auth_challenge_cell.is_none() {
+        if auth_challenge_cell.is_none() {
             return Err(Error::HandshakeProto("Missing AUTH_CHALLENGE cell".into()));
         };
 
