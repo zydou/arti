@@ -34,6 +34,9 @@ full = [
     "tor-dirmgr/full",
     "tor-guardmgr/full",
     "tor-log-ratelim/full",
+    "tor-basic-utils/full",
+    "tor-cert/full",
+    "tor-key-forge/full",
 ]
 
 [dependencies]
