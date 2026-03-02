@@ -658,7 +658,8 @@ impl StaticEngine {
             .map(|resp| resp.output_string().map(|resp| resp.to_owned()));
 
         // We can immediately drop the connection now, no need to occupy even
-        // more resources from the authority.
+        // more resources from the authority.  Doing so is fine, it is HTTP/1.0
+        // and there is no connection reuse anyways.
         drop(stream);
 
         // Returning all request failed errors is okay; they all imply that
