@@ -128,7 +128,7 @@ where
     async fn recv_cells_from_responder(
         &mut self,
     ) -> Result<(
-        Option<msg::AuthChallenge>,
+        msg::AuthChallenge,
         msg::Certs,
         (msg::Netinfo, coarsetime::Instant),
     )> {
@@ -189,12 +189,11 @@ where
         let Some(certs) = certs_cell else {
             return Err(Error::HandshakeProto("Missing CERTS cell".into()));
         };
-        // If we plan to authenticate, we require an AUTH_CHALLENGE cell from the responder.
-        if auth_challenge_cell.is_none() {
+        let Some(auth_challenge) = auth_challenge_cell else {
             return Err(Error::HandshakeProto("Missing AUTH_CHALLENGE cell".into()));
         };
 
-        Ok((auth_challenge_cell, certs, (netinfo, netinfo_rcvd_at)))
+        Ok((auth_challenge, certs, (netinfo, netinfo_rcvd_at)))
     }
 }
 

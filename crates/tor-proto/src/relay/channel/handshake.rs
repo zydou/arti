@@ -123,10 +123,6 @@ impl<
         // Read until we have all the remaining cells from the responder.
         let (auth_challenge_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
             self.recv_cells_from_responder().await?;
-        // As a relay initiator, we always expect an AUTH_CHALLENGE else it is protocol violation.
-        let auth_challenge_cell = auth_challenge_cell.ok_or(Error::ChanProto(
-            "Missing AUTH_CHALLENGE as relay initiator".into(),
-        ))?;
 
         trace!(stream_id = %self.unique_id,
             "received handshake, ready to verify.",
