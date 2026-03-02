@@ -67,7 +67,7 @@ rather than the recommended `arti-client` crate or other lower-level crates.
 * `ChanMgr` can now launch relay channels. ([!3563])
 * Implemented `RelayResponderHandshake`. ([!3596])
 * Implemented the generic and modular circuit reactor architecture described in [relay-conflux.md],
-  and reimplemented the work-in-progress relay circuit reactor to use it as its base. 
+  and reimplemented the work-in-progress relay circuit reactor to use it as its base.
   In the future, this new architecture will form the basis of the client circuit reactor as well. ([!3612])
 * Implemented TLS server support in `tor-rtcompat`. ([!3614])
 
