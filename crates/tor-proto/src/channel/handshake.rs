@@ -16,6 +16,8 @@ use safelog::{MaybeSensitive, Redacted};
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_cell::restrict::{RestrictedMsg, restricted_msg};
+use tor_cert::CertType;
+use tor_checkable::{TimeValidityError, Timebound};
 use tor_error::{internal, into_internal};
 use tor_linkspec::{
     ChanTarget, ChannelMethod, OwnedChanTarget, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder,
@@ -336,31 +338,6 @@ impl<
         use tor_cert::CertType;
         use tor_checkable::*;
 
-        /// Helper: given a time-bound input, give a result reflecting its
-        /// validity at `now`, and the inner object.
-        ///
-        /// We use this here because we want to validate the whole handshake
-        /// regardless of whether the certs are expired, so we can determine
-        /// whether we got a plausible handshake with a skewed partner, or
-        /// whether the handshake is definitely bad.
-        fn check_timeliness<C, T>(checkable: C, now: SystemTime, skew: ClockSkew) -> (Result<()>, T)
-        where
-            C: Timebound<T, Error = TimeValidityError>,
-        {
-            let status = checkable.is_valid_at(&now).map_err(|e| match (e, skew) {
-                (TimeValidityError::Expired(expired_by), ClockSkew::Fast(skew))
-                    if expired_by < skew =>
-                {
-                    Error::HandshakeCertsExpired { expired_by }
-                }
-                // As it so happens, we don't need to check for this case, since the certs in use
-                // here only have an expiration time in them.
-                // (TimeValidityError::NotYetValid(_), ClockSkew::Slow(_)) => todo!(),
-                (_, _) => Error::HandshakeProto("Certificate expired or not yet valid".into()),
-            });
-            let cert = checkable.dangerously_assume_timely();
-            (status, cert)
-        }
         // Replace 'now' with the real time to use.
         let now = now.unwrap_or_else(SystemTime::now);
 
@@ -382,18 +359,6 @@ impl<
             return Err(Error::from(internal!("No CERTS cell found to verify")));
         };
 
-        /// Helper: get a cert from a Certs cell, and convert errors appropriately.
-        fn get_cert(
-            certs: &tor_cell::chancell::msg::Certs,
-            tp: CertType,
-        ) -> Result<tor_cert::KeyUnknownCert> {
-            match certs.parse_ed_cert(tp) {
-                Ok(c) => Ok(c),
-                Err(tor_cell::Error::ChanProto(e)) => Err(Error::HandshakeProto(e)),
-                Err(e) => Err(Error::HandshakeProto(e.to_string())),
-            }
-        }
-
         let id_sk = get_cert(c, CertType::IDENTITY_V_SIGNING)?;
         let sk_tls = get_cert(c, CertType::SIGNING_V_TLS_CERT)?;
 
@@ -413,7 +378,7 @@ impl<
             .dangerously_split()
             .map_err(Error::HandshakeCertErr)?;
         sigs.push(&id_sk_sig);
-        let (id_sk_timeliness, id_sk) = check_timeliness(id_sk, now, self.clock_skew);
+        let (id_sk_timeliness, id_sk) = check_cert_timeliness(id_sk, now, self.clock_skew);
 
         // Take the identity key from the identity->signing cert
         let identity_key = id_sk.signing_key().ok_or_else(|| {
@@ -433,7 +398,7 @@ impl<
             .dangerously_split()
             .map_err(Error::HandshakeCertErr)?;
         sigs.push(&sk_tls_sig);
-        let (sk_tls_timeliness, sk_tls) = check_timeliness(sk_tls, now, self.clock_skew);
+        let (sk_tls_timeliness, sk_tls) = check_cert_timeliness(sk_tls, now, self.clock_skew);
 
         if peer_cert_digest != sk_tls.subject_key().as_bytes() {
             return Err(Error::HandshakeProto(
@@ -481,7 +446,7 @@ impl<
             .map_err(|e| Error::from_bytes_err(e, "RSA identity cross-certificate"))?
             .check_signature(&pkrsa)
             .map_err(|_| Error::HandshakeProto("Bad RSA->Ed crosscert signature".into()))?;
-        let (rsa_cert_timeliness, rsa_cert) = check_timeliness(rsa_cert, now, self.clock_skew);
+        let (rsa_cert_timeliness, rsa_cert) = check_cert_timeliness(rsa_cert, now, self.clock_skew);
 
         if !rsa_cert.subject_key_matches(identity_key) {
             return Err(Error::HandshakeProto(
@@ -706,6 +671,47 @@ impl<
             self.memquota,
             canonicity,
         )
+    }
+}
+
+/// Helper: given a time-bound input, give a result reflecting its
+/// validity at `now`, and the inner object.
+///
+/// We use this here because we want to validate the whole handshake
+/// regardless of whether the certs are expired, so we can determine
+/// whether we got a plausible handshake with a skewed partner, or
+/// whether the handshake is definitely bad.
+pub(crate) fn check_cert_timeliness<C, CERT>(
+    checkable: C,
+    now: SystemTime,
+    clock_skew: ClockSkew,
+) -> (Result<()>, CERT)
+where
+    C: Timebound<CERT, Error = TimeValidityError>,
+{
+    let status = checkable
+        .is_valid_at(&now)
+        .map_err(|e| match (e, clock_skew) {
+            (TimeValidityError::Expired(expired_by), ClockSkew::Fast(skew))
+                if expired_by < skew =>
+            {
+                Error::HandshakeCertsExpired { expired_by }
+            }
+            // As it so happens, we don't need to check for this case, since the certs in use
+            // here only have an expiration time in them.
+            // (TimeValidityError::NotYetValid(_), ClockSkew::Slow(_)) => todo!(),
+            (_, _) => Error::HandshakeProto("Certificate expired or not yet valid".into()),
+        });
+    let cert = checkable.dangerously_assume_timely();
+    (status, cert)
+}
+
+/// Helper: get a cert from our Certs cell, and convert errors appropriately.
+pub(crate) fn get_cert(certs: &msg::Certs, tp: CertType) -> Result<tor_cert::KeyUnknownCert> {
+    match certs.parse_ed_cert(tp) {
+        Ok(c) => Ok(c),
+        Err(tor_cell::Error::ChanProto(e)) => Err(Error::HandshakeProto(e)),
+        Err(e) => Err(Error::HandshakeProto(e.to_string())),
     }
 }
 
