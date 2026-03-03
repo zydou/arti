@@ -292,7 +292,7 @@ define_derive_deftly_module! {
     NetdocEntireDeriveCommon beta_deftly:
 
     // Predicate for the toplevel
-    ${defcond T_SIGNATURES tmeta(netdoc(signatures))}
+    ${defcond T_SIGNATURES false}
 
     // Predicates for the field kinds
     ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}

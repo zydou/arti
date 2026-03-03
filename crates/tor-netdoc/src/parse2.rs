@@ -44,8 +44,8 @@
 //!     [derive](crate::derive_deftly_template_NetdocParseable).
 //!
 //!   * **`FooSignatures`**: the signatures for a `Foo`.
-//!     Implement `NetdocParseable`, via
-//!     [derive](crate::derive_deftly_template_NetdocParseable),
+//!     Implements `NetdocParseable`, via
+//!     [derive](crate::derive_deftly_template_NetdocParseableSignatures),
 //!     with `#[deftly(netdoc(signatures))]`.
 //!
 //! # Relationship to tor_netdoc::parse

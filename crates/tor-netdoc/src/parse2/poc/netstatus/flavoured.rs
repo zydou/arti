@@ -70,8 +70,7 @@ pub struct NetworkStatus {
 
 /// Signatures on a network status document
 #[derive(Deftly, Clone, Debug)]
-#[derive_deftly(NetdocParseable)]
-#[deftly(netdoc(signatures))]
+#[derive_deftly(NetdocParseableSignatures)]
 #[non_exhaustive]
 pub struct NetworkStatusSignatures {
     /// `directory-signature`s

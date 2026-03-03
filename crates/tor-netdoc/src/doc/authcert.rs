@@ -500,8 +500,7 @@ pub struct CrossCertObject(pub Vec<u8>);
 #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
 #[cfg_attr(
     feature = "parse2",
-    derive_deftly(NetdocParseable),
-    deftly(netdoc(signatures))
+    derive_deftly(NetdocParseableSignatures),
 )]
 #[non_exhaustive]
 pub struct AuthCertSignatures {

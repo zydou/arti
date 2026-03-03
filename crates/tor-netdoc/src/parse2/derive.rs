@@ -23,7 +23,8 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
 }
 
 define_derive_deftly_module! {
-    /// Common definitions for `NetdocParseable` and `NetdocParseableFields`
+    /// Common definitions for `NetdocParseable`, `NetdocParseableFields`,
+    /// and `NetdocParseableSignatures`
     ///
     ///  * **`THIS_ITEM`**: consumes the next item and evaluates to it as an `UnparsedItem`.
     ///    See the definition in `NetdocParseable`.
@@ -298,7 +299,8 @@ define_derive_deftly! {
     ///  * `Foo`, containing only the content, not the signatures.
     ///    Derive `NetdocParseable` and [`NetdocUnverified`](derive_deftly_template_NetdocUnverified).
     ///  * `FooSignatures`, containing only the signatures.
-    ///    Derive `NetdocParseable` with `#[deftly(netdoc(signatures))]`.
+    ///    Derive `NetdocParseableSignatures`.
+    //             ^ XXXX right now that's not a trait, but it will be.
     ///
     /// Don't mix signature items with non-signature items in the same struct.
     /// (This wouldn't compile, because the field type would implement the wrong trait.)
@@ -313,20 +315,6 @@ define_derive_deftly! {
     ///   Note, must be an expression, so for a literal, nested `""` are needed.
     ///
     ///   The default is the intro item keyword.
-    ///
-    /// * **`#[deftly(netdoc(signatures))]`**:
-    ///
-    ///   This type is the signatures section of another document.
-    ///   Signature sections have no separate intro keyword:
-    ///   every field is structural and they are recognised in any order.
-    ///
-    ///   Fields must implement [`SignatureItemParseable`],
-    ///   rather than [`ItemValueParseable`],
-    ///
-    ///   This signatures sub-document will typically be included in a
-    ///   `FooUnverified` struct derived with
-    ///   [`NetdocUnverified`](derive_deftly_template_NetdocUnverified),
-    ///   rather than included anywhere manually.
     ///
     /// * **`#[deftly(netdoc(debug))]`**:
     ///
@@ -393,6 +381,7 @@ define_derive_deftly! {
     /// ```
     /// use derive_deftly::Deftly;
     /// use tor_netdoc::derive_deftly_template_NetdocParseable;
+    /// use tor_netdoc::derive_deftly_template_NetdocParseableSignatures;
     /// use tor_netdoc::derive_deftly_template_NetdocUnverified;
     /// use tor_netdoc::derive_deftly_template_ItemValueParseable;
     /// use tor_netdoc::parse2::{parse_netdoc, ParseInput, VerifyFailed};
@@ -406,8 +395,7 @@ define_derive_deftly! {
     /// }
     ///
     /// #[derive(Deftly, Debug, Clone)]
-    /// #[derive_deftly(NetdocParseable)]
-    /// #[deftly(netdoc(signatures))]
+    /// #[derive_deftly(NetdocParseableSignatures)]
     /// pub struct NdThingSignatures {
     ///     pub signature: FoolishSignature,
     /// }
@@ -460,7 +448,7 @@ define_derive_deftly! {
             use $P::*;
 
             ${for fields {
-                ${when any(F_SIGNATURE, F_INTRO)}
+                ${when F_INTRO}
                 kw == $F_KEYWORD
             }}
         }
@@ -549,14 +537,9 @@ define_derive_deftly! {
             //   - F_INTRO - intro item for this document (maybe next instance in parent)
             //   - F_NORMAL - normal items
             //   - subdocuments, is_subdoc_kw and F_SUBDOC
-            //   - F_SIGNATURE
             //   - our parent's structural keywords, outer_stop
+            //     (this includes signature items for the signed version of this doc)
             // 5 cases in all.
-
-            // Note the body of the document (before the signatures)
-          ${if T_SIGNATURES {
-            let signed_doc_body = input.body_sofar_for_signature();
-          }}
 
             //----- Parse the intro item, and introduce bindings for the other items. -----
             dtrace!("looking for intro item");
@@ -605,6 +588,118 @@ define_derive_deftly! {
                 $ACCUMULATE_ITEM_VALUE
             }
           }}
+
+            // Resolve all the fields
+            dtrace!("reached end, resolving");
+
+            $FINISH_RESOLVE
+        }
+    }
+}
+
+define_derive_deftly! {
+    use NetdocDeriveAnyCommon;
+    use NetdocSomeItemsDeriveCommon;
+    use NetdocSomeItemsParseableCommon;
+
+    /// Derive [`NetdocParseable`] for the signatures section of a network document
+    ///
+    /// This type is the signatures section of another document.
+    /// Signature sections have no separate intro keyword:
+    /// every field is structural and they are recognised in any order.
+    ///
+    /// This signatures sub-document will typically be included in a
+    /// `FooUnverified` struct derived with
+    /// [`NetdocUnverified`](derive_deftly_template_NetdocUnverified),
+    /// rather than included anywhere manually.
+    ///
+    /// ### Expected input structure
+    ///
+    /// Should be applied named-field struct, where each field
+    /// implements [`SignatureItemParseable`],
+    /// or is a `SignatureItemParseable` in `Vec` or `BTreeSet` or `Option`.
+    ///
+    /// ### Attributes
+    ///
+    ///  * The following top-level attributes are supported:
+    ///    `#[deftly(netdoc(debug))]`
+    ///
+    ///  * The following field-level attributes are supported:
+    ///    `#[deftly(netdoc(keyword = STR))]`
+    ///    `#[deftly(netdoc(default))]`
+    ///    `#[deftly(netdoc(single_arg))]`
+    ///    `#[deftly(netdoc(with = "MODULE"))]`
+    ///    `#[deftly(netdoc(flatten))]`
+    ///    `#[deftly(netdoc(skip))]`
+    export NetdocParseableSignatures for struct, expect items, beta_deftly:
+
+    ${defcond T_SIGNATURES true}
+    ${defcond F_INTRO false}
+    ${defcond F_SUBDOC false}
+    ${defcond F_SIGNATURE true}
+
+    ${define THIS_ITEM {
+        input.next_item()?.expect("peeked")
+    }}
+    ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
+
+    impl<$tgens> $P::NetdocParseable for $ttype {
+        fn doctype_for_error() -> &'static str {
+            "XXXX this is going to be removed"
+        }
+
+
+        fn is_intro_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
+            use $P::*;
+            ${for fields {
+                kw == $F_KEYWORD ||
+            }}
+                false
+        }
+
+        fn is_structural_keyword(kw: $P::KeywordRef<'_>) -> Option<$P::IsStructural> {
+            #[allow(unused_imports)] // not used if there are no subdocs
+            use $P::*;
+
+            if Self::is_intro_item_keyword(kw) {
+                return Some(IsStructural)
+            }
+
+            None
+        }
+
+        #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
+        fn from_items<'s>(
+            input: &mut $P::ItemStream<'s>,
+            outer_stop: $P::stop_at!(),
+        ) -> $P::Result<$ttype, $P::ErrorProblem> {
+            use $P::*;
+            $DEFINE_DTRACE
+
+            //----- prepare item set selectors for every field -----
+            $ITEM_SET_SELECTORS
+            $CHECK_FIELD_TYPES_PARSEABLE
+            $INIT_ACCUMULATE_VARS
+
+            // Note the body of the document (before the signatures)
+            let signed_doc_body = input.body_sofar_for_signature();
+
+            //----- parse the items -----
+            dtrace!("looking for signature items");
+
+            while let Some(kw) = input.peek_keyword()? {
+                dtrace!("for signatures, peeked", kw);
+                if outer_stop.stop_at(kw) {
+                    dtrace!("is outer stop", kw);
+                    break;
+                };
+
+                $NONSTRUCTURAL_ACCUMULATE_ELSE
+                {
+                    dtrace!("is unknown (in signatures)");
+                    let _: UnparsedItem = $THIS_ITEM;
+                }
+            }
 
             // Resolve all the fields
             dtrace!("reached end, resolving");
