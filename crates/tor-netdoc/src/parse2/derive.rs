@@ -139,6 +139,30 @@ define_derive_deftly_module! {
         }
     }}}
 
+    // Parse the intro item and bind `$fpatname` accumulator for each field.
+    //
+    // For the intro item, parse it and bind it to $fpatname.
+    //
+    // For other items, set up a mutable $fpatname, initialised to `default()` (normally None).
+    ${define INIT_ACCUMULATE_VARS {
+        $( ${select1 F_INTRO {
+
+          let item = input.next_item()?.ok_or(EP::EmptyDocument)?;
+          dtrace!("intro", item);
+          if !Self::is_intro_item_keyword(item.keyword()) {
+              Err(EP::WrongDocumentType)?;
+          }
+          let $fpatname: $ftype = $ITEM_VALUE_FROM_UNPARSED;
+
+        } F_SKIP {
+
+        } else {
+
+          let mut $fpatname = $F_ACCUMULATE_TYPE::default();
+
+        }})
+    }}
+
     // Accumulates `item` (which must be `ItemSetMethods::Each`) into `$F_ACCUMULATE_VAR`
     ${define ACCUMULATE_ITEM_VALUE { {
         $F_SELECTOR.${paste_spanned $fname accumulate}($F_ACCUMULATE_VAR, item)?;
@@ -536,23 +560,7 @@ define_derive_deftly! {
 
             //----- Parse the intro item, and introduce bindings for the other items. -----
             dtrace!("looking for intro item");
-
-          $( ${select1 F_INTRO {
-
-            let item = input.next_item()?.ok_or(EP::EmptyDocument)?;
-            dtrace!("intro", item);
-            if !Self::is_intro_item_keyword(item.keyword()) {
-                Err(EP::WrongDocumentType)?;
-            }
-            let $fpatname: $ftype = $ITEM_VALUE_FROM_UNPARSED;
-
-          } F_SKIP {
-
-          } else {
-
-            let mut $fpatname = $F_ACCUMULATE_TYPE::default();
-
-          }})
+            $INIT_ACCUMULATE_VARS
 
             //----- Parse the normal items -----
             dtrace!("looking for normal items");
