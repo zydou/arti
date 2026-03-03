@@ -86,7 +86,7 @@ impl ArtiRpcSession {
         let client = client_root.isolated_client();
         let session = arti_rpcserver::RpcSession::new_with_client(Arc::new(client));
         if listener_info.allow_superuser == SuperuserPermission::Allowed {
-            session.provide_superuser_permission(Arc::new(RpcSuperuser::new()) as _);
+            session.provide_superuser_permission(Arc::new(RpcSuperuser::new(client_root.clone())) as _);
         }
         Arc::new(ArtiRpcSession {
             session,
