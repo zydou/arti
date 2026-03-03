@@ -64,6 +64,7 @@ auth = "none"
 [connect]
 socket = "inet:127.0.0.1:{rpc_port}"
 auth = {{ cookie = {{ path = "{cookie_path}" }} }}
+superuser = true
 """)
 
         with open(tcp_auto_connpt_path, "w") as f:
@@ -117,6 +118,7 @@ auth = {{ cookie = {{ path = "{cookie2_path}" }} }}
         else:
             self.unix_connpt_path = unix_connpt_path
         self.tcp_connpt_path = tcp_connpt_path
+        self.tcp_auto_connpt_path = tcp_auto_connpt_path
         self.cookie_path = cookie_path
         self.cookie2_path = cookie2_path
         self.socket_address_path = socket_address_path
@@ -134,12 +136,21 @@ auth = {{ cookie = {{ path = "{cookie2_path}" }} }}
         self.arti_process = ArtiProcess(subprocess.Popen(args))
         self._wait_for_rpc()
 
-    def open_rpc_connection(self) -> arti_rpc.ArtiRpcConn:
+    def open_rpc_connection(self, require_superuser=None) -> arti_rpc.ArtiRpcConn:
         """
         Open an RPC connection to Arti.
+
+        If require_superuser is True or False, require a connection
+        that supports (or does not support) superuser mode
+        respectively.
+        Otherwise, if require_superuser is None, do not require
+        any particular superuser behavior.
         """
         bld = arti_rpc.ArtiRpcConnBuilder()
+        if require_superuser is True:
+            bld.prefer_superuser_permission(True)
         bld.prepend_literal_path(str(self.tcp_connpt_path))
+        bld.prepend_literal_path(str(self.tcp_auto_connpt_path))
         return bld.connect()
 
     def arti_process_is_running(self) -> bool:
