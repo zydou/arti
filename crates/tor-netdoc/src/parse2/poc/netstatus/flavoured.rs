@@ -29,7 +29,7 @@ pub type Router = ns_type!(
 /// The preamble items are members of this struct.
 /// The rest are handled as sub-documents.
 #[derive(Deftly, Clone, Debug)]
-#[derive_deftly(NetdocParseable, NetdocSigned)]
+#[derive_deftly(NetdocParseable, NetdocUnverified)]
 #[deftly(netdoc(doctype_for_error = "TOPLEVEL_DOCTYPE_FOR_ERROR"))]
 #[non_exhaustive]
 pub struct NetworkStatus {
@@ -197,7 +197,7 @@ ns_choose! { (
             }
             fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
                 NddAuthorityEntry::is_structural_keyword(kw)
-                    .or_else(|| authcert::DirAuthKeyCertSigned::is_structural_keyword(kw))
+                    .or_else(|| authcert::DirAuthKeyCertUnverified::is_structural_keyword(kw))
             }
             fn from_items<'s>(
                 input: &mut ItemStream<'s>,
@@ -320,7 +320,7 @@ ns_choose! { (
 )}
 
 ns_choose! { (
-    impl NetworkStatusSigned {
+    impl NetworkStatusUnverified {
         /// Verify this vote's signatures using the embedded certificate
         ///
         /// # Security considerations
@@ -349,7 +349,7 @@ ns_choose! { (
 
     impl NetworkStatus {
         /// Parse the embedded authcert
-        fn parse_authcert(&self) -> Result<crate::doc::authcert::AuthCertSigned, EP> {
+        fn parse_authcert(&self) -> Result<crate::doc::authcert::AuthCertUnverified, EP> {
             let cert_input = ParseInput::new(
                 self.authority.cert.as_str(),
                 "<embedded auth cert>",
@@ -369,7 +369,7 @@ ns_choose! { (
         pub fn h_kp_auth_id_rsa(&self) -> pk::rsa::RsaIdentity {
             *self.parse_authcert()
                 // SECURITY: if the user calls this function, they have a bare
-                // NetworkStatus, not a NetworkStatusSigned, so parsing
+                // NetworkStatus, not a NetworkStatusUnverified, so parsing
                 // and verification has already been done in verify_selfcert above.
                 .expect("was verified already!")
                 .inspect_unverified()
@@ -378,7 +378,7 @@ ns_choose! { (
         }
     }
 ) (
-    impl NetworkStatusSigned {
+    impl NetworkStatusUnverified {
         /// Verify this consensus document
         ///
         /// # Security considerations

@@ -268,7 +268,7 @@ define_derive_deftly! {
     /// To handle signed documents define two structures:
     ///
     ///  * `Foo`, containing only the content, not the signatures.
-    ///    Derive `NetdocParseable` and [`NetdocSigned`](derive_deftly_template_NetdocSigned).
+    ///    Derive `NetdocParseable` and [`NetdocUnverified`](derive_deftly_template_NetdocUnverified).
     ///  * `FooSignatures`, containing only the signatures.
     ///    Derive `NetdocParseable` with `#[deftly(netdoc(signatures))]`.
     ///
@@ -296,8 +296,8 @@ define_derive_deftly! {
     ///   rather than [`ItemValueParseable`],
     ///
     ///   This signatures sub-document will typically be included in a
-    ///   `FooSigned` struct derived with
-    ///   [`NetdocSigned`](derive_deftly_template_NetdocSigned),
+    ///   `FooUnverified` struct derived with
+    ///   [`NetdocUnverified`](derive_deftly_template_NetdocUnverified),
     ///   rather than included anywhere manually.
     ///
     /// * **`#[deftly(netdoc(debug))]`**:
@@ -365,13 +365,13 @@ define_derive_deftly! {
     /// ```
     /// use derive_deftly::Deftly;
     /// use tor_netdoc::derive_deftly_template_NetdocParseable;
-    /// use tor_netdoc::derive_deftly_template_NetdocSigned;
+    /// use tor_netdoc::derive_deftly_template_NetdocUnverified;
     /// use tor_netdoc::derive_deftly_template_ItemValueParseable;
     /// use tor_netdoc::parse2::{parse_netdoc, ParseInput, VerifyFailed};
     /// use tor_netdoc::parse2::{SignatureItemParseable, SignatureHashInputs};
     ///
     /// #[derive(Deftly, Debug, Clone)]
-    /// #[derive_deftly(NetdocParseable, NetdocSigned)]
+    /// #[derive_deftly(NetdocParseable, NetdocUnverified)]
     /// pub struct NdThing {
     ///     pub thing_start: (),
     ///     pub value: (String,),
@@ -403,7 +403,7 @@ define_derive_deftly! {
     /// signature 28
     /// "#;
     ///
-    /// impl NdThingSigned {
+    /// impl NdThingUnverified {
     ///     pub fn verify_foolish_timeless(self) -> Result<NdThing, VerifyFailed> {
     ///         let sig = &self.signatures.signature;
     ///         if sig.doc_len != sig.doc_len_actual_pretending_to_be_hash {
@@ -414,7 +414,7 @@ define_derive_deftly! {
     /// }
     ///
     /// let input = ParseInput::new(&doc_text, "<input>");
-    /// let doc: NdThingSigned = parse_netdoc(&input).unwrap();
+    /// let doc: NdThingUnverified = parse_netdoc(&input).unwrap();
     /// let doc = doc.verify_foolish_timeless().unwrap();
     /// assert_eq!(doc.value.0, "something");
     /// ```
@@ -701,7 +701,7 @@ define_derive_deftly! {
 define_derive_deftly! {
     use NetdocDeriveAnyCommon;
 
-    /// Derive `FooSigned` from `Foo`
+    /// Derive `FooUnverified` from `Foo`
     ///
     /// Apply this derive to the main body struct `Foo`.
     ///
@@ -725,20 +725,20 @@ define_derive_deftly! {
     ///
     /// ```
     /// # struct Foo; struct FooSignatures;
-    /// pub struct FooSigned {
+    /// pub struct FooUnverified {
     ///     body: Foo,
     ///     pub signatures: FooSignatures,
     /// }
     ///
     /// # #[cfg(all())] { r##"
-    /// impl NetdocParseable for FooSigned { .. }
-    /// impl NetdocSigned for FooSigned { .. }
+    /// impl NetdocParseable for FooUnverified { .. }
+    /// impl NetdocUnverified for FooUnverified { .. }
     /// # "##; }
     /// ```
     //
     // We don't make this a generic struct because the defining module (crate)
     // will want to add verification methods, which means they must define the struct.
-    export NetdocSigned for struct, expect items, beta_deftly:
+    export NetdocUnverified for struct, expect items, beta_deftly:
 
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}
@@ -758,7 +758,7 @@ define_derive_deftly! {
     ///
     /// Use a `.verify_...` method to obtain useable, verified, contents.
     #[derive(Debug, Clone)]
-    $tvis struct $<$ttype Signed> {
+    $tvis struct $<$ttype Unverified> {
         /// The actual body
         //
         // Misuse is prevented by this field not being public.
@@ -769,7 +769,7 @@ define_derive_deftly! {
         $tvis signatures: $SIGS_TYPE,
     }
 
-    impl<$tgens> $P::NetdocParseable for $<$ttype Signed> {
+    impl<$tgens> $P::NetdocParseable for $<$ttype Unverified> {
         fn doctype_for_error() -> &'static str {
             $ttype::doctype_for_error()
         }
@@ -786,13 +786,13 @@ define_derive_deftly! {
         fn from_items<'s>(
             input: &mut $P::ItemStream<'s>,
             outer_stop: $P::stop_at!(),
-        ) -> $P::Result<$<$ttype Signed>, $P::ErrorProblem> {
+        ) -> $P::Result<$<$ttype Unverified>, $P::ErrorProblem> {
             $EMIT_DEBUG_PLACEHOLDER
             input.parse_signed(outer_stop)
         }
     }
 
-    impl<$tgens> $P::NetdocSigned for $<$ttype Signed> {
+    impl<$tgens> $P::NetdocUnverified for $<$ttype Unverified> {
         type Body = $ttype;
         type Signatures = $SIGS_TYPE;
         fn inspect_unverified(&self) -> (&Self::Body, &Self::Signatures) {

@@ -1377,7 +1377,7 @@ mod test {
     use hex_literal::hex;
     #[cfg(all(feature = "ns-vote", feature = "parse2"))]
     use {
-        crate::parse2::{NetdocSigned as _, ParseInput, parse_netdoc},
+        crate::parse2::{NetdocUnverified as _, ParseInput, parse_netdoc},
         std::fs,
     };
 
@@ -1499,10 +1499,10 @@ mod test {
         let text = fs::read_to_string(file)?;
 
         // TODO replace the poc struct here when we have parsing of proper whole votes
-        use crate::parse2::poc::netstatus::NetworkStatusSignedVote;
+        use crate::parse2::poc::netstatus::NetworkStatusUnverifiedVote;
 
         let input = ParseInput::new(&text, file);
-        let doc: NetworkStatusSignedVote = parse_netdoc(&input)?;
+        let doc: NetworkStatusUnverifiedVote = parse_netdoc(&input)?;
 
         println!("{doc:?}");
         println!("{:#?}", doc.inspect_unverified().0.r[0]);

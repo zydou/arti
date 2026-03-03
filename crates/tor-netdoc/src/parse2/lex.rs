@@ -215,7 +215,7 @@ impl<'s> ItemStream<'s> {
     pub fn parse_signed<
         B: NetdocParseable,
         S: NetdocParseable,
-        O: NetdocSigned<Body = B, Signatures = S>,
+        O: NetdocUnverified<Body = B, Signatures = S>,
     >(
         &mut self,
         outer_stop: stop_at!(),

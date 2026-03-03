@@ -90,7 +90,7 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 /// To make a fresh `AuthCert`, use [`AuthCertConstructor`].
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Constructor)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable, NetdocSigned))]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable, NetdocUnverified))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -445,7 +445,7 @@ impl AuthCert {
 /// As `CrossCert` does not sign a full document, it implements only
 /// `ItemValueParseable`, instead.
 ///
-/// Verification of this signature is done in `AuthCertSigned::verify_self_signed`,
+/// Verification of this signature is done in `AuthCertUnverified::verify_self_signed`,
 /// and during parsing by the old parser.
 /// So a `CrossCert` in [`AuthCert::dir_key_crosscert`] in a bare `AuthCert` has been validated.
 //
@@ -563,7 +563,7 @@ impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAut
 }
 
 #[cfg(feature = "parse2")]
-impl AuthCertSigned {
+impl AuthCertUnverified {
     /// Verifies the signature of a [`AuthCert`]
     ///
     /// # Algorithm
@@ -737,7 +737,7 @@ mod test {
     #[cfg(feature = "parse2")]
     mod parse2_test {
         use super::{
-            AuthCert, AuthCertSigned, AuthCertVersion,
+            AuthCert, AuthCertUnverified, AuthCertVersion,
             CrossCert, CrossCertObject,
         };
 
@@ -897,7 +897,7 @@ mod test {
 
         #[test]
         fn dir_auth_signature() {
-            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full"),
                 "",
             ))
@@ -1049,7 +1049,7 @@ mod test {
                 .unwrap();
 
             // Check with non-matching fingerprint and long-term identity key.
-            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full-invalid-id-rsa"),
                 "",
             ))
@@ -1068,7 +1068,7 @@ mod test {
             );
 
             // Check invalid cross-cert.
-            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full-invalid-cross"),
                 "",
             ))
@@ -1087,7 +1087,7 @@ mod test {
             );
 
             // Check outer signature.
-            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full-invalid-certification"),
                 "",
             ))
