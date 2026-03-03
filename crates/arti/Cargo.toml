@@ -251,5 +251,5 @@ tor-async-utils = { version = "0.40.0", path = "../tor-async-utils" }
 tor-config = { path = "../tor-config", version = "0.40.0", features = ["testing"] }
 tor-memquota = { version = "0.40.0", path = "../tor-memquota", default-features = false, features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.40.0" }
-trycmd = "0.15.4"
+trycmd = "1.0.0"
 walkdir = "2"
