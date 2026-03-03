@@ -196,7 +196,8 @@ where
             .build()
             .map_err(|e| internal!("Unable to build chan target from peer sockaddr: {e}"))?;
         // Convert into a PeerAddr but keep it sensitive, this can be a client/bridge.
-        let peer_addr: MaybeSensitive<PeerAddr> = MaybeSensitive::hidden(peer.into_inner().into());
+        let peer_addr: MaybeSensitive<PeerAddr> =
+            MaybeSensitive::sensitive(peer.into_inner().into());
 
         // Helpers: For error mapping.
         let map_ioe = |ioe, action| Error::Io {
@@ -312,8 +313,8 @@ where
         // The peer could be a bridge/guard or a relay. We have to shield it right away to avoid
         // leaking the info in the logs but we also want the info for a relay<-> relay.
         let peer_addr = match self.outbound_chan_type() {
-            ChannelType::ClientInitiator => MaybeSensitive::hidden(peer_addr),
-            ChannelType::RelayInitiator => MaybeSensitive::visible(peer_addr),
+            ChannelType::ClientInitiator => MaybeSensitive::sensitive(peer_addr),
+            ChannelType::RelayInitiator => MaybeSensitive::not_sensitive(peer_addr),
             _ => return Err(Error::Internal(internal!("Unknown outbound channel type"))),
         };
 

@@ -186,7 +186,7 @@ where
     pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Relay<->Relay channels are NOT sensitive as we need their info in the log.
         let peer_info =
-            MaybeSensitive::visible(PeerInfo::new(self.peer_addr, self.inner.relay_ids()?));
+            MaybeSensitive::not_sensitive(PeerInfo::new(self.peer_addr, self.inner.relay_ids()?));
         self.inner
             .finish(&self.netinfo_cell, &self.my_addrs, peer_info)
             .await
@@ -205,7 +205,7 @@ where
     #[instrument(skip_all, level = "trace")]
     pub fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
         // This is either a client or a bridge so very sensitive.
-        let peer_info = MaybeSensitive::hidden(PeerInfo::new(
+        let peer_info = MaybeSensitive::sensitive(PeerInfo::new(
             self.peer_addr.into_inner(),
             RelayIds::empty(),
         ));

@@ -17,8 +17,7 @@ use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_error::{internal, into_internal};
 use tor_linkspec::{
-    ChanTarget, ChannelMethod, HasRelayIds, OwnedChanTarget, OwnedChanTargetBuilder, RelayIds,
-    RelayIdsBuilder,
+    ChanTarget, ChannelMethod, OwnedChanTarget, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder,
 };
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -1238,7 +1237,11 @@ pub(super) mod test {
             let netinfo = Netinfo::from_client(Some(peer_ip));
 
             let (_chan, _reactor) = ver
-                .finish(&netinfo, &[], MaybeSensitive::visible(PeerInfo::EMPTY))
+                .finish(
+                    &netinfo,
+                    &[],
+                    MaybeSensitive::not_sensitive(PeerInfo::EMPTY),
+                )
                 .await
                 .unwrap();
 

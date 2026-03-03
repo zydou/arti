@@ -210,13 +210,13 @@ impl_display_traits! {
 pub struct MaybeSensitive<T>(either::Either<T, Sensitive<T>>);
 
 impl<T> MaybeSensitive<T> {
-    /// Build a sensitive container as in redacted.
-    pub fn hidden(t: T) -> Self {
+    /// Build a sensitive container.
+    pub fn sensitive(t: T) -> Self {
         Self(either::Either::Right(Sensitive::new(t)))
     }
 
-    /// Build a non sensitive container as in visible.
-    pub fn visible(t: T) -> Self {
+    /// Build a non sensitive container.
+    pub fn not_sensitive(t: T) -> Self {
         Self(either::Either::Left(t))
     }
 

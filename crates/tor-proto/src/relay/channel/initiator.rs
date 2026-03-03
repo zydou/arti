@@ -169,7 +169,8 @@ where
         self.inner.framed_tls.send(netinfo.into()).await?;
 
         // Relay only initiate to another relay so NOT sensitive.
-        let peer_info = MaybeSensitive::visible(PeerInfo::new(peer_addr, self.inner.relay_ids()?));
+        let peer_info =
+            MaybeSensitive::not_sensitive(PeerInfo::new(peer_addr, self.inner.relay_ids()?));
 
         // Get a Channel and a Reactor.
         self.inner
