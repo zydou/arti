@@ -5,7 +5,7 @@ use std::{collections::HashMap, path::PathBuf, str::FromStr as _, sync::Arc};
 use fs_mistrust::Mistrust;
 use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_rpc_connect::{
-    ClientErrorAction, HasClientErrorAction, ParsedConnectPoint,
+    ClientErrorAction, HasClientErrorAction, ParsedConnectPoint, SuperuserPermission,
     auth::RpcAuth,
     load::{LoadError, LoadOptions},
 };
@@ -26,6 +26,20 @@ pub enum BuilderError {
     InvalidConnectString,
 }
 
+/// Possible preference for superuser value.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+enum SuperuserPreference {
+    /// We want to use the first connect point that works,
+    /// regardless of superuser permission.
+    #[default]
+    None,
+    /// Fail unless we find a connect point with superuser permission.
+    Required,
+    /// First, look for connect points with superuser permission.
+    /// Only try other connect points if we can't find any.
+    Preferred,
+}
+
 /// Information about how to construct a connection to an Arti instance.
 //
 // TODO RPC: Once we have our formats more settled, add a link to a piece of documentation
@@ -41,6 +55,8 @@ pub struct RpcConnBuilder {
     ///
     /// These entries are stored in reverse order.
     prepend_path_reversed: Vec<SearchEntry>,
+    /// Whether we prefer/require a connect point with superuser permission.
+    superuser_preference: SuperuserPreference,
 }
 
 /// A single entry in the search path used to find connect points.
@@ -235,6 +251,17 @@ impl RpcConnBuilder {
         });
     }
 
+    /// Try to find a connect point that grants superuser permission.
+    ///
+    /// If none is found, and `required` is true, the connection attempt will fail
+    pub fn prefer_superuser_permission(&mut self, required: bool) {
+        if required {
+            self.superuser_preference = SuperuserPreference::Required;
+        } else {
+            self.superuser_preference = SuperuserPreference::Preferred;
+        }
+    }
+
     /// Prepend the application-provided [`SearchLocation`] to the path.
     fn prepend_internal(&mut self, location: SearchLocation) {
         self.prepend_path_reversed.push(SearchEntry {
@@ -282,6 +309,24 @@ impl RpcConnBuilder {
 
     /// Try to connect to an Arti process as specified by this Builder.
     pub fn connect(&self) -> Result<RpcConn, ConnectFailure> {
+        match self.superuser_preference {
+            SuperuserPreference::None => self.connect_impl(false),
+            SuperuserPreference::Required => self.connect_impl(true),
+            SuperuserPreference::Preferred => {
+                // This implementation isn't optimal: if there are failing
+                // su-capable connect points then it will try them twice.
+                // But it is much, much simpler than the alternatives.
+                if let Ok(v) = self.connect_impl(true) {
+                    return Ok(v);
+                }
+                self.connect_impl(false)
+            }
+        }
+    }
+
+    /// Helper: as `connect`, but if `require_su` is absent, pretend that all non-superuser
+    /// non-abort entries aren't there.
+    fn connect_impl(&self, require_su: bool) -> Result<RpcConn, ConnectFailure> {
         let resolver = tor_config_path::arti_client_base_resolver();
         // TODO RPC: Make this configurable.  (Currently, you can override it with
         // the environment variable FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS.)
@@ -297,7 +342,15 @@ impl RpcConnBuilder {
             .into_iter()
             .flat_map(|ent| ent.load(&resolver, &mistrust, &options))
         {
-            match load_result.and_then(|e| try_connect(&e, &resolver, &mistrust)) {
+            if let Ok(parsed) = &load_result
+                && require_su
+                && parsed.superuser_permission() != SuperuserPermission::Allowed
+                && !parsed.is_explicit_abort()
+            {
+                continue;
+            }
+
+            match load_result.and_then(|parsed| try_connect(&parsed, &resolver, &mistrust)) {
                 Ok(conn) => return Ok(conn),
                 Err(e) => match e.client_action() {
                     ClientErrorAction::Abort => {
@@ -313,6 +366,7 @@ impl RpcConnBuilder {
                 },
             }
         }
+
         Err(ConnectFailure {
             declined,
             final_desc: None,

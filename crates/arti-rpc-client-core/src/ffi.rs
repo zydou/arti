@@ -189,6 +189,38 @@ pub unsafe extern "C" fn arti_rpc_conn_builder_prepend_entry(
     )
 }
 
+/// Instruct `builder` to prefer connection points that grant superuser permission.
+///
+/// If no such connect points are found,
+/// and `required` is true,
+/// then the connection will fail with an error.
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`.
+/// Otherwise return some other status code, and set
+/// `*error_out` (if provided) to a newly allocated error object.
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*error_out`,
+/// if set, is eventually freed.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_conn_builder_prefer_superuser_permission(
+    builder: *const ArtiRpcConnBuilder,
+    required: c_int,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let builder: Option<&ArtiRpcConnBuilder> [in_ptr_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
+        } in {
+            let builder = builder.ok_or(InvalidInput::NullPointer)?;
+            let mut b = builder.0.lock().expect("Poisoned lock");
+            b.prefer_superuser_permission(required != 0);
+        }
+    )
+}
+
 /// Use `builder` to open a new RPC connection to Arti.
 ///
 /// On success, return `ARTI_RPC_STATUS_SUCCESS`,

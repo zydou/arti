@@ -58,12 +58,22 @@ impl ParsedConnectPoint {
     pub fn superuser_permission(&self) -> crate::SuperuserPermission {
         self.0.superuser_permission()
     }
+
+    /// Return true if this connect point is an explicit abort.
+    pub fn is_explicit_abort(&self) -> bool {
+        self.0.is_explicit_abort()
+    }
 }
 
 impl ResolvedConnectPoint {
     /// Check whether authenticating this connect point grants superuser permission.
     pub fn superuser_permission(&self) -> crate::SuperuserPermission {
         self.0.superuser_permission()
+    }
+
+    /// Return true if this connect point is an explicit abort.
+    pub fn is_explicit_abort(&self) -> bool {
+        self.0.is_explicit_abort()
     }
 }
 
@@ -246,6 +256,16 @@ impl<R: Addresses> ConnectPointEnum<R> {
             }
             ConnectPointEnum::Builtin(_) => NotAllowed,
         }
+    }
+
+    /// Return true if this connect point is an explicit abort.
+    fn is_explicit_abort(&self) -> bool {
+        matches!(
+            self,
+            ConnectPointEnum::Builtin(Builtin {
+                builtin: BuiltinVariant::Abort
+            })
+        )
     }
 }
 
