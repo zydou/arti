@@ -228,8 +228,6 @@ async fn get_superuser_capability_on_session(
 ///
 /// Therefore, to ensure that you cannot acquire new superuser functionality
 /// on a given connection, you must:
-/// - Drop the connection object and all copies of it.
-/// - Drop any intermediate authentication state objects.
 /// - Drop any existing superuser capabilities.
 /// - Invoke this method on the session.
 ///

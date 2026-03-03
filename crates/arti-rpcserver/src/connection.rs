@@ -58,6 +58,10 @@ type SessionFactory = Box<dyn Fn(&RpcAuthentication) -> Arc<dyn rpc::Object> + S
 /// it provides only those methods that you need
 /// in order to perform authentication
 /// and receive an `RpcSession`.
+///
+/// Note that a connection can only be authenticated once:
+/// If you drop the `RpcSession` returned by authenticating,
+/// you cannot get another one on the same connection.
 #[derive(Deftly)]
 #[derive_deftly(Object)]
 pub struct Connection {
@@ -83,9 +87,6 @@ pub struct Connection {
 
     /// The authentication type that's required in order to get a session.
     require_auth: tor_rpc_connect::auth::RpcAuth,
-
-    /// A SessionFactory that will be used to create a session if authentication is successful.
-    session_factory: SessionFactory,
 }
 
 /// The inner, lock-protected part of an RPC connection.
@@ -107,6 +108,11 @@ struct Inner {
     ///
     /// TODO RPC: Maybe there is an easier way to do this while keeping `context` object-save?
     this_connection: Option<Weak<Connection>>,
+
+    /// A SessionFactory that will be used to create a session if authentication is successful.
+    ///
+    /// This is None if the connection has already been authenticated.
+    session_factory: Option<SessionFactory>,
 }
 
 /// How many updates can be pending, per connection, before they start to block?
@@ -164,18 +170,28 @@ impl Connection {
                 inflight: HashMap::new(),
                 objects: ObjMap::new(),
                 this_connection: Some(Weak::clone(this_connection)),
+                session_factory: Some(session_factory),
             }),
             dispatch_table,
             connection_id,
             global_id_mac_key,
             require_auth,
-            session_factory,
         })
     }
 
     /// Construct a new object to serve as the `session` for a connection.
-    pub(crate) fn create_session(&self, auth: &RpcAuthentication) -> Arc<dyn rpc::Object> {
-        (self.session_factory)(auth)
+    pub(crate) fn create_session(
+        &self,
+        auth: &RpcAuthentication,
+    ) -> Result<Arc<dyn rpc::Object>, RpcError> {
+        let mut inner = self.inner.lock().expect("lock poisoned");
+        let session_factory = inner.session_factory.take().ok_or_else(|| {
+            RpcError::new(
+                "Cannot authenticate the same connection twice".into(),
+                rpc::RpcErrorKind::RequestError,
+            )
+        })?;
+        Ok((session_factory)(auth))
     }
 
     /// If possible, convert an `ObjectId` into a `GenIdx` that can be used in

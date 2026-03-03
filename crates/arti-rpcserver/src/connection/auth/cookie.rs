@@ -193,7 +193,7 @@ async fn cookie_continue(
         .upgrade()
         .ok_or(AuthenticationFailure::ShuttingDown)?;
     let auth = &super::RpcAuthentication {};
-    let session = conn.create_session(auth);
+    let session = conn.create_session(auth)?;
     let session = ctx.register_owned(session);
 
     Ok(AuthenticateReply { session })
