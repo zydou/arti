@@ -57,8 +57,6 @@ which are documented below.
   were removed.
 - In `arti-rpc-client-core`, the `llconn` module has been removed.
 - In `tor-chanmgr`, `ChanMgr::new()` now returns a `Result`.
-- In `tor-dirmgr`, `DirMgr::load_once()` is no longer `async`.
-- In `tor-llcrypto`, `PublicKey::bits()` now returns a `u32`.
 - In `tor-rpc-connect`, `client::Connection` no longer type-erases the streams
   it returns.
 - In `tor-relay-crypto` the `KeySpecifier` types now implement `Copy`.
