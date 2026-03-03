@@ -725,7 +725,9 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use names::Generator;
+
+    use rand::seq::IndexedRandom;
+    use tor_basic_utils::test_rng::testing_rng;
 
     use super::*;
 
@@ -1061,18 +1063,38 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
     }
 
     /// Test for cons diff using a random word generator.
-    ///
-    /// It is not super useful to use something static here, because the diff
-    /// algorithms are heuristic and are not perfectly stable.
     #[test]
     fn cons_diff() {
-        let mut generator = Generator::default();
+        // cat /usr/share/dict/words | sort -R | head -n 20 | sed 's/^/"/g' | sed 's/$/",/g'
+        const WORDS: &[&str] = &[
+            "citole",
+            "aflow",
+            "plowfoot",
+            "coom",
+            "retape",
+            "perish",
+            "overstifle",
+            "ramshackle",
+            "Romeo",
+            "alme",
+            "expressivity",
+            "Kieffer",
+            "tobe",
+            "pronucleus",
+            "countersconce",
+            "puli",
+            "acupunctuate",
+            "heterolysis",
+            "unwattled",
+            "bismerpund",
+        ];
+
         let mut left = (0..1000)
-            .map(|_| generator.next().unwrap() + "\n")
+            .map(|_| WORDS.choose(&mut testing_rng()).unwrap().to_string() + "\n")
             .collect::<String>();
         left += "directory-signature foo bar\n";
         let mut right = (0..1015)
-            .map(|_| generator.next().unwrap() + "\n")
+            .map(|_| WORDS.choose(&mut testing_rng()).unwrap().to_string() + "\n")
             .collect::<String>();
         right += "directory-signature foo baz\n";
 
