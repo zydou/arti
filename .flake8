@@ -11,3 +11,12 @@ extend-ignore =
     # Whitespace before colon in `a[x + 1 :]`
     # (We allow this for clarity, and so does black.)
     E203
+    # For the flake8-type-checking extension. We don't (yet) install and check
+    # this extension in CI, but these exceptions are useful for users who
+    # happen to have the extension installed.
+    ######
+    # "Move (third-party and built-in) imports into a
+    # type-checking block." Not clear that doing this proactively, vs to solve
+    # a specific problem like import cycles, is actually desirable.
+    TC002
+    TC003
