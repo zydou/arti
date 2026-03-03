@@ -315,9 +315,16 @@ impl<
                 return Err(Error::HandshakeProto("Stream ended unexpectedly".into()));
             };
 
-            // TODO: Should we require the circid to be 0?
-            let (_, m) = cell.into_circid_and_msg();
+            let (id, m) = cell.into_circid_and_msg();
             trace!(%stream_id, "received a {} cell", m.cmd());
+
+            // TODO: Maybe also check this in the channel handshake codec?
+            if let Some(id) = id {
+                return Err(Error::HandshakeProto(format!(
+                    "Expected no circ ID for {} cell, but received circ ID of {id} instead",
+                    m.cmd(),
+                )));
+            }
 
             let m = m.try_into().map_err(|m: AnyChanMsg| {
                 Error::HandshakeProto(format!(
