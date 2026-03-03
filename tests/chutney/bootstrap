@@ -1,15 +1,25 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-set -xeuo pipefail
+# stdlib imports
+import os
+import sys
+import subprocess
 
-# Tell shellcheck that yes, we know that we're sourcing a file.
-# shellcheck disable=SC1091
-source tests/chutney/arti.run
+# stdlib "from" imports
+from pathlib import Path
 
-# Validate that these are set (from arti.run)
-[ -n "${target:?}" ]
-[ -n "${chutney_bin:?}" ]
+# local imports
+from config import Config
 
-export CHUTNEY_START_TIME=300
-"${chutney_bin}" init "$target"
-"${chutney_bin}" bootstrap
+assert __name__ == "__main__"
+
+_SCRIPT_NAME = Path(sys.argv[0]).name
+_SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
+
+config = Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
+
+config.export_env()
+os.environ["CHUTNEY_START_TIME"] = "300"
+
+subprocess.run([config.chutney, "init", config.network], check=True)
+subprocess.run([config.chutney, "bootstrap"], check=True)
