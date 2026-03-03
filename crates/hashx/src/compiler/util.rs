@@ -132,7 +132,7 @@ impl<R: Relocation, const S: usize> DynasmLabelApi for Assembler<R, S> {
         unreachable!();
     }
 
-    fn bare_relocation(&mut self, _target: usize, _field_offset: u8, _ref_offset: u8, _kind: R) {
+    fn value_relocation(&mut self, _target: usize, _field_offset: u8, _ref_offset: u8, _kind: R) {
         unreachable!();
     }
 
