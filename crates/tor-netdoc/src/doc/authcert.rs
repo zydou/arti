@@ -736,10 +736,7 @@ mod test {
 
     #[cfg(feature = "parse2")]
     mod parse2_test {
-        use super::{
-            AuthCert, AuthCertUnverified, AuthCertVersion,
-            CrossCert, CrossCertObject,
-        };
+        use super::{AuthCert, AuthCertUnverified, AuthCertVersion, CrossCert, CrossCertObject};
 
         use std::{
             fs::File,
@@ -756,9 +753,7 @@ mod test {
 
         use base64ct::{Base64, Encoding};
         use derive_deftly::Deftly;
-        use tor_llcrypto::{
-            pk::rsa::{self, RsaIdentity},
-        };
+        use tor_llcrypto::pk::rsa::{self, RsaIdentity};
 
         /// Reads a b64 encoded file and returns its content encoded and decoded.
         fn read_b64<P: AsRef<Path>>(path: P) -> (String, Vec<u8>) {
