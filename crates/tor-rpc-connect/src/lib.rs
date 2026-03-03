@@ -295,6 +295,17 @@ auth = "none"
     }
 };
 
+/// An enum to reflect whether an authenticated connection to a connect point is allowed to acquire
+/// superuser (admin) capabilities.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SuperuserPermission {
+    /// The connection may acquire superuser capabilities.
+    Allowed,
+    /// The connection may not acquire superuser capabilities.
+    NotAllowed,
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
