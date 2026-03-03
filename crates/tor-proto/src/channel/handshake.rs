@@ -786,6 +786,8 @@ pub(super) mod test {
             buf.extend_from_slice(VERSIONS);
             // certs cell -- no certs in it, but this function doesn't care.
             buf.extend_from_slice(NOCERTS);
+            // auth_challenge cell
+            buf.extend_from_slice(AUTHCHALLENGE);
             // netinfo cell -- quite minimal.
             add_padded(&mut buf, NETINFO_PREFIX);
             let mb = MsgBuf::new(&buf[..]);
