@@ -94,7 +94,7 @@ pub struct SignedDocumentBody<'s> {
 ///    Irregular signature Items can only be implemented within this crate.
 #[derive(Copy, Debug, Clone, Eq, PartialEq, Hash, amplify::Getters)]
 pub struct SignatureHashInputs<'s> {
-    /// The Regular body
+    /// The Regular body (up to the first signature item)
     #[getter(as_copy)]
     pub(crate) body: SignedDocumentBody<'s>,
     /// The signature item keyword and the following space
