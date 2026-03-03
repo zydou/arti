@@ -89,6 +89,24 @@ impl Redactable for RelayIds {
     }
 }
 
+impl RelayIdsBuilder {
+    /// Construct a new `RelayIdsBuilder` object from an object implementing
+    /// [`HasRelayIds`].
+    ///
+    /// Note that it is possible to construct an _empty_ `RelayIds` object if
+    /// the input does not contain any recognized identity type.
+    pub fn from_relay_ids<T: HasRelayIds + ?Sized>(ids: &T) -> Self {
+        let mut builder = Self::default();
+        if let Some(ed_id) = ids.ed_identity() {
+            builder.ed_identity(*ed_id);
+        }
+        if let Some(rsa_id) = ids.rsa_identity() {
+            builder.rsa_identity(*rsa_id);
+        }
+        builder
+    }
+}
+
 /// OwnedChanTarget is a summary of a [`ChanTarget`] that owns all of its
 /// members.
 #[derive(Debug, Clone, derive_builder::Builder)]

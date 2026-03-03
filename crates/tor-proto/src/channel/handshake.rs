@@ -722,12 +722,8 @@ fn build_filtered_chan_target(
         }
         peer_builder.method(method);
     }
-    if let Some(ed_id) = peer_info.ids().ed_identity() {
-        peer_builder.ed_identity(*ed_id);
-    }
-    if let Some(rsa_id) = peer_info.ids().rsa_identity() {
-        peer_builder.rsa_identity(*rsa_id);
-    }
+    *peer_builder.ids() = RelayIdsBuilder::from_relay_ids(peer_info.ids());
+
     peer_builder
         .build()
         .expect("OwnedChanTarget builder failed")
