@@ -5,11 +5,12 @@
 
 import importlib.metadata
 import os
+import os.path
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 
 MISSING_IMPORTS = []
 try:
@@ -187,12 +188,24 @@ okay &= run_flake8_ok(SCRIPTS + OTHER_PYTHON + PACKAGES)
 # We need to type-check these items separately, or mypy complains
 # about too many modules called "__main__".
 okay &= run_mypy_ok(PACKAGES)
-for item in SCRIPTS:
+for item in SCRIPTS + OTHER_PYTHON:
     args = [item]
-    if item not in OTHER_PYTHON:
-        args += OTHER_PYTHON
     args += EXTRA_DEPS.get(item, [])
+
+    # Set MYPYPATH to work around https://github.com/python/mypy/issues/20962
+    MYPYPATH_NAME = "MYPYPATH"
+    mypypath_orig: Optional[str] = os.environ.get(MYPYPATH_NAME)
+    if mypypath_orig:
+        os.environ[MYPYPATH_NAME] = (
+            mypypath_orig + os.path.pathsep + os.path.dirname(item)
+        )
+    else:
+        os.environ[MYPYPATH_NAME] = os.path.dirname(item)
     okay &= run_mypy_ok(args, strict=item in MYPY_STRICT)
+    if mypypath_orig is None:
+        del os.environ[MYPYPATH_NAME]
+    else:
+        os.environ[MYPYPATH_NAME] = mypypath_orig
 
 okay &= run_black_ok(SCRIPTS + OTHER_PYTHON + PACKAGES)
 
