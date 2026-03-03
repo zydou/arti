@@ -4,10 +4,12 @@ use super::*;
 
 /// Helper to implemnet `dtrace!` inside `NetdocParseable` derive-deftly macro.
 #[doc(hidden)]
+#[allow(clippy::print_stderr)]
 pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]) {
-    // Take a lock like this so that all our output appears at once,
+    // We use `eprintln!` so that the output is captured as expected under cargo test.
+    // We buffer the output into a string so that it a;ll appears at once,
     // rather than possibly being interleaved with similar output for other types.
-    let mut out = std::io::stderr().lock();
+    let mut out = String::new();
     (|| {
         write!(out, "netdoc {ttype} parse: {msg}")?;
         for val in vals {
@@ -15,7 +17,9 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
         }
         writeln!(out)
     })()
-    .expect("write to stderr failed");
+    .expect("write to string failed");
+
+    eprint!("{out}");
 }
 
 define_derive_deftly_module! {
