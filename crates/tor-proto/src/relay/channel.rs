@@ -303,8 +303,8 @@ impl ChannelAuthenticationData {
         let cid_ed = identities.ed_id_bytes();
         let sid_ed = verified.ed25519_id.into();
         // Both values are consumed from the underlying codec.
-        let clog = verified.framed_tls.codec_mut().get_clog_digest()?;
-        let slog = verified.framed_tls.codec_mut().get_slog_digest()?;
+        let send_log = verified.framed_tls.codec_mut().take_send_log_digest()?;
+        let recv_log = verified.framed_tls.codec_mut().take_recv_log_digest()?;
 
         let (cid, sid, cid_ed, sid_ed) = if is_responder {
             // Reverse when responder as in CID becomes SID, and so on.
@@ -315,11 +315,13 @@ impl ChannelAuthenticationData {
         };
 
         let (clog, slog) = if is_responder {
-            // Reverse as the SLOG is the responder log digest meaning the clog as a responder.
-            (slog, clog)
+            // We're the responder (acting like a server),
+            // so the SLOG is the digest of the bytes we sent.
+            (recv_log, send_log)
         } else {
-            // Keep ordering.
-            (clog, slog)
+            // We're the initiator (acting like a client),
+            // so the CLOG is the digest of the bytes we sent.
+            (send_log, recv_log)
         };
 
         let scert = if is_responder {
