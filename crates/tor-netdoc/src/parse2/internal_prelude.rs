@@ -36,12 +36,13 @@ pub use super::{
     lines::{Lines, StrExt as _},
     multiplicity::{ArgumentSetMethods, ItemSetMethods, MultiplicitySelector, ObjectSetMethods},
     signatures::{
+        NetdocSigned,
         SignatureHashInputs, SignatureItemParseable, SignedDocumentBody, sig_hash_methods,
     },
     structural::{StopAt, StopPredicate},
     traits::{
         IsStructural, ItemArgumentParseable, ItemValueParseable, NetdocParseable,
-        NetdocParseableFields, NetdocSigned,
+        NetdocParseableFields,
     },
 };
 pub use crate::types::Unknown;
