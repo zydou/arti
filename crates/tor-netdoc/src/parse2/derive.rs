@@ -677,7 +677,7 @@ define_derive_deftly! {
 
             $NONSTRUCTURAL_ACCUMULATE_ELSE
             {
-                panic!("accumulate_item called though is_intro_item_keyword returns false");
+                panic!("accumulate_item called though is_item_keyword returns false");
             }
 
             #[allow(unreachable_code)] // If there are no fields!
