@@ -35,7 +35,7 @@ pub use super::{
     lines::{Lines, StrExt as _},
     multiplicity::{ArgumentSetMethods, ItemSetMethods, MultiplicitySelector, ObjectSetMethods},
     signatures::{
-        NetdocParseableSignatures,
+        NetdocParseableSignatures, SignaturesData,
         NetdocUnverified, SignatureHashInputs, SignatureItemParseable, SignedDocumentBody,
         sig_hash_methods,
     },

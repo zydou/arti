@@ -18,13 +18,13 @@ impl DirAuthKeyCertUnverified {
     /// The caller must check that the KP_auth_id is correct/relevant.
     pub fn verify_selfcert(self, now: SystemTime) -> Result<DirAuthKeyCert, VF> {
         // verify main document signature (and timestamp)
-        let hash = self.signatures.dir_key_certification.hash;
+        let hash = self.sigs.sigs.dir_key_certification.hash;
         let body = &self.inspect_unverified().0;
 
         let validity = body.dir_key_published.0..=body.dir_key_expires.0;
         check_validity_time(now, validity)?;
         body.dir_identity_key
-            .verify(&hash, &self.signatures.dir_key_certification.signature)?;
+            .verify(&hash, &self.sigs.sigs.dir_key_certification.signature)?;
 
         // double-check the id hash
         if *body.fingerprint != body.dir_identity_key.to_rsa_identity() {

@@ -420,7 +420,7 @@ define_derive_deftly! {
     ///
     /// impl NdThingUnverified {
     ///     pub fn verify_foolish_timeless(self) -> Result<NdThing, VerifyFailed> {
-    ///         let sig = &self.signatures.signature;
+    ///         let sig = &self.sigs.sigs.signature;
     ///         if sig.doc_len != sig.doc_len_actual_pretending_to_be_hash {
     ///             return Err(VerifyFailed::VerifyFailed);
     ///         }
@@ -813,21 +813,25 @@ define_derive_deftly! {
     ///
     /// ### Generated struct
     ///
-    /// ```
+    /// ```rust,ignore
     /// # struct Foo; struct FooSignatures;
     /// pub struct FooUnverified {
     ///     body: Foo,
-    ///     pub signatures: FooSignatures,
+    ///     pub sigs: SignaturesData<FooUnverified>,
     /// }
     ///
-    /// # #[cfg(all())] { r##"
     /// impl NetdocParseable for FooUnverified { .. }
-    /// impl NetdocUnverified for FooUnverified { .. }
-    /// # "##; }
+    /// impl NetdocUnverified for FooUnverified {
+    ///     type Body = Foo;
+    ///     type Signatures = FooSignatures;
+    ///     ..
+    /// }
     /// ```
     //
-    // We don't make this a generic struct because the defining module (crate)
-    // will want to add verification methods, which means they must define the struct.
+    // We don't make NetdocUnverified a generic struct because
+    //  - the defining module (crate) will want to add verification methods,
+    //    which means they must define the struct
+    //  - that lets the actual `body` field be private to the defining module.
     export NetdocUnverified for struct, expect items, beta_deftly:
 
     // Convenience alias for our prelude
@@ -835,6 +839,7 @@ define_derive_deftly! {
 
     // FooSignatures (type name)
     ${define SIGS_TYPE { $< ${tmeta(netdoc(signatures)) as ty, default $<$ttype Signatures>} > }}
+    ${define SIGS_DATA_TYPE { $P::SignaturesData<$<$ttype Unverified>> }}
 
     #[doc = ${concat "Signed (unverified) form of [`" $tname "`]"}]
     ///
@@ -856,7 +861,7 @@ define_derive_deftly! {
         body: $ttype,
 
         /// Signatures
-        $tvis signatures: $SIGS_TYPE,
+        $tvis sigs: $SIGS_DATA_TYPE,
     }
 
     impl<$tgens> $P::NetdocParseable for $<$ttype Unverified> {
@@ -885,14 +890,14 @@ define_derive_deftly! {
     impl<$tgens> $P::NetdocUnverified for $<$ttype Unverified> {
         type Body = $ttype;
         type Signatures = $SIGS_TYPE;
-        fn inspect_unverified(&self) -> (&Self::Body, &Self::Signatures) {
-            (&self.body, &self.signatures)
+        fn inspect_unverified(&self) -> (&Self::Body, &$SIGS_DATA_TYPE) {
+            (&self.body, &self.sigs)
         }
-        fn unwrap_unverified(self) -> (Self::Body, Self::Signatures) {
-            (self.body, self.signatures)
+        fn unwrap_unverified(self) -> (Self::Body, $SIGS_DATA_TYPE) {
+            (self.body, self.sigs)
         }
-        fn from_parts(body: Self::Body, signatures: Self::Signatures) -> Self {
-            Self { body, signatures }
+        fn from_parts(body: Self::Body, sigs: $SIGS_DATA_TYPE) -> Self {
+            Self { body, sigs }
         }
     }
 }

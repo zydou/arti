@@ -705,8 +705,8 @@ impl FlavoredConsensusSigned {
     /// Wrapper to obtain the signatories of a flavored consensus.
     fn signatories(&self) -> Vec<AuthCertKeyIds> {
         let sigs = match &self {
-            Self::Ns(ns) => &ns.signatures.directory_signature,
-            Self::Md(md) => &md.signatures.directory_signature,
+            Self::Ns(ns) => &ns.sigs.sigs.directory_signature,
+            Self::Md(md) => &md.sigs.sigs.directory_signature,
         };
         sigs.iter()
             .filter_map(|sig| match sig {

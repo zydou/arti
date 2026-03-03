@@ -227,8 +227,11 @@ impl<'s> ItemStream<'s> {
         let r = (|| {
             let inner_always_stop = outer_stop | StopAt::doc_intro::<B>();
             let body = B::from_items(&mut input, inner_always_stop | StopAt(S::is_item_keyword))?;
-            let signatures = S::from_items(&mut input, inner_always_stop)?;
-            let signed = O::from_parts(body, signatures);
+            let sigs = S::from_items(&mut input, inner_always_stop)?;
+            let sigs = SignaturesData {
+                sigs,
+            };
+            let signed = O::from_parts(body, sigs);
             Ok(signed)
         })(); // don't exit here
 

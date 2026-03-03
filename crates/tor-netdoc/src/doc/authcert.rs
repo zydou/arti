@@ -587,7 +587,7 @@ impl AuthCertUnverified {
         post_tolerance: Duration,
         now: SystemTime,
     ) -> StdResult<AuthCert, parse2::VerifyFailed> {
-        let (body, signatures) = (self.body, self.signatures);
+        let (body, sigs) = (self.body, self.sigs);
 
         // (1) Check whether this comes from a valid authority in `v3idents`.
         if !v3idents.contains(&body.fingerprint.0) {
@@ -611,8 +611,8 @@ impl AuthCertUnverified {
 
         // (5) Check the outer certificate (proof-of-ownership of identity key).
         body.dir_identity_key.verify(
-            &signatures.dir_key_certification.hash,
-            &signatures.dir_key_certification.signature,
+            &sigs.sigs.dir_key_certification.hash,
+            &sigs.sigs.dir_key_certification.signature,
         )?;
 
         Ok(body)
