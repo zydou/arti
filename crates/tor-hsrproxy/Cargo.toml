@@ -65,7 +65,7 @@ void = "1"
 
 [dev-dependencies]
 serde_json = "1.0.50"
-toml = "0.9.5"
+toml = "1.0.3"
 
 [package.metadata.docs.rs]
 all-features = true

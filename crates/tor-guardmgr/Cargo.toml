@@ -102,7 +102,7 @@ float_eq = "1.0.0"
 fs-mistrust = { path = "../fs-mistrust", version = "0.14.0" }
 serde_json = "1.0.50"
 tempfile = "3"
-toml = "0.9.5"
+toml = "1.0.3"
 tor-netdir = { path = "../tor-netdir", version = "0.40.0", features = ["testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.40.0" }
 tor-persist = { path = "../tor-persist", version = "0.40.0", features = ["testing"] }

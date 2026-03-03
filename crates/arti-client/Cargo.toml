@@ -227,7 +227,7 @@ tokio-crate = { package = "tokio", version = "1.7", features = [
     "time",
     "macros",
 ] }
-toml = "0.9.5"
+toml = "1.0.3"
 tor-relay-selection = { path = "../tor-relay-selection", version = "0.40.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.40.0", features = ["tokio", "native-tls"] }
 tracing-subscriber = "0.3.20"
