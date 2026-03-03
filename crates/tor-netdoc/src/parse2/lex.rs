@@ -214,7 +214,7 @@ impl<'s> ItemStream<'s> {
     /// Parse a (sub-)document with its own signatures
     pub fn parse_signed<
         B: NetdocParseable,
-        S: NetdocParseable,
+        S: NetdocParseableSignatures,
         O: NetdocUnverified<Body = B, Signatures = S>,
     >(
         &mut self,
@@ -226,7 +226,7 @@ impl<'s> ItemStream<'s> {
         };
         let r = (|| {
             let inner_always_stop = outer_stop | StopAt::doc_intro::<B>();
-            let body = B::from_items(&mut input, inner_always_stop | StopAt::doc_intro::<S>())?;
+            let body = B::from_items(&mut input, inner_always_stop | StopAt(S::is_item_keyword))?;
             let signatures = S::from_items(&mut input, inner_always_stop)?;
             let signed = O::from_parts(body, signatures);
             Ok(signed)

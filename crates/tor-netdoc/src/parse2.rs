@@ -44,7 +44,7 @@
 //!     [derive](crate::derive_deftly_template_NetdocParseable).
 //!
 //!   * **`FooSignatures`**: the signatures for a `Foo`.
-//!     Implements `NetdocParseable`, via
+//!     Implements `NetdocParseableSignatures`, via
 //!     [derive](crate::derive_deftly_template_NetdocParseableSignatures),
 //!     with `#[deftly(netdoc(signatures))]`.
 //!
@@ -106,6 +106,7 @@ pub use keyword::KeywordRef;
 pub use lex::{ArgumentStream, ItemStream, NoFurtherArguments, UnparsedItem, UnparsedObject};
 pub use lines::{Lines, Peeked, StrExt};
 pub use signatures::{
+    NetdocParseableSignatures,
     NetdocUnverified, SignatureHashInputs, SignatureItemParseable, check_validity_time,
     check_validity_time_tolerance, sig_hash_methods,
 };

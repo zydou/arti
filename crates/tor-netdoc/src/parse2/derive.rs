@@ -300,7 +300,6 @@ define_derive_deftly! {
     ///    Derive `NetdocParseable` and [`NetdocUnverified`](derive_deftly_template_NetdocUnverified).
     ///  * `FooSignatures`, containing only the signatures.
     ///    Derive `NetdocParseableSignatures`.
-    //             ^ XXXX right now that's not a trait, but it will be.
     ///
     /// Don't mix signature items with non-signature items in the same struct.
     /// (This wouldn't compile, because the field type would implement the wrong trait.)
@@ -643,29 +642,13 @@ define_derive_deftly! {
     }}
     ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
 
-    impl<$tgens> $P::NetdocParseable for $ttype {
-        fn doctype_for_error() -> &'static str {
-            "XXXX this is going to be removed"
-        }
-
-
-        fn is_intro_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
+    impl<$tgens> $P::NetdocParseableSignatures for $ttype {
+        fn is_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
             use $P::*;
             ${for fields {
                 kw == $F_KEYWORD ||
             }}
                 false
-        }
-
-        fn is_structural_keyword(kw: $P::KeywordRef<'_>) -> Option<$P::IsStructural> {
-            #[allow(unused_imports)] // not used if there are no subdocs
-            use $P::*;
-
-            if Self::is_intro_item_keyword(kw) {
-                return Some(IsStructural)
-            }
-
-            None
         }
 
         #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
@@ -887,7 +870,7 @@ define_derive_deftly! {
 
         fn is_structural_keyword(kw: $P::KeywordRef<'_>) -> Option<$P::IsStructural> {
             $ttype::is_structural_keyword(kw)
-                .or_else(|| $SIGS_TYPE::is_structural_keyword(kw))
+                .or_else(|| <$SIGS_TYPE as $P::NetdocParseableSignatures>::is_item_keyword(kw).then_some($P::IsStructural))
         }
 
         fn from_items<'s>(

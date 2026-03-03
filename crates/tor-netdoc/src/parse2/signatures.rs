@@ -62,6 +62,24 @@ pub trait SignatureItemParseable: Sized {
     ) -> Result<Self, ErrorProblem>;
 }
 
+/// The signatures section of a network document, that can be parsed
+//
+// This is separate from `NetdocParseable` because it needs to deal with hashing too.
+// ^ XXXX it doesn't yet, but it will do.
+//
+// Its keyword classification can be a bit simpler because all signature items
+// are structural and we do not need to impose an ordering on them during parsing.
+// So long as the body data is appropriately hashed and therefore covered
+// by whatever signature(s) we are relying on, we don't care what other irrelevant
+// signatures might be present, and we don't care if they are or are not over-signed.
+pub trait NetdocParseableSignatures: Sized {
+    /// Is `kw` one of this signature section's keywords
+    fn is_item_keyword(kw: KeywordRef<'_>) -> bool;
+
+    /// Parse the signature section from a stream of items
+    fn from_items(input: &mut ItemStream<'_>, stop_at: stop_at!()) -> Result<Self, ErrorProblem>;
+}
+
 /// The part of a network document before the first signature item
 ///
 /// This is used for both Regular signatures
