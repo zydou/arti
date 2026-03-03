@@ -411,6 +411,7 @@ typedef int ArtiRpcResponseType;
  * We tried to connect to Arti at a given connect point,
  * but it could not be used:
  * either because we don't know how,
+ * because we were configured not to use it,
  * or because we were not able to access some necessary file or directory.
  */
 #define ARTI_RPC_STATUS_CONNECT_POINT_NOT_USABLE 14
@@ -481,6 +482,25 @@ ArtiRpcStatus arti_rpc_conn_builder_prepend_entry(const struct ArtiRpcConnBuilde
                                                   ArtiRpcBuilderEntryType entry_type,
                                                   const char *entry,
                                                   ArtiRpcError **error_out);
+
+/**
+ * Instruct `builder` to prefer connection points that grant superuser permission.
+ *
+ * If no such connect points are found,
+ * and `required` is true,
+ * then the connection will fail with an error.
+ * On success, return `ARTI_RPC_STATUS_SUCCESS`.
+ * Otherwise return some other status code, and set
+ * `*error_out` (if provided) to a newly allocated error object.
+ *
+ * # Ownership
+ *
+ * The caller is responsible for making sure that `*error_out`,
+ * if set, is eventually freed.
+ */
+ArtiRpcStatus arti_rpc_conn_builder_prefer_superuser_permission(const struct ArtiRpcConnBuilder *builder,
+                                                                int required,
+                                                                ArtiRpcError **error_out);
 
 /**
  * Use `builder` to open a new RPC connection to Arti.
