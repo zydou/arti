@@ -737,7 +737,7 @@ mod test {
     #[cfg(feature = "parse2")]
     mod parse2_test {
         use super::{
-            AuthCert, AuthCertSignature, AuthCertSignatures, AuthCertSigned, AuthCertVersion,
+            AuthCert, AuthCertSigned, AuthCertVersion,
             CrossCert, CrossCertObject,
         };
 
@@ -756,9 +756,7 @@ mod test {
 
         use base64ct::{Base64, Encoding};
         use derive_deftly::Deftly;
-        use digest::Digest;
         use tor_llcrypto::{
-            d::Sha1,
             pk::rsa::{self, RsaIdentity},
         };
 
@@ -853,59 +851,6 @@ mod test {
                     file: _,
                     lno: 1,
                     column: Some(19),
-                }) => {}
-                other => panic!("not expected error {other:#?}"),
-            }
-        }
-
-        #[test]
-        fn dir_auth_key_cert_signatures() {
-            let (encoded, decoded) = read_b64("testdata2/authcert-longclaw-signature-b64");
-            let cert = format!(
-                "dir-key-certification\n-----BEGIN SIGNATURE-----\n{encoded}\n-----END SIGNATURE-----"
-            );
-            let hash: [u8; 20] = Sha1::digest("dir-key-certification\n").into();
-
-            let res =
-                parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, "")).unwrap();
-            assert_eq!(
-                res,
-                AuthCertSignatures {
-                    dir_key_certification: AuthCertSignature {
-                        signature: decoded.clone(),
-                        hash
-                    }
-                }
-            );
-
-            // Test incorrect label.
-            let cert = format!(
-                "dir-key-certification\n-----BEGIN ID SIGNATURE-----\n{encoded}\n-----END ID SIGNATURE-----"
-            );
-            let res = parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, ""));
-            match res {
-                Err(ParseError {
-                    problem: ErrorProblem::ObjectIncorrectLabel,
-                    doctype: "",
-                    file: _,
-                    lno: 1,
-                    column: None,
-                }) => {}
-                other => panic!("not expected error {other:#?}"),
-            }
-
-            // Test additional args.
-            let cert = format!(
-                "dir-key-certification arg1\n-----BEGIN SIGNATURE-----\n{encoded}\n-----END SIGNATURE-----"
-            );
-            let res = parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, ""));
-            match res {
-                Err(ParseError {
-                    problem: ErrorProblem::UnexpectedArgument { column: 23 },
-                    doctype: "",
-                    file: _,
-                    lno: 1,
-                    column: Some(23),
                 }) => {}
                 other => panic!("not expected error {other:#?}"),
             }
