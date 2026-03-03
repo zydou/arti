@@ -606,6 +606,16 @@ impl PtTarget {
     }
 }
 
+impl Display for PtTarget {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} @ {} with {:?}",
+            self.transport, self.addr, self.settings
+        )
+    }
+}
+
 /// The way to approach a single relay in order to open a channel.
 ///
 /// For direct connections, this is simply an address.  For connections via a

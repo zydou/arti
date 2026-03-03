@@ -4,6 +4,7 @@ use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::stream::StreamExt;
 use rand::Rng;
+use safelog::Sensitive;
 use std::net::IpAddr;
 use std::{sync::Arc, time::SystemTime};
 use tracing::trace;
@@ -176,8 +177,9 @@ pub struct RelayResponderHandshake<
     /// (We don't enforce that this is actually TLS, but if it isn't, the
     /// connection won't be secure.)
     framed_tls: ChannelFrame<T>,
-    /// The peer IP address as in the address the initiator is connecting from.
-    peer: PeerAddr,
+    /// The peer IP address as in the address the initiator is connecting from. This can be a
+    /// client so keep it sensitive.
+    peer_addr: Sensitive<PeerAddr>,
     /// Our advertised addresses. Needed for the NETINFO.
     my_addrs: Vec<IpAddr>,
     /// Logging identifier for this stream.  (Used for logging only.)
@@ -207,7 +209,7 @@ impl<
 {
     /// Constructor.
     pub(crate) fn new(
-        peer: PeerAddr,
+        peer_addr: Sensitive<PeerAddr>,
         my_addrs: Vec<IpAddr>,
         tls: T,
         sleep_prov: S,
@@ -215,7 +217,7 @@ impl<
         memquota: ChannelAccount,
     ) -> Self {
         Self {
-            peer,
+            peer_addr,
             my_addrs,
             framed_tls: new_frame(
                 tls,
@@ -281,7 +283,7 @@ impl<
                     netinfo_cell,
                     identities: self.identities,
                     my_addrs: self.my_addrs,
-                    peer_addr: self.peer,
+                    peer_addr: self.peer_addr.into_inner(), // Relay address.
                 })
             }
             None => MaybeVerifiableRelayResponderChannel::NonVerifiable(
@@ -289,7 +291,7 @@ impl<
                     inner,
                     netinfo_cell,
                     my_addrs: self.my_addrs,
-                    peer_addr: self.peer,
+                    peer_addr: self.peer_addr,
                 },
             ),
         })
@@ -394,7 +396,7 @@ impl<
         self.framed_tls.send(auth_challenge.into()).await?;
 
         // Send the NETINFO message.
-        let peer_ip = self.peer.netinfo_addr();
+        let peer_ip = self.peer_addr.netinfo_addr();
         let netinfo = build_netinfo_cell(peer_ip, self.my_addrs.clone(), &self.sleep_prov)?;
         trace!(channel_id = %self.unique_id, "Sending NETINFO as responder cell.");
         self.framed_tls.send(netinfo.into()).await?;

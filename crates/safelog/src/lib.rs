@@ -203,6 +203,53 @@ impl_display_traits! {
     Display, Debug, Binary, Octal, LowerHex, UpperHex, LowerExp, UpperExp, Pointer
 }
 
+/// An object that may or may not be sensitive.
+///
+/// See [`Sensitive`] for the guarantees it provides for the sensitive case.
+#[derive(Clone, derive_more::Display)]
+pub struct MaybeSensitive<T>(either::Either<T, Sensitive<T>>);
+
+impl<T> MaybeSensitive<T> {
+    /// Build a sensitive container.
+    pub fn sensitive(t: T) -> Self {
+        Self(either::Either::Right(Sensitive::new(t)))
+    }
+
+    /// Build a non sensitive container.
+    pub fn not_sensitive(t: T) -> Self {
+        Self(either::Either::Left(t))
+    }
+
+    /// Return the innermost `T`
+    pub fn inner(self) -> T {
+        match self.0 {
+            either::Either::Left(t) => t,
+            either::Either::Right(s) => s.into_inner(),
+        }
+    }
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for MaybeSensitive<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::fmt::Debug;
+        match &self.0 {
+            either::Either::Left(v) => Debug::fmt(v, f),
+            either::Either::Right(v) => Debug::fmt(v, f),
+        }
+    }
+}
+
+impl<T> Deref for MaybeSensitive<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        match &self.0 {
+            either::Either::Left(t) => t,
+            either::Either::Right(s) => s.as_inner(),
+        }
+    }
+}
+
 /// A `redactable` object is one where we know a way to display _part_ of it
 /// when we are running with safe logging enabled.
 ///

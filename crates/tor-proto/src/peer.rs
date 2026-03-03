@@ -15,7 +15,7 @@ use tor_linkspec::{PtTarget, PtTargetAddr};
 /// Clever observer here would see that this is basically a [`tor_linkspec::ChannelMethod`] which
 /// has a Direct variant with a vector of address which is incoherent with the semantic of "where we
 /// are connected to".
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, derive_more::Display, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum PeerAddr {
     /// The socket address we are directly connected to.
@@ -122,12 +122,12 @@ impl PeerInfo {
     }
 
     /// Return a reference to the target address.
-    fn addr(&self) -> &PeerAddr {
+    pub(crate) fn addr(&self) -> &PeerAddr {
         &self.addr
     }
 
     /// Return a reference to the [`RelayIds`] of this channel target.
-    fn ids(&self) -> &RelayIds {
+    pub(crate) fn ids(&self) -> &RelayIds {
         &self.ids
     }
 
@@ -147,6 +147,12 @@ impl PeerInfo {
             (ChannelMethod::Pluggable(target), PeerAddr::Pt(our_target)) => our_target == target,
             _ => false,
         }
+    }
+}
+
+impl std::fmt::Display for PeerInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} [{}]", self.addr, self.ids)
     }
 }
 

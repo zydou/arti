@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, instrument, trace};
 
+use safelog::{MaybeSensitive, Sensitive};
 use tor_cell::chancell::msg;
 use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
@@ -18,7 +19,7 @@ use crate::channel::handshake::{
 };
 use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
-use crate::peer::PeerAddr;
+use crate::peer::{PeerAddr, PeerInfo};
 
 /// A raw client channel on which nothing has been done.
 pub struct ClientInitiatorHandshake<
@@ -227,18 +228,27 @@ impl<
     /// Send a NETINFO message to the relay to finish the handshake, and create an open channel and
     /// reactor.
     ///
+    /// The `peer_addr` is sensitive because it can be a secret bridge or guard.
+    ///
     /// The channel is used to send cells, and to create outgoing circuits. The reactor is used to
     /// route incoming messages to their appropriate circuit.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
-        let peer_ip = peer_addr.netinfo_addr();
-
+    pub async fn finish(
+        mut self,
+        peer_addr: Sensitive<PeerAddr>,
+    ) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Send the NETINFO message.
-        let netinfo = msg::Netinfo::from_client(peer_ip);
+        let netinfo = msg::Netinfo::from_client(peer_addr.netinfo_addr());
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
 
+        // This could be a client Guard so it is sensitive.
+        let peer_info = MaybeSensitive::sensitive(PeerInfo::new(
+            peer_addr.into_inner(),
+            self.inner.relay_ids()?,
+        ));
+
         // Finish the channel to get a reactor.
-        self.inner.finish(&self.netinfo_cell, &[], peer_addr).await
+        self.inner.finish(&self.netinfo_cell, &[], peer_info).await
     }
 }
