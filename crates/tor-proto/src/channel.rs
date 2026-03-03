@@ -83,7 +83,6 @@ use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use tor_cell::chancell::ChanMsg;
-use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{AnyChanCell, CircId, msg::Netinfo, msg::PaddingNegotiate};
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};

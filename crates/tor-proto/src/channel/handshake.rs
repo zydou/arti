@@ -2,7 +2,7 @@
 
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::SinkExt;
-use futures::stream::StreamExt;
+use futures::stream::{Stream, StreamExt};
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -14,7 +14,8 @@ use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use safelog::{MaybeSensitive, Redacted};
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
+use tor_cell::chancell::{AnyChanCell, ChanCmd, ChanMsg, msg};
+use tor_cell::restrict::restricted_msg;
 use tor_error::{internal, into_internal};
 use tor_linkspec::{
     ChanTarget, ChannelMethod, OwnedChanTarget, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder,
@@ -118,13 +119,10 @@ pub(crate) trait ChannelInitiatorHandshake<T>: ChannelBaseHandshake<T>
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
 {
-    /// Return true iff this handshake is expecting to receive an AUTH_CHALLENGE from the
-    /// responder. As a handshake initiator, we always know if we expect one or not. A client or
-    /// bridge do not authenticate with the responder while relays will always do.
-    fn is_expecting_auth_challenge(&self) -> bool;
-
-    /// As an initiator, we are expecting the responder's cells which are (not in that order):
-    ///     - [msg::AuthChallenge], [msg::Certs], [msg::Netinfo]
+    /// As an initiator, we are expecting the responder's cells which are:
+    /// - [msg::Certs]
+    /// - [msg::AuthChallenge]
+    /// - [msg::Netinfo]
     ///
     /// Any duplicate, missing cell or unexpected results in a protocol level error.
     ///
@@ -133,73 +131,113 @@ where
     async fn recv_cells_from_responder(
         &mut self,
     ) -> Result<(
-        Option<msg::AuthChallenge>,
+        msg::AuthChallenge,
         msg::Certs,
         (msg::Netinfo, coarsetime::Instant),
     )> {
-        let mut auth_challenge_cell: Option<msg::AuthChallenge> = None;
-        let mut certs_cell: Option<msg::Certs> = None;
-        let mut netinfo_cell: Option<(msg::Netinfo, coarsetime::Instant)> = None;
-
         // IMPORTANT: Protocol wise, we MUST only allow one single cell of each type for a valid
-        // handshake. Any duplicates lead to a failure. They can arrive in any order unfortunately.
+        // handshake. Any duplicates lead to a failure.
+        // They must arrive in a specific order in order for the SLOG calculation to be valid.
 
-        // Read until we have the netinfo cell.
-        while let Some(cell) = self.framed_tls().next().await.transpose()? {
-            use super::AnyChanMsg::*;
-            let (_, m) = cell.into_circid_and_msg();
-            trace!(stream_id = %self.unique_id(), "received a {} cell.", m.cmd());
-            match m {
-                // Ignore the padding. Only VPADDING cell can be sent during handshaking.
-                Vpadding(_) => (),
-                // Clients don't care about AuthChallenge
-                AuthChallenge(ac) => {
-                    if auth_challenge_cell.replace(ac).is_some() {
-                        return Err(Error::HandshakeProto(
-                            "Duplicate AUTH_CHALLENGE cell".into(),
-                        ));
-                    }
-                }
-                Certs(c) => {
-                    if certs_cell.replace(c).is_some() {
-                        return Err(Error::HandshakeProto("Duplicate CERTS cell".into()));
-                    }
-                }
-                Netinfo(n) => {
-                    if netinfo_cell.is_some() {
-                        // This should be impossible, since we would
-                        // exit this loop on the first netinfo cell.
-                        return Err(Error::from(internal!(
-                            "Somehow tried to record a duplicate NETINFO cell"
-                        )));
-                    }
-                    netinfo_cell = Some((n, coarsetime::Instant::now()));
-                    break;
-                }
-                // This should not happen because the ChannelFrame makes sure that only allowed cell on
-                // the channel are decoded. However, Rust wants us to consider all AnyChanMsg.
-                _ => {
-                    return Err(Error::from(internal!(
-                        "Unexpected cell during initiator handshake: {m:?}"
-                    )));
-                }
+        /// Read a message from the stream.
+        ///
+        /// The `expecting` parameter is used for logging purposes, not filtering.
+        async fn read_msg<T>(
+            stream_id: UniqId,
+            mut stream: impl Stream<Item = Result<AnyChanCell>> + Unpin,
+            expecting: &[ChanCmd],
+        ) -> Result<T>
+        where
+            T: TryFrom<AnyChanMsg, Error = AnyChanMsg>,
+        {
+            let Some(cell) = stream.next().await.transpose()? else {
+                // The entire channel has ended, so nothing else to be done.
+                return Err(Error::HandshakeProto("Stream ended unexpectedly".into()));
+            };
+
+            let (id, m) = cell.into_circid_and_msg();
+            trace!(%stream_id, "received a {} cell", m.cmd());
+
+            // TODO: Maybe also check this in the channel handshake codec?
+            if let Some(id) = id {
+                return Err(Error::HandshakeProto(format!(
+                    "Expected no circ ID for {} cell, but received circ ID of {id} instead",
+                    m.cmd(),
+                )));
             }
+
+            let m = m.try_into().map_err(|m: AnyChanMsg| {
+                Error::HandshakeProto(format!(
+                    "Expected {expecting:?} cell, but received {} cell instead",
+                    m.cmd(),
+                ))
+            })?;
+
+            Ok(m)
         }
 
-        // Missing any of the above means we are not connected to a Relay and so we abort the
-        // handshake protocol.
-        let Some((netinfo, netinfo_rcvd_at)) = netinfo_cell else {
-            return Err(Error::HandshakeProto("Missing NETINFO cell".into()));
-        };
-        let Some(certs) = certs_cell else {
-            return Err(Error::HandshakeProto("Missing CERTS cell".into()));
-        };
-        // If we plan to authenticate, we require an AUTH_CHALLENGE cell from the responder.
-        if self.is_expecting_auth_challenge() && auth_challenge_cell.is_none() {
-            return Err(Error::HandshakeProto("Missing AUTH_CHALLENGE cell".into()));
+        // Note that the `ChannelFrame` already restricts the messages due to its handshake cell
+        // handler.
+
+        let certs = loop {
+            restricted_msg! {
+                enum CertsMsg : ChanMsg {
+                    // VPADDING cells (but not PADDING) can be sent during handshaking.
+                    Vpadding,
+                    Certs,
+               }
+            }
+
+            let msg = read_msg(*self.unique_id(), self.framed_tls(), &[ChanCmd::CERTS]).await?;
+
+            break match msg {
+                CertsMsg::Vpadding(_) => continue,
+                CertsMsg::Certs(msg) => msg,
+            };
         };
 
-        Ok((auth_challenge_cell, certs, (netinfo, netinfo_rcvd_at)))
+        // Clients don't care about AuthChallenge,
+        // but the responder always sends it anyways so we require it here.
+        let auth_challenge = loop {
+            restricted_msg! {
+                enum AuthChallengeMsg : ChanMsg {
+                    // VPADDING cells (but not PADDING) can be sent during handshaking.
+                    Vpadding,
+                    AuthChallenge,
+               }
+            }
+
+            let msg = read_msg(
+                *self.unique_id(),
+                self.framed_tls(),
+                &[ChanCmd::AUTH_CHALLENGE],
+            )
+            .await?;
+
+            break match msg {
+                AuthChallengeMsg::Vpadding(_) => continue,
+                AuthChallengeMsg::AuthChallenge(msg) => msg,
+            };
+        };
+
+        let (netinfo, netinfo_rcvd_at) = loop {
+            restricted_msg! {
+                enum NetinfoMsg : ChanMsg {
+                    // VPADDING cells (but not PADDING) can be sent during handshaking.
+                    Vpadding,
+                    Netinfo,
+               }
+            }
+
+            let msg = read_msg(*self.unique_id(), self.framed_tls(), &[ChanCmd::NETINFO]).await?;
+
+            break match msg {
+                NetinfoMsg::Vpadding(_) => continue,
+                NetinfoMsg::Netinfo(msg) => (msg, coarsetime::Instant::now()),
+            };
+        };
+
+        Ok((auth_challenge, certs, (netinfo, netinfo_rcvd_at)))
     }
 }
 
@@ -786,6 +824,8 @@ pub(super) mod test {
             buf.extend_from_slice(VERSIONS);
             // certs cell -- no certs in it, but this function doesn't care.
             buf.extend_from_slice(NOCERTS);
+            // auth_challenge cell
+            buf.extend_from_slice(AUTHCHALLENGE);
             // netinfo cell -- quite minimal.
             add_padded(&mut buf, NETINFO_PREFIX);
             let mb = MsgBuf::new(&buf[..]);
@@ -876,7 +916,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Duplicate CERTS cell"
+                "Handshake protocol violation: Expected [ChanCmd(AUTH_CHALLENGE)] cell, but received CERTS cell instead"
             );
 
             let mut buf = Vec::new();
@@ -889,7 +929,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Duplicate AUTH_CHALLENGE cell"
+                "Handshake protocol violation: Expected [ChanCmd(NETINFO)] cell, but received AUTH_CHALLENGE cell instead"
             );
         });
     }
@@ -904,7 +944,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Missing CERTS cell"
+                "Handshake protocol violation: Expected [ChanCmd(CERTS)] cell, but received NETINFO cell instead"
             );
         });
     }
@@ -919,7 +959,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Missing NETINFO cell"
+                "Handshake protocol violation: Stream ended unexpectedly"
             );
         });
     }
