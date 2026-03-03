@@ -133,6 +133,13 @@ def _annotate_library(lib: ctypes.CDLL):
     lib.arti_rpc_conn_builder_free.argtypes = [POINTER(ArtiRpcConnBuilder)]
     lib.arti_rpc_conn_builder_free.restype = None
 
+    lib.arti_rpc_conn_builder_prefer_superuser_permission.argtypes = [
+        POINTER(ArtiRpcConnBuilder),
+        c_int,
+        _ErrorOut,
+    ]
+    lib.arti_rpc_conn_builder_prefer_superuser_permission.restype = _ArtiRpcStatus
+
     lib.arti_rpc_conn_builder_prepend_entry.argtypes = [
         POINTER(ArtiRpcConnBuilder),
         c_int,
