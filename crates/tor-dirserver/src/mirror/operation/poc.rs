@@ -22,6 +22,10 @@ use crate::{
 /// fatal error, but does proper retry handling for non-fatal errors.
 // TODO DIRMIRROR: Make this not a poc.
 // TODO DIRMIRROR: Add logging.
+// TODO DIRMIRROR: Diziet thinks the endpoint selection/retry logic is broken
+//   eg that it could reach `expect("attempted all authorities")`.
+//   At the very least it is confusing.  See
+//   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3664#note_3352738
 async fn serve<R: Rng, F: Fn() -> Timestamp>(
     pool: &Pool<SqliteConnectionManager>,
     flavor: ConsensusFlavor,
