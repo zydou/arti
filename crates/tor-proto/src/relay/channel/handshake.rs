@@ -353,9 +353,7 @@ impl<
                    }
                 }
 
-                let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
-
-                break match msg {
+                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                     CertsNetinfoMsg::Vpadding(_) => continue,
                     // If a NETINFO cell, the initiator did not authenticate and we can stop early.
                     CertsNetinfoMsg::Netinfo(msg) => {
@@ -376,9 +374,7 @@ impl<
                    }
                 }
 
-                let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
-
-                break match msg {
+                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                     AuthenticateMsg::Vpadding(_) => continue,
                     AuthenticateMsg::Authenticate(msg) => msg,
                 };
@@ -394,9 +390,7 @@ impl<
                    }
                 }
 
-                let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
-
-                break match msg {
+                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                     NetinfoMsg::Vpadding(_) => continue,
                     NetinfoMsg::Netinfo(msg) => (msg, coarsetime::Instant::now()),
                 };

@@ -188,9 +188,7 @@ where
                }
             }
 
-            let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
-
-            break match msg {
+            break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                 CertsMsg::Vpadding(_) => continue,
                 CertsMsg::Certs(msg) => msg,
             };
@@ -207,9 +205,7 @@ where
                }
             }
 
-            let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
-
-            break match msg {
+            break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                 AuthChallengeMsg::Vpadding(_) => continue,
                 AuthChallengeMsg::AuthChallenge(msg) => msg,
             };
@@ -224,9 +220,7 @@ where
                }
             }
 
-            let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
-
-            break match msg {
+            break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                 NetinfoMsg::Vpadding(_) => continue,
                 NetinfoMsg::Netinfo(msg) => (msg, coarsetime::Instant::now()),
             };
