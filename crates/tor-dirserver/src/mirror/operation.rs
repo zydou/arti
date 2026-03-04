@@ -561,46 +561,63 @@ impl StaticEngine {
             .send_request::<_, AuthCertUnverified>(endpoint, requ)
             .await?;
 
-        // Verify each certificate.
-        for (unverified, start, end) in certs {
-            let unverified_body = unverified.inspect_unverified().0;
-            let kp = AuthCertKeyIds {
-                id_fingerprint: unverified_body.dir_identity_key.to_rsa_identity(),
-                sk_fingerprint: unverified_body.dir_signing_key.to_rsa_identity(),
-            };
+        // Verify each certificate.  Invalid certificates and other problems get
+        // logged and filtered out, with the result being then inserted into
+        // the database.
+        let certs = certs
+            .into_iter()
+            .filter_map(|(unverified, start, end)| {
+                let unverified_body = unverified.inspect_unverified().0;
+                let kp = AuthCertKeyIds {
+                    id_fingerprint: unverified_body.dir_identity_key.to_rsa_identity(),
+                    sk_fingerprint: unverified_body.dir_signing_key.to_rsa_identity(),
+                };
 
-            // Skip certficates we did not asked for.
-            //
-            // Not much of an issue because certificate verification will
-            // usually fail anyways, except for this weird edge-case where we
-            // actually have that id fingerprint in the v3idents.
-            if !missing.contains(&kp) {
-                debug!("authority returned certificate we did not asked for: {kp:?}");
-                continue;
-            }
-
-            let verified = unverified.verify_self_signed(
-                self.authorities.v3idents(),
-                self.tolerance.pre_valid_tolerance(),
-                self.tolerance.post_valid_tolerance(),
-                now.into(),
-            );
-            let verified = match verified {
-                Ok(v) => v,
-                Err(e) => {
-                    // TODO DIRMIRROR: Log the actual cert.
-                    warn!("received invalid auth cert: {e}",);
-                    continue;
+                // Skip certficates we did not asked for.
+                //
+                // Not much of an issue because certificate verification will
+                // usually fail anyways, except for this weird edge-case where we
+                // actually have that id fingerprint in the v3idents.
+                if !missing.contains(&kp) {
+                    debug!("authority returned certificate we did not asked for: {kp:?}");
+                    return None;
                 }
-            };
 
-            // We commit each certificate in its own transaction in order to
-            // not fail with zero progress.  Might be a bit more expensive but
-            // I do not think it matters a lot.
-            db::rw_tx(pool, |tx| {
-                AuthCertMeta::insert(tx, ContentEncoding::iter(), &verified, &resp[start..end])
-            })??;
+                let verified = unverified.verify_self_signed(
+                    self.authorities.v3idents(),
+                    self.tolerance.pre_valid_tolerance(),
+                    self.tolerance.post_valid_tolerance(),
+                    now.into(),
+                );
+                let verified = match verified {
+                    Ok(v) => v,
+                    Err(e) => {
+                        // TODO DIRMIRROR: Log the actual cert.
+                        warn!("received invalid auth cert: {e}",);
+                        return None;
+                    }
+                };
+
+                Some((verified, &resp[start..end]))
+            })
+            .collect::<Vec<_>>();
+
+        // When we have reached this, it means that this call made no progress,
+        // i.e. the authority only returned certificates we were not interested
+        // in.
+        if certs.is_empty() {
+            Err(Box::new(AuthorityRequestError::Response(
+                "response lead to no progress",
+            )))?;
         }
+
+        // Finally, insert them all into the database.
+        db::rw_tx(pool, |tx| {
+            for (cert, data) in certs {
+                AuthCertMeta::insert(tx, ContentEncoding::iter(), &cert, data)?;
+            }
+            Ok::<_, DatabaseError>(())
+        })??;
 
         Ok(())
     }
