@@ -179,6 +179,9 @@ mod et {
                 return Err(internal!("Invalid seed length").into());
             }
             let (kb, ku) = seed.split_at(BC::key_size());
+            let ku: &[u8; 16] = ku
+                .try_into()
+                .expect("Incorrect key size, even though it was validated!?");
             Ok(Self {
                 kb: BC::new(kb.into()),
                 ku: Polyval::new(ku.into()),
@@ -224,8 +227,9 @@ mod prf {
             b.update(&[(*tweak).into()]);
             let mut iv = b.finalize();
             *iv.last_mut().expect("no last element?") &= 0xC0; // Clear the low six bits.
+            let iv: [u8; 16] = iv.into(); // work around hybridarray/genericarray mismatch.
             let mut cipher: ctr::Ctr128BE<BC> = cipher::StreamCipherCoreWrapper::from_core(
-                CtrCore::inner_iv_init(self.k.clone(), &iv),
+                CtrCore::inner_iv_init(self.k.clone(), (&iv).into()),
             );
             if t {
                 debug_assert_eq!(cipher.current_pos::<u32>(), 0_u32);
@@ -260,6 +264,9 @@ mod prf {
                 return Err(internal!("Invalid seed length").into());
             }
             let (k, b) = seed.split_at(BC::key_size());
+            let b: &[u8; 16] = b
+                .try_into()
+                .expect("Incorrect key size, even though it was validated!?");
             Ok(Self {
                 k: BC::new(k.into()),
                 b: Polyval::new(b.into()),
@@ -679,7 +686,7 @@ mod test {
     #[test]
     fn testvec_polyval() {
         use polyval::Polyval;
-        use polyval::universal_hash::{KeyInit, UniversalHash};
+        use polyval::universal_hash::UniversalHash;
 
         // Test vectors from RFC8452 worked example in appendix A.
         let h = hex!("25629347589242761d31f826ba4b757b");
