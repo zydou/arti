@@ -226,14 +226,6 @@ where
             ))?
             .clone();
 
-        let peer_cert = tls
-            .peer_certificate()
-            .map_err(|e| map_ioe(e.into(), "TLS Certs"))?
-            .ok_or_else(|| Error::Internal(internal!("TLS connection with no peer certificate")))?
-            // Note: we could skip this "into_owned" if we computed any necessary digest on the
-            // certificate earlier.  That would require changing out channel negotiation APIs,
-            // though, and might not be worth it.
-            .into_owned();
         let our_cert = tls
             .own_certificate()
             .map_err(|e| map_ioe(e.into(), "TLS Certs"))?
@@ -258,7 +250,7 @@ where
             MaybeVerifiableRelayResponderChannel::Verifiable(c) => {
                 let clock_skew = c.clock_skew();
                 let now = self.runtime.wallclock();
-                c.verify(&target, &peer_cert, &our_cert, Some(now))
+                c.verify(&target, &our_cert, Some(now))
                     .map_err(|e| map_proto(e, &target, Some(clock_skew)))?
                     .finish()
                     .await
