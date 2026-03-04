@@ -143,10 +143,10 @@ impl<
                 target_method: Some(self.target_method),
                 unique_id: self.unique_id,
                 sleep_prov: self.sleep_prov.clone(),
-                certs_cell: Some(certs_cell),
             },
             auth_challenge_cell,
             netinfo_cell,
+            certs_cell,
             identities: self.identities,
             my_addrs: self.my_addrs,
         })
@@ -261,7 +261,6 @@ impl<
             target_method: None,
             unique_id: self.unique_id,
             sleep_prov: self.sleep_prov,
-            certs_cell,
         };
 
         // With an AUTHENTICATE cell, we can verify (relay). Else (client/bridge), we can't.
@@ -271,6 +270,8 @@ impl<
                     inner,
                     auth_cell,
                     netinfo_cell,
+                    // TODO(relay): Should probably put that in the match {} and not assume.
+                    certs_cell: certs_cell.expect("AUTHENTICATE cell without CERTS cell"),
                     identities: self.identities,
                     my_addrs: self.my_addrs,
                     peer_addr: self.peer_addr.into_inner(), // Relay address.

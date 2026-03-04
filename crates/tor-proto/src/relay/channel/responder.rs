@@ -8,11 +8,11 @@
 use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
 use safelog::{MaybeSensitive, Sensitive};
-use std::{net::IpAddr, ops::Deref, sync::Arc};
+use std::{net::IpAddr, ops::Deref, sync::Arc, time::SystemTime};
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
-use tor_linkspec::{OwnedChanTarget, RelayIds};
+use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -70,6 +70,8 @@ pub struct UnverifiedResponderRelayChannel<
     pub(crate) auth_cell: msg::Authenticate,
     /// The netinfo cell received from the initiator.
     pub(crate) netinfo_cell: msg::Netinfo,
+    /// The [`msg::Certs`] cell received from the initiator.
+    pub(crate) certs_cell: msg::Certs,
     /// Our identity keys needed for authentication.
     pub(crate) identities: Arc<RelayIdentities>,
     /// Our advertised addresses.
@@ -105,9 +107,6 @@ where
     ///
     /// 'peer' is the peer that we want to make sure we're connecting to.
     ///
-    /// 'peer_cert' is the x.509 certificate that the peer presented during its TLS handshake
-    /// (ServerHello).
-    ///
     /// 'our_cert' is the x.509 certificate that we presented during the TLS handshake.
     ///
     /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
@@ -118,7 +117,6 @@ where
     pub fn verify(
         self,
         peer: &OwnedChanTarget,
-        peer_cert: &[u8],
         our_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedResponderRelayChannel<T, S>> {
@@ -128,8 +126,48 @@ where
         let initiator_auth_cell = self.auth_cell;
         let my_addrs = self.my_addrs;
 
+        let now = now.unwrap_or_else(SystemTime::now);
+
+        // We are a client initiating a channel to a relay or a bridge. We have received a CERTS
+        // cell and we need to verify these certs:
+        //
+        //   Relay Identities:
+        //      IDENTITY_V_SIGNING_CERT (CertType 4)
+        //      RSA_ID_X509             (CertType 2)
+        //      RSA_ID_V_IDENTITY       (CertType 7)
+        //
+        //   Connection Cert:
+        //      SIGNING_V_TLS_CERT      (CertType 5)
+        //
+        // Validating the relay identities first so we can make sure we are talking to the relay
+        // (peer) we wanted. Then, check the TLS cert validity.
+        //
+        // The end result is a verified channel (not authenticated yet) which guarantee that we are
+        // talking to the right relay that we wanted.
+
+        // Check the relay identities in the CERTS cell.
+        let (relay_ids, _kp_relaysign_ed, rsa_id_digest) =
+            self.inner
+                .check_relay_identities(peer, &self.certs_cell, now)?;
+        let kp_relayid_ed = relay_ids
+            .ed_identity()
+            .expect("Missing ed25519 identity after relay validation");
+
+        // Next, verify the LINK_AUTH cert (CertType 6).
+        let _peer_kp_link_ed = crate::channel::handshake::verify_link_auth_cert(
+            &self.certs_cell,
+            kp_relayid_ed,
+            Some(now),
+            self.inner.clock_skew,
+        )?;
+
+        // TODO(relay): The peer_cert_digest will be removed soon.
+        //
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self.inner.check(peer, peer_cert, now)?;
+        let mut verified = self
+            .inner
+            .check_internal(relay_ids, [0_u8; 32], rsa_id_digest)?;
+
         let our_cert_digest = ll::d::Sha256::digest(our_cert).into();
 
         // By building the ChannelAuthenticationData, we are certain that the authentication type
@@ -140,6 +178,11 @@ where
             &mut verified,
             Some(our_cert_digest),
         )?
+        // TODO(relay): Use the peer_kp_link_ed instead here. The into_authenticate() needs to
+        // change signature as it is expecting our relay link sign kp. It is actually wrong in many
+        // ways because this needs to generate the payload of an AUTHENTICATE cell up to the
+        // signature so we can compare that part and validate the AUTHENTICATE cell signatures with
+        // peer_kp_link_ed.
         .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
 
         // CRITICAL: This if is what authenticates a channel on the responder side. We compare

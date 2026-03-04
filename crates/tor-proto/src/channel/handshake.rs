@@ -249,8 +249,6 @@ pub(crate) struct UnverifiedChannel<
     pub(crate) link_protocol: u16,
     /// The Source+Sink on which we're reading and writing cells.
     pub(crate) framed_tls: ChannelFrame<T>,
-    /// The certs cell that we might have got during the handshake.
-    pub(crate) certs_cell: Option<msg::Certs>,
     /// Declared target method for this channel, if any.
     pub(crate) target_method: Option<ChannelMethod>,
     /// How much clock skew did we detect in this handshake?
@@ -301,77 +299,14 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > UnverifiedChannel<T, S>
 {
-    /// Validate the certificates and keys in the relay's handshake.
-    ///
-    /// 'peer' is the peer that we want to make sure we're connecting to.
-    ///
-    /// 'peer_cert' is the x.509 certificate that the peer presented during
-    /// its TLS handshake (ServerHello).
-    ///
-    /// 'now' is the time at which to check that certificates are
-    /// valid.  `None` means to use the current time. It can be used
-    /// for testing to override the current view of the time.
-    ///
-    /// This is a separate function because it's likely to be somewhat
-    /// CPU-intensive.
-    #[instrument(skip_all, level = "trace")]
-    pub(crate) fn check<U: ChanTarget + ?Sized>(
-        self,
-        peer: &U,
-        peer_cert: &[u8],
-        now: Option<std::time::SystemTime>,
-    ) -> Result<VerifiedChannel<T, S>> {
-        let peer_cert_sha256 = ll::d::Sha256::digest(peer_cert).into();
-        self.check_internal(peer, peer_cert_sha256, now)
-    }
-
     /// Same as `check`, but takes the SHA256 hash of the peer certificate,
     /// since that is all we use.
-    pub(crate) fn check_internal<U: ChanTarget + ?Sized>(
+    pub(crate) fn check_internal(
         self,
-        peer: &U,
+        relay_ids: RelayIds,
         peer_cert_digest: [u8; 32],
-        now: Option<SystemTime>,
+        rsa_id_digest: [u8; 32],
     ) -> Result<VerifiedChannel<T, S>> {
-        // Replace 'now' with the real time to use.
-        let now = now.unwrap_or_else(SystemTime::now);
-
-        // TODO(relay): This comment is wrong, we'll change it once the refactor is done.
-        //
-        // We need to check the following lines of authentication:
-        //
-        // First, to bind the ed identity to the channel.
-        //    peer.ed_identity() matches the key in...
-        //    IDENTITY_V_SIGNING cert, which signs...
-        //    SIGNING_V_TLS_CERT cert, which signs peer_cert.
-        //
-        // Second, to bind the rsa identity to the ed identity:
-        //    peer.rsa_identity() matches the key in...
-        //    the x.509 RSA identity certificate (type 2), which signs...
-        //    the RSA->Ed25519 crosscert (type 7), which signs...
-        //    peer.ed_identity().
-
-        // Evidently, without a CERTS at this point we have a code flow issue.
-        let Some(c) = &self.certs_cell.as_ref() else {
-            return Err(Error::from(internal!("No CERTS cell found to verify")));
-        };
-
-        // First, we'll check the relay identities in the CERTS cell.
-        let (relay_ids, signing_key, rsa_id_digest) = self.check_relay_identities(peer, c, now)?;
-
-        // TODO(relay): This whole part is initiator specific as the responder looks for the LINK
-        // AUTH cert. It will soon be moved into a helper function that both client/relay initiator
-        // can use.
-
-        // Verify the TLS cert.
-        verify_tls_cert(
-            peer_cert_digest,
-            c,
-            &signing_key,
-            Some(now),
-            self.clock_skew,
-        )?;
-
         Ok(VerifiedChannel {
             link_protocol: self.link_protocol,
             framed_tls: self.framed_tls,
@@ -392,7 +327,7 @@ impl<
     ///
     /// Reason for the RSA public key is because the caller needs to the SHA256 digest for the
     /// [`msg::Authenticate`] cell.
-    fn check_relay_identities<U: ChanTarget + ?Sized>(
+    pub(crate) fn check_relay_identities<U: ChanTarget + ?Sized>(
         &self,
         peer: &U,
         certs: &msg::Certs,
@@ -666,7 +601,6 @@ impl<
 /// The `clock_skew` is the time skew detected during the handshake.
 ///
 /// If verification is successful, return the peer KP_link_ed.
-#[expect(unused)] // TODO(relay)
 pub(crate) fn verify_link_auth_cert(
     certs: &msg::Certs,
     kp_relayid_ed: &Ed25519Identity,
@@ -1064,7 +998,7 @@ pub(super) mod test {
         });
     }
 
-    fn make_unverified<R>(certs: msg::Certs, runtime: R) -> UnverifiedChannel<MsgBuf, R>
+    fn make_unverified<R>(runtime: R) -> UnverifiedChannel<MsgBuf, R>
     where
         R: Runtime,
     {
@@ -1075,7 +1009,6 @@ pub(super) mod test {
         UnverifiedChannel {
             link_protocol: 4,
             framed_tls,
-            certs_cell: Some(certs),
             clock_skew,
             target_method: None,
             unique_id: UniqId::new(),
@@ -1090,9 +1023,11 @@ pub(super) mod test {
         parse_rfc3339("2020-09-26T18:01:20Z").unwrap()
     }
 
+    // TODO(relay): This test is wrong now as it is using check_internal() which doesn't look at
+    // CERTS anymore. We'll need to move this kind of unit tests in the specialized module.
     fn certs_test<R>(
-        certs: msg::Certs,
-        when: Option<SystemTime>,
+        _certs: msg::Certs,
+        _when: Option<SystemTime>,
         peer_ed: &[u8],
         peer_rsa: &[u8],
         peer_cert_sha256: [u8; 32],
@@ -1101,15 +1036,13 @@ pub(super) mod test {
     where
         R: Runtime,
     {
-        let unver = make_unverified(certs, runtime.clone());
-        let ed = Ed25519Identity::from_bytes(peer_ed).unwrap();
-        let rsa = RsaIdentity::from_bytes(peer_rsa).unwrap();
-        let chan = OwnedChanTarget::builder()
-            .ed_identity(ed)
-            .rsa_identity(rsa)
+        let unver = make_unverified(runtime.clone());
+        let relay_ids = RelayIdsBuilder::default()
+            .ed_identity(Ed25519Identity::from_bytes(peer_ed).unwrap())
+            .rsa_identity(RsaIdentity::from_bytes(peer_rsa).unwrap())
             .build()
             .unwrap();
-        unver.check_internal(&chan, peer_cert_sha256, when)
+        unver.check_internal(relay_ids, peer_cert_sha256, [0_u8; 32])
     }
 
     // no certs at all!

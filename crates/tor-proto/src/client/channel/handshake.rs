@@ -1,5 +1,6 @@
 //! Implementations for the client channel handshake
 
+use digest::Digest;
 use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
 use std::sync::Arc;
@@ -132,7 +133,6 @@ impl<
             inner: UnverifiedChannel {
                 link_protocol,
                 framed_tls: self.framed_tls,
-                certs_cell: Some(certs_cell),
                 clock_skew,
                 target_method: self.target_method.take(),
                 unique_id: self.unique_id,
@@ -140,6 +140,7 @@ impl<
                 memquota: self.memquota.clone(),
             },
             netinfo_cell,
+            certs_cell,
         })
     }
 }
@@ -154,6 +155,8 @@ pub struct UnverifiedClientChannel<
     inner: UnverifiedChannel<T, S>,
     /// Received [`msg::Netinfo`] cell during the handshake.
     netinfo_cell: msg::Netinfo,
+    /// Received [`msg::Certs`] cell during the handshake.
+    certs_cell: msg::Certs,
 }
 
 impl<
@@ -182,7 +185,43 @@ impl<
         peer_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedClientChannel<T, S>> {
-        let inner = self.inner.check(peer, peer_cert, now)?;
+        let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_cert).into();
+        let now = now.unwrap_or_else(SystemTime::now);
+
+        // We are a client initiating a channel to a relay or a bridge. We have received a CERTS
+        // cell and we need to verify these certs:
+        //
+        //   Relay Identities:
+        //      IDENTITY_V_SIGNING_CERT (CertType 4)
+        //      RSA_ID_X509             (CertType 2)
+        //      RSA_ID_V_IDENTITY       (CertType 7)
+        //
+        //   Connection Cert:
+        //      SIGNING_V_TLS_CERT      (CertType 5)
+        //
+        // Validating the relay identities first so we can make sure we are talking to the relay
+        // (peer) we wanted. Then, check the TLS cert validity.
+        //
+        // The end result is a verified channel (not authenticated yet) which guarantee that we are
+        // talking to the right relay that we wanted.
+
+        // Check the relay identities in the CERTS cell.
+        let (relay_ids, kp_relaysign_ed, rsa_id_digest) =
+            self.inner
+                .check_relay_identities(peer, &self.certs_cell, now)?;
+
+        // Next, verify the TLS cert (CertType 5).
+        crate::channel::handshake::verify_tls_cert(
+            peer_cert_digest,
+            &self.certs_cell,
+            &kp_relaysign_ed,
+            Some(now),
+            self.inner.clock_skew,
+        )?;
+
+        let inner = self
+            .inner
+            .check_internal(relay_ids, peer_cert_digest, rsa_id_digest)?;
         Ok(VerifiedClientChannel {
             inner,
             netinfo_cell: self.netinfo_cell,
