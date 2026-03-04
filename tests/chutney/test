@@ -25,77 +25,80 @@ config = config_module.Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.jso
 config.export_env()
 network = TorNet.Network.from_nodes_dir(Path(config.chutney_data_dir).joinpath("nodes"))
 
-# Perform chutney's built-in "verify" test
-chutney.network_tests.verify.run_test(network)
-
-arti_client_ports = (
-    p
-    for n in network.nodes
-    if (p := n.socksport.as_optional()) and n._config.backend is TorNet.NodeBackend.ARTI
-)
-arti_client_port: int = next(arti_client_ports)
-arti_dns_ports = (
-    p
-    for n in network.nodes
-    if (p := n.dnsport.as_optional()) and n._config.backend is TorNet.NodeBackend.ARTI
-)
-arti_dns_port: int = next(arti_dns_ports)
+TEST_DNS: bool
 if common.running_in_shadow():
     # Resolving DNS through tor in shadow is currently broken:
     # <https://github.com/shadow/shadow/issues/323>.
     #
-    # We can still do the "curl" test (using --socks5 instead of
-    # --socks5-hostname to resolve locally).
-    #
     # TODO: Fix or work around this. e.g. run a local `unbound` resolver inside
     # the simulation.
-    subprocess.check_call(
-        [
-            "curl",
-            f"http://{common.TEST_DOMAIN}",
-            "-vs",
-            "--socks5",
-            f"127.0.0.1:{arti_client_port}",
-            "-o",
-            "/dev/null",
-        ]
-    )
+    TEST_DNS = False
 else:
+    TEST_DNS = True
+
+# Perform chutney's built-in "verify" test
+chutney.network_tests.verify.run_test(network)
+
+arti_socks_clients = [
+    n
+    for n in network.nodes
+    if n.socksport.is_some() and n._config.backend is TorNet.NodeBackend.ARTI
+]
+assert len(arti_socks_clients) > 0, "No arti socks clients!"
+
+for client in arti_socks_clients:
+    print("Testing arti socks client", client.nick, flush=True)
+    curl_socks_flag: str
+    if TEST_DNS:
+        # Do DNS resolution via proxy
+        curl_socks_flag = "--socks5-hostname"
+    else:
+        # Do DNS resolution locally
+        curl_socks_flag = "--socks5"
     subprocess.check_call(
         [
             "curl",
             f"http://{common.TEST_DOMAIN}",
             "-vs",
-            "--socks5-hostname",
-            f"127.0.0.1:{arti_client_port}",
+            curl_socks_flag,
+            f"127.0.0.1:{client.socksport.unwrap()}",
             "-o",
             "/dev/null",
         ]
     )
 
-    DIRECT_LOOKUP = subprocess.check_output(
-        ["dig", "+short", common.TEST_DOMAIN, "A"], text=True
-    )
-    TOR_LOOKUP = subprocess.check_output(
-        [
-            "dig",
-            "@127.0.0.1",
-            "-p",
-            str(arti_dns_port),
-            "+short",
-            common.TEST_DOMAIN,
-            "A",
-        ],
-        text=True,
-    )
-    # The direct lookup can and does return multiple entries.
-    # The tor lookup should correspond to one of them.
-    if DIRECT_LOOKUP not in TOR_LOOKUP:
-        print(
-            f"Direct DNS resolution result '{DIRECT_LOOKUP}'"
-            " not in tor dns port result '{TOR_LOOKUP}'"
+if TEST_DNS:
+    arti_dns_clients = [
+        n
+        for n in network.nodes
+        if n.dnsport.is_some() and n._config.backend is TorNet.NodeBackend.ARTI
+    ]
+    assert len(arti_dns_clients) > 0, "No arti dns clients!"
+    for client in arti_dns_clients:
+        print("Testing arti dns client", client.nick, flush=True)
+        DIRECT_LOOKUP = subprocess.check_output(
+            ["dig", "+short", common.TEST_DOMAIN, "A"], text=True
         )
-        sys.exit(1)
+        TOR_LOOKUP = subprocess.check_output(
+            [
+                "dig",
+                "@127.0.0.1",
+                "-p",
+                str(client.dnsport.unwrap()),
+                "+short",
+                common.TEST_DOMAIN,
+                "A",
+            ],
+            text=True,
+        )
+        # The direct lookup can and does return multiple entries.
+        # The tor lookup should correspond to one of them.
+        if DIRECT_LOOKUP not in TOR_LOOKUP:
+            print(
+                f"Direct DNS resolution result '{DIRECT_LOOKUP}'"
+                " not in tor dns port result '{TOR_LOOKUP}'"
+            )
+            sys.exit(1)
 
 # This test only work on a chutney network with IPv6 support such as ipv6-exit-min,
 # sadly such a network can't run in CI because there is no IPv6 in docker (nor in shadow).
