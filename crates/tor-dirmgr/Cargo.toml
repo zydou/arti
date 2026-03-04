@@ -83,7 +83,7 @@ rand = "0.9.1"
 # project's tree due to linking the native SQLite 3 library. This gives Cargo a wider set of compatible versions to
 # choose from for projects that directly or indirectly require different `libsqlite3-sys` versions.
 # When updating the minimum, consult the Arti Team before merging.
-rusqlite = { version = ">=0.26.3, <0.39.0", features = ["time"] }
+rusqlite = { version = ">=0.36.0, <0.39.0", features = ["time"] }
 safelog = { path = "../safelog", version = "0.8.0" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
