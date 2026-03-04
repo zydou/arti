@@ -363,7 +363,7 @@ impl<
         // Make sure the ed25519 identity cert is well signed before parsing more data.
         if !id_sk_sig.is_valid() {
             return Err(Error::HandshakeProto(
-                "Invalid ed25519 signature in handshake".into(),
+                "Invalid ed25519 identity cert signature in handshake".into(),
             ));
         }
 
@@ -673,7 +673,7 @@ impl<
         // Make sure the TLS cert is well signed.
         if !sk_tls_sig.is_valid() {
             return Err(Error::HandshakeProto(
-                "Invalid ed25519 signature in handshake".into(),
+                "Invalid ed25519 TLS cert signature in handshake".into(),
             ));
         }
 
