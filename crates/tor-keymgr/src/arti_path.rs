@@ -372,6 +372,14 @@ mod tests {
             "hs_client-",
             "hs_client_",
             "_",
+            // A path with an empty denotator group
+            "my_key_path+dino@@saur",
+            // Paths with a trailing empty denotator group.
+            // Our implementation doesn't encode empty trailing
+            // denotator groups in ArtiPaths, but our parsing rules
+            // don't forbid them.
+            "my_key_path+dino@",
+            "my_key_path+@",
         ];
 
         const BAD_FIRST_CHAR_ARTI_PATHS: &[&str] = &["-hs_client", "-"];
@@ -381,6 +389,10 @@ mod tests {
             ("no spaces please", ' '),
             ("client٣¾", '٣'),
             ("clientß", 'ß'),
+            // Invalid paths: the main component of the path
+            // must be separated from the denotator groups by a `+` character
+            ("my_key_path@", '@'),
+            ("my_key_path@dino+saur", '@'),
         ];
 
         const EMPTY_PATH_COMPONENT: &[&str] =
