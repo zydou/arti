@@ -35,10 +35,12 @@ hyper = { version = "1.7.0", default-features = false, features = ["server", "ht
 hyper-util = { version = "0.1.16", features = ["full"] }
 lzma-rs = "0.3.0"
 r2d2 = "0.8.10"
-r2d2_sqlite = "0.32.0"
+# NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
+r2d2_sqlite = ">=0.29.0, <0.33.0"
 rand = "0.9.2"
 retry-error = { version = "0.11.0", path = "../retry-error" }
-rusqlite = "0.38.0"
+# NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
+rusqlite = ">=0.36.0, <0.39.0"
 saturating-time = "0.3.0"
 sha2 = "0.10.9"
 strum = { version = "0.28.0", features = ["derive"] }
