@@ -21,5 +21,5 @@ config = Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
 config.export_env()
 os.environ["CHUTNEY_START_TIME"] = "300"
 
-subprocess.run([config.chutney, "init", config.network], check=True)
-subprocess.run([config.chutney, "bootstrap"], check=True)
+subprocess.check_call([config.chutney, "init", config.network])
+subprocess.check_call([config.chutney, "bootstrap"])

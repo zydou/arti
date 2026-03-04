@@ -1,33 +1,52 @@
-#!/usr/bin/env bash 
+#!/usr/bin/env python3
 
-set -xeuo pipefail
+# stdlib imports
+import os
+import os.path
+import sys
+import subprocess
 
-cd "$(git rev-parse --show-toplevel)"
+# stdlib "from" imports
+from pathlib import Path
 
-# Tell shellcheck that yes, we know that we're sourcing a file.
-# shellcheck disable=SC1091
-source tests/chutney/arti.run
+# local imports
+import config as config_module
 
-# Validate that these are set (from arti.run)
-[ -n "${arti_bench_bin:?}" ]
-[ -n "${chutney_bin:?}" ]
-[ -n "${jq_bin:?}" ]
+assert __name__ == "__main__"
+
+_SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
+
+config = config_module.Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
+config.export_env()
 
 # Hostname must be syncd in `tests/chutney/integration-e2e-shadow`.
-TEST_DOMAIN=example.com
+# XXX now that these are both in python, we can actually move this out to a shared module.
+TEST_DOMAIN = "example.com"
 
 # Perform chutney's built-in "verify" test
-"${chutney_bin}" verify
+subprocess.check_call([config.chutney, "verify"])
 
-arti_client_port=$(\
-  ${jq_bin} -r \
-  'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .socksport)'\
-  "$CHUTNEY_DATA_DIR"/nodes/network.json)
-arti_dns_port=$(\
-  ${jq_bin} -r \
-  'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .dnsport)'\
-  "$CHUTNEY_DATA_DIR"/nodes/network.json)
-if [ -n "${RUNNING_IN_SHADOW:-}" ]; then
+network_json_path = os.path.join(config.chutney_data_dir, "nodes", "network.json")
+arti_client_port = subprocess.check_output(
+    [
+        config.jq,
+        "-r",
+        'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .socksport)',
+        network_json_path,
+    ],
+    text=True,
+).strip()
+arti_dns_port = subprocess.check_output(
+    [
+        config.jq,
+        "-r",
+        'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .dnsport)',
+        network_json_path,
+    ],
+    text=True,
+).strip()
+# XXX move this name out to a shared module
+if os.environ.get("RUNNING_IN_SHADOW"):
     # Resolving DNS through tor in shadow is currently broken:
     # <https://github.com/shadow/shadow/issues/323>.
     #
@@ -36,24 +55,69 @@ if [ -n "${RUNNING_IN_SHADOW:-}" ]; then
     #
     # TODO: Fix or work around this. e.g. run a local `unbound` resolver inside
     # the simulation.
-    curl http://"$TEST_DOMAIN" -vs --socks5 127.0.0.1:"${arti_client_port}" -o /dev/null
-else
-    curl http://"$TEST_DOMAIN" -vs --socks5-hostname 127.0.0.1:"${arti_client_port}" -o /dev/null
+    subprocess.check_call(
+        [
+            "curl",
+            f"http://{TEST_DOMAIN}",
+            "-vs",
+            "--socks5",
+            f"127.0.0.1:{arti_client_port}",
+            "-o",
+            "/dev/null",
+        ]
+    )
+else:
+    subprocess.check_call(
+        [
+            "curl",
+            f"http://{TEST_DOMAIN}",
+            "-vs",
+            "--socks5-hostname",
+            f"127.0.0.1:{arti_client_port}",
+            "-o",
+            "/dev/null",
+        ]
+    )
 
-    DIRECT_LOOKUP=$(dig +short $TEST_DOMAIN A)
-    TOR_LOOKUP=$(dig @127.0.0.1 -p "${arti_dns_port}" +short $TEST_DOMAIN A)
+    DIRECT_LOOKUP = subprocess.check_output(
+        ["dig", "+short", TEST_DOMAIN, "A"], text=True
+    )
+    TOR_LOOKUP = subprocess.check_output(
+        ["dig", "@127.0.0.1", "-p", arti_dns_port, "+short", TEST_DOMAIN, "A"],
+        text=True,
+    )
     # The direct lookup can and does return multiple entries.
     # The tor lookup should correspond to one of them.
-    [[ "$DIRECT_LOOKUP" == *"$TOR_LOOKUP"* ]]
-fi
+    if DIRECT_LOOKUP not in TOR_LOOKUP:
+        print(
+            f"Direct DNS resolution result '{DIRECT_LOOKUP}'"
+            " not in tor dns port result '{TOR_LOOKUP}'"
+        )
+        sys.exit(1)
 
-## This test only work on a chutney network with IPv6 support such as ipv6-exit-min,
-## sadly such a network can't run in CI because there is no IPv6 in docker (nor in shadow).
-#[ "$(dig @127.0.0.1 -p 35353 +short example.com AAAA)" == "2606:2800:220:1:248:1893:25c8:1946" ]
+# This test only work on a chutney network with IPv6 support such as ipv6-exit-min,
+# sadly such a network can't run in CI because there is no IPv6 in docker (nor in shadow).
+# [ "$(dig @127.0.0.1 -p 35353 +short example.com AAAA)" == "2606:2800:220:1:248:1893:25c8:1946" ]
 
 # Get the socks port of a tor client to use for benchmarking comparison.
-tor_client_port=$(\
-  ${jq_bin} -r \
-  'limit(1; .nodes[] | select(.is_client and .backend=="TOR") | .socksport)'\
-  "$CHUTNEY_DATA_DIR"/nodes/network.json)
-RUST_LOG=debug "$arti_bench_bin" -c "$CHUTNEY_DATA_DIR"/nodes/arti.toml --socks5 127.0.0.1:"$tor_client_port" -o benchmark_results.json
+tor_client_port = subprocess.check_output(
+    [
+        config.jq,
+        "-r",
+        'limit(1; .nodes[] | select(.is_client and .backend=="TOR") | .socksport)',
+        network_json_path,
+    ],
+    text=True,
+).strip()
+subprocess.check_call(
+    [
+        config.arti_bench,
+        "-c",
+        os.path.join(config.chutney_data_dir, "nodes", "arti.toml"),
+        "--socks5",
+        f"127.0.0.1:{tor_client_port}",
+        "-o",
+        "benchmark_results.json",
+    ],
+    env=dict(os.environ) | dict(RUST_LOG="debug"),
+)
