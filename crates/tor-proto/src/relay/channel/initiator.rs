@@ -87,11 +87,11 @@ where
 
         // By building the ChannelAuthenticationData, we are certain that the authentication
         // type requested by the responder is supported by us.
-        let auth_cell = ChannelAuthenticationData::build(
-            Some(&auth_challenge_cell),
+        let auth_cell = ChannelAuthenticationData::build_initiator(
+            &auth_challenge_cell,
             &identities,
             &mut verified,
-            None,
+            peer_cert_digest,
         )?
         .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
 

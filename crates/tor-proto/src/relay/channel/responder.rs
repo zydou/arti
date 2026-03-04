@@ -164,19 +164,16 @@ where
         // TODO(relay): The peer_cert_digest will be removed soon.
         //
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self
-            .inner
-            .into_verified(relay_ids, [0_u8; 32], rsa_id_digest);
+        let mut verified = self.inner.into_verified(relay_ids, rsa_id_digest);
 
         let our_cert_digest = ll::d::Sha256::digest(our_cert).into();
 
         // By building the ChannelAuthenticationData, we are certain that the authentication type
         // of the initiator is supported by us.
-        let our_auth_cell = ChannelAuthenticationData::build(
-            None,
+        let our_auth_cell = ChannelAuthenticationData::build_responder(
             &identities,
             &mut verified,
-            Some(our_cert_digest),
+            our_cert_digest,
         )?
         // TODO(relay): Use the peer_kp_link_ed instead here. The into_authenticate() needs to
         // change signature as it is expecting our relay link sign kp. It is actually wrong in many

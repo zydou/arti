@@ -307,8 +307,6 @@ pub(crate) struct VerifiedChannel<
     pub(crate) relay_ids: RelayIds,
     /// Validated RSA identity digest of the DER format for this peer.
     pub(crate) rsa_id_digest: [u8; 32],
-    /// Peer TLS certificate digest
-    pub(crate) peer_cert_digest: [u8; 32],
     /// Authenticated clock skew for this peer.
     pub(crate) clock_skew: ClockSkew,
 }
@@ -322,7 +320,6 @@ impl<
     pub(crate) fn into_verified(
         self,
         relay_ids: RelayIds,
-        peer_cert_digest: [u8; 32],
         rsa_id_digest: [u8; 32],
     ) -> VerifiedChannel<T, S> {
         VerifiedChannel {
@@ -332,7 +329,6 @@ impl<
             target_method: self.target_method,
             relay_ids,
             rsa_id_digest,
-            peer_cert_digest,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
@@ -684,9 +680,7 @@ impl<
         // Check TLS cert timeliness.
         sk_tls_timeliness?;
 
-        Ok(self
-            .inner
-            .into_verified(relay_ids, peer_cert_digest, rsa_id_digest))
+        Ok(self.inner.into_verified(relay_ids, rsa_id_digest))
     }
 }
 
@@ -1324,7 +1318,6 @@ pub(super) mod test {
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
                 relay_ids: RelayIds::empty(),
                 rsa_id_digest: [0; 32],
-                peer_cert_digest: [0; 32],
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,
                 memquota: fake_mq(),
