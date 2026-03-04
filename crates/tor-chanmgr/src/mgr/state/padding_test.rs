@@ -227,6 +227,7 @@ impl CaseContext {
     }
 
     fn expect(&mut self, expected: Vec<Expected>) {
+        #[allow(deprecated)] // TODO(#2386)
         let messages = iter::from_fn(|| match self.recv.try_next() {
             Ok(Some(t)) => Some(Ok(t)),
             Ok(None) => Some(Err(())),

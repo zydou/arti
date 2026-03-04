@@ -1591,12 +1591,14 @@ mod test {
                 }
 
                 dbg!();
+                #[allow(deprecated)] // TODO(#2386)
                 let _: mpsc::TryRecvError = rx_n.try_next().unwrap_err();
 
                 dbg!();
                 runtime.progress_until_stalled().await;
 
                 dbg!();
+                #[allow(deprecated)] // TODO(#2386)
                 let _: mpsc::TryRecvError = rx_n.try_next().unwrap_err();
 
                 dbg!();
@@ -1610,6 +1612,7 @@ mod test {
                 assert_eq!(r, Some(N - 1));
 
                 dbg!();
+                #[allow(deprecated)] // TODO(#2386)
                 let _: mpsc::TryRecvError = rx_n.try_next().unwrap_err();
 
                 runtime.spawn_identified("tx", {
