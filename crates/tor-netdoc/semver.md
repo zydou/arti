@@ -1,1 +1,1 @@
-BREAKING: `NetdocIsgned` and `SomeDocSigned` renamed to `*Unverified`
+BREAKING: `NetdocSigned` and `SomeDocSigned` renamed to `*Unverified`
