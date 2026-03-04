@@ -251,11 +251,8 @@ match tor_client.connect(("example.com", 80)).await {
   documents. Requires a C compiler.
 * `bridge-client` -- Build with support for bridges.
 * `onion-service-client` -- Build with support for connecting to onion
-  services. Note that this is not yet as secure as C-Tor and shouldn't be used
-  for security-sensitive purposes.
+  services.
 * `onion-service-service` -- Build with support for running onion services.
-  Note that this is not yet as secure as C-Tor and shouldn't
-  be used for security-sensitive purposes.
 * `vanguards` -- Build with support for vanguards.
   Requires that either `onion-service-client` or `onion-service-service`
   is also enabled.

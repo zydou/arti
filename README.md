@@ -147,62 +147,6 @@ We won't increase MSRV just because we can: we'll only do so when we have a
 reason. (We don't guarantee that you'll agree with our reasoning; only that it
 will exist.)
 
-## Roadmap
-
-Thanks to a generous grant from
-[Zcash Open Major Grants (ZOMG)](https://zcashomg.org/), we're able to devote
-some significant time to Arti in the years 2021-2022.  Here is our _rough_
-set of plans for what we hope to deliver when.
-
-The goal times below are complete imagination, based on broad assumptions about
-developer availability.  Please don't take them too seriously until we can
-get our project manager to sign off on them.
-
- * Arti 0.0.1: Minimal Secure Client (Goal: end of October 2021??)
-   * Target audience: **developers**
-   * [x] Guard support
-   * [x] Stream Isolation
-   * [x] High test coverage
-   * [x] Draft APIs for basic usage
-   * [x] Code cleanups
-   * [and more...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/6)
-
- * Arti 0.1.0: Okay for experimental embedding (Goal: Mid March, 2022??)
-   * Target audience: **beta testers**
-   * [x] Performance: preemptive circuit construction
-   * [x] Performance: circuit build timeout inference
-   * [x] API support for embedding
-   * [x] API support for status reporting
-   * [x] Correct timeout behavior
-   * [and more...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/7)
-
- * Arti 1.0.0: Initial stable release (Goal: Mid September, 2022??)
-   * Target audience: **initial users**
-   * [x] Stable API (mostly)
-   * [ ] Stable CLI
-   * [x] Stable configuration format
-   * [x] Automatic detection and response of more kinds of network problems
-   * [x] At least as secure as C Tor
-   * [x] Client performance similar to C Tor
-   * [x] More performance work
-   * [and more...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/8)
-
- * Arti 1.1.0: Anti-censorship features (Goal: End of October, 2022?)
-   * Target audience: **censored users**
-   * [x] Bridges
-   * [x] Pluggable transports
-   * [and more...?](https://gitlab.torproject.org/tpo/core/arti/-/milestones/10)
-
- * Arti ~1.2.0: [Onion service]() support (Goal: End of 2023)
-   * [x] [Client support](https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Basic%20Client) (for connecting to onion services)
-   * [x] [Service support](https://gitlab.torproject.org/tpo/core/arti/-/issues/?sort=created_date&state=opened&label_name%5B%5D=Onion%20Services%3A%20Basic%20Service&first_page_size=100) (for running onion services)
-   * [ ] [Full security features](https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security) (for production-ready quality)
-
- * Arti ~2.0.0: Feature parity with C tor as a client (Goal: Mid 2024)
-   * [some possible details...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/9#tab-issues)
-
- * Arti ?.?.?: Relay support
-
 ## <a name="reporting-bugs"></a> How can I report bugs?
 
 When you find bugs, please report them
