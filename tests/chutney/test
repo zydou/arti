@@ -11,6 +11,7 @@ from pathlib import Path
 
 # non-stdlib imports
 import chutney.TorNet as TorNet
+import chutney.network_tests.verify
 
 # local imports
 import common
@@ -22,11 +23,11 @@ _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
 
 config = config_module.Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
 config.export_env()
+network = TorNet.Network.from_nodes_dir(Path(config.chutney_data_dir).joinpath("nodes"))
 
 # Perform chutney's built-in "verify" test
-subprocess.check_call([config.chutney, "verify"])
+chutney.network_tests.verify.run_test(network)
 
-network = TorNet.Network.from_nodes_dir(Path(config.chutney_data_dir).joinpath("nodes"))
 arti_client_ports = (
     p
     for n in network.nodes
