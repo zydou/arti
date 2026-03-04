@@ -85,16 +85,6 @@ where
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.verify(peer, peer_cert_digest, now)?;
 
-        // By building the ChannelAuthenticationData, we are certain that the authentication
-        // type requested by the responder is supported by us.
-        let auth_cell = ChannelAuthenticationData::build_initiator(
-            &auth_challenge_cell,
-            &identities,
-            &mut verified,
-            peer_cert_digest,
-        )?
-        .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
-
         // This part is very important as we now flag that we are authenticated. The responder
         // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
         //
@@ -110,7 +100,8 @@ where
             inner: verified,
             identities,
             netinfo_cell,
-            auth_cell,
+            auth_challenge_cell,
+            peer_cert_digest,
             my_addrs,
         })
     }
@@ -138,8 +129,10 @@ pub struct VerifiedInitiatorRelayChannel<
     identities: Arc<RelayIdentities>,
     /// The netinfo cell that we got from the relay.
     netinfo_cell: msg::Netinfo,
-    /// The AUTHENTICATE cell built during verification process.
-    auth_cell: msg::Authenticate,
+    /// The AUTH_CHALLENGE cell that we got from the relay.
+    auth_challenge_cell: msg::AuthChallenge,
+    /// The peer TLS certificate digest.
+    peer_cert_digest: [u8; 32],
     /// Our advertised IP addresses.
     my_addrs: Vec<IpAddr>,
 }
@@ -155,12 +148,26 @@ where
     /// The resulting channel is considered, by Tor protocol standard, an authenticated relay
     /// channel on which circuits can be opened.
     pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // Send CERTS, AUTHENTICATE, NETINFO
+        // Send the CERTS cell.
         let certs = super::build_certs_cell(&self.identities, /* is_responder */ false);
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
         self.inner.framed_tls.send(certs.into()).await?;
+
+        // Build the AUTHENTICATE cell.
+        //
+        // By building the ChannelAuthenticationData, we are certain that the authentication
+        // type requested by the responder is supported by us.
+        let auth_cell = ChannelAuthenticationData::build_initiator(
+            &self.auth_challenge_cell,
+            &self.identities,
+            &mut self.inner,
+            self.peer_cert_digest,
+        )?
+        .into_authenticate(self.inner.framed_tls.deref(), &self.identities.link_sign_kp)?;
+
+        // Send the AUTHENTICATE cell.
         trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");
-        self.inner.framed_tls.send(self.auth_cell.into()).await?;
+        self.inner.framed_tls.send(auth_cell.into()).await?;
 
         // Send our NETINFO cell. This will indicate the end of the handshake.
         let netinfo = super::build_netinfo_cell(
