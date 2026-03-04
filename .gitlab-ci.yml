@@ -30,9 +30,6 @@ variables:
   # Pinned CI image for most Rust tests
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   RECENT_RUST_IMAGE: "docker.io/amd64/rust:1.91.0-trixie"
-  # Pinned chutney version.
-  # main @ 2026-03-04
-  CHUTNEY_COMMIT: "6b2e7eb2b72607538fad39beec937c94ab9e48ac"
   # Profile to use when building the arti bins that we use for integration tests.
   # When changing this, also update ARTI_CI_PROFILE_PATH, below.
   ARTI_CI_PROFILE: quicktest
@@ -42,6 +39,9 @@ variables:
   ARTI_CI_PROFILE_PATH: quicktest
   # For static website deployment job
   SITE_URL: arti.torproject.org
+  # Pinned chutney version.
+  # main @ 2026-03-04
+  CHUTNEY_COMMIT: "6b2e7eb2b72607538fad39beec937c94ab9e48ac"
 
 default:
   image:
@@ -131,6 +131,7 @@ python3-checks:
     - python3 -m venv lint
     - source lint/bin/activate
     - pip3 install
+        git+https://gitlab.torproject.org/tpo/core/chutney.git@"$CHUTNEY_COMMIT"
         marko
         tomli_w
         types-toml
