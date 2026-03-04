@@ -6,6 +6,7 @@ use futures::stream::{Stream, StreamExt};
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
+use tor_llcrypto::pk::ValidatableSignature;
 
 use crate::channel::{Canonicity, ChannelFrame, UniqId};
 use crate::memquota::ChannelAccount;
@@ -24,7 +25,7 @@ use tor_linkspec::{
 };
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
-use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_llcrypto::pk::{rsa, rsa::RsaIdentity};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
 use digest::Digest;
@@ -336,11 +337,12 @@ impl<
         now: Option<SystemTime>,
     ) -> Result<VerifiedChannel<T, S>> {
         use tor_cert::CertType;
-        use tor_checkable::*;
 
         // Replace 'now' with the real time to use.
         let now = now.unwrap_or_else(SystemTime::now);
 
+        // TODO(relay): This comment is wrong, we'll change it once the refactor is done.
+        //
         // We need to check the following lines of authentication:
         //
         // First, to bind the ed identity to the channel.
@@ -359,45 +361,22 @@ impl<
             return Err(Error::from(internal!("No CERTS cell found to verify")));
         };
 
-        let id_sk = get_cert(c, CertType::IDENTITY_V_SIGNING)?;
+        // First, we'll check the relay identities in the CERTS cell.
+        let (identity_key, signing_key, pkrsa) = self.check_relay_identities(c, now)?;
+
+        // TODO(relay): This whole part is initiator specific as the responder looks for the LINK
+        // AUTH cert. It will soon be moved into a helper function that both client/relay initiator
+        // can use.
+
         let sk_tls = get_cert(c, CertType::SIGNING_V_TLS_CERT)?;
-
-        let mut sigs = Vec::new();
-
-        // Part 1: validate ed25519 stuff.
-        //
-        // (We are performing our timeliness checks now, but not inspecting them
-        // until later in the function, so that we can distinguish failures that
-        // might be caused by clock skew from failures that are definitely not
-        // clock skew.)
-
-        // Check the identity->signing cert
-        let (id_sk, id_sk_sig) = id_sk
-            .should_have_signing_key()
-            .map_err(Error::HandshakeCertErr)?
-            .dangerously_split()
-            .map_err(Error::HandshakeCertErr)?;
-        sigs.push(&id_sk_sig);
-        let (id_sk_timeliness, id_sk) = check_cert_timeliness(id_sk, now, self.clock_skew);
-
-        // Take the identity key from the identity->signing cert
-        let identity_key = id_sk.signing_key().ok_or_else(|| {
-            Error::HandshakeProto("Missing identity key in identity->signing cert".into())
-        })?;
-
-        // Take the signing key from the identity->signing cert
-        let signing_key = id_sk.subject_key().as_ed25519().ok_or_else(|| {
-            Error::HandshakeProto("Bad key type in identity->signing cert".into())
-        })?;
 
         // Now look at the signing->TLS cert and check it against the
         // peer certificate.
         let (sk_tls, sk_tls_sig) = sk_tls
-            .should_be_signed_with(signing_key)
+            .should_be_signed_with(&signing_key)
             .map_err(Error::HandshakeCertErr)?
             .dangerously_split()
             .map_err(Error::HandshakeCertErr)?;
-        sigs.push(&sk_tls_sig);
         let (sk_tls_timeliness, sk_tls) = check_cert_timeliness(sk_tls, now, self.clock_skew);
 
         if peer_cert_digest != sk_tls.subject_key().as_bytes() {
@@ -406,57 +385,17 @@ impl<
             ));
         }
 
-        // Batch-verify the ed25519 certificates in this handshake.
-        //
-        // In theory we could build a list of _all_ the certificates here
-        // and call pk::validate_all_sigs() instead, but that doesn't gain
-        // any performance.
-        if !ll::pk::ed25519::validate_batch(&sigs[..]) {
+        // Make sure the TLS cert is well signed.
+        if sk_tls_sig.is_valid() {
             return Err(Error::HandshakeProto(
                 "Invalid ed25519 signature in handshake".into(),
-            ));
-        }
-
-        // Part 2: validate rsa stuff.
-
-        // What is the RSA identity key, according to the X.509 certificate
-        // in which it is self-signed?
-        //
-        // (We don't actually check this self-signed certificate, and we use
-        // a kludge to extract the RSA key)
-        let rsa_id_cert_bytes = c
-            .cert_body(CertType::RSA_ID_X509)
-            .ok_or_else(|| Error::HandshakeProto("Couldn't find RSA identity cert".into()))?;
-        let pkrsa =
-            ll::util::x509_extract_rsa_subject_kludge(rsa_id_cert_bytes).ok_or_else(|| {
-                Error::HandshakeProto(
-                    "Couldn't find RSA SubjectPublicKey from RSA identity cert".into(),
-                )
-            })?;
-
-        // Now verify the RSA identity -> Ed Identity crosscert.
-        //
-        // This proves that the RSA key vouches for the Ed key.  Note that
-        // the Ed key does not vouch for the RSA key: The RSA key is too
-        // weak.
-        let rsa_cert = c
-            .cert_body(CertType::RSA_ID_V_IDENTITY)
-            .ok_or_else(|| Error::HandshakeProto("No RSA->Ed crosscert".into()))?;
-        let rsa_cert = tor_cert::rsa::RsaCrosscert::decode(rsa_cert)
-            .map_err(|e| Error::from_bytes_err(e, "RSA identity cross-certificate"))?
-            .check_signature(&pkrsa)
-            .map_err(|_| Error::HandshakeProto("Bad RSA->Ed crosscert signature".into()))?;
-        let (rsa_cert_timeliness, rsa_cert) = check_cert_timeliness(rsa_cert, now, self.clock_skew);
-
-        if !rsa_cert.subject_key_matches(identity_key) {
-            return Err(Error::HandshakeProto(
-                "RSA->Ed crosscert certifies incorrect key".into(),
             ));
         }
 
         let rsa_id_digest: [u8; 32] = ll::d::Sha256::digest(pkrsa.to_der()).into();
         let rsa_id = pkrsa.to_rsa_identity();
 
+        // TODO(relay): This is unsafe, it could be a client Guard identity.
         trace!(
             stream_id = %self.unique_id,
             "Validated identity as {} [{}]",
@@ -473,8 +412,11 @@ impl<
         // usually a different situation than "this peer couldn't even
         // identify itself right."
 
+        // TODO(relay): Put the RelayIds into the VerifiedChannel instead of the identities
+        // seperately because in the finish() process we build back a RelayIds so no need to bounce
+        // back and forth like this.
         let actual_identity = RelayIds::builder()
-            .ed_identity(*identity_key)
+            .ed_identity(identity_key)
             .rsa_identity(rsa_id)
             .build()
             .expect("Unable to build RelayIds");
@@ -486,10 +428,100 @@ impl<
             other => other,
         }?;
 
-        // If we reach this point, the clock skew might be may now be considered
-        // authenticated: The certificates are what we wanted, and everything
-        // was well signed.
+        // Check TLS cert timeliness.
+        sk_tls_timeliness?;
+
+        Ok(VerifiedChannel {
+            link_protocol: self.link_protocol,
+            framed_tls: self.framed_tls,
+            unique_id: self.unique_id,
+            target_method: self.target_method,
+            ed25519_id: identity_key,
+            rsa_id,
+            rsa_id_digest,
+            peer_cert_digest,
+            clock_skew: self.clock_skew,
+            sleep_prov: self.sleep_prov,
+            memquota: self.memquota,
+        })
+    }
+
+    /// This validates the relay identities (Ed25519 and RSA) and signing key cert (Ed25519).
+    /// Successful validation returns the relay ed25519 identitiy key, the ed25519 signing key and
+    /// the RSA public key.
+    ///
+    /// Reason for the RSA public key is because the caller needs to the SHA256 digest for the
+    /// [`msg::Authenticate`] cell.
+    fn check_relay_identities(
+        &self,
+        certs: &msg::Certs,
+        now: SystemTime,
+    ) -> Result<(Ed25519Identity, Ed25519Identity, rsa::PublicKey)> {
+        use tor_checkable::*;
+
+        // Get the identity signing cert (CertType 4).
+        let id_sk = get_cert(certs, CertType::IDENTITY_V_SIGNING)?;
+
+        // Check the identity->signing cert
+        let (id_sk, id_sk_sig) = id_sk
+            .should_have_signing_key()
+            .map_err(Error::HandshakeCertErr)?
+            .dangerously_split()
+            .map_err(Error::HandshakeCertErr)?;
+        let (id_sk_timeliness, id_sk) = check_cert_timeliness(id_sk, now, self.clock_skew);
+
+        // Make sure the ed25519 identity cert is well signed before parsing more data.
+        if !id_sk_sig.is_valid() {
+            return Err(Error::HandshakeProto(
+                "Invalid ed25519 signature in handshake".into(),
+            ));
+        }
+
+        // Take the identity key from the identity->signing cert
+        let identity_key = id_sk.signing_key().ok_or_else(|| {
+            Error::HandshakeProto("Missing identity key in identity->signing cert".into())
+        })?;
+
+        // Take the signing key from the identity->signing cert
+        let signing_key = id_sk.subject_key().as_ed25519().ok_or_else(|| {
+            Error::HandshakeProto("Bad key type in identity->signing cert".into())
+        })?;
+
+        // What is the RSA identity key, according to the X.509 certificate
+        // in which it is self-signed?
         //
+        // (We don't actually check this self-signed certificate, and we use
+        // a kludge to extract the RSA key)
+        let rsa_id_cert_bytes = certs
+            .cert_body(CertType::RSA_ID_X509)
+            .ok_or_else(|| Error::HandshakeProto("Couldn't find RSA identity cert".into()))?;
+        let pkrsa =
+            ll::util::x509_extract_rsa_subject_kludge(rsa_id_cert_bytes).ok_or_else(|| {
+                Error::HandshakeProto(
+                    "Couldn't find RSA SubjectPublicKey from RSA identity cert".into(),
+                )
+            })?;
+
+        // Now verify the RSA identity -> Ed Identity crosscert.
+        //
+        // This proves that the RSA key vouches for the Ed key.  Note that
+        // the Ed key does not vouch for the RSA key: The RSA key is too
+        // weak.
+        let rsa_cert = certs
+            .cert_body(CertType::RSA_ID_V_IDENTITY)
+            .ok_or_else(|| Error::HandshakeProto("No RSA->Ed crosscert".into()))?;
+        let rsa_cert = tor_cert::rsa::RsaCrosscert::decode(rsa_cert)
+            .map_err(|e| Error::from_bytes_err(e, "RSA identity cross-certificate"))?
+            .check_signature(&pkrsa)
+            .map_err(|_| Error::HandshakeProto("Bad RSA->Ed crosscert signature".into()))?;
+        let (rsa_cert_timeliness, rsa_cert) = check_cert_timeliness(rsa_cert, now, self.clock_skew);
+
+        if !rsa_cert.subject_key_matches(identity_key) {
+            return Err(Error::HandshakeProto(
+                "RSA->Ed crosscert certifies incorrect key".into(),
+            ));
+        }
+
         // The only remaining concern is certificate timeliness.  If the
         // certificates are expired by an amount that is too large for the
         // declared clock skew to explain, then  we'll return
@@ -501,22 +533,9 @@ impl<
         // We note expired certs last, since we only want to return
         // `HandshakeCertsExpired` when there are no other errors.
         id_sk_timeliness?;
-        sk_tls_timeliness?;
         rsa_cert_timeliness?;
 
-        Ok(VerifiedChannel {
-            link_protocol: self.link_protocol,
-            framed_tls: self.framed_tls,
-            unique_id: self.unique_id,
-            target_method: self.target_method,
-            ed25519_id: *identity_key,
-            rsa_id,
-            rsa_id_digest,
-            peer_cert_digest,
-            clock_skew: self.clock_skew,
-            sleep_prov: self.sleep_prov,
-            memquota: self.memquota,
-        })
+        Ok((*identity_key, *signing_key, pkrsa))
     }
 
     /// Finalize this channel into an actual channel and its reactor.
