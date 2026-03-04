@@ -28,7 +28,7 @@ walkdir = { version = "2", optional = true }
 assert_matches = "1.5.0"
 serde_json = "1.0.50"
 tempfile = "3"
-toml = "0.9.5"
+toml = "1.0.3"
 [package.metadata.docs.rs]
 all-features = true
 

@@ -203,7 +203,7 @@ thiserror = "2"
 time = "0.3.47"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
-toml = "0.9.5"
+toml = "1.0.3"
 tor-async-utils = { path = "../tor-async-utils", version = "0.40.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.40.0" }
 tor-cell = { path = "../tor-cell", version = "0.40.0", optional = true }
@@ -251,5 +251,5 @@ tor-async-utils = { version = "0.40.0", path = "../tor-async-utils" }
 tor-config = { path = "../tor-config", version = "0.40.0", features = ["testing"] }
 tor-memquota = { version = "0.40.0", path = "../tor-memquota", default-features = false, features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.40.0" }
-trycmd = "0.15.4"
+trycmd = "1.0.0"
 walkdir = "2"

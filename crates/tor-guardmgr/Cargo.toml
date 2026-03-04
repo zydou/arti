@@ -77,7 +77,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.9.1"
 safelog = { path = "../safelog", version = "0.8.0" }
 serde = { version = "1.0.103", features = ["derive"] }
-strum = { version = "0.27.1", features = ["derive"] }
+strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
 tor-async-utils = { version = "0.40.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.40.0" }
@@ -102,7 +102,7 @@ float_eq = "1.0.0"
 fs-mistrust = { path = "../fs-mistrust", version = "0.14.0" }
 serde_json = "1.0.50"
 tempfile = "3"
-toml = "0.9.5"
+toml = "1.0.3"
 tor-netdir = { path = "../tor-netdir", version = "0.40.0", features = ["testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.40.0" }
 tor-persist = { path = "../tor-persist", version = "0.40.0", features = ["testing"] }
