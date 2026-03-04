@@ -10,6 +10,7 @@ use tor_proto::RelayIdentities;
 use tracing::{debug, warn};
 
 use fs_mistrust::Mistrust;
+use tor_basic_utils::iter_join;
 use tor_chanmgr::{ChanMgr, ChanMgrConfig, Dormancy};
 use tor_config_path::CfgPathResolver;
 use tor_dirmgr::DirMgrConfig;
@@ -255,7 +256,7 @@ impl<R: Runtime> TorRelay<R> {
         if or_listeners.is_empty() {
             return Err(anyhow::anyhow!(
                 "Could not listen at any OR port addresses: {}",
-                crate::util::iter_join(", ", inert.config.relay.listen.addrs()),
+                iter_join(", ", inert.config.relay.listen.addrs()),
             ));
         }
 
