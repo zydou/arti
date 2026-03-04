@@ -15,8 +15,8 @@ use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::ClockSkew;
 use crate::Result;
 use crate::channel::handshake::{
-    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, VerifiedChannel,
-    unauthenticated_clock_skew,
+    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, UnverifiedInitiatorChannel,
+    VerifiedChannel, unauthenticated_clock_skew,
 };
 use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
@@ -130,17 +130,19 @@ impl<
         trace!(stream_id = %self.unique_id, "received handshake, ready to verify.");
 
         Ok(UnverifiedClientChannel {
-            inner: UnverifiedChannel {
-                link_protocol,
-                framed_tls: self.framed_tls,
-                clock_skew,
-                target_method: self.target_method.take(),
-                unique_id: self.unique_id,
-                sleep_prov: self.sleep_prov.clone(),
-                memquota: self.memquota.clone(),
+            inner: UnverifiedInitiatorChannel {
+                inner: UnverifiedChannel {
+                    link_protocol,
+                    framed_tls: self.framed_tls,
+                    clock_skew,
+                    target_method: self.target_method.take(),
+                    unique_id: self.unique_id,
+                    sleep_prov: self.sleep_prov.clone(),
+                    memquota: self.memquota.clone(),
+                },
+                certs_cell,
             },
             netinfo_cell,
-            certs_cell,
         })
     }
 }
@@ -151,12 +153,10 @@ pub struct UnverifiedClientChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
-    /// Inner generic unverified channel.
-    inner: UnverifiedChannel<T, S>,
+    /// Inner generic unverified initiator channel.
+    inner: UnverifiedInitiatorChannel<T, S>,
     /// Received [`msg::Netinfo`] cell during the handshake.
     netinfo_cell: msg::Netinfo,
-    /// Received [`msg::Certs`] cell during the handshake.
-    certs_cell: msg::Certs,
 }
 
 impl<
@@ -186,42 +186,8 @@ impl<
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedClientChannel<T, S>> {
         let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_cert).into();
-        let now = now.unwrap_or_else(SystemTime::now);
+        let inner = self.inner.verify(peer, peer_cert_digest, now)?;
 
-        // We are a client initiating a channel to a relay or a bridge. We have received a CERTS
-        // cell and we need to verify these certs:
-        //
-        //   Relay Identities:
-        //      IDENTITY_V_SIGNING_CERT (CertType 4)
-        //      RSA_ID_X509             (CertType 2)
-        //      RSA_ID_V_IDENTITY       (CertType 7)
-        //
-        //   Connection Cert:
-        //      SIGNING_V_TLS_CERT      (CertType 5)
-        //
-        // Validating the relay identities first so we can make sure we are talking to the relay
-        // (peer) we wanted. Then, check the TLS cert validity.
-        //
-        // The end result is a verified channel (not authenticated yet) which guarantee that we are
-        // talking to the right relay that we wanted.
-
-        // Check the relay identities in the CERTS cell.
-        let (relay_ids, kp_relaysign_ed, rsa_id_digest) =
-            self.inner
-                .check_relay_identities(peer, &self.certs_cell, now)?;
-
-        // Next, verify the TLS cert (CertType 5).
-        crate::channel::handshake::verify_tls_cert(
-            peer_cert_digest,
-            &self.certs_cell,
-            &kp_relaysign_ed,
-            Some(now),
-            self.inner.clock_skew,
-        )?;
-
-        let inner = self
-            .inner
-            .check_internal(relay_ids, peer_cert_digest, rsa_id_digest)?;
         Ok(VerifiedClientChannel {
             inner,
             netinfo_cell: self.netinfo_cell,
@@ -230,13 +196,13 @@ impl<
 
     /// Return the clock skew of this channel.
     pub fn clock_skew(&self) -> ClockSkew {
-        self.inner.clock_skew
+        self.inner.inner.clock_skew
     }
 
     /// Return the link protocol version of this channel.
     #[cfg(test)]
     pub(crate) fn link_protocol(&self) -> u16 {
-        self.inner.link_protocol
+        self.inner.inner.link_protocol
     }
 }
 

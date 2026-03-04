@@ -260,6 +260,25 @@ pub(crate) struct UnverifiedChannel<
     pub(crate) unique_id: UniqId,
 }
 
+/// A base initiator channel on which versions have been negotiated and the relay's handshake has
+/// been read, but where the [`msg::Certs`] has not been checked.
+///
+/// Both relay and client have specialized objects for an unverified channel which include this one
+/// as the base in order to share functionnalities.
+///
+/// We need this intermediary object between the specialized one (client/relay) and the
+/// [`UnverifiedChannel`] because certs validation is quite different from a respodner channel.
+/// This avoid code duplication.
+pub(crate) struct UnverifiedInitiatorChannel<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> {
+    /// Base unverified channel.
+    pub(crate) inner: UnverifiedChannel<T, S>,
+    /// The [`msg::Certs`] received during the handshake.
+    pub(crate) certs_cell: msg::Certs,
+}
+
 /// A base channel on which versions have been negotiated, relay's handshake has been read, but the
 /// client has not yet finished the handshake.
 ///
@@ -299,15 +318,14 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > UnverifiedChannel<T, S>
 {
-    /// Same as `check`, but takes the SHA256 hash of the peer certificate,
-    /// since that is all we use.
-    pub(crate) fn check_internal(
+    /// Return a newly constructed [`VerifiedChannel`].
+    pub(crate) fn into_verified(
         self,
         relay_ids: RelayIds,
         peer_cert_digest: [u8; 32],
         rsa_id_digest: [u8; 32],
-    ) -> Result<VerifiedChannel<T, S>> {
-        Ok(VerifiedChannel {
+    ) -> VerifiedChannel<T, S> {
+        VerifiedChannel {
             link_protocol: self.link_protocol,
             framed_tls: self.framed_tls,
             unique_id: self.unique_id,
@@ -318,7 +336,7 @@ impl<
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
-        })
+        }
     }
 
     /// This validates the relay identities (Ed25519 and RSA) and signing key cert (Ed25519).
@@ -588,6 +606,90 @@ impl<
     }
 }
 
+impl<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> UnverifiedInitiatorChannel<T, S>
+{
+    /// Validate the TLS cert (CertType 5) located in our `certs_cell`.
+    ///
+    /// `peer` is the relay we want to connect to.
+    ///
+    /// 'peer_cert_digest' is the digest of the x.509 certificate that the peer presented during
+    /// its TLS handshake (ServerHello).
+    ///
+    /// `kp_relaysign_ed` is the relay signing key taken from the signing cert (CertType 4). It is used
+    /// to sign the TLS cert and so we use it to validate.
+    ///
+    /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
+    /// current time. It can be used for testing to override the current view of the time.
+    ///
+    /// The `clock_skew` is the time skew detected during the handshake.
+    pub(crate) fn verify<U: ChanTarget + ?Sized>(
+        self,
+        peer: &U,
+        peer_cert_digest: [u8; 32],
+        now: Option<std::time::SystemTime>,
+    ) -> Result<VerifiedChannel<T, S>> {
+        use tor_cert::CertType;
+
+        // Replace 'now' with the real time to use.
+        let now = now.unwrap_or_else(SystemTime::now);
+
+        // We are a client initiating a channel to a relay or a bridge. We have received a CERTS
+        // cell and we need to verify these certs:
+        //
+        //   Relay Identities:
+        //      IDENTITY_V_SIGNING_CERT (CertType 4)
+        //      RSA_ID_X509             (CertType 2)
+        //      RSA_ID_V_IDENTITY       (CertType 7)
+        //
+        //   Connection Cert:
+        //      SIGNING_V_TLS_CERT      (CertType 5)
+        //
+        // Validating the relay identities first so we can make sure we are talking to the relay
+        // (peer) we wanted. Then, check the TLS cert validity.
+        //
+        // The end result is a verified channel (not authenticated yet) which guarantee that we are
+        // talking to the right relay that we wanted.
+
+        // Check the relay identities in the CERTS cell.
+        let (relay_ids, kp_relaysign_ed, rsa_id_digest) =
+            self.inner
+                .check_relay_identities(peer, &self.certs_cell, now)?;
+
+        // Now look at the signing->TLS cert and check it against the
+        // peer certificate.
+        let sk_tls = get_cert(&self.certs_cell, CertType::SIGNING_V_TLS_CERT)?;
+        let (sk_tls, sk_tls_sig) = sk_tls
+            .should_be_signed_with(&kp_relaysign_ed)
+            .map_err(Error::HandshakeCertErr)?
+            .dangerously_split()
+            .map_err(Error::HandshakeCertErr)?;
+        let (sk_tls_timeliness, sk_tls) = check_cert_timeliness(sk_tls, now, self.inner.clock_skew);
+
+        if peer_cert_digest != sk_tls.subject_key().as_bytes() {
+            return Err(Error::HandshakeProto(
+                "Peer cert did not authenticate TLS cert".into(),
+            ));
+        }
+
+        // Make sure the TLS cert is well signed.
+        if !sk_tls_sig.is_valid() {
+            return Err(Error::HandshakeProto(
+                "Invalid ed25519 signature in handshake".into(),
+            ));
+        }
+
+        // Check TLS cert timeliness.
+        sk_tls_timeliness?;
+
+        Ok(self
+            .inner
+            .into_verified(relay_ids, peer_cert_digest, rsa_id_digest))
+    }
+}
+
 /// Validate the LINK_AUTH cert (CertType 6).
 ///
 /// `certs` is the [`msg::Certs`] cell received during the handshake.
@@ -641,59 +743,6 @@ pub(crate) fn verify_link_auth_cert(
         ))?;
 
     Ok(peer_kp_link_ed)
-}
-
-/// Validate the TLS cert (CertType 5).
-///
-/// 'peer_cert' is the x.509 certificate that the peer presented during its TLS handshake
-/// (ServerHello).
-///
-/// `kp_relaysign_ed` is the relay signing key taken from the signing cert (CertType 4). It is used
-/// to sign the TLS cert and so we use it to validate.
-///
-/// 'now' is the time at which to check that certificates are valid.  `None` means to use the
-/// current time. It can be used for testing to override the current view of the time.
-///
-/// The `clock_skew` is the time skew detected during the handshake.
-pub(crate) fn verify_tls_cert(
-    peer_cert_digest: [u8; 32],
-    certs: &msg::Certs,
-    kp_relaysign_ed: &Ed25519Identity,
-    now: Option<std::time::SystemTime>,
-    clock_skew: ClockSkew,
-) -> Result<()> {
-    use tor_cert::CertType;
-
-    // Replace 'now' with the real time to use.
-    let now = now.unwrap_or_else(SystemTime::now);
-
-    // Now look at the signing->TLS cert and check it against the
-    // peer certificate.
-    let sk_tls = get_cert(certs, CertType::SIGNING_V_TLS_CERT)?;
-    let (sk_tls, sk_tls_sig) = sk_tls
-        .should_be_signed_with(kp_relaysign_ed)
-        .map_err(Error::HandshakeCertErr)?
-        .dangerously_split()
-        .map_err(Error::HandshakeCertErr)?;
-    let (sk_tls_timeliness, sk_tls) = check_cert_timeliness(sk_tls, now, clock_skew);
-
-    if peer_cert_digest != sk_tls.subject_key().as_bytes() {
-        return Err(Error::HandshakeProto(
-            "Peer cert did not authenticate TLS cert".into(),
-        ));
-    }
-
-    // Make sure the TLS cert is well signed.
-    if sk_tls_sig.is_valid() {
-        return Err(Error::HandshakeProto(
-            "Invalid ed25519 signature in handshake".into(),
-        ));
-    }
-
-    // Check TLS cert timeliness.
-    sk_tls_timeliness?;
-
-    Ok(())
 }
 
 /// Helper: given a time-bound input, give a result reflecting its
@@ -1036,13 +1085,7 @@ pub(super) mod test {
     where
         R: Runtime,
     {
-        let unver = make_unverified(runtime.clone());
-        let relay_ids = RelayIdsBuilder::default()
-            .ed_identity(Ed25519Identity::from_bytes(peer_ed).unwrap())
-            .rsa_identity(RsaIdentity::from_bytes(peer_rsa).unwrap())
-            .build()
-            .unwrap();
-        unver.check_internal(relay_ids, peer_cert_sha256, [0_u8; 32])
+        todo!()
     }
 
     // no certs at all!

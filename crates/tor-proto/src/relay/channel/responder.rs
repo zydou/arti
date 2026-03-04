@@ -166,7 +166,7 @@ where
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self
             .inner
-            .check_internal(relay_ids, [0_u8; 32], rsa_id_digest)?;
+            .into_verified(relay_ids, [0_u8; 32], rsa_id_digest);
 
         let our_cert_digest = ll::d::Sha256::digest(our_cert).into();
 

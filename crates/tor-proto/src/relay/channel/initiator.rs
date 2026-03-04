@@ -14,7 +14,7 @@
 use digest::Digest;
 use futures::{AsyncRead, AsyncWrite, SinkExt};
 use safelog::MaybeSensitive;
-use std::{net::IpAddr, ops::Deref, sync::Arc, time::SystemTime};
+use std::{net::IpAddr, ops::Deref, sync::Arc};
 use tracing::trace;
 
 use tor_cell::chancell::msg;
@@ -25,7 +25,7 @@ use crate::{
     ClockSkew, RelayIdentities, Result,
     channel::{
         Channel, Reactor,
-        handshake::{UnverifiedChannel, VerifiedChannel},
+        handshake::{UnverifiedInitiatorChannel, VerifiedChannel},
     },
     peer::{PeerAddr, PeerInfo},
     relay::channel::ChannelAuthenticationData,
@@ -40,13 +40,11 @@ pub struct UnverifiedInitiatorRelayChannel<
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// The common unverified channel that both client and relays use.
-    pub(crate) inner: UnverifiedChannel<T, S>,
+    pub(crate) inner: UnverifiedInitiatorChannel<T, S>,
     /// AUTH_CHALLENGE cell received from the responder.
     pub(crate) auth_challenge_cell: msg::AuthChallenge,
     /// The netinfo cell received from the responder.
     pub(crate) netinfo_cell: msg::Netinfo,
-    /// The [`msg::Certs`] cell received from the responder.
-    pub(crate) certs_cell: msg::Certs,
     /// Our identity keys needed for authentication.
     pub(crate) identities: Arc<RelayIdentities>,
     /// Our advertised IP addresses for the final NETINFO
@@ -82,48 +80,10 @@ where
         let my_addrs = self.my_addrs;
         let netinfo_cell = self.netinfo_cell;
 
-        // TODO(relay): The following is duplicated from the UnverifiedClientChannel so the logical
-        // next step after this would be to have an inner UnverifiedInitiatorChannel that is
-        // generic to both relay and client initiator and then this logic can be shared.
-
         let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_cert).into();
-        let now = now.unwrap_or_else(SystemTime::now);
-
-        // We are a client initiating a channel to a relay or a bridge. We have received a CERTS
-        // cell and we need to verify these certs:
-        //
-        //   Relay Identities:
-        //      IDENTITY_V_SIGNING_CERT (CertType 4)
-        //      RSA_ID_X509             (CertType 2)
-        //      RSA_ID_V_IDENTITY       (CertType 7)
-        //
-        //   Connection Cert:
-        //      SIGNING_V_TLS_CERT      (CertType 5)
-        //
-        // Validating the relay identities first so we can make sure we are talking to the relay
-        // (peer) we wanted. Then, check the TLS cert validity.
-        //
-        // The end result is a verified channel (not authenticated yet) which guarantee that we are
-        // talking to the right relay that we wanted.
-
-        // Check the relay identities in the CERTS cell.
-        let (relay_ids, kp_relaysign_ed, rsa_id_digest) =
-            self.inner
-                .check_relay_identities(peer, &self.certs_cell, now)?;
-
-        // Next, verify the TLS cert (CertType 5).
-        crate::channel::handshake::verify_tls_cert(
-            peer_cert_digest,
-            &self.certs_cell,
-            &kp_relaysign_ed,
-            Some(now),
-            self.inner.clock_skew,
-        )?;
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self
-            .inner
-            .check_internal(relay_ids, peer_cert_digest, rsa_id_digest)?;
+        let mut verified = self.inner.verify(peer, peer_cert_digest, now)?;
 
         // By building the ChannelAuthenticationData, we are certain that the authentication
         // type requested by the responder is supported by us.
@@ -157,7 +117,7 @@ where
 
     /// Return the clock skew of this channel.
     pub fn clock_skew(&self) -> ClockSkew {
-        self.inner.clock_skew
+        self.inner.inner.clock_skew
     }
 }
 

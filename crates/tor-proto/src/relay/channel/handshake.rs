@@ -16,7 +16,8 @@ use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::channel::handshake::{
-    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, unauthenticated_clock_skew,
+    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, UnverifiedInitiatorChannel,
+    unauthenticated_clock_skew,
 };
 use crate::channel::{ChannelFrame, ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
@@ -135,18 +136,20 @@ impl<
         );
 
         Ok(UnverifiedInitiatorRelayChannel {
-            inner: UnverifiedChannel {
-                link_protocol,
-                framed_tls: self.framed_tls,
-                clock_skew,
-                memquota: self.memquota,
-                target_method: Some(self.target_method),
-                unique_id: self.unique_id,
-                sleep_prov: self.sleep_prov.clone(),
+            inner: UnverifiedInitiatorChannel {
+                inner: UnverifiedChannel {
+                    link_protocol,
+                    framed_tls: self.framed_tls,
+                    clock_skew,
+                    memquota: self.memquota,
+                    target_method: Some(self.target_method),
+                    unique_id: self.unique_id,
+                    sleep_prov: self.sleep_prov.clone(),
+                },
+                certs_cell,
             },
             auth_challenge_cell,
             netinfo_cell,
-            certs_cell,
             identities: self.identities,
             my_addrs: self.my_addrs,
         })
