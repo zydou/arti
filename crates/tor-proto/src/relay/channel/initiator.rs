@@ -170,7 +170,7 @@ where
 
         // Relay only initiate to another relay so NOT sensitive.
         let peer_info =
-            MaybeSensitive::not_sensitive(PeerInfo::new(peer_addr, self.inner.relay_ids()?));
+            MaybeSensitive::not_sensitive(PeerInfo::new(peer_addr, self.inner.relay_ids().clone()));
 
         // Get a Channel and a Reactor.
         self.inner

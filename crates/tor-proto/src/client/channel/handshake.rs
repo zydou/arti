@@ -241,7 +241,7 @@ impl<
         // This could be a client Guard so it is sensitive.
         let peer_info = MaybeSensitive::sensitive(PeerInfo::new(
             peer_addr.into_inner(),
-            self.inner.relay_ids()?,
+            self.inner.relay_ids().clone(),
         ));
 
         // Finish the channel to get a reactor.

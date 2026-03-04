@@ -19,13 +19,12 @@ use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_cell::restrict::{RestrictedMsg, restricted_msg};
 use tor_cert::CertType;
 use tor_checkable::{TimeValidityError, Timebound};
-use tor_error::{internal, into_internal};
+use tor_error::internal;
 use tor_linkspec::{
     ChanTarget, ChannelMethod, OwnedChanTarget, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder,
 };
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
-use tor_llcrypto::pk::{rsa, rsa::RsaIdentity};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
 use digest::Digest;
@@ -287,10 +286,8 @@ pub(crate) struct VerifiedChannel<
     pub(crate) target_method: Option<ChannelMethod>,
     /// Logging identifier for this stream.  (Used for logging only.)
     pub(crate) unique_id: UniqId,
-    /// Validated Ed25519 identity for this peer.
-    pub(crate) ed25519_id: Ed25519Identity,
-    /// Validated RSA identity for this peer.
-    pub(crate) rsa_id: RsaIdentity,
+    /// Verified peer identities
+    pub(crate) relay_ids: RelayIds,
     /// Validated RSA identity digest of the DER format for this peer.
     pub(crate) rsa_id_digest: [u8; 32],
     /// Peer TLS certificate digest
@@ -360,7 +357,7 @@ impl<
         };
 
         // First, we'll check the relay identities in the CERTS cell.
-        let (identity_key, signing_key, pkrsa) = self.check_relay_identities(c, now)?;
+        let (relay_ids, signing_key, rsa_id_digest) = self.check_relay_identities(peer, c, now)?;
 
         // TODO(relay): This whole part is initiator specific as the responder looks for the LINK
         // AUTH cert. It will soon be moved into a helper function that both client/relay initiator
@@ -375,49 +372,12 @@ impl<
             self.clock_skew,
         )?;
 
-        let rsa_id_digest: [u8; 32] = ll::d::Sha256::digest(pkrsa.to_der()).into();
-        let rsa_id = pkrsa.to_rsa_identity();
-
-        // TODO(relay): This is unsafe, it could be a client Guard identity.
-        trace!(
-            stream_id = %self.unique_id,
-            "Validated identity as {} [{}]",
-            identity_key,
-            rsa_id
-        );
-
-        // Now that we've done all the verification steps on the
-        // certificates, we know who we are talking to.  It's time to
-        // make sure that the peer we are talking to is the peer we
-        // actually wanted.
-        //
-        // We do this _last_, since "this is the wrong peer" is
-        // usually a different situation than "this peer couldn't even
-        // identify itself right."
-
-        // TODO(relay): Put the RelayIds into the VerifiedChannel instead of the identities
-        // seperately because in the finish() process we build back a RelayIds so no need to bounce
-        // back and forth like this.
-        let actual_identity = RelayIds::builder()
-            .ed_identity(identity_key)
-            .rsa_identity(rsa_id)
-            .build()
-            .expect("Unable to build RelayIds");
-
-        // We enforce that the relay proved that it has every ID that we wanted:
-        // it may also have additional IDs that we didn't ask for.
-        match super::check_id_match_helper(&actual_identity, peer) {
-            Err(Error::ChanMismatch(msg)) => Err(Error::HandshakeProto(msg)),
-            other => other,
-        }?;
-
         Ok(VerifiedChannel {
             link_protocol: self.link_protocol,
             framed_tls: self.framed_tls,
             unique_id: self.unique_id,
             target_method: self.target_method,
-            ed25519_id: identity_key,
-            rsa_id,
+            relay_ids,
             rsa_id_digest,
             peer_cert_digest,
             clock_skew: self.clock_skew,
@@ -432,11 +392,12 @@ impl<
     ///
     /// Reason for the RSA public key is because the caller needs to the SHA256 digest for the
     /// [`msg::Authenticate`] cell.
-    fn check_relay_identities(
+    fn check_relay_identities<U: ChanTarget + ?Sized>(
         &self,
+        peer: &U,
         certs: &msg::Certs,
         now: SystemTime,
-    ) -> Result<(Ed25519Identity, Ed25519Identity, rsa::PublicKey)> {
+    ) -> Result<(RelayIds, Ed25519Identity, [u8; 32])> {
         use tor_checkable::*;
 
         // Get the identity signing cert (CertType 4).
@@ -515,7 +476,30 @@ impl<
         id_sk_timeliness?;
         rsa_cert_timeliness?;
 
-        Ok((*identity_key, *signing_key, pkrsa))
+        // Now that we've done all the verification steps on the
+        // certificates, we know who we are talking to.  It's time to
+        // make sure that the peer we are talking to is the peer we
+        // actually wanted.
+        //
+        // We do this _last_, since "this is the wrong peer" is
+        // usually a different situation than "this peer couldn't even
+        // identify itself right."
+        let actual_identity = RelayIds::builder()
+            .ed_identity(*identity_key)
+            .rsa_identity(pkrsa.to_rsa_identity())
+            .build()
+            .expect("Unable to build RelayIds");
+
+        // We enforce that the relay proved that it has every ID that we wanted:
+        // it may also have additional IDs that we didn't ask for.
+        match super::check_id_match_helper(&actual_identity, peer) {
+            Err(Error::ChanMismatch(msg)) => Err(Error::HandshakeProto(msg)),
+            other => other,
+        }?;
+
+        let rsa_id_digest: [u8; 32] = ll::d::Sha256::digest(pkrsa.to_der()).into();
+
+        Ok((actual_identity, *signing_key, rsa_id_digest))
     }
 
     /// Finalize this channel into an actual channel and its reactor.
@@ -600,13 +584,9 @@ impl<
         Ok(())
     }
 
-    /// Build a [`RelayIds`] corresponding to this channel identities.
-    pub(crate) fn relay_ids(&self) -> Result<RelayIds> {
-        Ok(RelayIdsBuilder::default()
-            .ed_identity(self.ed25519_id)
-            .rsa_identity(self.rsa_id)
-            .build()
-            .map_err(into_internal!("Unable to build verified relay channel ids"))?)
+    /// Return our [`RelayIds`] corresponding to this channel identities.
+    pub(crate) fn relay_ids(&self) -> &RelayIds {
+        &self.relay_ids
     }
 
     /// The channel is used to send cells, and to create outgoing circuits.
@@ -818,6 +798,7 @@ pub(super) mod test {
     #![allow(clippy::unwrap_used)]
     use hex_literal::hex;
     use regex::Regex;
+    use tor_llcrypto::pk::rsa::RsaIdentity;
     use std::time::{Duration, SystemTime};
 
     use super::*;
@@ -1301,8 +1282,6 @@ pub(super) mod test {
     #[test]
     fn test_finish() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let ed25519_id = [3_u8; 32].into();
-            let rsa_id = [4_u8; 20].into();
             let peer_addr = "127.1.1.2:443".parse().unwrap();
             let mut framed_tls = new_frame(MsgBuf::new(&b""[..]), ChannelType::ClientInitiator);
             let _ = framed_tls.codec_mut().set_link_version(4);
@@ -1311,8 +1290,7 @@ pub(super) mod test {
                 framed_tls,
                 unique_id: UniqId::new(),
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
-                ed25519_id,
-                rsa_id,
+                relay_ids: RelayIds::empty(),
                 rsa_id_digest: [0; 32],
                 peer_cert_digest: [0; 32],
                 clock_skew: ClockSkew::None,

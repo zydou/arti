@@ -295,7 +295,13 @@ impl ChannelAuthenticationData {
         let cid = identities.rsa_id_der_digest;
         let sid = verified.rsa_id_digest;
         let cid_ed = identities.ed_id_bytes();
-        let sid_ed = verified.ed25519_id.into();
+        let sid_ed = (*verified
+            .relay_ids()
+            .ed_identity()
+            .ok_or(tor_error::internal!(
+                "No ed25519 identity when building authentication data"
+            ))?)
+            .into();
         // Both values are consumed from the underlying codec.
         let send_log = verified.framed_tls.codec_mut().take_send_log_digest()?;
         let recv_log = verified.framed_tls.codec_mut().take_recv_log_digest()?;

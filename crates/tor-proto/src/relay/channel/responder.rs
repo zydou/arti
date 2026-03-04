@@ -185,8 +185,10 @@ where
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Relay<->Relay channels are NOT sensitive as we need their info in the log.
-        let peer_info =
-            MaybeSensitive::not_sensitive(PeerInfo::new(self.peer_addr, self.inner.relay_ids()?));
+        let peer_info = MaybeSensitive::not_sensitive(PeerInfo::new(
+            self.peer_addr,
+            self.inner.relay_ids().clone(),
+        ));
         self.inner
             .finish(&self.netinfo_cell, &self.my_addrs, peer_info)
             .await
