@@ -10,8 +10,8 @@ use std::{sync::Arc, time::SystemTime};
 use tracing::trace;
 
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::{AnyChanCell, ChanCmd, ChanMsg, msg};
-use tor_cell::restricted_msg;
+use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
+use tor_cell::restrict::{RestrictedMsg, restricted_msg};
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -305,10 +305,9 @@ impl<
         async fn read_msg<T>(
             stream_id: UniqId,
             mut stream: impl Stream<Item = Result<AnyChanCell>> + Unpin,
-            expecting: &[ChanCmd],
         ) -> Result<T>
         where
-            T: TryFrom<AnyChanMsg, Error = AnyChanMsg>,
+            T: RestrictedMsg + TryFrom<AnyChanMsg, Error = AnyChanMsg>,
         {
             let Some(cell) = stream.next().await.transpose()? else {
                 // The entire channel has ended, so nothing else to be done.
@@ -329,7 +328,7 @@ impl<
             let m = m.try_into().map_err(|m: AnyChanMsg| {
                 Error::HandshakeProto(format!(
                     "Expected [{}] cell, but received {} cell instead",
-                    tor_basic_utils::iter_join(", ", expecting.iter()),
+                    tor_basic_utils::iter_join(", ", T::restricted_cmds().iter()),
                     m.cmd(),
                 ))
             })?;
@@ -354,12 +353,7 @@ impl<
                    }
                 }
 
-                let msg = read_msg(
-                    *self.unique_id(),
-                    self.framed_tls(),
-                    &[ChanCmd::NETINFO, ChanCmd::CERTS],
-                )
-                .await?;
+                let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
 
                 break match msg {
                     CertsNetinfoMsg::Vpadding(_) => continue,
@@ -382,12 +376,7 @@ impl<
                    }
                 }
 
-                let msg = read_msg(
-                    *self.unique_id(),
-                    self.framed_tls(),
-                    &[ChanCmd::AUTHENTICATE],
-                )
-                .await?;
+                let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
 
                 break match msg {
                     AuthenticateMsg::Vpadding(_) => continue,
@@ -405,8 +394,7 @@ impl<
                    }
                 }
 
-                let msg =
-                    read_msg(*self.unique_id(), self.framed_tls(), &[ChanCmd::NETINFO]).await?;
+                let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
 
                 break match msg {
                     NetinfoMsg::Vpadding(_) => continue,

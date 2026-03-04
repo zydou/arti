@@ -14,8 +14,8 @@ use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use safelog::{MaybeSensitive, Redacted};
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::{AnyChanCell, ChanCmd, ChanMsg, msg};
-use tor_cell::restrict::restricted_msg;
+use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
+use tor_cell::restrict::{RestrictedMsg, restricted_msg};
 use tor_error::{internal, into_internal};
 use tor_linkspec::{
     ChanTarget, ChannelMethod, OwnedChanTarget, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder,
@@ -145,10 +145,9 @@ where
         async fn read_msg<T>(
             stream_id: UniqId,
             mut stream: impl Stream<Item = Result<AnyChanCell>> + Unpin,
-            expecting: &[ChanCmd],
         ) -> Result<T>
         where
-            T: TryFrom<AnyChanMsg, Error = AnyChanMsg>,
+            T: RestrictedMsg + TryFrom<AnyChanMsg, Error = AnyChanMsg>,
         {
             let Some(cell) = stream.next().await.transpose()? else {
                 // The entire channel has ended, so nothing else to be done.
@@ -169,7 +168,7 @@ where
             let m = m.try_into().map_err(|m: AnyChanMsg| {
                 Error::HandshakeProto(format!(
                     "Expected [{}] cell, but received {} cell instead",
-                    tor_basic_utils::iter_join(", ", expecting.iter()),
+                    tor_basic_utils::iter_join(", ", T::restricted_cmds().iter()),
                     m.cmd(),
                 ))
             })?;
@@ -189,7 +188,7 @@ where
                }
             }
 
-            let msg = read_msg(*self.unique_id(), self.framed_tls(), &[ChanCmd::CERTS]).await?;
+            let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
 
             break match msg {
                 CertsMsg::Vpadding(_) => continue,
@@ -208,12 +207,7 @@ where
                }
             }
 
-            let msg = read_msg(
-                *self.unique_id(),
-                self.framed_tls(),
-                &[ChanCmd::AUTH_CHALLENGE],
-            )
-            .await?;
+            let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
 
             break match msg {
                 AuthChallengeMsg::Vpadding(_) => continue,
@@ -230,7 +224,7 @@ where
                }
             }
 
-            let msg = read_msg(*self.unique_id(), self.framed_tls(), &[ChanCmd::NETINFO]).await?;
+            let msg = read_msg(*self.unique_id(), self.framed_tls()).await?;
 
             break match msg {
                 NetinfoMsg::Vpadding(_) => continue,
@@ -917,7 +911,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Expected [AUTH_CHALLENGE] cell, but received CERTS cell instead"
+                "Handshake protocol violation: Expected [VPADDING, AUTH_CHALLENGE] cell, but received CERTS cell instead"
             );
 
             let mut buf = Vec::new();
@@ -930,7 +924,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Expected [NETINFO] cell, but received AUTH_CHALLENGE cell instead"
+                "Handshake protocol violation: Expected [VPADDING, NETINFO] cell, but received AUTH_CHALLENGE cell instead"
             );
         });
     }
@@ -945,7 +939,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Expected [CERTS] cell, but received NETINFO cell instead"
+                "Handshake protocol violation: Expected [VPADDING, CERTS] cell, but received NETINFO cell instead"
             );
         });
     }
