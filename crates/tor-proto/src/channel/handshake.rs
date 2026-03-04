@@ -653,6 +653,62 @@ impl<
     }
 }
 
+/// Validate the LINK_AUTH cert (CertType 6).
+///
+/// `certs` is the [`msg::Certs`] cell received during the handshake.
+///
+/// `kp_relayid_ed` is the relay ed25519 identity key taken from the signing cert (CertType 4). It
+/// is used to sign the LINK_AUTH cert.
+///
+/// 'now' is the time at which to check that certificates are valid.  `None` means to use the
+/// current time. It can be used for testing to override the current view of the time.
+///
+/// The `clock_skew` is the time skew detected during the handshake.
+///
+/// If verification is successful, return the peer KP_link_ed.
+#[expect(unused)] // TODO(relay)
+pub(crate) fn verify_link_auth_cert(
+    certs: &msg::Certs,
+    kp_relayid_ed: &Ed25519Identity,
+    now: Option<std::time::SystemTime>,
+    clock_skew: ClockSkew,
+) -> Result<Ed25519Identity> {
+    use tor_cert::CertType;
+
+    // Replace 'now' with the real time to use.
+    let now = now.unwrap_or_else(SystemTime::now);
+
+    // Now look at the signing->TLS cert and check it against the
+    // peer certificate.
+    let cert = get_cert(certs, CertType::SIGNING_V_LINK_AUTH)?;
+    let (cert, cert_sig) = cert
+        .should_be_signed_with(kp_relayid_ed)
+        .map_err(Error::HandshakeCertErr)?
+        .dangerously_split()
+        .map_err(Error::HandshakeCertErr)?;
+    let (cert_timeliness, cert) = check_cert_timeliness(cert, now, clock_skew);
+
+    // Make sure the cert is well signed.
+    if cert_sig.is_valid() {
+        return Err(Error::HandshakeProto(
+            "Invalid ed25519 LINK_AUTH signature in handshake".into(),
+        ));
+    }
+
+    // Check TLS cert timeliness.
+    cert_timeliness?;
+
+    // We are all verified, extract the subject key and return it.
+    let peer_kp_link_ed = *cert
+        .subject_key()
+        .as_ed25519()
+        .ok_or(Error::HandshakeProto(
+            "Missing kp_link_ed in LINK_AUTH cert subject key".into(),
+        ))?;
+
+    Ok(peer_kp_link_ed)
+}
+
 /// Validate the TLS cert (CertType 5).
 ///
 /// 'peer_cert' is the x.509 certificate that the peer presented during its TLS handshake
@@ -798,8 +854,8 @@ pub(super) mod test {
     #![allow(clippy::unwrap_used)]
     use hex_literal::hex;
     use regex::Regex;
-    use tor_llcrypto::pk::rsa::RsaIdentity;
     use std::time::{Duration, SystemTime};
+    use tor_llcrypto::pk::rsa::RsaIdentity;
 
     use super::*;
     use crate::channel::handler::test::MsgBuf;

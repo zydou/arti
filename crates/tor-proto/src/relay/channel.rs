@@ -301,7 +301,7 @@ impl ChannelAuthenticationData {
             .ok_or(tor_error::internal!(
                 "No ed25519 identity when building authentication data"
             ))?)
-            .into();
+        .into();
         // Both values are consumed from the underlying codec.
         let send_log = verified.framed_tls.codec_mut().take_send_log_digest()?;
         let recv_log = verified.framed_tls.codec_mut().take_recv_log_digest()?;
