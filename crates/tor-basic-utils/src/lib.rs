@@ -107,6 +107,37 @@ pub fn skip_fmt<T>(_: &T, f: &mut fmt::Formatter) -> fmt::Result {
 
 // ----------------------------------------------------------------------
 
+/// Formats an iterator as an object whose display implementation is a `separator`-separated string
+/// of items from `iter`.
+pub fn iter_join(
+    separator: &str,
+    iter: impl Iterator<Item: fmt::Display> + Clone,
+) -> impl fmt::Display {
+    // TODO: This can be replaced with `std::fmt::from_fn()` once stabilised and within our MSRV.
+    struct Fmt<'a, I: Iterator<Item: fmt::Display> + Clone> {
+        /// Separates items in `iter`.
+        separator: &'a str,
+        /// Iterator to join.
+        iter: I,
+    }
+    impl<'a, I: Iterator<Item: fmt::Display> + Clone> fmt::Display for Fmt<'a, I> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let Self { separator, iter } = self;
+            let mut iter = iter.clone();
+            if let Some(first) = iter.next() {
+                write!(f, "{first}")?;
+            }
+            for x in iter {
+                write!(f, "{separator}{x}")?;
+            }
+            Ok(())
+        }
+    }
+    Fmt { separator, iter }
+}
+
+// ----------------------------------------------------------------------
+
 /// Extension trait to provide `.strip_suffix_ignore_ascii_case()` etc.
 // Using `.as_ref()` as a supertrait lets us make the method a provided one.
 pub trait StrExt: AsRef<str> {

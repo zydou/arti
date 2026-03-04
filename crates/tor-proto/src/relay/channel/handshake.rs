@@ -10,8 +10,8 @@ use std::{sync::Arc, time::SystemTime};
 use tracing::trace;
 
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::{AnyChanCell, ChanCmd, ChanMsg, msg};
-use tor_cell::restricted_msg;
+use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
+use tor_cell::restrict::{RestrictedMsg, restricted_msg};
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -305,10 +305,9 @@ impl<
         async fn read_msg<T>(
             stream_id: UniqId,
             mut stream: impl Stream<Item = Result<AnyChanCell>> + Unpin,
-            expecting: &[ChanCmd],
         ) -> Result<T>
         where
-            T: TryFrom<AnyChanMsg, Error = AnyChanMsg>,
+            T: RestrictedMsg + TryFrom<AnyChanMsg, Error = AnyChanMsg>,
         {
             let Some(cell) = stream.next().await.transpose()? else {
                 // The entire channel has ended, so nothing else to be done.
@@ -328,7 +327,8 @@ impl<
 
             let m = m.try_into().map_err(|m: AnyChanMsg| {
                 Error::HandshakeProto(format!(
-                    "Expected {expecting:?} cell, but received {} cell instead",
+                    "Expected [{}] cell, but received {} cell instead",
+                    tor_basic_utils::iter_join(", ", T::cmds_for_logging().iter()),
                     m.cmd(),
                 ))
             })?;
@@ -353,14 +353,7 @@ impl<
                    }
                 }
 
-                let msg = read_msg(
-                    *self.unique_id(),
-                    self.framed_tls(),
-                    &[ChanCmd::NETINFO, ChanCmd::CERTS],
-                )
-                .await?;
-
-                break match msg {
+                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                     CertsNetinfoMsg::Vpadding(_) => continue,
                     // If a NETINFO cell, the initiator did not authenticate and we can stop early.
                     CertsNetinfoMsg::Netinfo(msg) => {
@@ -381,14 +374,7 @@ impl<
                    }
                 }
 
-                let msg = read_msg(
-                    *self.unique_id(),
-                    self.framed_tls(),
-                    &[ChanCmd::AUTHENTICATE],
-                )
-                .await?;
-
-                break match msg {
+                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                     AuthenticateMsg::Vpadding(_) => continue,
                     AuthenticateMsg::Authenticate(msg) => msg,
                 };
@@ -404,10 +390,7 @@ impl<
                    }
                 }
 
-                let msg =
-                    read_msg(*self.unique_id(), self.framed_tls(), &[ChanCmd::NETINFO]).await?;
-
-                break match msg {
+                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                     NetinfoMsg::Vpadding(_) => continue,
                     NetinfoMsg::Netinfo(msg) => (msg, coarsetime::Instant::now()),
                 };

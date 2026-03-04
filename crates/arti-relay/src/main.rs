@@ -69,6 +69,7 @@ use anyhow::Context;
 use clap::Parser;
 use futures::FutureExt;
 use safelog::with_safe_logging_suppressed;
+use tor_basic_utils::iter_join;
 use tor_rtcompat::SpawnExt;
 use tor_rtcompat::tokio::TokioRustlsRuntime;
 use tor_rtcompat::{Runtime, ToplevelRuntime};
@@ -152,7 +153,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
 
     debug!(
         "Using override options: {}",
-        util::iter_join(", ", cfg_sources.options()),
+        iter_join(", ", cfg_sources.options()),
     );
 
     // A Mistrust object to use for loading our configuration.
