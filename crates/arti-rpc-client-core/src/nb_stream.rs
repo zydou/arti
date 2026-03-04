@@ -179,20 +179,25 @@ impl PollingStream {
             // We're blocking on reading and possibly writing.  Register our interest,
             // so that we get woken as appropriate.
             //
-            // TOCTOU note: If `wantio.want_write()` is true, it will not become
+            // TOCTOU note: If `want_write` is true, it will not become
             // false until the next time we call stream.interact_once().
             //
             // If `wantio.want_write()` is false, Whenever it becomes true,
             // `MioWaker` will be invoked.  That will cause the
             // self.poll.poll() to return, and the loop to repeat.
-            let wantio = stream.current_io_interest();
+            let want_write = stream.wants_to_write();
+            let interests = if want_write {
+                Interest::READABLE | Interest::WRITABLE
+            } else {
+                Interest::READABLE
+            };
             self.poll.registry().reregister(
                 stream
                     .stream
                     .as_mio_stream()
                     .expect("logic error: not a mio stream!"),
                 STREAM_TOKEN,
-                wantio.into(),
+                interests,
             )?;
 
             // Poll until the socket is ready to read or write,
@@ -326,38 +331,6 @@ pub(crate) struct NonblockingStream {
     stream: Box<dyn Stream>,
 }
 
-/// A set of events that a [`RpcPoll`](crate::RpcPoll) is interested in.
-#[derive(Clone, Debug, Default, Copy)]
-pub struct WantIo {
-    /// True if the stream is interested in writing.
-    ///
-    /// (It is always interested in reading.)
-    write: bool,
-}
-
-#[allow(dead_code)] // TODO nb: remove or expose.
-impl WantIo {
-    /// Return true if the stream is interested in reading.
-    fn want_read(&self) -> bool {
-        true
-    }
-
-    /// Return true if the stream is interested in writing.
-    fn want_write(&self) -> bool {
-        self.write
-    }
-}
-
-impl From<WantIo> for mio::Interest {
-    fn from(value: WantIo) -> Self {
-        if value.write {
-            mio::Interest::WRITABLE | mio::Interest::READABLE
-        } else {
-            mio::Interest::READABLE
-        }
-    }
-}
-
 /// A return value from [`NonblockingStream::interact_once`].
 #[derive(Debug, Clone)]
 pub(crate) enum PollStatus {
@@ -406,13 +379,11 @@ impl NonblockingStream {
         h.event_loop = new_event_loop_handle;
     }
 
-    /// Return the current IO interest for this [`NonblockingStream`].
+    /// Return true if this [`NonblockingStream`] wants to write.
     ///
     /// XXXX: Write documentation about correctness here.
-    pub(crate) fn current_io_interest(&self) -> WantIo {
-        WantIo {
-            write: self.has_data_to_write(),
-        }
+    pub(crate) fn wants_to_write(&self) -> bool {
+        self.has_data_to_write()
     }
 
     /// Try to exchange messages with the RPC server.
@@ -787,12 +758,12 @@ mod test {
 
     fn assert_wants_rw(nb: &NonblockingStream, r: &io::Result<PollStatus>) {
         assert_matches!(r, Ok(PollStatus::WouldBlock));
-        assert_eq!(nb.current_io_interest().want_write(), true);
+        assert_eq!(nb.wants_to_write(), true);
     }
 
     fn assert_wants_r_only(nb: &NonblockingStream, r: &io::Result<PollStatus>) {
         assert_matches!(r, Ok(PollStatus::WouldBlock));
-        assert_eq!(nb.current_io_interest().want_write(), false);
+        assert_eq!(nb.wants_to_write(), false);
     }
 
     #[test]

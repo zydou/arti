@@ -63,4 +63,4 @@ pub use conn::{
     RpcConnBuilder, RpcPoll, StreamError, UserTag, WouldBlock,
 };
 pub use msgs::{AnyRequestId, ObjectId, request::InvalidRequestError, response::RpcError};
-pub use nb_stream::{EventLoop, SendRequestError, WantIo};
+pub use nb_stream::{EventLoop, SendRequestError};

@@ -830,6 +830,13 @@ impl RpcPoll {
         self.stream.try_as_handle()
     }
 
+    /// Return true if this[`RpcPoll`] current wants to write,
+    /// and the user should invoke [`RpcPoll::poll`] when the underlying connection is ready to write.
+    /// XXXX: Write documentation about correctness here.
+    pub fn wants_to_write(&self) -> bool {
+        self.stream.wants_to_write()
+    }
+
     /// Handle IO for the associated RPC connection, without blocking.
     ///
     /// This method reads and writes data from the RPC server,
