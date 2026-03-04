@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 # local imports
+import common
 import config as config_module
 
 assert __name__ == "__main__"
@@ -18,10 +19,6 @@ _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
 
 config = config_module.Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
 config.export_env()
-
-# Hostname must be syncd in `tests/chutney/integration-e2e-shadow`.
-# XXX now that these are both in python, we can actually move this out to a shared module.
-TEST_DOMAIN = "example.com"
 
 # Perform chutney's built-in "verify" test
 subprocess.check_call([config.chutney, "verify"])
@@ -45,8 +42,7 @@ arti_dns_port = subprocess.check_output(
     ],
     text=True,
 ).strip()
-# XXX move this name out to a shared module
-if os.environ.get("RUNNING_IN_SHADOW"):
+if common.running_in_shadow():
     # Resolving DNS through tor in shadow is currently broken:
     # <https://github.com/shadow/shadow/issues/323>.
     #
@@ -58,7 +54,7 @@ if os.environ.get("RUNNING_IN_SHADOW"):
     subprocess.check_call(
         [
             "curl",
-            f"http://{TEST_DOMAIN}",
+            f"http://{common.TEST_DOMAIN}",
             "-vs",
             "--socks5",
             f"127.0.0.1:{arti_client_port}",
@@ -70,7 +66,7 @@ else:
     subprocess.check_call(
         [
             "curl",
-            f"http://{TEST_DOMAIN}",
+            f"http://{common.TEST_DOMAIN}",
             "-vs",
             "--socks5-hostname",
             f"127.0.0.1:{arti_client_port}",
@@ -80,10 +76,10 @@ else:
     )
 
     DIRECT_LOOKUP = subprocess.check_output(
-        ["dig", "+short", TEST_DOMAIN, "A"], text=True
+        ["dig", "+short", common.TEST_DOMAIN, "A"], text=True
     )
     TOR_LOOKUP = subprocess.check_output(
-        ["dig", "@127.0.0.1", "-p", arti_dns_port, "+short", TEST_DOMAIN, "A"],
+        ["dig", "@127.0.0.1", "-p", arti_dns_port, "+short", common.TEST_DOMAIN, "A"],
         text=True,
     )
     # The direct lookup can and does return multiple entries.
