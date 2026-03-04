@@ -164,7 +164,7 @@ macro_rules! restricted_msg {
 
         impl $crate::restrict::RestrictedMsg for $name {
             type Cmd = $cmd_type;
-            fn restricted_cmds() -> &'static [Self::Cmd] {
+            fn cmds_for_logging() -> &'static [Self::Cmd] {
                 &[$(
                     $( #[cfg(feature=$feat)] )?
                     $cmd_type:: [<$case:snake:upper>],
@@ -258,7 +258,7 @@ pub trait RestrictedMsg {
     /// of validation.
     ///
     /// Implementers should ensure that the returned list does not contain duplicate values.
-    fn restricted_cmds() -> &'static [Self::Cmd];
+    fn cmds_for_logging() -> &'static [Self::Cmd];
 }
 
 #[cfg(test)]
