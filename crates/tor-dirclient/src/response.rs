@@ -2,6 +2,7 @@
 
 use std::str;
 
+use http::Method;
 use tor_linkspec::{LoggedChanTarget, OwnedChanTarget};
 use tor_proto::circuit::UniqId;
 
@@ -12,6 +13,8 @@ use crate::{RequestError, RequestFailedError};
 #[derive(Debug, Clone)]
 #[must_use = "You need to check whether the response was successful."]
 pub struct DirResponse {
+    /// The HTTP method of the request.
+    method: Method,
     /// An HTTP status code.
     status: u16,
     /// The message associated with the status code.
@@ -40,6 +43,7 @@ pub struct SourceInfo {
 impl DirResponse {
     /// Construct a new DirResponse from its parts
     pub(crate) fn new(
+        method: Method,
         status: u16,
         status_message: Option<String>,
         error: Option<RequestError>,
@@ -47,6 +51,7 @@ impl DirResponse {
         source: Option<SourceInfo>,
     ) -> Self {
         DirResponse {
+            method,
             status,
             status_message,
             output,
@@ -55,9 +60,9 @@ impl DirResponse {
         }
     }
 
-    /// Construct a new successful DirResponse from its body.
-    pub fn from_body(body: impl AsRef<[u8]>) -> Self {
-        Self::new(200, None, None, body.as_ref().to_vec(), None)
+    /// Construct a new successful DirResponse to a GET request from its body.
+    pub fn from_get_body(body: impl AsRef<[u8]>) -> Self {
+        Self::new(Method::GET, 200, None, None, body.as_ref().to_vec(), None)
     }
 
     /// Return the HTTP status code for this response.
@@ -151,6 +156,12 @@ impl DirResponse {
             };
             return wrap_err(RequestError::HttpStatus(self.status_code(), msg));
         }
+
+        // We do not allow a successful response with an empty body on GET.
+        if self.output.is_empty() && self.method == Method::GET {
+            return wrap_err(RequestError::EmptyResponse);
+        }
+
         Ok(())
     }
 }
@@ -204,7 +215,7 @@ mod test {
 
     #[test]
     fn errors() {
-        let mut response = DirResponse::new(200, None, None, vec![b'Y'], None);
+        let mut response = DirResponse::new(Method::GET, 200, None, None, vec![b'Y'], None);
 
         assert_eq!(response.output().unwrap(), b"Y");
         assert_eq!(response.clone().into_output().unwrap(), b"Y");
@@ -230,6 +241,9 @@ mod test {
         };
 
         with_error(&response);
+
+        response.output = vec![];
+        expect_error(&response, RequestError::EmptyResponse);
 
         response.status = 404;
         response.status_message = Some("Not found".into());

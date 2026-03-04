@@ -327,7 +327,7 @@ async fn fetch_multiple<R: Runtime>(
         if !m.is_empty() {
             return Ok(requests
                 .into_iter()
-                .zip(m.iter().map(DirResponse::from_body))
+                .zip(m.iter().map(DirResponse::from_get_body))
                 .collect());
         }
     }
