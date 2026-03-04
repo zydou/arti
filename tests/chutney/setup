@@ -23,27 +23,6 @@ _TOP_LEVEL = Path(
 )
 
 
-class JqBinResolver:
-    def __init__(self, parser: ArgumentParser) -> None:
-        parser.add_argument("--jq-bin", help="jq executable")
-
-    def resolve(self, args: Namespace) -> Path:
-        res_str = args.jq_bin or shutil.which("jq")
-        if res_str is None:
-            print(textwrap.dedent("""
-                    jq not found.
-                    Try setting --jq-bin or ensuring it's on your PATH.
-                    On debian, it can be installed with:
-                    apt install jq
-                    """))
-            sys.exit(1)
-        res = Path(res_str)
-        if not os.access(res, os.X_OK):
-            print(f"jq resolved to {res}, but it isn't an executable file")
-            sys.exit(1)
-        return res
-
-
 class ChutneyBinResolver:
     def __init__(self, parser: ArgumentParser) -> None:
         parser.add_argument("--chutney-bin", help="chutney executable")
@@ -155,7 +134,6 @@ class ChutneyNetworkResolver:
 
 class ConfigResolver:
     def __init__(self, parser: ArgumentParser) -> None:
-        self._jq_resolver = JqBinResolver(parser)
         self._chutney_resolver = ChutneyBinResolver(parser)
         self._arti_resolver = ArtiBinResolver(parser)
         self._arti_bench_resolver = ArtiBenchBinResolver(parser)
@@ -167,7 +145,6 @@ class ConfigResolver:
             chutney=str(self._chutney_resolver.resolve(args)),
             arti=str(self._arti_resolver.resolve(args)),
             arti_bench=str(self._arti_bench_resolver.resolve(args)),
-            jq=str(self._jq_resolver.resolve(args)),
             chutney_data_dir=str(self._chutney_data_dir_resolver.resolve(args)),
             network=self._network_resolver.resolve(args),
         )
@@ -184,7 +161,6 @@ def _main() -> None:
 
     with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
         print(f"target={shlex.quote(config.network)}", file=c)
-        print(f"jq_bin={shlex.quote(str(config.jq))}", file=c)
         print(f"arti_bench_bin={shlex.quote(str(config.arti_bench))}", file=c)
         print(f"chutney_bin={shlex.quote(str(config.chutney))}", file=c)
         print(f"export CHUTNEY_ARTI={shlex.quote(str(config.arti))}", file=c)

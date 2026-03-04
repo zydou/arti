@@ -12,7 +12,6 @@ class Config:
     chutney: str
     arti: str
     arti_bench: str
-    jq: str
     chutney_data_dir: str
     network: str
 

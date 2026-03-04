@@ -645,7 +645,7 @@ integration-chutney:
    - when: never
   script:
     - ./maint/preserve -u
-    - maint/common/apt-install tor git python3 curl dnsutils python3-pip python3-venv jq
+    - maint/common/apt-install tor git python3 curl dnsutils python3-pip python3-venv
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
@@ -687,7 +687,6 @@ integration-chutney-shadow:
         python3-yaml
         python3-pip
         python3-venv
-        jq
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
