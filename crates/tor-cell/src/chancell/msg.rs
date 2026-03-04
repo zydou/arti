@@ -1,7 +1,10 @@
 //! Different kinds of messages that can be encoded in channel cells.
 
 use super::{BoxedCellBody, CELL_DATA_LEN, ChanCmd, RawCellBody};
-use std::net::{IpAddr, Ipv4Addr};
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    num::NonZeroUsize,
+};
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -1093,6 +1096,36 @@ impl Authenticate {
             authtype,
             auth: body.into(),
         }
+    }
+
+    /// Return true iff all bytes match the given `other` vector of bytes minus the random bytes
+    /// and the signature.
+    ///
+    /// This is needed so a responder can match what is expects to what it received.
+    pub fn is_equal_no_sig(&self, other: &[u8]) -> Result<bool> {
+        // The size of the random bytes + signature fields.
+        const NO_RAND_SIG: usize = 24 + 64;
+        // Make sure the length match else this is wrong.
+        if self.auth.len() < NO_RAND_SIG || other.len() != self.auth.len() - NO_RAND_SIG {
+            return Err(Error::Incomplete {
+                deficit: NonZeroUsize::new(88).expect("NonZeroUsize bug").into(),
+            });
+        }
+        Ok(&self.auth[..self.auth.len() - NO_RAND_SIG] == other)
+    }
+
+    /// Return a reference to the authentcation object.
+    pub fn auth(&self) -> &[u8] {
+        &self.auth
+    }
+
+    /// Return a reference to the signature bytes.
+    pub fn sig(&self) -> Result<&[u8; 64]> {
+        (&self.auth[self.auth.len() - 64..])
+            .try_into()
+            .map_err(|_| Error::Incomplete {
+                deficit: NonZeroUsize::new(64).expect("NonZeroUsize bug").into(),
+            })
     }
 }
 impl Body for Authenticate {

@@ -217,12 +217,13 @@ impl ChannelAuthenticationData {
         }
     }
 
-    /// Consume ourself and return an AUTHENTICATE cell from the data we hold.
-    pub(crate) fn into_authenticate<C: CertifiedConn>(
-        self,
-        tls: &C,
-        link_ed: &RelayLinkSigningKeypair,
-    ) -> Result<msg::Authenticate> {
+    /// Return a vector of bytes of an [`msg::Authenticate`] cell but without the random bytes and
+    /// the signature.
+    ///
+    /// This is needed so a responder can compare what is expected from what it got. A responder
+    /// can only verify the signature and so we can't compare the full [`msg::Authenticate`]
+    /// message we received with what we expect.
+    pub(crate) fn as_body_no_rand<C: CertifiedConn>(&self, tls: &C) -> Result<Vec<u8>> {
         // The body is exactly 352 bytes so optimize a bit memory.
         let mut body = Vec::with_capacity(352);
 
@@ -243,6 +244,18 @@ impl ChannelAuthenticationData {
             Some(&self.cid[..]),
         )?;
         body.extend_from_slice(tls_secrets.as_slice());
+
+        Ok(body)
+    }
+
+    /// Consume ourself and return an AUTHENTICATE cell from the data we hold.
+    pub(crate) fn into_authenticate<C: CertifiedConn>(
+        self,
+        tls: &C,
+        link_ed: &RelayLinkSigningKeypair,
+    ) -> Result<msg::Authenticate> {
+        // Get us everything except the random bytes and signature.
+        let mut body = self.as_body_no_rand(tls)?;
 
         // Add the random bytes.
         let random: [u8; 24] = rand::rng().random();

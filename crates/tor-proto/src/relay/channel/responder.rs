@@ -154,15 +154,13 @@ where
             .expect("Missing ed25519 identity after relay validation");
 
         // Next, verify the LINK_AUTH cert (CertType 6).
-        let _peer_kp_link_ed = crate::channel::handshake::verify_link_auth_cert(
+        let peer_kp_link_ed = crate::channel::handshake::verify_link_auth_cert(
             &self.certs_cell,
             kp_relayid_ed,
             Some(now),
             self.inner.clock_skew,
         )?;
 
-        // TODO(relay): The peer_cert_digest will be removed soon.
-        //
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
         let mut verified = self.inner.into_verified(relay_ids, rsa_id_digest);
 
@@ -170,25 +168,36 @@ where
 
         // By building the ChannelAuthenticationData, we are certain that the authentication type
         // of the initiator is supported by us.
-        let our_auth_cell = ChannelAuthenticationData::build_responder(
+        let auth_body = ChannelAuthenticationData::build_responder(
             &identities,
             &mut verified,
             our_cert_digest,
         )?
-        // TODO(relay): Use the peer_kp_link_ed instead here. The into_authenticate() needs to
-        // change signature as it is expecting our relay link sign kp. It is actually wrong in many
-        // ways because this needs to generate the payload of an AUTHENTICATE cell up to the
-        // signature so we can compare that part and validate the AUTHENTICATE cell signatures with
-        // peer_kp_link_ed.
-        .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
+        .as_body_no_rand(verified.framed_tls.deref())?;
 
         // CRITICAL: This if is what authenticates a channel on the responder side. We compare
         // what we expected to what we received.
-        if initiator_auth_cell != our_auth_cell {
+        if initiator_auth_cell
+            .is_equal_no_sig(&auth_body)
+            .map_err(|e| Error::ChanProto(format!("AUTHENTICATE fails to compare: {e}")))?
+        {
             return Err(Error::ChanProto(
                 "AUTHENTICATE was unexpected. Failing authentication".into(),
             ));
         }
+
+        // CRITICAL: Verify the signature of the AUTHENTICATE cell with the peer KP_link_ed.
+        let pk: tor_llcrypto::pk::ed25519::PublicKey = peer_kp_link_ed
+            .try_into()
+            .expect("Peer KP_link_ed fails to convert to PublicKey");
+        let sig =
+            tor_llcrypto::pk::ed25519::Signature::from_bytes(initiator_auth_cell.sig().map_err(
+                |e| Error::ChanProto(format!("AUTHENTICATE sig field is invalid: {e}")),
+            )?);
+        pk.verify(initiator_auth_cell.auth(), &sig).map_err(|e| {
+            Error::ChanProto(format!("AUTHENTICATE cell signature failed to verify: {e}"))
+        })?;
+
         // This part is very important as we now flag that we are verified and thus authenticated.
         //
         // At this point, the underlying cell handler is in the Handshake state. Setting the
