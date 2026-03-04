@@ -840,7 +840,6 @@ pub(super) mod test {
     use crate::util::fake_mq;
     use crate::{Result, channel::ClientInitiatorHandshake};
     use tor_cell::chancell::msg::{self, Netinfo};
-    use tor_linkspec::OwnedChanTarget;
     use tor_rtcompat::{PreferredRuntime, Runtime};
 
     const VERSIONS: &[u8] = &hex!("0000 07 0006 0003 0004 0005");
@@ -1066,11 +1065,9 @@ pub(super) mod test {
         parse_rfc3339("2020-09-26T18:01:20Z").unwrap()
     }
 
-    // TODO(relay): This test is wrong now as it is using check_internal() which doesn't look at
-    // CERTS anymore. We'll need to move this kind of unit tests in the specialized module.
     fn certs_test<R>(
-        _certs: msg::Certs,
-        _when: Option<SystemTime>,
+        certs: msg::Certs,
+        when: Option<SystemTime>,
         peer_ed: &[u8],
         peer_rsa: &[u8],
         peer_cert_sha256: [u8; 32],
@@ -1079,7 +1076,20 @@ pub(super) mod test {
     where
         R: Runtime,
     {
-        todo!()
+        let relay_ids = RelayIdsBuilder::default()
+            .ed_identity(Ed25519Identity::from_bytes(peer_ed).unwrap())
+            .rsa_identity(RsaIdentity::from_bytes(peer_rsa).unwrap())
+            .build()
+            .unwrap();
+        let mut peer_builder = OwnedChanTargetBuilder::default();
+        *peer_builder.ids() = RelayIdsBuilder::from_relay_ids(&relay_ids);
+        let peer = peer_builder.build().unwrap();
+
+        let unverified = UnverifiedInitiatorChannel {
+            inner: make_unverified(runtime.clone()),
+            certs_cell: certs,
+        };
+        unverified.verify(&peer, peer_cert_sha256, when)
     }
 
     // no certs at all!
@@ -1249,7 +1259,7 @@ pub(super) mod test {
 
         assert_eq!(
             format!("{}", res),
-            "Handshake protocol violation: Invalid ed25519 signature in handshake"
+            "Handshake protocol violation: Invalid ed25519 TLS cert signature in handshake"
         );
 
         let mut certs = msg::Certs::new_empty();
