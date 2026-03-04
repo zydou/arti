@@ -282,6 +282,8 @@ impl ChannelAuthenticationData {
     pub(crate) fn build_initiator<T, S>(
         auth_challenge_cell: &msg::AuthChallenge,
         identities: &Arc<RelayIdentities>,
+        clog: [u8; 32],
+        slog: [u8; 32],
         verified: &mut VerifiedChannel<T, S>,
         peer_cert_digest: [u8; 32],
     ) -> Result<ChannelAuthenticationData>
@@ -304,9 +306,6 @@ impl ChannelAuthenticationData {
             .ed_identity()
             .expect("Verified channel without Ed25519 identity"))
         .into();
-        // Both values are consumed from the underlying codec.
-        let send_log = verified.framed_tls.codec_mut().take_send_log_digest()?;
-        let recv_log = verified.framed_tls.codec_mut().take_recv_log_digest()?;
 
         Ok(Self {
             link_auth,
@@ -314,8 +313,8 @@ impl ChannelAuthenticationData {
             sid,
             cid_ed,
             sid_ed,
-            clog: send_log,
-            slog: recv_log,
+            clog,
+            slog,
             scert: peer_cert_digest,
         })
     }
@@ -332,6 +331,8 @@ impl ChannelAuthenticationData {
     /// build_auth_data() will result in different AUTHENTICATE cells.
     pub(crate) fn build_responder<T, S>(
         identities: &Arc<RelayIdentities>,
+        clog: [u8; 32],
+        slog: [u8; 32],
         verified: &mut VerifiedChannel<T, S>,
         our_cert_digest: [u8; 32],
     ) -> Result<ChannelAuthenticationData>
@@ -350,9 +351,6 @@ impl ChannelAuthenticationData {
             .ed_identity()
             .expect("Verified channel without Ed25519 identity"))
         .into();
-        // Both values are consumed from the underlying codec.
-        let send_log = verified.framed_tls.codec_mut().take_send_log_digest()?;
-        let recv_log = verified.framed_tls.codec_mut().take_recv_log_digest()?;
 
         Ok(Self {
             link_auth,
@@ -361,8 +359,8 @@ impl ChannelAuthenticationData {
             sid: cid,
             cid_ed: sid_ed,
             sid_ed: cid_ed,
-            clog: recv_log,
-            slog: send_log,
+            clog,
+            slog,
             scert: our_cert_digest,
         })
     }

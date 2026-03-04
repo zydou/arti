@@ -166,10 +166,18 @@ where
 
         let our_cert_digest = ll::d::Sha256::digest(our_cert).into();
 
+        // TODO: This isn't the correct place to get the SLOG/CLOG.
+        // We're the responder, which means that the send log is the SLOG.
+        let slog_digest = verified.framed_tls.codec_mut().take_send_log_digest()?;
+        // We're the responder, which means that the recv log is the CLOG.
+        let clog_digest = verified.framed_tls.codec_mut().take_recv_log_digest()?;
+
         // By building the ChannelAuthenticationData, we are certain that the authentication type
         // of the initiator is supported by us.
         let auth_body = ChannelAuthenticationData::build_responder(
             &identities,
+            clog_digest,
+            slog_digest,
             &mut verified,
             our_cert_digest,
         )?

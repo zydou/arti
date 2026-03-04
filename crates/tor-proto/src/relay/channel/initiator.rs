@@ -153,6 +153,12 @@ where
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
         self.inner.framed_tls.send(certs.into()).await?;
 
+        // TODO: This isn't the correct place to get the SLOG.
+        // We're the initiator, which means that the send log is the CLOG.
+        let clog_digest = self.inner.framed_tls.codec_mut().take_send_log_digest()?;
+        // We're the initiator, which means that the recv log is the SLOG.
+        let slog_digest = self.inner.framed_tls.codec_mut().take_recv_log_digest()?;
+
         // Build the AUTHENTICATE cell.
         //
         // By building the ChannelAuthenticationData, we are certain that the authentication
@@ -160,6 +166,8 @@ where
         let auth_cell = ChannelAuthenticationData::build_initiator(
             &self.auth_challenge_cell,
             &self.identities,
+            clog_digest,
+            slog_digest,
             &mut self.inner,
             self.peer_cert_digest,
         )?
