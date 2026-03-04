@@ -162,6 +162,16 @@ macro_rules! restricted_msg {
             }
         }
 
+        impl $crate::restrict::RestrictedMsg for $name {
+            type Cmd = $cmd_type;
+            fn restricted_cmds() -> &'static [Self::Cmd] {
+                &[$(
+                    $( #[cfg(feature=$feat)] )?
+                    $cmd_type:: [<$case:snake:upper>],
+                )*]
+            }
+        }
+
         #[allow(unexpected_cfgs)]
         const _: () = {
             $(
@@ -225,6 +235,31 @@ macro_rules! restricted_msg {
 }
 
 pub use restricted_msg;
+
+/// Additional functionality for a restricted message set.
+///
+/// This is typically implemented using [`restricted_msg`].
+pub trait RestrictedMsg {
+    /// The type of cell. Typically [`ChanCmd`](crate::chancell::ChanCmd) or
+    /// [`RelayCmd`](crate::relaycell::RelayCmd).
+    type Cmd: Copy + Clone + std::fmt::Debug + std::fmt::Display + Eq + PartialEq + 'static;
+
+    /// The set of cell commands represented by this restricted message set.
+    ///
+    /// This isn't necessarily exhaustive
+    /// and doesn't always include all cells types that this message set can hold.
+    /// For example [`AnyChanMsg`](crate::chancell::msg::AnyChanMsg) also supports unrecognized cells,
+    /// which aren't represented in this list.
+    ///
+    /// This is intended for debugging purposes,
+    /// so that we can list what commands we are expecting in error messages.
+    ///
+    /// **NOTE:** This list is *not* intended to be used for filtering cells or performing any kind
+    /// of validation.
+    ///
+    /// Implementers should ensure that the returned list does not contain duplicate values.
+    fn restricted_cmds() -> &'static [Self::Cmd];
+}
 
 #[cfg(test)]
 mod test {
