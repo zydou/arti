@@ -89,6 +89,8 @@ pub struct SignedDocumentBody<'s> {
 ///
 ///  * `&str` for the body, as for `SignedDocumentBody`.
 ///    For calculating Regular signatures.
+///    (That is, ones that do not include any part of the signature Item;
+///    See [`SignedDocumentBody`].)
 ///
 ///  * Extra information for calculating Irregular signatures.
 ///    Irregular signature Items can only be implemented within this crate.
