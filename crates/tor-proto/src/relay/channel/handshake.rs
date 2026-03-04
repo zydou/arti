@@ -328,7 +328,8 @@ impl<
 
             let m = m.try_into().map_err(|m: AnyChanMsg| {
                 Error::HandshakeProto(format!(
-                    "Expected {expecting:?} cell, but received {} cell instead",
+                    "Expected [{}] cell, but received {} cell instead",
+                    tor_basic_utils::iter_join(", ", expecting.iter()),
                     m.cmd(),
                 ))
             })?;

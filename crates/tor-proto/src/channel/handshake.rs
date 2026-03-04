@@ -168,7 +168,8 @@ where
 
             let m = m.try_into().map_err(|m: AnyChanMsg| {
                 Error::HandshakeProto(format!(
-                    "Expected {expecting:?} cell, but received {} cell instead",
+                    "Expected [{}] cell, but received {} cell instead",
+                    tor_basic_utils::iter_join(", ", expecting.iter()),
                     m.cmd(),
                 ))
             })?;
@@ -916,7 +917,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Expected [ChanCmd(AUTH_CHALLENGE)] cell, but received CERTS cell instead"
+                "Handshake protocol violation: Expected [AUTH_CHALLENGE] cell, but received CERTS cell instead"
             );
 
             let mut buf = Vec::new();
@@ -929,7 +930,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Expected [ChanCmd(NETINFO)] cell, but received AUTH_CHALLENGE cell instead"
+                "Handshake protocol violation: Expected [NETINFO] cell, but received AUTH_CHALLENGE cell instead"
             );
         });
     }
@@ -944,7 +945,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Expected [ChanCmd(CERTS)] cell, but received NETINFO cell instead"
+                "Handshake protocol violation: Expected [CERTS] cell, but received NETINFO cell instead"
             );
         });
     }
