@@ -9,6 +9,9 @@ import subprocess
 # stdlib "from" imports
 from pathlib import Path
 
+# non-stdlib imports
+import chutney.TorNet as TorNet
+
 # local imports
 import common
 import config as config_module
@@ -23,25 +26,19 @@ config.export_env()
 # Perform chutney's built-in "verify" test
 subprocess.check_call([config.chutney, "verify"])
 
-network_json_path = os.path.join(config.chutney_data_dir, "nodes", "network.json")
-arti_client_port = subprocess.check_output(
-    [
-        config.jq,
-        "-r",
-        'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .socksport)',
-        network_json_path,
-    ],
-    text=True,
-).strip()
-arti_dns_port = subprocess.check_output(
-    [
-        config.jq,
-        "-r",
-        'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .dnsport)',
-        network_json_path,
-    ],
-    text=True,
-).strip()
+network = TorNet.Network.from_nodes_dir(Path(config.chutney_data_dir).joinpath("nodes"))
+arti_client_ports = (
+    p
+    for n in network.nodes
+    if (p := n.socksport.as_optional()) and n._config.backend is TorNet.NodeBackend.ARTI
+)
+arti_client_port: int = next(arti_client_ports)
+arti_dns_ports = (
+    p
+    for n in network.nodes
+    if (p := n.dnsport.as_optional()) and n._config.backend is TorNet.NodeBackend.ARTI
+)
+arti_dns_port: int = next(arti_dns_ports)
 if common.running_in_shadow():
     # Resolving DNS through tor in shadow is currently broken:
     # <https://github.com/shadow/shadow/issues/323>.
@@ -79,7 +76,15 @@ else:
         ["dig", "+short", common.TEST_DOMAIN, "A"], text=True
     )
     TOR_LOOKUP = subprocess.check_output(
-        ["dig", "@127.0.0.1", "-p", arti_dns_port, "+short", common.TEST_DOMAIN, "A"],
+        [
+            "dig",
+            "@127.0.0.1",
+            "-p",
+            str(arti_dns_port),
+            "+short",
+            common.TEST_DOMAIN,
+            "A",
+        ],
         text=True,
     )
     # The direct lookup can and does return multiple entries.
@@ -96,15 +101,12 @@ else:
 # [ "$(dig @127.0.0.1 -p 35353 +short example.com AAAA)" == "2606:2800:220:1:248:1893:25c8:1946" ]
 
 # Get the socks port of a tor client to use for benchmarking comparison.
-tor_client_port = subprocess.check_output(
-    [
-        config.jq,
-        "-r",
-        'limit(1; .nodes[] | select(.is_client and .backend=="TOR") | .socksport)',
-        network_json_path,
-    ],
-    text=True,
-).strip()
+tor_client_ports = (
+    p
+    for n in network.nodes
+    if (p := n.socksport.as_optional()) and n._config.backend is TorNet.NodeBackend.TOR
+)
+tor_client_port: int = next(tor_client_ports)
 subprocess.check_call(
     [
         config.arti_bench,
