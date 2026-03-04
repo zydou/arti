@@ -336,8 +336,6 @@ impl<
         peer_cert_digest: [u8; 32],
         now: Option<SystemTime>,
     ) -> Result<VerifiedChannel<T, S>> {
-        use tor_cert::CertType;
-
         // Replace 'now' with the real time to use.
         let now = now.unwrap_or_else(SystemTime::now);
 
@@ -368,29 +366,14 @@ impl<
         // AUTH cert. It will soon be moved into a helper function that both client/relay initiator
         // can use.
 
-        let sk_tls = get_cert(c, CertType::SIGNING_V_TLS_CERT)?;
-
-        // Now look at the signing->TLS cert and check it against the
-        // peer certificate.
-        let (sk_tls, sk_tls_sig) = sk_tls
-            .should_be_signed_with(&signing_key)
-            .map_err(Error::HandshakeCertErr)?
-            .dangerously_split()
-            .map_err(Error::HandshakeCertErr)?;
-        let (sk_tls_timeliness, sk_tls) = check_cert_timeliness(sk_tls, now, self.clock_skew);
-
-        if peer_cert_digest != sk_tls.subject_key().as_bytes() {
-            return Err(Error::HandshakeProto(
-                "Peer cert did not authenticate TLS cert".into(),
-            ));
-        }
-
-        // Make sure the TLS cert is well signed.
-        if sk_tls_sig.is_valid() {
-            return Err(Error::HandshakeProto(
-                "Invalid ed25519 signature in handshake".into(),
-            ));
-        }
+        // Verify the TLS cert.
+        verify_tls_cert(
+            peer_cert_digest,
+            c,
+            &signing_key,
+            Some(now),
+            self.clock_skew,
+        )?;
 
         let rsa_id_digest: [u8; 32] = ll::d::Sha256::digest(pkrsa.to_der()).into();
         let rsa_id = pkrsa.to_rsa_identity();
@@ -427,9 +410,6 @@ impl<
             Err(Error::ChanMismatch(msg)) => Err(Error::HandshakeProto(msg)),
             other => other,
         }?;
-
-        // Check TLS cert timeliness.
-        sk_tls_timeliness?;
 
         Ok(VerifiedChannel {
             link_protocol: self.link_protocol,
@@ -691,6 +671,59 @@ impl<
             canonicity,
         )
     }
+}
+
+/// Validate the TLS cert (CertType 5).
+///
+/// 'peer_cert' is the x.509 certificate that the peer presented during its TLS handshake
+/// (ServerHello).
+///
+/// `kp_relaysign_ed` is the relay signing key taken from the signing cert (CertType 4). It is used
+/// to sign the TLS cert and so we use it to validate.
+///
+/// 'now' is the time at which to check that certificates are valid.  `None` means to use the
+/// current time. It can be used for testing to override the current view of the time.
+///
+/// The `clock_skew` is the time skew detected during the handshake.
+pub(crate) fn verify_tls_cert(
+    peer_cert_digest: [u8; 32],
+    certs: &msg::Certs,
+    kp_relaysign_ed: &Ed25519Identity,
+    now: Option<std::time::SystemTime>,
+    clock_skew: ClockSkew,
+) -> Result<()> {
+    use tor_cert::CertType;
+
+    // Replace 'now' with the real time to use.
+    let now = now.unwrap_or_else(SystemTime::now);
+
+    // Now look at the signing->TLS cert and check it against the
+    // peer certificate.
+    let sk_tls = get_cert(certs, CertType::SIGNING_V_TLS_CERT)?;
+    let (sk_tls, sk_tls_sig) = sk_tls
+        .should_be_signed_with(kp_relaysign_ed)
+        .map_err(Error::HandshakeCertErr)?
+        .dangerously_split()
+        .map_err(Error::HandshakeCertErr)?;
+    let (sk_tls_timeliness, sk_tls) = check_cert_timeliness(sk_tls, now, clock_skew);
+
+    if peer_cert_digest != sk_tls.subject_key().as_bytes() {
+        return Err(Error::HandshakeProto(
+            "Peer cert did not authenticate TLS cert".into(),
+        ));
+    }
+
+    // Make sure the TLS cert is well signed.
+    if sk_tls_sig.is_valid() {
+        return Err(Error::HandshakeProto(
+            "Invalid ed25519 signature in handshake".into(),
+        ));
+    }
+
+    // Check TLS cert timeliness.
+    sk_tls_timeliness?;
+
+    Ok(())
 }
 
 /// Helper: given a time-bound input, give a result reflecting its
