@@ -343,7 +343,10 @@ mod tests {
             // A base path with two denotator groups
             ("my_key_path+dino@saur", "my_key_path+dino@saur@foo+bar+baz"),
             // A base path with two empty denotator groups
-            ("my_key_path+dino@@@saur", "my_key_path+dino@@@saur@foo+bar+baz"),
+            (
+                "my_key_path+dino@@@saur",
+                "my_key_path+dino@@@saur@foo+bar+baz",
+            ),
         ];
 
         for (base_path, expected_path) in TEST_PATHS {
