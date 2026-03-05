@@ -111,7 +111,7 @@ def gen_shadow_config(seed: int) -> dict[str, Any]:
     }
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         prog="integration-e2e-shadow",
         description="Runs integration-e2e inside a shadow simulation",
