@@ -1,14 +1,19 @@
-#!/usr/bin/env bash
-set -xeuo pipefail
+#!/usr/bin/env python3
 
-cd "$(git rev-parse --show-toplevel)"
+# stdlib imports
+import sys
+import subprocess
 
-# Tell shellcheck that yes, we know that we're sourcing a file.
-# shellcheck disable=SC1091
-source tests/chutney/arti.run
+# stdlib "from" imports
+from pathlib import Path
 
-# Validate that these are set (from arti.run)
-[ -n "${target:?}" ]
-[ -n "${chutney_bin:?}" ]
+# local imports
+from config import Config
 
-"${chutney_bin}" stop
+assert __name__ == "__main__"
+_SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
+
+config = Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
+config.export_env()
+
+subprocess.check_call([config.chutney, "stop"])
