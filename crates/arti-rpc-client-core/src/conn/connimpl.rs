@@ -38,7 +38,8 @@
 //!     which is used for knowing what to do with inbound messages
 //!
 //! If the request is Waitable,
-//! its `RequestMap.map` entry is [`RequestState::Waiting`], and contains its own [`ResponseQueue`].
+//! its `RequestMap.map` entry is [`RequestState::Waiting`],
+//! and contains its own [`ResponseQueue`].
 //!
 //! If the request is Pollable,
 //! its `RequestMap` entry is [`RequestState::Pollable`],
@@ -61,7 +62,8 @@
 //! and signal's the condvar associated with that queue.
 //!
 //! There are two kinds of queue:
-//! A per-request queue used by Waitable requests, and a single queue shared by all Polled requests.
+//! A per-request queue used by Waitable requests,
+//! and a single queue shared by all Polled requests.
 //! Every queue has its  own associated condvar.
 //!
 //! The two kinds of queue are slightly different.
@@ -97,7 +99,8 @@ use super::{ProtoError, ShutdownError};
 trait QueueId {
     /// A tag type associated with responses in the identified queue.
     ///
-    /// ("Polling" requests use [`UserTag`]s to tell the user which response goes with which request.)
+    /// ("Polling" requests use [`UserTag`]s to tell the user
+    /// which response goes with which request.)
     type UserTag: Sized;
 
     /// Find the queue identified by this `QueueId` within `map`,
@@ -311,7 +314,8 @@ enum ResponseDisposition<'a, Q: QueueId + ?Sized> {
     /// we should drop it.
     Ignore,
 
-    /// This message is for some other request; we should instead forward it to that request's queue.
+    /// This message is for some other request;
+    /// we should instead forward it to that request's queue.
     ForwardWaiting(&'a mut ResponseQueue<AnyRequestId>),
 
     /// This message is for some other request;
@@ -474,7 +478,8 @@ impl RpcConn {
 
     /// Return a new [`RpcPoll`] to use for managing an RpcConn using event-driven IO.
     ///
-    /// Removes the `PollingStream` from this `RpcConn` and drops any mio resources associated with it.
+    /// Removes the `PollingStream` from this `RpcConn`
+    /// and drops any mio resources associated with it.
     /// After this method is called is called, only `RpcPoll::poll()` can interact with it.
     ///
     /// See caveats on [`RpcConnBuilder::connect_polling`](crate::RpcConnBuilder::connect_polling).
@@ -831,7 +836,8 @@ impl RpcPoll {
     }
 
     /// Return true if this[`RpcPoll`] current wants to write,
-    /// and the user should invoke [`RpcPoll::poll`] when the underlying connection is ready to write.
+    /// and the user should invoke [`RpcPoll::poll`]
+    /// when the underlying connection is ready to write.
     /// XXXX: Write documentation about correctness here.
     pub fn wants_to_write(&self) -> bool {
         self.stream.wants_to_write()
@@ -841,10 +847,12 @@ impl RpcPoll {
     ///
     /// This method reads and writes data from the RPC server,
     /// and passes any responses to requests created with the [`RpcConn::execute`] methods.
-    /// If it finds a response to a request crated with [`RpcConn::submit`], it returns that response.
+    /// If it finds a response to a request crated with [`RpcConn::submit`],
+    /// it returns that response.
     ///
     /// If no further progress can be made without performing more IO, it returns [`WouldBlock`].
-    /// The caller should then register the fd/socket for this [`RpcPoll`] in its event-driven IO framework,
+    /// The caller should then register the fd/socket for this [`RpcPoll`]
+    /// in its event-driven IO framework,
     /// waiting for read/write events as specified by the `WantIo`.
     ///
     /// Only one thread may call this method at a time.

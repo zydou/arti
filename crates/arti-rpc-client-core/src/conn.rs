@@ -229,7 +229,8 @@ impl RpcConn {
     /// Run a command, and wait for success or failure.
     ///
     /// Note that this function will return `Err(.)` only if sending the command or getting a
-    /// response failed.  If the command was sent successfully, and Arti reported an error in response,
+    /// response failed.
+    /// If the command was sent successfully, and Arti reported an error in response,
     /// this function returns `Ok(Err(.))`.
     ///
     /// Note that the command does not need to include an `id` field.  If you omit it,
@@ -353,7 +354,8 @@ impl RpcConn {
     /// Return that response,
     /// along with the [`UserTag`] that was associated with its request.
     ///
-    /// This method will never return responses to any requests made with one of the `execute` methods;
+    /// This method will never return responses
+    /// to any requests made with one of the `execute` methods;
     /// only to requests submitted with `submit()`.
     ///
     /// It is safe, but generally pointless, to call this method from multiple threads.
@@ -375,7 +377,8 @@ impl RequestHandle {
     /// (Ignores any update messages that are received.)
     ///
     /// Note that this function will return `Err(.)` only if sending the command or getting a
-    /// response failed.  If the command was sent successfully, and Arti reported an error in response,
+    /// response failed.
+    /// If the command was sent successfully, and Arti reported an error in response,
     /// this function returns `Ok(Err(.))`.
     pub fn wait(self) -> Result<FinalResponse, ProtoError> {
         loop {
@@ -389,7 +392,8 @@ impl RequestHandle {
     /// Wait for the next success, failure, or update from this handle.
     ///
     /// Note that this function will return `Err(.)` only if sending the command or getting a
-    /// response failed.  If the command was sent successfully, and Arti reported an error in response,
+    /// response failed.
+    /// If the command was sent successfully, and Arti reported an error in response,
     /// this function returns `Ok(AnyResponse::Error(.))`.
     ///
     /// You may call this method on the same `RequestHandle` from multiple threads.
@@ -672,7 +676,8 @@ impl HasClientErrorAction for ProtoError {
         match self {
             E::Shutdown(_) => A::Decline,
             E::InternalRequestFailed(_) => A::Decline,
-            // These are always internal errors if they occur while negotiating a connection to RPC,
+            // These are always internal errors if they occur
+            // while negotiating a connection to RPC,
             // which is the context we care about for `HasClientErrorAction`.
             E::InvalidRequest(_)
             | E::RequestIdInUse
@@ -816,7 +821,8 @@ mod test {
             let mut rng = rand_chacha::ChaCha12Rng::from_seed(rng.random());
             let th = thread::spawn(move || {
                 for cmd_idx in 0..n_commands_per_thread {
-                    // We are spawning a bunch of worker threads, each of which will run a number of
+                    // We are spawning a bunch of worker threads,
+                    // each of which will run a number of
                     // commands in sequence.  Each command will be a request that gets optional
                     // updates, and an error or a success.
                     // We will double-check that each request gets the response it asked for.

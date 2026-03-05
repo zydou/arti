@@ -11,7 +11,8 @@
 //!
 //! Treats messages as unrelated strings, and validates outgoing messages for correctness.
 //!
-//! TODO nb: For now, nothing in this module is actually public; we'll want to expose some of these types.
+//! TODO nb: For now, nothing in this module is actually public;
+//! we'll want to expose some of these types.
 
 use mio::Interest;
 
@@ -44,7 +45,8 @@ use std::os::windows::io::{AsSocket as _, BorroedSocket as BorrowedOsHandle};
 /// The [`PollingStream::writer()`] method will return a handle that you can use from any thread
 /// that you can use to queue an outbound message.
 ///
-/// No messages are actually sent or received unless some thread is calling [`PollingStream::interact()`].
+/// No messages are actually sent or received unless
+/// some thread is calling [`PollingStream::interact()`].
 ///
 /// ## Concurrency and interior mutability
 ///
@@ -101,7 +103,8 @@ const STREAM_TOKEN: mio::Token = mio::Token(1);
 
 /// Wrapper around [`mio::Waker`] on which we implement [`EventLoop`].
 ///
-/// We don't do so on `mio::Waker` directly since other implementations of `EventLoop` on `mio::Waker`
+/// We don't do so on `mio::Waker` directly
+/// since other implementations of `EventLoop` on `mio::Waker`
 /// are possible.
 struct MioWaker(mio::Waker);
 
@@ -210,7 +213,8 @@ impl PollingStream {
         }
     }
 
-    /// Downgrade this stream into a [`NonblockingStream`] for use within an [`RpcPoll`](crate::RpcPoll).
+    /// Downgrade this stream into a [`NonblockingStream`]
+    /// for use within an [`RpcPoll`](crate::RpcPoll).
     pub(crate) fn into_nonblocking(mut self) -> NonblockingStream {
         let mut stream = self
             .deregister_and_take_stream()
@@ -264,7 +268,8 @@ impl WriteHandle {
         let was_empty = w.write_buf.is_empty();
         w.write_buf.extend_from_slice(msg.as_ref().as_bytes());
 
-        // See TOCTOU note on `WriteHandleImpl`: we need to change our interest while we are holding the
+        // See TOCTOU note on `WriteHandleImpl`:
+        // we need to change our interest while we are holding the
         // above mutex.
         if was_empty {
             w.event_loop.start_writing()?;
@@ -395,7 +400,8 @@ impl NonblockingStream {
     /// If the stream proves to be closed, returns [`PollStatus::Closed`].
     ///
     /// If a message is available, returns [`PollStatus::Msg`].
-    /// (Note that a message may be available in the internal buffer here even if try_reading is false.)
+    /// (Note that a message may be available in the internal buffer here
+    /// even if try_reading is false.)
     ///
     /// If no message is available, return [`PollStatus::WouldBlock`].
     pub(crate) fn interact_once(&mut self) -> io::Result<PollStatus> {
@@ -452,7 +458,8 @@ impl NonblockingStream {
 
     /// Helper: Try to get a message, reading into our read_buf as needed.
     ///
-    /// (We don't use a BufReader here because its behavior with nonblocking IO is kind of underspecified.)
+    /// (We don't use a BufReader here because
+    /// its behavior with nonblocking IO is kind of underspecified.)
     fn read_msg(&mut self) -> io::Result<Option<UnparsedResponse>> {
         const READLEN: usize = 4096;
         loop {

@@ -320,7 +320,8 @@ impl RpcConnBuilder {
         })
     }
 
-    /// As [`connect`](Self::connect), but return an `RpcConn` suitable for use with event-driven IO,
+    /// As [`connect`](Self::connect), but return an `RpcConn`
+    /// suitable for use with event-driven IO,
     /// and an [`RpcPoll`] to drive that IO.
     ///
     /// Requires an [`EventLoop`](crate::EventLoop) which,
