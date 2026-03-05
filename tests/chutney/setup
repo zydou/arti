@@ -4,7 +4,6 @@
 import argparse
 import os
 import shutil
-import shlex
 import subprocess
 import sys
 import textwrap
@@ -158,18 +157,6 @@ def _main() -> None:
     config_resolver = ConfigResolver(parser)
     args = parser.parse_args()
     config = config_resolver.resolve(args)
-
-    with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
-        print(f"target={shlex.quote(config.network)}", file=c)
-        print(f"arti_bench_bin={shlex.quote(str(config.arti_bench))}", file=c)
-        print(f"chutney_bin={shlex.quote(str(config.chutney))}", file=c)
-        print(f"export CHUTNEY_ARTI={shlex.quote(str(config.arti))}", file=c)
-        print(
-            f"export CHUTNEY_DATA_DIR={shlex.quote(str(config.chutney_data_dir))}",
-            file=c,
-        )
-
-    # Also dump as json, for use by python scripts
     config.dump_json(_SCRIPT_DIR.joinpath("arti.run.json"))
 
 
