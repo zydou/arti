@@ -1,14 +1,23 @@
-#!/usr/bin/env bash
-set -xeuo pipefail
+#!/usr/bin/env python3
 
-cd "$(git rev-parse --show-toplevel)"
+# stdlib imports
+import atexit
+import sys
+import subprocess
 
-./tests/chutney/setup
+# stdlib "from" imports
+from pathlib import Path
+
+assert __name__ == "__main__", "Can't determine script dir"
+_SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
+
+subprocess.check_call([_SCRIPT_DIR.joinpath("setup")])
 
 # Try to ensure we tear down the network on exit, including failure, ctrl-c, etc.
-trap ./tests/chutney/teardown EXIT
+atexit.register(lambda: subprocess.check_call([_SCRIPT_DIR.joinpath("teardown")]))
+
 # bootstrap the network
-./tests/chutney/bootstrap
+subprocess.check_call([_SCRIPT_DIR.joinpath("bootstrap")])
 
 # test the network
-./tests/chutney/test -v
+subprocess.check_call([_SCRIPT_DIR.joinpath("test"), "-v"])
