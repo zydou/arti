@@ -255,10 +255,12 @@ impl<'s> ItemStream<'s> {
         let PeekState::Some(peeked) = &self.peeked else {
             return Ok(None);
         };
+        let document_sofar = self.body_sofar_for_signature().body();
         let signature_item_line = self.lines.peeked_line(&peeked.line);
         let signature_item_kw_spc = signature_item_line.strip_end_counted(peeked.args_len);
         Ok(Some(SignatureHashInputs {
             body,
+            document_sofar,
             signature_item_kw_spc,
             signature_item_line,
         }))

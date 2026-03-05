@@ -134,6 +134,9 @@ pub struct SignatureHashInputs<'s> {
     /// The Regular body (up to the first signature item)
     #[getter(as_copy)]
     pub(crate) body: SignedDocumentBody<'s>,
+    /// The part of the document up to just before this signature item.
+    #[getter(skip)]
+    pub(crate) document_sofar: &'s str,
     /// The signature item keyword and the following space
     #[getter(skip)]
     pub(crate) signature_item_kw_spc: &'s str,
