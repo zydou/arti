@@ -859,6 +859,8 @@ impl RpcPoll {
     ///
     /// Only one thread may call this method at a time.
     /// (In Rust, this is enforced by having the method take a mutable reference.)
+    //
+    // XXXX tranpose the two Result's here so the caller can use `?` more conveniently
     pub fn poll(&mut self) -> Result<Result<(UserTag, AnyResponse), ProtoError>, WouldBlock> {
         use crate::nb_stream::PollStatus;
         // We try reading _and_ writing regardless; it won't hurt anything.
