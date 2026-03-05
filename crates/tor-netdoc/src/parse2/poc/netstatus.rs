@@ -9,7 +9,7 @@ mod ns_per_flavour_macros;
 pub use ns_per_flavour_macros::*;
 
 ns_per_flavour_macros::ns_export_flavoured_types! {
-    NetworkStatus, NetworkStatusSigned, Router,
+    NetworkStatus, NetworkStatusUnverified, Router,
 }
 
 /// `network-status-version` version value

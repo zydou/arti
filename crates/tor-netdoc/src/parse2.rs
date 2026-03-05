@@ -28,10 +28,10 @@
 //! Most top-level network documents are signed somehow.
 //! In this case there are three types:
 //!
-//!   * **`FooSigned`**: a signed `Foo`, with its signatures, not yet verified.
-//!     Implements [`NetdocSigned`],
+//!   * **`FooUnverified`**: a signed `Foo`, with its signatures, not yet verified.
+//!     Implements [`NetdocUnverified`],
 //!     typically by invoking the
-//!     [`NetdocSigned` derive macro](crate::derive_deftly_template_NetdocSigned)
+//!     [`NetdocUnverified` derive macro](crate::derive_deftly_template_NetdocUnverified)
 //!     on `Foo`.
 //!
 //!     Type-specific methods are provided for verification,
@@ -106,13 +106,13 @@ pub use keyword::KeywordRef;
 pub use lex::{ArgumentStream, ItemStream, NoFurtherArguments, UnparsedItem, UnparsedObject};
 pub use lines::{Lines, Peeked, StrExt};
 pub use signatures::{
-    SignatureHashInputs, SignatureItemParseable, check_validity_time,
+    NetdocUnverified, SignatureHashInputs, SignatureItemParseable, check_validity_time,
     check_validity_time_tolerance, sig_hash_methods,
 };
 pub use structural::{StopAt, StopPredicate};
 pub use traits::{
     IsStructural, ItemArgumentParseable, ItemObjectParseable, ItemValueParseable, NetdocParseable,
-    NetdocParseableFields, NetdocSigned,
+    NetdocParseableFields,
 };
 
 #[doc(hidden)]

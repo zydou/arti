@@ -32,10 +32,10 @@ use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::{
     doc::{
-        authcert::{AuthCert, AuthCertKeyIds, AuthCertSigned},
+        authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
         netstatus::ConsensusFlavor,
     },
-    parse2::{self, NetdocSigned, ParseInput},
+    parse2::{self, NetdocUnverified, ParseInput},
 };
 use tracing::warn;
 
@@ -154,7 +154,7 @@ fn get_recent_consensus(
 ///
 /// Because the database has the invariance that all entires inside are
 /// valid, we do not bother about validating the signatures there again, hence
-/// why the return type is not [`AuthCertSigned`].
+/// why the return type is not [`AuthCertUnverified`].
 fn get_recent_authority_certificates(
     tx: &Transaction,
     signatories: &[AuthCertKeyIds],
@@ -234,7 +234,7 @@ fn get_recent_authority_certificates(
         // version having inserted it because not knowing about it, we must not
         // fail.  Instead, we mark the certificate as missing, because it is
         // not usable for us.
-        let cert = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(&raw_cert, ""));
+        let cert = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(&raw_cert, ""));
         match cert {
             Ok(cert) => {
                 // Mark the cert as found.
@@ -278,12 +278,12 @@ async fn download_authority_certificates<'a, 'b, R: Rng>(
 
 /// Parses multiple raw directory authority certificates.
 ///
-/// Returns the parsed [`AuthCertSigned`] alongside their raw plain-text
+/// Returns the parsed [`AuthCertUnverified`] alongside their raw plain-text
 /// representation.
 fn parse_authority_certificates<'a>(
     certs: &'a str,
-) -> Result<Vec<(AuthCertSigned, &'a str)>, parse2::ParseError> {
-    parse2::parse_netdoc_multiple_with_offsets::<AuthCertSigned>(&ParseInput::new(certs, ""))?
+) -> Result<Vec<(AuthCertUnverified, &'a str)>, parse2::ParseError> {
+    parse2::parse_netdoc_multiple_with_offsets::<AuthCertUnverified>(&ParseInput::new(certs, ""))?
         .into_iter()
         // Creating the slice is fine, parse2 guarantees it is in-bounds.
         .map(|(cert, start, end)| Ok((cert, &certs[start..end])))
@@ -292,14 +292,14 @@ fn parse_authority_certificates<'a>(
 
 /// Verifies multiple raw directory authority certificates.
 ///
-/// Returns the verified [`AuthCertSigned`] values as [`AuthCert`] values.
+/// Returns the verified [`AuthCertUnverified`] values as [`AuthCert`] values.
 /// The [`str`] slice will remain unmodified, meaning that it will still include
 /// the signature parts in plain-text.
 /// This function is mostly used in conjunction with
 /// [`parse_authority_certificates()`] in order to ensure its outputs were
 /// correct.
 fn verify_authority_certificates<'a>(
-    certs: Vec<(AuthCertSigned, &'a str)>,
+    certs: Vec<(AuthCertUnverified, &'a str)>,
     v3idents: &[RsaIdentity],
     tolerance: &DirTolerance,
     now: Timestamp,

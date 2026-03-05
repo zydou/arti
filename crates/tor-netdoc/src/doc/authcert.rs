@@ -90,7 +90,7 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 /// To make a fresh `AuthCert`, use [`AuthCertConstructor`].
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Constructor)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable, NetdocSigned))]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable, NetdocUnverified))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -445,7 +445,7 @@ impl AuthCert {
 /// As `CrossCert` does not sign a full document, it implements only
 /// `ItemValueParseable`, instead.
 ///
-/// Verification of this signature is done in `AuthCertSigned::verify_self_signed`,
+/// Verification of this signature is done in `AuthCertUnverified::verify_self_signed`,
 /// and during parsing by the old parser.
 /// So a `CrossCert` in [`AuthCert::dir_key_crosscert`] in a bare `AuthCert` has been validated.
 //
@@ -563,7 +563,7 @@ impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAut
 }
 
 #[cfg(feature = "parse2")]
-impl AuthCertSigned {
+impl AuthCertUnverified {
     /// Verifies the signature of a [`AuthCert`]
     ///
     /// # Algorithm
@@ -736,10 +736,7 @@ mod test {
 
     #[cfg(feature = "parse2")]
     mod parse2_test {
-        use super::{
-            AuthCert, AuthCertSignature, AuthCertSignatures, AuthCertSigned, AuthCertVersion,
-            CrossCert, CrossCertObject,
-        };
+        use super::{AuthCert, AuthCertUnverified, AuthCertVersion, CrossCert, CrossCertObject};
 
         use std::{
             fs::File,
@@ -756,11 +753,7 @@ mod test {
 
         use base64ct::{Base64, Encoding};
         use derive_deftly::Deftly;
-        use digest::Digest;
-        use tor_llcrypto::{
-            d::Sha1,
-            pk::rsa::{self, RsaIdentity},
-        };
+        use tor_llcrypto::pk::rsa::{self, RsaIdentity};
 
         /// Reads a b64 encoded file and returns its content encoded and decoded.
         fn read_b64<P: AsRef<Path>>(path: P) -> (String, Vec<u8>) {
@@ -859,59 +852,6 @@ mod test {
         }
 
         #[test]
-        fn dir_auth_key_cert_signatures() {
-            let (encoded, decoded) = read_b64("testdata2/authcert-longclaw-signature-b64");
-            let cert = format!(
-                "dir-key-certification\n-----BEGIN SIGNATURE-----\n{encoded}\n-----END SIGNATURE-----"
-            );
-            let hash: [u8; 20] = Sha1::digest("dir-key-certification\n").into();
-
-            let res =
-                parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, "")).unwrap();
-            assert_eq!(
-                res,
-                AuthCertSignatures {
-                    dir_key_certification: AuthCertSignature {
-                        signature: decoded.clone(),
-                        hash
-                    }
-                }
-            );
-
-            // Test incorrect label.
-            let cert = format!(
-                "dir-key-certification\n-----BEGIN ID SIGNATURE-----\n{encoded}\n-----END ID SIGNATURE-----"
-            );
-            let res = parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, ""));
-            match res {
-                Err(ParseError {
-                    problem: ErrorProblem::ObjectIncorrectLabel,
-                    doctype: "",
-                    file: _,
-                    lno: 1,
-                    column: None,
-                }) => {}
-                other => panic!("not expected error {other:#?}"),
-            }
-
-            // Test additional args.
-            let cert = format!(
-                "dir-key-certification arg1\n-----BEGIN SIGNATURE-----\n{encoded}\n-----END SIGNATURE-----"
-            );
-            let res = parse2::parse_netdoc::<AuthCertSignatures>(&ParseInput::new(&cert, ""));
-            match res {
-                Err(ParseError {
-                    problem: ErrorProblem::UnexpectedArgument { column: 23 },
-                    doctype: "",
-                    file: _,
-                    lno: 1,
-                    column: Some(23),
-                }) => {}
-                other => panic!("not expected error {other:#?}"),
-            }
-        }
-
-        #[test]
         fn dir_auth_cert() {
             // This is longclaw.
 
@@ -952,7 +892,7 @@ mod test {
 
         #[test]
         fn dir_auth_signature() {
-            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full"),
                 "",
             ))
@@ -1104,7 +1044,7 @@ mod test {
                 .unwrap();
 
             // Check with non-matching fingerprint and long-term identity key.
-            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full-invalid-id-rsa"),
                 "",
             ))
@@ -1123,7 +1063,7 @@ mod test {
             );
 
             // Check invalid cross-cert.
-            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full-invalid-cross"),
                 "",
             ))
@@ -1142,7 +1082,7 @@ mod test {
             );
 
             // Check outer signature.
-            let res = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(
+            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
                 include_str!("../../testdata2/authcert-longclaw-full-invalid-certification"),
                 "",
             ))

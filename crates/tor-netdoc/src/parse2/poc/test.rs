@@ -27,12 +27,12 @@ fn parse_consensus_ns() -> anyhow::Result<()> {
     let now = parse_rfc3339("2000-01-01T00:02:05Z")?;
 
     let input = ParseInput::new(&text, file);
-    let doc: netstatus::NetworkStatusSignedNs = parse_netdoc(&input)?;
+    let doc: netstatus::NetworkStatusUnverifiedNs = parse_netdoc(&input)?;
 
     let file = "testdata2/cached-certs";
     let text = fs::read_to_string(&file)?;
     let input = ParseInput::new(&text, file);
-    let certs: Vec<authcert::DirAuthKeyCertSigned> = parse_netdoc_multiple(&input)?;
+    let certs: Vec<authcert::DirAuthKeyCertUnverified> = parse_netdoc_multiple(&input)?;
     let certs = certs
         .into_iter()
         .map(|cert| cert.verify_selfcert(now))
@@ -55,7 +55,7 @@ fn parse_consensus_md() -> anyhow::Result<()> {
     let text = fs::read_to_string(&file)?;
 
     let input = ParseInput::new(&text, file);
-    let doc: netstatus::md::NetworkStatusSigned = parse_netdoc(&input)?;
+    let doc: netstatus::md::NetworkStatusUnverified = parse_netdoc(&input)?;
 
     println!("{doc:?}");
 
@@ -68,7 +68,7 @@ fn parse_authcert() -> anyhow::Result<()> {
     let now = parse_rfc3339("2000-06-01T00:00:05Z")?;
     let text = fs::read_to_string(file)?;
     let input = ParseInput::new(&text, file);
-    let doc: authcert::DirAuthKeyCertSigned = parse_netdoc(&input)?;
+    let doc: authcert::DirAuthKeyCertUnverified = parse_netdoc(&input)?;
     let doc = doc.verify_selfcert(now)?;
     println!("{doc:?}");
     assert_eq!(

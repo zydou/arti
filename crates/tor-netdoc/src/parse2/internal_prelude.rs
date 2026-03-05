@@ -3,8 +3,7 @@
 //! This is also exported, but with `#[doc(hidden)]`, for the benefit of our public macros.
 
 pub use std::collections::{BTreeSet, HashSet};
-pub use std::fmt::{self, Debug, Display};
-pub use std::io::Write as _;
+pub use std::fmt::{self, Debug, Display, Write as _};
 pub use std::marker::PhantomData;
 pub use std::mem;
 pub use std::ops::RangeInclusive;
@@ -36,12 +35,13 @@ pub use super::{
     lines::{Lines, StrExt as _},
     multiplicity::{ArgumentSetMethods, ItemSetMethods, MultiplicitySelector, ObjectSetMethods},
     signatures::{
-        SignatureHashInputs, SignatureItemParseable, SignedDocumentBody, sig_hash_methods,
+        NetdocUnverified, SignatureHashInputs, SignatureItemParseable, SignedDocumentBody,
+        sig_hash_methods,
     },
     structural::{StopAt, StopPredicate},
     traits::{
         IsStructural, ItemArgumentParseable, ItemValueParseable, NetdocParseable,
-        NetdocParseableFields, NetdocSigned,
+        NetdocParseableFields,
     },
 };
 pub use crate::types::Unknown;

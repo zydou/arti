@@ -8,9 +8,9 @@ use super::*;
 type DirKeyCertificateHash = [u8; 20];
 
 pub use crate::doc::authcert::AuthCert as DirAuthKeyCert;
-pub use crate::doc::authcert::AuthCertSigned as DirAuthKeyCertSigned;
+pub use crate::doc::authcert::AuthCertUnverified as DirAuthKeyCertUnverified;
 
-impl DirAuthKeyCertSigned {
+impl DirAuthKeyCertUnverified {
     /// Verify the signatures (and check validity times)
     ///
     /// # Security considerations
