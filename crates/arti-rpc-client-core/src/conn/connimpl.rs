@@ -825,6 +825,8 @@ pub struct WouldBlock;
 impl RpcPoll {
     #[cfg(unix)]
     /// If possible, return a fd to use with an underlying event-driven IO code.
+    ///
+    /// XXXX when might this fail? what is the caller supposed to do if it does fail?
     pub fn try_as_fd(&self) -> std::io::Result<std::os::fd::BorrowedFd<'_>> {
         self.stream.try_as_handle()
     }
