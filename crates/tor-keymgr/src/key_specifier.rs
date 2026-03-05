@@ -1057,6 +1057,40 @@ KeyPathInfo {
     }
 
     #[test]
+    #[cfg(feature = "experimental-api")]
+    fn define_cert_specifier_with_multiple_denotators() {
+        #[derive(Deftly, Debug, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "encabulator")]
+        #[deftly(role = "fan")]
+        #[deftly(summary = "test key")]
+        struct TestKeySpecifier {
+            casing: String,
+            bearings: String,
+            #[deftly(denotator)]
+            count: usize,
+        }
+
+        #[derive(Deftly, Debug, PartialEq)]
+        #[derive_deftly(CertSpecifier)]
+        #[allow(dead_code)]
+        struct TestCertSpecifier {
+            #[deftly(subject)]
+            subject: TestKeySpecifier,
+            #[deftly(denotator)]
+            length: usize,
+            #[deftly(denotator)]
+            width: usize,
+        }
+
+        let cert_pat = TestCertSpecifierPattern::new_any();
+        assert_eq!(
+            cert_pat.arti_pattern().unwrap(),
+            KeyPathPattern::Arti("encabulator/*/*/fan+*@*+*".into())
+        );
+    }
+
+    #[test]
     fn encode_time_period() {
         let period = TimePeriod::from_parts(1, 2, 3);
         let encoded_period = period.to_slug().unwrap();
