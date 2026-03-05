@@ -882,18 +882,16 @@ impl RpcPoll {
     ///
     /// Only one thread may call this method at a time.
     /// (In Rust, this is enforced by having the method take a mutable reference.)
-    //
-    // XXXX tranpose the two Result's here so the caller can use `?` more conveniently
-    pub fn poll(&mut self) -> Result<Result<(UserTag, AnyResponse), ProtoError>, WouldBlock> {
+    pub fn poll(&mut self) -> Result<Result<(UserTag, AnyResponse), WouldBlock>, ProtoError> {
         use crate::nb_stream::PollStatus;
         // We try reading _and_ writing regardless; it won't hurt anything.
         loop {
             let r = self.stream.interact_once();
             let response = match r {
                 Ok(PollStatus::Msg(m)) => m.try_validate().map_err(ShutdownError::from),
-                Ok(PollStatus::Closed) => return Ok(Err(ShutdownError::ConnectionClosed.into())),
-                Ok(PollStatus::WouldBlock) => return Err(WouldBlock),
-                Err(io_error) => return Ok(Err(ShutdownError::Read(Arc::new(io_error)).into())),
+                Ok(PollStatus::Closed) => return Err(ShutdownError::ConnectionClosed.into()),
+                Ok(PollStatus::WouldBlock) => return Ok(Err(WouldBlock)),
+                Err(io_error) => return Err(ShutdownError::Read(Arc::new(io_error)).into()),
             };
 
             let mut state = self.receiver.state.lock().expect("Poisoned lock");
@@ -905,7 +903,7 @@ impl RpcPoll {
                         state.fatal = Some(e.clone());
                         state.pending.alert_everybody();
                     }
-                    return Ok(Err(e.into()));
+                    return Err(e.into());
                 }
             };
 
