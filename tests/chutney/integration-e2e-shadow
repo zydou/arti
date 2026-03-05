@@ -15,11 +15,16 @@ import os
 import pathlib
 import shutil
 import subprocess
+import sys
 import yaml
 
+from pathlib import Path
 from typing import Any
 
 import common
+
+assert __name__ == "__main__", "Can't determine _SCRIPT_DIR"
+_SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
 
 SHADOW_DATA_DIR = "shadow.chutney.data"
 SHADOW_CONFIG_FILE = "shadow.chutney.yaml"
@@ -83,7 +88,8 @@ def gen_shadow_config(seed: int) -> dict[str, Any]:
                 "network_node_id": 0,
                 "processes": [
                     {
-                        "path": "./tests/chutney/integration-e2e",
+                        "path": "sh",
+                        "args": f"-c '{_SCRIPT_DIR.joinpath('integration-e2e')} 2>&1'",
                         "environment": env,
                         # Give the web server below a little time to start.
                         "start_time": "5s",

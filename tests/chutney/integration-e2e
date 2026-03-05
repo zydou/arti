@@ -11,4 +11,4 @@ trap ./tests/chutney/teardown EXIT
 ./tests/chutney/bootstrap
 
 # test the network
-./tests/chutney/test
+./tests/chutney/test -v
