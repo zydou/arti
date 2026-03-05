@@ -12,6 +12,7 @@ use tracing::trace;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_cell::restrict::{RestrictedMsg, restricted_msg};
+use tor_error::internal;
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -123,8 +124,12 @@ impl<
         self.set_link_protocol(link_protocol)?;
 
         // Read until we have all the remaining cells from the responder.
-        let (auth_challenge_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
-            self.recv_cells_from_responder().await?;
+        let (auth_challenge_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at), slog_digest) = self
+            .recv_cells_from_responder(/* take_slog= */ true)
+            .await?;
+
+        // TODO: It would be nice to come up with a better design for getting the SLOG.
+        let slog_digest = slog_digest.ok_or(internal!("Asked for SLOG, but `None` returned?"))?;
 
         trace!(stream_id = %self.unique_id,
             "received handshake, ready to verify.",
@@ -152,6 +157,7 @@ impl<
                 certs_cell,
             },
             auth_challenge_cell,
+            slog_digest,
             netinfo_cell,
             identities: self.identities,
             my_addrs: self.my_addrs,

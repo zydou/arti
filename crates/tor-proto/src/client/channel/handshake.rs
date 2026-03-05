@@ -117,10 +117,11 @@ impl<
         // VERSIONS cell have been exchanged, set the link protocol into our channel frame.
         self.set_link_protocol(link_protocol)?;
 
-        // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell, we don't need it as
-        // we are not authenticating with our responder because we are a client.
-        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
-            self.recv_cells_from_responder().await?;
+        // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell and SLOG; we don't need
+        // them as we are not authenticating with our responder because we are a client.
+        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at), _) = self
+            .recv_cells_from_responder(/* take_slog= */ false)
+            .await?;
 
         // Get the clock skew.
         let clock_skew = unauthenticated_clock_skew(

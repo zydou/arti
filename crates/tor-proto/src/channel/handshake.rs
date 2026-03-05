@@ -134,14 +134,22 @@ where
     ///
     /// Any duplicate, missing cell or unexpected results in a protocol level error.
     ///
-    /// This returns the [msg::AuthChallenge], [msg::Certs] and [msg::Netinfo] cells along the
-    /// instant when the netinfo cell was received. This is needed for the clock skew calculation.
+    /// This returns the:
+    /// - [msg::AuthChallenge] cell
+    /// - [msg::Certs] cell
+    /// - [msg::Netinfo] cell
+    /// - the instant when the netinfo cell was received (needed for the clock skew calculation)
+    /// - the SLOG digest if `take_slog` is true (needed if we send an [msg::Authenticate] cell in the future)
     async fn recv_cells_from_responder(
         &mut self,
+        take_slog: bool,
     ) -> Result<(
         msg::AuthChallenge,
         msg::Certs,
         (msg::Netinfo, coarsetime::Instant),
+        // TODO: We should typedef this somewhere.
+        /* the SLOG digest */
+        Option<[u8; 32]>,
     )> {
         // IMPORTANT: Protocol wise, we MUST only allow one single cell of each type for a valid
         // handshake. Any duplicates lead to a failure.
@@ -219,6 +227,13 @@ where
             };
         };
 
+        let slog_digest = if take_slog {
+            // We're the initiator, which means that the recv log is the SLOG.
+            Some(self.framed_tls().codec_mut().take_recv_log_digest()?)
+        } else {
+            None
+        };
+
         let (netinfo, netinfo_rcvd_at) = loop {
             restricted_msg! {
                 enum NetinfoMsg : ChanMsg {
@@ -234,7 +249,12 @@ where
             };
         };
 
-        Ok((auth_challenge, certs, (netinfo, netinfo_rcvd_at)))
+        Ok((
+            auth_challenge,
+            certs,
+            (netinfo, netinfo_rcvd_at),
+            slog_digest,
+        ))
     }
 }
 

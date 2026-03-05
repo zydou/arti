@@ -43,6 +43,8 @@ pub struct UnverifiedInitiatorRelayChannel<
     pub(crate) inner: UnverifiedInitiatorChannel<T, S>,
     /// AUTH_CHALLENGE cell received from the responder.
     pub(crate) auth_challenge_cell: msg::AuthChallenge,
+    /// The SLOG digest.
+    pub(crate) slog_digest: [u8; 32],
     /// The netinfo cell received from the responder.
     pub(crate) netinfo_cell: msg::Netinfo,
     /// Our identity keys needed for authentication.
@@ -102,6 +104,7 @@ where
             netinfo_cell,
             auth_challenge_cell,
             peer_cert_digest,
+            slog_digest: self.slog_digest,
             my_addrs,
         })
     }
@@ -133,6 +136,8 @@ pub struct VerifiedInitiatorRelayChannel<
     auth_challenge_cell: msg::AuthChallenge,
     /// The peer TLS certificate digest.
     peer_cert_digest: [u8; 32],
+    /// The SLOG digest.
+    slog_digest: [u8; 32],
     /// Our advertised IP addresses.
     my_addrs: Vec<IpAddr>,
 }
@@ -153,11 +158,13 @@ where
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
         self.inner.framed_tls.send(certs.into()).await?;
 
-        // TODO: This isn't the correct place to get the SLOG.
         // We're the initiator, which means that the send log is the CLOG.
+        //
+        // We can finalize the CLOG now that we're about to send the AUTHENTICATE cell.
+        //
+        // > The CLOG field is computed as the SHA-256 digest of all bytes sent within
+        // > the TLS channel up to but not including the AUTHENTICATE cell.
         let clog_digest = self.inner.framed_tls.codec_mut().take_send_log_digest()?;
-        // We're the initiator, which means that the recv log is the SLOG.
-        let slog_digest = self.inner.framed_tls.codec_mut().take_recv_log_digest()?;
 
         // Build the AUTHENTICATE cell.
         //
@@ -167,7 +174,7 @@ where
             &self.auth_challenge_cell,
             &self.identities,
             clog_digest,
-            slog_digest,
+            self.slog_digest,
             &mut self.inner,
             self.peer_cert_digest,
         )?
