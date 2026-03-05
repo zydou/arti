@@ -879,9 +879,6 @@ impl RpcPoll {
     ///
     /// This is used in conjunction with `EventLoop` and/or `wants_to_write`;
     /// see [the `EventLoop` documentation] for details.
-    ///
-    /// Only one thread may call this method at a time.
-    /// (In Rust, this is enforced by having the method take a mutable reference.)
     pub fn poll(&mut self) -> Result<Result<(UserTag, AnyResponse), WouldBlock>, ProtoError> {
         use crate::nb_stream::PollStatus;
         // We try reading _and_ writing regardless; it won't hurt anything.
