@@ -826,13 +826,23 @@ impl RpcPoll {
     #[cfg(unix)]
     /// If possible, return a fd to use with an underlying event-driven IO code.
     ///
-    /// XXXX when might this fail? what is the caller supposed to do if it does fail?
+    /// This implementation fails if the underlying connection to the Arti RPC server
+    /// is _not_ implemented via an fd.
+    /// This is not possible in the current implementation,
+    /// but may become possible in the future.
+    /// Applications should consider this a fatal error.
     pub fn try_as_fd(&self) -> std::io::Result<std::os::fd::BorrowedFd<'_>> {
         self.stream.try_as_handle()
     }
 
     #[cfg(windows)]
     /// If possible, return a SOCKET to use with an underlying event-driven IO code.
+    ///
+    /// This implementation fails if the underlying connection to the Arti RPC server
+    /// is _not_ implemented via a SOCKET.
+    /// This is not possible in the current implementation,
+    /// but may become possible in the future.
+    /// Applications should consider this a fatal error.
     pub fn try_as_socket(&self) -> std::io::Result<std::os::windows::io::BorrowedSocket<'_>> {
         self.stream.try_as_handle()
     }
