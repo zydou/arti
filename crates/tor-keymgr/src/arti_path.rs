@@ -242,7 +242,10 @@ impl ArtiPath {
             if path.contains(DENOTATOR_SEP) {
                 format!("{path}{DENOTATOR_GROUP_SEP}{cert_denotators}")
             } else {
-                format!("{path}{DENOTATOR_SEP}{cert_denotators}")
+                // If the key path has no denotators, we need to manually insert
+                // an empty denotator group before the `cert_denotators` denotator group.
+                // This ensures the origin (key vs cert specifier) of the denotators is unambiguous.
+                format!("{path}{DENOTATOR_SEP}{DENOTATOR_GROUP_SEP}{cert_denotators}")
             }
         };
 
@@ -337,7 +340,7 @@ mod tests {
         /// the base with the denotator group above.
         const TEST_PATHS: &[(&str, &str)] = &[
             // A base path with no denotator groups
-            ("my_key_path", "my_key_path+foo+bar+baz"),
+            ("my_key_path", "my_key_path+@foo+bar+baz"),
             // A base path with a single denotator groups
             ("my_key_path+dino+saur", "my_key_path+dino+saur@foo+bar+baz"),
             // A base path with two denotator groups
