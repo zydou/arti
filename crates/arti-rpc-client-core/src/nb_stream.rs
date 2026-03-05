@@ -568,14 +568,14 @@ pub(crate) trait MioStream: Stream + mio::event::Source {}
 ///  * Implement `EventLoop::start_writing` and `EventLoop::stop_writing`:
 ///    `start_writing` should reregister the handle with the event loop
 ///    to request writeability notifications too;
-///    `stop_writing ` should stop writeability notifications.
+///    `stop_writing` should stop writeability notifications.
 ///  * When notified that the handle is readable or writeable,
 ///    call [`RpcPoll::poll`].
 ///
 /// Depending on the the event loop's API, the type implementing `EventLoop`
 /// might be a unit struct (if the event loop is global);
 /// or it might be a handle onto the event loop,
-/// or some kind o "event source" object if the event loop has those.
+/// or some kind of "event source" object if the event loop has those.
 ///
 /// ## "Main thread only" event loops in multithreaded programs
 ///
@@ -630,17 +630,18 @@ pub(crate) trait MioStream: Stream + mio::event::Source {}
 /// and (as applicable) writeability of the RPC connection handle
 /// will result in a wakeup.
 ///
-/// `start_writing` must be effective immediately:
+/// `start_writing` must be effective right away,
+/// without waiting for any other events:
 /// if `submit` can be called while another thread
 /// is in the program's event loop waiting for OS events,
 /// user code implementing `start_writing` must
 /// arrange to wake up the event loop if necessary,
 /// so that writeability will result in a call to `poll`.
 ///
-/// `start_writing` is only ever called reentrantly from `submit`,
+/// `start_writing` is only ever called from `submit`,
 /// on the same thread.
 ///
-/// `stop_writing` is only ever called reentrantly from `RpcPoll::poll`,
+/// `stop_writing` is only ever called from `RpcPoll::poll`,
 /// on the same thread.
 ///
 /// All changes to the value which would be returned from `wants_to_write`
@@ -661,8 +662,8 @@ pub(crate) trait MioStream: Stream + mio::event::Source {}
 /// It is also permissible to call the [`.execute()`](crate::RpcConn::execute)
 /// family of methods on the `RpcConn` returned from `connect_polling`.
 ///
-/// In this case, `start_writing` and `stop_writing` might be called
-/// reentrantly from `execute`, not just from `submit` and `poll`.
+/// In this case, `start_writing` might be called
+/// from `execute`, not just from `submit`.
 ///
 /// [`RpcPoll`]: crate::RpcPoll
 /// [`RpcPoll::poll`]: crate::RpcPoll::poll
