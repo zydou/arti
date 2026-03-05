@@ -19,11 +19,11 @@ import yaml
 
 from typing import Any
 
+import common
+
 SHADOW_DATA_DIR = "shadow.chutney.data"
 SHADOW_CONFIG_FILE = "shadow.chutney.yaml"
 SHADOW_LOG_FILE = "shadow.log"
-# must be syncd with `TEST_DOMAIN` in `tests/chutney/test`.
-TEST_DOMAIN = "example.com"
 
 
 def gen_shadow_config(seed: int) -> dict[str, Any]:
@@ -32,7 +32,7 @@ def gen_shadow_config(seed: int) -> dict[str, Any]:
     """
 
     env = {
-        "RUNNING_IN_SHADOW": "yes",
+        common.RUNNING_IN_SHADOW_ENV: "yes",
         # AF_UNIX sockets aren't supported in shadow
         "CHUTNEY_ENABLE_CONTROLSOCKET": "no",
         # ipv6 isn't supported in shadow
@@ -90,7 +90,7 @@ def gen_shadow_config(seed: int) -> dict[str, Any]:
                     }
                 ],
             },
-            TEST_DOMAIN: {
+            common.TEST_DOMAIN: {
                 "network_node_id": 0,
                 "processes": [
                     {
