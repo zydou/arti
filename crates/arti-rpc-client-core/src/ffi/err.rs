@@ -418,6 +418,7 @@ impl IntoFfiError for crate::ProtoError {
             E::RequestIdInUse => F::InvalidInput,
             E::RequestCompleted => F::RequestCompleted,
             E::DuplicateWait => F::Internal,
+            E::RequestNotWaitable => F::Internal,
             E::CouldNotEncode(_) => F::Internal,
             E::InternalRequestFailed(_) => F::PeerProtocolViolation,
         }

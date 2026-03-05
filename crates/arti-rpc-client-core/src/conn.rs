@@ -21,10 +21,34 @@ mod stream;
 
 use crate::util::Utf8CString;
 pub use builder::{BuilderError, ConnPtDescription, RpcConnBuilder};
-pub use connimpl::RpcConn;
+pub use connimpl::{RpcConn, RpcPoll, WouldBlock};
 use serde::{Deserialize, de::DeserializeOwned};
 pub use stream::StreamError;
 use tor_rpc_connect::{HasClientErrorAction, auth::cookie::CookieAccessError};
+
+/// A user-provided tag used to identify requests provided to
+/// [`RpcConn::submit`].
+///
+/// Most users will want to crate tags that are unique
+/// for the lifetime of their associated requests.
+/// This is not enforced: the only drawback of duplicating tags
+/// is that you will not be able to use them to distinguish
+/// which reply is which.
+///
+/// This is distinct from the request ID type (represented by [`AnyRequestId`])
+/// that is sent to the RPC server with each request
+/// and returned along with each corresponding response.
+/// By contrast, a `UserTag` is never sent to the RPC server,
+/// and therefore is safe to use with information
+/// (like callback and data pointers)
+/// which it would not be safe to take from an untrusted source.
+//
+// Note: The tag is chosen to be two pointers in size,
+// to accommodate C implementations that want to
+// stuff a `void fn(void*), void*` inside of one of these.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[allow(clippy::exhaustive_structs)]
+pub struct UserTag(pub usize, pub usize);
 
 /// A handle to an open request.
 ///
@@ -205,7 +229,8 @@ impl RpcConn {
     /// Run a command, and wait for success or failure.
     ///
     /// Note that this function will return `Err(.)` only if sending the command or getting a
-    /// response failed.  If the command was sent successfully, and Arti reported an error in response,
+    /// response failed.
+    /// If the command was sent successfully, and Arti reported an error in response,
     /// this function returns `Ok(Err(.))`.
     ///
     /// Note that the command does not need to include an `id` field.  If you omit it,
@@ -282,7 +307,7 @@ impl RpcConn {
     /// Like `execute`, but don't wait.  This lets the caller see the
     /// request ID and  maybe cancel it.
     pub fn execute_with_handle(&self, cmd: &str) -> Result<RequestHandle, ProtoError> {
-        self.send_request(cmd)
+        self.send_waitable_request(cmd)
     }
     /// As execute(), but run update_cb for every update we receive.
     pub fn execute_with_updates<F>(
@@ -303,6 +328,17 @@ impl RpcConn {
         }
     }
 
+    /// As execute(), but do not wait for a response.
+    ///
+    /// Instead, the caller must provide a [`UserTag`] to identify a particular request,
+    /// and must make sure that responses are being processed via [`wait()`](Self::wait).
+    ///
+    /// (If nobody is running `wait()`, then responses will never be handled,
+    /// and can potentially fill up memory.)
+    pub fn submit(&self, tag: UserTag, cmd: &str) -> Result<(), ProtoError> {
+        self.send_pollable_request(tag, cmd)
+    }
+
     /// Helper: Tell Arti to release `obj`.
     ///
     /// Do not use this method for a user-provided object ID:
@@ -311,6 +347,21 @@ impl RpcConn {
         let release_request = crate::msgs::request::Request::new(obj, "rpc:release", NoParams {});
         let _empty_response: EmptyReply = self.execute_internal_ok(&release_request.encode()?)?;
         Ok(())
+    }
+
+    /// Wait for a response to arrive for a request that was sent via [`submit()`](Self::submit).
+    ///
+    /// Return that response,
+    /// along with the [`UserTag`] that was associated with its request.
+    ///
+    /// This method will never return responses
+    /// to any requests made with one of the `execute` methods;
+    /// only to requests submitted with `submit()`.
+    ///
+    /// It is safe, but generally pointless, to call this method from multiple threads.
+    pub fn wait(&self) -> Result<(UserTag, AnyResponse), ProtoError> {
+        let (tag, r) = self.receiver.wait_on_pollable_response()?;
+        Ok((tag, AnyResponse::from_validated(r)))
     }
 
     // TODO RPC: shutdown() on the socket on Drop.
@@ -326,7 +377,8 @@ impl RequestHandle {
     /// (Ignores any update messages that are received.)
     ///
     /// Note that this function will return `Err(.)` only if sending the command or getting a
-    /// response failed.  If the command was sent successfully, and Arti reported an error in response,
+    /// response failed.
+    /// If the command was sent successfully, and Arti reported an error in response,
     /// this function returns `Ok(Err(.))`.
     pub fn wait(self) -> Result<FinalResponse, ProtoError> {
         loop {
@@ -340,7 +392,8 @@ impl RequestHandle {
     /// Wait for the next success, failure, or update from this handle.
     ///
     /// Note that this function will return `Err(.)` only if sending the command or getting a
-    /// response failed.  If the command was sent successfully, and Arti reported an error in response,
+    /// response failed.
+    /// If the command was sent successfully, and Arti reported an error in response,
     /// this function returns `Ok(AnyResponse::Error(.))`.
     ///
     /// You may call this method on the same `RequestHandle` from multiple threads.
@@ -352,7 +405,6 @@ impl RequestHandle {
     pub fn wait_with_updates(&self) -> Result<AnyResponse, ProtoError> {
         let conn = self.conn.lock().expect("Poisoned lock");
         let validated = conn.wait_on_message_for(&self.id)?;
-
         Ok(AnyResponse::from_validated(validated))
     }
 
@@ -428,6 +480,12 @@ pub enum ProtoError {
     /// (This should be impossible.)
     #[error("Internal error while encoding request")]
     CouldNotEncode(#[source] Arc<serde_json::Error>),
+
+    /// We tried to wait on a request that was not created with a queue.
+    ///
+    /// (This should be impossible).
+    #[error("Internal error: waiting on a request created for polling.")]
+    RequestNotWaitable,
 
     /// We got a response to some internally generated request that wasn't what we expected.
     #[error("{0}")]
@@ -618,12 +676,14 @@ impl HasClientErrorAction for ProtoError {
         match self {
             E::Shutdown(_) => A::Decline,
             E::InternalRequestFailed(_) => A::Decline,
-            // These are always internal errors if they occur while negotiating a connection to RPC,
+            // These are always internal errors if they occur
+            // while negotiating a connection to RPC,
             // which is the context we care about for `HasClientErrorAction`.
             E::InvalidRequest(_)
             | E::RequestIdInUse
             | E::RequestCompleted
             | E::DuplicateWait
+            | E::RequestNotWaitable
             | E::CouldNotEncode(_) => A::Abort,
         }
     }
@@ -761,7 +821,8 @@ mod test {
             let mut rng = rand_chacha::ChaCha12Rng::from_seed(rng.random());
             let th = thread::spawn(move || {
                 for cmd_idx in 0..n_commands_per_thread {
-                    // We are spawning a bunch of worker threads, each of which will run a number of
+                    // We are spawning a bunch of worker threads,
+                    // each of which will run a number of
                     // commands in sequence.  Each command will be a request that gets optional
                     // updates, and an error or a success.
                     // We will double-check that each request gets the response it asked for.
@@ -875,7 +936,12 @@ mod test {
                     let response = if req.params.fail {
                         serde_json::json!({
                             "id": req.id.clone(),
-                            "error": { "message": "You asked me to fail", "code": 33, "kinds": ["Example"], "data": req.params.val },
+                            "error": {
+                                "message": "You asked me to fail",
+                                "code": 33,
+                                "kinds": ["Example"],
+                                "data": req.params.val,
+                            },
                         })
                     } else {
                         serde_json::json!({
@@ -995,7 +1061,13 @@ mod test {
     #[test]
     fn fatal_error() {
         let j = serde_json::json!({
-            "error":{ "message": "This test is doomed", "code": 413, "kinds": ["Example"], "data": {} },
+            "error": {
+                "message":
+                "This test is doomed",
+                "code": 413,
+                "kinds": ["Example"],
+                "data": {},
+            },
         });
         let mut s = serde_json::to_string(&j).unwrap();
         s.push('\n');

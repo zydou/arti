@@ -11,7 +11,8 @@
 //!
 //! Treats messages as unrelated strings, and validates outgoing messages for correctness.
 //!
-//! TODO nb: For now, nothing in this module is actually public; we'll want to expose some of these types.
+//! TODO nb: For now, nothing in this module is actually public;
+//! we'll want to expose some of these types.
 
 use mio::Interest;
 
@@ -24,6 +25,11 @@ use std::{
     mem,
     sync::{Arc, Mutex},
 };
+
+#[cfg(unix)]
+use std::os::fd::{AsFd as _, BorrowedFd as BorrowedOsHandle};
+#[cfg(windows)]
+use std::os::windows::io::{AsSocket as _, BorroedSocket as BorrowedOsHandle};
 
 /// An IO stream to Arti, along with any supporting logic necessary to check it for readiness.
 ///
@@ -39,7 +45,8 @@ use std::{
 /// The [`PollingStream::writer()`] method will return a handle that you can use from any thread
 /// that you can use to queue an outbound message.
 ///
-/// No messages are actually sent or received unless some thread is calling [`PollingStream::interact()`].
+/// No messages are actually sent or received unless
+/// some thread is calling [`PollingStream::interact()`].
 ///
 /// ## Concurrency and interior mutability
 ///
@@ -82,7 +89,10 @@ pub(crate) struct PollingStream {
     ///
     /// Invariant: `stream.stream` is a [`MioStream`], so [`Stream::as_mio_stream`] will return
     /// Some when we call it.
-    stream: NonblockingStream,
+    ///
+    /// This is None only if we have called `into_nonblocking()` or `drop()`
+    /// we store this in an Option so `that we can move it out of this object.
+    stream: Option<NonblockingStream>,
 }
 
 /// A `mio` token corresponding to the Waker we use to tell the interactor about new writes.
@@ -90,6 +100,13 @@ const WAKE_TOKEN: mio::Token = mio::Token(0);
 
 /// A `mio` token corresponding to the Stream connecting to the RPC
 const STREAM_TOKEN: mio::Token = mio::Token(1);
+
+/// Wrapper around [`mio::Waker`] on which we implement [`EventLoop`].
+///
+/// We don't do so on `mio::Waker` directly
+/// since other implementations of `EventLoop` on `mio::Waker`
+/// are possible.
+struct MioWaker(mio::Waker);
 
 impl PollingStream {
     /// Create a new PollingStream.
@@ -100,18 +117,20 @@ impl PollingStream {
         let poll = mio::Poll::new()?;
         let waker = mio::Waker::new(poll.registry(), WAKE_TOKEN)?;
 
-        let stream = NonblockingStream::new(Box::new(waker), stream);
+        let stream = NonblockingStream::new(Box::new(MioWaker(waker)), stream);
 
         let mut cio = Self {
             poll,
             events: mio::Events::with_capacity(4),
-            stream,
+            stream: Some(stream),
         };
 
         // We register the stream here, since we want to use it exclusively with `reregister`
         // later on.  We do not deregister the stream until `Drop::drop` is called.
         cio.poll.registry().register(
             cio.stream
+                .as_mut()
+                .expect("Logic error: stream not present")
                 .stream
                 .as_mio_stream()
                 .expect("logic error: not a mio stream."),
@@ -124,7 +143,10 @@ impl PollingStream {
 
     /// Return a new [`WriteHandle`] that can be used to queue messages to be sent via this stream.
     pub(crate) fn writer(&self) -> WriteHandle {
-        self.stream.writer()
+        self.stream
+            .as_ref()
+            .expect("logic error: stream not present")
+            .writer()
     }
 
     /// Interact with the peer until some response is received.
@@ -143,57 +165,74 @@ impl PollingStream {
     /// the [`PollingStream`], and so nobody's requests will be sent or answered.
     pub(crate) fn interact(&mut self) -> io::Result<Option<UnparsedResponse>> {
         // Should we try to read and write? Start out by assuming "yes".
-        let mut try_writing = true;
-        let mut try_reading = true;
 
         loop {
+            let stream = self
+                .stream
+                .as_mut()
+                .expect("logic error: stream not present!");
+
             // Try interacting with the underlying stream.
-            let want_io = match self.stream.interact_once(try_writing, try_reading)? {
+            match stream.interact_once()? {
                 PollStatus::Closed => return Ok(None),
                 PollStatus::Msg(msg) => return Ok(Some(msg)),
-                PollStatus::WouldBlock(w) => w,
+                PollStatus::WouldBlock => {}
             };
 
             // We're blocking on reading and possibly writing.  Register our interest,
             // so that we get woken as appropriate.
+            //
+            // TOCTOU note: If `want_write` is true, it will not become
+            // false until the next time we call stream.interact_once().
+            //
+            // If `wantio.want_write()` is false, Whenever it becomes true,
+            // `MioWaker` will be invoked.  That will cause the
+            // self.poll.poll() to return, and the loop to repeat.
+            let want_write = stream.wants_to_write();
+            let interests = if want_write {
+                Interest::READABLE | Interest::WRITABLE
+            } else {
+                Interest::READABLE
+            };
             self.poll.registry().reregister(
-                self.stream
+                stream
                     .stream
                     .as_mio_stream()
                     .expect("logic error: not a mio stream!"),
                 STREAM_TOKEN,
-                want_io.into(),
+                interests,
             )?;
 
             // Poll until the socket is ready to read or write,
-            // _or_ until somebody invokes the Waker because they have queued more to write.
+            // _or_ until somebody invokes the EventLoop because they have queued more to write.
             let () = retry_eintr(|| self.poll.poll(&mut self.events, None))?;
 
             // Now that we've been woken, see which events we've been woken with,
             // and adjust our plans accordingly on the next time through the loop.
-            try_reading = false;
-            try_writing = false;
-            for event in self.events.iter() {
-                if event.token() == STREAM_TOKEN {
-                    if event.is_readable() {
-                        try_reading = true;
-                    }
-                    if event.is_writable() {
-                        try_writing = true;
-                    }
-                } else if event.token() == WAKE_TOKEN {
-                    try_writing = true;
-                }
-            }
+            self.events.clear();
         }
     }
-}
 
-impl Drop for PollingStream {
-    fn drop(&mut self) {
+    /// Downgrade this stream into a [`NonblockingStream`]
+    /// for use within an [`RpcPoll`](crate::RpcPoll).
+    pub(crate) fn into_nonblocking(mut self) -> NonblockingStream {
+        let mut stream = self
+            .deregister_and_take_stream()
+            .expect("logic error: stream not present!");
+        stream.stream = stream.stream.remove_mio();
+        stream
+    }
+
+    /// Implementation helper for Drop and into_nonblocking:
+    ///
+    /// Deregisters the NonblockingStream with the mio Registry, removes it from this object,
+    /// and returns it.
+    ///
+    /// After this method is called, this object may no longer be used.
+    fn deregister_and_take_stream(&mut self) -> Option<NonblockingStream> {
         // IO SAFETY: See "IO Safety" note in documentation for PollingStream.
-        let s = self
-            .stream
+        let mut stream = self.stream.take()?;
+        let s: &mut _ = stream
             .stream
             .as_mio_stream()
             .expect("Logic error: Stream was not a MIO stream.");
@@ -201,6 +240,14 @@ impl Drop for PollingStream {
             .registry()
             .deregister(s)
             .expect("Deregister operation failed");
+        Some(stream)
+    }
+}
+
+impl Drop for PollingStream {
+    fn drop(&mut self) {
+        // IO SAFETY: See "IO Safety" note in documentation for PollingStream.
+        let _ = self.deregister_and_take_stream();
     }
 }
 
@@ -218,11 +265,16 @@ impl WriteHandle {
     /// Queue an outgoing message for a nonblocking stream.
     pub(crate) fn send_valid(&self, msg: &ValidatedRequest) -> io::Result<()> {
         let mut w = self.inner.lock().expect("Poisoned lock");
+        let was_empty = w.write_buf.is_empty();
         w.write_buf.extend_from_slice(msg.as_ref().as_bytes());
 
-        // See TOCTOU note on `WriteHandleImpl`: we need to wake() while we are holding the
+        // See TOCTOU note on `WriteHandleImpl`:
+        // we need to change our interest while we are holding the
         // above mutex.
-        w.waker.wake()
+        if was_empty {
+            w.event_loop.start_writing()?;
+        }
+        Ok(())
     }
 }
 
@@ -245,10 +297,11 @@ define_from_for_arc!( io::Error => SendRequestError [Io] );
 /// The inner implementation for [`WriteHandle`].
 ///
 /// NOTE: We need to be careful to avoid TOCTOU problems with this type:
-/// It would be bad if a writing thread called `waker.wake()`, and then the interactor checked the
+/// It would be bad if a writing thread said "now I care about write events",
+/// and then the interactor checked the
 /// buffer and found it empty, and only then did the writing thread add to the buffer.
 ///
-/// To solve this, we put the write_buf and the waker behind the same lock:
+/// To solve this, we put the `write_buf` and the `event_loop` behind the same lock:
 /// While the interactor is checking the buffer, nobody is able to add to the buffer _or_ wake the
 /// interactor.
 #[derive(derive_more::Debug)]
@@ -258,9 +311,9 @@ struct WriteHandleImpl {
     // TODO: Consider using a VecDeque or BytesMut or such.
     write_buf: Vec<u8>,
 
-    /// The waker to use to wake the polling loop.
+    /// The handle to use to wake the polling loop.
     #[debug(ignore)]
-    waker: Box<dyn Waker>,
+    event_loop: Box<dyn EventLoop>,
 }
 
 /// A lower-level implementation of nonblocking IO for an open stream to the RPC server.
@@ -283,38 +336,6 @@ pub(crate) struct NonblockingStream {
     stream: Box<dyn Stream>,
 }
 
-/// Helper to return which events a [`NonblockingStream`] is interested in.
-#[derive(Clone, Debug, Default, Copy)]
-pub(crate) struct WantIo {
-    /// True if the stream is interested in writing.
-    ///
-    /// (It is always interested in reading.)
-    write: bool,
-}
-
-#[allow(dead_code)] // TODO nb: remove or expose.
-impl WantIo {
-    /// Return true if the stream is interested in reading.
-    fn want_read(&self) -> bool {
-        true
-    }
-
-    /// Return true if the stream is interested in writing.
-    fn want_write(&self) -> bool {
-        self.write
-    }
-}
-
-impl From<WantIo> for mio::Interest {
-    fn from(value: WantIo) -> Self {
-        if value.write {
-            mio::Interest::WRITABLE | mio::Interest::READABLE
-        } else {
-            mio::Interest::READABLE
-        }
-    }
-}
-
 /// A return value from [`NonblockingStream::interact_once`].
 #[derive(Debug, Clone)]
 pub(crate) enum PollStatus {
@@ -322,20 +343,20 @@ pub(crate) enum PollStatus {
     Closed,
 
     /// No progress can be made until the stream is available for further IO.
-    WouldBlock(WantIo),
+    WouldBlock,
 
     /// We have received a message.
     Msg(UnparsedResponse),
 }
 
 impl NonblockingStream {
-    /// Create a new `NonblockingStream` from a provided [`Waker`] and [`Stream`].
-    pub(crate) fn new(waker: Box<dyn Waker>, stream: Box<dyn Stream>) -> Self {
+    /// Create a new `NonblockingStream` from a provided [`EventLoop`] and [`Stream`].
+    pub(crate) fn new(event_loop: Box<dyn EventLoop>, stream: Box<dyn Stream>) -> Self {
         Self {
             write_handle: WriteHandle {
                 inner: Arc::new(Mutex::new(WriteHandleImpl {
                     write_buf: Default::default(),
-                    waker,
+                    event_loop,
                 })),
             },
             read_buf: Default::default(),
@@ -348,6 +369,32 @@ impl NonblockingStream {
         self.write_handle.clone()
     }
 
+    /// Try to return an OS-level handle for use with this stream.
+    ///
+    /// This is an fd on unix and a SOCKET on windows.
+    pub(crate) fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>> {
+        self.stream.try_as_handle()
+    }
+
+    /// Replace the current `EventLoop` this [`NonblockingStream`].
+    ///
+    /// This should only be done while nothing else is interacting with the stream or the waker.
+    pub(crate) fn replace_event_loop_handle(&mut self, new_event_loop_handle: Box<dyn EventLoop>) {
+        let mut h = self.write_handle.inner.lock().expect("Poisoned lock");
+        h.event_loop = new_event_loop_handle;
+    }
+
+    /// Return true iff this [`NonblockingStream`] currently wants to write
+    ///
+    /// See [`RpcPoll::wants_to_write`] and [`EventLoop`]
+    /// for the semantics.
+    ///
+    /// [`RpcPoll::wants_to_write`]: crate::RpcPoll::wants_to_write
+    /// [`EventLoop`]: crate::EventLoop
+    pub(crate) fn wants_to_write(&self) -> bool {
+        self.has_data_to_write()
+    }
+
     /// Try to exchange messages with the RPC server.
     ///
     /// If `try_reading` is true, then we should try reading from the RPC server.
@@ -357,44 +404,31 @@ impl NonblockingStream {
     /// If the stream proves to be closed, returns [`PollStatus::Closed`].
     ///
     /// If a message is available, returns [`PollStatus::Msg`].
-    /// (Note that a message may be available in the internal buffer here even if try_reading is false.)
+    /// (Note that a message may be available in the internal buffer here
+    /// even if try_reading is false.)
     ///
-    /// If no message is available, return [`PollStatus::WouldBlock`] with a [`WantIo`]
-    /// describing which IO operations we would like to perform.
-    pub(crate) fn interact_once(
-        &mut self,
-        try_writing: bool,
-        try_reading: bool,
-    ) -> io::Result<PollStatus> {
+    /// If no message is available, return [`PollStatus::WouldBlock`].
+    pub(crate) fn interact_once(&mut self) -> io::Result<PollStatus> {
         use io::ErrorKind::WouldBlock;
 
         if let Some(msg) = self.extract_msg()? {
             return Ok(PollStatus::Msg(msg));
         }
 
-        let mut want_io = WantIo::default();
-
-        if try_writing {
-            match self.flush_queue() {
-                Ok(()) => {}
-                Err(e) if e.kind() == WouldBlock => want_io.write = true,
-                Err(e) => return Err(e),
-            }
-        }
-        if try_reading {
-            match self.read_msg() {
-                Ok(Some(msg)) => return Ok(PollStatus::Msg(msg)),
-                Ok(None) => return Ok(PollStatus::Closed),
-                Err(e) if e.kind() == WouldBlock => {}
-                Err(e) => return Err(e),
-            }
+        match self.flush_queue() {
+            Ok(()) => {}
+            Err(e) if e.kind() == WouldBlock => {}
+            Err(e) => return Err(e),
         }
 
-        if !want_io.write && self.has_data_to_write() {
-            want_io.write = true;
+        match self.read_msg() {
+            Ok(Some(msg)) => return Ok(PollStatus::Msg(msg)),
+            Ok(None) => return Ok(PollStatus::Closed),
+            Err(e) if e.kind() == WouldBlock => {}
+            Err(e) => return Err(e),
         }
 
-        Ok(PollStatus::WouldBlock(want_io))
+        Ok(PollStatus::WouldBlock)
     }
 
     /// Internal helper: Try to get a buffered message out of our `read_buf`.
@@ -428,7 +462,8 @@ impl NonblockingStream {
 
     /// Helper: Try to get a message, reading into our read_buf as needed.
     ///
-    /// (We don't use a BufReader here because its behavior with nonblocking IO is kind of underspecified.)
+    /// (We don't use a BufReader here because
+    /// its behavior with nonblocking IO is kind of underspecified.)
     fn read_msg(&mut self) -> io::Result<Option<UnparsedResponse>> {
         const READLEN: usize = 4096;
         loop {
@@ -458,6 +493,7 @@ impl NonblockingStream {
     /// Returns Ok() only if all of the data is flushed, and the write buffer has become empty.
     fn flush_queue(&mut self) -> io::Result<()> {
         let mut w = self.write_handle.inner.lock().expect("Poisoned lock.");
+
         loop {
             if w.write_buf.is_empty() {
                 return Ok(());
@@ -479,23 +515,183 @@ pub(crate) trait Stream: io::Read + io::Write + Send {
     ///
     /// Otherwise return None.
     fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream>;
+
+    /// Discard any mio-specific wrappers on this stream.
+    fn remove_mio(self: Box<Self>) -> Box<dyn Stream>;
+
+    /// Return an os-specific handle for using this stream type within a nonblocking event loop.
+    ///
+    /// (This will be an fd on unix and a SOCKET on windows.)
+    fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>>;
 }
 
 /// A [`Stream`] that we can use inside a [`PollingStream`].
 pub(crate) trait MioStream: Stream + mio::event::Source {}
 
-/// An object that can wake a pending IO poller.
+/// Representation of an event loop that can watch a handle and arrange to call `poll`
 ///
-/// When the underlying IO loop is `mio`, this is a [`mio::Waker`];
-/// otherwise, it is some user-provided type.
-pub(crate) trait Waker: Send + Sync {
-    /// Alert the polling thread.
-    fn wake(&mut self) -> io::Result<()>;
+/// Provided to the event-driven nonblocking RPC connection API,
+/// by the user, via [`connect_polling`].
+///
+/// This is only used along with [`RpcPoll`]; if you aren't using that type,
+/// you don't need to worry about this trait.
+///
+/// # Operating principles
+///
+/// The user code must implement an event loop,
+/// which can monitor for handle readability/writeability.
+///
+/// The RPC library provides the user code with
+/// the OS handle for the transport connection.
+///
+/// The RPC library always wants to read from the handle.
+/// It informs the user code whether the RPC library wants to write to the handle.
+///
+/// When the handle is readable, or (if applicable) writeable,
+/// the user code must call into the RPC library via [`RpcPoll::poll`]
+/// so that the library can perform IO.
+///
+/// # Implementation strategies
+///
+/// The RPC library's API is designed to be easy to interface
+/// to existing event loops.
+///
+/// ## Plumbing to using an existing event loop
+///
+/// With an existing event loop which is suitably reentrant across multiple threads,
+/// or in single-threaded programs with an existing event loop:
+///
+///  * Call `connect_polling`; use `try_as_fd` or `try_as_socket`
+///    on the returned `RpcPoll` to obtain the OS handle.
+///  * Register the OS handle with the event loop,
+///    and ask to be notified when the handle is readable.
+///  * Implement `EventLoop::start_writing` and `EventLoop::stop_writing`:
+///    `start_writing` should reregister the handle with the event loop
+///    to request writeability notifications too;
+///    `stop_writing` should stop writeability notifications.
+///  * When notified that the handle is readable or writeable,
+///    call [`RpcPoll::poll`].
+///
+/// Depending on the the event loop's API, the type implementing `EventLoop`
+/// might be a unit struct (if the event loop is global);
+/// or it might be a handle onto the event loop,
+/// or some kind of "event source" object if the event loop has those.
+///
+/// ## "Main thread only" event loops in multithreaded programs
+///
+/// Many real event loops have a "main thread",
+/// and require all changes to OS handle interests to happen on that thread.
+///
+/// If you can't guarantee that all calls to `submit` will be made on the main thread,
+/// you need to arrange that `start_writing` can add the writeability interest
+/// even if another thread is currently blocked in the event loop waiting for IO events.
+///
+/// To achieve this:
+///
+///  * Use an inter-thread communication facility, such as an event loop "waker",
+///    a self-pipe, or similar technique.  (We'll call this the "waker".)
+///  * Entrol the receiving end of the waker in the event loop during setup.
+///  * `EventLoop` contains just the sending handle of the waker,
+///    not a reference to the real event loop.
+///    `start_writing` notifies the waker.  `stop_writing` is a no-op.
+///
+/// When the event loop notifies your glue code (necessarily, on the main thread)
+/// that the waker, or the RPC connection OS handle, is ready for IO:
+///
+///  * Repeatedly call `RpcPoll::poll` and dispatch any returned `Response`,
+///    until it returns `WouldBlock`.
+///  * Call `RpcPoll::wants_to_write` and adjust the RPC connection OS handle interest,
+///    in the event loop.
+///
+/// (You can respond to all such wakeups with this identical, idempotent, response.)
+///
+/// # Single-threaded open-coded event loops
+///
+/// In a single-threaded program, with an open-coded event loop,
+/// it is permissible to simply call `wants_to_write`
+/// to determine the correct value for `pollfd.events`
+/// (`POLLIN`, plus `POLLOUT` iff `wants_to_write`),
+/// then `poll(2)`,
+/// and `RpcPoll::poll` and/or `submit` after `poll(2)`.
+///
+/// You can pass an `EventLoop` which implements
+/// `start_writing` and `stop_writing` as no-ops.
+///
+/// (This is because only `submit` can cause `wants_to_write` to change to `true`,
+/// and if there is only one thread, you can know that you're not calling `submit`
+/// between `wants_to_write` and `poll(2)`.)
+///
+/// # Detailed requirements and guarantees
+///
+/// Progress will only be made during calls to `poll`.
+/// In particular, `submit` does not actually send the data.
+///
+/// The program should not sleep, without arranging that readability
+/// and (as applicable) writeability of the RPC connection handle
+/// will result in a wakeup.
+///
+/// `start_writing` must be effective right away,
+/// without waiting for any other events:
+/// if `submit` can be called while another thread
+/// is in the program's event loop waiting for OS events,
+/// user code implementing `start_writing` must
+/// arrange to wake up the event loop if necessary,
+/// so that writeability will result in a call to `poll`.
+///
+/// `start_writing` is only ever called from `submit`,
+/// on the same thread.
+///
+/// `stop_writing` is only ever called from `RpcPoll::poll`,
+/// on the same thread.
+///
+/// All changes to the value which would be returned from `wants_to_write`
+/// are reflected in `start_writing` and `stop_writing`,
+/// and vice versa.
+///
+/// It is OK to call `RpcPoll::poll` when the handle is not known to be ready;
+/// `RpcPoll::poll` never blocks, and instead immediately returns `WouldBlock`.
+/// (A loop which calls `RpcPoll::poll` should involve waiting for
+/// appropriate readiness on the underling OS handle,
+/// as the program would otherwise spin rather than wait.)
+///
+/// Immediately after creation, a connection made with `connect_polling`
+/// is not interested in writing.
+///
+/// # Relationship to the synchronous API
+///
+/// It is also permissible to call the [`.execute()`](crate::RpcConn::execute)
+/// family of methods on the `RpcConn` returned from `connect_polling`.
+///
+/// In this case, `start_writing` might be called
+/// from `execute`, not just from `submit`.
+///
+/// [`RpcPoll`]: crate::RpcPoll
+/// [`RpcPoll::poll`]: crate::RpcPoll::poll
+/// [`connect_polling`]: crate::conn::RpcConnBuilder::connect_polling
+//
+// When the underlying IO loop is `mio`, this is a [`MioWaker`];
+// otherwise, it is some user-provided type.
+pub trait EventLoop: Send + Sync {
+    /// Alert the polling thread that we are no longer interested in write events.
+    ///
+    /// In a user-provided `EventLoop`,
+    /// this method will only be invoked from within [`RpcPoll::poll`](crate::RpcPoll::poll).
+    fn stop_writing(&mut self) -> io::Result<()>;
+
+    /// Alert the polling thread that we have become interested in write events.
+    ///
+    /// In a user-provided `EventLoop`,
+    /// this method will only be invoked from within one of the `submit` or `execute` methods
+    /// on [`RpcConn`](crate::RpcConn).
+    fn start_writing(&mut self) -> io::Result<()>;
 }
 
-impl Waker for mio::Waker {
-    fn wake(&mut self) -> io::Result<()> {
-        mio::Waker::wake(self)
+impl EventLoop for MioWaker {
+    fn start_writing(&mut self) -> io::Result<()> {
+        mio::Waker::wake(&self.0)
+    }
+    fn stop_writing(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -506,13 +702,38 @@ macro_rules! impl_traits {
             fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream> {
                 None
             }
+            fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {
+                self
+            }
+            fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>> {
+                cfg_if::cfg_if!{
+                    if #[cfg(unix)] {
+                        Ok(self.as_fd())
+                    } else if #[cfg(windows)] {
+                        Ok(self.as_socket())
+                    }
+                }
+            }
         }
         impl Stream for $mio_stream {
             fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream> {
                 Some(self as _)
             }
+            fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {
+                Box::new(<$stream>::from(*self))
+            }
+            fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>> {
+                cfg_if::cfg_if!{
+                    if #[cfg(unix)] {
+                        Ok(self.as_fd())
+                    } else if #[cfg(windows)] {
+                        Ok(self.as_socket())
+                    }
+                }
+            }
         }
-        impl MioStream for $mio_stream {}
+        impl MioStream for $mio_stream {
+        }
     }
 }
 
@@ -562,18 +783,12 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use assert_matches::assert_matches;
     use std::cmp::min;
 
     use super::*;
 
     impl super::PollStatus {
-        fn unwrap_wantio(self) -> WantIo {
-            match self {
-                PollStatus::WouldBlock(want_io) => want_io,
-                other => panic!("Wanted WantIo; found {other:?}"),
-            }
-        }
-
         fn unwrap_msg(self) -> UnparsedResponse {
             match self {
                 PollStatus::Msg(msg) => msg,
@@ -586,9 +801,12 @@ mod test {
     struct TestWaker {
         n_wakes: usize,
     }
-    impl Waker for TestWaker {
-        fn wake(&mut self) -> io::Result<()> {
+    impl EventLoop for TestWaker {
+        fn start_writing(&mut self) -> io::Result<()> {
             self.n_wakes += 1;
+            Ok(())
+        }
+        fn stop_writing(&mut self) -> io::Result<()> {
             Ok(())
         }
     }
@@ -666,6 +884,22 @@ mod test {
         fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream> {
             None
         }
+        fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {
+            self
+        }
+        fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>> {
+            Err(io::Error::from(io::ErrorKind::Other))
+        }
+    }
+
+    fn assert_wants_rw(nb: &NonblockingStream, r: &io::Result<PollStatus>) {
+        assert_matches!(r, Ok(PollStatus::WouldBlock));
+        assert_eq!(nb.wants_to_write(), true);
+    }
+
+    fn assert_wants_r_only(nb: &NonblockingStream, r: &io::Result<PollStatus>) {
+        assert_matches!(r, Ok(PollStatus::WouldBlock));
+        assert_eq!(nb.wants_to_write(), false);
     }
 
     #[test]
@@ -677,28 +911,28 @@ mod test {
         );
 
         // Try interacting with nothing to do.
-        let r = stream.interact_once(true, true);
-        assert_eq!(r.unwrap().unwrap_wantio().want_write(), false);
+        let r = stream.interact_once();
+        assert_wants_r_only(&stream, &r);
 
         // Give it a partial message.
         test_stream.push(b"Hello world");
-        let r = stream.interact_once(true, true);
-        assert_eq!(r.unwrap().unwrap_wantio().want_write(), false);
+        let r = stream.interact_once();
+        assert_wants_r_only(&stream, &r);
 
         // Finish the message.
         test_stream.push(b"\nAnd many happy");
-        let r = stream.interact_once(true, true);
+        let r = stream.interact_once();
         assert_eq!(r.unwrap().unwrap_msg().as_str(), "Hello world\n");
 
         // Then it should block...
-        let r = stream.interact_once(true, true);
-        assert_eq!(r.unwrap().unwrap_wantio().want_write(), false);
+        let r = stream.interact_once();
+        assert_wants_r_only(&stream, &r);
 
         // Finish two more messages, and leave a partial message.
         test_stream.push(b" returns\nof the day\nto you!");
-        let r = stream.interact_once(true, true);
+        let r = stream.interact_once();
         assert_eq!(r.unwrap().unwrap_msg().as_str(), "And many happy returns\n");
-        let r = stream.interact_once(true, true);
+        let r = stream.interact_once();
         assert_eq!(r.unwrap().unwrap_msg().as_str(), "of the day\n");
     }
 
@@ -726,8 +960,8 @@ mod test {
         }
 
         // Now interact. This will cause the whole request to get flushed.
-        let r = stream.interact_once(true, true);
-        assert_eq!(r.unwrap().unwrap_wantio().want_write(), false);
+        let r = stream.interact_once();
+        assert_wants_r_only(&stream, &r);
 
         let m = test_stream.drain(v.as_ref().len());
         assert_eq!(m, v.as_ref().as_bytes());
@@ -738,15 +972,15 @@ mod test {
         }
         writer.send_valid(&v).unwrap();
 
-        let r: Result<PollStatus, io::Error> = stream.interact_once(true, true);
-        assert_eq!(r.unwrap().unwrap_wantio().want_write(), true);
+        let r: Result<PollStatus, io::Error> = stream.interact_once();
+        assert_wants_rw(&stream, &r);
         {
             assert_eq!(test_stream.inner.lock().unwrap().received.len(), 32);
             // Make the capacity unlimited.
             test_stream.inner.lock().unwrap().receive_capacity = None;
         }
-        let r: Result<PollStatus, io::Error> = stream.interact_once(true, true);
-        assert_eq!(r.unwrap().unwrap_wantio().want_write(), false);
+        let r: Result<PollStatus, io::Error> = stream.interact_once();
+        assert_wants_r_only(&stream, &r);
         let m = test_stream.drain(v.as_ref().len());
         assert_eq!(m, v.as_ref().as_bytes());
     }

@@ -11,7 +11,8 @@ use tor_rpc_connect::{
 };
 
 use crate::{
-    RpcConn, conn::ConnectError, msgs::response::UnparsedResponse, nb_stream::PollingStream,
+    RpcConn, RpcPoll, conn::ConnectError, msgs::response::UnparsedResponse,
+    nb_stream::PollingStream,
 };
 
 use super::ConnectFailure;
@@ -317,6 +318,36 @@ impl RpcConnBuilder {
             final_desc: None,
             final_error: ConnectError::AllAttemptsDeclined,
         })
+    }
+
+    /// As [`connect`](Self::connect), but return an `RpcConn`
+    /// suitable for use with event-driven IO,
+    /// and an [`RpcPoll`] to drive that IO.
+    ///
+    /// Requires an [`EventLoop`] which,
+    /// when invoked, will cause the events registered for the `RpcPoll` to be changed.
+    /// (See `EventLoop` documentation for implementation suggestions.)
+    ///
+    /// # Correct usage
+    ///
+    /// Once you have received an RpcPoll from this function,
+    /// you _must_ honour the methods on [`EventLoop`]
+    /// and call [`RpcPoll::poll()`] as documented;
+    /// otherwise, no requests--even those crated with `execute` methods--will receive responses.
+    ///
+    /// [`EventLoop`]: crate::EventLoop
+    pub fn connect_polling(
+        &self,
+        event_loop: Box<dyn crate::EventLoop>,
+    ) -> Result<(RpcConn, RpcPoll), ConnectFailure> {
+        let mut conn = self.connect()?;
+
+        let poll = conn
+            .construct_rpc_poll(event_loop)
+            // This can only occur if somebody else is blocking on the receiver for this RpcConn,
+            // which should be impossible, since we just created it with Self::connect.
+            .expect("Unable to construct RpcPoll implementation");
+        Ok((conn, poll))
     }
 }
 
