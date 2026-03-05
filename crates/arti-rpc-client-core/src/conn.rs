@@ -930,7 +930,12 @@ mod test {
                     let response = if req.params.fail {
                         serde_json::json!({
                             "id": req.id.clone(),
-                            "error": { "message": "You asked me to fail", "code": 33, "kinds": ["Example"], "data": req.params.val },
+                            "error": {
+                                "message": "You asked me to fail",
+                                "code": 33,
+                                "kinds": ["Example"],
+                                "data": req.params.val,
+                            },
                         })
                     } else {
                         serde_json::json!({
@@ -1050,7 +1055,13 @@ mod test {
     #[test]
     fn fatal_error() {
         let j = serde_json::json!({
-            "error":{ "message": "This test is doomed", "code": 413, "kinds": ["Example"], "data": {} },
+            "error": {
+                "message":
+                "This test is doomed",
+                "code": 413,
+                "kinds": ["Example"],
+                "data": {},
+            },
         });
         let mut s = serde_json::to_string(&j).unwrap();
         s.push('\n');
