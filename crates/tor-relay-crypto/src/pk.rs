@@ -238,8 +238,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    use tor_keymgr::KeyCertificateSpecifier;
     use tor_keymgr::test_utils::check_key_specifier;
+    use tor_keymgr::{CertSpecifierPattern, KeyCertificateSpecifier, KeyPathPattern};
 
     #[test]
     fn relay_signing_key_specifiers() {
@@ -268,6 +268,13 @@ mod test {
         assert_eq!(
             cert_spec.subject_key_specifier().arti_path().unwrap(),
             pubkey_spec.arti_path().unwrap()
+        );
+
+        assert_eq!(
+            RelaySigningKeyCertSpecifierPattern::new_any()
+                .arti_pattern()
+                .unwrap(),
+            KeyPathPattern::Arti("relay/kp_relaysign_ed+*".to_string())
         );
     }
 
