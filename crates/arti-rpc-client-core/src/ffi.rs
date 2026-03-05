@@ -86,6 +86,33 @@ impl Default for ArtiRpcRawSocket {
     }
 }
 
+/// A user-provided tag used to distinguish responses for requests submitted to
+/// [`arti_rpc_conn_submit()`].
+///
+/// This value is two pointers wide to facilitate using it to store
+/// a function pointer and an argument, where appropriate.
+#[derive(Clone, Copy, Default)]
+#[repr(C)]
+#[allow(missing_docs, clippy::exhaustive_structs)]
+pub struct ArtiRpcUserTag {
+    pub a: usize,
+    pub b: usize,
+}
+
+impl From<crate::UserTag> for ArtiRpcUserTag {
+    fn from(value: crate::UserTag) -> Self {
+        Self {
+            a: value.0,
+            b: value.1,
+        }
+    }
+}
+impl From<ArtiRpcUserTag> for crate::UserTag {
+    fn from(value: ArtiRpcUserTag) -> Self {
+        Self(value.a, value.b)
+    }
+}
+
 /// Try to create a new `ArtiRpcConnBuilder`, with default settings.
 ///
 /// On success, return `ARTI_RPC_STATUS_SUCCESS` and set `*builder_out`
@@ -427,7 +454,7 @@ impl AnyResponse {
 /// Wait until some response arrives on an arti_rpc_handle, or until an error occurs.
 ///
 /// On success, return `ARTI_RPC_STATUS_SUCCESS`; set `*response_out`, if present, to a
-/// newly allocated string, and set `*response_type_out`, to the type of the response.
+/// newly allocated string, and set `*response_type_out`, if present, to the type of the response.
 /// (The type will be `ARTI_RPC_RESPONSE_TYPE_RESULT` if the response is a final result,
 /// or `ARTI_RPC_RESPONSE_TYPE_ERROR` if the response is a final error,
 /// or `ARTI_RPC_RESPONSE_TYPE_UPDATE` if the response is a non-final update.)
@@ -493,6 +520,115 @@ pub unsafe extern "C" fn arti_rpc_handle_free(handle: *mut ArtiRpcHandle) {
         }
     );
 }
+
+/// Submit an RPC request to `rpc_conn`, but do not wait for a response.
+///
+/// The message `msg` should be a valid RPC request in JSON format.
+/// If you omit its `id` field, one will be generated:
+/// this is typically the best way to use this function.
+///
+/// The `tag` value should be a value to identify this request;
+/// it will be returned later along with any responses to this request.
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`.
+///
+/// Otherwise return some other status code,  set `*response_out` to NULL,
+/// and set `*error_out` (if provided) to a newly allocated error object.
+///
+/// After calling this function, the caller must later make sure
+/// that [`arti_rpc_conn_wait()`] is called on the connection to wait for responses
+/// to _any_ submitted request.
+///
+/// (If nobody is running [`arti_rpc_conn_wait()`],
+/// then responses will never be handled,
+/// and can potentially fill up memory.)
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_conn_submit(
+    rpc_conn: *const ArtiRpcConn,
+    msg: *const c_char,
+    tag: *const ArtiRpcUserTag,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
+            let msg: Option<&str> [in_str_opt];
+            let tag: Option<&ArtiRpcUserTag> [in_ptr_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
+        } in {
+            let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
+            let msg = msg.ok_or(InvalidInput::NullPointer)?;
+            let tag = tag.ok_or(InvalidInput::NullPointer)?;
+
+            let () = rpc_conn.submit((*tag).into(), msg)?;
+        }
+    )
+}
+
+/// Wait for responses to arrive for requests sent via [`arti_rpc_conn_submit`].
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`;
+/// set `*tag_out`, if present,  to the `ArtiRpcUserTag` originally provided with the request;
+/// set `*response_out`, if present, to a newly allocated string;
+/// and set `*response_type_out`,  if present, to the type of the response.
+/// (The type will be `ARTI_RPC_RESPONSE_TYPE_RESULT` if the response is a final result,
+/// or `ARTI_RPC_RESPONSE_TYPE_ERROR` if the response is a final error,
+/// or `ARTI_RPC_RESPONSE_TYPE_UPDATE` if the response is a non-final update.)
+///
+/// Otherwise return some other status code, set `*response_out` to NULL,
+/// set `*response_type_out` and `*tag_out` to zero,
+/// and set `*error_out` (if provided) to a newly allocated error object.
+///
+/// Note that receiving an error reply from Arti is _not_ treated as an error in this function.
+/// That is to say, if Arti sends back an error, this function will return `ARTI_SUCCESS`,
+/// and deliver the error from Arti in `*response_out`, setting `*response_type_out` to
+/// `ARTI_RPC_RESPONSE_TYPE_ERROR`.
+///
+/// # Thread safety
+///
+/// It is safe to call this function from multiple threads at once;
+/// it is not specified which thread will receive notifications for which request.
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+///
+/// The caller is responsible for making sure that `*response_out`, if set,
+/// is eventually freed.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_conn_wait(
+    rpc_conn: *const ArtiRpcConn,
+    tag_out: *mut ArtiRpcUserTag,
+    response_out: *mut *mut ArtiRpcStr,
+    response_type_out: *mut ArtiRpcResponseType,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
+            let tag_out: Option<OutVal<ArtiRpcUserTag>> [out_val_opt];
+            let response_out: Option<OutBoxedPtr<ArtiRpcStr>> [out_ptr_opt];
+            let response_type_out: Option<OutVal<ArtiRpcResponseType>> [out_val_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
+        } in {
+            let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
+
+            let (tag, response) = rpc_conn.wait()?;
+            tag_out.write_value_if_ptr_set(tag.into());
+
+            let rtype = response.response_type();
+            response_type_out.write_value_if_ptr_set(rtype);
+            response_out.write_boxed_value_if_ptr_set(response.into_string());
+        }
+    )
+}
+
 /// Free a string returned by the Arti RPC API.
 #[allow(clippy::missing_safety_doc)]
 #[unsafe(no_mangle)]
