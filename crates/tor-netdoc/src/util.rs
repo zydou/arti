@@ -1,10 +1,34 @@
 //! Misc helper functions and types for use in parsing network documents
 
+use derive_deftly::define_derive_deftly;
+
 pub(crate) mod str;
 
 pub mod batching_split_before;
 
 use std::iter::Peekable;
+
+define_derive_deftly! {
+    /// Implement `AsMut<Self>`
+    ///
+    /// For Reasons, Rust does not have a blanket:
+    ///
+    /// ```rust,ignore
+    /// impl<T> AsMut<T> for T { .. }
+    /// ```
+    ///
+    /// This derive macro expands to the obvious and trivial implementation,
+    /// for the type that it's applied to.
+    //
+    // TODO move this somewhere lower in the stack, eg tor-basic-utils
+    export AsMutSelf expect items:
+
+    impl<$tgens> ::std::convert::AsMut<Self> for $ttype where $twheres {
+        fn as_mut(&mut self) -> &mut Self {
+            self
+        }
+    }
+}
 
 /// An iterator with a `.peek()` method
 ///
@@ -49,4 +73,21 @@ pub(crate) mod private {
     /// guidelines](https://rust-lang.github.io/api-guidelines/future-proofing.html#c-sealed).
     #[expect(dead_code, unreachable_pub)] // TODO keep this Sealed trait in case we want it again?
     pub trait Sealed {}
+}
+
+#[cfg(test)]
+#[allow(unused)]
+fn test_as_mut_compiles() {
+    use derive_deftly::Deftly;
+
+    #[derive(Deftly)]
+    #[derive_deftly(AsMutSelf)]
+    struct S<T: Clone>
+    where
+        Option<T>: Clone,
+    {
+        t: T,
+    }
+
+    let _: &mut S<()> = S { t: () }.as_mut();
 }

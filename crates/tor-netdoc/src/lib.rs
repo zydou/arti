@@ -50,6 +50,8 @@
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
 #[macro_use]
+mod util;
+#[macro_use]
 mod derive_common;
 #[cfg(feature = "parse2")]
 #[macro_use]
@@ -62,7 +64,6 @@ pub(crate) mod parse;
 pub mod doc;
 mod err;
 pub mod types;
-mod util;
 
 #[cfg(all(test, feature = "parse2", feature = "encode"))]
 mod test2;
