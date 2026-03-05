@@ -384,9 +384,13 @@ impl NonblockingStream {
         h.event_loop = new_event_loop_handle;
     }
 
-    /// Return true if this [`NonblockingStream`] wants to write.
+    /// Return true iff this [`NonblockingStream`] currently wants to write
     ///
-    /// XXXX: Write documentation about correctness here.
+    /// See [`RpcPoll::wants_to_write`] and [`EventLoop`]
+    /// for the semantics.
+    ///
+    /// [`RpcPoll::wants_to_write`]: crate::RpcPoll::wants_to_write
+    /// [`EventLoop`]: crate::EventLoop
     pub(crate) fn wants_to_write(&self) -> bool {
         self.has_data_to_write()
     }
@@ -524,21 +528,145 @@ pub(crate) trait Stream: io::Read + io::Write + Send {
 /// A [`Stream`] that we can use inside a [`PollingStream`].
 pub(crate) trait MioStream: Stream + mio::event::Source {}
 
-/// An object that will be informed whenever an [`RpcPoll`]
-/// is ready to start or stop writing.
+/// Representation of an event loop that can watch a handle and arrange to call `poll`
+///
+/// Provided to the event-driven nonblocking RPC connection API,
+/// by the user, via [`connect_polling`].
 ///
 /// This is only used along with [`RpcPoll`]; if you aren't using that type,
 /// you don't need to worry about this trait.
 ///
-/// ## Implementation strategies
+/// # Operating principles
 ///
-/// There are multiple sensible ways to implement this trait for your own event loop.
+/// The user code must implement an event loop,
+/// which can monitor for handle readability/writeability.
 ///
-/// XXXX WRITE MORE.
-/// XXXX Decide: Are these APIs better than a single "change interest" method?
-/// It is easier to explain when they are called.
+/// The RPC library provides the user code with
+/// the OS handle for the transport connection.
+///
+/// The RPC library always wants to read from the handle.
+/// It informs the user code whether the RPC library wants to write to the handle.
+///
+/// When the handle is readable, or (if applicable) writeable,
+/// the user code must call into the RPC library via [`RpcPoll::poll`]
+/// so that the library can perform IO.
+///
+/// # Implementation strategies
+///
+/// The RPC library's API is designed to be easy to interface
+/// to existing event loops.
+///
+/// ## Plumbing to using an existing event loop
+///
+/// With an existing event loop which is suitably reentrant across multiple threads,
+/// or in single-threaded programs with an existing event loop:
+///
+///  * Call `connect_polling`; use `try_as_fd` or `try_as_socket`
+///    on the returned `RpcPoll` to obtain the OS handle.
+///  * Register the OS handle with the event loop,
+///    and ask to be notified when the handle is readable.
+///  * Implement `EventLoop::start_writing` and `EventLoop::stop_writing`:
+///    `start_writing` should reregister the handle with the event loop
+///    to request writeability notifications too;
+///    `stop_writing ` should stop writeability notifications.
+///  * When notified that the handle is readable or writeable,
+///    call [`RpcPoll::poll`].
+///
+/// Depending on the the event loop's API, the type implementing `EventLoop`
+/// might be a unit struct (if the event loop is global);
+/// or it might be a handle onto the event loop,
+/// or some kind o "event source" object if the event loop has those.
+///
+/// ## "Main thread only" event loops in multithreaded programs
+///
+/// Many real event loops have a "main thread",
+/// and require all changes to OS handle interests to happen on that thread.
+///
+/// If you can't guarantee that all calls to `submit` will be made on the main thread,
+/// you need to arrange that `start_writing` can add the writeability interest
+/// even if another thread is currently blocked in the event loop waiting for IO events.
+///
+/// To achieve this:
+///
+///  * Use an inter-thread communication facility, such as an event loop "waker",
+///    a self-pipe, or similar technique.  (We'll call this the "waker".)
+///  * Entrol the receiving end of the waker in the event loop during setup.
+///  * `EventLoop` contains just the sending handle of the waker,
+///    not a reference to the real event loop.
+///    `start_writing` notifies the waker.  `stop_writing` is a no-op.
+///
+/// When the event loop notifies your glue code (necessarily, on the main thread)
+/// that the waker, or the RPC connection OS handle, is ready for IO:
+///
+///  * Repeatedly call `RpcPoll::poll` and dispatch any returned `Response`,
+///    until it returns `WouldBlock`.
+///  * Call `RpcPoll::wants_to_write` and adjust the RPC connection OS handle interest,
+///    in the event loop.
+///
+/// (You can respond to all such wakeups with this identical, idempotent, response.)
+///
+/// # Single-threaded open-coded event loops
+///
+/// In a single-threaded program, with an open-coded event loop,
+/// it is permissible to simply call `wants_to_write`
+/// to determine the correct value for `pollfd.events`
+/// (`POLLIN`, plus `POLLOUT` iff `wants_to_write`),
+/// then `poll(2)`,
+/// and `RpcPoll::poll` and/or `submit` after `poll(2)`.
+///
+/// You can pass an `EventLoop` which implements
+/// `start_writing` and `stop_writing` as no-ops.
+///
+/// (This is because only `submit` can cause `wants_to_write` to change to `true`,
+/// and if there is only one thread, you can know that you're not calling `submit`
+/// between `wants_to_write` and `poll(2)`.)
+///
+/// # Detailed requirements and guarantees
+///
+/// Progress will only be made during calls to `poll`.
+/// In particular, `submit` does not actually send the data.
+///
+/// The program should not sleep, without arranging that readability
+/// and (as applicable) writeability of the RPC connection handle
+/// will result in a wakeup.
+///
+/// `start_writing` must be effective immediately:
+/// if `submit` can be called while another thread
+/// is in the program's event loop waiting for OS events,
+/// user code implementing `start_writing` must
+/// arrange to wake up the event loop if necessary,
+/// so that writeability will result in a call to `poll`.
+///
+/// `start_writing` is only ever called reentrantly from `submit`,
+/// on the same thread.
+///
+/// `stop_writing` is only ever called reentrantly from `RpcPoll::poll`,
+/// on the same thread.
+///
+/// All changes to the value which would be returned from `wants_to_write`
+/// are reflected in `start_writing` and `stop_writing`,
+/// and vice versa.
+///
+/// It is OK to call `RpcPoll::poll` when the handle is not known to be ready;
+/// `RpcPoll::poll` never blocks, and instead immediately returns `WouldBlock`.
+/// (A loop which calls `RpcPoll::poll` should involve waiting for
+/// appropriate readiness on the underling OS handle,
+/// as the program would otherwise spin rather than wait.)
+///
+/// Immediately after creation, a connection made with `connect_polling`
+/// is not interested in writing.
+///
+/// # Relationship to the synchronous API
+///
+/// It is also permissible to call the [`.execute()`](crate::RpcConn::execute)
+/// family of methods on the `RpcConn` returned from `connect_polling`.
+///
+/// In this case, `start_writing` and `stop_writing` might be called
+/// reentrantly from `execute`, not just from `submit` and `poll`.
 ///
 /// [`RpcPoll`]: crate::RpcPoll
+/// [`RpcPoll::poll`]: crate::RpcPoll::poll
+/// [`connect_polling`]: crate::conn::RpcConnBuilder::connect_polling
 //
 // When the underlying IO loop is `mio`, this is a [`MioWaker`];
 // otherwise, it is some user-provided type.

@@ -324,13 +324,18 @@ impl RpcConnBuilder {
     /// suitable for use with event-driven IO,
     /// and an [`RpcPoll`] to drive that IO.
     ///
-    /// Requires an [`EventLoop`](crate::EventLoop) which,
+    /// Requires an [`EventLoop`] which,
     /// when invoked, will cause the events registered for the `RpcPoll` to be changed.
     /// (See `EventLoop` documentation for implementation suggestions.)
     ///
+    /// # Correct usage
+    ///
     /// Once you have received an RpcPoll from this function,
-    /// you _must_ begin using [`RpcPoll::poll()`] as documented;
+    /// you _must_ honour the methods on [`EventLoop`]
+    /// and call [`RpcPoll::poll()`] as documented;
     /// otherwise, no requests--even those crated with `execute` methods--will receive responses.
+    ///
+    /// [`EventLoop`]: crate::EventLoop
     pub fn connect_polling(
         &self,
         event_loop: Box<dyn crate::EventLoop>,

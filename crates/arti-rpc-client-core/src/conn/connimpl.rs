@@ -837,10 +837,21 @@ impl RpcPoll {
         self.stream.try_as_handle()
     }
 
-    /// Return true if this[`RpcPoll`] current wants to write,
-    /// and the user should invoke [`RpcPoll::poll`]
+    /// Return true iff this [`RpcPoll`] currently wants to write
+    ///
+    /// If this returns true, the RPC library user should invoke [`RpcPoll::poll`]
     /// when the underlying connection is ready to write.
-    /// XXXX: Write documentation about correctness here.
+    ///
+    /// See [`Eventloop`] for full usage information.
+    ///
+    /// Changes to the return value of this function correspond to calls
+    /// to the methods on [`EventLoop`].
+    ///
+    /// A returned `false` value can be invalidated by calls to [`RpcConn::submit`].
+    ///
+    /// A returned `true` value can be invalidated by calls to [`RpcPoll::poll`].
+    ///
+    /// [`EventLoop`]: crate::EventLoop
     pub fn wants_to_write(&self) -> bool {
         self.stream.wants_to_write()
     }
@@ -848,14 +859,16 @@ impl RpcPoll {
     /// Handle IO for the associated RPC connection, without blocking.
     ///
     /// This method reads and writes data from the RPC server,
-    /// and passes any responses to requests created with the [`RpcConn::execute`] methods.
-    /// If it finds a response to a request crated with [`RpcConn::submit`],
-    /// it returns that response.
+    /// until either:
     ///
-    /// If no further progress can be made without performing more IO, it returns [`WouldBlock`].
-    /// The caller should then register the fd/socket for this [`RpcPoll`]
-    /// in its event-driven IO framework,
-    /// waiting for read/write events as specified by the `WantIo`.
+    ///   * A response is available to a request crated with [`RpcConn::submit`];
+    ///     in which case, `RpcPoll::poll` returns that response.
+    ///
+    ///   * No further progress can be made without blocking;
+    ///     in which case `RpcPoll::poll` returns [`WouldBlock`].
+    ///
+    /// This is used in conjunction with `EventLoop` and/or `wants_to_write`;
+    /// see [the `EventLoop` documentation] for details.
     ///
     /// Only one thread may call this method at a time.
     /// (In Rust, this is enforced by having the method take a mutable reference.)
