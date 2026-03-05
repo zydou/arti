@@ -239,7 +239,7 @@ impl ArtiPath {
             // to separate them from the certificate denotators.
             // Otherwise, we simply use the regular DENOTATOR_SEP
             // to indicate the start of the denotator section.
-            if path.contains("+") {
+            if path.contains(DENOTATOR_SEP) {
                 format!("{path}{DENOTATOR_GROUP_SEP}{cert_denotators}")
             } else {
                 format!("{path}{DENOTATOR_SEP}{cert_denotators}")
