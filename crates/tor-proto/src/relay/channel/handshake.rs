@@ -256,12 +256,18 @@ impl<
         self.set_link_protocol(link_protocol)?;
 
         // Send CERTS, AUTH_CHALLENGE and NETINFO
-        self.send_cells_to_initiator().await?;
+        let slog_digest = self.send_cells_to_initiator().await?;
 
         // Receive NETINFO and possibly [CERTS, AUTHENTICATE]. The connection could be from a
         // client/bridge and thus no authentication meaning no CERTS/AUTHENTICATE cells.
-        let (cells, (netinfo_cell, netinfo_rcvd_at)) = self.recv_cells_from_initiator().await?;
-        let (certs_cell, auth_cell) = cells.unzip();
+        let (certs_and_auth_and_clog, (netinfo_cell, netinfo_rcvd_at)) =
+            self.recv_cells_from_initiator().await?;
+
+        // Try to unpack these into something we can use later.
+        let (certs_cell, auth_and_clog) = match certs_and_auth_and_clog {
+            Some((certs, auth, clog)) => (Some(certs), Some((auth, clog))),
+            None => (None, None),
+        };
 
         // Calculate our clock skew from the timings we just got/calculated.
         let clock_skew = unauthenticated_clock_skew(
@@ -282,8 +288,8 @@ impl<
         };
 
         // With an AUTHENTICATE cell, we can verify (relay). Else (client/bridge), we can't.
-        Ok(match auth_cell {
-            Some(auth_cell) => {
+        Ok(match auth_and_clog {
+            Some((auth_cell, clog_digest)) => {
                 MaybeVerifiableRelayResponderChannel::Verifiable(UnverifiedResponderRelayChannel {
                     inner,
                     auth_cell,
@@ -293,6 +299,8 @@ impl<
                     identities: self.identities,
                     my_addrs: self.my_addrs,
                     peer_addr: self.peer_addr.into_inner(), // Relay address.
+                    clog_digest,
+                    slog_digest,
                 })
             }
             None => MaybeVerifiableRelayResponderChannel::NonVerifiable(
@@ -311,7 +319,11 @@ impl<
     async fn recv_cells_from_initiator(
         &mut self,
     ) -> Result<(
-        Option<(msg::Certs, msg::Authenticate)>,
+        Option<(
+            msg::Certs,
+            msg::Authenticate,
+            /* the CLOG digest */ [u8; 32],
+        )>,
         (msg::Netinfo, coarsetime::Instant),
     )> {
         // IMPORTANT: Protocol wise, we MUST only allow one single cell of each type for a valid
@@ -360,7 +372,7 @@ impl<
 
         // This is kind of ugly, but I don't see a nicer way to write the authentication branch
         // without a bunch of boilerplate for a state machine.
-        let (certs_and_auth, netinfo, netinfo_rcvd_at) = 'outer: {
+        let (certs_and_auth_and_clog, netinfo, netinfo_rcvd_at) = 'outer: {
             // CERTS or NETINFO cell.
             let certs = loop {
                 restricted_msg! {
@@ -382,6 +394,9 @@ impl<
                     CertsNetinfoMsg::Certs(msg) => msg,
                 };
             };
+
+            // We're the responder, which means that the recv log is the CLOG.
+            let clog_digest = self.framed_tls().codec_mut().take_recv_log_digest()?;
 
             // AUTHENTICATE cell.
             let auth = loop {
@@ -415,17 +430,18 @@ impl<
                 };
             };
 
-            (Some((certs, auth)), netinfo, netinfo_rcvd_at)
+            (Some((certs, auth, clog_digest)), netinfo, netinfo_rcvd_at)
         };
 
-        Ok((certs_and_auth, (netinfo, netinfo_rcvd_at)))
+        Ok((certs_and_auth_and_clog, (netinfo, netinfo_rcvd_at)))
     }
 
     /// Send all expected cells to the initiator of the channel as the responder.
     ///
     /// Return the sending times of the [`msg::Versions`] so it can be used for clock skew
-    /// validation.
-    async fn send_cells_to_initiator(&mut self) -> Result<()> {
+    /// validation, and the SLOG digest to be later used when verifying the initiator's
+    /// AUTHENTICATE cell.
+    async fn send_cells_to_initiator(&mut self) -> Result<[u8; 32]> {
         // Send the CERTS message.
         let certs = build_certs_cell(&self.identities, /* is_responder */ true);
         trace!(channel_id = %self.unique_id, "Sending CERTS as responder cell.");
@@ -437,12 +453,15 @@ impl<
         trace!(channel_id = %self.unique_id, "Sending AUTH_CHALLENGE as responder cell.");
         self.framed_tls.send(auth_challenge.into()).await?;
 
+        // We're the responder, which means that the send log is the SLOG.
+        let slog_digest = self.framed_tls.codec_mut().take_send_log_digest()?;
+
         // Send the NETINFO message.
         let peer_ip = self.peer_addr.netinfo_addr();
         let netinfo = build_netinfo_cell(peer_ip, self.my_addrs.clone(), &self.sleep_prov)?;
         trace!(channel_id = %self.unique_id, "Sending NETINFO as responder cell.");
         self.framed_tls.send(netinfo.into()).await?;
 
-        Ok(())
+        Ok(slog_digest)
     }
 }
