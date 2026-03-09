@@ -5,9 +5,11 @@ import os
 import os.path
 import sys
 import subprocess
+import unittest
 
 # stdlib "from" imports
 from pathlib import Path
+from typing_extensions import override
 
 # non-stdlib imports
 import chutney.TorNet as TorNet
@@ -18,119 +20,139 @@ from chutney.Util import addr_and_port_str
 import common
 import config as config_module
 
-assert __name__ == "__main__"
-
+assert __name__ == "__main__", "Can't determine _SCRIPT_DIR"
 _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
 
-config = config_module.Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
-config.export_env()
-network = TorNet.Network.from_nodes_dir(Path(config.chutney_data_dir).joinpath("nodes"))
 
-TEST_DNS: bool
-if common.running_in_shadow():
-    # Resolving DNS through tor in shadow is currently broken:
-    # <https://github.com/shadow/shadow/issues/323>.
-    #
-    # TODO: Fix or work around this. e.g. run a local `unbound` resolver inside
-    # the simulation.
-    TEST_DNS = False
-else:
-    TEST_DNS = True
-
-# Perform chutney's built-in "verify" test
-chutney.network_tests.verify.run_test(network)
-
-arti_socks_clients = [
-    n
-    for n in network.nodes
-    if next(n.socksport_endpoints(), None)
-    and n._config.backend is TorNet.NodeBackend.ARTI
-]
-assert len(arti_socks_clients) > 0, "No arti socks clients!"
-
-for client in arti_socks_clients:
-    for ip, port in client.socksport_endpoints():
-        print(f"Testing arti socks client {client.nick} via {ip}:{port}", flush=True)
-        curl_socks_flag: str
-        if TEST_DNS:
-            # Do DNS resolution via proxy
-            curl_socks_flag = "--socks5-hostname"
-        else:
-            # Do DNS resolution locally
-            curl_socks_flag = "--socks5"
-        subprocess.check_call(
-            [
-                "curl",
-                f"http://{common.TEST_DOMAIN}",
-                "-vs",
-                curl_socks_flag,
-                addr_and_port_str(ip, port),
-                "-o",
-                "/dev/null",
-            ]
+class TestNetwork(unittest.TestCase):
+    @override
+    def setUp(self) -> None:
+        self._config = config_module.Config.load_json(
+            Path(_SCRIPT_DIR).joinpath("arti.run.json")
+        )
+        self._config.export_env()
+        self._network = TorNet.Network.from_nodes_dir(
+            Path(self._config.chutney_data_dir).joinpath("nodes")
         )
 
-if TEST_DNS:
-    arti_dns_clients = [
-        n
-        for n in network.nodes
-        if next(n.dnsport_endpoints(), None)
-        and n._config.backend is TorNet.NodeBackend.ARTI
-    ]
-    assert len(arti_dns_clients) > 0, "No arti dns clients!"
-    for client in arti_dns_clients:
-        for ip, port in client.dnsport_endpoints():
-            print(f"Testing arti dns client {client.nick} via {ip}:{port}", flush=True)
-            DIRECT_LOOKUP = subprocess.check_output(
-                ["dig", "+short", common.TEST_DOMAIN, "A"], text=True
-            )
-            TOR_LOOKUP = subprocess.check_output(
-                [
-                    "dig",
-                    f"@{ip}",
-                    "-p",
-                    str(port),
-                    "+short",
-                    common.TEST_DOMAIN,
-                    "A",
-                ],
-                text=True,
-            )
-            # The direct lookup can and does return multiple entries.
-            # The tor lookup should correspond to one of them.
-            if TOR_LOOKUP not in DIRECT_LOOKUP:
-                print(
-                    f"Direct DNS resolution result '{DIRECT_LOOKUP}'"
-                    f" not in tor dns port result '{TOR_LOOKUP}'"
-                )
-                sys.exit(1)
+        # Resolving DNS through tor in shadow is currently broken:
+        # <https://github.com/shadow/shadow/issues/323>.
+        #
+        # TODO: Fix or work around this. e.g. run a local `unbound` resolver inside
+        # the simulation.
+        self._test_dns = not common.running_in_shadow()
 
-# This test only work on a chutney network with IPv6 support such as ipv6-exit-min,
-# sadly such a network can't run in CI because there is no IPv6 in docker (nor in shadow).
-# [ "$(dig @127.0.0.1 -p 35353 +short example.com AAAA)" == "2606:2800:220:1:248:1893:25c8:1946" ]
+    def test_verify(self) -> None:
+        # chutney's built-in "verify" test
+        chutney.network_tests.verify.run_test(self._network)
 
-# Get the socks port of a tor client to use for benchmarking comparison.
-tor_socks_clients = [
-    n
-    for n in network.nodes
-    if next(n.socksport_endpoints(), None)
-    and n._config.backend is TorNet.NodeBackend.TOR
-]
-assert (
-    len(tor_socks_clients) == 1
-), "Need to determine which tor client to use for comparative benchmark"
-client = tor_socks_clients[0]
-ip, port = next(client.socksport_endpoints())
-print(f"Running arti bench with tor client {client.nick} via {ip}:{port}", flush=True)
-subprocess.check_call(
-    [
-        config.arti_bench,
-        "-c",
-        os.path.join(config.chutney_data_dir, "nodes", "arti.toml"),
-        "--socks5",
-        addr_and_port_str(ip, port),
-        "-o",
-        "benchmark_results.json",
-    ],
-    env=dict(os.environ) | dict(RUST_LOG="debug"),
-)
+    def test_curl(self) -> None:
+        """Test http requests, using `curl` with the socks port"""
+        arti_socks_clients = [
+            n
+            for n in self._network.nodes
+            if next(n.socksport_endpoints(), None)
+            and n._config.backend is TorNet.NodeBackend.ARTI
+        ]
+        if len(arti_socks_clients) == 0:
+            # Alternatively `self.skipTest`, but we'd need to be careful to
+            # verify it's not skipped in CI.
+            self.fail("Network has no arti socks clients")
+        for client in arti_socks_clients:
+            for ip, port in client.socksport_endpoints():
+                with self.subTest(nick=client.nick, ip=ip, port=port):
+                    curl_socks_flag: str
+                    if self._test_dns:
+                        # Do DNS resolution via proxy
+                        curl_socks_flag = "--socks5-hostname"
+                    else:
+                        # Do DNS resolution locally
+                        curl_socks_flag = "--socks5"
+                    subprocess.check_call(
+                        [
+                            "curl",
+                            f"http://{common.TEST_DOMAIN}",
+                            "-vs",
+                            curl_socks_flag,
+                            addr_and_port_str(ip, port),
+                            "-o",
+                            "/dev/null",
+                        ]
+                    )
+
+    def test_dig(self) -> None:
+        """Test DNS lookups, using `dig` with the dns port"""
+        if not self._test_dns:
+            self.skipTest("DNS testing disabled")
+        arti_dns_clients = [
+            n
+            for n in self._network.nodes
+            if next(n.dnsport_endpoints(), None)
+            and n._config.backend is TorNet.NodeBackend.ARTI
+        ]
+        if len(arti_dns_clients) == 0:
+            # Alternatively `self.skipTest`, but we'd need to be careful to
+            # verify it's not skipped in CI.
+            self.fail("Network has no arti dns clients")
+        direct_lookup = subprocess.check_output(
+            ["dig", "+short", common.TEST_DOMAIN, "A"], text=True
+        )
+        for client in arti_dns_clients:
+            for ip, port in client.dnsport_endpoints():
+                with self.subTest(nick=client.nick, ip=ip, port=port):
+                    tor_lookup = subprocess.check_output(
+                        [
+                            "dig",
+                            f"@{ip}",
+                            "-p",
+                            str(port),
+                            "+short",
+                            common.TEST_DOMAIN,
+                            # TODO: also test ipv6 (AAAA) when environment supports it
+                            "A",
+                        ],
+                        text=True,
+                    )
+                    # The direct lookup can and does return multiple entries.
+                    # The tor lookup should correspond to one of them.
+                    self.assertIn(
+                        tor_lookup,
+                        direct_lookup,
+                        f"Direct DNS resolution result '{direct_lookup}'"
+                        f" not in tor dns port result '{tor_lookup}'",
+                    )
+
+    def test_arti_bench(self) -> None:
+        """Run arti-bench, using a tor socks port for comparison with embedded arti"""
+        # Get the socks port of a tor client to use for benchmarking comparison.
+        tor_socks_clients = [
+            n
+            for n in self._network.nodes
+            if next(n.socksport_endpoints(), None)
+            and n._config.backend is TorNet.NodeBackend.TOR
+        ]
+        assert (
+            len(tor_socks_clients) == 1
+        ), "Need to determine which tor client to use for comparative benchmark"
+        client = tor_socks_clients[0]
+        ip, port = next(client.socksport_endpoints())
+        print(
+            f"Running arti bench with tor client {client.nick} via {ip}:{port}",
+            flush=True,
+        )
+        subprocess.check_call(
+            [
+                self._config.arti_bench,
+                "-c",
+                os.path.join(self._config.chutney_data_dir, "nodes", "arti.toml"),
+                "--socks5",
+                addr_and_port_str(ip, port),
+                "-o",
+                "benchmark_results.json",
+            ],
+            env=dict(os.environ) | dict(RUST_LOG="debug"),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

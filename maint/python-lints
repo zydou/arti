@@ -173,6 +173,12 @@ MYPY_STRICT = set(
         "maint/update-md-links",
         "maint/list-crates",
         "maint/cargo-check-publishable",
+        "tests/chutney/bootstrap",
+        "tests/chutney/integration-e2e",
+        "tests/chutney/integration-e2e-shadow",
+        "tests/chutney/setup",
+        "tests/chutney/teardown",
+        "tests/chutney/test",
     ]
 )
 
