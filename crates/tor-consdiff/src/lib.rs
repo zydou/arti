@@ -54,6 +54,7 @@ mod err;
 use digest::Digest;
 pub use err::Error;
 use imara_diff::{Algorithm, Diff, InternedInput};
+use tor_error::internal;
 use tor_netdoc::parse2::{ErrorProblem, ItemStream, ParseError, ParseInput};
 
 /// Result type used by this crate
@@ -112,10 +113,9 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
     );
 
     // Ensure it is valid, refuse to emit an invalid diff.
-    let check =
-        apply_diff(base, &result, None).map_err(|_| Error::GenDiffCheck("apply call failed"))?;
+    let check = apply_diff(base, &result, None).map_err(|_| internal!("apply call failed"))?;
     if check.to_string() != target {
-        return Err(Error::GenDiffCheck("result does not match"));
+        Err(internal!("result does not match?"))?;
     }
 
     Ok(result)

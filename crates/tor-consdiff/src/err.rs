@@ -25,9 +25,9 @@ pub enum Error {
     #[error("Invalid input supplied: {0}")]
     InvalidInput(parse2::ParseError),
 
-    /// The computed diff does not work.
-    #[error("Computed diff does not match when applied: {0}")]
-    GenDiffCheck(&'static str),
+    /// Internal error.
+    #[error("Internal error")]
+    Bug(tor_error::Bug),
 }
 
 impl From<ParseIntError> for Error {
@@ -44,5 +44,11 @@ impl From<hex::FromHexError> for Error {
 impl From<parse2::ParseError> for Error {
     fn from(e: parse2::ParseError) -> Self {
         Self::InvalidInput(e)
+    }
+}
+
+impl From<tor_error::Bug> for Error {
+    fn from(e: tor_error::Bug) -> Self {
+        Self::Bug(e)
     }
 }
