@@ -90,7 +90,7 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 /// To make a fresh `AuthCert`, use [`AuthCertConstructor`].
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Constructor)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable, NetdocUnverified))]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableUnverified))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]

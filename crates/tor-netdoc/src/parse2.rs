@@ -31,7 +31,7 @@
 //!   * **`FooUnverified`**: a signed `Foo`, with its signatures, not yet verified.
 //!     Implements [`NetdocUnverified`],
 //!     typically by invoking the
-//!     [`NetdocUnverified` derive macro](crate::derive_deftly_template_NetdocUnverified)
+//!     [`NetdocUParseablenverified` derive macro](crate::derive_deftly_template_NetdocParseableUnverified)
 //!     on `Foo`.
 //!
 //!     Type-specific methods are provided for verification,
@@ -40,8 +40,9 @@
 //!   * **`Foo`**: the body data for the document.
 //!     This doesn't contain any signatures.
 //!     Having one of these to play with means signatures have already been validated.
-//!     Implement `NetdocParseable`, via
-//!     [derive](crate::derive_deftly_template_NetdocParseable).
+//!     Can be parsed as part of the signed document,
+//!     via the `NetdocParseable` implementation on `FooUnverified`,
+//!     and then obtained via `.verify_...` method(s) on `FooUnverified`,
 //!
 //!   * **`FooSignatures`**: the signatures for a `Foo`.
 //!     Implements `NetdocParseableSignatures`, via

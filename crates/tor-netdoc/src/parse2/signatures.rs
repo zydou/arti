@@ -12,7 +12,7 @@ use super::*;
 /// A network document with (unverified) signatures
 ///
 /// Typically implemented automatically, for `FooUnverified` structs, as defined by
-/// [`#[derive_deftly(NetdocUnverified)]`](derive_deftly_template_NetdocUnverified).
+/// [`#[derive_deftly(NetdocParseableUnverified)]`](derive_deftly_template_NetdocParseableUnverified).
 ///
 /// Each `FooUnverified` embodies precisely the body `Body`
 /// and the signatures data `SignaturesData` needed to verify it,

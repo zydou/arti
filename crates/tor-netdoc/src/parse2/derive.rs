@@ -265,7 +265,6 @@ define_derive_deftly_module! {
     /// Provides `IMPL_NETDOC_PARSEABLE` which impls `NetdocParseable`
     ///
     /// Used by the `NetdocParseable` and `NetdocParseableUnverified` derives.
-    //                                     ^ XXXX not true yete
     NetdocParseable beta_deftly:
 
     use NetdocDeriveAnyCommon;
@@ -475,7 +474,7 @@ define_derive_deftly! {
     /// To handle signed documents define two structures:
     ///
     ///  * `Foo`, containing only the content, not the signatures.
-    ///    Derive `NetdocParseable` and [`NetdocUnverified`](derive_deftly_template_NetdocUnverified).
+    ///    Derive [`NetdocParseableUnverified`](derive_deftly_template_NetdocUnverified).
     ///  * `FooSignatures`, containing only the signatures.
     ///    Derive `NetdocParseableSignatures`.
     ///
@@ -558,9 +557,8 @@ define_derive_deftly! {
     /// ```
     /// use derive_deftly::Deftly;
     /// use tor_netdoc::derive_deftly_template_AsMutSelf;
-    /// use tor_netdoc::derive_deftly_template_NetdocParseable;
     /// use tor_netdoc::derive_deftly_template_NetdocParseableSignatures;
-    /// use tor_netdoc::derive_deftly_template_NetdocUnverified;
+    /// use tor_netdoc::derive_deftly_template_NetdocParseableUnverified;
     /// use tor_netdoc::derive_deftly_template_ItemValueParseable;
     /// use tor_netdoc::parse2::{
     ///     parse_netdoc, ErrorProblem, ParseInput, VerifyFailed,
@@ -568,7 +566,7 @@ define_derive_deftly! {
     /// };
     ///
     /// #[derive(Deftly, Debug, Clone)]
-    /// #[derive_deftly(NetdocParseable, NetdocUnverified)]
+    /// #[derive_deftly(NetdocParseableUnverified)]
     /// pub struct NdThing {
     ///     pub thing_start: (),
     ///     pub value: (String,),
@@ -827,17 +825,34 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
-    use NetdocDeriveAnyCommon;
+    use NetdocParseable;
 
-    /// Derive `FooUnverified` from `Foo`
+    /// Derive `NetdocParseable` for a top-level signed document
     ///
-    /// Apply this derive to the main body struct `Foo`.
+    /// ### Expected input structure
     ///
-    /// Usually, provide suitable `.verify_...` methods.
+    /// Apply this derive to the main body struct `Foo`,
+    /// which should meet all the requirements to derive
+    /// [`NetdocParseable`](derive_deftly_template_NetdocParseable).
     ///
-    /// The body and signature types have to implement `Clone` and `Debug`.
+    /// Usually, the caller will provide suitable ad-hoc `.verify_...` methods
+    /// on `FooUnverified`.
     ///
-    /// ### Top-level attributes:
+    /// ### Generated code
+    ///
+    /// Supposing your input structure is `Foo`, this macro will
+    /// generate a `**struct FooUnverified`**
+    /// implementing [`NetdocParseable`] and [`NetdocUnverified`]:
+    ///
+    /// ```rust,ignore
+    /// # struct Foo; struct FooSignatures;
+    /// pub struct FooUnverified {
+    ///     body: Foo,
+    ///     pub sigs: SignaturesData<FooUnverified>,
+    /// }
+    /// ```
+    ///
+    /// ### Required top-level attributes:
     ///
     /// * **`#[deftly(netdoc(signature = "TYPE"))]`**:
     ///   Type of the signature(s) section.
@@ -847,33 +862,20 @@ define_derive_deftly! {
     ///   Normally this is achieved with
     ///   `#[derive_deftly(NetdocParseable)] #[deftly(netdoc(signatures))]`.
     ///
-    $DOC_DEBUG_PLACEHOLDER
+    /// ### Optional attributes
     ///
-    /// ### Generated struct
-    ///
-    /// ```rust,ignore
-    /// # struct Foo; struct FooSignatures;
-    /// pub struct FooUnverified {
-    ///     body: Foo,
-    ///     pub sigs: SignaturesData<FooUnverified>,
-    /// }
-    ///
-    /// impl NetdocParseable for FooUnverified { .. }
-    /// impl NetdocUnverified for FooUnverified {
-    ///     type Body = Foo;
-    ///     type Signatures = FooSignatures;
-    ///     ..
-    /// }
-    /// ```
+    /// All the attributes supported by the `NetdocParseable` derive are supported.
     //
     // We don't make NetdocUnverified a generic struct because
     //  - the defining module (crate) will want to add verification methods,
     //    which means they must define the struct
     //  - that lets the actual `body` field be private to the defining module.
-    export NetdocUnverified for struct, expect items, beta_deftly:
+    export NetdocParseableUnverified for struct, expect items, beta_deftly:
 
-    // Convenience alias for our prelude
-    ${define P { $crate::parse2::internal_prelude }}
+    // XXXX we don't actually want to impl NetdocParseable for the body type;
+    // that could lead to the caller accidentally writing code which just discards
+    // signatures and doesn't do any checking!
+    $IMPL_NETDOC_PARSEABLE
 
     // FooSignatures (type name)
     ${define SIGS_TYPE { $< ${tmeta(netdoc(signatures)) as ty, default $<$ttype Signatures>} > }}
