@@ -46,7 +46,7 @@
 #![deny(clippy::unused_async)]
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{self, Display, Formatter, Write};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 
@@ -103,11 +103,13 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
     let target_hash = hex::encode_upper(tor_llcrypto::d::Sha3_256::digest(target.as_bytes()));
 
     // Compose the result with header.
-    let mut result = String::new();
-    result += "network-status-diff-version 1\n";
-    result += &format!("hash {base_signed_hash} {target_hash}\n");
-    result += &format!("{signature_lno},$d\n");
-    result += &gen_ed_diff(&base_signed, target);
+    let ed_diff = gen_ed_diff(&base_signed, target).expect("string formatting is not infallible?");
+    let result = format!(
+        "network-status-diff-version 1\n\
+        hash {base_signed_hash} {target_hash}\n\
+        {signature_lno},$d\n\
+        {ed_diff}"
+    );
 
     // Ensure it is valid, refuse to emit an invalid diff.
     let check =
@@ -160,7 +162,20 @@ fn find_directory_signature_lno(input: &str) -> Result<usize> {
 /// consequence, this means that this function generates invalid diffs if the
 /// inputs contain non-Unix line-endings or ends without a final `\n`.
 /// This is okay because netdoc's are required to follow this format.
-fn gen_ed_diff(base: &str, target: &str) -> String {
+///
+/// # Result Value
+///
+/// This function is infallible and its result may be safely unwrapped.
+/// The return type exists in order satisfy the trait requirements.  If this
+/// would be a public function, it would probably make sense to wrap this into
+/// an inner one but because it is private, it does not matter a lot.
+///
+/// From the Rust documentation:
+/// > [...] contrary to what the function signature might suggest, string
+/// > formatting is an infallible operation.
+///
+/// See Also: <https://doc.rust-lang.org/stable/std/fmt/index.html#formatting-traits>
+fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, fmt::Error> {
     let mut result = String::new();
 
     let tlines = target.lines().collect::<Vec<_>>();
@@ -180,35 +195,36 @@ fn gen_ed_diff(base: &str, target: &str) -> String {
         // Check on whether to use append, delete, or change.
         if hunk.is_pure_insertion() {
             // Append
-
             // No need to use +1 here, because we are inserting AFTER the line.
-            result += &format!("{}a\n", hunk.before.start);
-            result += &tlines[range].join("\n");
-            result += "\n.\n";
+            write!(
+                result,
+                "{}a\n\
+                {}\n\
+                .\n",
+                hunk.before.start,
+                &tlines[range].join("\n")
+            )?;
         } else if hunk.is_pure_removal() {
             // Remove
-
             if hunk.before.start + 1 == hunk.before.end {
-                result += &format!("{}d\n", hunk.before.start + 1);
+                write!(result, "{}d\n", hunk.before.start + 1)?;
             } else {
                 // No need to +1 end because it is an excluding range.
-                result += &format!("{},{}d\n", hunk.before.start + 1, hunk.before.end);
+                write!(result, "{},{}d\n", hunk.before.start + 1, hunk.before.end)?;
             }
         } else {
             // Change
-
             if hunk.before.start + 1 == hunk.before.end {
-                result += &format!("{}c\n", hunk.before.start + 1);
+                write!(result, "{}c\n", hunk.before.start + 1)?;
             } else {
                 // No need to +1 end because it is an excluding range.
-                result += &format!("{},{}c\n", hunk.before.start + 1, hunk.before.end);
+                write!(result, "{},{}c\n", hunk.before.start + 1, hunk.before.end)?;
             }
-            result += &tlines[range].join("\n");
-            result += "\n.\n";
+            write!(result, "{}\n.\n", &tlines[range].join("\n"))?;
         }
     }
 
-    result
+    Ok(result)
 }
 
 /// Return true if `s` looks more like a consensus diff than some other kind
