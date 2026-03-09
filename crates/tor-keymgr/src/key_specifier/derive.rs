@@ -166,6 +166,47 @@ impl<'s> RawKeySpecifierComponentParser for &'s str {
 /// List of parsers for fields
 type Parsers<'p> = [&'p mut dyn RawKeySpecifierComponentParser];
 
+/// Split a string into components and parse each one
+fn extract(
+    input: Option<&str>,
+    delim: char,
+    parsers: &mut Parsers,
+    keys: &mut &[&str],
+) -> Result<(), ArtiPathError> {
+    for ent in Itertools::zip_longest(
+        input.map(|input| input.split(delim)).into_iter().flatten(),
+        parsers,
+    ) {
+        let EitherOrBoth::Both(comp, parser) = ent else {
+            // wrong number of components
+            return Err(ArtiPathError::PatternNotMatched);
+        };
+
+        // TODO would be nice to avoid allocating again here,
+        // but I think that needs an `SlugRef`.
+        let comp = Slug::new(comp.to_owned())
+            .map_err(ArtiPathSyntaxError::Slug)
+            .map_err(ArtiPathError::InvalidArtiPath)?;
+
+        let missing_keys = || internal!("keys list too short, bad args to parse_arti_path");
+
+        match parser.parse(&comp) {
+            RCPR::PatternNotMatched => Err(ArtiPathError::PatternNotMatched),
+            RCPR::Invalid(error) => Err(ArtiPathError::InvalidKeyPathComponentValue {
+                error,
+                key: keys.first().ok_or_else(missing_keys)?.to_string(),
+                value: comp,
+            }),
+            RCPR::ParsedField => {
+                *keys = keys.split_first().ok_or_else(missing_keys)?.1;
+                Ok(())
+            }
+            RCPR::MatchedLiteral => Ok(()),
+        }?;
+    }
+    Ok(())
+}
+
 /// Parse a `KeyPath` as an `ArtiPath` like pc/pc/pc/lc_lc_lc
 ///
 /// `keys` is the field names for each of the path_parsers and leaf_parsers,
@@ -203,47 +244,6 @@ pub fn parse_arti_path(
     };
 
     let mut keys: &[&str] = keys;
-
-    /// Split a string into components and parse each one
-    fn extract(
-        input: Option<&str>,
-        delim: char,
-        parsers: &mut Parsers,
-        keys: &mut &[&str],
-    ) -> Result<(), ArtiPathError> {
-        for ent in Itertools::zip_longest(
-            input.map(|input| input.split(delim)).into_iter().flatten(),
-            parsers,
-        ) {
-            let EitherOrBoth::Both(comp, parser) = ent else {
-                // wrong number of components
-                return Err(ArtiPathError::PatternNotMatched);
-            };
-
-            // TODO would be nice to avoid allocating again here,
-            // but I think that needs an `SlugRef`.
-            let comp = Slug::new(comp.to_owned())
-                .map_err(ArtiPathSyntaxError::Slug)
-                .map_err(ArtiPathError::InvalidArtiPath)?;
-
-            let missing_keys = || internal!("keys list too short, bad args to parse_arti_path");
-
-            match parser.parse(&comp) {
-                RCPR::PatternNotMatched => Err(ArtiPathError::PatternNotMatched),
-                RCPR::Invalid(error) => Err(ArtiPathError::InvalidKeyPathComponentValue {
-                    error,
-                    key: keys.first().ok_or_else(missing_keys)?.to_string(),
-                    value: comp,
-                }),
-                RCPR::ParsedField => {
-                    *keys = keys.split_first().ok_or_else(missing_keys)?.1;
-                    Ok(())
-                }
-                RCPR::MatchedLiteral => Ok(()),
-            }?;
-        }
-        Ok(())
-    }
 
     extract(path, '/', path_parsers, &mut keys)?;
     extract(Some(leaf), DENOTATOR_SEP, leaf_parsers, &mut keys)?;
