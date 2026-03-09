@@ -68,13 +68,6 @@ impl<'a> RelayDetails<'a> {
         self.0.rs.is_flagged_fast()
     }
     /// Return true if this relay has the "Exit" flag.
-    ///
-    /// The exit flag is a mandatory opt-in for relay operators and depends on
-    /// upon the freedoms given by the exit policy, as well as mutually
-    /// exclusivity with other flags.  It indicates that the relay is suitable
-    /// for being an exit.
-    ///
-    /// See also: <https://spec.torproject.org/dir-spec/assigning-flags-vote.html>.
     pub fn is_flagged_exit(&self) -> bool {
         self.0.rs.is_flagged_exit()
     }
