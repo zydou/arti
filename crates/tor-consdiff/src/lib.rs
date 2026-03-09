@@ -59,6 +59,13 @@ use tor_netdoc::parse2::{ErrorProblem, ItemStream, ParseError, ParseInput};
 /// Result type used by this crate
 type Result<T> = std::result::Result<T, Error>;
 
+/// The keyword that identifies a directory signature line.
+// TODO: We probably want this in tor-netdoc.
+const DIRECTORY_SIGNATURE_KEYWORD: &str = "directory-signature";
+
+/// When hashing the signed part of the consensus, append this tail to the end.
+const CONSENSUS_SIGNED_SHA3_256_HASH_TAIL: &str = "directory-signature ";
+
 /// Generates a consensus diff.
 ///
 /// This implementation is different from the one in CTor, because it uses a
@@ -90,7 +97,7 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
     let base_signed_hash = hex::encode_upper({
         let mut h = tor_llcrypto::d::Sha3_256::new();
         h.update(&base_signed);
-        h.update("directory-signature ");
+        h.update(CONSENSUS_SIGNED_SHA3_256_HASH_TAIL);
         h.finalize()
     });
     let target_hash = hex::encode_upper(tor_llcrypto::d::Sha3_256::digest(target.as_bytes()));
@@ -121,7 +128,7 @@ fn find_directory_signature_lno(input: &str) -> Result<usize> {
     let mut lno = None;
     while let Some(item) = items.next() {
         let item = item.map_err(|e| ParseError::new(e, "consdiff", "", items.lno(), None))?;
-        if item.keyword() == "directory-signature" {
+        if item.keyword() == DIRECTORY_SIGNATURE_KEYWORD {
             lno = Some(items.lno());
             break;
         }
@@ -130,7 +137,7 @@ fn find_directory_signature_lno(input: &str) -> Result<usize> {
     // Return the lno or an error.
     lno.ok_or(Error::InvalidInput(ParseError::new(
         ErrorProblem::MissingItem {
-            keyword: "directory-signature",
+            keyword: DIRECTORY_SIGNATURE_KEYWORD,
         },
         "consdiff",
         "",
