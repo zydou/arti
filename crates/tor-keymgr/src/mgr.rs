@@ -1923,6 +1923,38 @@ mod tests {
         No,
     }
 
+    fn make_certificate(subject_key: &TestItem, signed_with: &TestItem) -> AlwaysValidCert {
+        let subject_id = subject_key.meta.as_key().unwrap().item_id.clone();
+        let signing_id = signed_with.meta.as_key().unwrap().item_id.clone();
+
+        let meta = ItemMetadata::Cert(CertMetadata {
+            subject_key_id: subject_id,
+            signing_key_id: signing_id,
+            retrieved_from: None,
+            is_generated: true,
+        });
+
+        // Note: this is not really a cert for `subject_key` signed with the `signed_with`
+        // key!. The two are `TestItem`s and not keys, so we can't really generate a real
+        // cert from them. We can, however, pretend we did, for testing purposes.
+        // Eventually we might want to rewrite these tests to use real items
+        // (like the `ArtiNativeKeystore` tests)
+        let mut rng = FakeEntropicRng(testing_rng());
+        let keypair = ed25519::Keypair::generate(&mut rng);
+        let encoded_cert = Ed25519Cert::constructor()
+            .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
+            .expiration(SystemTime::now() + Duration::from_secs(180))
+            .signing_key(keypair.public_key().into())
+            .cert_key(CertifiedKey::Ed25519(keypair.public_key().into()))
+            .encode_and_sign(&keypair)
+            .unwrap();
+        let test_cert = CertData::TorEd25519Cert(encoded_cert);
+        AlwaysValidCert(TestItem {
+            item: KeystoreItem::Cert(test_cert),
+            meta,
+        })
+    }
+
     #[cfg(feature = "experimental-api")]
     macro_rules! run_certificate_test {
         (
@@ -1968,37 +2000,6 @@ mod tests {
                     .unwrap();
             }
 
-            let make_certificate = move |subject_key: &TestItem, signed_with: &TestItem| {
-                let subject_id = subject_key.meta.as_key().unwrap().item_id.clone();
-                let signing_id = signed_with.meta.as_key().unwrap().item_id.clone();
-
-                let meta = ItemMetadata::Cert(CertMetadata {
-                    subject_key_id: subject_id,
-                    signing_key_id: signing_id,
-                    retrieved_from: None,
-                    is_generated: true,
-                });
-
-                // Note: this is not really a cert for `subject_key` signed with the `signed_with`
-                // key!. The two are `TestItem`s and not keys, so we can't really generate a real
-                // cert from them. We can, however, pretend we did, for testing purposes.
-                // Eventually we might want to rewrite these tests to use real items
-                // (like the `ArtiNativeKeystore` tests)
-                let mut rng = FakeEntropicRng(testing_rng());
-                let keypair = ed25519::Keypair::generate(&mut rng);
-                let encoded_cert = Ed25519Cert::constructor()
-                    .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
-                    .expiration(SystemTime::now() + Duration::from_secs(180))
-                    .signing_key(keypair.public_key().into())
-                    .cert_key(CertifiedKey::Ed25519(keypair.public_key().into()))
-                    .encode_and_sign(&keypair)
-                    .unwrap();
-                let test_cert = CertData::TorEd25519Cert(encoded_cert);
-                AlwaysValidCert(TestItem {
-                    item: KeystoreItem::Cert(test_cert),
-                    meta,
-                })
-            };
 
             let signing_key_spec = TestKeySpecifier2;
             let res = mgr
