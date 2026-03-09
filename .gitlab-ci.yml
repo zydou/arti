@@ -334,13 +334,9 @@ rust-recent-integration:
     - rustup show
     # Build the arti binary for use in chutney and shadow integration tests.
     #
-    # Note: we enable the `experimental-api` feature instead of `experimental`,
-    # because we don't want to build with `rpc` enabled. The `rpc` feature causes
-    # the RPC listener to try to bind to a Unix domain socket, and pathname Unix
-    # domain sockets are not currently supported by shadow.
-    #
-    # Consider enabling the rpc feature when shadow starts supporting pathname
-    # addresses, or when we add a config setting for disabling rpc.
+    # We enable *all* features, in `full` and `experimental`, not just the
+    # ones we specifically test. This at least validates that just including
+    # such features at compile-time doesn't break anything.
     #
     # Note: `-p arti` is *not* already implied by `--bin arti`. If we omit it,
     # we'll get the union of all features needed by anything in the workspace,
@@ -348,9 +344,9 @@ rust-recent-integration:
     - cargo build
       --profile $ARTI_CI_PROFILE
       --target x86_64-unknown-linux-gnu
-      -p arti -p tor-circmgr
+      -p arti
       --bin arti
-      --features full,restricted-discovery,arti-client/keymgr,onion-service-service,vanguards,ctor-keystore,opentelemetry
+      --features full,experimental
 
 rust-recent-arti-extra-features:
   needs: []
