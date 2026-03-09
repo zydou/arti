@@ -840,6 +840,7 @@ mod tests {
     use super::*;
     use crate::keystore::arti::err::{ArtiNativeKeystoreError, MalformedPathError};
     use crate::raw::{RawEntryId, RawKeystoreEntry};
+    use crate::test_utils::TestDerivedKeySpecifier;
     use crate::{
         ArtiPath, ArtiPathUnavailableError, Error, KeyPath, KeystoreEntryResult, KeystoreError,
         UnrecognizedEntryError,
@@ -1974,8 +1975,8 @@ mod tests {
             let mgr = builder.build().unwrap();
 
             let spec = crate::test_utils::TestCertSpecifier {
-                subject_key_spec: TestKeySpecifier1,
-                denotator: vec!["foo".into()],
+                subject_key_spec: TestDerivedKeySpecifier,
+                denotator: "foo".into(),
             };
 
             if $generate_subject_key == Yes {
