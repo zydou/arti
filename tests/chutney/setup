@@ -79,7 +79,7 @@ class ArtiBenchBinResolver:
         parser.add_argument("--arti-bench-bin", help="arti-bench executable")
 
     def resolve(self, args: Namespace) -> Path:
-        res_str = args.arti_bin
+        res_str = args.arti_bench_bin
         if res_str is None:
             for s in [
                 "target/x86_64-unknown-linux-gnu/release/arti-bench",
