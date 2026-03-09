@@ -8,18 +8,34 @@ from __future__ import annotations
 
 import ctypes
 from ctypes import (
+    CFUNCTYPE,
     POINTER,
     c_char_p,
     c_int,
-    sizeof,
     c_void_p,
     c_uint64,
     c_uint32,
     Structure,
+    sizeof,
 )
 
 import os
 import sys
+
+##########
+# Declare c_uintptr.
+
+
+def _get_c_uintptr():
+    """Helper: Find the type corresponding to uintptr_t"""
+    for candidate in [c_uint64, c_uint64]:
+        if sizeof(candidate) == sizeof(c_void_p):
+            return candidate
+    raise NotImplementedError("Could not find an appropriate type for c_uintptr")
+
+
+c_uintptr = _get_c_uintptr()
+
 
 ##########
 # Declare some types for use with ctypes.
@@ -55,6 +71,19 @@ class ArtiRpcHandle(Structure):
     _fields_ = []
 
 
+class ArtiRpcPoll(Structure):
+    """FFI type: object to integrate with an event loop."""
+
+    _fields_ = []
+
+
+class ArtiRpcUserTag(Structure):
+    """FFI type: user-provided tag to identify responses to nonblocking
+    requests."""
+
+    _fields_ = [("a", c_uintptr), ("b", c_uintptr)]
+
+
 ArtiRpcResponseType = c_int
 
 _ConnOut = POINTER(POINTER(ArtiRpcConn))
@@ -63,21 +92,19 @@ _ErrorOut = POINTER(POINTER(ArtiRpcError))
 _RpcStrOut = POINTER(POINTER(ArtiRpcStr))
 _RpcHandleOut = POINTER(POINTER(ArtiRpcHandle))
 _ArtiRpcResponseTypeOut = POINTER(ArtiRpcResponseType)
+_PollOut = POINTER(POINTER(ArtiRpcPoll))
+_UserTagOut = POINTER(ArtiRpcUserTag)
+_IntOut = POINTER(c_int)
+
+# (Accepts a void*, returns a c_int.)
+EvLoopCb = CFUNCTYPE(c_int, c_void_p)
 
 _ArtiRpcStatus = c_uint32
 
 _ArtiRpcRawSocket: type
 if os.name == "nt":
-    # Alas, SOCKET on win32 is defined as UINT_PTR_T,
-    # which ctypes doesn't know about.
-    if sizeof(c_void_p) == 4:
-        _ArtiRpcRawSocket = c_uint32
-        INVALID_SOCKET = (1 << 32) - 1
-    elif sizeof(c_void_p) == 8:
-        _ArtiRpcRawSocket = c_uint64
-        INVALID_SOCKET = (1 << 64) - 1
-    else:
-        raise NotImplementedError()
+    _ArtiRpcRawSocket = c_uintptr
+    INVALID_SOCKET = -1
 else:
     _ArtiRpcRawSocket = c_int
     INVALID_SOCKET = -1
@@ -116,6 +143,23 @@ def _annotate_library(lib: ctypes.CDLL):
         _ErrorOut,
     ]
     lib.arti_rpc_conn_execute_with_handle.restype = _ArtiRpcStatus
+
+    lib.arti_rpc_conn_submit.argtypes = [
+        POINTER(ArtiRpcConn),
+        c_char_p,
+        POINTER(ArtiRpcUserTag),
+        _ErrorOut,
+    ]
+    lib.arti_rpc_conn_submit.restype = _ArtiRpcStatus
+
+    lib.arti_rpc_conn_wait.argtypes = [
+        POINTER(ArtiRpcConn),
+        _UserTagOut,
+        _RpcStrOut,
+        _ArtiRpcResponseTypeOut,
+        _ErrorOut,
+    ]
+    lib.arti_rpc_conn_wait.restype = _ArtiRpcStatus
 
     lib.arti_rpc_conn_get_session_id.argtypes = [POINTER(ArtiRpcConn)]
     lib.arti_rpc_conn_get_session_id.restype = c_char_p
@@ -192,6 +236,33 @@ def _annotate_library(lib: ctypes.CDLL):
 
     lib.arti_rpc_str_get.argtypes = [POINTER(ArtiRpcStr)]
     lib.arti_rpc_str_get.restype = c_char_p
+
+    lib.arti_rpc_conn_builder_connect_polling.argtypes = [
+        POINTER(ArtiRpcConnBuilder),
+        EvLoopCb,
+        EvLoopCb,
+        c_void_p,
+        _ConnOut,
+        _PollOut,
+        _ErrorOut,
+    ]
+    lib.arti_rpc_conn_builder_connect_polling.restype = _ArtiRpcStatus
+
+    lib.arti_rpc_poll_wants_to_write.argtypes = [POINTER(ArtiRpcPoll)]
+    lib.arti_rpc_poll_wants_to_write.restype = c_int
+
+    lib.arti_rpc_poll_get_socket.argtypes = [POINTER(ArtiRpcPoll)]
+    lib.arti_rpc_poll_wants_to_write.restype = _ArtiRpcRawSocket
+
+    lib.arti_rpc_poll_poll.argtypes = [
+        POINTER(ArtiRpcPoll),
+        _UserTagOut,
+        _RpcStrOut,
+        _ArtiRpcResponseTypeOut,
+        _IntOut,
+        _ErrorOut,
+    ]
+    lib.arti_rpc_poll_poll.restype = _ArtiRpcStatus
 
 
 def _load_library():
