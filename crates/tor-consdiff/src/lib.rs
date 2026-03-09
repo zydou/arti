@@ -53,7 +53,7 @@ use std::str::FromStr;
 mod err;
 use digest::Digest;
 pub use err::Error;
-use imara_diff::{Algorithm, Diff, InternedInput};
+use imara_diff::{Algorithm, Diff, Hunk, InternedInput};
 use tor_error::internal;
 use tor_netdoc::parse2::{ErrorProblem, ItemStream, ParseError, ParseInput};
 
@@ -192,39 +192,74 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, fmt::Err
         // Stupid imara-diff stores indices as u32 so we convert it here.
         let range = (hunk.after.start as usize)..(hunk.after.end as usize);
 
-        // Check on whether to use append, delete, or change.
-        if hunk.is_pure_insertion() {
-            // Append
-            // No need to use +1 here, because we are inserting AFTER the line.
-            write!(
-                result,
-                "{}a\n\
-                {}\n\
-                .\n",
-                hunk.before.start,
-                &tlines[range].join("\n")
-            )?;
-        } else if hunk.is_pure_removal() {
-            // Remove
-            if hunk.before.start + 1 == hunk.before.end {
-                write!(result, "{}d\n", hunk.before.start + 1)?;
-            } else {
-                // No need to +1 end because it is an excluding range.
-                write!(result, "{},{}d\n", hunk.before.start + 1, hunk.before.end)?;
+        // Format the header.
+        let hunk_type = HunkType::determine(&hunk);
+        match hunk_type {
+            // No need to do +1 because append is AFTER.
+            HunkType::Append => writeln!(result, "{}{hunk_type}", hunk.before.start)?,
+            HunkType::Delete | HunkType::Change => {
+                if hunk.before.start + 1 == hunk.before.end {
+                    // +1 because 1-indexed.
+                    writeln!(result, "{}{hunk_type}", hunk.before.start + 1)?;
+                } else {
+                    // +1 because 1-indexed; no need to do +1 on end because
+                    // the range is inclusive.
+                    writeln!(
+                        result,
+                        "{},{}{hunk_type}",
+                        hunk.before.start + 1,
+                        hunk.before.end
+                    )?;
+                }
             }
-        } else {
-            // Change
-            if hunk.before.start + 1 == hunk.before.end {
-                write!(result, "{}c\n", hunk.before.start + 1)?;
-            } else {
-                // No need to +1 end because it is an excluding range.
-                write!(result, "{},{}c\n", hunk.before.start + 1, hunk.before.end)?;
+        }
+
+        // Format the body.
+        match hunk_type {
+            HunkType::Append | HunkType::Change => {
+                // Do \n after join because there is no trailing \n.
+                writeln!(result, "{}\n.", &tlines[range].join("\n"))?;
             }
-            write!(result, "{}\n.\n", &tlines[range].join("\n"))?;
+            HunkType::Delete => {}
         }
     }
 
     Ok(result)
+}
+
+/// The operational type of the hunk.
+#[derive(Clone, Copy, Debug)]
+enum HunkType {
+    /// This is a pure appending.
+    Append,
+    /// This is a pure deletion.
+    Delete,
+    /// This is change with potential additions and deletions.
+    Change,
+}
+
+impl HunkType {
+    /// Determines the type of the hunk.
+    fn determine(hunk: &Hunk) -> Self {
+        if hunk.is_pure_insertion() {
+            Self::Append
+        } else if hunk.is_pure_removal() {
+            Self::Delete
+        } else {
+            Self::Change
+        }
+    }
+}
+
+impl Display for HunkType {
+    /// Formats the HunkType with the Tor specific control sequence.
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self {
+            HunkType::Append => write!(f, "a"),
+            HunkType::Delete => write!(f, "d"),
+            HunkType::Change => write!(f, "c"),
+        }
+    }
 }
 
 /// Return true if `s` looks more like a consensus diff than some other kind
