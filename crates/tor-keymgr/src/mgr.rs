@@ -840,7 +840,6 @@ mod tests {
     use super::*;
     use crate::keystore::arti::err::{ArtiNativeKeystoreError, MalformedPathError};
     use crate::raw::{RawEntryId, RawKeystoreEntry};
-    use crate::test_utils::TestDerivedKeySpecifier;
     use crate::{
         ArtiPath, ArtiPathUnavailableError, Error, KeyPath, KeystoreEntryResult, KeystoreError,
         UnrecognizedEntryError,
@@ -859,6 +858,12 @@ mod tests {
     };
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
     use tor_llcrypto::rng::FakeEntropicRng;
+
+    #[cfg(feature = "experimental-api")]
+    use {
+        crate::CertSpecifierPattern,
+        crate::test_utils::{TestCertSpecifier, TestCertSpecifierPattern, TestDerivedKeySpecifier},
+    };
 
     /// Metadata structure for tracking key operations in tests.
     #[derive(Clone, Debug, PartialEq)]
@@ -2076,5 +2081,88 @@ mod tests {
             generate_subject_key = Yes,
             generate_signing_key = Yes,
         );
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-api")]
+    fn get_cert_entry() {
+        let mut rng = FakeEntropicRng(testing_rng());
+        let builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
+        let mgr = builder.build().unwrap();
+
+        // Generate the subject key
+        let _ = mgr
+            .generate::<TestItem>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Primary,
+                &mut rng,
+                false,
+            )
+            .unwrap();
+
+        // Generate the signing key
+        let _ = mgr
+            .generate::<TestItem>(
+                &TestKeySpecifier2,
+                KeystoreSelector::Primary,
+                &mut rng,
+                false,
+            )
+            .unwrap();
+
+        // Generate multiple test certificates for the same subject key
+        for cert_deno in 0..10 {
+            let cert_spec = TestCertSpecifier {
+                subject_key_spec: TestDerivedKeySpecifier,
+                denotator: cert_deno.to_string(),
+            };
+
+            let res = mgr.get_or_generate_key_and_cert::<TestItem, AlwaysValidCert>(
+                &cert_spec,
+                &TestKeySpecifier2,
+                &make_certificate,
+                KeystoreSelector::Primary,
+                &mut rng,
+            );
+
+            assert!(res.is_ok());
+        }
+
+        // Time to list all certs and retrieve them
+        let any_pat = TestCertSpecifierPattern::new_any().arti_pattern().unwrap();
+
+        // Ensure the pattern is what we expect it to be
+        assert_eq!(
+            any_pat,
+            KeyPathPattern::Arti("test/simple_key+@*".to_string())
+        );
+        let certs = mgr.list_matching(&any_pat).unwrap();
+
+        // We generated 10 certs, so there should be 10 matching entries
+        assert_eq!(certs.len(), 10);
+
+        // Ensure we collected all the expected paths
+        let all_paths = certs
+            .iter()
+            .map(|entry| entry.key_path().arti().unwrap().as_str().to_string())
+            .sorted()
+            .collect::<Vec<_>>();
+
+        let expected_paths = (0..10)
+            .map(|i| format!("test/simple_key+@{i}"))
+            .collect::<Vec<_>>();
+        assert_eq!(all_paths, expected_paths);
+
+        for entry in certs {
+            let always_valid_cert = mgr
+                .get_cert_entry::<TestCertSpecifier, TestItem, AlwaysValidCert>(
+                    &entry,
+                    &TestKeySpecifier2,
+                )
+                .unwrap();
+
+            // Check that the cert was found...
+            assert!(always_valid_cert.is_some());
+        }
     }
 }
