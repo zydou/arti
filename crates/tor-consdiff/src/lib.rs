@@ -69,6 +69,9 @@ const DIRECTORY_SIGNATURE_KEYWORD: &str = "directory-signature";
 /// When hashing the signed part of the consensus, append this tail to the end.
 const CONSENSUS_SIGNED_SHA3_256_HASH_TAIL: &str = "directory-signature ";
 
+// Do not compile if we cannot safely convert a u32 into a usize.
+static_assertions::const_assert!(std::mem::size_of::<usize>() >= std::mem::size_of::<u32>());
+
 /// Generates a consensus diff.
 ///
 /// This implementation is different from the one in CTor, because it uses a

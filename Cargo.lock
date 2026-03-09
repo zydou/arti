@@ -6866,6 +6866,7 @@ dependencies = [
  "hex",
  "imara-diff",
  "rand 0.9.2",
+ "static_assertions",
  "thiserror 2.0.18",
  "tor-basic-utils",
  "tor-error",
