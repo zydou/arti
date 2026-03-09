@@ -21,6 +21,7 @@ _TEST_MODS = [
     "connpt",
     "connect",
     "meta_features",
+    "nb_request",
     "release_obj",
     "superuser",
 ]
