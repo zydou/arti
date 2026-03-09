@@ -974,3 +974,8 @@ define_derive_deftly! {
     // TODO: generate and register a KeyPathInfoExtractor impl for cert specifiers
     // (so that KeyMgr::describe() can describe them)
 }
+
+pub use derive_deftly_template_KeySpecifier;
+
+#[cfg(feature = "experimental-api")]
+pub use derive_deftly_template_CertSpecifier;
