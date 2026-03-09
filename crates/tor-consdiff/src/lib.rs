@@ -57,6 +57,8 @@ use imara_diff::{Algorithm, Diff, Hunk, InternedInput};
 use tor_error::internal;
 use tor_netdoc::parse2::{ErrorProblem, ItemStream, ParseError, ParseInput};
 
+use crate::err::GenEdDiffError;
+
 /// Result type used by this crate
 type Result<T> = std::result::Result<T, Error>;
 
@@ -104,7 +106,17 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
     let target_hash = hex::encode_upper(tor_llcrypto::d::Sha3_256::digest(target.as_bytes()));
 
     // Compose the result with header.
-    let ed_diff = gen_ed_diff(&base_signed, target).expect("string formatting is not infallible?");
+    let ed_diff = gen_ed_diff(&base_signed, target).map_err(|e| match e {
+        GenEdDiffError::ContainsDotLine(lno) => Error::InvalidInput(ParseError::new(
+            ErrorProblem::OtherBadDocument("contains dotline"),
+            "consdiff",
+            "",
+            lno,
+            None,
+        )),
+        GenEdDiffError::Write(_) => internal!("string write was not infallible?").into(),
+    })?;
+
     let result = format!(
         "network-status-diff-version 1\n\
         hash {base_signed_hash} {target_hash}\n\
@@ -162,20 +174,7 @@ fn find_directory_signature_lno(input: &str) -> Result<usize> {
 /// consequence, this means that this function generates invalid diffs if the
 /// inputs contain non-Unix line-endings or ends without a final `\n`.
 /// This is okay because netdoc's are required to follow this format.
-///
-/// # Result Value
-///
-/// This function is infallible and its result may be safely unwrapped.
-/// The return type exists in order satisfy the trait requirements.  If this
-/// would be a public function, it would probably make sense to wrap this into
-/// an inner one but because it is private, it does not matter a lot.
-///
-/// From the Rust documentation:
-/// > [...] contrary to what the function signature might suggest, string
-/// > formatting is an infallible operation.
-///
-/// See Also: <https://doc.rust-lang.org/stable/std/fmt/index.html#formatting-traits>
-fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, fmt::Error> {
+fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDiffError> {
     let mut result = String::new();
 
     let tlines = target.lines().collect::<Vec<_>>();
@@ -217,8 +216,14 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, fmt::Err
         // Format the body.
         match hunk_type {
             HunkType::Append | HunkType::Change => {
+                // Check for lines consisting of a single dot.
+                if let Some(lno) = tlines[range.clone()].iter().position(|l| *l == ".") {
+                    // +1 because 1-indexed.
+                    return Err(GenEdDiffError::ContainsDotLine(lno + 1));
+                }
+
                 // Do \n after join because there is no trailing \n.
-                writeln!(result, "{}\n.", &tlines[range].join("\n"))?;
+                writeln!(result, "{}\n.", tlines[range].join("\n"))?;
             }
             HunkType::Delete => {}
         }
@@ -1159,5 +1164,15 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         let diff = gen_cons_diff(&left, &right).unwrap();
         let check = apply_diff(&left, &diff, None).unwrap().to_string();
         assert_eq!(right, check);
+    }
+
+    #[test]
+    fn dot_line() {
+        let base = "";
+        let target = "foo\nbar\n.\nbaz\nfoo\n";
+        assert_eq!(
+            gen_ed_diff(base, target).unwrap_err(),
+            GenEdDiffError::ContainsDotLine(3),
+        );
     }
 }

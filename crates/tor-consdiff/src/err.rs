@@ -52,3 +52,19 @@ impl From<tor_error::Bug> for Error {
         Self::Bug(e)
     }
 }
+
+/// An error type for consensus diff generation.
+///
+// TODO: Potentially make this a first-class citizen error and rename Error to
+// ApplyConsDiffError.
+#[derive(Clone, Debug, Error, PartialEq, Eq)]
+pub(crate) enum GenEdDiffError {
+    /// Diff results in the insertion of a line with a single dot, which is not
+    /// possible according to the specification.
+    #[error("Dotline found at {0}")]
+    ContainsDotLine(usize),
+
+    /// Formatting error, mostly convenience to allow for `?` in write calls.
+    #[error("Formatting error: {0}")]
+    Write(#[from] std::fmt::Error),
+}
