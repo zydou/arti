@@ -26,8 +26,10 @@ full = [
 
 [dependencies]
 bytes = "1.10.1"
+digest = "0.10.7"
 flate2 = "1.1.5"
 futures = "0.3.31"
+getset = "0.1.6"
 hex = "0.4.3"
 http = "1.3.1"
 http-body = "1.0.1"
@@ -42,7 +44,6 @@ retry-error = { version = "0.11.0", path = "../retry-error" }
 # NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
 rusqlite = ">=0.36.0, <0.39.0"
 saturating-time = "0.3.0"
-sha2 = "0.10.9"
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full", "test-util"] }

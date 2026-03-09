@@ -1,0 +1,142 @@
+network-status-version 3
+vote-status consensus
+consensus-method 33
+valid-after 2026-01-29 15:00:00
+fresh-until 2026-01-29 16:00:00
+valid-until 2026-01-29 18:00:00
+voting-delay 300 300
+client-versions 0.4.8.19,0.4.8.20,0.4.8.21,0.4.8.22,0.4.9.3-alpha,0.4.9.4-rc
+server-versions 0.4.8.21,0.4.8.22,0.4.9.3-alpha,0.4.9.4-rc
+known-flags Authority BadExit Exit Fast Guard HSDir MiddleOnly NoEdConsensus Running Stable StaleDesc Sybil V2Dir Valid
+recommended-client-protocols Cons=2 Desc=2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4 HSRend=2 Link=4-5 Microdesc=2 Relay=2-4
+recommended-relay-protocols Cons=2 Desc=2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=2 Link=4-5 LinkAuth=3 Microdesc=2 Relay=2-4
+required-client-protocols Cons=2 Desc=2 FlowCtrl=1 Link=4 Microdesc=2 Relay=2
+required-relay-protocols Cons=2 Desc=2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=2 Link=4-5 LinkAuth=3 Microdesc=2 Relay=2-4
+params AuthDirMaxServersPerAddr=8 CircuitPriorityHalflifeMsec=30000 DoSCircuitCreationBurst=60 DoSCircuitCreationEnabled=1 DoSCircuitCreationMinConnections=2 DoSCircuitCreationRate=2 DoSConnectionEnabled=1 DoSConnectionMaxConcurrentCount=50 DoSRefuseSingleHopClientRendezvous=1 ExtendByEd25519ID=1 KISTSchedRunInterval=3 NumNTorsPerTAP=100 UseOptimisticData=1 bwauthpid=1 bwscanner_cc=1 cbttestfreq=10 cc_alg=2 cc_cwnd_full_gap=4 cc_cwnd_full_minpct=25 cc_cwnd_inc=1 cc_cwnd_inc_rate=31 cc_cwnd_min=124 cc_sscap_exit=600 cc_sscap_onion=475 cc_sscap_sbws=600 cc_vegas_alpha_exit=186 cc_vegas_alpha_sbws=186 cc_vegas_beta_onion=372 cc_vegas_beta_sbws=248 cc_vegas_delta_exit=310 cc_vegas_delta_onion=434 cc_vegas_delta_sbws=310 cc_vegas_gamma_onion=248 cc_vegas_gamma_sbws=186 cfx_low_exit_threshold=5000 circ_max_cell_queue_size=1250 circ_max_cell_queue_size_out=1000 dos_num_circ_max_outq=5 guard-n-primary-dir-guards-to-use=2 guard-n-primary-guards-to-use=2 hs_service_max_rdv_failures=1 hsdir_spread_store=4 overload_onionskin_ntor_period_secs=10800 overload_onionskin_ntor_scale_percent=500 sendme_accept_min_version=1
+shared-rand-previous-value 9 FQ8KxEoJUblilD5txJNxMJu3JdzR1uWAsSdqDORyehI=
+shared-rand-current-value 9 VCRUl1DNC3j1xpFsFkhPBRCB9O+SNO1cCdfAEYPvecQ=
+dir-source dannenberg 0232AF901C31A04EE9848595AF9BB7620D4C5B2E dannenberg.torauth.de 193.23.244.244 80 443
+contact Andreas Lehner
+vote-digest CBC02F44EA8004AE5959BE43844DE9895BD6B07E
+dir-source longclaw 23D15D965BC35114467363C165C4F724B64B4F66 199.58.81.140 199.58.81.140 80 443
+contact Riseup Networks <collective at riseup dot net> - 1nNzekuHGGzBYRzyjfjFEfeisNvxkn4RT
+vote-digest 8948DD48C29697607FD066791CA27CC04752A59D
+dir-source bastet 27102BC123E7AF1D4741AE047E160C91ADC76B21 204.13.164.118 204.13.164.118 80 443
+contact stefani <nocat at readthefinemanual dot net> 4096/F4B863AD6642E7EE
+vote-digest 61122983FC07908924E6C29C5D09C69643301F3E
+dir-source tor26 2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C 217.196.147.77 217.196.147.77 80 443
+contact Peter Palfrader
+vote-digest 8002155378790AB6DDCC8ADF1B1F8BBF3A818630
+dir-source maatuska 49015F787433103580E3B66A1707A00E60F2D15B 171.25.193.9 171.25.193.9 443 80
+contact 4096R/1E8BF34923291265 Linus Nordberg <linus@nordberg.se>
+vote-digest B3DD4E500763972024BFC7AE2952F8990AEAB019
+dir-source faravahar 70849B868D606BAECFB6128C5E3D782029AA394F faravahar.redteam.net 216.218.219.41 80 443
+contact Sina Rabbani < sina redteam net >
+vote-digest 09D990DD74B02A4D99DEA29E2A86ACE6EE7CC22D
+dir-source dizum E8A9C45EDE6D711294FADF8E7951F4DE6CA56B58 45.66.35.11 45.66.35.11 80 443
+contact email:usura[]sabotage.org url:https://sabotage.net proof:uri-rsa abuse:abuse[]sabotage.net twitter:adejoode ciissversion:2
+vote-digest FA661AE69BC8CBC93D7BB037AD1545825D3EA82E
+dir-source gabelmoo ED03BB616EB2F60BEC80151114BB25CEF515B226 131.188.40.189 131.188.40.189 80 443
+contact 4096R/261C5FBE77285F88FB0C343266C8C2D7C5AA446D Sebastian Hahn <tor@sebastianhahn.net>
+vote-digest 6912E9D7CBF9134417BDF75FD51B33080313BC80
+dir-source moria1 F533C81CEF0BC0267857C99B2F471ADF249FA232 128.31.0.39 128.31.0.39 9231 9201
+contact 1024D/EB5A896A28988BF5 arma mit edu
+vote-digest 919C29123293CE5BCD3077A13EAC90A5C852272F
+r lisdex AAAErLudKby6FyVrs1ko3b/Iq6k A7hfs+L0Ob/dVz2ORn6FgdkLS/k 2026-01-29 07:44:43 152.53.144.50 8443 0
+a [2a0a:4cc0:c1:2aac::1]:8443
+s Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.4.8.21
+pr Conflux=1 Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Padding=2 Relay=1-4
+w Bandwidth=85000
+p reject 1-65535
+r SharingIsCaring AAB3U5aCNzT5U9IsI48P6F2285A iGCD0aXADt9mS0K9K/d6rZvovAE 2026-01-28 23:00:07 188.195.48.170 9001 0
+s Fast HSDir Running Stable V2Dir Valid
+v Tor 0.4.8.21
+pr Conflux=1 Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Padding=2 Relay=1-4
+w Bandwidth=370
+p reject 1-65535
+directory-footer
+bandwidth-weights Wbd=1232 Wbe=0 Wbg=4139 Wbm=10000 Wdb=10000 Web=10000 Wed=7536 Wee=10000 Weg=7536 Wem=10000 Wgb=10000 Wgd=1232 Wgg=5861 Wgm=5861 Wmb=10000 Wmd=1232 Wme=0 Wmg=4139 Wmm=10000
+directory-signature 0232AF901C31A04EE9848595AF9BB7620D4C5B2E DBC44B8640348CF9B2C152A6A09173810DF2C3B2
+-----BEGIN SIGNATURE-----
+XeLDb9J6N3J0YHSDO7F69pk9Dwf+BHtWqzl1vZE8uGtXnFqnmB7UBXbDVxZm7wU8
+JNg26kZe19IXYKHy8ife+PXRjj2AGcDYOIjRvvGL/0RRn0VjYnSUq5N8BcpoxttL
+M6QBoo1FwGDZzn/d+wcpMihvoiPFq8nPMhCUE09jnLF1AKoPL9iL4ScmfZmHEag9
+lPYSsp0TFUVRM44utperhr4ydH11m0g2vM5ZySTZCRIUQj8jBYD8NpOHJuR41Qci
+w+MozJKwbV8q+ap16Wd3gtMh/kd9aytkzRUv0K3dAOr+6ZoBljXxE91Jv/0qIg+W
+w+BX2ue/MnOb6q53dg+Maw==
+-----END SIGNATURE-----
+directory-signature 23D15D965BC35114467363C165C4F724B64B4F66 E3FF1BECB2667D1220838562CBAE41BC07C97720
+-----BEGIN SIGNATURE-----
+MtUcRRvZHIH3eVsGMUBNFP7HceL65EoEJezmSElBrAto/YNZIAgQsKMtDjd+PvE3
+pjyEAXSvQWJcAs3Dy1F1vDWss1lIbeGAaBthmeTDRptsMzCo+/qKK2zrP14yU10t
+JKyVLvzMrBRZCudioXkG9k9XoZeBova4ceJWUyL3j2TXe5VgEBIIx18tLHE+D0/v
+NpwDNHzJ8Te3zQsruoVOcm5xsaYb3Vcc/dVfJNJp7/G8jKGEABlQw1eW75yJOg0V
+3zm+LZ0i69UmKl1cRnY2YWuMRJu1vpW+RUWhNjJPMGooO6AVIPx0TPPpZz5AJvZD
+gBFlTnBsKTbfwsWLC0z3TQ==
+-----END SIGNATURE-----
+directory-signature 27102BC123E7AF1D4741AE047E160C91ADC76B21 3449F7F6B1A2BD07CDC4BA26480F7B1E6F150BCA
+-----BEGIN SIGNATURE-----
+IN/v6pseZJb4HyrkmL141oDeNQcOdAF963tmJuY9+6Fxk1nEg5o9o0oBeARLfmQq
+6S6W2H+w9BojleOM+E9vDJmS0EWDbB9g0ZFbnHts0IgFjEw+Qe/wwSNhWHwxBmRo
+l4doAgB3e1YcEfq3Gds6SNjr5rj0IBiA53FkvbFMXQ2QpolQByPJgYIVaxdlGlhg
+XwpK5J0EyrKTbao+som7OfPuFtdvrWJTQ33wvk92GRhpunKLJng399drDlUSrt1N
+hg2/KANKxJPbL5jvn6u2c13UOUAc1YHOJCVy5HJqqIOytgnk/lI9ubTx2gSLDU11
+ZIPP4eS9MEptmO+8i5qQwg==
+-----END SIGNATURE-----
+directory-signature 2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C A0072D9B9E5885934EBB7A5F7F2B4F12C42FDC6A
+-----BEGIN SIGNATURE-----
+OfcYaP7juTg2WkTTMHCt8VUSttFPdQ4XY2oaqgw4qcoyzsjKji0y9iTsRshW3+8p
+SrGPKvzUekOFxbt/KSlRvasBGWpZ9m91b9p6QFq7Z340U7HMl3Xk8C1Fh8ZsFm4p
+LlI9fD5p8fPJvVQN+oYNVQt9bu8B5U3lhQ4Zr1GsK5UG/GEjtDN5DCLITk4XihAs
+2svL/EyvKKHF6/KLdWGjJ3FReoHY+c1SrpV9EOC5WYabKjHq2wCe7C5i4k5n5YIR
+sUzg0bt0gNHlFyz4Ctz3Al91ke3cAYPP8AM3Q9MbcELtFX/mV7WbgX8dOsEs90u8
+xUDxgUfQZII+5iBA2KVAYFNs+NK8p/i3KoSosShcgkHyF//KYyx9a4zV5v//gRpS
+1tpIEd+pwaEZhyGxL+fsG3GLqvIlfBKbIwVxjh550kWDq9a+LQ5/DETTWxXzSFyN
+PX+w+jpGVa5MQEwk4P66h4RGagGVTBc9ZtcmXCFbFZBxmcrpMZxbNvwifZLeP5WM
+-----END SIGNATURE-----
+directory-signature 49015F787433103580E3B66A1707A00E60F2D15B C5D153A6F0DA7CC22277D229DCBBF929D0589FE0
+-----BEGIN SIGNATURE-----
+Nm+6OwAo5tOdTwgS8VoIrOGKGj4LPeuMegDla6BFsdndW2fxUcyk94v23lXgoYb/
+4xWmoGqP5+9+FhsEoN3Yr9M+UyZW71upZqc279qjRHd5IasFgwzq3pE9Pv5RcpK1
+NDrokG81D0ve3MMKmK13P1zjhhtLMTcGTBCAVDuBJEvw9y/WJD2l/uH9D0zP/xyE
+ilOqzMF/wiqhO9flYKRcRSE8vsWabZRcjTG+VO/9nOOQmbKrUzXp08LEgTqQk5jM
+Rc3faCFrmdmJn7sNfbjDCAsmomYP6rzAGRTBcz6AKUSvxlnjwMrsobjZBDZlJ51u
+iCK6/Bpdm9dPClH7TWDDhw==
+-----END SIGNATURE-----
+directory-signature 70849B868D606BAECFB6128C5E3D782029AA394F 66450746462288244BC4FB0A7B28A8BA401D7ED9
+-----BEGIN SIGNATURE-----
+c4h2zUtrTDdMCpibv1IGloVkuBiL7q0wLEDKPyP+awCHrHDbTREW18WghNtR7vbB
+v7hlTHoiZkzjRhCAE+cr8ODbk0EcOMsFPtrQZfuX2aKkTlBKkDJ1h/qTMr+JmK1X
+fLPoBw4YpmSebBJj1DcVQUCMqANfPHfIhdabfNmqHjPOsd5n+ELPqUf/2fEKt1of
+T8u0vqm4drYY+TGs0F+XzidfOhWtKFxfx4uqI9aoNaLrccWaFTugA1sLIa3dkf/k
+BA20dZ/Jet2m74PR5rZi0KB/OrY93AZEAq6cxHFY4ISGH1mFlP0WWg0HjqDhihnU
++4pmHdRNn3mkhv6ALP6U5g==
+-----END SIGNATURE-----
+directory-signature E8A9C45EDE6D711294FADF8E7951F4DE6CA56B58 55B24799F423AE6DFEA4A6CC6E33A81D8E51DEC9
+-----BEGIN SIGNATURE-----
+mN6umRk4G/OhhEfrYKudXYtOOt5la8v5QGaQ1g4DumBZKi8Xymd18ZKPVkf2+nff
+aNAp+yPgUVHXiaNiI0DuXZudxSu06mdxIaLFeJ01XuY/M28D8xpJcabOUda3LqSY
+OD/0ibpDo1T14YShhGNJoFWBMHe9Q9iVYMjygndQ+tLTBbOP9skLJ6SXawVOU4+o
+WpaFic2TCkTCPu6DaaZYQCVf8g4M309TbSrrAAJalrks2Z2D2pXZ3t0KQhC333yi
+FZiR0Nfr3iCWUVUPqRVPjrl51ZzEua2Me5IZSAVv45bruuO6AGwfo9grmUvS+NUk
+Vh5lOLggrmcARFz0jycy1g==
+-----END SIGNATURE-----
+directory-signature ED03BB616EB2F60BEC80151114BB25CEF515B226 78144C53B9C9CD541D11CC5F0FAF4313018DD9E1
+-----BEGIN SIGNATURE-----
+VeOobT9P339uHTL/vidTlrqpEgpILKwB1Vt3veHvfiyPbsYIfMzkiLH6Da1tMdCd
+BOFeY0eFAL3wyCFxOZZN7nZKwrDA0oi/iZKJUi/pKskPxrruklG6vkcNajEIWqjZ
+C1nGmUCE188d0LtMcXXqXOtw0DWEmLeoLParM4OH9yLZq5sdvW4jxgHY3I/AOlSU
+krepom/rgWeUDyrLSt6x4FQGtoZ3CCFbWvNaAhCxtEAmtGRA1ZanDBD76ccu28vu
+RM1yerZJ9gLUCSkZzL9q22Bk2CEeX9xry+Ge0bXNka5N2mtTmaWjxAh1Ur0snD5o
+M7S137uulW2oWNYOFB01EA==
+-----END SIGNATURE-----
+directory-signature F533C81CEF0BC0267857C99B2F471ADF249FA232 DA1C03942B54B8F629973E67639754198912B6DB
+-----BEGIN SIGNATURE-----
+YbDIQ/Ik5uZzLIrAuiQQwNsQm/dHQK4BkECB63nuwo+svmPgR8D11TxoUJQu8Oaf
+Ln5s7fljJggcPWbsyy2I1BncjqdBBWydbFDw1/cLIY2KG9KVlzdyWumRSSVHmgnO
+qLMQj0+V484sdDWuv605vkaJyjdyd30fGU0hmd06/l9Lya21rfhDONhQ+AX5MC9Q
+bQXR5iAi2YAGRxDr0tC9ixTBp2Y1iAYY/Cj4wACNexwvXDLFpcQiSqDZ5tqDn7Zw
+Vqy5ax2Kvi8lnOUwJJH9KZlm26JLnt1rKxeYAUA1lDEWd7a8yaMbIvIsuqL6KJXa
+Jpc22rlJkGTi4+8MlmGoEA==
+-----END SIGNATURE-----

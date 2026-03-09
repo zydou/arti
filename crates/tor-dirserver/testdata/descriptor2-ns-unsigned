@@ -1,0 +1,45 @@
+router SharingIsCaring 188.195.48.170 9001 0 0
+identity-ed25519
+-----BEGIN ED25519 CERT-----
+AQQAB4E4AQiCgdaVVWKhiysazuhhO1RF+n/bkhidegwdQYq+NwvkAQAgBAAvWeu2
+4s1QmSioY7hxo7m8zteoSfdyR8yZJYjFt26jU2hjkoKFkhu+HG6FjUoD+RZOSGDH
+Q06aZS6MeIh75EayZ4HG2eGIOR3MXwtAAaSheDZutWbp6BtWZNJIAd9FbQQ=
+-----END ED25519 CERT-----
+master-key-ed25519 L1nrtuLNUJkoqGO4caO5vM7XqEn3ckfMmSWIxbduo1M
+platform Tor 0.4.8.21 on Linux
+proto Conflux=1 Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Padding=2 Relay=1-4
+published 2026-01-28 23:00:07
+fingerprint 0000 7753 9682 3734 F953 D22C 238F 0FE8 5DB6 F390
+uptime 2631726
+bandwidth 921600 1228800 873890
+extra-info-digest 5406B9DD7C776BCA0FD80DBE76F7F3C67EBAD0E3 VtfDvbNyjNqSbQzAwmAmYCGbhi/VsCGvkUMX0EBukrs
+onion-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAKyMatfoyGMG072lAIhEL3axFrA34lJH7wtPmMna6nbJsAbMCxcmpu+H
+PfOFe46TgaQx7R7Dznaz0qS0FEyPTzmL0JlCXfY7SK+Ka3mWOSTmJj8hU+A4CNGJ
+NDw6/23iEm45j4dreMNqwp98dlg/gd9qev7rxoaC8e8PDMtZZsrpAgMBAAE=
+-----END RSA PUBLIC KEY-----
+signing-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAOAyBanUtQnDfSMzcje6TYmmDYE5stie/0R1HVf9dhgdge2ROd6ulhVS
+k8ujQo2g53hPIUB1n1IMT0CYa+myBZu+e2jBxBQkeJi2QAqHVH9hEzoqR/2fWXgS
+SIVVr1gEAe/kWtmb30uf1YlIUZfX60ooZeBPsyk5wZUNPhKPfyqlAgMBAAE=
+-----END RSA PUBLIC KEY-----
+onion-key-crosscert
+-----BEGIN CROSSCERT-----
+X0bYeaITSyWltAhfDHGU08zK2wLbNFLIXG/fI9PGvieqHPEe6q40LuMntstfyHfP
+Tae0JfEdZyG6WlIx3O5nch9u4p1a1Gb9pytUlXQauYiN0+gM4QZIzXrGoC7tGhMJ
+LC7TP7qEbjGzFM3g9D1U+LazGCFWTuuAxtiUGaUMFm8=
+-----END CROSSCERT-----
+ntor-onion-key-crosscert 1
+-----BEGIN ED25519 CERT-----
+AQoAB4LQAS9Z67bizVCZKKhjuHGjubzO16hJ93JHzJkliMW3bqNTAKc3q+iVkO3/
+ek4KII3W+hECNWvSvp2WACtd7gj+6HZ2zcWjDBlwAGi776BK+PhFKa6RB1RaKVzU
+qLWoIBVrwgM=
+-----END ED25519 CERT-----
+hidden-service-dir
+contact donteventryit0815@protonmail.com
+ntor-onion-key 9Ou9wipxgd9stmFhbiRSIUbJ1rMCsx9kp+QfMg3B6QY
+reject *:*
+tunnelled-dir-server
+router-sig-ed25519 8wKa6TzU0LCHoYDAwHTeNQwawNhESuGsoOOfjcNClK7PYN/LjCZt2enkJD/CsUeZpbQTDTZa+dEc2FWtDZvBDw

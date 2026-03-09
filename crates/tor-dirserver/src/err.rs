@@ -1,45 +1,63 @@
 //! Error module for `tor-dirserver`.
 
-use std::{net::SocketAddr, string::FromUtf8Error};
-
-use retry_error::RetryError;
 use thiserror::Error;
+use tor_netdoc::parse2;
 
-/// An error while communicating with a directory authority.
+/// Indicates that an error variant is fatal.
 ///
-/// This error should be returned by all functions that download or upload
-/// resources to authorities, in other words: every function that interacts or
-/// communicates with a directory authority.
+/// A fatal error means that the application should abort execution and may
+/// not retry again in the future.
+///
+/// This trait should only be implemented for error variants where some error
+/// variants are fatal and others are not.  In other words: An error where all
+/// variants are either fatal or non-fatal does not qualify for this trait.
+// TODO DIRMIRROR: Move this to tor_error.
+pub(crate) trait IsFatal: std::error::Error {
+    /// Checks whether the current error is considered to be fatal.
+    fn is_fatal(&self) -> bool;
+}
+
+/// An error while performing a request at a directory authority.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub(crate) enum AuthorityCommunicationError {
-    /// A TCP connection to an authority failed.
-    ///
-    /// A failure of this implies that both, the V4 and V6 (if present), have
-    /// failed.
-    #[error("TCP connection failure: {endpoints:?}: {error}")]
-    TcpConnect {
-        /// The [`SocketAddr`] items we tried to connect to, most typically
-        /// the IPv4 and IPv6 address + port of the directory authority.
-        endpoints: Vec<SocketAddr>,
+pub(crate) enum AuthorityRequestError {
+    /// TCP connection to the endpoint failed.
+    #[error("tcp connection error: {0}")]
+    TcpConnect(std::io::Error),
 
-        /// The actual I/O error that happened.
-        error: std::io::Error,
-    },
-
-    /// A failure related to [`tor_dirclient`].
+    /// [`tor_dirclient`] failed at performing the request.
     ///
-    /// Most likely, this will be of type [`tor_dirclient::Error::RequestFailed`],
-    /// but in order to stay compatible with `non_exhaustive` we map the error.
-    ///
-    /// The value is in a [`Box`] to satisfy `clippy::large_enum_variant`.
-    /// It is already noted in a TODO within the respective crate.
+    /// This usually indicates some failures in HTTP/1.0, such as the response
+    /// not being valid HTTP/1.0; although Tor generally has some specialities
+    /// here and there with regard to this, hence why we have dirclient in the
+    /// first place.
     #[error("dirclient error: {0}")]
-    Dirclient(#[from] Box<tor_dirclient::Error>),
+    Request(#[from] tor_dirclient::RequestFailedError),
+
+    /// A response does not make semantic sense.
+    ///
+    /// This for example may include cases where we got more netdocs than we
+    /// requested for.
+    #[error("response error: {0}")]
+    Response(&'static str),
+
+    /// Invalid netdoc received from the authority.
+    #[error("netdoc parse error: {0}")]
+    Parse(#[from] parse2::ParseError),
 
     /// An internal error.
     #[error("internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+impl IsFatal for AuthorityRequestError {
+    /// The [`AuthorityRequestError`] is considered to be fatal.
+    ///
+    /// Right now, the following variants are considered to be fatal:
+    /// * [`AuthorityRequestError::Bug`]
+    fn is_fatal(&self) -> bool {
+        matches!(&self, Self::Bug(_))
+    }
 }
 
 /// An error while interacting with a database.
@@ -84,35 +102,38 @@ pub(crate) enum DatabaseError {
     Bug(#[from] tor_error::Bug),
 }
 
-/// An unrecoverable error during daemon operation.
-///
-/// This error is inteded for functions that generally run forever, unless they
-/// encounter an error that is not recoverable, in which case, they will return
-/// this error type.
+/// An error related to an operation in the dirmirror FSM.
+//
+// TODO: Rename this to MirrorOperationError.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub(crate) enum FatalError {
-    /// The selection of a consensus from the database has failed.
-    ///
-    /// This most likely indicates that something with the underlying database
-    /// is wrong in a persistent fashion, i.e. retries will not work anymore.
-    #[error("consensus selection error: {0}")]
-    ConsensusSelection(DatabaseError),
-}
-/// An error related to the request of a network document.
-///
-/// It mostly serves as an amalgamation of [`AuthorityCommunicationError`] and
-/// [`FromUtf8Error`] because UTF-8 is the mandatory encoding for network
-/// documents that is not enforced in the downloader per se.
-///
-/// TODO: Maybe the downloader should perform the UTF-8 conversion?
-#[derive(Debug, Error)]
-pub(crate) enum NetdocRequestError {
-    /// Downloading the network document failed.
-    #[error("download failed: {0:?}")]
-    Download(RetryError<AuthorityCommunicationError>),
+pub(crate) enum OperationError {
+    /// Request to a directory authority failed.
+    #[error("authority request error: {0}")]
+    AuthorityRequest(#[from] Box<AuthorityRequestError>),
 
-    /// Converting the network document to UTF-8 failed.
-    #[error("UTF-8 conversion failed: {0}")]
-    Utf8(#[from] FromUtf8Error),
+    /// Access to the database failed for good.
+    #[error("database error: {0}")]
+    Database(#[from] DatabaseError),
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+impl From<AuthorityRequestError> for OperationError {
+    fn from(value: AuthorityRequestError) -> Self {
+        Self::AuthorityRequest(Box::new(value))
+    }
+}
+
+impl IsFatal for OperationError {
+    /// The [`OperationError`] is considered to be fatal.
+    ///
+    /// Right now, the following variants are considered to be fatal:
+    /// * [`OperationError::Database`]
+    /// * [`OperationError::Bug`]
+    fn is_fatal(&self) -> bool {
+        matches!(&self, Self::Database(_) | Self::Bug(_))
+    }
 }

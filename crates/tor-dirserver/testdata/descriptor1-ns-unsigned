@@ -1,0 +1,47 @@
+router lisdex 152.53.144.50 8443 0 0
+identity-ed25519
+-----BEGIN ED25519 CERT-----
+AQQAB4DrAQrvrZZm0NM3mABR2I/9LTJmu9fCKj3x2LxhBLRAjv7TAQAgBACEQpbC
+JQ6Csy5N8Qg5w2Zf46oLmzlPdGy55stF+jzLcgIIDohteU8y3+nSlepbTsWcsdyJ
+zC7YhWZP6SiWca59OyoDqMnlym9aM/wktBWfuRWqrytEJSo/vuXvgPAflA4=
+-----END ED25519 CERT-----
+master-key-ed25519 hEKWwiUOgrMuTfEIOcNmX+OqC5s5T3RsuebLRfo8y3I
+or-address [2a0a:4cc0:c1:2aac::1]:8443
+platform Tor 0.4.8.21 on Linux
+proto Conflux=1 Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Padding=2 Relay=1-4
+published 2026-01-29 07:44:43
+fingerprint 0000 04AC BB9D 29BC BA17 256B B359 28DD BFC8 ABA9
+uptime 648025
+bandwidth 1073741824 1073741824 46709555
+extra-info-digest 3217DCACFD5A87374D69D0BBEFE82EE018A696C5 HtaMFnNRwxJTXuNiPMEejzVhD8/h5okZCNcQ03DAZSY
+onion-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBALF1kaxNw/8SIka0uJ0AbMANvAKLuemY/3lnkcA20/0SxhxMVnbXM68I
+Ak3dlireiTmoDOVnA8SvwCp/2qIsc1f5CpmoClFEFXj+Ry+tAZi3POEGroXWYsOq
+gzsUrrB2qlHaG5j95NObJhN2qlfX0VA1bO1rU49if2N/akL47j+RAgMBAAE=
+-----END RSA PUBLIC KEY-----
+signing-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAOF55ypS+elCEpbkm2YBcTU8kKN9nOVjsxLMFbAfI/DNG66UOrFApkXD
+l+F8ZHEOhJ+O1OLw28yXeO/GP/bl7j5s0OvZJCsQDK/KwDo8vrl9fib2adhvP58T
+ObBvISBuqGcmXvBNx9qoJTP0wd2yuazLQuty1hPxwnWGFyjfqAXnAgMBAAE=
+-----END RSA PUBLIC KEY-----
+onion-key-crosscert
+-----BEGIN CROSSCERT-----
+J+7N/Wb/HydQJz+CnioRs3J+/LP3VYn2GzU3TUDQKlkdvg+yBAuY5pZ9YvHPWt97
+JpMldNv8NZr7pKc1zZ/wphW1RZNgt8MuJfLKel2rXhIY4w6itxmhEkCnbzUVQ49O
+/VB4b83k2DATGG9U27riZdn+xkMG5dRXaHAppxefDEw=
+-----END CROSSCERT-----
+ntor-onion-key-crosscert 0
+-----BEGIN ED25519 CERT-----
+AQoAB4LYAYRClsIlDoKzLk3xCDnDZl/jqgubOU90bLnmy0X6PMtyAK+t10uLP52o
+IbuQqv1Tjshs8zqKndh4LvV8Asm+a/YXQga8atQNKh4lFvMNyFz/zbEz8KNmuSfS
+jqOPTquw2wM=
+-----END ED25519 CERT-----
+family $000004ACBB9D29BCBA17256BB35928DDBFC8ABA9 $FFFFF26E14DC222B71292C04A90F05A2491BC1BE
+hidden-service-dir
+contact Clara Engler
+ntor-onion-key G/tAv5FGL8oD0eSgIsVmMa/NLLu+4OetsoaeEIRZ3kY
+reject *:*
+tunnelled-dir-server
+router-sig-ed25519 sZmWBzMzW/8+Rguoox+hwGGXRL+pNGFUbEURJd+jiBEw3kho38acA3118Z9bzJ8d3SUfTHZ1G4bcK2/6a164Cg

@@ -15,497 +15,714 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::{net::SocketAddr, time::Duration};
+use std::{
+    collections::{HashSet, VecDeque},
+    net::SocketAddr,
+};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
-use rusqlite::{named_params, params, OptionalExtension, Transaction};
+use rusqlite::Transaction;
 use strum::IntoEnumIterator;
-use tor_basic_utils::RngExt;
-use tor_dirclient::request::AuthCertRequest;
-use tor_dircommon::{
-    authority::AuthorityContacts,
-    config::{DirTolerance, DownloadScheduleConfig},
-};
-use tor_error::internal;
-use tor_llcrypto::pk::rsa::RsaIdentity;
+use tokio::net::TcpStream;
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tor_dirclient::request::{AuthCertRequest, ConsensusRequest, Requestable};
+use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
+use tor_error::{internal, into_internal};
 use tor_netdoc::{
     doc::{
-        authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
+        authcert::{AuthCertKeyIds, AuthCertUnverified},
         netstatus::ConsensusFlavor,
     },
-    parse2::{self, NetdocUnverified, ParseInput},
+    parse2::{
+        self,
+        poc::netstatus::{cons, md, NdiDirectorySignature},
+        NetdocParseable, NetdocUnverified, ParseInput,
+    },
 };
-use tracing::warn;
+use tor_rtcompat::PreferredRuntime;
+use tracing::{debug, warn};
 
 use crate::{
-    database::{self, sql, ContentEncoding, Timestamp},
-    err::{DatabaseError, FatalError, NetdocRequestError},
-    mirror::operation::download::DownloadManager,
+    database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Timestamp},
+    err::{AuthorityRequestError, DatabaseError, OperationError},
 };
 
-mod download;
+mod poc;
 
-/// Obtains the most recent valid consensus from the database.
+/// The various states for the [`StaticEngine`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
+enum State {
+    /// Loads the most recent valid (and verified) consensus from the database
+    /// into memory.
+    ///
+    /// Transitions from:
+    /// * Start, if a recent valid consensus exists in the database.
+    /// * [`State::StoreConsensus`], if successfully finished.
+    ///
+    /// Transitions into:
+    /// * [`State::Descriptors`]
+    LoadConsensus,
+
+    /// Downloads the most recent consensus from a directory authority.
+    ///
+    /// Transitions from:
+    /// * Start, if no recent valid consensus exists in the database.
+    /// * [`State::Descriptors`], if lifetime is over.
+    /// * [`State::Hibernate`], if lifetime is over.
+    ///
+    /// Transitions into:
+    /// * [`State::AuthCerts`], if we miss authority certificates.
+    /// * [`State::StoreConsensus`], if all authority certificates exist in the
+    ///   database.
+    // TODO DIRMIRROR: What to do in the case of getting an invalid consensus
+    // such as junk data?  The normal retry logic sounds reasonable here.
+    FetchConsensus,
+
+    /// Downloads, validates, and stores the missing authority certificates from
+    /// the downloaded unvalidated consensus into the database.
+    ///
+    /// Transitions from:
+    /// * [`State::FetchConsensus`], if we miss authority certificates.
+    /// * [`State::AuthCerts`], if we still miss authority certificates.
+    ///
+    /// Transitions into:
+    /// * [`State::AuthCerts`], if we still miss authority certificates.
+    /// * [`State::StoreConsensus`], if we got all authority certificates.
+    // TODO DIRMIRROR: What to do in the case of a MITM attack where an attacker
+    // adds lots of invalid signature items at the bottom, leading to lots of
+    // queries for directory authority certificates, which may succeed or not?
+    // Best idea is probably to only download authcerts whose id fingerprints
+    // are configured in our AuthorityContacts, because then we have an upper
+    // limit.
+    AuthCerts,
+
+    /// Validates and stores the downloaded unvalidated consensus into the
+    /// database.
+    ///
+    /// Transitions from:
+    /// * [`State::FetchConsensus`], if we have all authority certificates.
+    /// * [`State::AuthCerts`], if we have all authority certificates.
+    ///
+    /// Transitions into:
+    /// * [`State::LoadConsensus`]
+    StoreConsensus,
+
+    /// Downloads missing network documents (descriptors) from a directory
+    /// authority.
+    ///
+    /// Transitions from:
+    /// * [`State::LoadConsensus`], if we initialize.
+    /// * [`State::Descriptors`], if we still have missing descriptors left.
+    ///
+    /// Transitions into:
+    /// * [`State::FetchConsensus`], if lifetime is over.
+    /// * [`State::Descriptors`], if we still have missing descriptors left.
+    /// * [`State::Hibernate`], if nothing is left.
+    Descriptors,
+
+    /// Hibernate because nothing is left.
+    ///
+    /// Transitions from:
+    /// * [`State::Descriptors`]
+    ///
+    /// Transitions into:
+    /// * [`State::FetchConsensus`], if the lifetime is over.
+    Hibernate,
+}
+
+/// The execution engine for the finite state machine.
 ///
-/// This function queries the database using a [`Transaction`] in order to have
-/// a consistent view upon it.  It will return an [`Option`] containing various
-/// consensus related timestamps plus the raw consensus itself (more on this
-/// below).  In order to obtain a *valid* consensus, a [`Timestamp`] plus a
-/// [`DirTolerance`] is supplied, which will be used for querying the datbaase.
+/// The states themselves are explained in [`State`].
 ///
-/// # The [`Ok`] Return Value
+/// This data structure itself is static and contains no state, but merely
+/// configuration primitives that stay constant throughout the runtime of the
+/// program, such as the [`ConsensusFlavor`], the [`AuthorityContacts`], and the
+/// [`DirTolerance`].  It can be kept throughout the entire runtime and only
+/// consists for convience in order to not give each state machine related
+/// (then static) method a super long signature containing these fields.
 ///
-/// In the [`Some`] case, the return value is composed of the following:
-/// 1. The `valid-after` timestamp represented by a [`Timestamp`].
-/// 2. The `fresh-until` timestamp represented by a [`Timestamp`].
-/// 3. The `valid-until` timestamp represented by a [`Timestamp`].
-/// 4. The raw consensus reprented by a [`String`].
+/// The state itself is computed fully deterministically from the data found
+/// within the database and [`ConsensusBoundData`].
 ///
-/// The [`None`] case implies that no valid recent consensus has been found,
-/// that is, no consensus at all or no consensus whose `valid-before` or
-/// `valid-after` lies within the range composed by `now` and `tolerance`.
-fn get_recent_consensus(
-    tx: &Transaction,
+/// This is the reason on why this structure is not called `StateMachine`,
+/// because this implies that the type in itself carries state, which is not
+/// true, because the state is stored entirely external, with this engine
+/// only processing and modifying it.
+///
+/// See [`StaticEngine::determine_state()`] for more details.
+#[derive(Debug)]
+struct StaticEngine {
+    /// The flavor of the consensus we are serving.
     flavor: ConsensusFlavor,
-    tolerance: &DirTolerance,
-    now: Timestamp,
-) -> Result<Option<(Timestamp, Timestamp, Timestamp, String)>, DatabaseError> {
-    // Select the most recent flavored consensus document from the database.
-    //
-    // The `valid_after` and `valid_until` cells must be a member of the range:
-    // `[valid_after - pre_valid_tolerance; valid_after + post_valid_tolerance]`
-    // (inclusively).
-    //
-    // The query parameters being:
-    // ?1: The consensus flavor as a String.
-    // ?2: `now` as a Unix timestamp.
-    let mut meta_stmt = tx.prepare_cached(sql!(
-        "
-        SELECT c.valid_after, c.fresh_until, c.valid_until, s.content
-        FROM
-          consensus AS c
-          INNER JOIN store AS s ON s.docid = c.docid
-        WHERE
-          flavor = ?1
-          AND ?2 >= valid_after - ?3
-          AND ?2 <= valid_until + ?4
-        ORDER BY valid_after DESC
-        LIMIT 1
-        "
-    ))?;
 
-    // Actually execute the query; a None is totally valid and considered as
-    // no consensus being present in the current database.
-    let res = meta_stmt
-        .query_one(
-            params![
-                flavor.name(),
-                now,
-                tolerance
-                    .pre_valid_tolerance()
-                    .as_secs()
-                    .try_into()
-                    .unwrap_or(i64::MAX),
-                tolerance
-                    .post_valid_tolerance()
-                    .as_secs()
-                    .try_into()
-                    .unwrap_or(i64::MAX)
-            ],
-            |row| {
-                Ok((
-                    row.get::<_, Timestamp>(0)?,
-                    row.get::<_, Timestamp>(1)?,
-                    row.get::<_, Timestamp>(2)?,
-                    row.get::<_, Vec<u8>>(3)?,
-                ))
-            },
-        )
-        .optional()?;
+    /// The authorities we are acknowledging.
+    authorities: AuthorityContacts,
 
-    let (valid_after, fresh_until, valid_until, consensus) = match res {
-        Some(res) => res,
-        None => return Ok(None),
-    };
-
-    let consensus =
-        String::from_utf8(consensus).map_err(|e| internal!("utf-8 contraint violated? {e}"))?;
-
-    Ok(Some((valid_after, fresh_until, valid_until, consensus)))
-}
-
-/// Obtain the most recently published and valid certificate for each authority.
-///
-/// Returns the found [`AuthCert`] items as well as the missing [`AuthCertKeyIds`]
-/// not present within the database.
-///
-/// # Performance
-///
-/// This function has a performance between `O(n * log n)` and `O(n^2)` because
-/// it performs `signatories.len()` database queries, which each database query
-/// potentially taking something between `O(log n)` to `O(n)` to execute.
-/// However, given that this respective value is oftentimes fairly small, it
-/// should not be much of a big concern.  However, interfacing code shall ensure
-/// that it is not **too big** either, because a MITM may add lots of garbage
-/// signatures, just to make this larger, as it is usually called within the
-/// context of obtaining the certificates for a given consensus.
-///
-/// Because the database has the invariance that all entires inside are
-/// valid, we do not bother about validating the signatures there again, hence
-/// why the return type is not [`AuthCertUnverified`].
-fn get_recent_authority_certificates(
-    tx: &Transaction,
-    signatories: &[AuthCertKeyIds],
-    tolerance: &DirTolerance,
-    now: Timestamp,
-) -> Result<(Vec<AuthCert>, Vec<AuthCertKeyIds>), DatabaseError> {
-    // For every key pair in `signatories`, get the most recent valid cert.
-    //
-    // This query selects the most recent timestamp valid certificate from the
-    // database for a single given key pair.  It means that this query has to be
-    // executed as many times as there are entires in `signatories`.
-    //
-    // Unfortunately, there is no neater way to do this, because the alternative
-    // would involve using a nested set which SQLite does not support, even with
-    // the carray extension.  An alternative might be to precompute that string
-    // and then insert it here using `format!` but that feels hacky, error- and
-    // injection-prone.
-    //
-    // Parameters:
-    // :id_rsa: The RSA identity key fingerprint in uppercase hexadecimal.
-    // :sk_rsa: The RSA signing key fingerprint in uppercase hexadecimal.
-    // :now: The current system timestamp.
-    // :pre_tolerance: The tolerance for not-yet-valid certificates.
-    // :post_tolerance: The tolerance for expired certificates.
-    let mut stmt = tx.prepare_cached(sql!(
-        "
-        SELECT s.content
-        FROM
-          authority_key_certificate AS a
-          INNER JOIN store AS s ON s.docid = a.docid
-        WHERE
-          (:id_rsa, :sk_rsa) = (a.kp_auth_id_rsa_sha1, a.kp_auth_sign_rsa_sha1)
-          AND :now >= a.dir_key_published - :pre_tolerance
-          AND :now <= a.dir_key_expires + :post_tolerance
-        ORDER BY dir_key_published DESC
-        LIMIT 1
-        "
-    ))?;
-
-    // Keep track of the found (and parsed) certificates and the missing ones.
-    let mut found = Vec::new();
-    let mut missing = Vec::new();
-
-    // Iterate over every key pair and query it, adding it to found if it exists
-    // and was parsed successfully or to missing if it does not exist within the
-    // database.
-    for kp in signatories {
-        // Query the certificate from the database.
-        let raw_cert = stmt
-            .query_one(
-                named_params! {
-                    ":id_rsa": kp.id_fingerprint.as_hex_upper(),
-                    ":sk_rsa": kp.sk_fingerprint.as_hex_upper(),
-                    ":now": now,
-                    ":pre_tolerance": tolerance.pre_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
-                    ":post_tolerance": tolerance.post_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
-                },
-                |row| row.get::<_, Vec<u8>>(0),
-            )
-            .optional()?;
-
-        // Unwrap the Some (or None).
-        let raw_cert = match raw_cert {
-            Some(c) => {
-                String::from_utf8(c).map_err(|e| internal!("utf-8 constraint violation? {e}"))?
-            }
-            None => {
-                missing.push(*kp);
-                continue;
-            }
-        };
-
-        // This match statement is a bit tricky, but important.
-        //
-        // In the case that some newer version of arti may not be able to parse
-        // an older certificate, such as due to missing a field or an older
-        // version having inserted it because not knowing about it, we must not
-        // fail.  Instead, we mark the certificate as missing, because it is
-        // not usable for us.
-        let cert = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(&raw_cert, ""));
-        match cert {
-            Ok(cert) => {
-                // Mark the cert as found.
-                // We assume all certificates in the database to be
-                // cryptographically valid, hence why we use unwrap_unverified.
-                found.push(cert.unwrap_unverified().0);
-            }
-            Err(e) => {
-                warn!("invalid authcert found in database? {e}");
-                missing.push(*kp);
-                continue;
-            }
-        }
-    }
-
-    Ok((found, missing))
-}
-
-/// Downloads (missing) directory authority certificates from an authority.
-///
-/// The key pairs (identity and signing keys) are specified in `missing`.
-/// This function will then use the [`DownloadManager`] to download
-/// the missing certificates from a directory authority.
-async fn download_authority_certificates<'a, 'b, R: Rng>(
-    missing: &[AuthCertKeyIds],
-    downloader: &DownloadManager<'a, 'b>,
-    preferred: Option<&'a Vec<SocketAddr>>,
-    rng: &mut R,
-) -> Result<(&'a Vec<SocketAddr>, String), NetdocRequestError> {
-    let mut requ = AuthCertRequest::new();
-    missing.iter().for_each(|kp| requ.push(*kp));
-
-    let (preferred, resp) = downloader
-        .download(&requ, preferred, rng)
-        .await
-        .map_err(NetdocRequestError::Download)?;
-    let resp = String::from_utf8(resp)?;
-
-    Ok((preferred, resp))
-}
-
-/// Parses multiple raw directory authority certificates.
-///
-/// Returns the parsed [`AuthCertUnverified`] alongside their raw plain-text
-/// representation.
-fn parse_authority_certificates<'a>(
-    certs: &'a str,
-) -> Result<Vec<(AuthCertUnverified, &'a str)>, parse2::ParseError> {
-    parse2::parse_netdoc_multiple_with_offsets::<AuthCertUnverified>(&ParseInput::new(certs, ""))?
-        .into_iter()
-        // Creating the slice is fine, parse2 guarantees it is in-bounds.
-        .map(|(cert, start, end)| Ok((cert, &certs[start..end])))
-        .collect()
-}
-
-/// Verifies multiple raw directory authority certificates.
-///
-/// Returns the verified [`AuthCertUnverified`] values as [`AuthCert`] values.
-/// The [`str`] slice will remain unmodified, meaning that it will still include
-/// the signature parts in plain-text.
-/// This function is mostly used in conjunction with
-/// [`parse_authority_certificates()`] in order to ensure its outputs were
-/// correct.
-fn verify_authority_certificates<'a>(
-    certs: Vec<(AuthCertUnverified, &'a str)>,
-    v3idents: &[RsaIdentity],
-    tolerance: &DirTolerance,
-    now: Timestamp,
-) -> Result<Vec<(AuthCert, &'a str)>, parse2::VerifyFailed> {
-    certs
-        .into_iter()
-        .map(|(cert, raw)| {
-            cert.verify_self_signed(
-                v3idents,
-                tolerance.pre_valid_tolerance(),
-                tolerance.post_valid_tolerance(),
-                now.into(),
-            )
-            .map(|cert| (cert, raw))
-        })
-        .collect()
-}
-
-/// Inserts the verified certificates into the database.
-///
-/// This function is mostly used in conjunction with
-/// [`verify_authority_certificates()`] in order to make the data persistent
-/// to disk.
-fn insert_authority_certificates(
-    tx: &Transaction,
-    certs: &[(AuthCert, &str)],
-) -> Result<(), DatabaseError> {
-    // Inserts an authority certificate into the meta table.
-    //
-    // Parameters:
-    // :docid - The docid as found in the store table.
-    // :id_rsa - The identity key fingerprint.
-    // :sign_rsa - The signing key fingerprint.
-    // :published - The published timestamp.
-    // :expires - The expires timestamp.
-    let mut stmt = tx.prepare_cached(sql!(
-        "
-        INSERT INTO authority_key_certificate
-          (docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1, dir_key_published, dir_key_expires)
-        VALUES
-          (:docid, :id_rsa, :sign_rsa, :published, :expires)
-        "
-    ))?;
-
-    // Compress and insert all certificates into the store within the context of
-    // our (still pending) transaction.  Keep track of the uncompressed docid
-    // too.
-    let certs = certs
-        .iter()
-        .map(|(cert, raw)| {
-            // For now, we encode the authcerts in all encodings.
-            // TODO: This is probably not a good idea, but it will also not be
-            // the end of the world if we change this later -- at worst, clients
-            // will simply get it in a different encoding they prefer less, but
-            // that should not be super critical.
-            let docid = database::store_insert(tx, raw.as_bytes(), ContentEncoding::iter())?;
-            Ok::<_, DatabaseError>((docid, cert))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    // Insert every certificate, after it has been inserted into the store, into
-    // the authority certificates meta table.
-    for (docid, cert) in certs {
-        stmt.execute(named_params! {
-            ":docid": docid,
-            ":id_rsa": cert.fingerprint.as_hex_upper(),
-            ":sign_rsa": cert.dir_signing_key.to_rsa_identity().as_hex_upper(),
-            ":published": Timestamp::from(cert.dir_key_published.0),
-            ":expires": Timestamp::from(cert.dir_key_expires.0),
-        })?;
-    }
-
-    Ok(())
-}
-
-/// Calculates the [`Duration`] to wait before querying the authorities again.
-///
-/// This function accepts a `fresh-until` and `valid-until`, both hopefully
-/// obtained through the [`get_recent_consensus()`] function, and caculates a
-/// [`Duration`] relative to `now`, describing the time to wait before querying
-/// the authorities again.
-///
-/// If [`get_recent_consensus()`] returned [`None`], it is safe to skip a call
-/// to this function and use [`Duration::ZERO`] instead.
-///
-/// # Specifications
-///
-/// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#download-ns-from-auth>
-///
-/// TODO DIRMIRROR: Consider not naming this timeout but something like
-/// "download interval" or "poll interval".
-fn calculate_sync_timeout<R: Rng>(
-    fresh_until: Timestamp,
-    valid_until: Timestamp,
-    now: Timestamp,
-    rng: &mut R,
-) -> Duration {
-    assert!(fresh_until < valid_until);
-
-    let offset = rng
-        .gen_range_checked(0..=((valid_until - fresh_until).as_secs() / 2))
-        .expect("invalid range???");
-
-    // fresh_until + offset - now
-    fresh_until + Duration::from_secs(offset) - now
-}
-
-/// Runs forever in the current task, performing the core operation of a directory mirror.
-///
-/// This function runs forever in the current task, continously downloading
-/// network documents from authorities and inserting them into the database,
-/// while also performing garbage collection.
-///
-/// A core principle of this function is to be safe against power-losses, sudden
-/// abortions, and such.  This means that re-starting this function will resume
-/// seaminglessly from where it stopped.
-///
-/// # Algorithm
-///
-/// 1. Call [`get_recent_consensus()`] to obtain the most recent and non-expired
-///    consensus from the database.
-///     1. If the call returns [`Some`], goto (2).
-///     2. If the call returns [`None`], goto (3).
-/// 2. Spawn a task backed by [`tokio::time::timeout()`] whose purpose it is to
-///    determine all missing network documents referred to by the current
-///    consensus and scheduling downloads from the authorities in order to
-///    obtain and insert them into the database.
-///    TODO DIRMIRROR: Impose a timeout for each download attempt.
-/// 3. Download a new consensus from the directory authorities and insert it into
-///    the database.
-/// 4. Perform a cycle of garbage collection.
-/// 5. Goto (1).
-///
-/// # Specifications
-///
-/// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#download-desc-from-auth>
-/// * <https://spec.torproject.org/dir-spec/client-operation.html#retrying-failed-downloads>
-pub(super) async fn serve<R: Rng, F: Fn() -> Timestamp>(
-    pool: Pool<SqliteConnectionManager>,
-    flavor: ConsensusFlavor,
-    _authorities: AuthorityContacts,
-    _schedule: DownloadScheduleConfig,
+    /// The document tolerance we are accepting.
     tolerance: DirTolerance,
-    rng: &mut R,
-    now_fn: F,
-) -> Result<(), FatalError> {
-    loop {
-        let now = now_fn();
 
-        // (1) Call get_recent_consensus() to obtain the most recent and non-expired
-        // consensus from the database.
-        // TODO: Use `Result::flatten` once MSRV is 1.89.0.
-        let res = database::read_tx(&pool, {
-            let tolerance = tolerance.clone();
-            move |tx| get_recent_consensus(tx, flavor, &tolerance, now)
-        });
-        let res = match res {
-            Ok(Ok(res)) => res,
-            Err(e) | Ok(Err(e)) => {
-                return Err(FatalError::ConsensusSelection(e));
+    /// The preferred runtime for compatibility with other arti crates.
+    ///
+    /// Generally obtained through [`PreferredRuntime::current()`].
+    rt: PreferredRuntime,
+}
+
+/// Additional state machine data concering a single consensus.
+///
+/// This enum stores and keeps track of the consensus we are serving and in
+/// which ✨state✨ it is currently in, such as whether it is verified or not,
+/// or if we even have a state loaded in memory in the first place.
+#[derive(Debug, Clone)]
+enum ConsensusBoundData {
+    /// No state is loaded in memory at the moment.
+    None,
+
+    /// We have downloaded a consensus but it is not yet verified.
+    Unverified {
+        /// The unverified parsed consensus we have.
+        // TODO DIRMIRROR: Make this optional, see comment in
+        // StaticEngine::execute.
+        consensus: FlavoredConsensusSigned,
+
+        /// The unparsed raw consensus we have.
+        raw: String,
+    },
+
+    /// We have downloaded and verified a consensus.
+    Verified {
+        /// The verified consensus we have.
+        consensus: FlavoredConsensus,
+
+        /// When to stop dealing with this consensus and fetching a new one.
+        lifetime: Timestamp,
+
+        /// SHA-1 digests of the missing server descriptors in the consensus.
+        server_queue: HashSet<db::Sha1>,
+
+        /// SHA-1 digests of the missing extra-info descriptors in the server
+        /// descriptors of the consensus.
+        ///
+        /// extra-info documents are only transitively related to a consensus
+        /// through consensus -> server descriptors -> extra-info descriptors
+        extra_queue: HashSet<db::Sha1>,
+
+        /// SHA-256 digests of the missing micro descriptors in the consensus.
+        ///
+        /// This field is technically mutually exclusive to server_queue and
+        /// extra_queue because micro descriptors are only found in
+        /// [`ConsensusFlavor::Microdesc`] and server plus extra-info
+        /// descriptors only in [`ConsensusFlavor::Plain`].  However, because
+        /// we used a queue based design, we just leave the queue empty instead
+        /// of wrapping this behind an enum variant for true mutual exclusivity.
+        /// This makes coding much easier with less boilerplate and neglectable
+        /// additional runtime cost.
+        micro_queue: HashSet<db::Sha256>,
+    },
+}
+
+/// A [`ConsensusFlavor`]-like wrapper for verified network statuses.
+///
+/// This is required because we need to obtain, at least partial, data from
+/// each consensus, such as the signature (although not this type), the router
+/// descriptors, validity, and other information.
+///
+/// At the current moment, [`tor_netdoc`] itself does not offer things such as
+/// a common trait for retrieving the common fields, making this structure
+/// necessary, or alternatively lots of macro magic similar to [`tor_netdoc`].
+///
+/// TODO DIRMIRROR: Either add a trait for [`tor_netdoc`] or figure out if the
+/// fields we require are all of the same type in both, so we can only store
+/// the fields we are interested in, though this is probably only possible once
+/// we reached later stages of code.
+///
+/// And no, [`std::any::Any`] is not an alternative I am willing to do.
+#[derive(Debug, Clone)]
+enum FlavoredConsensus {
+    /// For plain consensuses.
+    Ns(cons::NetworkStatus),
+
+    /// For microdescriptor consensuses.
+    Md(md::NetworkStatus),
+}
+
+/// A [`ConsensusFlavor`]-like wrapper for unverified network statuses.
+///
+/// TODO DIRMIRROR: See the [`FlavoredConsensus`] trait comment.
+#[derive(Debug, Clone)]
+enum FlavoredConsensusSigned {
+    /// For plain consensuses.
+    Ns(cons::NetworkStatusUnverified),
+
+    /// For microdescriptor consensus.
+    Md(md::NetworkStatusUnverified),
+}
+
+impl StaticEngine {
+    /// Determines the [`State`] only from the database and [`ConsensusBoundData`].
+    ///
+    /// This method is fully idempotent, meaning it only depends upon the data
+    /// found within the database and the [`ConsensusBoundData`]; there is no
+    /// internal `state` variable or something contained within [`StaticEngine`].
+    fn determine_state(
+        &self,
+        tx: &Transaction<'_>,
+        data: &ConsensusBoundData,
+        now: Timestamp,
+    ) -> Result<State, DatabaseError> {
+        // Determine the state primarily upon ConsensusBoundData combined with
+        // a few database queries, as well as the current time of course.
+        let state = match data {
+            // ConsensusBoundData::None means that we currently have no
+            // consensus in memory.  This may be the case because we just
+            // started up or because we just downloaded, validated, and inserted
+            // a consensus into the database and resetted ConsensusBoundData to
+            // None afterwards.
+            ConsensusBoundData::None => {
+                // Check whether there is a valid consensus in the database at all.
+                //
+                // Yes, it is kinda redundant querying a consensus here
+                // and potentially again when loading the consensus, but SQLite
+                // is very fast and having to maintain two different queries,
+                // one for checking and one for selecting, is prone to get
+                // out-of-sync.
+                match ConsensusMeta::query_recent(tx, self.flavor, &self.tolerance, now)? {
+                    // Some consensus means we can load it.
+                    Some(_) => State::LoadConsensus,
+
+                    // None means we must download it.
+                    None => State::FetchConsensus,
+                }
+            }
+
+            // ConsensusBoundData::Unverified means that we recently downloaded
+            // a consensus through State::FetchConsensus.  It is not fully
+            // validated yet and we may not even be able due to missing
+            // authority certificates.
+            ConsensusBoundData::Unverified { consensus, .. } => {
+                // Check whether there any missing authority certificates that
+                // have signed the consensus.
+                let missing_certs = !AuthCertMeta::query_recent(
+                    tx,
+                    &consensus.signatories(),
+                    &self.tolerance,
+                    now,
+                )?
+                .1
+                .is_empty();
+
+                if missing_certs {
+                    // Missing authority certificates means we must download
+                    // them.
+                    State::AuthCerts
+                } else {
+                    // If we have all authority certificates, we can validate
+                    // and store it inside the database.
+                    State::StoreConsensus
+                }
+            }
+
+            // ConsensusBoundData::Verified means that we have successfully
+            // loaded a recent valid consensus from the database using
+            // State::LoadConsensus.  Depending on this, we download the missing
+            // network documents (descriptors) from a directory authority, if
+            // any.
+            ConsensusBoundData::Verified {
+                lifetime,
+                server_queue: servers,
+                extra_queue: extras,
+                micro_queue: micros,
+                ..
+            } => {
+                if *lifetime <= now {
+                    // The lifetime has been surpassed, download a new
+                    // consensus.  It is very important TO NOT transition to
+                    // State::LoadConsensus here, because the current consensus
+                    // may still be valid but not fresh anymore, in which case
+                    // State::LoadConsensus will continue to obtain it from the
+                    // database until valid-after has been surpassed, which is
+                    // most definitely not what we want.
+                    State::FetchConsensus
+                } else if servers.is_empty() && extras.is_empty() && micros.is_empty() {
+                    // All queues are empty, meaning we are done, until lifetime
+                    // ends.
+                    State::Hibernate
+                } else {
+                    // The lifetime has not been surpassed and we have stuff
+                    // to download, so we need to obtain the descriptors.
+                    State::Descriptors
+                }
             }
         };
+        Ok(state)
+    }
 
-        // (1.1) If the call returns Some, goto (2).
-        if let Some((_valid_after, fresh_until, valid_until, _consensus)) = res {
-            // (2) Run a closure backed by tokio::time::timeout() with a lifetime
-            // returned by by calculate_sync_timeout, whose purpose it is to
-            // determine all missing network documents reffered to by the current
-            // consensus and scheduling downloads from the authorities in order
-            // to obtain and insert them into the database.
-            let sync_timeout = calculate_sync_timeout(fresh_until, valid_until, now, rng);
-            tokio::time::timeout(sync_timeout, async {
-                // TODO DIRMIRROR: Actually download descriptors.
-                // Ensure a good timeout to protect against malicious
-                // authorities transmitting data extra slow; a download should
-                // probably not take `sync_timeout` but a few minutes instead.
-                // This implies a nested timeout.  The `sync_timeout` for the
-                // outer layer and a smaller timeout for each download, in order
-                // to ensure that each download actually gets the same amount
-                // of time to exist, instead of just the first ones having
-                // the full-time, with subsequent ones having a smaller and
-                // smaller time.
-                let _ = std::future::pending::<()>().await;
-            })
-            .await
-            .expect_err("std::future::pending returned?");
+    /// Executes a single state iteration in the finite state machine.
+    ///
+    /// The return value is of type [`Result<(), OperationError>`].
+    /// The success type is not of much interest for calling applications.
+    /// However, the error case itself should be passed towards
+    /// [`crate::err::IsFatal::is_fatal()`] in order to either abort the
+    /// application or retry with an appropriate timeout.
+    ///
+    // TODO: Use tracing instrumentation here.
+    // TODO DIRMIRROR: Document the state transition check which we have to do
+    // because of database invariances no longer holding true.
+    async fn execute<R: Rng>(
+        &self,
+        pool: &Pool<SqliteConnectionManager>,
+        data: &mut ConsensusBoundData,
+        endpoint: &[SocketAddr],
+        now: Timestamp,
+        rng: &mut R,
+    ) -> Result<(), OperationError> {
+        // TODO: Should we return DatabaseError or something like
+        // StateDeterminationError?  Either way, both cases should be seriously
+        // fatal.
+        let state = db::read_tx(pool, |tx| self.determine_state(tx, data, now))??;
+        debug!("state is {state}");
+
+        match state {
+            State::LoadConsensus => self.load_consensus(pool, data, now, rng),
+            State::FetchConsensus => Ok(self.fetch_consensus(data, endpoint).await?),
+            State::AuthCerts => self.auth_certs(pool, data, endpoint, now).await,
+            State::StoreConsensus => todo!(),
+            State::Descriptors => todo!(),
+            State::Hibernate => self.hibernate(data, now).await,
+        }
+    }
+
+    /// Executes [`State::LoadConsensus`].
+    ///
+    /// This method does the following:
+    /// * Load the most recent valid consensus from the database.
+    /// * Compute the lifetime for it.
+    /// * Compute the missing descriptors for it.
+    fn load_consensus<R: Rng>(
+        &self,
+        pool: &Pool<SqliteConnectionManager>,
+        data: &mut ConsensusBoundData,
+        now: Timestamp,
+        rng: &mut R,
+    ) -> Result<(), OperationError> {
+        // Load the most recent valid consensus from the database.
+        //
+        // If there is no consensus, we should have not entered the state, which
+        // means that the database must have been externally verified.
+        // In this case, it is probably better to return a bug, as external
+        // applications arbitrarily modifying the database while we are running
+        // leaves too much room for wrong/weird behavior.
+        let (server_queue, extra_queue, micro_queue, lifetime, consensus) =
+            db::read_tx(pool, |tx| {
+                let meta = ConsensusMeta::query_recent(tx, self.flavor, &self.tolerance, now)?
+                    .ok_or(internal!("database externally modified?"))?;
+                let server_queue = meta.missing_servers(tx)?;
+                let extra_queue = meta.missing_extras(tx)?;
+                let micro_queue = meta.missing_micros(tx)?;
+                let lifetime = meta.lifetime(rng);
+                let consensus = meta.data(tx)?;
+                Ok::<_, DatabaseError>((
+                    server_queue,
+                    extra_queue,
+                    micro_queue,
+                    lifetime,
+                    consensus,
+                ))
+            })??;
+
+        // Parse the most recent valid consensus from the database.
+        //
+        // TODO DIRMIRROR:
+        // Because only valid documents may exist in the database, it should
+        // succeed.  However, there is this weird edge-case where we may have
+        // inserted a document with a field we do not understand because of
+        // using an old version.  After upgrading our version we may now
+        // understand the field and realize it is wrong, leading to a violation
+        // of this constraint.  Handling this is not very easy; I suppose adding
+        // an additional column to the meta table storing the last used crate
+        // version is a sensible idea, with upgrades and downgrades leading to
+        // a parsing of all network documents within the database, throwing the
+        // ones out we do not understand (anymore).
+        //
+        // See also the relevant MR discussion:
+        // <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3664#note_3352723>
+        let consensus = match self.flavor {
+            ConsensusFlavor::Plain => FlavoredConsensus::Ns(
+                parse2::parse_netdoc(&ParseInput::new(&consensus, ""))
+                    .map_err(into_internal!("invalid netdoc in database?"))?,
+            ),
+            ConsensusFlavor::Microdesc => FlavoredConsensus::Md(
+                parse2::parse_netdoc(&ParseInput::new(&consensus, ""))
+                    .map_err(into_internal!("invalid netdoc in database?"))?,
+            ),
+        };
+
+        *data = ConsensusBoundData::Verified {
+            consensus,
+            lifetime,
+            server_queue,
+            extra_queue,
+            micro_queue,
+        };
+        Ok(())
+    }
+
+    /// Fetches a consensus from an upstream authority.
+    // TODO DIRMIRROR: Add logging.
+    async fn fetch_consensus(
+        &self,
+        data: &mut ConsensusBoundData,
+        endpoint: &[SocketAddr],
+    ) -> Result<(), AuthorityRequestError> {
+        // Obtain the consensus.
+        let mut consensus: VecDeque<_> = match self.flavor {
+            ConsensusFlavor::Plain => self
+                .send_request(endpoint, ConsensusRequest::new(self.flavor))
+                .await
+                .map(|(raw, doc)| {
+                    doc.into_iter()
+                        .map(|(doc, start, end)| {
+                            (raw[start..end].to_owned(), FlavoredConsensusSigned::Ns(doc))
+                        })
+                        .collect()
+                }),
+            ConsensusFlavor::Microdesc => self
+                .send_request(endpoint, ConsensusRequest::new(self.flavor))
+                .await
+                .map(|(raw, doc)| {
+                    doc.into_iter()
+                        .map(|(doc, start, end)| {
+                            (raw[start..end].to_owned(), FlavoredConsensusSigned::Md(doc))
+                        })
+                        .collect()
+                }),
+        }?;
+
+        // Check for the correct number of results.
+        if consensus.len() != 1 {
+            return Err(AuthorityRequestError::Response(
+                "invalid number of consensus?",
+            ));
         }
 
-        // (3) Download a new consensus from the directory authorities and insert
-        // it into the database.
-        //
-        // At this stage we also have to ask ourselves what happens in the highly
-        // unlikely but still possible case that a new consensus could not be
-        // retrieved, due to connectivity-loss (actually likely) or the even
-        // more unlikely case of the directory authorities all being down and/or
-        // unable to compute a new consensus.
-        //
-        // The specification is fairly clean on that (see the link above).
-        // Downloads are retried with a variation of the "decorrelated jitter"
-        // algorithm; that is, determining a certain amount of time before trying
-        // again from an authority we have not tried yet.
-        //
-        // TODO: Actually download from authorities.
+        // expect is fine because we checked the length for one above.
+        let (raw, consensus) = consensus.pop_front().expect("pop_front");
 
-        // (4) Perform a cycle of garbage collection.
-        // TODO: Actually perform a cycle of garbage collection.
+        // And store it.
+        *data = ConsensusBoundData::Unverified { consensus, raw };
+
+        Ok(())
+    }
+
+    /// Fetches, validates, and stores authority certificates.
+    //
+    // TODO DIRMIRROR: Right now, there is a torspec DoS issue.
+    // An attacker may add lots of garbage signatures and we will fetch them
+    // Even checking the ID PK against v3idents is not useful because an
+    // attacker may still use the same ID PK dozens of times with various
+    // SK PKs.  A good fix would include checking that no ID PK is duplicate
+    // AND to ignore all ID PKs we do not recognize.  Also, it would probably
+    // be best to move the v3idents structure to a HashMap based implementation,
+    // as well as the signatories result.
+    async fn auth_certs(
+        &self,
+        pool: &Pool<SqliteConnectionManager>,
+        data: &mut ConsensusBoundData,
+        endpoint: &[SocketAddr],
+        now: Timestamp,
+    ) -> Result<(), OperationError> {
+        // Obtain the signatories of the current unverified consensus.
+        let signatories = match data {
+            ConsensusBoundData::Unverified { consensus, .. } => consensus.signatories(),
+            _ => return Err(OperationError::Bug(internal!("data is not unverified"))),
+        };
+
+        // Obtain the missing certificate identifiers.
+        let (_, missing) = db::read_tx(pool, |tx| {
+            AuthCertMeta::query_recent(tx, &signatories, &self.tolerance, now)
+        })??;
+        if missing.is_empty() {
+            // Although not technically fatal, retrying when the database was
+            // externally modified does not make much sense.
+            return Err(OperationError::Bug(internal!(
+                "database externally modified?"
+            )));
+        }
+
+        // Compose the request.
+        let mut requ = AuthCertRequest::new();
+        for kp in missing.iter().copied() {
+            requ.push(kp);
+        }
+
+        // Fire it off.
+        let (resp, certs) = self
+            .send_request::<_, AuthCertUnverified>(endpoint, requ)
+            .await?;
+
+        // Verify each certificate.  Invalid certificates and other problems get
+        // logged and filtered out, with the result being then inserted into
+        // the database.
+        let certs = certs
+            .into_iter()
+            .filter_map(|(unverified, start, end)| {
+                let unverified_body = unverified.inspect_unverified().0;
+                let kp = AuthCertKeyIds {
+                    id_fingerprint: unverified_body.dir_identity_key.to_rsa_identity(),
+                    sk_fingerprint: unverified_body.dir_signing_key.to_rsa_identity(),
+                };
+
+                // Skip certficates we did not asked for.
+                //
+                // Not much of an issue because certificate verification will
+                // usually fail anyways, except for this weird edge-case where we
+                // actually have that id fingerprint in the v3idents.
+                if !missing.contains(&kp) {
+                    debug!("authority returned certificate we did not asked for: {kp:?}");
+                    return None;
+                }
+
+                let verified = unverified.verify_self_signed(
+                    self.authorities.v3idents(),
+                    self.tolerance.pre_valid_tolerance(),
+                    self.tolerance.post_valid_tolerance(),
+                    now.into(),
+                );
+                let verified = match verified {
+                    Ok(v) => v,
+                    Err(e) => {
+                        // TODO DIRMIRROR: Log the actual cert.
+                        warn!("received invalid auth cert: {e}",);
+                        return None;
+                    }
+                };
+
+                Some((verified, &resp[start..end]))
+            })
+            .collect::<Vec<_>>();
+
+        // When we have reached this, it means that this call made no progress,
+        // i.e. the authority only returned certificates we were not interested
+        // in.
+        if certs.is_empty() {
+            Err(Box::new(AuthorityRequestError::Response(
+                "response lead to no progress",
+            )))?;
+        }
+
+        // Finally, insert them all into the database.
+        db::rw_tx(pool, |tx| {
+            for (cert, data) in certs {
+                AuthCertMeta::insert(tx, ContentEncoding::iter(), &cert, data)?;
+            }
+            Ok::<_, DatabaseError>(())
+        })??;
+
+        Ok(())
+    }
+
+    /// Hibernates for the remaining lifetime of the consensus.
+    async fn hibernate(
+        &self,
+        data: &mut ConsensusBoundData,
+        now: Timestamp,
+    ) -> Result<(), OperationError> {
+        match data {
+            ConsensusBoundData::None | ConsensusBoundData::Unverified { .. } => {
+                // This should not happen, we only enter hibernation in a state
+                // that already has a verified consensus.
+                return Err(internal!("hibernating without a verified consensus?").into());
+            }
+            ConsensusBoundData::Verified { lifetime, .. } => {
+                let timeout = *lifetime - now;
+                debug!("hibernating for {}s", timeout.as_secs());
+                tokio::time::sleep(timeout).await;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Convenience wrapper around [`tor_dirclient::send_request()`].
+    ///
+    /// It opens a TCP connection, performs the request, and parses the result.
+    ///
+    /// Returns the raw response alongside the output of
+    /// [`parse2::parse_netdoc_multiple_with_offsets()`].
+    ///
+    /// The output is required because we need the raw document alongside the
+    /// offsets to have the actual data we will insert into the database later
+    /// on.
+    async fn send_request<R: Requestable, T: NetdocParseable>(
+        &self,
+        endpoint: &[SocketAddr],
+        requ: R,
+    ) -> Result<(String, Vec<(T, usize, usize)>), AuthorityRequestError> {
+        // The check is required to not let Tokio panic.
+        if endpoint.is_empty() {
+            return Err(AuthorityRequestError::Bug(internal!("empty endpoint?")));
+        }
+
+        // Open the TCP connection.
+        let mut stream = TcpStream::connect(endpoint)
+            .await
+            .map_err(AuthorityRequestError::TcpConnect)?
+            .compat();
+
+        // Perform the request and map the result nicely.
+        let resp = tor_dirclient::send_request(&self.rt, &requ, &mut stream, None)
+            .await
+            .map(|resp| resp.output_string().map(|resp| resp.to_owned()));
+
+        // We can immediately drop the connection now, no need to occupy even
+        // more resources from the authority.  Doing so is fine, it is HTTP/1.0
+        // and there is no connection reuse anyways.
+        drop(stream);
+
+        // Returning all request failed errors is okay; they all imply that
+        // retrying from a different authority is fine.
+        // TODO MSRV: If possible, use Result::flatten once MSRV 1.89.
+        let resp = match resp {
+            Ok(Ok(r)) => Ok(r),
+            Ok(Err(e)) => Err(e),
+            Err(tor_dirclient::Error::RequestFailed(e)) => Err(e),
+            Err(e) => {
+                return Err(AuthorityRequestError::Bug(internal!(
+                    "unhandled dirclient error: {e}"
+                )))
+            }
+        }?;
+
+        // Parse the response.
+        let parsed = parse2::parse_netdoc_multiple_with_offsets(&ParseInput::new(&resp, ""))?;
+
+        Ok((resp, parsed))
+    }
+}
+
+impl FlavoredConsensusSigned {
+    /// Wrapper to obtain the signatories of a flavored consensus.
+    fn signatories(&self) -> Vec<AuthCertKeyIds> {
+        let sigs = match &self {
+            Self::Ns(ns) => &ns.signatures.directory_signature,
+            Self::Md(md) => &md.signatures.directory_signature,
+        };
+        sigs.iter()
+            .filter_map(|sig| match sig {
+                NdiDirectorySignature::Known {
+                    h_kp_auth_id_rsa,
+                    h_kp_auth_sign_rsa,
+                    ..
+                } => Some(AuthCertKeyIds {
+                    id_fingerprint: *h_kp_auth_id_rsa,
+                    sk_fingerprint: *h_kp_auth_sign_rsa,
+                }),
+                // TODO DIRMIRROR: This is inappropriate, but because we are
+                // using poc, we have to refactor this either way.
+                _ => None,
+            })
+            .collect()
     }
 }
 
@@ -524,476 +741,309 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use std::time::SystemTime;
 
-    use crate::database::{self, DocumentId};
+    use std::time::{Duration, SystemTime};
 
-    use super::*;
-    use lazy_static::lazy_static;
+    use rusqlite::named_params;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
     };
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_dircommon::{authority::AuthorityContactsBuilder, config::DirToleranceBuilder};
-    use tor_llcrypto::pk::rsa::RsaIdentity;
-    use tor_rtcompat::PreferredRuntime;
+    use tor_netdoc::parse2::NetdocUnverified;
 
-    lazy_static! {
-    /// Wed Jan 01 2020 00:00:00 GMT+0000
-    static ref VALID_AFTER: Timestamp =
-        (SystemTime::UNIX_EPOCH + Duration::from_secs(1577836800)).into();
+    use crate::database::sql;
 
-    /// Wed Jan 01 2020 01:00:00 GMT+0000
-    static ref FRESH_UNTIL: Timestamp =
-        *VALID_AFTER + Duration::from_secs(60 * 60);
-
-    /// Wed Jan 01 2020 02:00:00 GMT+0000
-    static ref FRESH_UNTIL_HALF: Timestamp =
-        *FRESH_UNTIL + Duration::from_secs(60 * 60);
-
-    /// Wed Jan 01 2020 03:00:00 GMT+0000
-    static ref VALID_UNTIL: Timestamp =
-        *FRESH_UNTIL + Duration::from_secs(60 * 60 * 2);
-    }
-
-    const CONSENSUS_CONTENT: &str = "Lorem ipsum dolor sit amet.";
-    const CERT_CONTENT: &[u8] = include_bytes!("../../testdata/authcert-longclaw");
-
-    lazy_static! {
-        static ref CONSENSUS_DOCID: DocumentId = DocumentId::digest(CONSENSUS_CONTENT.as_bytes());
-        static ref CERT_DOCID: DocumentId = DocumentId::digest(CERT_CONTENT);
-    }
+    use super::*;
 
     fn create_dummy_db() -> Pool<SqliteConnectionManager> {
-        let pool = database::open("").unwrap();
-        database::rw_tx(&pool, |tx| {
-            tx.execute(
-                sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
-                params![*CONSENSUS_DOCID, CONSENSUS_CONTENT.as_bytes()],
-            )
-            .unwrap();
-            tx.execute(
-                sql!("INSERT INTO store (docid, content) VALUES (?1, ?2)"),
-                params![*CERT_DOCID, CERT_CONTENT],
-            )
-            .unwrap();
+        let pool = db::open("").unwrap();
 
-            tx.execute(
-                sql!(
-                    "
-                    INSERT INTO consensus
-                    (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
-                    VALUES
-                    (?1, ?2, ?3, ?4, ?5, ?6)
-                    "
-                ),
-                params![
-                    *CONSENSUS_DOCID,
-                    "0000000000000000000000000000000000000000000000000000000000000000", // not the correct hash
-                    ConsensusFlavor::Plain.name(),
-                    *VALID_AFTER,
-                    *FRESH_UNTIL,
-                    *VALID_UNTIL,
-                ],
-            )
-            .unwrap();
+        let mut conn = pool.get().unwrap();
+        let tx = conn.transaction().unwrap();
 
-            tx.execute(sql!(
-                "
-                INSERT INTO authority_key_certificate
-                  (docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1, dir_key_published, dir_key_expires)
-                VALUES
-                  (:docid, :id_rsa, :sk_rsa, :published, :expires)
-                "
-                ),
-                named_params! {
-                ":docid": *CERT_DOCID,
-                ":id_rsa": "49015F787433103580E3B66A1707A00E60F2D15B",
-                ":sk_rsa": "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
-                ":published": 1764543578,
-                ":expires": 1772492378,
-            }).unwrap();
-        })
+        let cons_docid = db::store_insert(
+            &tx,
+            include_bytes!("../../testdata/consensus-ns"),
+            std::iter::empty(),
+        )
         .unwrap();
+        let ns1_docid = db::store_insert(
+            &tx,
+            include_bytes!("../../testdata/descriptor1-ns"),
+            std::iter::empty(),
+        )
+        .unwrap();
+        let extra1_docid = db::store_insert(
+            &tx,
+            include_bytes!("../../testdata/descriptor1-extra-info"),
+            std::iter::empty(),
+        )
+        .unwrap();
+
+        tx.execute(
+            sql!(
+                "
+                INSERT INTO router_extra_info (docid, unsigned_sha1, kp_relay_id_rsa_sha1)
+                VALUES
+                (:docid, :sha1, :fingerprint)
+                "
+            ),
+            named_params! {
+                ":docid": extra1_docid,
+                ":sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-extra-info-unsigned")),
+                ":fingerprint": "000004ACBB9D29BCBA17256BB35928DDBFC8ABA9"
+            },
+        )
+        .unwrap();
+        tx.execute(
+            sql!(
+                "
+                INSERT INTO router_descriptor
+                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor, extra_unsigned_sha1)
+                VALUES
+                (:docid, :sha1, :sha2, :fingerprint, 'ns', :extra)
+                "
+            ),
+            named_params! {
+                ":docid": ns1_docid,
+                ":sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
+                ":sha2": db::Sha256::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
+                ":fingerprint": "000004ACBB9D29BCBA17256BB35928DDBFC8ABA9",
+                ":extra": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-extra-info-unsigned")),
+            },
+        )
+        .unwrap();
+
+        tx.execute(
+            sql!(
+                "
+                INSERT INTO consensus
+                (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
+                VALUES
+                (:docid, :sha3, 'ns', :valid_after, :fresh_until, :valid_until)
+                "
+            ),
+            named_params! {
+                ":docid": cons_docid,
+                ":sha3": "0000000000000000000000000000000000000000000000000000000000000000",
+                ":valid_after": 1769698800,
+                ":fresh_until": 1769702400,
+                ":valid_until": 1769709600,
+            },
+        )
+        .unwrap();
+
+        tx.execute(
+            sql!(
+                "
+                INSERT INTO consensus_router_descriptor_member
+                (consensus_docid, unsigned_sha1, unsigned_sha2)
+                VALUES
+                (:cons_docid, :ns1_sha1, :ns1_sha2),
+                (:cons_docid, :ns2_sha1, :ns2_sha2)
+                "
+            ),
+            named_params! {
+                ":cons_docid": cons_docid,
+                ":ns1_sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
+                ":ns1_sha2": db::Sha256::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
+                ":ns2_sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor2-ns-unsigned")),
+                ":ns2_sha2": db::Sha256::digest(include_bytes!("../../testdata/descriptor2-ns-unsigned")),
+            },
+        )
+        .unwrap();
+
+        tx.commit().unwrap();
 
         pool
     }
 
-    #[test]
-    fn recent_consensus() {
+    #[tokio::test]
+    async fn state_load_consensus() {
         let pool = create_dummy_db();
-        let no_tolerance = DirToleranceBuilder::default()
-            .pre_valid_tolerance(Duration::ZERO)
-            .post_valid_tolerance(Duration::ZERO)
-            .build()
+        let mut data = ConsensusBoundData::None;
+        let engine = StaticEngine {
+            flavor: ConsensusFlavor::Plain,
+            authorities: AuthorityContacts::default(),
+            tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
+        };
+
+        let time = SystemTime::UNIX_EPOCH + Duration::from_secs(1769700600); // 2026-01-29 15:30:00
+        let time: Timestamp = time.into();
+        let fresh_until = time + Duration::from_secs(60 * 30);
+        let fresh_until_half = fresh_until + Duration::from_secs(60 * 60);
+
+        engine
+            .load_consensus(&pool, &mut data, time, &mut testing_rng())
             .unwrap();
-        let liberal_tolerance = DirToleranceBuilder::default()
-            .pre_valid_tolerance(Duration::from_secs(60 * 60)) // 1h before
-            .post_valid_tolerance(Duration::from_secs(60 * 60)) // 1h after
-            .build()
-            .unwrap();
 
-        database::read_tx(&pool, move |tx| {
-            // Get None by being way before valid-after.
-            assert!(get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                SystemTime::UNIX_EPOCH.into(),
-            )
-            .unwrap()
-            .is_none());
-
-            // Get None by being way behind valid-until.
-            assert!(get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_UNTIL + Duration::from_secs(60 * 60 * 24 * 365),
-            )
-            .unwrap()
-            .is_none());
-
-            // Get None by being minimally before valid-after.
-            assert!(get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_AFTER - Duration::from_secs(1),
-            )
-            .unwrap()
-            .is_none());
-
-            // Get None by being minimally behind valid-until.
-            assert!(get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_UNTIL + Duration::from_secs(1),
-            )
-            .unwrap()
-            .is_none());
-
-            // Get a valid consensus by being in the interval.
-            let res1 =
-                get_recent_consensus(tx, ConsensusFlavor::Plain, &no_tolerance, *VALID_AFTER)
-                    .unwrap()
-                    .unwrap();
-            let res2 =
-                get_recent_consensus(tx, ConsensusFlavor::Plain, &no_tolerance, *VALID_UNTIL)
-                    .unwrap()
-                    .unwrap();
-            let res3 = get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                *VALID_AFTER + Duration::from_secs(60 * 30),
-            )
-            .unwrap()
-            .unwrap();
-            assert_eq!(
-                res1,
-                (
-                    *VALID_AFTER,
-                    *FRESH_UNTIL,
-                    *VALID_UNTIL,
-                    CONSENSUS_CONTENT.to_string(),
-                )
-            );
-            assert_eq!(res1, res2);
-            assert_eq!(res2, res3);
-
-            // Get a valid consensus using a liberal dir tolerance.
-            let res1 = get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &liberal_tolerance,
-                *VALID_AFTER - Duration::from_secs(60 * 30),
-            )
-            .unwrap()
-            .unwrap();
-            let res2 = get_recent_consensus(
-                tx,
-                ConsensusFlavor::Plain,
-                &liberal_tolerance,
-                *VALID_UNTIL + Duration::from_secs(60 * 30),
-            )
-            .unwrap()
-            .unwrap();
-            assert_eq!(
-                res1,
-                (
-                    *VALID_AFTER,
-                    *FRESH_UNTIL,
-                    *VALID_UNTIL,
-                    CONSENSUS_CONTENT.to_string(),
-                )
-            );
-            assert_eq!(res1, res2);
-        })
-        .unwrap();
-    }
-
-    #[test]
-    fn sync_timeout() {
-        // We repeat the tests a few thousand times to go over many random values.
-        for _ in 0..10000 {
-            let now = (SystemTime::UNIX_EPOCH + Duration::from_secs(42)).into();
-
-            let dur = calculate_sync_timeout(*FRESH_UNTIL, *VALID_UNTIL, now, &mut testing_rng());
-            assert!(dur >= *FRESH_UNTIL - now);
-            assert!(dur <= *FRESH_UNTIL_HALF - now);
+        // El-cheapo assert_eq due to lack of PartialEq for tor-netdoc poc.
+        match data {
+            ConsensusBoundData::Verified {
+                consensus,
+                lifetime,
+                server_queue,
+                extra_queue,
+                micro_queue,
+            } => {
+                match consensus {
+                    FlavoredConsensus::Ns(_) => {}
+                    _ => panic!("consensus not ns"),
+                }
+                assert_eq!(
+                    server_queue,
+                    HashSet::from([db::Sha1::digest(include_bytes!(
+                        "../../testdata/descriptor2-ns-unsigned"
+                    ))])
+                );
+                assert!(lifetime >= fresh_until);
+                assert!(lifetime <= fresh_until_half);
+                assert!(extra_queue.is_empty());
+                assert!(micro_queue.is_empty());
+            }
+            _ => panic!("data is not verified"),
         }
     }
 
-    #[test]
-    fn get_auth_cert() {
-        let pool = create_dummy_db();
-
-        // Empty.
-        let (found, missing) = database::read_tx(&pool, |tx| {
-            get_recent_authority_certificates(
-                tx,
-                &[],
-                &DirTolerance::default(),
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
-            )
-        })
-        .unwrap()
-        .unwrap();
-        assert!(found.is_empty());
-        assert!(missing.is_empty());
-
-        // Find one and two missing ones.
-        let (found, missing) = database::read_tx(&pool, |tx| {
-            get_recent_authority_certificates(
-                tx,
-                &[
-                    // Found one.
-                    AuthCertKeyIds {
-                        id_fingerprint: RsaIdentity::from_hex(
-                            "49015F787433103580E3B66A1707A00E60F2D15B",
-                        )
-                        .unwrap(),
-                        sk_fingerprint: RsaIdentity::from_hex(
-                            "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
-                        )
-                        .unwrap(),
-                    },
-                    // Missing.
-                    AuthCertKeyIds {
-                        id_fingerprint: RsaIdentity::from_hex(
-                            "0000000000000000000000000000000000000000",
-                        )
-                        .unwrap(),
-                        sk_fingerprint: RsaIdentity::from_hex(
-                            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                        )
-                        .unwrap(),
-                    },
-                    // Missing.
-                    AuthCertKeyIds {
-                        id_fingerprint: RsaIdentity::from_hex(
-                            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                        )
-                        .unwrap(),
-                        sk_fingerprint: RsaIdentity::from_hex(
-                            "0000000000000000000000000000000000000000",
-                        )
-                        .unwrap(),
-                    },
-                ],
-                &DirTolerance::default(),
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
-            )
-        })
-        .unwrap()
-        .unwrap();
-        assert_eq!(found.len(), 1);
-        assert_eq!(missing.len(), 2);
-
-        // Now make one invalid and see that it will get set to missing.
-        pool.get()
-            .unwrap()
-            .execute(
-                sql!(
-                    "
-                    UPDATE store
-                    SET content = X'61'
-                    WHERE docid = (SELECT docid FROM authority_key_certificate)
-                    "
-                ),
-                params![],
-            )
-            .unwrap();
-        let (found, missing) = database::read_tx(&pool, |tx| {
-            get_recent_authority_certificates(
-                tx,
-                &[
-                    // Found one.
-                    AuthCertKeyIds {
-                        id_fingerprint: RsaIdentity::from_hex(
-                            "49015F787433103580E3B66A1707A00E60F2D15B",
-                        )
-                        .unwrap(),
-                        sk_fingerprint: RsaIdentity::from_hex(
-                            "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
-                        )
-                        .unwrap(),
-                    },
-                ],
-                &DirTolerance::default(),
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
-            )
-        })
-        .unwrap()
-        .unwrap();
-        assert!(found.is_empty());
-        assert_eq!(
-            missing[0],
-            AuthCertKeyIds {
-                id_fingerprint: RsaIdentity::from_hex("49015F787433103580E3B66A1707A00E60F2D15B",)
-                    .unwrap(),
-                sk_fingerprint: RsaIdentity::from_hex("C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",)
-                    .unwrap(),
-            }
-        );
-    }
-
-    /// Tests the combination of the following functions:
-    ///
-    /// * [`download_authority_certificates()`]
-    /// * [`verify_authority_certificates()`]
-    /// * [`insert_authority_certificates()`]
     #[tokio::test]
-    async fn missing_certificates() {
-        // Don't use the dummy db because we will download.
-        let pool = database::open("").unwrap();
+    async fn state_fetch_consensus() {
+        let pool = create_dummy_db();
+        let mut data = ConsensusBoundData::None;
+        let engine = StaticEngine {
+            flavor: ConsensusFlavor::Plain,
+            authorities: AuthorityContacts::default(),
+            tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
+        };
 
-        // Create server.
-        let listener = TcpListener::bind("[::]:0").await.unwrap();
-        let sa = listener.local_addr().unwrap();
+        let state = db::read_tx(&pool, |tx| {
+            engine.determine_state(tx, &data, SystemTime::UNIX_EPOCH.into())
+        })
+        .unwrap()
+        .unwrap();
+        assert_eq!(state, State::FetchConsensus);
+
+        let server = TcpListener::bind("[::]:0").await.unwrap();
+        let saddr = server.local_addr().unwrap();
         tokio::spawn(async move {
-            let raw_cert = include_str!("../../testdata/authcert-longclaw");
-            let resp = format!(
-                "HTTP/1.1 200 Ok\r\nContent-Length: {}\r\n\r\n{raw_cert}",
-                raw_cert.len()
-            )
-            .as_bytes()
-            .to_vec();
-
-            let (mut stream, _) = listener.accept().await.unwrap();
+            let (mut stream, _) = server.accept().await.unwrap();
             let mut buf = vec![0; 1024];
             let _ = stream.read(&mut buf).await.unwrap();
-            stream.write_all(&resp).await.unwrap();
-            stream.flush().await.unwrap();
+
+            let consensus = include_str!("../../testdata/consensus-ns");
+            let resp = format!(
+                "HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: {}\r\n\r\n{consensus}",
+                consensus.len()
+            );
+            stream.write_all(resp.as_bytes()).await.unwrap();
         });
 
-        let mut authorities = AuthorityContactsBuilder::default();
-        authorities.set_v3idents(vec![RsaIdentity::from_hex(
-            "49015F787433103580E3B66A1707A00E60F2D15B",
-        )
-        .unwrap()]);
-        authorities.set_uploads(vec![]);
-        authorities.set_downloads(vec![vec![sa]]);
-        let authorities = authorities.build().unwrap();
+        engine.fetch_consensus(&mut data, &[saddr]).await.unwrap();
+        match data {
+            ConsensusBoundData::Unverified { consensus, raw } => match consensus {
+                FlavoredConsensusSigned::Ns(ns) => {
+                    // El-cheapo verification, this is not a parser unit test.
+                    assert_eq!(ns.unwrap_unverified().0.r.len(), 2);
+                    assert_eq!(raw, include_str!("../../testdata/consensus-ns"));
+                }
+                _ => panic!("data is not unverified ns consensus"),
+            },
+            _ => panic!("data is not unverified"),
+        }
+    }
 
-        // Download certificate.
-        let rt = PreferredRuntime::current().unwrap();
-        let downloader = DownloadManager::new(authorities.downloads(), &rt);
-        let (preferred, certs_raw) = download_authority_certificates(
-            &[AuthCertKeyIds {
-                id_fingerprint: RsaIdentity::from_hex("49015F787433103580E3B66A1707A00E60F2D15B")
-                    .unwrap(),
-                sk_fingerprint: RsaIdentity::from_hex("C5D153A6F0DA7CC22277D229DCBBF929D0589FE0")
-                    .unwrap(),
-            }],
-            &downloader,
-            None,
-            &mut testing_rng(),
-        )
-        .await
-        .unwrap();
-        assert_eq!(preferred, &authorities.downloads()[0]);
-        assert_eq!(certs_raw, include_str!("../../testdata/authcert-longclaw"));
+    #[tokio::test]
+    async fn state_auth_certs() {
+        let pool = create_dummy_db();
+        let mut data = ConsensusBoundData::Unverified {
+            consensus: FlavoredConsensusSigned::Ns(
+                parse2::parse_netdoc(&ParseInput::new(
+                    include_str!("../../testdata/consensus-ns"),
+                    "",
+                ))
+                .unwrap(),
+            ),
+            raw: include_str!("../../testdata/consensus-ns").to_owned(),
+        };
+        let engine = StaticEngine {
+            flavor: ConsensusFlavor::Plain,
+            authorities: AuthorityContacts::default(),
+            tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
+        };
 
-        // Parse certificate.
-        let certs = parse_authority_certificates(&certs_raw).unwrap();
-        assert_eq!(certs[0].1, certs_raw);
-
-        // Verify certificate.
-        let certs = verify_authority_certificates(
-            certs,
-            authorities.v3idents(),
-            &DirTolerance::default(),
-            (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
-        )
-        .unwrap();
-        assert_eq!(certs.len(), 1);
         assert_eq!(
-            certs[0].0.fingerprint.0,
-            RsaIdentity::from_hex("49015F787433103580E3B66A1707A00E60F2D15B").unwrap()
-        );
-        assert_eq!(
-            certs[0].0.dir_signing_key.to_rsa_identity(),
-            RsaIdentity::from_hex("C5D153A6F0DA7CC22277D229DCBBF929D0589FE0").unwrap()
-        );
-
-        // Insert the stuff into the database.
-        database::rw_tx(&pool, |tx| insert_authority_certificates(tx, &certs))
+            db::read_tx(&pool, |tx| engine.determine_state(
+                tx,
+                &data,
+                SystemTime::UNIX_EPOCH.into()
+            ))
             .unwrap()
+            .unwrap(),
+            State::AuthCerts
+        );
+
+        let server = TcpListener::bind("[::]:0").await.unwrap();
+        let saddr = server.local_addr().unwrap();
+        tokio::spawn(async move {
+            let mut buf = [0; 1024];
+            let (mut stream, _) = server.accept().await.unwrap();
+            let _ = stream.read(&mut buf).await.unwrap();
+
+            let authcerts = include_str!("../../testdata/authcert-all");
+
+            stream.write_all(format!(
+                "HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: {}\r\n\r\n{authcerts}",
+                authcerts.len()
+            ).as_bytes()).await.unwrap();
+        });
+
+        // Fetch all authcerts.
+        engine
+            .auth_certs(
+                &pool,
+                &mut data,
+                &[saddr],
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+            )
+            .await
             .unwrap();
 
-        // Verify it is actually there.
-        let (id_rsa, sign_rsa, published, expires, raw) = database::read_tx(&pool, |tx| {
-            tx.query_one(
-                sql!(
-                    "
-                    SELECT
-                      a.kp_auth_id_rsa_sha1, a.kp_auth_sign_rsa_sha1, a.dir_key_published, a.dir_key_expires, s.content
-                    FROM
-                      authority_key_certificate AS a
-                    INNER JOIN
-                      store AS s ON a.docid = s.docid
-                    "
-                ),
-                params![],
-                |row| Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, Timestamp>(2)?,
-                    row.get::<_, Timestamp>(3)?,
-                    row.get::<_, Vec<u8>>(4)?,
-                )),
-            )
-        })
-        .unwrap().unwrap();
-
-        assert_eq!(id_rsa, certs[0].0.fingerprint.as_hex_upper());
+        // Check whether we are done with all authcerts.
         assert_eq!(
-            sign_rsa,
-            certs[0].0.dir_signing_key.to_rsa_identity().as_hex_upper()
+            db::read_tx(&pool, |tx| engine.determine_state(
+                tx,
+                &data,
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+            ))
+            .unwrap()
+            .unwrap(),
+            State::StoreConsensus
         );
-        assert_eq!(published, certs[0].0.dir_key_published.0.into());
-        assert_eq!(expires, certs[0].0.dir_key_expires.0.into());
-        assert_eq!(raw, include_bytes!("../../testdata/authcert-longclaw"));
-
-        // Now (just to be sure) verify that compressed stuff also exists.
-        let count = database::read_tx(&pool, |tx| {
-            tx.query_one(
-                sql!(
-                    "
-                    SELECT COUNT(*)
-                    FROM compressed_document
-                    "
-                ),
-                params![],
-                |row| row.get::<_, i64>(0),
+        let recent_authcerts = db::read_tx(&pool, |tx| {
+            AuthCertMeta::query_recent(
+                tx,
+                &FlavoredConsensusSigned::Ns(
+                    parse2::parse_netdoc(&ParseInput::new(
+                        include_str!("../../testdata/consensus-ns"),
+                        "",
+                    ))
+                    .unwrap(),
+                )
+                .signatories(),
+                &DirTolerance::default(),
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
             )
         })
         .unwrap()
         .unwrap();
-        assert_eq!(count, 4);
+        // TODO DIRMIRROR: Compare more than just length.
+        assert_eq!(
+            recent_authcerts.0.len(),
+            engine.authorities.v3idents().len()
+        );
+        assert!(recent_authcerts.1.is_empty());
     }
 }
