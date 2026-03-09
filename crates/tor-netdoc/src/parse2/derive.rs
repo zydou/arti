@@ -261,11 +261,184 @@ define_derive_deftly_module! {
     }}
 }
 
-define_derive_deftly! {
+define_derive_deftly_module! {
+    /// Provides `IMPL_NETDOC_PARSEABLE` which impls `NetdocParseable`
+    ///
+    /// Used by the `NetdocParseable` and `NetdocParseableUnverified` derives.
+    //                                     ^ XXXX not true yete
+    NetdocParseable beta_deftly:
+
     use NetdocDeriveAnyCommon;
     use NetdocEntireDeriveCommon;
     use NetdocSomeItemsDeriveCommon;
     use NetdocSomeItemsParseableCommon;
+
+    ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
+
+  ${define IMPL_NETDOC_PARSEABLE {
+    impl<$tgens> $P::NetdocParseable for $ttype {
+        fn doctype_for_error() -> &'static str {
+            ${tmeta(netdoc(doctype_for_error)) as expr,
+              default ${concat ${for fields { ${when F_INTRO} $F_KEYWORD_STR }}}}
+        }
+
+        fn is_intro_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
+            use $P::*;
+
+            ${for fields {
+                ${when F_INTRO}
+                kw == $F_KEYWORD
+            }}
+        }
+
+        fn is_structural_keyword(kw: $P::KeywordRef<'_>) -> Option<$P::IsStructural> {
+            #[allow(unused_imports)] // not used if there are no subdocs
+            use $P::*;
+
+            if Self::is_intro_item_keyword(kw) {
+                return Some(IsStructural)
+            }
+
+            ${for fields {
+                ${when F_SUBDOC}
+                if let y @ Some(_) = $F_SELECTOR_VALUE.is_structural_keyword(kw) {
+                    return y;
+                }
+            }}
+
+            None
+        }
+
+        //##### main parsing function #####
+
+        #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
+        fn from_items<'s>(
+            input: &mut $P::ItemStream<'s>,
+            outer_stop: $P::stop_at!(),
+        ) -> $P::Result<$ttype, $P::ErrorProblem> {
+            use $P::*;
+            $DEFINE_DTRACE
+            $FIELD_ORDERING_CHECK
+
+            //----- prepare item set selectors for every field -----
+            $ITEM_SET_SELECTORS
+            $CHECK_FIELD_TYPES_PARSEABLE
+
+            // Is this an intro item keyword ?
+            //
+            // Expands to an appropriate `is_intro_item_keyword` method invocation,
+            // but *without arguments*.  So, something a bit like an expression of type
+            //    fn(KeywordRef) -> bool
+            ${define F_SUBDOC_IS_INTRO_ITEM_KEYWORD {
+                ${if not(F_SUBDOC) { ${error "internal-error: subdoc kw, but not subdoc field"} }}
+                $F_SELECTOR.is_intro_item_keyword
+            }}
+
+            //----- Helper fragments for parsing individual pieces of the document -----
+
+            // Peeks a keyword, and returns it but only if it's part of this (sub)doc.
+            // Return `None` if it was in outer_stop
+            let peek_keyword = |input: &mut ItemStream<'s>| -> Result<Option<KeywordRef<'s>>, EP> {
+                let Some(kw) = input.peek_keyword()? else {
+                    dtrace!("stopping, because EOF");
+                    return Ok(None)
+                };
+                if outer_stop.stop_at(kw) {
+                    dtrace!("stopping, because peeked", kw);
+                    return Ok(None)
+                }
+                Ok(Some(kw))
+            };
+
+            // Returns the actual item as an UnparsedItem, committing to consuming it.
+            // Can panic if called without previous `peek_keyword`.
+            ${define THIS_ITEM  {
+                input.next_item()?.expect("peeked")
+            }}
+
+            //----- keyword classification closures -----
+
+            // Is this a keyword for one of our sub-documents?
+            let is_subdoc_kw = ${for fields {
+                ${when F_SUBDOC}
+                StopAt(|kw: KeywordRef<'_>| $F_SUBDOC_IS_INTRO_ITEM_KEYWORD(kw)) |
+              }}
+                StopAt(false)
+            ;
+            // Is this a keyword for one of our parents or sub-documents?
+            let inner_stop = outer_stop | is_subdoc_kw;
+
+            //========== actual parsing ==========
+
+            // For each parsing loop/section, where we aren't looking for precisely one thing,
+            // we should explicitly decide what to do with each of:
+            //   - F_INTRO - intro item for this document (maybe next instance in parent)
+            //   - F_NORMAL - normal items
+            //   - subdocuments, is_subdoc_kw and F_SUBDOC
+            //   - our parent's structural keywords, outer_stop
+            //     (this includes signature items for the signed version of this doc)
+            // 5 cases in all.
+
+            //----- Parse the intro item, and introduce bindings for the other items. -----
+
+            dtrace!("looking for intro item");
+            $INIT_ACCUMULATE_VARS
+
+            //----- Parse the normal items -----
+            dtrace!("looking for normal items");
+
+            while let Some(kw) = peek_keyword(input)? {
+                dtrace!("for normal, peeked", kw);
+                if inner_stop.stop_at(kw) {
+                    dtrace!("is inner stop", kw);
+                    break;
+                };
+
+                $NONSTRUCTURAL_ACCUMULATE_ELSE
+                {
+                    dtrace!("is unknown (in normal)");
+                    let _: UnparsedItem = $THIS_ITEM;
+                }
+            }
+
+            //----- Parse the subdocs, in order -----
+            dtrace!("looking for subdocs");
+
+          ${for fields {
+            ${when F_SUBDOC}
+            dtrace!("looking for subdoc", $F_KEYWORD_REPORT);
+
+            loop {
+                let Some(kw) = peek_keyword(input)? else { break };
+                dtrace!("for subdoc, peek", kw);
+
+                if !$F_SUBDOC_IS_INTRO_ITEM_KEYWORD(kw) {
+                    dtrace!("is not this subdoc", kw);
+                    break;
+                };
+
+                $F_SELECTOR.can_accumulate(&mut $fpatname)?;
+
+                dtrace!("is this subdoc", kw);
+                let item = NetdocParseable::from_items(input, inner_stop);
+                dtrace!("parsed this subdoc", item.as_ref().map(|_| ()));
+                let item = item?;
+
+                $ACCUMULATE_ITEM_VALUE
+            }
+          }}
+
+            // Resolve all the fields
+            dtrace!("reached end, resolving");
+
+            $FINISH_RESOLVE
+        }
+    }
+  }}
+}
+
+define_derive_deftly! {
+    use NetdocParseable;
 
     /// Derive [`NetdocParseable`] for a document (or sub-document)
     ///
@@ -457,166 +630,7 @@ define_derive_deftly! {
     /// ```
     export NetdocParseable for struct, expect items, beta_deftly:
 
-    ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
-
-    impl<$tgens> $P::NetdocParseable for $ttype {
-        fn doctype_for_error() -> &'static str {
-            ${tmeta(netdoc(doctype_for_error)) as expr,
-              default ${concat ${for fields { ${when F_INTRO} $F_KEYWORD_STR }}}}
-        }
-
-        fn is_intro_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
-            use $P::*;
-
-            ${for fields {
-                ${when F_INTRO}
-                kw == $F_KEYWORD
-            }}
-        }
-
-        fn is_structural_keyword(kw: $P::KeywordRef<'_>) -> Option<$P::IsStructural> {
-            #[allow(unused_imports)] // not used if there are no subdocs
-            use $P::*;
-
-            if Self::is_intro_item_keyword(kw) {
-                return Some(IsStructural)
-            }
-
-            ${for fields {
-                ${when F_SUBDOC}
-                if let y @ Some(_) = $F_SELECTOR_VALUE.is_structural_keyword(kw) {
-                    return y;
-                }
-            }}
-
-            None
-        }
-
-        //##### main parsing function #####
-
-        #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
-        fn from_items<'s>(
-            input: &mut $P::ItemStream<'s>,
-            outer_stop: $P::stop_at!(),
-        ) -> $P::Result<$ttype, $P::ErrorProblem> {
-            use $P::*;
-            $DEFINE_DTRACE
-            $FIELD_ORDERING_CHECK
-
-            //----- prepare item set selectors for every field -----
-            $ITEM_SET_SELECTORS
-            $CHECK_FIELD_TYPES_PARSEABLE
-
-            // Is this an intro item keyword ?
-            //
-            // Expands to an appropriate `is_intro_item_keyword` method invocation,
-            // but *without arguments*.  So, something a bit like an expression of type
-            //    fn(KeywordRef) -> bool
-            ${define F_SUBDOC_IS_INTRO_ITEM_KEYWORD {
-                ${if not(F_SUBDOC) { ${error "internal-error: subdoc kw, but not subdoc field"} }}
-                $F_SELECTOR.is_intro_item_keyword
-            }}
-
-            //----- Helper fragments for parsing individual pieces of the document -----
-
-            // Peeks a keyword, and returns it but only if it's part of this (sub)doc.
-            // Return `None` if it was in outer_stop
-            let peek_keyword = |input: &mut ItemStream<'s>| -> Result<Option<KeywordRef<'s>>, EP> {
-                let Some(kw) = input.peek_keyword()? else {
-                    dtrace!("stopping, because EOF");
-                    return Ok(None)
-                };
-                if outer_stop.stop_at(kw) {
-                    dtrace!("stopping, because peeked", kw);
-                    return Ok(None)
-                }
-                Ok(Some(kw))
-            };
-
-            // Returns the actual item as an UnparsedItem, committing to consuming it.
-            // Can panic if called without previous `peek_keyword`.
-            ${define THIS_ITEM  {
-                input.next_item()?.expect("peeked")
-            }}
-
-            //----- keyword classification closures -----
-
-            // Is this a keyword for one of our sub-documents?
-            let is_subdoc_kw = ${for fields {
-                ${when F_SUBDOC}
-                StopAt(|kw: KeywordRef<'_>| $F_SUBDOC_IS_INTRO_ITEM_KEYWORD(kw)) |
-              }}
-                StopAt(false)
-            ;
-            // Is this a keyword for one of our parents or sub-documents?
-            let inner_stop = outer_stop | is_subdoc_kw;
-
-            //========== actual parsing ==========
-
-            // For each parsing loop/section, where we aren't looking for precisely one thing,
-            // we should explicitly decide what to do with each of:
-            //   - F_INTRO - intro item for this document (maybe next instance in parent)
-            //   - F_NORMAL - normal items
-            //   - subdocuments, is_subdoc_kw and F_SUBDOC
-            //   - our parent's structural keywords, outer_stop
-            //     (this includes signature items for the signed version of this doc)
-            // 5 cases in all.
-
-            //----- Parse the intro item, and introduce bindings for the other items. -----
-
-            dtrace!("looking for intro item");
-            $INIT_ACCUMULATE_VARS
-
-            //----- Parse the normal items -----
-            dtrace!("looking for normal items");
-
-            while let Some(kw) = peek_keyword(input)? {
-                dtrace!("for normal, peeked", kw);
-                if inner_stop.stop_at(kw) {
-                    dtrace!("is inner stop", kw);
-                    break;
-                };
-
-                $NONSTRUCTURAL_ACCUMULATE_ELSE
-                {
-                    dtrace!("is unknown (in normal)");
-                    let _: UnparsedItem = $THIS_ITEM;
-                }
-            }
-
-            //----- Parse the subdocs, in order -----
-            dtrace!("looking for subdocs");
-
-          ${for fields {
-            ${when F_SUBDOC}
-            dtrace!("looking for subdoc", $F_KEYWORD_REPORT);
-
-            loop {
-                let Some(kw) = peek_keyword(input)? else { break };
-                dtrace!("for subdoc, peek", kw);
-
-                if !$F_SUBDOC_IS_INTRO_ITEM_KEYWORD(kw) {
-                    dtrace!("is not this subdoc", kw);
-                    break;
-                };
-
-                $F_SELECTOR.can_accumulate(&mut $fpatname)?;
-
-                dtrace!("is this subdoc", kw);
-                let item = NetdocParseable::from_items(input, inner_stop);
-                dtrace!("parsed this subdoc", item.as_ref().map(|_| ()));
-                let item = item?;
-
-                $ACCUMULATE_ITEM_VALUE
-            }
-          }}
-
-            // Resolve all the fields
-            dtrace!("reached end, resolving");
-
-            $FINISH_RESOLVE
-        }
-    }
+    $IMPL_NETDOC_PARSEABLE
 }
 
 define_derive_deftly! {
