@@ -1078,11 +1078,10 @@ mod tests {
                 .read()
                 .unwrap()
                 .iter()
-                .find(|res| match res {
+                .any(|res| match res {
                     Ok((spec, ty, _)) => spec == &wanted_arti_path && ty == item_type,
                     Err(_) => false,
-                })
-                .is_some())
+                }))
         }
 
         fn id(&self) -> &KeystoreId {
