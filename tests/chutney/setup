@@ -23,11 +23,13 @@ _TOP_LEVEL = Path(
 
 
 class ChutneyBinResolver:
+    _DEST = "chutney_bin"
+
     def __init__(self, parser: ArgumentParser) -> None:
-        parser.add_argument("--chutney-bin", help="chutney executable")
+        parser.add_argument("--chutney-bin", dest=self._DEST, help="chutney executable")
 
     def resolve(self, args: Namespace) -> Path:
-        res_str = args.chutney_bin or shutil.which("chutney")
+        res_str = getattr(args, self._DEST) or shutil.which("chutney")
         if res_str is None:
             print(textwrap.dedent("""
                     chutney (https://gitlab.torproject.org/tpo/core/chutney) not found.
@@ -44,11 +46,13 @@ class ChutneyBinResolver:
 
 
 class ArtiBinResolver:
+    _DEST = "arti_bin"
+
     def __init__(self, parser: ArgumentParser) -> None:
-        parser.add_argument("--arti-bin", help="arti executable")
+        parser.add_argument("--arti-bin", dest=self._DEST, help="arti executable")
 
     def resolve(self, args: Namespace) -> Path:
-        res_str = args.arti_bin
+        res_str = getattr(args, self._DEST)
         if res_str is None:
             for s in [
                 "target/x86_64-unknown-linux-gnu/quicktest/arti",
@@ -75,11 +79,15 @@ class ArtiBinResolver:
 
 
 class ArtiBenchBinResolver:
+    _DEST = "arti_bench_bin"
+
     def __init__(self, parser: ArgumentParser) -> None:
-        parser.add_argument("--arti-bench-bin", help="arti-bench executable")
+        parser.add_argument(
+            "--arti-bench-bin", dest=self._DEST, help="arti-bench executable"
+        )
 
     def resolve(self, args: Namespace) -> Path:
-        res_str = args.arti_bin
+        res_str = getattr(args, self._DEST)
         if res_str is None:
             for s in [
                 "target/x86_64-unknown-linux-gnu/release/arti-bench",
@@ -108,25 +116,34 @@ class ArtiBenchBinResolver:
 
 
 class ChutneyDataDirResolver:
+    _DEST = "chutney_data_dir"
+
     def __init__(self, parser: ArgumentParser) -> None:
         parser.add_argument(
-            "--chutney-data-dir", help="directory for chutney to put its data"
+            "--chutney-data-dir",
+            dest=self._DEST,
+            help="directory for chutney to put its data",
         )
 
     def resolve(self, args: Namespace) -> Path:
         return Path(
-            args.chutney_data_dir or os.getenv("CHUTNEY_DATA_DIR") or os.getcwd()
+            getattr(args, self._DEST) or os.getenv("CHUTNEY_DATA_DIR") or os.getcwd()
         )
 
 
 class ChutneyNetworkResolver:
+    _DEST = "network"
+
     def __init__(self, parser: ArgumentParser) -> None:
         parser.add_argument(
-            "--network", "-n", help="flag to 'chutney init' specifying network to use."
+            "--network",
+            "-n",
+            dest=self._DEST,
+            help="flag to 'chutney init' specifying network to use.",
         )
 
     def resolve(self, args: Namespace) -> str:
-        return args.network or "--net-from-script-path=" + str(
+        return getattr(args, self._DEST) or "--net-from-script-path=" + str(
             _SCRIPT_DIR.joinpath("networks", "arti-ci")
         )
 
