@@ -1097,15 +1097,12 @@ mod tests {
             let key_spec = key_spec.arti_path().unwrap();
 
             Ok(self.inner.read().unwrap().iter().find_map(|res| {
-                match res {
-                    Ok((arti_path, ty, k)) => {
+                if let Ok((arti_path, ty, k)) = res {
                         if arti_path == &key_spec && ty == item_type {
                             let mut k = k.clone();
                             k.meta.set_retrieved_from(self.id().clone());
                             return Some(Box::new(k) as Box<dyn ItemType>);
                         }
-                    }
-                    Err(_) => {}
                 }
                 None
             }))
