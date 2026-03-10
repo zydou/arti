@@ -1047,7 +1047,7 @@ mod tests {
     }
 
     macro_rules! impl_keystore {
-        ($name:tt, $id:expr $(,$unrec:expr)?) => {
+        ($name:tt, $id:expr) => {
             struct $name {
                 inner: RwLock<
                     Vec<StdResult<(ArtiPath, KeystoreItemType, TestItem), UnrecognizedEntryError>>,
@@ -1066,24 +1066,7 @@ mod tests {
                             >,
                         >,
                     > = Default::default();
-                    // Populate the Keystore with the specified number
-                    // of unrecognized entries.
-                    $(
-                        for i in 0..$unrec {
-                            let invalid_key_path =
-                                PathBuf::from(&format!("unrecognized_entry{}", i));
-                            let raw_id = RawEntryId::Path(invalid_key_path.clone());
-                            let entry = RawKeystoreEntry::new(raw_id, id.clone()).into();
-                            let entry = UnrecognizedEntryError::new(
-                                entry,
-                                Arc::new(ArtiNativeKeystoreError::MalformedPath {
-                                    path: invalid_key_path,
-                                    err: MalformedPathError::NoExtension,
-                                }),
-                            );
-                            inner.write().unwrap().push(Err(entry));
-                        }
-                    )?
+
                     Self {
                         inner,
                         id,
@@ -1238,6 +1221,24 @@ mod tests {
         };
     }
 
+    // Populate `keystore` with the specified number of unrecognized entries.
+    fn add_unrecognized_entries(keystore: &mut Keystore1, count: usize) {
+        for i in 0..count {
+            let invalid_key_path =
+                PathBuf::from(&format!("unrecognized_entry{}", i));
+            let raw_id = RawEntryId::Path(invalid_key_path.clone());
+            let entry = RawKeystoreEntry::new(raw_id, keystore.id.clone()).into();
+            let entry = UnrecognizedEntryError::new(
+                entry,
+                Arc::new(ArtiNativeKeystoreError::MalformedPath {
+                    path: invalid_key_path,
+                    err: MalformedPathError::NoExtension,
+                }),
+            );
+            keystore.inner.write().unwrap().push(Err(entry));
+        }
+    }
+
     macro_rules! impl_specifier {
         ($name:tt, $id:expr) => {
             struct $name;
@@ -1261,7 +1262,6 @@ mod tests {
     impl_keystore!(Keystore1, "keystore1");
     impl_keystore!(Keystore2, "keystore2");
     impl_keystore!(Keystore3, "keystore3");
-    impl_keystore!(KeystoreUnrec1, "keystore_unrec1", 1);
 
     impl_specifier!(TestKeySpecifier1, "spec1");
     impl_specifier!(TestKeySpecifier2, "spec2");
@@ -1725,15 +1725,18 @@ mod tests {
 
     #[test]
     fn list_matching_ignores_unrecognized_keys() {
-        let builder = KeyMgrBuilder::default().primary_store(Box::new(KeystoreUnrec1::default()));
+        let mut keystore = Keystore1::default();
+        add_unrecognized_entries(&mut keystore, 1);
+        let builder = KeyMgrBuilder::default().primary_store(Box::new(keystore));
+
 
         let mgr = builder.build().unwrap();
 
-        let unrec_1 = KeystoreId::from_str("keystore_unrec1").unwrap();
+        let keystore1 = KeystoreId::from_str("keystore1").unwrap();
         mgr.insert(
             TestItem::new("whale shark"),
             &TestKeySpecifier1,
-            KeystoreSelector::Id(&unrec_1),
+            KeystoreSelector::Id(&keystore1),
             true,
         )
         .unwrap();
@@ -1751,23 +1754,25 @@ mod tests {
     /// Test all `arti keys` subcommands
     // TODO: split this in different tests
     fn keys_subcommands() {
+        let mut keystore = Keystore1::default();
+        add_unrecognized_entries(&mut keystore, 1);
         let mut builder =
-            KeyMgrBuilder::default().primary_store(Box::new(KeystoreUnrec1::default()));
+            KeyMgrBuilder::default().primary_store(Box::new(keystore));
         builder
             .secondary_stores()
             .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
 
         let mgr = builder.build().unwrap();
-        let ks_unrec1id = KeystoreId::from_str("keystore_unrec1").unwrap();
+        let keystore1id = KeystoreId::from_str("keystore1").unwrap();
         let keystore2id = KeystoreId::from_str("keystore2").unwrap();
         let keystore3id = KeystoreId::from_str("keystore3").unwrap();
 
-        // Insert a key into KeystoreUnrec1
+        // Insert a key into Keystore1
         let _ = mgr
             .insert(
                 TestItem::new("pangolin"),
                 &TestKeySpecifier1,
-                KeystoreSelector::Id(&ks_unrec1id),
+                KeystoreSelector::Id(&keystore1id),
                 true,
             )
             .unwrap();
@@ -1803,7 +1808,7 @@ mod tests {
         let entries = mgr.list().unwrap();
 
         let expected_items = [
-            (ks_unrec1id, TestKeySpecifier1.arti_path().unwrap()),
+            (keystore1id, TestKeySpecifier1.arti_path().unwrap()),
             (keystore2id, TestKeySpecifier2.arti_path().unwrap()),
             (keystore3id, TestKeySpecifier3.arti_path().unwrap()),
         ];
@@ -1840,7 +1845,7 @@ mod tests {
         assert_eq!(keystores, 3);
 
         // Test `list_by_id`
-        let primary_keystore_id = KeystoreId::from_str("keystore_unrec1").unwrap();
+        let primary_keystore_id = KeystoreId::from_str("keystore1").unwrap();
         let entries = mgr.list_by_id(&primary_keystore_id).unwrap();
 
         // Primary keystore contains a valid key and an unrecognized key
