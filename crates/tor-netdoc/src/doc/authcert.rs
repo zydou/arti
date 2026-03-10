@@ -743,7 +743,7 @@ mod test {
         };
 
         use crate::{
-            parse2::{self, ErrorProblem, ParseError, ParseInput, VerifyFailed},
+            parse2::{self, ErrorProblem, NetdocUnverified, ParseError, ParseInput, VerifyFailed},
             types::{self, Iso8601TimeSp},
         };
 
@@ -857,9 +857,10 @@ mod test {
                 .read_to_string(&mut input)
                 .unwrap();
 
-            let res = parse2::parse_netdoc::<AuthCert>(&ParseInput::new(&input, "")).unwrap();
+            let res =
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(&input, "")).unwrap();
             assert_eq!(
-                res,
+                *res.inspect_unverified().0,
                 AuthCert {
                     dir_key_certificate_version: AuthCertVersion::V3,
                     dir_address: None,
