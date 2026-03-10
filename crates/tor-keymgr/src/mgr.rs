@@ -1055,11 +1055,8 @@ mod tests {
     impl Keystore {
         fn new(id: &str) -> Self {
             let id = KeystoreId::from_str(id).unwrap();
-            let inner: RwLock<
-                Vec<StdResult<(ArtiPath, KeystoreItemType, TestItem), UnrecognizedEntryError>>,
-            > = Default::default();
 
-            Self { inner, id }
+            Self { inner: Default::default(), id }
         }
 
         fn new_boxed(id: &str) -> BoxedKeystore {
