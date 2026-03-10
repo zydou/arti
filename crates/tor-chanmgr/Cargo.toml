@@ -51,6 +51,7 @@ derive-deftly = { version = "~1.6.0", features = ["full", "beta"] }
 derive_more = { version = "2.0.1", features = ["full"] }
 educe = "0.4.22"
 futures = "0.3.14"
+httparse = "1.10"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.6.0" }
 percent-encoding = "2.3.1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }

@@ -13,7 +13,6 @@
 #![allow(dead_code)]
 
 use std::{
-    fmt,
     net::{IpAddr, SocketAddr},
     sync::Arc,
 };
@@ -21,6 +20,7 @@ use std::{
 use base64ct::{Base64, Encoding};
 use futures::io::{AsyncBufReadExt, BufReader};
 use futures::{AsyncReadExt, AsyncWriteExt};
+use httparse;
 use safelog::Sensitive;
 use tor_linkspec::PtTargetAddr;
 use tor_rtcompat::NetStreamProvider;
@@ -42,7 +42,7 @@ use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_proto::peer::PeerAddr;
 
 /// Information about what proxy protocol to use, and how to use it.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Protocol {
     /// Connect via SOCKS 4, SOCKS 4a, or SOCKS 5.
@@ -52,22 +52,6 @@ pub enum Protocol {
         /// Optional Basic auth credentials (username, password) for Proxy-Authorization header.
         auth: Option<(Sensitive<String>, Sensitive<String>)>,
     },
-}
-
-impl fmt::Debug for Protocol {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Protocol::Socks(version, auth) => {
-                f.debug_tuple("Socks").field(version).field(auth).finish()
-            }
-            Protocol::HttpConnect { auth } => {
-                let redacted_auth = auth.as_ref().map(|_| "<redacted>");
-                f.debug_struct("HttpConnect")
-                    .field("auth", &redacted_auth)
-                    .finish()
-            }
-        }
-    }
 }
 
 /// An address to use when told to connect to "no address."
@@ -219,41 +203,38 @@ fn build_http_connect_request(
     request
 }
 
-/// Parse HTTP status line and extract status code.
-fn parse_status_line(status_line: &str) -> Result<u16, ProxyError> {
-    // Parse "HTTP/1.x STATUS_CODE ..."
-    let status_line = status_line.trim_end_matches(['\r', '\n']);
-    if !status_line.starts_with("HTTP/") {
+/// Parse HTTP CONNECT response and extract status code.
+///
+/// Uses httparse for spec-compliant parsing. Rejects:
+/// - Responses larger than 16KB (prevents header bomb attacks)
+/// - Pipelined data after headers (connection is dedicated to tunnel)
+fn parse_http_connect_response(response_bytes: &[u8]) -> Result<u16, ProxyError> {
+    if response_bytes.len() > MAX_HTTP_HEADER_BYTES {
         return Err(ProxyError::HttpConnectMalformed);
     }
-    status_line
-        .split_whitespace()
-        .nth(1)
-        .and_then(|s| s.parse::<u16>().ok())
-        .ok_or(ProxyError::HttpConnectMalformed)
-}
 
-/// Consume remaining HTTP headers until blank line.
-async fn consume_remaining_headers<R: NetStreamProvider + Send + Sync>(
-    reader: &mut BufReader<R::Stream>,
-    total_header_bytes: &mut usize,
-) -> Result<(), ProxyError> {
-    let mut line = String::new();
-    loop {
-        line.clear();
-        let n = reader.read_line(&mut line).await?;
-        *total_header_bytes += n;
-        if *total_header_bytes > MAX_HTTP_HEADER_BYTES {
-            return Err(ProxyError::HttpConnectMalformed);
+    let mut headers = [httparse::EMPTY_HEADER; 64];
+    let mut resp = httparse::Response::new(&mut headers);
+
+    match resp.parse(response_bytes) {
+        Ok(httparse::Status::Complete(header_end)) => {
+            let status = resp.code.ok_or(ProxyError::HttpConnectMalformed)?;
+
+            if !(200..300).contains(&status) {
+                return Err(ProxyError::HttpConnectError(status));
+            }
+
+            // Reject any pipelined data after headers
+            if header_end < response_bytes.len() {
+                return Err(ProxyError::UnexpectedData);
+            }
+
+            trace!("HTTP CONNECT successful, status {}", status);
+            Ok(status)
         }
-        if n == 0 {
-            return Err(ProxyError::HttpConnectMalformed);
-        }
-        if line == "\r\n" || line == "\n" {
-            break;
-        }
+        Ok(httparse::Status::Partial) => Err(ProxyError::HttpConnectMalformed),
+        Err(_) => Err(ProxyError::HttpConnectMalformed),
     }
-    Ok(())
 }
 
 /// Send HTTP CONNECT request to proxy.
@@ -269,43 +250,6 @@ async fn send_http_connect_request<R: NetStreamProvider + Send + Sync>(
     Ok(())
 }
 
-/// Read and validate HTTP status line from proxy response.
-async fn read_and_validate_status_line<R: NetStreamProvider + Send + Sync>(
-    reader: &mut BufReader<R::Stream>,
-) -> Result<(String, usize), ProxyError> {
-    let mut status_line = String::new();
-    let total_header_bytes = reader.read_line(&mut status_line).await?;
-    if total_header_bytes == 0 || total_header_bytes > MAX_HTTP_HEADER_BYTES {
-        return Err(ProxyError::HttpConnectMalformed);
-    }
-    Ok((status_line, total_header_bytes))
-}
-
-/// Validate HTTP CONNECT response: check status code, consume headers, verify no unexpected data.
-async fn validate_http_connect_response<R: NetStreamProvider + Send + Sync>(
-    reader: &mut BufReader<R::Stream>,
-    status_line: &str,
-    total_header_bytes: &mut usize,
-) -> Result<u16, ProxyError> {
-    // Parse status line and check status code
-    let status_code = parse_status_line(status_line)?;
-    if !(200..300).contains(&status_code) {
-        trace!("HTTP CONNECT failed with status {}", status_code);
-        return Err(ProxyError::HttpConnectError(status_code));
-    }
-
-    // Consume remaining headers until blank line
-    consume_remaining_headers::<R>(reader, total_header_bytes).await?;
-
-    // If the proxy pipelined any bytes after headers, we can't preserve them.
-    let buf = reader.buffer();
-    if !buf.is_empty() {
-        return Err(ProxyError::UnexpectedData);
-    }
-
-    Ok(status_code)
-}
-
 /// Perform HTTP CONNECT proxy handshake (RFC 7231, RFC 7617 for Basic auth).
 async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
     mut stream: R::Stream,
@@ -313,21 +257,35 @@ async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
     target: &PtTargetAddr,
 ) -> Result<R::Stream, ProxyError> {
     let target_str = format_connect_target(target)?;
-
-    // Build and send CONNECT request
     send_http_connect_request::<R>(&mut stream, auth, &target_str).await?;
 
-    // Read response until end of headers (\r\n\r\n)
+    // Read response until we see the double CRLF that terminates headers
+    let mut response_buffer = Vec::new();
     let mut reader = BufReader::new(stream);
-    let (status_line, mut total_header_bytes) =
-        read_and_validate_status_line::<R>(&mut reader).await?;
+    let mut line = String::new();
 
-    // Validate response: status code, headers, and check for unexpected data
-    let status_code =
-        validate_http_connect_response::<R>(&mut reader, &status_line, &mut total_header_bytes)
-            .await?;
+    loop {
+        line.clear();
+        let n = reader.read_line(&mut line).await?;
+        if n == 0 {
+            return Err(ProxyError::HttpConnectMalformed);
+        }
 
-    trace!("HTTP CONNECT handshake succeeded, status {}", status_code);
+        response_buffer.extend_from_slice(line.as_bytes());
+        if response_buffer.len() > MAX_HTTP_HEADER_BYTES {
+            return Err(ProxyError::HttpConnectMalformed);
+        }
+
+        // Check for blank line (end of headers)
+        if line == "\r\n" || line == "\n" {
+            break;
+        }
+    }
+
+    // Parse and validate response
+    let _status_code = parse_http_connect_response(&response_buffer)?;
+
+    // Return the underlying stream (BufReader is dropped, stream continues)
     Ok(reader.into_inner())
 }
 
@@ -618,6 +576,21 @@ mod test {
     #[allow(unused_imports)]
     use super::*;
 
+    #[test]
+    fn protocol_debug_redacts_http_connect_auth() {
+        let proto = Protocol::HttpConnect {
+            auth: Some((
+                Sensitive::new("user_name".to_owned()),
+                Sensitive::new("pass_word".to_owned()),
+            )),
+        };
+
+        let formatted = format!("{proto:?}");
+        assert!(formatted.contains("HttpConnect"));
+        assert!(!formatted.contains("user_name"));
+        assert!(!formatted.contains("pass_word"));
+    }
+
     #[cfg(feature = "pt-client")]
     #[test]
     fn setting_encoding() {
@@ -707,5 +680,53 @@ mod test {
 
         // Requests with "0" can't be encoded as V4.
         assert!(settings_to_protocol(V4, "\0".to_owned()).is_err());
+    }
+
+    #[test]
+    fn parse_http_connect_200_ok() {
+        let response = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+        assert_eq!(parse_http_connect_response(response).unwrap(), 200);
+    }
+
+    #[test]
+    fn parse_http_connect_407_auth_required() {
+        let response = b"HTTP/1.1 407 Proxy Authentication Required\r\n\r\n";
+        match parse_http_connect_response(response) {
+            Err(ProxyError::HttpConnectError(407)) => (), // Expected
+            other => panic!("Expected 407 error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_http_connect_malformed_no_status() {
+        let response = b"INVALID HTTP";
+        assert!(matches!(
+            parse_http_connect_response(response),
+            Err(ProxyError::HttpConnectMalformed)
+        ));
+    }
+
+    #[test]
+    fn parse_http_connect_with_headers() {
+        let response = b"HTTP/1.1 200 Connection Established\r\nConnection: close\r\nProxy-Agent: Proxy/1.0\r\n\r\n";
+        assert_eq!(parse_http_connect_response(response).unwrap(), 200);
+    }
+
+    #[test]
+    fn parse_http_connect_rejects_pipelined_data() {
+        let response = b"HTTP/1.1 200 OK\r\n\r\nEXTRA_DATA";
+        assert!(matches!(
+            parse_http_connect_response(response),
+            Err(ProxyError::UnexpectedData)
+        ));
+    }
+
+    #[test]
+    fn parse_http_connect_oversized_headers() {
+        let huge_header = vec![b'X'; MAX_HTTP_HEADER_BYTES + 1];
+        assert!(matches!(
+            parse_http_connect_response(&huge_header),
+            Err(ProxyError::HttpConnectMalformed)
+        ));
     }
 }

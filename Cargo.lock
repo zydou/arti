@@ -6698,6 +6698,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "hex-literal",
+ "httparse",
  "itertools 0.14.0",
  "oneshot-fused-workaround",
  "percent-encoding",

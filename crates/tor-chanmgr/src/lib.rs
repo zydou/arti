@@ -257,8 +257,21 @@ impl<R: Runtime> ChanMgr<R> {
             #[cfg(feature = "pt-client")]
             None,
         );
+
+        // Warn if outbound_proxy is configured to a non-loopback address
+        if let Some(ref proxy) = config.cfg.outbound_proxy {
+            if !proxy.is_loopback() {
+                tracing::warn!(
+                    proxy_addr = %proxy,
+                    "outbound_proxy is configured to a non-loopback address; \
+                     this may expose Tor traffic to an untrusted intermediate"
+                );
+            }
+        }
+
         let mgr =
             mgr::AbstractChanMgr::new(factory, config.cfg, dormancy, netparams, reporter, memquota);
+
         Ok(ChanMgr {
             mgr,
             bootstrap_status: receiver,
