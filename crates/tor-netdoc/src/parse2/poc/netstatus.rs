@@ -69,6 +69,8 @@ define_derive_deftly! {
 
     impl $ttype {
         /// If `algorithm` is an algorithm name, calculate the hash
+        ///
+        /// Otherwise, return `None`.
         fn parse_keyword_and_hash(algorithm: &str, body: &SignatureHashInputs) -> Option<Self> {
             Some(match algorithm {
               $(
@@ -83,6 +85,7 @@ define_derive_deftly! {
             })
         }
 
+        /// Return the hash value for this algorithm, as a slice
         fn hash_slice_for_verification(&self) -> &[u8] {
             match self { $(
                 $vpat => f_0,
