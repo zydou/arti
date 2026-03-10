@@ -25,13 +25,14 @@ from __future__ import annotations
 #
 # - Exported types start with "Arti", to make imports safer.
 
+import errno
 import json
 import logging
 import os
 import socket
 import sys
 import threading
-from ctypes import POINTER, byref, _Pointer as Ptr
+from ctypes import POINTER, byref, c_int, _Pointer as Ptr
 from enum import Enum
 import arti_rpc.ffi
 from arti_rpc.ffi import (
@@ -44,6 +45,7 @@ from arti_rpc.ffi import (
     ArtiRpcUserTag as FfiTag,
     _ArtiRpcStatus as FfiStatus,
     _ArtiRpcRawSocket as FfiSocket,
+    EvLoopCb as FfiEvLoopCb,
 )
 from typing import (
     Optional,
@@ -83,6 +85,9 @@ class _TagMap:
     any object.
 
     The methods on this type are threadsafe.
+
+    If an ArtiRpcPoll is in use, these maps are shared by the ArtiRpcPoll
+    and the ArtiRpcConn.
     """
 
     _lock: threading.Lock
@@ -164,6 +169,30 @@ def _into_json_str(o: Union[str, dict]) -> str:
         return json.dumps(o)
     else:
         return o
+
+
+class ArtiRpcPollFd:
+    """
+    Argument to event-loop callbacks.
+
+    Provides a fileno() method to integrate with an event loop.
+
+    See `connect_polling` for more information.
+    """
+
+    # Note: We don't use an int directly here, since we need to adjust the
+    # fileno _after_ the object is constructed.
+
+    _fd: int
+
+    def __init__(self):
+        self._fd = -1
+
+    def fileno(self) -> int:
+        return self._fd
+
+
+ArtiEvLoopCb = Callable[[ArtiRpcPollFd], None]
 
 
 class _BuildEntType(Enum):
@@ -277,6 +306,114 @@ class ArtiRpcConnBuilder(_RpcBase):
 
         return conn
 
+    def connect_polling(
+        self,
+        start_writing: ArtiEvLoopCb,
+        stop_writing: ArtiEvLoopCb,
+    ) -> Tuple[ArtiRpcConn, ArtiRpcPoll]:
+        """
+        Use the settings in this builder to open a connection to Arti,
+        suitable for use in a nonblocking event loop
+        such as those provided by Python's `selectors` module.
+
+        Requires a pair of callback functions:
+        one (start_writing) that will be invoked
+        whenever the event loop should begin looking for write events,
+        and one (stop_writing) that will be invoked
+        whenever the event loop should stop looking for write events.
+        These functions must take a single argument of type
+        ArtiRpcPollFd, which will contain the fileno of the RPC connection.
+        These functions may raise exceptions on error:
+        If possible, they should raise exceptions with the `errno` property set.
+
+        Returns a tuple of (ArtiRpcConn, ArtiRpcPoll).
+        The caller is responsible for making sure that the ArtiRpcPoll
+        is registered and de-registered in its event loop
+        whenever start_writing and stop_writing are called,
+        and for making sure that `ArtiRpcPoll.poll` is called on the
+        connection whenever it is ready.
+        The event loop should _always_ be watching for "readable" events,
+        and should watch for "writeable" whenever the conenction
+        "wants to write" as determined by start_writing and stop_writing.
+
+        (When this method is used to create the ArtiRpcConn,
+        then if nobody is calling `ArtiRpcPoll.poll`,
+        no data will be written or read from the RPC connection at all.)
+        """
+
+        pollfd = ArtiRpcPollFd()
+
+        # Wrappers for the user-provided callbacks to turn them into
+        # the formats that arti-rpc-client ffi expects.
+        def start_writing_inner(_):
+            try:
+                start_writing(pollfd)
+            except Exception as e:
+                try:
+                    return e.errno
+                except AttributeError:
+                    return errno.ENODATA
+            return 0
+
+        def stop_writing_inner(_):
+            try:
+                stop_writing(pollfd)
+            except Exception as e:
+                try:
+                    return e.errno
+                except AttributeError:
+                    return errno.ENODATA
+            return 0
+
+        # Wrap the wrappers in ctypes.
+        start_writing_c = FfiEvLoopCb(start_writing_inner)
+        stop_writing_c = FfiEvLoopCb(stop_writing_inner)
+
+        conn, poll = self._connect_polling_inner(start_writing_c, stop_writing_c)
+
+        conn = ArtiRpcConn(rpc_lib=self._rpc, _conn=conn)
+        poll = ArtiRpcPoll(rpc_lib=self._rpc, poll=poll, tag_map=conn._tag_map)
+        # Put the actual fd in the ArtiRpcPollFd.
+        pollfd._fd = poll._fd
+
+        # We need to save an (unused) reference to the FFI wrappers,
+        # or they will be deallocated,
+        # and calls to them will result in undefined behavior.
+        # We put the "stop writing" callback in the ArtiRpcPoll
+        # because it is only invoked from ArtiRpcPoll.poll(),
+        # and we put the "start writing" callback in the ArtiRpcConn
+        # because it is only invoked from submit().
+        poll._stop_writing_c_callback = stop_writing_c
+        conn._start_writing_c_callback = start_writing_c
+        return (conn, poll)
+
+    def _connect_polling_inner(
+        self, start_writing, stop_writing  # FfiEvLoopCb  # FfiEvLoopCb
+    ) -> Tuple[Ptr[FfiConn], Ptr[FfiPoll]]:
+        """
+        Helper for connect_polling.
+
+        (Note that the arguments are not type-annotated, since ctypes'
+        CFUNCTYPE doesn't support that.)
+        """
+        conn = POINTER(arti_rpc.ffi.ArtiRpcConn)()
+        poll = POINTER(arti_rpc.ffi.ArtiRpcPoll)()
+        error = POINTER(arti_rpc.ffi.ArtiRpcError)()
+        rv = self._rpc.arti_rpc_conn_builder_connect_polling(
+            self._builder,
+            start_writing,
+            stop_writing,
+            0,
+            byref(conn),
+            byref(poll),
+            byref(error),
+        )
+        self._handle_error(rv, error)
+
+        assert conn
+        assert poll
+        return (conn, poll)
+
 
 class ArtiRpcConn(_RpcBase):
     """
@@ -287,6 +424,7 @@ class ArtiRpcConn(_RpcBase):
     _session: ArtiRpcObject
     _conn_object: ArtiRpcObject
     _tag_map: _TagMap
+    _start_writing_c_callback: Optional[object]
 
     def __init__(self, rpc_lib=None, _conn: Optional[Ptr[FfiConn]] = None):
         """
@@ -311,6 +449,7 @@ class ArtiRpcConn(_RpcBase):
         s = self._rpc.arti_rpc_conn_get_session_id(self._conn).decode("utf-8")
         self._session = self.make_object(s)
         self._conn_object = self.make_object("connection")
+        self._start_writing = None
 
     def __del__(self):
         if self._conn is not None:
@@ -921,3 +1060,114 @@ class ArtiRequestHandle(_RpcBase):
         )
 
         self._handle_error(rv, error)
+
+
+class ArtiRpcWouldBlock(object):
+    """
+    Marker object, returned from ArtiRpcPoll when no progress can be made
+    on any operation without waiting for IO.
+    """
+
+    pass
+
+
+#: Singleton instance of ArtiRpcWouldBlock, returned from ArtiRpcPoll.
+WOULD_BLOCK = ArtiRpcWouldBlock()
+
+
+# TODO: Provide a means to integrate this with a SelectorEventLoop.
+# In doing so, we'll need to think about shutdown carefully, to make
+# sure that we don't leak this.
+class ArtiRpcPoll(_RpcBase):
+    """
+    Support for integrating RPC support with an event loop
+    (such as those provided by python's "selectors" module).
+
+    To construct one of these, use `ArtiRpcConnBuilder.connect_polling`.
+    See that method's documentation for more information about using this type.
+    """
+
+    _poll: Optional[Ptr[FfiPoll]]
+    _fd: int
+    _tag_map: _TagMap
+    _stop_writing_c_callback: Optional[object]
+
+    def __init__(self, rpc_lib, poll, tag_map):
+        """
+        Construct an ArtiRpcPoll from its initial members.
+
+        Note that this method should only be called from within
+        the arti_rpc library.
+        """
+        _RpcBase.__init__(self, rpc_lib)
+        self._poll = poll
+        self._tag_map = tag_map
+        self._stop_writing_c_callback = None
+        self._poll = poll
+        self._fd = self._rpc.arti_rpc_poll_get_socket(poll)
+
+    def __del__(self):
+        # We need to call the free method when this object is finally unreferences
+        if self._poll is not None:
+            self._rpc.arti_rpc_poll_free(self._poll)
+            self._poll = None
+
+    def fileno(self):
+        """
+        Return the underlying file descriptor used for this RPC connection.
+
+        NOTE: This file descriptor should only be used for checking whether
+        the connection is ready to read or write.
+        Actual IO should be done from `poll()`.
+        Attempting to read or write to this fd directly will result in errors.
+        """
+        return self._fd
+
+    def wants_to_write(self):
+        """
+        Return true if this ArtiRpcPoll wants to be notified
+        when its file descriptor is writable.
+        (It always wants to be notified when the file descriptor is readable.)
+        """
+        return self._rpc.arti_rpc_poll_wants_to_write(self._poll).value != 0
+
+    def poll(self) -> Union[ArtiRpcResponse, ArtiRpcWouldBlock]:
+        """
+        Read and write from the underlying file descriptor.
+
+        If a message is found for a tagged request (one submitted via `submit`),
+        return that message.
+
+        If no futher progress would be made without waiting for the connection
+        to become ready, returns `WOULD_BLOCK` (an instance of ArtiRpcWouldBlock).
+        """
+        tag = FfiTag()
+        response = POINTER(arti_rpc.ffi.ArtiRpcStr)()
+        responsetype = arti_rpc.ffi.ArtiRpcResponseType(0)
+        would_block = c_int(0)
+        error = POINTER(arti_rpc.ffi.ArtiRpcError)()
+
+        rv = self._rpc.arti_rpc_poll_poll(
+            self._poll,
+            byref(tag),
+            byref(response),
+            byref(responsetype),
+            byref(would_block),
+            byref(error),
+        )
+        self._handle_error(rv, error)
+
+        if would_block.value != 0:
+            return WOULD_BLOCK
+
+        response_obj = ArtiRpcResponse(self._consume_rpc_str(response))
+        expected_kind = ArtiRpcResponseKind(responsetype.value)
+        assert expected_kind == response_obj.kind()
+
+        assert tag.a == 0
+        user_tag = self._tag_map._get_tag(tag.b, expected_kind.is_final())
+        if user_tag is None:
+            raise LookupError("Unexpected tag in reply")
+
+        response_obj._user_tag = user_tag
+        return response_obj
