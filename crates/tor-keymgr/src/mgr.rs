@@ -1047,8 +1047,7 @@ mod tests {
     }
 
     struct Keystore {
-        inner:
-            RwLock<Vec<KeystoreEntryResult<(ArtiPath, KeystoreItemType, TestItem)>>>,
+        inner: RwLock<Vec<KeystoreEntryResult<(ArtiPath, KeystoreItemType, TestItem)>>>,
         id: KeystoreId,
     }
 
@@ -1056,7 +1055,10 @@ mod tests {
         fn new(id: &str) -> Self {
             let id = KeystoreId::from_str(id).unwrap();
 
-            Self { inner: Default::default(), id }
+            Self {
+                inner: Default::default(),
+                id,
+            }
         }
 
         fn new_boxed(id: &str) -> BoxedKeystore {
