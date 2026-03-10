@@ -1067,10 +1067,7 @@ mod tests {
                         >,
                     > = Default::default();
 
-                    Self {
-                        inner,
-                        id,
-                    }
+                    Self { inner, id }
                 }
             }
 
@@ -1128,9 +1125,7 @@ mod tests {
 
                 #[cfg(feature = "onion-service-cli-extra")]
                 fn raw_entry_id(&self, raw_id: &str) -> Result<RawEntryId> {
-                    Ok(RawEntryId::Path(
-                        PathBuf::from(raw_id.to_string()),
-                    ))
+                    Ok(RawEntryId::Path(PathBuf::from(raw_id.to_string())))
                 }
 
                 fn insert(
@@ -1186,9 +1181,7 @@ mod tests {
                             let id = build_raw_id_path(spec, ty);
                             entry_id == &id
                         }
-                        Err(e) => {
-                            e.entry().raw_id() == entry_id
-                        }
+                        Err(e) => e.entry().raw_id() == entry_id,
                     });
                     let Some(index) = index else {
                         return Err(Error::Keystore(Arc::new(MockKeystoreError::NotFound)));
@@ -1205,13 +1198,15 @@ mod tests {
                         .iter()
                         .map(|res| match res {
                             Ok((arti_path, ty, _)) => {
-                                let raw_id = RawEntryId::Path(
-                                    PathBuf::from(
-                                        &arti_path.to_string(),
-                                    )
-                                );
+                                let raw_id =
+                                    RawEntryId::Path(PathBuf::from(&arti_path.to_string()));
 
-                                Ok(KeystoreEntry::new(KeyPath::Arti(arti_path.clone()), ty.clone(), self.id(), raw_id))
+                                Ok(KeystoreEntry::new(
+                                    KeyPath::Arti(arti_path.clone()),
+                                    ty.clone(),
+                                    self.id(),
+                                    raw_id,
+                                ))
                             }
                             Err(e) => Err(e.clone()),
                         })
@@ -1224,8 +1219,7 @@ mod tests {
     // Populate `keystore` with the specified number of unrecognized entries.
     fn add_unrecognized_entries(keystore: &mut Keystore1, count: usize) {
         for i in 0..count {
-            let invalid_key_path =
-                PathBuf::from(&format!("unrecognized_entry{}", i));
+            let invalid_key_path = PathBuf::from(&format!("unrecognized_entry{}", i));
             let raw_id = RawEntryId::Path(invalid_key_path.clone());
             let entry = RawKeystoreEntry::new(raw_id, keystore.id.clone()).into();
             let entry = UnrecognizedEntryError::new(
@@ -1729,7 +1723,6 @@ mod tests {
         add_unrecognized_entries(&mut keystore, 1);
         let builder = KeyMgrBuilder::default().primary_store(Box::new(keystore));
 
-
         let mgr = builder.build().unwrap();
 
         let keystore1 = KeystoreId::from_str("keystore1").unwrap();
@@ -1756,8 +1749,7 @@ mod tests {
     fn keys_subcommands() {
         let mut keystore = Keystore1::default();
         add_unrecognized_entries(&mut keystore, 1);
-        let mut builder =
-            KeyMgrBuilder::default().primary_store(Box::new(keystore));
+        let mut builder = KeyMgrBuilder::default().primary_store(Box::new(keystore));
         builder
             .secondary_stores()
             .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
