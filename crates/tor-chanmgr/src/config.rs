@@ -5,12 +5,11 @@
 //! Most types in this module are re-exported by `arti-client`.
 
 use derive_deftly::Deftly;
-use percent_encoding::{percent_decode_str, utf8_percent_encode, AsciiSet, CONTROLS};
+use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, utf8_percent_encode};
 use serde::Deserialize;
 use std::net::{IpAddr, SocketAddr};
 use tor_config::PaddingLevel;
 use tor_config::derive::prelude::*;
-
 use tor_socksproto::SocksAuth;
 use tor_socksproto::SocksVersion;
 use url::{Host, Url};
@@ -282,8 +281,7 @@ impl std::fmt::Display for ProxyProtocol {
                                     "encode_userinfo_http failed for addr={}, user={}",
                                     addr, auth.username
                                 );
-                                let encoded_user =
-                                    percent_encode_userinfo(&auth.username);
+                                let encoded_user = percent_encode_userinfo(&auth.username);
                                 let encoded_pass =
                                     auth.password.as_ref().map(|p| percent_encode_userinfo(p));
                                 (encoded_user, encoded_pass)
@@ -772,13 +770,18 @@ mod test {
 
         // Parse it back and verify equality
         let p2: ProxyProtocol = s.parse().unwrap();
-        assert_eq!(p, p2, "Round-trip failed for percent-encoded HTTP CONNECT URI");
+        assert_eq!(
+            p, p2,
+            "Round-trip failed for percent-encoded HTTP CONNECT URI"
+        );
     }
 
     #[test]
     fn proxy_protocol_http_connect_parse_percent_encoded() {
         // Parse an already percent-encoded URI and verify credentials decode correctly
-        let p: ProxyProtocol = "http://user%40domain:pass%3Aword@127.0.0.1:8080".parse().unwrap();
+        let p: ProxyProtocol = "http://user%40domain:pass%3Aword@127.0.0.1:8080"
+            .parse()
+            .unwrap();
         match p {
             ProxyProtocol::HttpConnect { addr, credentials } => {
                 assert_eq!(addr, "127.0.0.1:8080".parse().unwrap());
