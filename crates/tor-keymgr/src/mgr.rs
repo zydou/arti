@@ -1048,7 +1048,7 @@ mod tests {
 
     struct Keystore {
         inner:
-            RwLock<Vec<StdResult<(ArtiPath, KeystoreItemType, TestItem), UnrecognizedEntryError>>>,
+            RwLock<Vec<KeystoreEntryResult<(ArtiPath, KeystoreItemType, TestItem)>>>,
         id: KeystoreId,
     }
 
