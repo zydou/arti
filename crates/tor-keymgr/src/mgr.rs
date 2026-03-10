@@ -1073,15 +1073,10 @@ mod tests {
             item_type: &KeystoreItemType,
         ) -> Result<bool> {
             let wanted_arti_path = key_spec.arti_path().unwrap();
-            Ok(self
-                .inner
-                .read()
-                .unwrap()
-                .iter()
-                .any(|res| match res {
-                    Ok((spec, ty, _)) => spec == &wanted_arti_path && ty == item_type,
-                    Err(_) => false,
-                }))
+            Ok(self.inner.read().unwrap().iter().any(|res| match res {
+                Ok((spec, ty, _)) => spec == &wanted_arti_path && ty == item_type,
+                Err(_) => false,
+            }))
         }
 
         fn id(&self) -> &KeystoreId {
