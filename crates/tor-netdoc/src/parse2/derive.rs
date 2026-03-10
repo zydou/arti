@@ -197,8 +197,10 @@ define_derive_deftly_module! {
 
                 let item = $THIS_ITEM;
                 dtrace!("is signature", item);
-                let item =
-                    SignatureItemParseable::from_unparsed_and_body(item, &hash_inputs)?;
+                let item = SignatureItemParseable::from_unparsed_and_body(
+                    item,
+                    &hash_inputs,
+                )?;
                 $ACCUMULATE_ITEM_VALUE
               }
               F_INTRO {
@@ -383,8 +385,10 @@ define_derive_deftly! {
     /// use tor_netdoc::derive_deftly_template_NetdocParseableSignatures;
     /// use tor_netdoc::derive_deftly_template_NetdocUnverified;
     /// use tor_netdoc::derive_deftly_template_ItemValueParseable;
-    /// use tor_netdoc::parse2::{parse_netdoc, ParseInput, VerifyFailed};
-    /// use tor_netdoc::parse2::{SignatureItemParseable, SignatureHashInputs};
+    /// use tor_netdoc::parse2::{
+    ///     parse_netdoc, ParseInput, VerifyFailed,
+    ///     SignatureItemParseable, SignatureHashInputs,
+    /// };
     ///
     /// #[derive(Deftly, Debug, Clone)]
     /// #[derive_deftly(NetdocParseable, NetdocUnverified)]
@@ -421,7 +425,8 @@ define_derive_deftly! {
     /// impl NdThingUnverified {
     ///     pub fn verify_foolish_timeless(self) -> Result<NdThing, VerifyFailed> {
     ///         let sig = &self.sigs.sigs.signature;
-    ///         if sig.doc_len != sig.doc_len_actual_pretending_to_be_hash {
+    ///         let hash = &sig.doc_len_actual_pretending_to_be_hash;
+    ///         if sig.doc_len != *hash {
     ///             return Err(VerifyFailed::VerifyFailed);
     ///         }
     ///         Ok(self.body)
@@ -637,9 +642,7 @@ define_derive_deftly! {
     ${defcond F_SUBDOC false}
     ${defcond F_SIGNATURE true}
 
-    ${define THIS_ITEM {
-        input.next_item()?.expect("peeked")
-    }}
+    ${define THIS_ITEM { input.next_item()?.expect("peeked") }}
     ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
 
     impl<$tgens> $P::NetdocParseableSignatures for $ttype {

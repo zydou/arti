@@ -71,7 +71,10 @@ define_derive_deftly! {
         /// If `algorithm` is an algorithm name, calculate the hash
         ///
         /// Otherwise, return `None`.
-        fn parse_keyword_and_hash(algorithm: &str, body: &SignatureHashInputs) -> Option<Self> {
+        fn parse_keyword_and_hash(
+            algorithm: &str,
+            body: &SignatureHashInputs,
+        ) -> Option<Self> {
             Some(match algorithm {
               $(
                 ${concat ${kebab_case $vname}} => {

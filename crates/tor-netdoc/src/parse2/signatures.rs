@@ -94,7 +94,10 @@ pub trait NetdocParseableSignatures: Sized {
     fn is_item_keyword(kw: KeywordRef<'_>) -> bool;
 
     /// Parse the signature section from a stream of items
-    fn from_items(input: &mut ItemStream<'_>, stop_at: stop_at!()) -> Result<Self, ErrorProblem>;
+    fn from_items<'s>(
+        input: &mut ItemStream<'s>,
+        stop_at: stop_at!(),
+    ) -> Result<Self, ErrorProblem>;
 }
 
 /// The part of a network document before the first signature item
@@ -165,9 +168,9 @@ pub mod sig_hash_methods {
     ///
     /// <https://spec.torproject.org/dir-spec/netdoc.html#signing>
     pub fn whole_keyword_line_sha1(body: &SignatureHashInputs) -> [u8; 20] {
-        let mut h = tor_llcrypto::d::Sha1::new();
-        body.hash_whole_keyword_line(&mut h);
-        h.finalize().into()
+                let mut h = tor_llcrypto::d::Sha1::new();
+                body.hash_whole_keyword_line(&mut h);
+                h.finalize().into()
     }
 }
 
