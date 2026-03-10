@@ -241,10 +241,12 @@ impl<'s> ItemStream<'s> {
                 inner_always_stop | StopAt(S::is_item_keyword),
             )?;
             let signed_doc_body = input.body_sofar_for_signature();
+            let unsigned_body_len = signed_doc_body.body().len();
             let mut hashes = S::HashesAccu::default();
             let sigs = S::from_items(&mut input, signed_doc_body, &mut hashes, inner_always_stop)?;
             let sigs = SignaturesData {
                 sigs,
+                unsigned_body_len,
                 hashes,
             };
             // SECURITY

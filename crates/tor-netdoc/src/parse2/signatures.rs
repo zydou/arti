@@ -79,6 +79,9 @@ pub struct SignaturesData<U: NetdocUnverified> {
     /// The signatures themselves, each including the corresponding hash
     pub sigs: U::Signatures,
 
+    /// The length in bytes of the body, up to the start of the first signature item.
+    pub unsigned_body_len: usize,
+
     /// The hashes which were computed as part of parsing.
     ///
     /// This will include every hash computed by any signature item's
