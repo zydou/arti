@@ -1046,168 +1046,157 @@ mod tests {
         RawEntryId::Path(PathBuf::from(&path))
     }
 
-            struct Keystore {
-                inner: RwLock<
-                    Vec<StdResult<(ArtiPath, KeystoreItemType, TestItem), UnrecognizedEntryError>>,
-                >,
-                id: KeystoreId,
-            }
+    struct Keystore {
+        inner:
+            RwLock<Vec<StdResult<(ArtiPath, KeystoreItemType, TestItem), UnrecognizedEntryError>>>,
+        id: KeystoreId,
+    }
 
-            impl Keystore {
-                fn new(id: &str) -> Self {
-                    let id = KeystoreId::from_str(id).unwrap();
-                    let inner: RwLock<
-                        Vec<
-                            StdResult<
-                                (ArtiPath, KeystoreItemType, TestItem),
-                                UnrecognizedEntryError,
-                            >,
-                        >,
-                    > = Default::default();
+    impl Keystore {
+        fn new(id: &str) -> Self {
+            let id = KeystoreId::from_str(id).unwrap();
+            let inner: RwLock<
+                Vec<StdResult<(ArtiPath, KeystoreItemType, TestItem), UnrecognizedEntryError>>,
+            > = Default::default();
 
-                    Self { inner, id }
-                }
+            Self { inner, id }
+        }
 
-                fn new_boxed(id: &str) -> BoxedKeystore {
-                    Box::new(Self::new(id))
-                }
-            }
+        fn new_boxed(id: &str) -> BoxedKeystore {
+            Box::new(Self::new(id))
+        }
+    }
 
-            impl crate::Keystore for Keystore {
-                fn contains(
-                    &self,
-                    key_spec: &dyn KeySpecifier,
-                    item_type: &KeystoreItemType,
-                ) -> Result<bool> {
-                    let wanted_arti_path = key_spec.arti_path().unwrap();
-                    Ok(self
-                        .inner
-                        .read()
-                        .unwrap()
-                        .iter()
-                        .find(|res| match res {
-                            Ok((spec, ty, _)) => spec == &wanted_arti_path && ty == item_type,
-                            Err(_) => false,
-                        })
-                        .is_some())
-                }
+    impl crate::Keystore for Keystore {
+        fn contains(
+            &self,
+            key_spec: &dyn KeySpecifier,
+            item_type: &KeystoreItemType,
+        ) -> Result<bool> {
+            let wanted_arti_path = key_spec.arti_path().unwrap();
+            Ok(self
+                .inner
+                .read()
+                .unwrap()
+                .iter()
+                .find(|res| match res {
+                    Ok((spec, ty, _)) => spec == &wanted_arti_path && ty == item_type,
+                    Err(_) => false,
+                })
+                .is_some())
+        }
 
-                fn id(&self) -> &KeystoreId {
-                    &self.id
-                }
+        fn id(&self) -> &KeystoreId {
+            &self.id
+        }
 
-                fn get(
-                    &self,
-                    key_spec: &dyn KeySpecifier,
-                    item_type: &KeystoreItemType,
-                ) -> Result<Option<ErasedKey>> {
-                    let key_spec = key_spec.arti_path().unwrap();
+        fn get(
+            &self,
+            key_spec: &dyn KeySpecifier,
+            item_type: &KeystoreItemType,
+        ) -> Result<Option<ErasedKey>> {
+            let key_spec = key_spec.arti_path().unwrap();
 
-                    Ok(self.inner.read().unwrap().iter().find_map(|res| {
-                        match res {
-                            Ok((arti_path, ty, k)) => {
-                                if arti_path == &key_spec && ty == item_type {
-                                    let mut k = k.clone();
-                                    k.meta.set_retrieved_from(self.id().clone());
-                                    return Some(Box::new(k) as Box<dyn ItemType>);
-                                }
-                            }
-                            Err(_) => {}
+            Ok(self.inner.read().unwrap().iter().find_map(|res| {
+                match res {
+                    Ok((arti_path, ty, k)) => {
+                        if arti_path == &key_spec && ty == item_type {
+                            let mut k = k.clone();
+                            k.meta.set_retrieved_from(self.id().clone());
+                            return Some(Box::new(k) as Box<dyn ItemType>);
                         }
-                        None
-                    }))
+                    }
+                    Err(_) => {}
                 }
+                None
+            }))
+        }
 
-                #[cfg(feature = "onion-service-cli-extra")]
-                fn raw_entry_id(&self, raw_id: &str) -> Result<RawEntryId> {
-                    Ok(RawEntryId::Path(PathBuf::from(raw_id.to_string())))
+        #[cfg(feature = "onion-service-cli-extra")]
+        fn raw_entry_id(&self, raw_id: &str) -> Result<RawEntryId> {
+            Ok(RawEntryId::Path(PathBuf::from(raw_id.to_string())))
+        }
+
+        fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> Result<()> {
+            let key = key.downcast_ref::<TestItem>().unwrap();
+
+            let item = key.as_keystore_item()?;
+            let meta = key.meta.clone();
+
+            let item_type = item.item_type()?;
+            let key = TestItem { item, meta };
+
+            self.inner
+                .write()
+                .unwrap()
+                // TODO: `insert` is used instead of `push`, because some of the
+                // tests (mainly `insert_and_get` and `keygen`) fail otherwise.
+                // It could be a good idea to use `push` and adapt the tests,
+                // in order to reduce cognitive complexity.
+                .insert(0, (Ok((key_spec.arti_path().unwrap(), item_type, key))));
+
+            Ok(())
+        }
+
+        fn remove(
+            &self,
+            key_spec: &dyn KeySpecifier,
+            item_type: &KeystoreItemType,
+        ) -> Result<Option<()>> {
+            let wanted_arti_path = key_spec.arti_path().unwrap();
+            let index = self.inner.read().unwrap().iter().position(|res| {
+                if let Ok((arti_path, ty, _)) = res {
+                    arti_path == &wanted_arti_path && ty == item_type
+                } else {
+                    false
                 }
+            });
+            let Some(index) = index else {
+                return Ok(None);
+            };
+            let _ = self.inner.write().unwrap().remove(index);
 
-                fn insert(
-                    &self,
-                    key: &dyn EncodableItem,
-                    key_spec: &dyn KeySpecifier,
-                ) -> Result<()> {
-                    let key = key.downcast_ref::<TestItem>().unwrap();
+            Ok(Some(()))
+        }
 
-                    let item = key.as_keystore_item()?;
-                    let meta = key.meta.clone();
-
-                    let item_type = item.item_type()?;
-                    let key = TestItem { item, meta };
-
-                    self.inner
-                        .write()
-                        .unwrap()
-                        // TODO: `insert` is used instead of `push`, because some of the
-                        // tests (mainly `insert_and_get` and `keygen`) fail otherwise.
-                        // It could be a good idea to use `push` and adapt the tests,
-                        // in order to reduce cognitive complexity.
-                        .insert(0, (Ok((key_spec.arti_path().unwrap(), item_type, key))));
-
-                    Ok(())
+        #[cfg(feature = "onion-service-cli-extra")]
+        fn remove_unchecked(&self, entry_id: &RawEntryId) -> Result<()> {
+            let index = self.inner.read().unwrap().iter().position(|res| match res {
+                Ok((spec, ty, _)) => {
+                    let id = build_raw_id_path(spec, ty);
+                    entry_id == &id
                 }
+                Err(e) => e.entry().raw_id() == entry_id,
+            });
+            let Some(index) = index else {
+                return Err(Error::Keystore(Arc::new(MockKeystoreError::NotFound)));
+            };
+            let _ = self.inner.write().unwrap().remove(index);
+            Ok(())
+        }
 
-                fn remove(
-                    &self,
-                    key_spec: &dyn KeySpecifier,
-                    item_type: &KeystoreItemType,
-                ) -> Result<Option<()>> {
-                    let wanted_arti_path = key_spec.arti_path().unwrap();
-                    let index = self.inner.read().unwrap().iter().position(|res| {
-                        if let Ok((arti_path, ty, _)) = res {
-                            arti_path == &wanted_arti_path && ty == item_type
-                        } else {
-                            false
-                        }
-                    });
-                    let Some(index) = index else {
-                        return Ok(None);
-                    };
-                    let _ = self.inner.write().unwrap().remove(index);
+        fn list(&self) -> Result<Vec<KeystoreEntryResult<KeystoreEntry>>> {
+            Ok(self
+                .inner
+                .read()
+                .unwrap()
+                .iter()
+                .map(|res| match res {
+                    Ok((arti_path, ty, _)) => {
+                        let raw_id = RawEntryId::Path(PathBuf::from(&arti_path.to_string()));
 
-                    Ok(Some(()))
-                }
-
-                #[cfg(feature = "onion-service-cli-extra")]
-                fn remove_unchecked(&self, entry_id: &RawEntryId) -> Result<()> {
-                    let index = self.inner.read().unwrap().iter().position(|res| match res {
-                        Ok((spec, ty, _)) => {
-                            let id = build_raw_id_path(spec, ty);
-                            entry_id == &id
-                        }
-                        Err(e) => e.entry().raw_id() == entry_id,
-                    });
-                    let Some(index) = index else {
-                        return Err(Error::Keystore(Arc::new(MockKeystoreError::NotFound)));
-                    };
-                    let _ = self.inner.write().unwrap().remove(index);
-                    Ok(())
-                }
-
-                fn list(&self) -> Result<Vec<KeystoreEntryResult<KeystoreEntry>>> {
-                    Ok(self
-                        .inner
-                        .read()
-                        .unwrap()
-                        .iter()
-                        .map(|res| match res {
-                            Ok((arti_path, ty, _)) => {
-                                let raw_id =
-                                    RawEntryId::Path(PathBuf::from(&arti_path.to_string()));
-
-                                Ok(KeystoreEntry::new(
-                                    KeyPath::Arti(arti_path.clone()),
-                                    ty.clone(),
-                                    self.id(),
-                                    raw_id,
-                                ))
-                            }
-                            Err(e) => Err(e.clone()),
-                        })
-                        .collect())
-                }
-            }
+                        Ok(KeystoreEntry::new(
+                            KeyPath::Arti(arti_path.clone()),
+                            ty.clone(),
+                            self.id(),
+                            raw_id,
+                        ))
+                    }
+                    Err(e) => Err(e.clone()),
+                })
+                .collect())
+        }
+    }
 
     // Populate `keystore` with the specified number of unrecognized entries.
     fn add_unrecognized_entries(keystore: &mut Keystore, count: usize) {
@@ -1270,9 +1259,10 @@ mod tests {
     fn insert_and_get() {
         let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
-        builder
-            .secondary_stores()
-            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
+        builder.secondary_stores().extend([
+            Keystore::new_boxed("keystore2"),
+            Keystore::new_boxed("keystore3"),
+        ]);
 
         let mgr = builder.build().unwrap();
 
@@ -1403,9 +1393,10 @@ mod tests {
     fn get_from() {
         let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
-        builder
-            .secondary_stores()
-            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
+        builder.secondary_stores().extend([
+            Keystore::new_boxed("keystore2"),
+            Keystore::new_boxed("keystore3"),
+        ]);
 
         let mgr = builder.build().unwrap();
 
@@ -1448,9 +1439,10 @@ mod tests {
     fn remove() {
         let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
-        builder
-            .secondary_stores()
-            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
+        builder.secondary_stores().extend([
+            Keystore::new_boxed("keystore2"),
+            Keystore::new_boxed("keystore3"),
+        ]);
 
         let mgr = builder.build().unwrap();
 
@@ -1617,9 +1609,10 @@ mod tests {
         let mut rng = FakeEntropicRng(testing_rng());
         let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
-        builder
-            .secondary_stores()
-            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
+        builder.secondary_stores().extend([
+            Keystore::new_boxed("keystore2"),
+            Keystore::new_boxed("keystore3"),
+        ]);
 
         let mgr = builder.build().unwrap();
 
@@ -1739,9 +1732,10 @@ mod tests {
         let mut keystore = Keystore::new("keystore1");
         add_unrecognized_entries(&mut keystore, 1);
         let mut builder = KeyMgrBuilder::default().primary_store(Box::new(keystore));
-        builder
-            .secondary_stores()
-            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
+        builder.secondary_stores().extend([
+            Keystore::new_boxed("keystore2"),
+            Keystore::new_boxed("keystore3"),
+        ]);
 
         let mgr = builder.build().unwrap();
         let keystore1id = KeystoreId::from_str("keystore1").unwrap();
