@@ -1120,7 +1120,10 @@ mod tests {
                 // tests (mainly `insert_and_get` and `keygen`) fail otherwise.
                 // It could be a good idea to use `push` and adapt the tests,
                 // in order to reduce cognitive complexity.
-                .insert(0, Ok((key_spec.arti_path().unwrap(), item_type, key.clone())));
+                .insert(
+                    0,
+                    Ok((key_spec.arti_path().unwrap(), item_type, key.clone())),
+                );
 
             Ok(())
         }
