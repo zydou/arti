@@ -854,7 +854,7 @@ mod tests {
     use tor_cert::Ed25519Cert;
     use tor_error::{ErrorKind, HasKind};
     use tor_key_forge::{
-        CertData, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
+        CertData, CertType, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
     };
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
     use tor_llcrypto::rng::FakeEntropicRng;
@@ -965,6 +965,18 @@ mod tests {
         meta: ItemMetadata,
     }
 
+    /// The type of certificate stored in the test key stores.
+    struct TestCert(TestItem);
+
+    impl ItemType for TestCert {
+        fn item_type() -> KeystoreItemType
+        where
+            Self: Sized,
+        {
+            CertType::Ed25519TorCert.into()
+        }
+    }
+
     /// A "certificate" used for testing purposes.
     #[derive(Clone, Debug)]
     struct AlwaysValidCert(TestItem);
@@ -1073,7 +1085,7 @@ mod tests {
     }
 
     impl ToEncodableCert<TestItem> for AlwaysValidCert {
-        type ParsedCert = TestItem;
+        type ParsedCert = TestCert;
         type EncodableCert = TestItem;
         type SigningKey = TestItem;
 
@@ -1083,7 +1095,7 @@ mod tests {
             _signed_with: &Self::SigningKey,
         ) -> StdResult<Self, InvalidCertError> {
             // AlwaysValidCert is always valid
-            Ok(Self(cert))
+            Ok(Self(cert.0))
         }
 
         /// Convert this cert to a type that implements [`EncodableKey`].
@@ -1162,7 +1174,19 @@ mod tests {
                     if arti_path == &key_spec && ty == item_type {
                         let mut k = k.clone();
                         k.meta.set_retrieved_from(self.id().clone());
-                        return Some(Box::new(k) as Box<dyn ItemType>);
+
+                        match item_type {
+                            KeystoreItemType::Key(_) => {
+                                return Some(Box::new(k) as Box<dyn ItemType>);
+                            }
+                            KeystoreItemType::Cert(_) => {
+                                // Hack: the KeyMgr code will want to downcast cert types
+                                // to C::ParsedCert, so we need to avoid returning the bare
+                                // TestItem here
+                                return Some(Box::new(TestCert(k)) as Box<dyn ItemType>);
+                            }
+                            _ => panic!("unknown item type?!"),
+                        }
                     }
                 }
                 None
