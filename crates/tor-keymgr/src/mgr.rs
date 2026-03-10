@@ -1046,18 +1046,16 @@ mod tests {
         RawEntryId::Path(PathBuf::from(&path))
     }
 
-    macro_rules! impl_keystore {
-        ($name:tt, $id:expr) => {
-            struct $name {
+            struct Keystore {
                 inner: RwLock<
                     Vec<StdResult<(ArtiPath, KeystoreItemType, TestItem), UnrecognizedEntryError>>,
                 >,
                 id: KeystoreId,
             }
 
-            impl Default for $name {
-                fn default() -> Self {
-                    let id = KeystoreId::from_str($id).unwrap();
+            impl Keystore {
+                fn new(id: &str) -> Self {
+                    let id = KeystoreId::from_str(id).unwrap();
                     let inner: RwLock<
                         Vec<
                             StdResult<
@@ -1069,16 +1067,13 @@ mod tests {
 
                     Self { inner, id }
                 }
-            }
 
-            #[allow(dead_code)] // this is only dead code for Keystore1
-            impl $name {
-                fn new_boxed() -> BoxedKeystore {
-                    Box::<Self>::default()
+                fn new_boxed(id: &str) -> BoxedKeystore {
+                    Box::new(Self::new(id))
                 }
             }
 
-            impl crate::Keystore for $name {
+            impl crate::Keystore for Keystore {
                 fn contains(
                     &self,
                     key_spec: &dyn KeySpecifier,
@@ -1213,11 +1208,9 @@ mod tests {
                         .collect())
                 }
             }
-        };
-    }
 
     // Populate `keystore` with the specified number of unrecognized entries.
-    fn add_unrecognized_entries(keystore: &mut Keystore1, count: usize) {
+    fn add_unrecognized_entries(keystore: &mut Keystore, count: usize) {
         for i in 0..count {
             let invalid_key_path = PathBuf::from(&format!("unrecognized_entry{}", i));
             let raw_id = RawEntryId::Path(invalid_key_path.clone());
@@ -1253,10 +1246,6 @@ mod tests {
         };
     }
 
-    impl_keystore!(Keystore1, "keystore1");
-    impl_keystore!(Keystore2, "keystore2");
-    impl_keystore!(Keystore3, "keystore3");
-
     impl_specifier!(TestKeySpecifier1, "spec1");
     impl_specifier!(TestKeySpecifier2, "spec2");
     impl_specifier!(TestKeySpecifier3, "spec3");
@@ -1279,11 +1268,11 @@ mod tests {
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn insert_and_get() {
-        let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
+        let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
         builder
             .secondary_stores()
-            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
 
         let mgr = builder.build().unwrap();
 
@@ -1412,11 +1401,11 @@ mod tests {
     #[test]
     #[cfg(feature = "onion-service-cli-extra")]
     fn get_from() {
-        let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
+        let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
         builder
             .secondary_stores()
-            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
 
         let mgr = builder.build().unwrap();
 
@@ -1457,11 +1446,11 @@ mod tests {
 
     #[test]
     fn remove() {
-        let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
+        let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
         builder
             .secondary_stores()
-            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
 
         let mgr = builder.build().unwrap();
 
@@ -1543,7 +1532,7 @@ mod tests {
     fn keygen() {
         let mut rng = FakeEntropicRng(testing_rng());
         let mgr = KeyMgrBuilder::default()
-            .primary_store(Box::<Keystore1>::default())
+            .primary_store(Keystore::new_boxed("keystore1"))
             .build()
             .unwrap();
 
@@ -1626,11 +1615,11 @@ mod tests {
     #[test]
     fn get_or_generate() {
         let mut rng = FakeEntropicRng(testing_rng());
-        let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
+        let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
         builder
             .secondary_stores()
-            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
 
         let mgr = builder.build().unwrap();
 
@@ -1719,7 +1708,7 @@ mod tests {
 
     #[test]
     fn list_matching_ignores_unrecognized_keys() {
-        let mut keystore = Keystore1::default();
+        let mut keystore = Keystore::new("keystore1");
         add_unrecognized_entries(&mut keystore, 1);
         let builder = KeyMgrBuilder::default().primary_store(Box::new(keystore));
 
@@ -1747,12 +1736,12 @@ mod tests {
     /// Test all `arti keys` subcommands
     // TODO: split this in different tests
     fn keys_subcommands() {
-        let mut keystore = Keystore1::default();
+        let mut keystore = Keystore::new("keystore1");
         add_unrecognized_entries(&mut keystore, 1);
         let mut builder = KeyMgrBuilder::default().primary_store(Box::new(keystore));
         builder
             .secondary_stores()
-            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+            .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
 
         let mgr = builder.build().unwrap();
         let keystore1id = KeystoreId::from_str("keystore1").unwrap();
@@ -1899,11 +1888,11 @@ mod tests {
             use GenerateItem::*;
 
             let mut rng = FakeEntropicRng(testing_rng());
-            let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
+            let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
             builder
                 .secondary_stores()
-                .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+                .extend([Keystore::new_boxed("keystore2"), Keystore::new_boxed("keystore3")]);
 
             let mgr = builder.build().unwrap();
 
