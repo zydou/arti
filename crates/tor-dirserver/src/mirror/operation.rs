@@ -381,9 +381,9 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 let meta = meta
                     .first()
                     .ok_or(internal!("database externally modified?"))?;
-                let server_queue = meta.missing_servers(tx)?;
-                let extra_queue = meta.missing_extras(tx)?;
-                let micro_queue = meta.missing_micros(tx)?;
+                let server_queue = meta.missing_servers(tx, None)?;
+                let extra_queue = meta.missing_extras(tx, None)?;
+                let micro_queue = meta.missing_micros(tx, None)?;
                 let lifetime = meta.lifetime(rng);
                 let consensus = meta.data(tx)?;
                 Ok::<_, DatabaseError>((

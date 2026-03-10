@@ -405,9 +405,13 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     }
 
     /// Returns the missing server descriptors for this consensus.
+    ///
+    /// `limit` may be given to specify an optional upper limit, in which case
+    /// the result will contain at most `limit` missing descriptors.
     pub(crate) fn missing_servers(
         &self,
         tx: &Transaction<'_>,
+        limit: Option<u64>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Plain {
             return Ok(HashSet::new());
@@ -426,6 +430,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         //
         // Parameters:
         // :docid - The docid of the consensus.
+        // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
             SELECT cr.unsigned_sha1
@@ -435,11 +440,16 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND cr.unsigned_sha1 IS NOT NULL
               AND server.unsigned_sha1 IS NULL
+            LIMIT :limit
             "
         ))?;
 
+        let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
-            .query_map(named_params! {":docid": self.docid}, |row| row.get(0))?
+            .query_map(
+                named_params! {":docid": self.docid, ":limit": limit},
+                |row| row.get(0),
+            )?
             .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
@@ -448,9 +458,13 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     ///
     /// Keep in mind that this does not return **all** missing extra infos but
     /// only the missing extra infos of server descriptors we have.
+    ///
+    /// `limit` may be given to specify an optional upper limit, in which case
+    /// the result will contain at most `limit` missing extra-infos.
     pub(crate) fn missing_extras(
         &self,
         tx: &Transaction<'_>,
+        limit: Option<u64>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Plain {
             return Ok(HashSet::new());
@@ -473,6 +487,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         //
         // Parameters:
         // :docid - The docid of the consensus.
+        // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
             SELECT server.extra_unsigned_sha1
@@ -483,19 +498,28 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND server.extra_unsigned_sha1 IS NOT NULL
               AND extra.unsigned_sha1 IS NULL
+            LIMIT :limit
             "
         ))?;
 
+        let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
-            .query_map(named_params! {":docid": self.docid}, |row| row.get(0))?
+            .query_map(
+                named_params! {":docid": self.docid, ":limit": limit},
+                |row| row.get(0),
+            )?
             .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
 
     /// Returns the missing micro descriptors for this consensus.
+    ///
+    /// `limit` may be given to specify an optional upper limit, in which case
+    /// the result will contain at most `limit` missing descriptors.
     pub(crate) fn missing_micros(
         &self,
         tx: &Transaction<'_>,
+        limit: Option<u64>,
     ) -> Result<HashSet<Sha256>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Microdesc {
             return Ok(HashSet::new());
@@ -514,6 +538,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         //
         // Parameters:
         // :docid - The docid of the consensus.
+        // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
             SELECT cr.unsigned_sha2
@@ -523,11 +548,16 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND cr.unsigned_sha2 IS NOT NULL
               AND micro.unsigned_sha2 IS NULL
+            LIMIT :limit
             "
         ))?;
 
+        let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
-            .query_map(named_params! {":docid": self.docid}, |row| row.get(0))?
+            .query_map(
+                named_params! {":docid": self.docid, ":limit": limit},
+                |row| row.get(0),
+            )?
             .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
@@ -1629,7 +1659,7 @@ mod test {
             .unwrap();
 
         // Only one should be returned.
-        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx))
+        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx, None))
             .unwrap()
             .unwrap();
         assert_eq!(missing_servers, HashSet::from([removed_descriptor]));
@@ -1643,7 +1673,7 @@ mod test {
 
         // Now all should be returned; we verify this by checking that the
         // result is present in all_descriptors, which is a superset.
-        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx))
+        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx, None))
             .unwrap()
             .unwrap();
         // This is a superset of missing_servers because it includes router
@@ -1680,7 +1710,7 @@ mod test {
         );
 
         // We should have no missing extra-infos.
-        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx))
+        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx, None))
             .unwrap()
             .unwrap();
         assert!(missing_extras.is_empty());
@@ -1731,7 +1761,7 @@ mod test {
             .unwrap();
 
         // Only one should be returned.
-        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx))
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, None))
             .unwrap()
             .unwrap();
         assert_eq!(missing_micros, HashSet::from([removed_descriptor]));
@@ -1745,7 +1775,7 @@ mod test {
 
         // Now all should be returned; we verify this by checking that the
         // result is present in all_descriptors, which is a superset.
-        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx))
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, None))
             .unwrap()
             .unwrap();
         // This is a superset of missing_micros because it includes micro
