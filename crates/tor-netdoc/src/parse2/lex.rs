@@ -212,8 +212,18 @@ impl<'s> ItemStream<'s> {
     }
 
     /// Parse a (sub-)document with its own signatures
+    ///
+    /// Used (mostly) by the
+    /// [`NetdocParseableUnverified`](derive_deftly_template_NetdocParseableUnverified)
+    /// derive macro.
+    ///
+    /// Generic parameters:
+    ///
+    ///  * **`B`**: the body type: the type to which `NetdocParseableUnverified` is applied.
+    ///  * **`S`**: the signatures section type.
+    ///  * **`O`**: the `FooUnverified` type, which embodies the parsed body and signatures.
     pub fn parse_signed<
-        B: NetdocParseable,
+        B: HasUnverifiedParsedBody,
         S: NetdocParseableSignatures,
         O: NetdocUnverified<Body = B, Signatures = S>,
     >(
@@ -225,8 +235,8 @@ impl<'s> ItemStream<'s> {
             ..self.clone()
         };
         let r = (|| {
-            let inner_always_stop = outer_stop | StopAt::doc_intro::<B>();
-            let body = B::from_items(
+            let inner_always_stop = outer_stop | StopAt::doc_intro::<B::UnverifiedParsedBody>();
+            let body = B::UnverifiedParsedBody::from_items(
                 &mut input,
                 inner_always_stop | StopAt(S::is_item_keyword),
             )?;
@@ -237,7 +247,11 @@ impl<'s> ItemStream<'s> {
                 sigs,
                 hashes,
             };
-            let signed = O::from_parts(body, sigs);
+            // SECURITY
+            // We unwrap the UnverifiedParsedBody and immediately wrap it up again
+            // in FooUnverified, passing on the obligation to verify the signatures,
+            // and still enforcing that with a newtype.
+            let signed = O::from_parts(B::unverified_into_inner_unchecked(body), sigs);
             Ok(signed)
         })(); // don't exit here
 

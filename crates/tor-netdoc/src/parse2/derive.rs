@@ -275,7 +275,7 @@ define_derive_deftly_module! {
     ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
 
   ${define IMPL_NETDOC_PARSEABLE {
-    impl<$tgens> $P::NetdocParseable for $ttype {
+    impl<$tgens> $P::NetdocParseable for $NETDOC_PARSEABLE_TTYPE {
         fn doctype_for_error() -> &'static str {
             ${tmeta(netdoc(doctype_for_error)) as expr,
               default ${concat ${for fields { ${when F_INTRO} $F_KEYWORD_STR }}}}
@@ -314,7 +314,7 @@ define_derive_deftly_module! {
         fn from_items<'s>(
             input: &mut $P::ItemStream<'s>,
             outer_stop: $P::stop_at!(),
-        ) -> $P::Result<$ttype, $P::ErrorProblem> {
+        ) -> $P::Result<Self, $P::ErrorProblem> {
             use $P::*;
             $DEFINE_DTRACE
             $FIELD_ORDERING_CHECK
@@ -430,7 +430,7 @@ define_derive_deftly_module! {
             // Resolve all the fields
             dtrace!("reached end, resolving");
 
-            $FINISH_RESOLVE
+            $FINISH_RESOLVE_PARSEABLE
         }
     }
   }}
@@ -627,6 +627,9 @@ define_derive_deftly! {
     /// assert_eq!(doc.value.0, "something");
     /// ```
     export NetdocParseable for struct, expect items, beta_deftly:
+
+    ${define NETDOC_PARSEABLE_TTYPE { $ttype }}
+    ${define FINISH_RESOLVE_PARSEABLE $FINISH_RESOLVE}
 
     $IMPL_NETDOC_PARSEABLE
 }
@@ -852,6 +855,11 @@ define_derive_deftly! {
     /// }
     /// ```
     ///
+    /// Also generated is `FooUnverifiedParsedBody`
+    /// and an impl of [`HasUnverifiedParsedBody`] on `Foo`.
+    /// These allow the generated code to call [`ItemStream::parse_signed`]
+    /// and it should not normally be necessary to use them elsewhere.
+    ///
     /// ### Required top-level attributes:
     ///
     /// * **`#[deftly(netdoc(signature = "TYPE"))]`**:
@@ -872,9 +880,12 @@ define_derive_deftly! {
     //  - that lets the actual `body` field be private to the defining module.
     export NetdocParseableUnverified for struct, expect items, beta_deftly:
 
-    // XXXX we don't actually want to impl NetdocParseable for the body type;
-    // that could lead to the caller accidentally writing code which just discards
-    // signatures and doesn't do any checking!
+    ${define NETDOC_PARSEABLE_TTYPE { $<$ttype UnverifiedParsedBody> }}
+    ${define FINISH_RESOLVE_PARSEABLE {
+        { $FINISH_RESOLVE }
+        .map(|unverified| $<$tname UnverifiedParsedBody> { unverified })
+    }}
+
     $IMPL_NETDOC_PARSEABLE
 
     // FooSignatures (type name)
@@ -905,17 +916,46 @@ define_derive_deftly! {
         $tvis sigs: $SIGS_DATA_TYPE,
     }
 
+    /// The parsed but unverified body part of a signed network document (working type)
+    ///
+    #[doc = ${concat "Contains a " $tname " which has been parsed"}]
+    /// as part of a signed document,
+    /// but the signatures aren't embodied here, and have not been verified.
+    ///
+    /// Not very useful to callers, who should use the `BodyUnverified` type instead,
+    /// and its implementation of `NetdocParseable`.
+    //
+    // We implement NetdocParseable on FooUnverified using ItemStream::parse_signed.
+    // ItemStream::parse_signed is a fairly normal but ad-hoc
+    // implementation of NetdocParseable which uses as subroutines implementations
+    // of NetdocParseable for the body and NetdocParseableSignatures for the signatures.
+    //
+    // We need a newtype because we don't want to implement `NetdocParseable`
+    // for a type which is just the body.  Such an impl would be usable by mistake,
+    // via the top-level parse2 functions, and it would then simply discard the signatures
+    // and return unverified data, bypassing our efforts to prevent such bugs.
+    //
+    // Ideally we would have a generic `UnverifiedParsedBody<B>` type or something
+    // but then this macro, invoked in other crates, couldn't impl NetdocParseable for
+    // UnverifiedParsedBody<TheirType>, due to trait coherence rules.
+    //
+    #[derive(derive_more::From)]
+    pub struct $NETDOC_PARSEABLE_TTYPE<$tdefgens> {
+        /// The unverified body
+        unverified: $ttype,
+    }
+
     impl<$tgens> $P::NetdocParseable for $<$ttype Unverified> {
         fn doctype_for_error() -> &'static str {
-            $ttype::doctype_for_error()
+            $NETDOC_PARSEABLE_TTYPE::doctype_for_error()
         }
 
         fn is_intro_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
-            $ttype::is_intro_item_keyword(kw)
+            $NETDOC_PARSEABLE_TTYPE::is_intro_item_keyword(kw)
         }
 
         fn is_structural_keyword(kw: $P::KeywordRef<'_>) -> Option<$P::IsStructural> {
-            $ttype::is_structural_keyword(kw)
+            $NETDOC_PARSEABLE_TTYPE::is_structural_keyword(kw)
                 .or_else(|| <$SIGS_TYPE as $P::NetdocParseableSignatures>::is_item_keyword(kw).then_some($P::IsStructural))
         }
 
@@ -939,6 +979,13 @@ define_derive_deftly! {
         }
         fn from_parts(body: Self::Body, sigs: $SIGS_DATA_TYPE) -> Self {
             Self { body, sigs }
+        }
+    }
+
+    impl<$tgens> $P::HasUnverifiedParsedBody for $ttype {
+        type UnverifiedParsedBody = $NETDOC_PARSEABLE_TTYPE;
+        fn unverified_into_inner_unchecked(unverified: Self::UnverifiedParsedBody) -> Self {
+            unverified.unverified
         }
     }
 }

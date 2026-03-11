@@ -38,6 +38,7 @@ pub use super::{
         NetdocParseableSignatures, SignatureHashesAccumulator, SignaturesData,
         NetdocUnverified, SignatureHashInputs, SignatureItemParseable, SignedDocumentBody,
         sig_hashes,
+        HasUnverifiedParsedBody,
     },
     structural::{StopAt, StopPredicate},
     traits::{

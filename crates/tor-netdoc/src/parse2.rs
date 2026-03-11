@@ -110,6 +110,7 @@ pub use signatures::{
     NetdocParseableSignatures, SignatureHashesAccumulator, SignaturesData,
     NetdocUnverified, SignatureHashInputs, SignatureItemParseable, check_validity_time,
     check_validity_time_tolerance, sig_hashes,
+    HasUnverifiedParsedBody,
 };
 pub use structural::{StopAt, StopPredicate};
 pub use traits::{

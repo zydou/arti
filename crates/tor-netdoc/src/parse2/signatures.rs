@@ -43,6 +43,28 @@ pub trait NetdocUnverified: Sized {
     fn from_parts(body: Self::Body, signatures: SignaturesData<Self>) -> Self;
 }
 
+/// Network document that has an unparsed body type (internal trait)
+///
+/// This is used internally by the
+/// [`NetdocParseableUnverified` derive](derive_deftly_template_NetdocParseableUnverified).
+//
+// This is a separate trait so that we don't complicate `NetdocUnverified`
+// with the additional internal `UnverifiedParsedBody` type.
+// That keeps `NetdocUnverified` as simply the accessors/constructors for `FooUnverified`.
+pub trait HasUnverifiedParsedBody {
+    /// The actual body payload.
+    type UnverifiedParsedBody: NetdocParseable;
+
+    /// Extract the payload
+    ///
+    /// # Security hazard
+    ///
+    /// The signature has not been verified, so the returned data must not be trusted.
+    //
+    // There is one call site, in `ItemStream::parse_signed`.
+    fn unverified_into_inner_unchecked(unverified: Self::UnverifiedParsedBody) -> Self;
+}
+
 /// The signatures information extracted from a signed network document
 ///
 /// Each `SomeDocumentUnverified` contains:
