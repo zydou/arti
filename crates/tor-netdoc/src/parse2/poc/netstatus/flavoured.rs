@@ -71,6 +71,7 @@ pub struct NetworkStatus {
 /// Signatures on a network status document
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(NetdocParseableSignatures)]
+#[deftly(netdoc(signatures(hashes_accu = "DirectorySignaturesHashesAccu")))]
 #[non_exhaustive]
 pub struct NetworkStatusSignatures {
     /// `directory-signature`s
@@ -336,6 +337,7 @@ ns_choose! { (
             let cert = self.body.parse_authcert()?.verify_selfcert(now)?;
 
             netstatus::verify_general_timeless(
+                &self.sigs.hashes,
                 slice::from_ref(&self.sigs.sigs.directory_signature),
                 &[*cert.fingerprint],
                 &[&cert],
@@ -406,6 +408,7 @@ ns_choose! { (
             check_validity_time(now, validity_start..= *self.body.valid_until.0)?;
 
             netstatus::verify_general_timeless(
+                &self.sigs.hashes,
                 &self.sigs.sigs.directory_signature,
                 authorities,
                 certs,

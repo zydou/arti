@@ -355,8 +355,7 @@ define_derive_deftly_module! {
 
     ${defcond F_REST fmeta(netdoc(rest))}
     ${defcond F_OBJECT fmeta(netdoc(object))}
-    ${defcond F_SIG_HASH fmeta(netdoc(sig_hash))}
-    ${defcond F_NORMAL not(any(F_REST, F_OBJECT, F_SIG_HASH))}
+    ${defcond F_NORMAL not(any(F_REST, F_OBJECT))}
 
-    ${defcond T_IS_SIGNATURE not(approx_equal(${for fields { ${when F_SIG_HASH} 1 }}, {}))}
+    ${defcond T_IS_SIGNATURE tmeta(netdoc(signature))}
 }

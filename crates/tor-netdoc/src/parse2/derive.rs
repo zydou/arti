@@ -110,7 +110,9 @@ define_derive_deftly_module! {
                   }
                   F_SIGNATURE { check_signature_item_parseable }
                   F_SUBDOC    { check_subdoc_parseable         }
-          }} ();
+          }} (
+              ${if F_SIGNATURE { sig_hashes, }}
+          );
         }}
         )
     }}
@@ -200,6 +202,7 @@ define_derive_deftly_module! {
                 let item = SignatureItemParseable::from_unparsed_and_body(
                     item,
                     &hash_inputs,
+                    AsMut::as_mut(sig_hashes),
                 )?;
                 $ACCUMULATE_ITEM_VALUE
               }
@@ -381,13 +384,14 @@ define_derive_deftly! {
     ///
     /// ```
     /// use derive_deftly::Deftly;
+    /// use tor_netdoc::derive_deftly_template_AsMutSelf;
     /// use tor_netdoc::derive_deftly_template_NetdocParseable;
     /// use tor_netdoc::derive_deftly_template_NetdocParseableSignatures;
     /// use tor_netdoc::derive_deftly_template_NetdocUnverified;
     /// use tor_netdoc::derive_deftly_template_ItemValueParseable;
     /// use tor_netdoc::parse2::{
-    ///     parse_netdoc, ParseInput, VerifyFailed,
-    ///     SignatureItemParseable, SignatureHashInputs,
+    ///     parse_netdoc, ErrorProblem, ParseInput, VerifyFailed,
+    ///     SignatureItemParseable, SignatureHashesAccumulator, SignatureHashInputs,
     /// };
     ///
     /// #[derive(Deftly, Debug, Clone)]
@@ -399,21 +403,33 @@ define_derive_deftly! {
     ///
     /// #[derive(Deftly, Debug, Clone)]
     /// #[derive_deftly(NetdocParseableSignatures)]
+    /// #[deftly(netdoc(signatures(hashes_accu = "UseLengthAsFoolishHash")))]
     /// pub struct NdThingSignatures {
     ///     pub signature: FoolishSignature,
     /// }
     ///
     /// #[derive(Deftly, Debug, Clone)]
     /// #[derive_deftly(ItemValueParseable)]
+    /// #[deftly(netdoc(signature(hash_accu = "UseLengthAsFoolishHash")))]
     /// pub struct FoolishSignature {
     ///     pub doc_len: usize,
-    ///
-    ///     #[deftly(netdoc(sig_hash = "use_length_as_foolish_hash"))]
-    ///     pub doc_len_actual_pretending_to_be_hash: usize,
     /// }
     ///
-    /// fn use_length_as_foolish_hash(body: &SignatureHashInputs) -> usize {
-    ///     body.body().body().len()
+    /// #[derive(Deftly, Debug, Default, Clone)]
+    /// #[derive_deftly(AsMutSelf)]
+    /// pub struct UseLengthAsFoolishHash {
+    ///     pub doc_len_actual_pretending_to_be_hash: Option<usize>,
+    /// }
+    /// impl SignatureHashesAccumulator for UseLengthAsFoolishHash {
+    ///     fn update_from_netdoc_body(
+    ///         &mut self,
+    ///         document_body: &SignatureHashInputs<'_>,
+    ///     ) -> Result<(), ErrorProblem> {
+    ///         self
+    ///             .doc_len_actual_pretending_to_be_hash
+    ///             .get_or_insert_with(|| document_body.body().body().len());
+    ///         Ok(())
+    ///     }
     /// }
     ///
     /// let doc_text =
@@ -425,7 +441,8 @@ define_derive_deftly! {
     /// impl NdThingUnverified {
     ///     pub fn verify_foolish_timeless(self) -> Result<NdThing, VerifyFailed> {
     ///         let sig = &self.sigs.sigs.signature;
-    ///         let hash = &sig.doc_len_actual_pretending_to_be_hash;
+    ///         let hash = self.sigs.hashes.doc_len_actual_pretending_to_be_hash
+    ///             .as_ref().ok_or(VerifyFailed::Bug)?;
     ///         if sig.doc_len != *hash {
     ///             return Err(VerifyFailed::VerifyFailed);
     ///         }
@@ -546,6 +563,7 @@ define_derive_deftly! {
             // 5 cases in all.
 
             //----- Parse the intro item, and introduce bindings for the other items. -----
+
             dtrace!("looking for intro item");
             $INIT_ACCUMULATE_VARS
 
@@ -637,15 +655,19 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(skip))]`
     export NetdocParseableSignatures for struct, expect items, beta_deftly:
 
-    ${defcond T_SIGNATURES true}
     ${defcond F_INTRO false}
     ${defcond F_SUBDOC false}
     ${defcond F_SIGNATURE true}
+
+    // NetdocParseableSignatures::HashesAccu
+    ${define SIGS_HASHES_ACCU_TYPE { ${tmeta(netdoc(signatures(hashes_accu))) as ty} }}
 
     ${define THIS_ITEM { input.next_item()?.expect("peeked") }}
     ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
 
     impl<$tgens> $P::NetdocParseableSignatures for $ttype {
+        type HashesAccu = $SIGS_HASHES_ACCU_TYPE;
+
         fn is_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
             use $P::*;
             ${for fields {
@@ -657,6 +679,8 @@ define_derive_deftly! {
         #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
         fn from_items<'s>(
             input: &mut $P::ItemStream<'s>,
+            signed_doc_body: $P::SignedDocumentBody<'s>,
+            sig_hashes: &mut $SIGS_HASHES_ACCU_TYPE,
             outer_stop: $P::stop_at!(),
         ) -> $P::Result<$ttype, $P::ErrorProblem> {
             use $P::*;
@@ -666,9 +690,6 @@ define_derive_deftly! {
             $ITEM_SET_SELECTORS
             $CHECK_FIELD_TYPES_PARSEABLE
             $INIT_ACCUMULATE_VARS
-
-            // Note the body of the document (before the signatures)
-            let signed_doc_body = input.body_sofar_for_signature();
 
             //----- parse the items -----
             dtrace!("looking for signature items");
@@ -843,6 +864,7 @@ define_derive_deftly! {
     // FooSignatures (type name)
     ${define SIGS_TYPE { $< ${tmeta(netdoc(signatures)) as ty, default $<$ttype Signatures>} > }}
     ${define SIGS_DATA_TYPE { $P::SignaturesData<$<$ttype Unverified>> }}
+    ${define SIGS_HASHES_ACCU_TYPE { <$SIGS_TYPE as $P::NetdocParseableSignatures>::HashesAccu }}
 
     #[doc = ${concat "Signed (unverified) form of [`" $tname "`]"}]
     ///
@@ -948,6 +970,15 @@ define_derive_deftly! {
     ///    Reject, rather than ignore, additional arguments found in the document
     ///    which aren't described by the struct.
     ///
+    ///  * **`#[deftly(netdoc(signature(hash_accu = "HASH_ACCU"))]**:
+    ///
+    ///    This item is a signature item.
+    ///    [`SignatureItemParseable`] will be implemented instead of [`ItemValueParseable`].
+    ///
+    ///    **`HASH_ACCU`** is the type in which the hash(es) for this item will be accumulated,
+    ///    and must implement [`SignatureHashesAccumulator`].
+    ///    It is used as [`SignatureItemParseable::HashAccu`].
+    ///
     /// * **`#[deftly(netdoc(debug))]`**:
     ///
     ///   Currently implemented only as a placeholde
@@ -1000,17 +1031,6 @@ define_derive_deftly! {
     ///    unless the object also implements `ItemObjectParseable`.
     ///    Errors from parsing will all be collapsed into
     ///    [`ErrorProblem::ObjectInvalidData`].
-    ///
-    ///  * **`#[deftly(netdoc(sig_hash = "HASH_METHOD"))]**:
-    ///
-    ///    This item is a signature item.
-    ///    [`SignatureItemParseable`] will be implemented instead of [`ItemValueParseable`].
-    ///
-    ///    This field is a document hash.
-    ///    The hash will be computed using `HASH_METHOD`,
-    ///    which will be resolved with `sig_hash_methods::*` in scope.
-    ///
-    ///    `fn HASH_METHOD(body: &SignatureHashInputs) -> HASH_FIELD_VALUE`.
     export ItemValueParseable for struct, expect items, beta_deftly:
 
     ${define P { $crate::parse2::internal_prelude }}
@@ -1018,11 +1038,19 @@ define_derive_deftly! {
     ${define TRAIT ${if T_IS_SIGNATURE { SignatureItemParseable } else { ItemValueParseable }}}
     ${define METHOD ${if T_IS_SIGNATURE { from_unparsed_and_body } else { from_unparsed }}}
 
+    // SignatureItemParseable::HashAccu
+    ${define SIG_HASH_ACCU_TYPE ${tmeta(netdoc(signature(hash_accu))) as ty}}
+
     impl<$tgens> $P::$TRAIT for $ttype {
+      ${if T_IS_SIGNATURE {
+        type HashAccu = $SIG_HASH_ACCU_TYPE;
+      }}
+
         fn $METHOD<'s>(
             mut input: $P::UnparsedItem<'s>,
           ${if T_IS_SIGNATURE {
             document_body: &SignatureHashInputs<'_>,
+            hash_accu: &mut $SIG_HASH_ACCU_TYPE,
           }}
         ) -> $P::Result<Self, $P::EP>
         {
@@ -1030,6 +1058,13 @@ define_derive_deftly! {
             use $P::*;
 
             $EMIT_DEBUG_PLACEHOLDER
+
+            ${if T_IS_SIGNATURE {
+                <$SIG_HASH_ACCU_TYPE as SignatureHashesAccumulator>::update_from_netdoc_body(
+                    hash_accu,
+                    document_body
+                )?;
+            }}
 
             let object = input.object();
             #[allow(unused)]
@@ -1082,11 +1117,6 @@ define_derive_deftly! {
                       (args_consume.into_remaining())
                       .map_err(|_| AE::Invalid)
                       .map_err(args_consume.error_handler(stringify!($fname)))?
-              } }
-              F_SIG_HASH { {
-                  #[allow(unused_imports)]
-                  use $P::sig_hash_methods::*;
-                  ${fmeta(netdoc(sig_hash)) as path}(&document_body)
               } }
             };
           )

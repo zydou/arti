@@ -13,13 +13,15 @@ use super::*;
 ///
 /// Typically implemented automatically, for `FooUnverified` structs, as defined by
 /// [`#[derive_deftly(NetdocUnverified)]`](derive_deftly_template_NetdocUnverified).
-//
-// TODO is this only useable for parsing?  It needs to be renamed, or maybe impooved and moved
+///
+/// Each `FooUnverified` embodies precisely the body `Body`
+/// and the signatures data `SignaturesData` needed to verify it,
+/// This trait is precisely the constructors/accessors/deconstructors.
 pub trait NetdocUnverified: Sized {
     /// The body, ie not including the signatures
     type Body: Sized;
     /// The signatures (the whole signature section)
-    type Signatures: Sized;
+    type Signatures: NetdocParseableSignatures;
 
     /// Inspect the document (and its signatures)
     ///
@@ -49,13 +51,19 @@ pub trait NetdocUnverified: Sized {
 ///
 /// See [`NetdocUnverified`]
 /// and the [`NetdocParseable`](derive_deftly_template_NetdocParseable) derive.
-//
-// XXXX this is going to get more complicated
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct SignaturesData<U: NetdocUnverified> {
     /// The signatures themselves, each including the corresponding hash
     pub sigs: U::Signatures,
+
+    /// The hashes which were computed as part of parsing.
+    ///
+    /// This will include every hash computed by any signature item's
+    /// `SignatureItemParseable` implementation.
+    ///
+    /// See [`NetdocParseableSignatures::HashesAccu`].
+    pub hashes: <U::Signatures as NetdocParseableSignatures>::HashesAccu,
 }
 
 /// A signature item that can appear in a netdoc
@@ -65,24 +73,58 @@ pub struct SignaturesData<U: NetdocUnverified> {
 /// Types that implement this embody both:
 ///
 ///   * The item, parameters, and signature data, provided in the document.
+///
+/// They do *not* embody:
+///
 ///   * The hash of the document body, which will needed during verification.
+///
+/// However, the hash *is* calculated by `from_unparsed_and_body`, during parsing,
+/// and stored in `hash`.
 ///
 /// Typically derived with
 /// [`#[derive_deftly(ItemValueParseable)]`](derive_deftly_template_ItemValueParseable).
 ///
 /// Normal (non-signature) items implement [`ItemValueParseable`].
 pub trait SignatureItemParseable: Sized {
-    /// Parse the item's value
+    /// The Rust type of the hash value accumulator for this item.
+    ///
+    /// Often this will be `Option<H>` where `H` is the actual hash value.
+    ///
+    /// This specific item's `HashAccu` will be found via the document's signatures'
+    /// `NetdocParseableSignatures::HashesAccu`,
+    /// which must `impl AsMut<SignatureItemParseable::HashAccu>`.
+    type HashAccu;
+
+    /// Parse the item's value, and also calculate the relevant document hash
+    ///
+    /// If the document hash needed for this item is not already present in `hash`,
+    /// this function must store it there.
+    /// An existing hash should not be overwritten:
+    /// this is because multiple signature items of the same type and hash
+    /// are supposed to be as multiple signatures on the same base document,
+    /// not cumulative signatures where each signer signs the previous signatures.
+    ///
+    /// (Parsing is entangled with hashing because some items have the hash algorithm
+    /// as an argument, and we don't want to parse that twice.)
+    //
+    // This API supports both these cases:
+    //  - consensuses have multiple signatures that don't cover each other
+    //  - routerdescs have multiple signatures from different algorithms where the
+    //    later one in the document *does* cover the earlier one
+    //
+    // In principle it could deal with other kinds of anomalies too,
+    // since the signature item parser gets fed the items in sequence, and can
+    // maintain whatever state it needs in NetdocParseableSignatures::HashesAccu.
     fn from_unparsed_and_body(
         item: UnparsedItem<'_>,
-        document_body: &SignatureHashInputs<'_>,
+        hash_inputs: &SignatureHashInputs<'_>,
+        hash: &mut Self::HashAccu,
     ) -> Result<Self, ErrorProblem>;
 }
 
 /// The signatures section of a network document, that can be parsed
 //
 // This is separate from `NetdocParseable` because it needs to deal with hashing too.
-// ^ XXXX it doesn't yet, but it will do.
 //
 // Its keyword classification can be a bit simpler because all signature items
 // are structural and we do not need to impose an ordering on them during parsing.
@@ -90,14 +132,68 @@ pub trait SignatureItemParseable: Sized {
 // by whatever signature(s) we are relying on, we don't care what other irrelevant
 // signatures might be present, and we don't care if they are or are not over-signed.
 pub trait NetdocParseableSignatures: Sized {
+    /// The type used to accumulate document hashes during parsing
+    ///
+    /// Initialised to `Default` at the start of parsing,
+    /// by the [`parse2` core](ItemStream::parse_signed)
+    ///
+    /// Each item in a signatures section is parsed by a `SignatureItemParseable` impl.
+    /// That impl definites an item-specific
+    /// [`HashAccu`](SignatureItemParseable::HashAccu)
+    /// type.
+    ///
+    /// The [derived](derive_deftly_template_NetdocParseableSignatures)
+    /// signatures section parsing code finds
+    /// the item-specific hash accumulator type
+    /// [`<ITEM as SignatureItemParseable>::HashAccu`](SignatureItemParseable::HashAccu)
+    /// via `AsMut`:
+    /// `NetdocParseableSignatures::HashesAccu`
+    /// must impl `AsMut` for each
+    /// `SignatureItemParseable::HashAccu`.
+    ///
+    /// For a signatures section that can contain multiple signatures with different
+    /// hashes, the `AsMut` will normally be derived by [`derive_more::AsMut`].
+    /// For a document with only one hash type,
+    /// `NetdocParseableSignatures::HashesAccu` and `SignatureItemParseable::HashAccu`
+    /// can be the same newtype,
+    /// [deriving `AsMut<Self>`](derive_deftly_template_AsMutSelf).
+    ///
+    /// During signature verification, the document-specific verification could
+    /// should throw [`VerifyFailed::Bug`] if a hash needed for a signature item
+    /// wasn't populated.
+    /// (This isn't possible if each item's `SignatureItemParseable::from_unparsed_and_body`
+    /// always calculates and stores the hash.)
+    type HashesAccu: Default + Debug + Clone;
+
     /// Is `kw` one of this signature section's keywords
     fn is_item_keyword(kw: KeywordRef<'_>) -> bool;
 
     /// Parse the signature section from a stream of items
     fn from_items<'s>(
         input: &mut ItemStream<'s>,
+        signed_doc_body: SignedDocumentBody<'s>,
+        sig_hashes: &mut Self::HashesAccu,
         stop_at: stop_at!(),
     ) -> Result<Self, ErrorProblem>;
+}
+
+/// Hash(es) for a signature item
+///
+/// Used by the derived implementation of [`SignatureItemParseable`]
+/// generated by
+/// [`ItemValueParseable`](derive_deftly_template_ItemValueParseable)
+/// with `#[deftly(netdoc(signature))]`.
+pub trait SignatureHashesAccumulator: Clone {
+    /// Update `self`, ensuring that this hash is computed
+    ///
+    /// Should perform precisely the hash-related parts specified for
+    /// [`SignatureItemParseable::from_unparsed_and_body`].
+    ///
+    /// So, if this hash is already recorded in `self`, it should not be updated.
+    fn update_from_netdoc_body(
+        &mut self,
+        document_body: &SignatureHashInputs<'_>,
+    ) -> Result<(), EP>;
 }
 
 /// The part of a network document before the first signature item
@@ -157,20 +253,30 @@ impl<'s> SignatureHashInputs<'s> {
     }
 }
 
-/// Methods suitable for use with `#[deftly(netdoc(sig_hash = "METHOD"))]`
+/// Hash types suitable for use as `#[deftly(netdoc(signature(hash_accu = "TY"))]`
 ///
 /// See
 /// [`#[derive_deftly(ItemValueParseable)]`](derive_deftly_template_ItemValueParseable).
-pub mod sig_hash_methods {
+pub mod sig_hashes {
     use super::*;
 
     /// SHA-1 including the whole keyword line
     ///
     /// <https://spec.torproject.org/dir-spec/netdoc.html#signing>
-    pub fn whole_keyword_line_sha1(body: &SignatureHashInputs) -> [u8; 20] {
+    #[derive(Debug, Clone, Default, Deftly)]
+    #[derive_deftly(AsMutSelf)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct Sha1WholeKeywordLine(pub Option<[u8; 20]>);
+
+    impl SignatureHashesAccumulator for Sha1WholeKeywordLine {
+        fn update_from_netdoc_body(&mut self, body: &SignatureHashInputs<'_>) -> Result<(), EP> {
+            self.0.get_or_insert_with(|| {
                 let mut h = tor_llcrypto::d::Sha1::new();
                 body.hash_whole_keyword_line(&mut h);
                 h.finalize().into()
+            });
+            Ok(())
+        }
     }
 }
 
