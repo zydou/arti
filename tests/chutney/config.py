@@ -19,6 +19,8 @@ class Config:
     chutney: str
     # path to the arti client executable
     arti: str
+    # path to the arti-extra client executable
+    arti_extra: str
     # path to the arti-bench executable
     arti_bench: str
     # chutney data directory (CHUTNEY_DATA_DIR)

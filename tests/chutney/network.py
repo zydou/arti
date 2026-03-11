@@ -1,8 +1,10 @@
 import chutney.TorNet
 from chutney.TorNet import NodeBackend, NodeConfig
 
+import config as config_module
 
-def make_network() -> chutney.TorNet.Network:
+
+def make_network(config: config_module.Config) -> chutney.TorNet.Network:
     """Create a chutney Network object for use with these integration tests"""
     # Bring up directory authorities first. Everything else depends on these.
     # There will be a bit of chaos in the logs as these come up due to:
@@ -19,6 +21,14 @@ def make_network() -> chutney.TorNet.Network:
     # bootstrap cleanly.
     LAUNCH_PHASE_CLIENTS = 5
 
+    # arti bins we're testing, keyed by tag-fragment.
+    artis = dict(
+        # "arti vanilla"
+        av=config.arti,
+        # "arti extra"
+        ae=config.arti_extra,
+    )
+
     configs = []
     # Authorities
     configs += NodeConfig(
@@ -32,19 +42,22 @@ def make_network() -> chutney.TorNet.Network:
     # Simple tor client. Useful as a baseline check for "chutney verify",
     # and used in arti-bench for comparison.
     configs += NodeConfig(
-        tag="torc",
+        tag="ct",
         client=True,
         backend=NodeBackend.TOR,
         launch_phase=LAUNCH_PHASE_CLIENTS,
     ).getN(1)
-    # Simple arti client. DNS port enabled for DNS test.
-    configs += NodeConfig(
-        tag="artic",
-        client=True,
-        enable_dnsport=True,
-        backend=NodeBackend.ARTI,
-        launch_phase=LAUNCH_PHASE_CLIENTS,
-    ).getN(1)
+
+    # Simple arti clients. DNS port enabled for DNS test.
+    for tag, path in artis.items():
+        configs += NodeConfig(
+            tag="c" + tag,
+            arti=path,
+            client=True,
+            enable_dnsport=True,
+            backend=NodeBackend.ARTI,
+            launch_phase=LAUNCH_PHASE_CLIENTS,
+        ).getN(1)
     # bridge authority
     configs += NodeConfig(
         tag="ba",
@@ -57,14 +70,17 @@ def make_network() -> chutney.TorNet.Network:
     configs += NodeConfig(
         tag="br", bridge=True, relay=True, launch_phase=LAUNCH_PHASE_BRIDGES
     ).getN(2)
-    # arti bridge client
-    configs += NodeConfig(
-        tag="bc",
-        client=True,
-        backend=NodeBackend.ARTI,
-        bridgeclient=True,
-        launch_phase=LAUNCH_PHASE_CLIENTS,
-    ).getN(1)
+    # arti bridge clients
+    for tag, path in artis.items():
+        configs += NodeConfig(
+            tag="bc" + tag,
+            arti=path,
+            client=True,
+            backend=NodeBackend.ARTI,
+            bridgeclient=True,
+            launch_phase=LAUNCH_PHASE_CLIENTS,
+        ).getN(1)
+
     network = chutney.TorNet.Network()
     network.addNodes(configs)
     return network

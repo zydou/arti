@@ -31,7 +31,7 @@ if config.network is not None:
     )
 else:
     # Create the default network via the network_module
-    network = network_module.make_network()
+    network = network_module.make_network(config)
     # Initialize to disk
     network.init(data_dir=Path(config.chutney_data_dir))
 
