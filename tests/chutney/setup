@@ -14,6 +14,7 @@ from pathlib import Path
 
 # "local" imports
 from config import Config
+from typing import Optional
 
 _SCRIPT_NAME = Path(sys.argv[0]).name
 _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
@@ -139,13 +140,13 @@ class ChutneyNetworkResolver:
             "--network",
             "-n",
             dest=self._DEST,
-            help="flag to 'chutney init' specifying network to use.",
+            help="flag to 'chutney init' specifying network to use."
+            " (Default: built-in network-builder)",
         )
 
-    def resolve(self, args: Namespace) -> str:
-        return getattr(args, self._DEST) or "--net-from-script-path=" + str(
-            _SCRIPT_DIR.joinpath("networks", "arti-ci")
-        )
+    def resolve(self, args: Namespace) -> Optional[str]:
+        res: Optional[str] = getattr(args, self._DEST)
+        return res
 
 
 class ConfigResolver:

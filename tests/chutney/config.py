@@ -5,6 +5,7 @@ import json
 import os
 
 from pathlib import Path
+from typing import Optional
 
 
 @dataclasses.dataclass
@@ -23,7 +24,7 @@ class Config:
     # chutney data directory (CHUTNEY_DATA_DIR)
     chutney_data_dir: str
     # chutney CLI-flag network specification (e.g. "--net=basic-min")
-    network: str
+    network: Optional[str]
 
     def export_env(self) -> None:
         """Set environment variables based on this config"""
