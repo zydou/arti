@@ -1087,6 +1087,9 @@ pub struct Authenticate {
     auth: Vec<u8>,
 }
 impl Authenticate {
+    /// The signature field length.
+    const SIG_LEN: usize = 64;
+
     /// Create a new Authenticate message from a given type and body.
     pub fn new<B>(authtype: u16, body: B) -> Self
     where
@@ -1112,6 +1115,11 @@ impl Authenticate {
             });
         }
         Ok(&self.auth[..self.auth.len() - NO_RAND_SIG] == other)
+    }
+
+    /// Return a referrence to the body of the cell that is all fields except the signature.
+    pub fn body(&self) -> &[u8] {
+        &self.auth[..self.auth.len() - Self::SIG_LEN]
     }
 
     /// Return a reference to the authentcation object.

@@ -177,7 +177,7 @@ where
 
         // CRITICAL: This if is what authenticates a channel on the responder side. We compare
         // what we expected to what we received.
-        if initiator_auth_cell
+        if !initiator_auth_cell
             .is_equal_no_sig(&auth_body)
             .map_err(|e| Error::ChanProto(format!("AUTHENTICATE fails to compare: {e}")))?
         {
@@ -194,7 +194,7 @@ where
             tor_llcrypto::pk::ed25519::Signature::from_bytes(initiator_auth_cell.sig().map_err(
                 |e| Error::ChanProto(format!("AUTHENTICATE sig field is invalid: {e}")),
             )?);
-        pk.verify(initiator_auth_cell.auth(), &sig).map_err(|e| {
+        pk.verify(initiator_auth_cell.body(), &sig).map_err(|e| {
             Error::ChanProto(format!("AUTHENTICATE cell signature failed to verify: {e}"))
         })?;
 
