@@ -502,6 +502,10 @@ impl NonblockingStream {
             let n = retry_eintr(|| self.stream.write(&w.write_buf[..]))?;
             vec_pop_from_front(&mut w.write_buf, n);
 
+            if w.write_buf.is_empty() {
+                w.event_loop.stop_writing()?;
+            }
+
             // This is a no-op for the streams we support so far, but it could be necessary if
             // we support more kinds in the future.
             let () = retry_eintr(|| self.stream.flush())?;
