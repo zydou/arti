@@ -156,7 +156,10 @@ pub struct TlsKeyAndCert {
     certificates: Vec<Vec<u8>>,
 
     /// A private key for use in the TLS handshake.
-    private_key: ecdsa::SigningKey<p256::NistP256>,
+    //
+    // Disabled:
+    // private_key: ecdsa::SigningKey<p256::NistP256>,
+    private_key: rsa::RsaPrivateKey,
 
     /// A SHA256 digest of the link certificate
     /// (the one certifying the private key's public component).
@@ -236,13 +239,26 @@ impl TlsKeyAndCert {
         issuer_hostname: &str,
         subject_hostname: &str,
     ) -> Result<Self, X509CertError> {
-        // We choose to use p256 here as the most commonly used elliptic curve
+        // We would prefer to use p256 here, since it is the most commonly used elliptic curve
         // group for X.509 web certificate signing, as of this writing.
         //
         // We want to use an elliptic curve here for its higher security/performance ratio than RSA,
         // and for its _much_ faster key generation time.
-        let private_key = p256::ecdsa::SigningKey::random(&mut RngCompat::new(&mut *rng));
-        let public_key = p256::ecdsa::VerifyingKey::from(&private_key);
+        //
+        // But unfortunately, we can't: C tor has a bug where if the subject key is not RSA,
+        // the connection will be closed with an error:
+        // <https://gitlab.torproject.org/tpo/core/tor/-/issues/41226>.
+        // If this bug is fixed, then we will have to wait until all clients and servers upgrade
+        // before we can send p256 subject keys instead.
+        //
+        // DISABLED:
+        // let private_key = rsa::RsaPrivateKey::p256::ecdsa::SigningKey::random(&mut RngCompat::new(&mut *rng));
+        // let public_key = p256::ecdsa::VerifyingKey::from(&private_key);
+
+        const RSA_KEY_BITS: usize = 2048;
+        let private_key = rsa::RsaPrivateKey::new(&mut RngCompat::new(&mut *rng), RSA_KEY_BITS)
+            .map_err(into_internal!("Unable to generate RSA key"))?;
+        let public_key = private_key.to_public_key();
 
         // Note that we'll discard this key after signing the certificate with it:
         // The real certification for private_key is done in the SIGNING_V_TLS_CERT
