@@ -562,12 +562,9 @@ impl KeyMgr {
             return Ok(None);
         };
 
-        let subject_key_arti_path = subject_key_spec
+        let cert_spec = spec
             .arti_path()
-            .map_err(|_| bad_api_usage!("subject key does not have an ArtiPath?!"))?;
-        let cert_spec =
-            ArtiPath::from_path_and_denotators(subject_key_arti_path, &spec.cert_denotators())
-                .map_err(into_bad_api_usage!("invalid certificate specifier"))?;
+            .map_err(into_bad_api_usage!("invalid key certificate specifier"))?;
 
         let Some(cert) = self.get_from_store_raw::<C::ParsedCert>(
             &cert_spec,

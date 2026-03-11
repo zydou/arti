@@ -62,11 +62,26 @@ define_derive_deftly! {
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
 /// The last component of the path may optionally contain the encoded (string) representation
+/// of one or more *denotator groups*.
+/// A denotator group consists
 /// of one or more
 /// [`KeySpecifierComponent`]
 /// s representing the denotators of the key.
-/// They are separated from the rest of the component, and from each other,
+/// [`DENOTATOR_SEP`] denotes the beginning of the denotator groups.
+///
+/// Within a denotator group, denotators are separated
 /// by [`DENOTATOR_SEP`] characters.
+///
+/// Denotator groups are separated from each other
+/// by [`DENOTATOR_GROUP_SEP`] characters.
+///
+/// Empty denotator groups are allowed,
+/// but trailing empty denotator groups are not represented in `ArtiPath`s.
+/// Consequently, two abstract paths which differ only
+/// in trailing empty denotator groups cannot be distinguished;
+/// or to put it another way, the number of denotator groups
+/// is not recoverable from the path.
+///
 /// Denotators are encoded using their
 /// [`KeySpecifierComponent::to_slug`]
 /// implementation.
@@ -74,8 +89,11 @@ define_derive_deftly! {
 /// Denotator strings are validated in the same way as [`Slug`](tor-persist::slug::Slug)s.
 ///
 /// For example, the last component of the path `"foo/bar/bax+denotator_example+1"`
-/// is `"bax+denotator_example+1"`.
+/// is the denotator group `"denotator_example+1"`.
 /// Its denotators are `"denotator_example"` and `"1"` (encoded as strings).
+/// As another example, the path `"foo/bar/bax+denotator_example+1@foo+bar@baz"`
+/// has three denotator groups, separated by `@`,
+/// `"denotator_example+1"`, `foo+bar`, and `baz`.
 ///
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
@@ -95,16 +113,19 @@ pub(crate) const PATH_SEP: char = '/';
 ///
 /// This separator can only appear within the last component of an [`ArtiPath`],
 /// and the substring that follows it is assumed to be the string representation
-/// of the denotators of the path.
+/// of the denotator groups of the path.
 pub const DENOTATOR_SEP: char = '+';
+
+/// A separator for separating individual denotator groups from each other.
+pub const DENOTATOR_GROUP_SEP: char = '@';
 
 impl ArtiPath {
     /// Validate the underlying representation of an `ArtiPath`
     fn validate_str(inner: &str) -> Result<(), ArtiPathSyntaxError> {
         // Validate the denotators, if there are any.
-        let path = if let Some((main_part, denotators)) = inner.split_once(DENOTATOR_SEP) {
-            for d in denotators.split(DENOTATOR_SEP) {
-                let () = slug::check_syntax(d)?;
+        let path = if let Some((main_part, denotator_groups)) = inner.split_once(DENOTATOR_SEP) {
+            for denotators in denotator_groups.split(DENOTATOR_GROUP_SEP) {
+                let () = validate_denotator_group(denotators)?;
             }
 
             main_part
@@ -157,7 +178,7 @@ impl ArtiPath {
     ///
     /// If `cert_denotators` is empty, returns the specified `path` as-is.
     /// Otherwise, returns an `ArtiPath` that consists of the specified `path`
-    /// followed by a [`DENOTATOR_SEP`] character and the specified denotators
+    /// followed by a [`DENOTATOR_GROUP_SEP`] character and the specified denotators
     /// (the denotators are encoded as described in the [`ArtiPath`] docs).
     ///
     /// Returns an error if any of the specified denotators are not valid `Slug`s.
@@ -204,18 +225,46 @@ impl ArtiPath {
             return Ok(path);
         }
 
-        let path: String = [Ok(path.0)]
-            .into_iter()
-            .chain(
-                cert_denotators
-                    .iter()
-                    .map(|s| s.to_slug().map(|s| s.to_string())),
-            )
+        let cert_denotators = cert_denotators
+            .iter()
+            .map(|s| s.to_slug().map(|s| s.to_string()))
             .collect::<Result<Vec<_>, _>>()?
             .join(&DENOTATOR_SEP.to_string());
 
+        let path = if cert_denotators.is_empty() {
+            format!("{path}")
+        } else {
+            // If the path already contains some denotators,
+            // we need to use the denotator group separator
+            // to separate them from the certificate denotators.
+            // Otherwise, we simply use the regular DENOTATOR_SEP
+            // to indicate the start of the denotator section.
+            if path.contains(DENOTATOR_SEP) {
+                format!("{path}{DENOTATOR_GROUP_SEP}{cert_denotators}")
+            } else {
+                // If the key path has no denotators, we need to manually insert
+                // an empty denotator group before the `cert_denotators` denotator group.
+                // This ensures the origin (key vs cert specifier) of the denotators is unambiguous.
+                format!("{path}{DENOTATOR_SEP}{DENOTATOR_GROUP_SEP}{cert_denotators}")
+            }
+        };
+
         ArtiPath::new(path)
     }
+}
+
+/// Validate a single denotator group.
+fn validate_denotator_group(denotators: &str) -> Result<(), ArtiPathSyntaxError> {
+    // Empty denotator groups are allowed
+    if denotators.is_empty() {
+        return Ok(());
+    }
+
+    for d in denotators.split(DENOTATOR_SEP) {
+        let () = slug::check_syntax(d)?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -281,24 +330,42 @@ mod tests {
 
     #[test]
     fn arti_path_from_path_and_denotators() {
-        let path = ArtiPath::new("my_key_path".into()).unwrap();
         let denotators = [
             &Denotator("foo".to_string()) as &dyn KeySpecifierComponent,
             &Denotator("bar".to_string()) as &dyn KeySpecifierComponent,
             &Denotator("baz".to_string()) as &dyn KeySpecifierComponent,
         ];
 
-        let expected_path = ArtiPath::new("my_key_path+foo+bar+baz".into()).unwrap();
+        /// Base ArtiPaths and the expected outcome from concatenating
+        /// the base with the denotator group above.
+        const TEST_PATHS: &[(&str, &str)] = &[
+            // A base path with no denotator groups
+            ("my_key_path", "my_key_path+@foo+bar+baz"),
+            // A base path with a single denotator groups
+            ("my_key_path+dino+saur", "my_key_path+dino+saur@foo+bar+baz"),
+            // A base path with two denotator groups
+            ("my_key_path+dino@saur", "my_key_path+dino@saur@foo+bar+baz"),
+            // A base path with two empty denotator groups
+            (
+                "my_key_path+dino@@@saur",
+                "my_key_path+dino@@@saur@foo+bar+baz",
+            ),
+        ];
 
-        assert_eq!(
-            ArtiPath::from_path_and_denotators(path.clone(), &denotators[..]).unwrap(),
-            expected_path
-        );
+        for (base_path, expected_path) in TEST_PATHS {
+            let path = ArtiPath::new(base_path.to_string()).unwrap();
+            let expected_path = ArtiPath::new(expected_path.to_string()).unwrap();
 
-        assert_eq!(
-            ArtiPath::from_path_and_denotators(path.clone(), &[]).unwrap(),
-            path
-        );
+            assert_eq!(
+                ArtiPath::from_path_and_denotators(path.clone(), &denotators[..]).unwrap(),
+                expected_path
+            );
+
+            assert_eq!(
+                ArtiPath::from_path_and_denotators(path.clone(), &[]).unwrap(),
+                path
+            );
+        }
     }
 
     #[test]
@@ -311,6 +378,14 @@ mod tests {
             "hs_client-",
             "hs_client_",
             "_",
+            // A path with an empty denotator group
+            "my_key_path+dino@@saur",
+            // Paths with a trailing empty denotator group.
+            // Our implementation doesn't encode empty trailing
+            // denotator groups in ArtiPaths, but our parsing rules
+            // don't forbid them.
+            "my_key_path+dino@",
+            "my_key_path+@",
         ];
 
         const BAD_FIRST_CHAR_ARTI_PATHS: &[&str] = &["-hs_client", "-"];
@@ -320,6 +395,10 @@ mod tests {
             ("no spaces please", ' '),
             ("client٣¾", '٣'),
             ("clientß", 'ß'),
+            // Invalid paths: the main component of the path
+            // must be separated from the denotator groups by a `+` character
+            ("my_key_path@", '@'),
+            ("my_key_path@dino+saur", '@'),
         ];
 
         const EMPTY_PATH_COMPONENT: &[&str] =
