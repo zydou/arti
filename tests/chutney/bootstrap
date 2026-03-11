@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 # stdlib imports
-import os
 import sys
 import subprocess
 
@@ -22,8 +21,6 @@ _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
 config = Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
 
 config.export_env()
-
-os.environ["CHUTNEY_START_TIME"] = "300"
 
 if config.network is not None:
     # Use CLI to create and serialize network, as specified in config.network
