@@ -32,6 +32,7 @@ WARN: Can't find RpcConn. This usually means that this type was incompatible or 
 WARN: Can't find Utf8CString. This usually means that this type was incompatible or not found.
 WARN: Can't find RequestHandle. This usually means that this type was incompatible or not found.
 WARN: Can't find ArtiRpcRawSocket. This usually means that this type was incompatible or not found.
+WARN: Can't find ArtiRpcRawSocket. This usually means that this type was incompatible or not found.
 WARN: Can't find RpcErrorCode. This usually means that this type was incompatible or not found.
 WARN: Can't find RpcErrorCode. This usually means that this type was incompatible or not found.
 WARN: Can't find RpcErrorCode. This usually means that this type was incompatible or not found.

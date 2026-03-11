@@ -207,6 +207,14 @@ typedef int ArtiRpcRawSocket;
 typedef struct ArtiRpcConnBuilder ArtiRpcConnBuilder;
 
 /**
+ * An object used to poll a nonblocking RPC connection for responses.
+ *
+ * `ArtiRpcPoll` is used to integrate and Arti RPC connection with a polling-based
+ * event loop.  See [`arti_rpc_conn_builder_connect_polling`] for more information.
+ */
+typedef struct ArtiRpcPoll ArtiRpcPoll;
+
+/**
  * A status code returned by an Arti RPC function.
  *
  * On success, a function will return `ARTI_SUCCESS (0)`.
@@ -260,6 +268,18 @@ typedef struct ArtiRpcHandle ArtiRpcHandle;
  * The type of a message returned by an RPC request.
  */
 typedef int ArtiRpcResponseType;
+
+/**
+ * A user-provided tag used to distinguish responses for requests submitted to
+ * [`arti_rpc_conn_submit()`].
+ *
+ * This value is two pointers wide to facilitate using it to store
+ * a function pointer and an argument, where appropriate.
+ */
+typedef struct ArtiRpcUserTag {
+        uintptr_t a;
+        uintptr_t b;
+} ArtiRpcUserTag;
 
 /**
  * Constant to denote a literal connect point.
@@ -520,6 +540,60 @@ ArtiRpcStatus arti_rpc_conn_builder_connect(const struct ArtiRpcConnBuilder *bui
                                             ArtiRpcError **error_out);
 
 /**
+ * Use `builder` to open a new RPC connection to Arti,
+ * with support to integrate with an event-driven IO loop.
+ *
+ * If you are not integrating with poll() or select()-style loop,
+ * you do not need to use this function.
+ *
+ * On success, return `ARTI_RPC_STATUS_SUCCESS`,
+ * set `rpc_conn_out` to a new ArtiRpcConn,
+ * and set `poll_out` to a new ArtiRpcPoll.
+ * Otherwise return some other status code, set *conn_out and *poll_out to NULL,
+ * and set `*error_out` (if provided) to a newly allocated error object.
+ *
+ * # Callbacks, data, and requirements.
+ *
+ * The user code must provide an event loop
+ * that can monitor an underlying connection for readability and writability.
+ *
+ * The RPC library provides the user code with an OS handle to monitor.
+ * The user code should always monitor this handle for readability.
+ * It should monitor the handle for writability whenever the connection
+ * "wants to write".
+ * Whenever one of these events occurs, the user code should invoke
+ * `arti_rpc_poll_poll` until it indicates that it would block.
+ *
+ * The `start_writing_callback` and `start_reading_callback` functions
+ * must be provided.  They will be invoked (respectively) whenever the connection
+ * starts wanting to write, or stops wanting to write.
+ * They will be passed `callback_data_ptr` as an argument.
+ *
+ * If your program invokes `arti_rpc_*` from multiple threads,
+ * these functions must be thread-safe.
+ *
+ * There are additional requirements for these functions.
+ * For full information, see the documentation for [`EventLoop`](crate::EventLoop`).
+ *
+ * # Ownership
+ *
+ * The caller is responsible for making sure that `*rpc_conn_out`,
+ * `*rpc_poll_out`, and `*error_out`,
+ * if set, are eventually freed.
+ *
+ * The caller is responsible for making sure that `callback_data_ptr`,
+ * and the callback functions,
+ * live for at least as long as the returned `ArtiRpcPoll`.
+ */
+ArtiRpcStatus arti_rpc_conn_builder_connect_polling(const struct ArtiRpcConnBuilder *builder,
+                                                    int (*start_writing_callback)(void*),
+                                                    int (*stop_writing_callback)(void*),
+                                                    void *callback_data_ptr,
+                                                    ArtiRpcConn **rpc_conn_out,
+                                                    struct ArtiRpcPoll **rpc_poll_out,
+                                                    ArtiRpcError **error_out);
+
+/**
  * Given a pointer to an RPC connection, return the object ID for its negotiated session.
  *
  * (The session was negotiated as part of establishing the connection.
@@ -603,7 +677,7 @@ ArtiRpcStatus arti_rpc_conn_cancel_handle(const ArtiRpcConn *rpc_conn,
  * Wait until some response arrives on an arti_rpc_handle, or until an error occurs.
  *
  * On success, return `ARTI_RPC_STATUS_SUCCESS`; set `*response_out`, if present, to a
- * newly allocated string, and set `*response_type_out`, to the type of the response.
+ * newly allocated string, and set `*response_type_out`, if present, to the type of the response.
  * (The type will be `ARTI_RPC_RESPONSE_TYPE_RESULT` if the response is a final result,
  * or `ARTI_RPC_RESPONSE_TYPE_ERROR` if the response is a final error,
  * or `ARTI_RPC_RESPONSE_TYPE_UPDATE` if the response is a non-final update.)
@@ -639,6 +713,160 @@ ArtiRpcStatus arti_rpc_handle_wait(const ArtiRpcHandle *handle,
  * To cancel a request, use `arti_rpc_conn_cancel_handle`.
  */
 void arti_rpc_handle_free(ArtiRpcHandle *handle);
+
+/**
+ * Submit an RPC request to `rpc_conn`, but do not wait for a response.
+ *
+ * The message `msg` should be a valid RPC request in JSON format.
+ * If you omit its `id` field, one will be generated:
+ * this is typically the best way to use this function.
+ *
+ * The `tag` value should be a value to identify this request;
+ * it will be returned later along with any responses to this request.
+ *
+ * On success, return `ARTI_RPC_STATUS_SUCCESS`.
+ *
+ * Otherwise return some other status code,  set `*response_out` to NULL,
+ * and set `*error_out` (if provided) to a newly allocated error object.
+ *
+ * After calling this function, the caller must later make sure
+ * that [`arti_rpc_conn_wait()`] is called on the connection to wait for responses
+ * to _any_ submitted request.
+ * (If the  connection was crated with [`arti_rpc_conn_builder_connect_polling`],
+ * the user must call [`arti_rpc_poll_poll()`] instead.)
+ *
+ * (If nobody is running [`arti_rpc_conn_wait()`] or [`arti_rpc_poll_poll()`],
+ * then responses will never be handled,
+ * and can potentially fill up memory.)
+ *
+ * It is safe to call this function from multiple threads at once.
+ *
+ * # Ownership
+ *
+ * The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+ *
+ * # Thread safety
+ *
+ * It is safe to call this function from multiple threads at once;
+ * it is not specified which thread will receive notifications for which request.
+ */
+ArtiRpcStatus arti_rpc_conn_submit(const ArtiRpcConn *rpc_conn,
+                                   const char *msg,
+                                   const struct ArtiRpcUserTag *tag,
+                                   ArtiRpcError **error_out);
+
+/**
+ * Wait for responses to arrive for requests sent via [`arti_rpc_conn_submit`].
+ *
+ * On success, return `ARTI_RPC_STATUS_SUCCESS`;
+ * set `*tag_out`, if present,  to the `ArtiRpcUserTag` originally provided with the request;
+ * set `*response_out`, if present, to a newly allocated string;
+ * and set `*response_type_out`,  if present, to the type of the response.
+ * (The type will be `ARTI_RPC_RESPONSE_TYPE_RESULT` if the response is a final result,
+ * or `ARTI_RPC_RESPONSE_TYPE_ERROR` if the response is a final error,
+ * or `ARTI_RPC_RESPONSE_TYPE_UPDATE` if the response is a non-final update.)
+ *
+ * Otherwise return some other status code, set `*response_out` to NULL,
+ * set `*response_type_out` and `*tag_out` to zero,
+ * and set `*error_out` (if provided) to a newly allocated error object.
+ *
+ * Note that receiving an error reply from Arti is _not_ treated as an error in this function.
+ * That is to say, if Arti sends back an error, this function will return `ARTI_SUCCESS`,
+ * and deliver the error from Arti in `*response_out`, setting `*response_type_out` to
+ * `ARTI_RPC_RESPONSE_TYPE_ERROR`.
+ *
+ * # Thread safety
+ *
+ * It is safe to call this function from multiple threads at once;
+ * it is not specified which thread will receive notifications for which request.
+ *
+ * # Ownership
+ *
+ * The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+ *
+ * The caller is responsible for making sure that `*response_out`, if set,
+ * is eventually freed.
+ */
+ArtiRpcStatus arti_rpc_conn_wait(const ArtiRpcConn *rpc_conn,
+                                 struct ArtiRpcUserTag *tag_out,
+                                 ArtiRpcStr **response_out,
+                                 ArtiRpcResponseType *response_type_out,
+                                 ArtiRpcError **error_out);
+
+/**
+ * Handle IO events for the associated RPC connection, without blocking.
+ *
+ * This method requires that the connection was created with
+ * [`arti_rpc_conn_builder_connect_polling()`].
+ * It reads and writes data from the RPC server, until either:
+ *
+ * * A response is available to a request created with [`arti_rpc_conn_submit`].
+ *   In this case,
+ *   `*tag_out`, if present, is set to the `ArtiRpcUserTag` originally provided with the request;
+ *   `*response_out`, if present, is set to a newly allocated string;
+ *   `*response_type_out`, if present, is set to the type of the response.
+ *   The `*would_block_out` flag, if present, is set to 0.
+ *   Other output pointers, if present, are set to NULL or 0.
+ *
+ * * No further progress can be made without blocking.
+ *   In this case,
+ *   `*would_block_out` is set to 1.
+ *   Other output pointers, if present, are set to NULL or 0.
+ *
+ * * An error occurs.
+ *   (This does not include receiving an error response from the RPC server.)
+ *   In this case, `*error_out`, if present, is set to that error.
+ *   Other output pointers, if present, are set to NULL or 0.
+ *
+ * Returns `ARTI_RPC_SUCCESS` in the first two cases,
+ * and an error code on failure.
+ *
+ * # Thread safety
+ *
+ * While it is not unsafe to call this function at once,
+ * it is generally pointless:
+ * only one thread can make progress at a time.
+ *
+ * # Ownership
+ *
+ * The caller is responsible for making sure
+ * that `*tag_out`, *response_out`, and `*error_out`,
+ * if set, are eventually freed.
+ */
+ArtiRpcStatus arti_rpc_poll_poll(const struct ArtiRpcPoll *rpc_poll,
+                                 struct ArtiRpcUserTag *tag_out,
+                                 ArtiRpcStr **response_out,
+                                 ArtiRpcResponseType *response_type_out,
+                                 int *would_block_out,
+                                 ArtiRpcError **error_out);
+
+/**
+ * Return true if `rpc_poll` wants to write,
+ * and false otherwise.
+ *
+ * See [`arti_rpc_conn_builder_connect_polling`] for more information.
+ */
+int arti_rpc_poll_wants_to_write(const struct ArtiRpcPoll *rpc_poll);
+
+/**
+ * Return the raw OS socket associated with the provided `ArtiRpcPoll`.
+ *
+ * This function returns a SOCKET on windows, and a file descriptor elsewhere.
+ *
+ * On failure, returns INVALID_SOCKET on windows, and -1 elsewhere.
+ *
+ * # Ownership
+ *
+ * The returned socket is owned by the `ArtiRpcPoll`.
+ * The caller must not close it, read from it, or write to it.
+ * It should _only_ be polled for readiness events.
+ */
+ArtiRpcRawSocket arti_rpc_poll_get_socket(const struct ArtiRpcPoll *rpc_poll);
+
+/**
+ * Free the provided `ArtiRpcPoll`.
+ */
+void arti_rpc_poll_free(struct ArtiRpcPoll *rpc_poll);
 
 /**
  * Free a string returned by the Arti RPC API.
