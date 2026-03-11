@@ -852,9 +852,11 @@ mod tests {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cert::CertifiedKey;
     use tor_cert::Ed25519Cert;
+    use tor_checkable::TimeValidityError;
     use tor_error::{ErrorKind, HasKind};
     use tor_key_forge::{
-        CertData, CertType, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
+        CertData, CertType, EncodableItem, EncodedEd25519Cert, ErasedKey, InvalidCertError,
+        KeyType, KeystoreItem,
     };
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
     use tor_llcrypto::rng::FakeEntropicRng;
@@ -981,6 +983,10 @@ mod tests {
     #[derive(Clone, Debug)]
     struct AlwaysValidCert(TestItem);
 
+    /// An expired "certificate" used for testing purposes.
+    #[derive(Clone, Debug)]
+    struct AlwaysExpiredCert(TestItem);
+
     /// The corresponding fake public key type.
     #[derive(Clone, Debug)]
     struct TestPublicKey {
@@ -1096,6 +1102,27 @@ mod tests {
         ) -> StdResult<Self, InvalidCertError> {
             // AlwaysValidCert is always valid
             Ok(Self(cert.0))
+        }
+
+        /// Convert this cert to a type that implements [`EncodableKey`].
+        fn to_encodable_cert(self) -> Self::EncodableCert {
+            self.0
+        }
+    }
+
+    impl ToEncodableCert<TestItem> for AlwaysExpiredCert {
+        type ParsedCert = TestCert;
+        type EncodableCert = TestItem;
+        type SigningKey = TestItem;
+
+        fn validate(
+            _cert: Self::ParsedCert,
+            _subject: &TestItem,
+            _signed_with: &Self::SigningKey,
+        ) -> StdResult<Self, InvalidCertError> {
+            Err(InvalidCertError::TimeValidity(TimeValidityError::Expired(
+                Duration::from_secs(60),
+            )))
         }
 
         /// Convert this cert to a type that implements [`EncodableKey`].
@@ -2188,5 +2215,54 @@ mod tests {
             // Check that the cert was found...
             assert!(always_valid_cert.is_some());
         }
+
+        /// A denotator for our expired cert specifier.
+        const EXPIRED_DENO: &str = "expired";
+
+        // Generate an invalid test certificate
+        let cert_spec = TestCertSpecifier {
+            subject_key_spec: TestDerivedKeySpecifier,
+            denotator: EXPIRED_DENO.to_string(),
+        };
+
+        // Dummy metadata
+        let meta = CertMetadata {
+            subject_key_id: "foo".to_string(),
+            signing_key_id: "bar".to_string(),
+            retrieved_from: None,
+            is_generated: false,
+        };
+        let test_cert =
+            CertData::TorEd25519Cert(EncodedEd25519Cert::dangerously_from_bytes(b"foobar"));
+        let cert = AlwaysExpiredCert(TestItem {
+            item: KeystoreItem::Cert(test_cert),
+            meta: ItemMetadata::Cert(meta),
+        });
+
+        let res = mgr.insert_cert::<TestItem, AlwaysExpiredCert>(
+            cert,
+            &cert_spec,
+            KeystoreSelector::Primary,
+        );
+        assert!(res.is_ok());
+
+        // Build a pattern for matching *only* the expired cert
+        let pat = KeyPathPattern::Arti(format!("test/simple_key+@{EXPIRED_DENO}"));
+        let certs = mgr.list_matching(&pat).unwrap();
+        assert_eq!(certs.len(), 1);
+        let entry = &certs[0];
+
+        let err = mgr
+            .get_cert_entry::<TestCertSpecifier, TestItem, AlwaysExpiredCert>(
+                entry,
+                &TestKeySpecifier2,
+            )
+            .unwrap_err();
+
+        // Can't retrieve the cert because it's expired!
+        assert!(
+            matches!(err, Error::InvalidCert(InvalidCertError::TimeValidity(_))),
+            "{err:?}"
+        );
     }
 }
