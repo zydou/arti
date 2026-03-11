@@ -107,10 +107,9 @@ pub use keyword::KeywordRef;
 pub use lex::{ArgumentStream, ItemStream, NoFurtherArguments, UnparsedItem, UnparsedObject};
 pub use lines::{Lines, Peeked, StrExt};
 pub use signatures::{
-    NetdocParseableSignatures, SignatureHashesAccumulator, SignaturesData,
-    NetdocUnverified, SignatureHashInputs, SignatureItemParseable, check_validity_time,
+    HasUnverifiedParsedBody, NetdocParseableSignatures, NetdocUnverified, SignatureHashInputs,
+    SignatureHashesAccumulator, SignatureItemParseable, SignaturesData, check_validity_time,
     check_validity_time_tolerance, sig_hashes,
-    HasUnverifiedParsedBody,
 };
 pub use structural::{StopAt, StopPredicate};
 pub use traits::{

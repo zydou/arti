@@ -34,7 +34,9 @@ mod build;
 pub use build::AuthCertBuilder;
 
 #[cfg(feature = "parse2")]
-use crate::parse2::{self, ItemObjectParseable, SignatureHashInputs, sig_hashes::Sha1WholeKeywordLine};
+use crate::parse2::{
+    self, ItemObjectParseable, SignatureHashInputs, sig_hashes::Sha1WholeKeywordLine,
+};
 
 // TODO DIRAUTH untangle these feature(s)
 #[cfg(all(feature = "parse2", feature = "plain-consensus"))]

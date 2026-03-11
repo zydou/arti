@@ -35,10 +35,9 @@ pub use super::{
     lines::{Lines, StrExt as _},
     multiplicity::{ArgumentSetMethods, ItemSetMethods, MultiplicitySelector, ObjectSetMethods},
     signatures::{
-        NetdocParseableSignatures, SignatureHashesAccumulator, SignaturesData,
-        NetdocUnverified, SignatureHashInputs, SignatureItemParseable, SignedDocumentBody,
+        HasUnverifiedParsedBody, NetdocParseableSignatures, NetdocUnverified, SignatureHashInputs,
+        SignatureHashesAccumulator, SignatureItemParseable, SignaturesData, SignedDocumentBody,
         sig_hashes,
-        HasUnverifiedParsedBody,
     },
     structural::{StopAt, StopPredicate},
     traits::{
