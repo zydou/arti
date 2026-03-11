@@ -177,10 +177,10 @@ where
 
         // CRITICAL: This if is what authenticates a channel on the responder side. We compare
         // what we expected to what we received.
-        if !initiator_auth_cell
-            .is_equal_no_sig(&auth_body)
-            .map_err(|e| Error::ChanProto(format!("AUTHENTICATE fails to compare: {e}")))?
-        {
+        let initiator_body_no_rand = initiator_auth_cell
+            .body_no_rand()
+            .map_err(|e| Error::ChanProto(format!("AUTHENTICATE body_no_rand malformed: {e}")))?;
+        if initiator_body_no_rand != auth_body {
             return Err(Error::ChanProto(
                 "AUTHENTICATE was unexpected. Failing authentication".into(),
             ));
@@ -194,7 +194,10 @@ where
             tor_llcrypto::pk::ed25519::Signature::from_bytes(initiator_auth_cell.sig().map_err(
                 |e| Error::ChanProto(format!("AUTHENTICATE sig field is invalid: {e}")),
             )?);
-        pk.verify(initiator_auth_cell.body(), &sig).map_err(|e| {
+        let initiator_body = initiator_auth_cell
+            .body()
+            .map_err(|e| Error::ChanProto(format!("AUTHENTICATE body malformed: {e}")))?;
+        pk.verify(initiator_body, &sig).map_err(|e| {
             Error::ChanProto(format!("AUTHENTICATE cell signature failed to verify: {e}"))
         })?;
 

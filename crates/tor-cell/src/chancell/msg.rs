@@ -1101,25 +1101,33 @@ impl Authenticate {
         }
     }
 
-    /// Return true iff all bytes match the given `other` vector of bytes minus the random bytes
-    /// and the signature.
-    ///
-    /// This is needed so a responder can match what is expects to what it received.
-    pub fn is_equal_no_sig(&self, other: &[u8]) -> Result<bool> {
-        // The size of the random bytes + signature fields.
-        const NO_RAND_SIG: usize = 24 + 64;
-        // Make sure the length match else this is wrong.
-        if self.auth.len() < NO_RAND_SIG || other.len() != self.auth.len() - NO_RAND_SIG {
+    /// Return a referrence to the body of the cell that is all fields minus the random bytes
+    /// located before the signature.
+    pub fn body_no_rand(&self) -> Result<&[u8]> {
+        // The RAND field length.
+        const RAND_LEN: usize = 24;
+        let body = self.body()?;
+        if body.len() < RAND_LEN {
             return Err(Error::Incomplete {
-                deficit: NonZeroUsize::new(88).expect("NonZeroUsize bug").into(),
+                deficit: NonZeroUsize::new(RAND_LEN)
+                    .expect("NonZeroUsize bug")
+                    .into(),
             });
         }
-        Ok(&self.auth[..self.auth.len() - NO_RAND_SIG] == other)
+        Ok(&body[..body.len() - RAND_LEN])
     }
 
     /// Return a referrence to the body of the cell that is all fields except the signature.
-    pub fn body(&self) -> &[u8] {
-        &self.auth[..self.auth.len() - Self::SIG_LEN]
+    pub fn body(&self) -> Result<&[u8]> {
+        let auth = self.auth();
+        if auth.len() < Self::SIG_LEN {
+            return Err(Error::Incomplete {
+                deficit: NonZeroUsize::new(Self::SIG_LEN)
+                    .expect("NonZeroUsize bug")
+                    .into(),
+            });
+        }
+        Ok(&auth[..auth.len() - Self::SIG_LEN])
     }
 
     /// Return a reference to the authentcation object.
@@ -1128,11 +1136,13 @@ impl Authenticate {
     }
 
     /// Return a reference to the signature bytes.
-    pub fn sig(&self) -> Result<&[u8; 64]> {
-        (&self.auth[self.auth.len() - 64..])
+    pub fn sig(&self) -> Result<&[u8; Self::SIG_LEN]> {
+        (&self.auth[self.auth.len() - Self::SIG_LEN..])
             .try_into()
             .map_err(|_| Error::Incomplete {
-                deficit: NonZeroUsize::new(64).expect("NonZeroUsize bug").into(),
+                deficit: NonZeroUsize::new(Self::SIG_LEN)
+                    .expect("NonZeroUsize bug")
+                    .into(),
             })
     }
 }
