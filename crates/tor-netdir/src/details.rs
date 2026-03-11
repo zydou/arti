@@ -67,6 +67,10 @@ impl<'a> RelayDetails<'a> {
     pub fn is_flagged_fast(&self) -> bool {
         self.0.rs.is_flagged_fast()
     }
+    /// Return true if this relay has the "Exit" flag.
+    pub fn is_flagged_exit(&self) -> bool {
+        self.0.rs.is_flagged_exit()
+    }
     /// Return true if this relay has the "Stable" flag.
     ///
     /// Most relays have this flag. It indicates that the relay is suitable for
