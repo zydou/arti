@@ -226,7 +226,10 @@ impl<'s> ItemStream<'s> {
         };
         let r = (|| {
             let inner_always_stop = outer_stop | StopAt::doc_intro::<B>();
-            let body = B::from_items(&mut input, inner_always_stop | StopAt(S::is_item_keyword))?;
+            let body = B::from_items(
+                &mut input,
+                inner_always_stop | StopAt(S::is_item_keyword),
+            )?;
             let signed_doc_body = input.body_sofar_for_signature();
             let mut hashes = S::HashesAccu::default();
             let sigs = S::from_items(&mut input, signed_doc_body, &mut hashes, inner_always_stop)?;

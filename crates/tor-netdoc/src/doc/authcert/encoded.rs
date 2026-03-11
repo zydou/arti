@@ -139,7 +139,9 @@ impl ItemSequenceChecker {
             Err(EP::OtherBadDocument(
                 "authcert loose body item or missing intro keyword",
             ))
-        } else if let Some(IsStructural) = NetworkStatusVote::is_structural_keyword(kw) {
+        } else if let Some(IsStructural) =
+            NetworkStatusVote::is_structural_keyword(kw)
+        {
             Err(EP::OtherBadDocument(
                 "authcert with vote structural keyword",
             ))
@@ -348,8 +350,10 @@ dir-ignored-2
 
     #[test]
     fn bad_authcerts() {
-        NetworkStatusVote::is_structural_keyword(KeywordRef::new("dir-source").unwrap())
-            .expect("structural dir-source");
+        NetworkStatusVote::is_structural_keyword(
+            KeywordRef::new("dir-source").unwrap(),
+        )
+        .expect("structural dir-source");
 
         // These documents are all very skeleton: none of the items have arguments, or objects.
         // It works anyway because we don't actually parse as an authcert, when reading an
