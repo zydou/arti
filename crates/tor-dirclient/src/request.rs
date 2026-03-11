@@ -7,7 +7,7 @@ use tor_netdoc::doc::authcert::AuthCertKeyIds;
 use tor_netdoc::doc::microdesc::MdDigest;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 #[cfg(feature = "routerdesc")]
-use tor_netdoc::doc::routerdesc::RdDigest;
+use tor_netdoc::doc::routerdesc::{ExtraInfoDigest, RdDigest};
 
 #[cfg(feature = "hs-client")]
 use tor_hscrypto::pk::HsBlindId;
@@ -571,6 +571,97 @@ impl sealed::RequestableInner for RoutersOwnDescRequest {
     }
 }
 
+/// A request for one or many extra-infos.
+#[derive(Debug, Clone)]
+#[cfg(feature = "routerdesc")]
+pub struct ExtraInfoRequest {
+    /// The extra-infos to request.
+    requested_extra_infos: RequestedExtraInfos,
+}
+
+/// Tracks the different extra-info types.
+#[derive(Debug, Clone)]
+#[cfg(feature = "routerdesc")]
+enum RequestedExtraInfos {
+    /// If this is set, we just ask for all the extra-infos.
+    AllExtraInfos,
+    /// A list of digests to download.
+    Digests(Vec<ExtraInfoDigest>),
+}
+
+#[cfg(feature = "routerdesc")]
+impl Default for ExtraInfoRequest {
+    fn default() -> Self {
+        Self {
+            requested_extra_infos: RequestedExtraInfos::Digests(Vec::new()),
+        }
+    }
+}
+
+#[cfg(feature = "routerdesc")]
+impl ExtraInfoRequest {
+    /// Construct a request for all extra-infos.
+    pub fn all() -> Self {
+        Self {
+            requested_extra_infos: RequestedExtraInfos::AllExtraInfos,
+        }
+    }
+    /// Construct a new empty request.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[cfg(feature = "routerdesc")]
+impl sealed::RequestableInner for ExtraInfoRequest {
+    fn make_request(&self) -> Result<http::Request<String>> {
+        let mut uri = "/tor/extra/".to_string();
+
+        match self.requested_extra_infos {
+            RequestedExtraInfos::AllExtraInfos => uri.push_str("all"),
+            RequestedExtraInfos::Digests(ref digests) => {
+                uri.push_str("d/");
+                let ids = digest_list_stringify(digests, hex::encode_upper, "+")
+                    .ok_or(RequestError::EmptyRequest)?;
+                uri.push_str(&ids);
+            }
+        }
+
+        let req = http::Request::builder().method("GET").uri(uri);
+        let req = add_common_headers(req, self.anonymized());
+        Ok(req.body(String::new())?)
+    }
+
+    fn partial_response_body_ok(&self) -> bool {
+        match self.requested_extra_infos {
+            RequestedExtraInfos::Digests(ref digests) => digests.len() > 1,
+            RequestedExtraInfos::AllExtraInfos => true,
+        }
+    }
+
+    fn max_response_len(&self) -> usize {
+        // TODO: Pick more principled numbers; those were copied from
+        // RouterDescRequest and doubled.
+        match self.requested_extra_infos {
+            RequestedExtraInfos::Digests(ref digests) => digests.len().saturating_mul(16 * 1024),
+            RequestedExtraInfos::AllExtraInfos => 128 * 1024 * 1024,
+        }
+    }
+
+    fn anonymized(&self) -> AnonymizedRequest {
+        AnonymizedRequest::Direct
+    }
+}
+
+#[cfg(feature = "routerdesc")]
+impl FromIterator<ExtraInfoDigest> for ExtraInfoRequest {
+    fn from_iter<T: IntoIterator<Item = ExtraInfoDigest>>(iter: T) -> Self {
+        Self {
+            requested_extra_infos: RequestedExtraInfos::Digests(iter.into_iter().collect()),
+        }
+    }
+}
+
 /// A request to download a hidden service descriptor
 ///
 /// rend-spec-v3 2.2.6
@@ -907,6 +998,32 @@ mod test {
         assert_eq!(ds, vec![d1, d2]);
         let req2 = crate::util::encode_request(&req2.make_request()?);
         assert_eq!(req, req2);
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "routerdesc")]
+    fn test_extra_info_request() -> Result<()> {
+        let req = ExtraInfoRequest::from_iter([[0; 20], [1; 20], [2; 20]]);
+        assert_eq!(
+            crate::util::encode_request(&req.make_request()?),
+            format!(
+                "GET /tor/extra/d/{}+{}+{} HTTP/1.0\r\naccept-encoding: {}\r\n\r\n",
+                hex::encode_upper([0; 20]),
+                hex::encode_upper([1; 20]),
+                hex::encode_upper([2; 20]),
+                all_encodings()
+            )
+        );
+
+        let req = ExtraInfoRequest::all();
+        assert_eq!(
+            crate::util::encode_request(&req.make_request()?),
+            format!(
+                "GET /tor/extra/all HTTP/1.0\r\naccept-encoding: {}\r\n\r\n",
+                all_encodings()
+            )
+        );
         Ok(())
     }
 
