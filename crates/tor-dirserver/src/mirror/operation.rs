@@ -449,18 +449,22 @@ impl StaticEngine {
         // <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3664#note_3352723>
         let consensus = match self.flavor {
             ConsensusFlavor::Plain => FlavoredConsensus::Ns(
-                parse2::parse_netdoc(&ParseInput::new(
+                parse2::parse_netdoc::<cons::NetworkStatusUnverified>(&ParseInput::new(
                     &consensus, "",
                 ))
                 .map_err(into_internal!("invalid netdoc in database?"))?
-                ,
+                // TODO DIRMIRROR: explain why this is OK, or re-verify the signatures
+                .unwrap_unverified()
+                .0,
             ),
             ConsensusFlavor::Microdesc => FlavoredConsensus::Md(
-                parse2::parse_netdoc(&ParseInput::new(
+                parse2::parse_netdoc::<md::NetworkStatusUnverified>(&ParseInput::new(
                     &consensus, "",
                 ))
                 .map_err(into_internal!("invalid netdoc in database?"))?
-                ,
+                // TODO DIRMIRROR: explain why this is OK, or re-verify the signatures
+                .unwrap_unverified()
+                .0,
             ),
         };
 
