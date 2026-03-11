@@ -88,7 +88,7 @@ pub type RequestResult<T> = std::result::Result<T, RequestError>;
 
 /// Flag to declare whether a request is always anonymized or not.
 ///
-/// This is used by tor-dirclient to control whether *other* deanonymising metadata
+/// This is used by tor-dirclient to control whether *other* deanonymizing metadata
 /// might be added to the request (eg in request headers):
 /// Some requests (like those to download onion service descriptors) are always
 /// anonymized, and should never be sent in a way that leaks information about
@@ -96,21 +96,21 @@ pub type RequestResult<T> = std::result::Result<T, RequestError>;
 ///
 /// It is up to the *caller* of `tor-dirclient` to ensure that
 ///
-///   - every request whose anonymisation status is `AnonymizedRequest::Direct`
+///   - every request whose anonymization status is `AnonymizedRequest::Direct`
 ///     is sent only over non-anonymous connections.
 ///
-///     (Sending an `AnonymizedRequest::Direct` request over an anonymised connection
+///     (Sending an `AnonymizedRequest::Direct` request over an anonymized connection
 ///     would weaken the connection's anonymity, and can therefore weaken the anonymity
 ///     of user traffic sharing the same circuit.)
 ///
-///   - every request whose anonymisation status is `AnonymizedRequest::Anonymized`
+///   - every request whose anonymization status is `AnonymizedRequest::Anonymized`
 ///     is sent over only anonymous connections (ie, multi-hop circuits).
 ///
 ///     (Sending an `AnonymizedRequest::Anonymized` request over a direct connection
 ///     would directly reveal user behaviour data to the directory server.)
 ///
 /// TODO the calling code cannot easily be sure to get this right this because
-/// the anonymisation status is a run-time property and the choice of connection kind
+/// the anonymization status is a run-time property and the choice of connection kind
 /// is statically defined in the calling code.  (Perhaps this could be checked in tests?)
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -121,7 +121,7 @@ pub enum AnonymizedRequest {
     /// the client is connecting to.
     ///
     /// The request must be sent over an anonymous circuit by the caller
-    /// and no additional deanonymising information should be added to it by `tor-dirclient`.
+    /// and no additional deanonymizing information should be added to it by `tor-dirclient`.
     /// (For example, no client-version-specific information should be
     /// sent in HTTP headers when the request is made.)
     Anonymized,
