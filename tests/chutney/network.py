@@ -19,53 +19,52 @@ def make_network() -> chutney.TorNet.Network:
     # bootstrap cleanly.
     LAUNCH_PHASE_CLIENTS = 5
 
-    configs = (
-        # Authorities
-        NodeConfig(
-            tag="a", authority=True, relay=True, launch_phase=LAUNCH_PHASE_DIR_AUTHS
-        ).getN(4)
-        # Exits. We don't need many since authorities also function as exits,
-        # but let's have at least 1 non-authority exit relay.
-        + NodeConfig(
-            tag="r", relay=True, exit=True, launch_phase=LAUNCH_PHASE_RELAYS
-        ).getN(2)
-        # Simple tor client. Useful as a baseline check for "chutney verify",
-        # and used in arti-bench for comparison.
-        + NodeConfig(
-            tag="torc",
-            client=True,
-            backend=NodeBackend.TOR,
-            launch_phase=LAUNCH_PHASE_CLIENTS,
-        ).getN(1)
-        # Simple arti client. DNS port enabled for DNS test.
-        + NodeConfig(
-            tag="artic",
-            client=True,
-            enable_dnsport=True,
-            backend=NodeBackend.ARTI,
-            launch_phase=LAUNCH_PHASE_CLIENTS,
-        ).getN(1)
-        # bridge authority
-        + NodeConfig(
-            tag="ba",
-            authority=True,
-            bridgeauthority=True,
-            relay=True,
-            launch_phase=LAUNCH_PHASE_BRIDGE_AUTH,
-        ).getN(1)
-        # Bridge
-        + NodeConfig(
-            tag="br", bridge=True, relay=True, launch_phase=LAUNCH_PHASE_BRIDGES
-        ).getN(2)
-        # arti bridge client
-        + NodeConfig(
-            tag="bc",
-            client=True,
-            backend=NodeBackend.ARTI,
-            bridgeclient=True,
-            launch_phase=LAUNCH_PHASE_CLIENTS,
-        ).getN(1)
-    )
+    configs = []
+    # Authorities
+    configs += NodeConfig(
+        tag="a", authority=True, relay=True, launch_phase=LAUNCH_PHASE_DIR_AUTHS
+    ).getN(4)
+    # Exits. We don't need many since authorities also function as exits,
+    # but let's have at least 1 non-authority exit relay.
+    configs += NodeConfig(
+        tag="r", relay=True, exit=True, launch_phase=LAUNCH_PHASE_RELAYS
+    ).getN(2)
+    # Simple tor client. Useful as a baseline check for "chutney verify",
+    # and used in arti-bench for comparison.
+    configs += NodeConfig(
+        tag="torc",
+        client=True,
+        backend=NodeBackend.TOR,
+        launch_phase=LAUNCH_PHASE_CLIENTS,
+    ).getN(1)
+    # Simple arti client. DNS port enabled for DNS test.
+    configs += NodeConfig(
+        tag="artic",
+        client=True,
+        enable_dnsport=True,
+        backend=NodeBackend.ARTI,
+        launch_phase=LAUNCH_PHASE_CLIENTS,
+    ).getN(1)
+    # bridge authority
+    configs += NodeConfig(
+        tag="ba",
+        authority=True,
+        bridgeauthority=True,
+        relay=True,
+        launch_phase=LAUNCH_PHASE_BRIDGE_AUTH,
+    ).getN(1)
+    # Bridge
+    configs += NodeConfig(
+        tag="br", bridge=True, relay=True, launch_phase=LAUNCH_PHASE_BRIDGES
+    ).getN(2)
+    # arti bridge client
+    configs += NodeConfig(
+        tag="bc",
+        client=True,
+        backend=NodeBackend.ARTI,
+        bridgeclient=True,
+        launch_phase=LAUNCH_PHASE_CLIENTS,
+    ).getN(1)
     network = chutney.TorNet.Network()
     network.addNodes(configs)
     return network
