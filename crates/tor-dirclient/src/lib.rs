@@ -86,17 +86,58 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Type for internal results  containing a RequestError.
 pub type RequestResult<T> = std::result::Result<T, RequestError>;
 
-/// Flag to declare whether a request is anonymized or not.
+/// Flag to declare whether a request is always anonymized or not.
 ///
+/// This is used by tor-dirclient to control whether *other* deanonymising metadata
+/// might be added to the request (eg in request headers):
 /// Some requests (like those to download onion service descriptors) are always
 /// anonymized, and should never be sent in a way that leaks information about
 /// our settings or configuration.
+///
+/// It is up to the *caller* of `tor-dirclient` to ensure that
+///
+///   - every request whose anonymisation status is `AnonymizedRequest::Direct`
+///     is sent only over non-anonymous connections.
+///
+///     (Sending an `AnonymizedRequest::Direct` request over an anonymised connection
+///     would weaken the connection's anonymity, and can therefore weaken the anonymity
+///     of user traffic sharing the same circuit.)
+///
+///   - every request whose anonymisation status is `AnonymizedRequest::Anonymized`
+///     is sent over only anonymous connections (ie, multi-hop circuits).
+///
+///     (Sending an `AnonymizedRequest::Anonymized` request over a direct connection
+///     would directly reveal user behaviour data to the directory server.)
+///
+/// TODO the calling code cannot easily be sure to get this right this because
+/// the anonymisation status is a run-time property and the choice of connection kind
+/// is statically defined in the calling code.  (Perhaps this could be checked in tests?)
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum AnonymizedRequest {
-    /// This request should not leak any information about our configuration.
+    /// This request's content or semantics reveals or is correlated with sensitive information.
+    ///
+    /// For example, requests for hidden service descriptors reveal which hidden services
+    /// the client is connecting to.
+    ///
+    /// The request must be sent over an anonymous circuit by the caller
+    /// and no additional deanonymising information should be added to it by `tor-dirclient`.
+    /// (For example, no client-version-specific information should be
+    /// sent in HTTP headers when the request is made.)
     Anonymized,
-    /// This request is allowed to include information about our capabilities.
+
+    /// Making this request does not reveal anything sensitive, nor any user behaviour.
+    ///
+    /// The request body is uncorrelated with such things as the websites the user might visit,
+    /// the onion services the user is visiting or running, etc.
+    ///
+    /// For example, requests for all router microdescriptors are made by all clients,
+    /// so which microdescriptor(s) are requested reveals nothing to any attacker.
+    ///
+    /// tor-dirclient is allowed to add include information about our capabilities
+    /// when sending this request.
+    /// The request must *not* be sent over an anonymous circuit by the caller
+    /// (at least, not one used for anything else).
     Direct,
 }
 
