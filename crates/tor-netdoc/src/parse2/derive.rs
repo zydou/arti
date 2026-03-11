@@ -2,6 +2,8 @@
 
 use super::*;
 
+//==================== Common definitions used by many of the macros ====================
+
 /// Helper to implemnet `dtrace!` inside `NetdocParseable` derive-deftly macro.
 #[doc(hidden)]
 #[allow(clippy::print_stderr)]
@@ -25,6 +27,8 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
 define_derive_deftly_module! {
     /// Common definitions for `NetdocParseable`, `NetdocParseableFields`,
     /// and `NetdocParseableSignatures`
+    ///
+    /// The including macro is expected to define:
     ///
     ///  * **`THIS_ITEM`**: consumes the next item and evaluates to it as an `UnparsedItem`.
     ///    See the definition in `NetdocParseable`.
@@ -261,6 +265,14 @@ define_derive_deftly_module! {
     }}
 }
 
+//==================== Main whole document parsing impl ====================
+//
+// deftly module ` NetdocParseable`:
+//
+//   * IMPL_NETDOC_PARSEABLE expanding to `impl NetdocParseable { ... }`
+//
+// Much of the heavy lifting is done in the NetdocSomeItemsParseableCommon deftly module.
+
 define_derive_deftly_module! {
     /// Provides `IMPL_NETDOC_PARSEABLE` which impls `NetdocParseable`
     ///
@@ -435,6 +447,15 @@ define_derive_deftly_module! {
     }
   }}
 }
+
+//==================== NetdocParseable user-facing derive macro ====================
+//
+// deftly template `NetdocParseable`:
+//
+//  * main entrypoint for deriving the `NetdocParseable` trait
+//  * docs for the meta attributes we support during document parsing
+//
+// The actual implementation is in  the `NetdocParseable` deftly module, above.
 
 define_derive_deftly! {
     use NetdocParseable;
@@ -634,6 +655,16 @@ define_derive_deftly! {
     $IMPL_NETDOC_PARSEABLE
 }
 
+//==================== NetdocParseableSignatures user-facing derive macro ====================
+//
+// deftly template `NetdocParseableSignatures`:
+//
+//  * entrypoint for deriving the `NetdocParseableSignatures` trait
+//  * docs for the signatures-section-specific attributes
+//  * implementation of that derive
+//
+// Much of the heavy lifting is done in the NetdocSomeItemsParseableCommon deftly module.
+
 define_derive_deftly! {
     use NetdocDeriveAnyCommon;
     use NetdocSomeItemsDeriveCommon;
@@ -731,6 +762,15 @@ define_derive_deftly! {
     }
 }
 
+//==================== NetdocParseableFields user-facing derive macro ====================
+//
+// deftly template `NetdocParseableFields`
+//
+//  * entrypoint for deriving the `NetdocParseableFields` trait
+//  * docs and implementation for that derive
+//
+// Much of the heavy lifting is done in the NetdocSomeItemsParseableCommon deftly module.
+
 define_derive_deftly! {
     use NetdocDeriveAnyCommon;
     use NetdocFieldsDeriveCommon;
@@ -826,6 +866,21 @@ define_derive_deftly! {
         }
     }
 }
+
+//==================== NetdocParseableUnverified user-facing derive macro ====================
+//
+// deftly template `NetdocParseableUnverified`
+//
+//  * entrypoint for deriving the `FooUnverified` struct implementing `NetdocParseable`
+//    (and supporting items such as `FooUnverifiedParsedBody` structs and its impl).
+//  * docs for that derive, including doc-level signatures-related attributes
+//  * implementation glue for those derived impls
+//
+// The principal derived parsing impl on the body type `Foo` is expanded by this macro,
+// but that is implemented via IMPL_NETDOC_PARSEABLE in the NetdocParseable deftly module.
+//
+// The substantive code to implement `NetdocParseable` for `FooUnverified` is
+// in the `ItemStream::parse_signed` helper function; a call to that is expanded here.
 
 define_derive_deftly! {
     use NetdocParseable;
@@ -990,11 +1045,19 @@ define_derive_deftly! {
     }
 }
 
+//==================== ItemValueParseable user-facing derive macro ====================
+//
+// deftly template `ItemValueParseable`
+//
+//  * entrypoint for deriving the `ItemValueParseable` and `SignatureItemParseable` traits
+//  * docs for the meta attributes we support during *item* parsing
+//  * implementation of those derives
+
 define_derive_deftly! {
     use NetdocDeriveAnyCommon;
     use NetdocItemDeriveCommon;
 
-    /// Derive `ItemValueParseable`
+    /// Derive `ItemValueParseable` (or `SignatureItemParseable`)
     ///
     // NB there is very similar wording in the ItemValueEncodable derive docs.
     // If editing any of this derive's documentation, considering editing that too.
