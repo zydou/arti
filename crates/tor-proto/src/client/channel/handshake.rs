@@ -114,6 +114,9 @@ impl<
         // Receive versions cell.
         let link_protocol = self.recv_versions_cell().await?;
 
+        // VERSIONS cell have been exchanged, set the link protocol into our channel frame.
+        self.set_link_protocol(link_protocol)?;
+
         // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell, we don't need it as
         // we are not authenticating with our responder because we are a client.
         let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =

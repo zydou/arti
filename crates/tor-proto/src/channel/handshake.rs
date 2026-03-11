@@ -105,11 +105,17 @@ where
             .ok_or_else(|| Error::HandshakeProto("No shared link protocols".into()))?;
         trace!(stream_id = %self.unique_id(), "negotiated version {}", link_protocol);
 
-        // Set the link protocol into our channel frame.
+        Ok(link_protocol)
+    }
+
+    /// Given a link protocol version, set it into our channel cell handler. All channel type do
+    /// this after negotiating a [`msg::Versions`] cell.
+    ///
+    /// This will effectively transition the handler's state from New to Handshake.
+    fn set_link_protocol(&mut self, link_protocol: u16) -> Result<()> {
         self.framed_tls()
             .codec_mut()
-            .set_link_version(link_protocol)?;
-        Ok(link_protocol)
+            .set_link_version(link_protocol)
     }
 }
 

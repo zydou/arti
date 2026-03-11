@@ -119,6 +119,9 @@ impl<
         // Receive the VERSIONS.
         let link_protocol = self.recv_versions_cell().await?;
 
+        // VERSIONS cell have been exchanged, set the link protocol into our channel frame.
+        self.set_link_protocol(link_protocol)?;
+
         // Read until we have all the remaining cells from the responder.
         let (auth_challenge_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
             self.recv_cells_from_responder().await?;
@@ -239,9 +242,15 @@ impl<
         // Receive initiator VERSIONS.
         let link_protocol = self.recv_versions_cell().await?;
 
-        // Send VERSION, CERTS, AUTH_CHALLENGE and NETINFO
+        // Send the VERSIONS message.
         let (versions_flushed_at, versions_flushed_wallclock) =
-            self.send_cells_to_initiator(now_fn).await?;
+            self.send_versions_cell(now_fn).await?;
+
+        // VERSIONS cell have been exchanged, set the link protocol into our channel frame.
+        self.set_link_protocol(link_protocol)?;
+
+        // Send CERTS, AUTH_CHALLENGE and NETINFO
+        self.send_cells_to_initiator().await?;
 
         // Receive NETINFO and possibly [CERTS, AUTHENTICATE]. The connection could be from a
         // client/bridge and thus no authentication meaning no CERTS/AUTHENTICATE cells.
@@ -410,17 +419,7 @@ impl<
     ///
     /// Return the sending times of the [`msg::Versions`] so it can be used for clock skew
     /// validation.
-    async fn send_cells_to_initiator<F>(
-        &mut self,
-        now_fn: F,
-    ) -> Result<(coarsetime::Instant, SystemTime)>
-    where
-        F: FnOnce() -> SystemTime,
-    {
-        // Send the VERSIONS message.
-        let (versions_flushed_at, versions_flushed_wallclock) =
-            self.send_versions_cell(now_fn).await?;
-
+    async fn send_cells_to_initiator(&mut self) -> Result<()> {
         // Send the CERTS message.
         let certs = build_certs_cell(&self.identities, /* is_responder */ true);
         trace!(channel_id = %self.unique_id, "Sending CERTS as responder cell.");
@@ -438,6 +437,6 @@ impl<
         trace!(channel_id = %self.unique_id, "Sending NETINFO as responder cell.");
         self.framed_tls.send(netinfo.into()).await?;
 
-        Ok((versions_flushed_at, versions_flushed_wallclock))
+        Ok(())
     }
 }
