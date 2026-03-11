@@ -168,22 +168,22 @@ impl SignatureItemParseable for NdiDirectorySignature {
             field: "algorithm/h_kp_auth_id_rsa",
         })?;
 
-        let hash_algo = if let Some(algo) =
-            hashes.parse_keyword_and_hash(maybe_algorithm, document_body)
-        {
-            let _: &str = args.next().expect("we just peeked");
-            algo
-        } else if maybe_algorithm
-            .find(|c: char| !c.is_ascii_hexdigit())
-            .is_some()
-        {
-            // Not hex.  Must be some unknown algorithm.
-            // There might be Object, but don't worry if not.
-            return Ok(NdiDirectorySignature::Unknown {});
-        } else {
-            hashes.parse_keyword_and_hash("sha1", document_body)
-                .expect("sha1 is not valid?")
-        };
+        let hash_algo =
+            if let Some(algo) = hashes.parse_keyword_and_hash(maybe_algorithm, document_body) {
+                let _: &str = args.next().expect("we just peeked");
+                algo
+            } else if maybe_algorithm
+                .find(|c: char| !c.is_ascii_hexdigit())
+                .is_some()
+            {
+                // Not hex.  Must be some unknown algorithm.
+                // There might be Object, but don't worry if not.
+                return Ok(NdiDirectorySignature::Unknown {});
+            } else {
+                hashes
+                    .parse_keyword_and_hash("sha1", document_body)
+                    .expect("sha1 is not valid?")
+            };
 
         let rsa_signature = object.ok_or(EP::MissingObject)?.decode_data()?;
 
@@ -248,7 +248,9 @@ fn verify_general_timeless(
                     continue;
                 };
 
-                let h = hashes.hash_slice_for_verification(*hash_algo).ok_or(VF::Bug)?;
+                let h = hashes
+                    .hash_slice_for_verification(*hash_algo)
+                    .ok_or(VF::Bug)?;
 
                 let () = cert.dir_signing_key.verify(h, rsa_signature)?;
 
