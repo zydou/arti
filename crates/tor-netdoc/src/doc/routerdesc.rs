@@ -60,6 +60,9 @@ pub const DOC_DIGEST_LEN: usize = 20;
 /// The digest of a RouterDesc document, as reported in a NS consensus.
 pub type RdDigest = [u8; DOC_DIGEST_LEN];
 
+/// The digest of an ExtraInfo document, as reported in a RouterDesc.
+pub type ExtraInfoDigest = [u8; DOC_DIGEST_LEN];
+
 /// A router descriptor, with possible annotations.
 #[non_exhaustive]
 pub struct AnnotatedRouterDesc {
