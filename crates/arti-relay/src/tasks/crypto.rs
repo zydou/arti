@@ -147,10 +147,6 @@ where
     let mut have_rotated = false;
     // Smallest valid_until timestamp of all the keys we are about to look at. Start with the
     // biggest value so the first value will change this immediately.
-    //
-    // NOTE: This is dicy because if the loop below would not run, we would return a sleep time
-    // that is massive. The is_empty() above guarantees it won't happen but still. Anyway, this is
-    // better than an Option<> and dealing with a None at the end.
     let mut min_valid_until = None;
 
     for key in key_entries {
