@@ -70,8 +70,8 @@ pub(crate) struct BlockingConnection {
     /// Invariant: `stream.stream` is a [`MioStream`], so [`Stream::as_mio_stream`] will return
     /// Some when we call it.
     ///
-    /// This is None only if we have called `into_nonblocking()` or `drop()`
-    /// we store this in an Option so `that we can move it out of this object.
+    /// This is None only if we have called `into_nonblocking()` or `drop()`.
+    /// We store this in an Option so that we can move it out of this object.
     stream: Option<NonblockingConnection>,
 }
 
@@ -111,8 +111,7 @@ impl BlockingConnection {
             cio.stream
                 .as_mut()
                 .expect("Logic error: stream not present")
-                .stream
-                .as_mio_stream()
+                .as_mio_source()
                 .expect("logic error: not a mio stream."),
             STREAM_TOKEN,
             Interest::READABLE,
@@ -176,8 +175,7 @@ impl BlockingConnection {
             };
             self.poll.registry().reregister(
                 stream
-                    .stream
-                    .as_mio_stream()
+                    .as_mio_source()
                     .expect("logic error: not a mio stream!"),
                 STREAM_TOKEN,
                 interests,
@@ -196,11 +194,11 @@ impl BlockingConnection {
     /// Downgrade this stream into a [`NonblockingConnection`]
     /// for use within an [`RpcPoll`](crate::RpcPoll).
     pub(crate) fn into_nonblocking(mut self) -> NonblockingConnection {
-        let mut stream = self
-            .deregister_and_take_stream()
+        let mut nb_conn = self
+            .deregister_and_take_nb_conn()
             .expect("logic error: stream not present!");
-        stream.stream = stream.stream.remove_mio();
-        stream
+        nb_conn.downgrade_source();
+        nb_conn
     }
 
     /// Implementation helper for Drop and into_nonblocking:
@@ -209,12 +207,11 @@ impl BlockingConnection {
     /// and returns it.
     ///
     /// After this method is called, this object may no longer be used.
-    fn deregister_and_take_stream(&mut self) -> Option<NonblockingConnection> {
+    fn deregister_and_take_nb_conn(&mut self) -> Option<NonblockingConnection> {
         // IO SAFETY: See "IO Safety" note in documentation for BlockingConnection.
         let mut stream = self.stream.take()?;
         let s: &mut _ = stream
-            .stream
-            .as_mio_stream()
+            .as_mio_source()
             .expect("Logic error: Stream was not a MIO stream.");
         self.poll
             .registry()
@@ -227,7 +224,7 @@ impl BlockingConnection {
 impl Drop for BlockingConnection {
     fn drop(&mut self) {
         // IO SAFETY: See "IO Safety" note in documentation for BlockingConnection.
-        let _ = self.deregister_and_take_stream();
+        let _ = self.deregister_and_take_nb_conn();
     }
 }
 

@@ -16,7 +16,7 @@ use crate::{
 };
 use std::{
     io::{self, Read as _, Write as _},
-    mem,
+    mem::{self},
     sync::{Arc, Mutex},
 };
 
@@ -44,8 +44,7 @@ pub(crate) struct NonblockingConnection {
 
     /// The underlying nonblocking stream.
     #[debug(ignore)]
-    // XXXX remove this "pub"
-    pub(super) stream: Box<dyn Stream>,
+    stream: Box<dyn Stream>,
 }
 
 /// A return value from [`NonblockingConnection::interact_once`].
@@ -139,6 +138,24 @@ impl NonblockingConnection {
             read_buf: Default::default(),
             stream,
         }
+    }
+
+    /// Return a reference to this connection as a mio source.
+    ///
+    /// Returns None if this is was not constructed with a mio stream,
+    /// or if `downgrade_source` has been called.
+    pub(super) fn as_mio_source(&mut self) -> Option<&mut dyn mio::event::Source> {
+        self.stream.as_mut().as_mio_source()
+    }
+
+    /// Remove any mio wrappers from this connection.
+    pub(super) fn downgrade_source(&mut self) {
+        // We need this rigamarole because `self.stream = self.stream.remove_mio()`
+        // gives a "can't move out of self.stream, which is behind a mutable reference"
+        // error.
+        let mut s: Box<dyn Stream> = Box::new(std::io::empty());
+        mem::swap(&mut s, &mut self.stream);
+        self.stream = s.remove_mio();
     }
 
     /// Return a new [`WriteHandle`] that can be used to queue messages to be sent via this stream.
@@ -570,7 +587,7 @@ mod test {
         }
     }
     impl Stream for TestStream {
-        fn as_mio_stream(&mut self) -> Option<&mut dyn crate::ll_conn::MioStream> {
+        fn as_mio_source(&mut self) -> Option<&mut dyn mio::event::Source> {
             None
         }
         fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {

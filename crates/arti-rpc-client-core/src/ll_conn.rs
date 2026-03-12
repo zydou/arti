@@ -42,10 +42,10 @@ where
 
 /// Any type we can use as a target for [`NonblockingConnection`].
 pub(crate) trait Stream: io::Read + io::Write + Send {
-    /// If this Stream object is a [`MioStream`], upcast it to one.
+    /// If this Stream object is a [`MioStream`], return it as a `mio::event::Source`.
     ///
     /// Otherwise return None.
-    fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream>;
+    fn as_mio_source(&mut self) -> Option<&mut dyn mio::event::Source>;
 
     /// Discard any mio-specific wrappers on this stream.
     fn remove_mio(self: Box<Self>) -> Box<dyn Stream>;
@@ -63,7 +63,7 @@ pub(crate) trait MioStream: Stream + mio::event::Source {}
 macro_rules! impl_traits {
     { $stream:ty => $mio_stream:ty } => {
         impl Stream for $stream {
-            fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream> {
+            fn as_mio_source(&mut self) -> Option<&mut dyn mio::event::Source> {
                 None
             }
             fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {
@@ -80,7 +80,7 @@ macro_rules! impl_traits {
             }
         }
         impl Stream for $mio_stream {
-            fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream> {
+            fn as_mio_source(&mut self) -> Option<&mut dyn mio::event::Source> {
                 Some(self as _)
             }
             fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {
@@ -104,3 +104,19 @@ macro_rules! impl_traits {
 impl_traits! { std::net::TcpStream => mio::net::TcpStream }
 #[cfg(unix)]
 impl_traits! { std::os::unix::net::UnixStream => mio::net::UnixStream }
+
+// We implement "Stream" for Empty so that we can use it to temporarily swap it in
+// as a placeholder for a Box<dyn Stream>.
+impl Stream for std::io::Empty {
+    fn as_mio_source(&mut self) -> Option<&mut dyn mio::event::Source> {
+        None
+    }
+
+    fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {
+        self
+    }
+
+    fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+}
