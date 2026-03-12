@@ -111,10 +111,7 @@ where
         Ok(_) => {}
         // Key already existing can happen due to wall clock strangeness,
         // so simply ignore it.
-        Err(tor_keymgr::Error::KeyAlreadyExists) => tracing::warn!(
-            "Failed to generate key at {:?} because one already exists. Clock drift?",
-            spec.arti_path(),
-        ),
+        Err(tor_keymgr::Error::KeyAlreadyExists) => (),
         Err(e) => return Err(e),
     };
     Ok(())
