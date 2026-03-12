@@ -627,9 +627,9 @@ impl sealed::RequestableInner for ExtraInfoRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
         let mut uri = "/tor/extra/".to_string();
 
-        match self.requested_extra_infos {
+        match &self.requested_extra_infos {
             RequestedExtraInfos::AllExtraInfos => uri.push_str("all"),
-            RequestedExtraInfos::Digests(ref digests) => {
+            RequestedExtraInfos::Digests(digests) => {
                 uri.push_str("d/");
                 let ids = digest_list_stringify(digests, hex::encode_upper, "+")
                     .ok_or(RequestError::EmptyRequest)?;
@@ -643,8 +643,8 @@ impl sealed::RequestableInner for ExtraInfoRequest {
     }
 
     fn partial_response_body_ok(&self) -> bool {
-        match self.requested_extra_infos {
-            RequestedExtraInfos::Digests(ref digests) => digests.len() > 1,
+        match &self.requested_extra_infos {
+            RequestedExtraInfos::Digests(digests) => digests.len() > 1,
             RequestedExtraInfos::AllExtraInfos => true,
         }
     }
@@ -652,8 +652,8 @@ impl sealed::RequestableInner for ExtraInfoRequest {
     fn max_response_len(&self) -> usize {
         // TODO torspec#392: Pick more principled size limits.
         // These were copied from the RouterDescRequest impl and doubled.
-        match self.requested_extra_infos {
-            RequestedExtraInfos::Digests(ref digests) => digests.len().saturating_mul(16 * 1024),
+        match &self.requested_extra_infos {
+            RequestedExtraInfos::Digests(digests) => digests.len().saturating_mul(16 * 1024),
             RequestedExtraInfos::AllExtraInfos => 128 * 1024 * 1024,
         }
     }
