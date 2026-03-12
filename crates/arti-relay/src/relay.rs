@@ -344,4 +344,9 @@ impl<R: Runtime> TorRelay<R> {
         // We can never get here since a `Void` cannot be constructed.
         void::unreachable(void);
     }
+
+    /// Access the relay's key manager.
+    pub(crate) fn keymgr(&self) -> &Arc<KeyMgr> {
+        &self.keymgr
+    }
 }

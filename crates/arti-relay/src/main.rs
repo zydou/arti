@@ -70,6 +70,10 @@ use clap::Parser;
 use futures::FutureExt;
 use safelog::with_safe_logging_suppressed;
 use tor_basic_utils::iter_join;
+use tor_relay_crypto::pk::{
+    RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
+    RelayIdentityRsaKeypairSpecifier,
+};
 use tor_rtcompat::SpawnExt;
 use tor_rtcompat::tokio::TokioRustlsRuntime;
 use tor_rtcompat::{Runtime, ToplevelRuntime};
@@ -264,6 +268,30 @@ async fn run_relay<R: Runtime>(
         .init(runtime)
         .await
         .context("Failed to bootstrap")?;
+
+    let keymgr = relay.keymgr();
+    let rsa_id = keymgr
+        .get::<RelayIdentityRsaKeypair>(&RelayIdentityRsaKeypairSpecifier::new())
+        .context("Failed to get RSA identity from key manager")?
+        .context("Missing RSA identity")?
+        .to_rsa_identity();
+    let ed_id = keymgr
+        .get::<RelayIdentityKeypair>(&RelayIdentityKeypairSpecifier::new())
+        .context("Failed to get Ed25519 identity from key manager")?
+        .context("Missing Ed25519 identity")?
+        .to_ed25519_id();
+
+    // Log the relay's identities.
+    // TODO: We should also log this after a key rotation:
+    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3773#note_3367789
+    // TODO: This is useful at info level while we're developing,
+    // but the level should probably be lowered in the future.
+    tracing::debug!("RSA identity: {rsa_id}");
+    tracing::debug!("Ed25519 identity: {ed_id}");
+
+    // TODO: I'd like to log the ntor key here as well so that we can build ntor circuits to the
+    // relay.
+
     // This blocks until end of time or an error.
     relay.run().await
 }
