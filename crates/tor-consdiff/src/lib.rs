@@ -1155,12 +1155,13 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
             "bismerpund",
         ];
 
+        let rng = &mut testing_rng();
         let mut left = (0..1000)
-            .map(|_| WORDS.choose(&mut testing_rng()).unwrap().to_string() + "\n")
+            .map(|_| WORDS.choose(rng).unwrap().to_string() + "\n")
             .collect::<String>();
         left += "directory-signature foo bar\n";
         let mut right = (0..1015)
-            .map(|_| WORDS.choose(&mut testing_rng()).unwrap().to_string() + "\n")
+            .map(|_| WORDS.choose(rng).unwrap().to_string() + "\n")
             .collect::<String>();
         right += "directory-signature foo baz\n";
 
