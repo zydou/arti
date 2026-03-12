@@ -33,7 +33,7 @@
 //! # Data structure
 //!
 //! The connection has
-//!   - an outbound queue for outbound messages, in its [`PollingStream`].
+//!   - an outbound queue for outbound messages, in its [`BlockingConnection`].
 //!   - [`RequestMap`], a data structure containing outstanding requests,
 //!     which is used for knowing what to do with inbound messages
 //!
@@ -55,7 +55,7 @@
 //!
 //! At any given time,
 //! multiple threads can be waiting for responses on the same RpcConn object.
-//! Exactly of them will actually be holding the [`PollingStream`]
+//! Exactly of them will actually be holding the [`BlockingConnection`]
 //! and trying to read from the network.
 //! If it finds a response for itself, it returns that response.
 //! Otherwise, it puts the response in the appropriate queue,
@@ -90,7 +90,7 @@ use crate::{
         request::{IdGenerator, ValidatedRequest},
         response::ValidatedResponse,
     },
-    nb_stream::{NonblockingStream, PollingStream},
+    nb_stream::{BlockingConnection, NonblockingStream},
 };
 
 use super::{ProtoError, ShutdownError};
@@ -237,7 +237,7 @@ struct ResponseQueue<Q: QueueId + ?Sized> {
     ///
     /// * When we queue a response for this request.
     /// * When we store a fatal error affecting all requests in the RpcConn.
-    /// * When the thread currently interacting with he [`PollingStream`] for this
+    /// * When the thread currently interacting with he [`BlockingConnection`] for this
     ///   RpcConn stops doing so, and the request waiting
     ///   on this thread has been chosen to take responsibility for interacting.
     ///
@@ -347,7 +347,7 @@ struct ReceiverState {
     ///   must take on the interactor role.
     ///
     /// (Therefore, when it becomes Some, we must signal a cv, if any is set.)
-    stream: Option<PollingStream>,
+    stream: Option<BlockingConnection>,
 }
 
 impl RequestMap {
@@ -397,7 +397,7 @@ pub(super) struct Receiver {
     /// Mutable state.
     ///
     /// This lock should only be held briefly, and never while interacting with the
-    /// `PollingStream`.
+    /// `BlockingConnection`.
     state: Mutex<ReceiverState>,
 }
 
@@ -459,8 +459,8 @@ enum AlertWhom {
 }
 
 impl RpcConn {
-    /// Construct a new RpcConn with a given PollingStream.
-    pub(super) fn new(stream: PollingStream) -> Self {
+    /// Construct a new RpcConn with a given BlockingConnection.
+    pub(super) fn new(stream: BlockingConnection) -> Self {
         let writer = stream.writer();
         Self {
             receiver: Arc::new(Receiver {
@@ -478,7 +478,7 @@ impl RpcConn {
 
     /// Return a new [`RpcPoll`] to use for managing an RpcConn using event-driven IO.
     ///
-    /// Removes the `PollingStream` from this `RpcConn`
+    /// Removes the `BlockingConnection` from this `RpcConn`
     /// and drops any mio resources associated with it.
     /// After this method is called is called, only `RpcPoll::poll()` can interact with it.
     ///
@@ -671,8 +671,8 @@ impl Receiver {
         AlertWhom,
     ) {
         // At this point, we have not registered on a condvar, and we have not
-        // taken the PollingStream.
-        // Therefore, we do not yet need to ensure that anybody else takes the PollingStream.
+        // taken the BlockingConnection.
+        // Therefore, we do not yet need to ensure that anybody else takes the BlockingConnection.
         //
         // TODO: It is possibly too easy to forget to set this,
         // or to set it to a less "alerty" value.  Refactoring might help;
@@ -758,7 +758,7 @@ impl Receiver {
     fn read_until_message_for<'a, Q: QueueId>(
         &'a self,
         mut state_lock: MutexGuard<'a, ReceiverState>,
-        stream: &mut PollingStream,
+        stream: &mut BlockingConnection,
         queue_id: &Q,
     ) -> (
         Result<(Q::UserTag, ValidatedResponse), ShutdownError>,

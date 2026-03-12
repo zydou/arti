@@ -754,7 +754,7 @@ mod test {
 
     use crate::{
         msgs::request::{JsonMap, Request, ValidatedRequest},
-        nb_stream::PollingStream,
+        nb_stream::BlockingConnection,
     };
 
     use super::*;
@@ -762,7 +762,7 @@ mod test {
     /// helper: Return a dummy RpcConn, along with a socketpair for it to talk to.
     fn dummy_connected() -> (RpcConn, crate::testing::SocketpairStream) {
         let (s1, s2) = crate::testing::construct_socketpair().unwrap();
-        let conn = RpcConn::new(PollingStream::new(s1).unwrap());
+        let conn = RpcConn::new(BlockingConnection::new(s1).unwrap());
 
         (conn, s2)
     }

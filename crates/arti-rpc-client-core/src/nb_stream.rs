@@ -3,7 +3,7 @@
 //! This module defines two main types: [`NonblockingStream`].
 //! (a low-level type for use by external tools
 //! that want to implement their own nonblocking IO),
-//! and [`PollingStream`] (a slightly higher-level type
+//! and [`BlockingConnection`] (a slightly higher-level type
 //! that we use internally when we are asked to provide
 //! our own nonblocking IO loop(s)).
 //!
@@ -38,19 +38,19 @@ use std::os::windows::io::{AsSocket as _, BorrowedSocket as BorrowedOsHandle};
 /// To use this type, mark the stream as nonblocking
 /// with e.g. [TcpStream::set_nonblocking](std::net::TcpStream::set_nonblocking),
 /// convert it into a [`mio::event::Source`],
-/// and pass it to [`PollingStream::new()`]
+/// and pass it to [`BlockingConnection::new()`]
 ///
 /// At this point, you can read and write messages via nonblocking IO.
 ///
-/// The [`PollingStream::writer()`] method will return a handle that you can use from any thread
+/// The [`BlockingConnection::writer()`] method will return a handle that you can use from any thread
 /// that you can use to queue an outbound message.
 ///
 /// No messages are actually sent or received unless
-/// some thread is calling [`PollingStream::interact()`].
+/// some thread is calling [`BlockingConnection::interact()`].
 ///
 /// ## Concurrency and interior mutability
 ///
-/// A `PollingStream` has (limited) interior mutability.
+/// A `BlockingConnection` has (limited) interior mutability.
 ///
 /// Only a single call to `interact` can be made at the same time.
 /// So only one thread can be waiting for responses, and
@@ -63,7 +63,7 @@ use std::os::windows::io::{AsSocket as _, BorrowedSocket as BorrowedOsHandle};
 ///
 /// (All these restrictions imposed on the caller are enforced by the Rust type system.)
 #[derive(Debug)]
-pub(crate) struct PollingStream {
+pub(crate) struct BlockingConnection {
     /// The poll object.
     ///
     /// (This typically corresponds to a kqueue or epoll handle.)
@@ -108,8 +108,8 @@ const STREAM_TOKEN: mio::Token = mio::Token(1);
 /// are possible.
 struct MioWaker(mio::Waker);
 
-impl PollingStream {
-    /// Create a new PollingStream.
+impl BlockingConnection {
+    /// Create a new BlockingConnection.
     ///
     /// The `stream` will be set to use nonblocking IO;
     /// on Unix this will affect the behaviour of other `dup`s of the same fd!
@@ -162,7 +162,7 @@ impl PollingStream {
     /// Otherwise, returns an unparsed message from the RPC server.
     ///
     /// Unless some thread is calling this method, nobody will actually be reading or writing from
-    /// the [`PollingStream`], and so nobody's requests will be sent or answered.
+    /// the [`BlockingConnection`], and so nobody's requests will be sent or answered.
     pub(crate) fn interact(&mut self) -> io::Result<Option<UnparsedResponse>> {
         // Should we try to read and write? Start out by assuming "yes".
 
@@ -230,7 +230,7 @@ impl PollingStream {
     ///
     /// After this method is called, this object may no longer be used.
     fn deregister_and_take_stream(&mut self) -> Option<NonblockingStream> {
-        // IO SAFETY: See "IO Safety" note in documentation for PollingStream.
+        // IO SAFETY: See "IO Safety" note in documentation for BlockingConnection.
         let mut stream = self.stream.take()?;
         let s: &mut _ = stream
             .stream
@@ -244,9 +244,9 @@ impl PollingStream {
     }
 }
 
-impl Drop for PollingStream {
+impl Drop for BlockingConnection {
     fn drop(&mut self) {
-        // IO SAFETY: See "IO Safety" note in documentation for PollingStream.
+        // IO SAFETY: See "IO Safety" note in documentation for BlockingConnection.
         let _ = self.deregister_and_take_stream();
     }
 }
@@ -254,7 +254,7 @@ impl Drop for PollingStream {
 /// A handle that can be used to queue outgoing messages for a nonblocking stream.
 ///
 /// Note that queueing a message has no effect unless some party is polling the stream,
-/// either with [`PollingStream::interact()`], or [`NonblockingStream::interact_once()`].
+/// either with [`BlockingConnection::interact()`], or [`NonblockingStream::interact_once()`].
 #[derive(Clone, Debug)]
 pub(crate) struct WriteHandle {
     /// The actual implementation type for this writer.
@@ -318,7 +318,7 @@ struct WriteHandleImpl {
 
 /// A lower-level implementation of nonblocking IO for an open stream to the RPC server.
 ///
-/// Unlike [`PollingStream`], this type _does not_ handle the IO event polling loops:
+/// Unlike [`BlockingConnection`], this type _does not_ handle the IO event polling loops:
 /// the caller is required to provide their own.
 #[derive(derive_more::Debug)]
 pub(crate) struct NonblockingStream {
@@ -525,7 +525,7 @@ pub(crate) trait Stream: io::Read + io::Write + Send {
     fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>>;
 }
 
-/// A [`Stream`] that we can use inside a [`PollingStream`].
+/// A [`Stream`] that we can use inside a [`BlockingConnection`].
 pub(crate) trait MioStream: Stream + mio::event::Source {}
 
 /// Representation of an event loop that can watch a handle and arrange to call `poll`

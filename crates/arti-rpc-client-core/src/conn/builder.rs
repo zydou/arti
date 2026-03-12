@@ -12,7 +12,7 @@ use tor_rpc_connect::{
 
 use crate::{
     RpcConn, RpcPoll, conn::ConnectError, msgs::response::UnparsedResponse,
-    nb_stream::PollingStream,
+    nb_stream::BlockingConnection,
 };
 
 use super::ConnectFailure;
@@ -432,7 +432,7 @@ fn try_connect(
         _ => return Err(ConnectError::StreamTypeUnsupported),
     };
 
-    let mut stream = PollingStream::new(stream).map_err(wrap_io_err)?;
+    let mut stream = BlockingConnection::new(stream).map_err(wrap_io_err)?;
     let banner = stream
         .interact()
         .map_err(wrap_io_err)?
