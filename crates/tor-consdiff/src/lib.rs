@@ -55,7 +55,7 @@ use digest::Digest;
 pub use err::Error;
 use imara_diff::{Algorithm, Diff, Hunk, InternedInput};
 use tor_error::internal;
-use tor_netdoc::parse2::{ErrorProblem, ItemStream, ParseError, ParseInput};
+use tor_netdoc::parse2::{ErrorProblem, ItemStream, KeywordRef, ParseError, ParseInput};
 
 use crate::err::GenEdDiffError;
 
@@ -64,7 +64,7 @@ type Result<T> = std::result::Result<T, Error>;
 
 /// The keyword that identifies a directory signature line.
 // TODO: We probably want this in tor-netdoc.
-const DIRECTORY_SIGNATURE_KEYWORD: &str = "directory-signature";
+const DIRECTORY_SIGNATURE_KEYWORD: KeywordRef = KeywordRef::new_const("directory-signature");
 
 /// When hashing the signed part of the consensus, append this tail to the end.
 const CONSENSUS_SIGNED_SHA3_256_HASH_TAIL: &str = "directory-signature ";
@@ -91,13 +91,9 @@ static_assertions::const_assert!(std::mem::size_of::<usize>() >= std::mem::size_
 /// [`apply_diff()`] implementation as a check is performed before returning,
 /// because returning an unusable diff would be terrible.
 pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
-    // Throw away the signature.
-    let signature_lno = find_directory_signature_lno(base)?;
-    let base_signed = base
-        .lines()
-        .take(signature_lno - 1)
-        .map(|line| line.to_string() + "\n")
-        .collect::<String>();
+    // Throw away the signatures.
+    let (base_signed, _) = split_directory_signatures(base)?;
+    let base_lines = base_signed.chars().filter(|c| *c == '\n').count() + 1;
 
     // Compute the hashes for the header.
     let base_signed_hash = hex::encode_upper({
@@ -123,7 +119,7 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
     let result = format!(
         "network-status-diff-version 1\n\
         hash {base_signed_hash} {target_hash}\n\
-        {signature_lno},$d\n\
+        {base_lines},$d\n\
         {ed_diff}"
     );
 
@@ -136,31 +132,41 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
     Ok(result)
 }
 
-/// Returns the first `directory-signature` 1-indexed line number, if any.
-fn find_directory_signature_lno(input: &str) -> Result<usize> {
+/// Splits `input` at the first `directory-signature`.
+fn split_directory_signatures(input: &str) -> Result<(&str, &str)> {
     let parse_input = ParseInput::new(input, "");
     let mut items = ItemStream::new(&parse_input)?;
 
-    // Parse the consensus line by line until the first `directory-signature`.
-    let mut lno = None;
-    while let Some(item) = items.next() {
-        let item = item.map_err(|e| ParseError::new(e, "consdiff", "", items.lno(), None))?;
-        if item.keyword() == DIRECTORY_SIGNATURE_KEYWORD {
-            lno = Some(items.lno());
-            break;
+    // Parse the consensus item by item until the first `directory-signature`.
+    loop {
+        // We only peek in order to get the proper byte offset.
+        let item = items
+            .peek_keyword()
+            .map_err(|e| ParseError::new(e, "consdiff", "", items.lno(), None))?;
+
+        match item {
+            Some(DIRECTORY_SIGNATURE_KEYWORD) => {
+                let offset = items.byte_position();
+                return Ok((&input[..offset], &input[offset..]));
+            }
+            Some(_) => {
+                // Consume the just peeked item.
+                let _ = items.next();
+            }
+            None => {
+                // We are finished.
+                return Err(Error::InvalidInput(ParseError::new(
+                    ErrorProblem::MissingItem {
+                        keyword: DIRECTORY_SIGNATURE_KEYWORD.as_str(),
+                    },
+                    "consdiff",
+                    "",
+                    items.lno(),
+                    None,
+                )));
+            }
         }
     }
-
-    // Return the lno or an error.
-    lno.ok_or(Error::InvalidInput(ParseError::new(
-        ErrorProblem::MissingItem {
-            keyword: DIRECTORY_SIGNATURE_KEYWORD,
-        },
-        "consdiff",
-        "",
-        items.lno(),
-        None,
-    )))
 }
 
 /// Generates an input agnostic ed diff.
