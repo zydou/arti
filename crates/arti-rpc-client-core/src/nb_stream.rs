@@ -397,10 +397,6 @@ impl NonblockingStream {
 
     /// Try to exchange messages with the RPC server.
     ///
-    /// If `try_reading` is true, then we should try reading from the RPC server.
-    /// If `try_writing` is true, then we should try flushing messages to the RPC server
-    /// (if we have any).
-    ///
     /// If the stream proves to be closed, returns [`PollStatus::Closed`].
     ///
     /// If a message is available, returns [`PollStatus::Msg`].
