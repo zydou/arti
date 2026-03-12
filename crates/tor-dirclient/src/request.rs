@@ -572,6 +572,9 @@ impl sealed::RequestableInner for RoutersOwnDescRequest {
 }
 
 /// A request for one or many extra-infos.
+///
+/// <https://spec.torproject.org/dir-spec/general-use-http-urls.html>
+/// (search in page for "extra-info")
 #[derive(Debug, Clone)]
 #[cfg(feature = "routerdesc")]
 pub struct ExtraInfoRequest {
@@ -579,13 +582,20 @@ pub struct ExtraInfoRequest {
     requested_extra_infos: RequestedExtraInfos,
 }
 
-/// Tracks the different extra-info types.
+/// Which extra-info documents to download.
+///
+/// Currently only a subset of the available URLs are supported.
 #[derive(Debug, Clone)]
 #[cfg(feature = "routerdesc")]
+#[non_exhaustive]
 enum RequestedExtraInfos {
-    /// If this is set, we just ask for all the extra-infos.
+    /// Just ask for all the extra-infos.
+    ///
+    /// `http://<hostname>/tor/extra/all`
     AllExtraInfos,
-    /// A list of digests to download.
+    /// Download extra-infos with these SHA-1 digests.
+    ///
+    /// `http://<hostname>/tor/extra/d/...`
     Digests(Vec<ExtraInfoDigest>),
 }
 
@@ -640,8 +650,8 @@ impl sealed::RequestableInner for ExtraInfoRequest {
     }
 
     fn max_response_len(&self) -> usize {
-        // TODO: Pick more principled numbers; those were copied from
-        // RouterDescRequest and doubled.
+        // TODO torspec#392: Pick more principled size limits.
+        // These were copied from the RouterDescRequest impl and doubled.
         match self.requested_extra_infos {
             RequestedExtraInfos::Digests(ref digests) => digests.len().saturating_mul(16 * 1024),
             RequestedExtraInfos::AllExtraInfos => 128 * 1024 * 1024,
