@@ -98,14 +98,14 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
     // Compute the hashes for the header.
     let base_signed_hash = hex::encode_upper({
         let mut h = tor_llcrypto::d::Sha3_256::new();
-        h.update(&base_signed);
+        h.update(base_signed);
         h.update(CONSENSUS_SIGNED_SHA3_256_HASH_TAIL);
         h.finalize()
     });
     let target_hash = hex::encode_upper(tor_llcrypto::d::Sha3_256::digest(target.as_bytes()));
 
     // Compose the result with header.
-    let ed_diff = gen_ed_diff(&base_signed, target).map_err(|e| match e {
+    let ed_diff = gen_ed_diff(base_signed, target).map_err(|e| match e {
         GenEdDiffError::MissingNewLine(lno) => Error::InvalidInput(ParseError::new(
             ErrorProblem::OtherBadDocument("line does not end with '\\n'"),
             "consdiff",
