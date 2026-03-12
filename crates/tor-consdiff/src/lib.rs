@@ -106,6 +106,13 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
 
     // Compose the result with header.
     let ed_diff = gen_ed_diff(&base_signed, target).map_err(|e| match e {
+        GenEdDiffError::MissingNewLine(lno) => Error::InvalidInput(ParseError::new(
+            ErrorProblem::OtherBadDocument("line does not end with '\\n'"),
+            "consdiff",
+            "",
+            lno,
+            None,
+        )),
         GenEdDiffError::ContainsDotLine(lno) => Error::InvalidInput(ParseError::new(
             ErrorProblem::OtherBadDocument("contains dotline"),
             "consdiff",
@@ -172,21 +179,9 @@ fn split_directory_signatures(input: &str) -> Result<(&str, &str)> {
 /// Generates an input agnostic ed diff.
 ///
 /// This function does the general logic of [`gen_cons_diff()`] but works in a
-/// document agnostic fashion, i.e. the input does not have to be a consensus,
-/// but please see the note on line endings below.  It uses [`Diff::compute()`]
-/// for the majority of the work.
-///
-/// # Line Endings
-///
-/// For simplicity, we split our input into lines using [`str::lines()`] and
-/// reconstruct it again by appending `\n` to the splitted lines.  As a
-/// consequence, this means that this function generates invalid diffs if the
-/// inputs contain non-Unix line-endings or ends without a final `\n`.
-/// This is okay because netdoc's are required to follow this format.
+/// document agnostic fashion.
 fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDiffError> {
     let mut result = String::new();
-
-    let tlines = target.lines().collect::<Vec<_>>();
 
     // We use Myers' algorithm as benchmarks have shown that it provides an
     // equal diff size as the ctor one while keeping an acceptable performance.
@@ -197,9 +192,6 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
     // Iterate through every a hunk, with a hunk being a block of changes.
     let hunks = diff.hunks().collect::<Vec<_>>();
     for hunk in hunks.into_iter().rev() {
-        // Stupid imara-diff stores indices as u32 so we convert it here.
-        let range = (hunk.after.start as usize)..(hunk.after.end as usize);
-
         // Format the header.
         let hunk_type = HunkType::determine(&hunk);
         match hunk_type {
@@ -225,14 +217,24 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
         // Format the body.
         match hunk_type {
             HunkType::Append | HunkType::Change => {
+                let range = (hunk.after.start as usize)..(hunk.after.end as usize);
+                let tlines = range
+                    .map(|idx| input.interner[input.after[idx]])
+                    .collect::<Vec<_>>();
+
+                // Check that all lines end with a \n.
+                if let Some(lno) = tlines.iter().position(|l| !l.ends_with("\n")) {
+                    // +1 because 1-indexed.
+                    return Err(GenEdDiffError::MissingNewLine(lno + 1));
+                }
+
                 // Check for lines consisting of a single dot.
-                if let Some(lno) = tlines[range.clone()].iter().position(|l| *l == ".") {
+                if let Some(lno) = tlines.iter().position(|l| l.trim_end() == ".") {
                     // +1 because 1-indexed.
                     return Err(GenEdDiffError::ContainsDotLine(lno + 1));
                 }
 
-                // Do \n after join because there is no trailing \n.
-                writeln!(result, "{}\n.", tlines[range].join("\n"))?;
+                writeln!(result, "{}.", tlines.join(""))?;
             }
             HunkType::Delete => {}
         }
@@ -1183,6 +1185,16 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         assert_eq!(
             gen_ed_diff(base, target).unwrap_err(),
             GenEdDiffError::ContainsDotLine(3),
+        );
+    }
+
+    #[test]
+    fn missing_newline() {
+        let base = "";
+        let target = "foo\nbar\nbaz";
+        assert_eq!(
+            gen_ed_diff(base, target).unwrap_err(),
+            GenEdDiffError::MissingNewLine(3)
         );
     }
 }

@@ -59,6 +59,10 @@ impl From<tor_error::Bug> for Error {
 // ApplyConsDiffError.
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub(crate) enum GenEdDiffError {
+    /// Line does not end with '\n'.
+    #[error("Line {0} does not end with '\\n'")]
+    MissingNewLine(usize),
+
     /// Diff results in the insertion of a line with a single dot, which is not
     /// possible according to the specification.
     #[error("Dotline found at {0}")]
