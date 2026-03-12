@@ -46,4 +46,7 @@ pub mod routerdesc;
 pub mod routerdesc {
     /// The digest of a RouterDesc document, as reported in a NS consensus.
     pub type RdDigest = [u8; 20];
+
+    /// The digest of an ExtraInfo document, as reported in a RouterDesc.
+    pub type ExtraInfoDigest = [u8; 20];
 }
