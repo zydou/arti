@@ -85,12 +85,12 @@ use std::{
 use crate::{
     UserTag,
     conn::AnyResponse,
+    ll_conn::{BlockingConnection, NonblockingConnection},
     msgs::{
         AnyRequestId, ObjectId,
         request::{IdGenerator, ValidatedRequest},
         response::ValidatedResponse,
     },
-    nb_stream::{BlockingConnection, NonblockingConnection},
 };
 
 use super::{ProtoError, ShutdownError};
@@ -412,7 +412,7 @@ pub struct RpcConn {
     pub(super) receiver: Arc<Receiver>,
 
     /// A writer that we use to queue requests to be sent back to Arti.
-    writer: crate::nb_stream::WriteHandle,
+    writer: crate::ll_conn::WriteHandle,
 
     /// If set, we are authenticated and we have negotiated a session that has
     /// this ObjectID.
@@ -485,7 +485,7 @@ impl RpcConn {
     /// See caveats on [`RpcConnBuilder::connect_polling`](crate::RpcConnBuilder::connect_polling).
     pub(crate) fn construct_rpc_poll(
         &mut self,
-        event_loop: Box<dyn crate::nb_stream::EventLoop>,
+        event_loop: Box<dyn crate::ll_conn::EventLoop>,
     ) -> Option<RpcPoll> {
         let mut state = self.receiver.state.lock().expect("Lock poisoned");
         // TODO nb: enforce that nobody else is holding the state?  Return an error?
@@ -880,7 +880,7 @@ impl RpcPoll {
     /// This is used in conjunction with `EventLoop` and/or `wants_to_write`;
     /// see [the `EventLoop` documentation] for details.
     pub fn poll(&mut self) -> Result<Result<(UserTag, AnyResponse), WouldBlock>, ProtoError> {
-        use crate::nb_stream::PollStatus;
+        use crate::ll_conn::PollStatus;
         // We try reading _and_ writing regardless; it won't hurt anything.
         loop {
             let r = self.stream.interact_once();

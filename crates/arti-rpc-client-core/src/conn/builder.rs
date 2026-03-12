@@ -11,8 +11,8 @@ use tor_rpc_connect::{
 };
 
 use crate::{
-    RpcConn, RpcPoll, conn::ConnectError, msgs::response::UnparsedResponse,
-    nb_stream::BlockingConnection,
+    RpcConn, RpcPoll, conn::ConnectError, ll_conn::BlockingConnection,
+    msgs::response::UnparsedResponse,
 };
 
 use super::ConnectFailure;
@@ -419,7 +419,7 @@ fn try_connect(
         parsed.resolve(resolver)?.connect(mistrust)?;
     let wrap_io_err = |e| tor_rpc_connect::ConnectError::Io(Arc::new(e));
 
-    let stream: Box<dyn crate::nb_stream::MioStream> = match stream {
+    let stream: Box<dyn crate::ll_conn::MioStream> = match stream {
         S::Tcp(tcp_stream) => {
             tcp_stream.set_nonblocking(true).map_err(wrap_io_err)?;
             Box::new(mio::net::TcpStream::from_std(tcp_stream))

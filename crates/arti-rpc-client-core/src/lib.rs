@@ -51,8 +51,8 @@
 mod conn;
 #[cfg(feature = "ffi")]
 pub mod ffi;
+mod ll_conn;
 mod msgs;
-mod nb_stream;
 #[macro_use]
 mod util;
 #[cfg(test)]
@@ -62,5 +62,5 @@ pub use conn::{
     BuilderError, ConnPtDescription, ConnectError, ConnectFailure, ProtoError, RpcConn,
     RpcConnBuilder, RpcPoll, StreamError, UserTag, WouldBlock,
 };
+pub use ll_conn::{EventLoop, SendRequestError};
 pub use msgs::{AnyRequestId, ObjectId, request::InvalidRequestError, response::RpcError};
-pub use nb_stream::{EventLoop, SendRequestError};

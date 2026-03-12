@@ -753,8 +753,8 @@ mod test {
     use tor_basic_utils::{RngExt as _, test_rng::testing_rng};
 
     use crate::{
+        ll_conn::BlockingConnection,
         msgs::request::{JsonMap, Request, ValidatedRequest},
-        nb_stream::BlockingConnection,
     };
 
     use super::*;

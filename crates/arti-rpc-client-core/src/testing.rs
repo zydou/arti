@@ -2,7 +2,7 @@
 
 use std::io;
 
-use crate::nb_stream::MioStream;
+use crate::ll_conn::MioStream;
 
 /// The type of blocking stream returned by `construct_socketpair`.
 #[cfg(not(windows))]
