@@ -31,7 +31,7 @@ tor-cert = { path = "../tor-cert", version = "0.40.0", features = ["encode"] }
 tor-checkable = { path = "../tor-checkable", version = "0.40.0" }
 tor-error = { path = "../tor-error", version = "0.40.0" }
 tor-key-forge = { path = "../tor-key-forge", version = "0.40.0" }
-tor-keymgr = { path = "../tor-keymgr", version = "0.40.0" }
+tor-keymgr = { path = "../tor-keymgr", version = "0.40.0", features = ["experimental-api"] }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.40.0" }
 tor-persist = { path = "../tor-persist", version = "0.40.0" }
 

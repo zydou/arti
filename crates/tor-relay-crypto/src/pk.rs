@@ -12,7 +12,7 @@ use tor_error::Bug;
 use tor_key_forge::{define_ed25519_keypair, define_rsa_keypair};
 use tor_keymgr::{
     InvalidKeyPathComponentValue, KeySpecifier, KeySpecifierComponent,
-    derive_deftly_template_KeySpecifier,
+    derive_deftly_template_CertSpecifier, derive_deftly_template_KeySpecifier,
 };
 use tor_persist::slug::{Slug, timestamp::Iso8601TimeSlug};
 
@@ -105,10 +105,6 @@ impl RelaySigningKeypairSpecifier {
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relaysign_ed")]
 #[deftly(summary = "Public part of the relay medium-term signing keypair")]
-#[deftly(has_certificate(
-    certificate = "RelaySigningKeyCertSpecifier",
-    signed_with = "RelayIdentityKeypairSpecifier",
-))]
 #[deftly(keypair_specifier = "RelaySigningKeypairSpecifier")]
 pub struct RelaySigningPublicKeySpecifier {
     /// The expiration time of this key.
@@ -133,6 +129,17 @@ impl From<&RelaySigningPublicKeySpecifier> for RelaySigningKeypairSpecifier {
     fn from(public_key_specifier: &RelaySigningPublicKeySpecifier) -> RelaySigningKeypairSpecifier {
         RelaySigningKeypairSpecifier::new(public_key_specifier.valid_until)
     }
+}
+
+/// Certificate specifier for the [`RelaySigningPublicKeySpecifier`] certificate.
+///
+/// Represents `KP_relaysign_ed` signed by the `KS_relayid_ed` identity key.
+#[derive(Deftly, Constructor)]
+#[derive_deftly(CertSpecifier)]
+pub struct RelaySigningKeyCertSpecifier {
+    /// The subject key of this certificate.
+    #[deftly(subject)]
+    subject: RelaySigningPublicKeySpecifier,
 }
 
 /// The approximate time when a [`RelaySigningKeypairSpecifier`] was generated.
@@ -231,8 +238,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    use tor_keymgr::KeyCertificateSpecifier;
     use tor_keymgr::test_utils::check_key_specifier;
+    use tor_keymgr::{CertSpecifierPattern, KeyCertificateSpecifier, KeyPathPattern};
 
     #[test]
     fn relay_signing_key_specifiers() {
@@ -254,24 +261,20 @@ mod test {
         );
 
         check_key_specifier(&pubkey_spec, "relay/kp_relaysign_ed+19700101000000");
-        let relayid_spec = RelayIdentityKeypairSpecifier::new();
         let cert_spec = RelaySigningKeyCertSpecifier {
-            signed_with: Some(relayid_spec),
             subject: pubkey_spec,
         };
 
         assert_eq!(
-            cert_spec
-                .signing_key_specifier()
-                .unwrap()
-                .arti_path()
-                .unwrap(),
-            relayid_spec.arti_path().unwrap()
+            cert_spec.subject_key_specifier().arti_path().unwrap(),
+            pubkey_spec.arti_path().unwrap()
         );
 
         assert_eq!(
-            cert_spec.subject_key_specifier().arti_path().unwrap(),
-            pubkey_spec.arti_path().unwrap()
+            RelaySigningKeyCertSpecifierPattern::new_any()
+                .arti_pattern()
+                .unwrap(),
+            KeyPathPattern::Arti("relay/kp_relaysign_ed+*".to_string())
         );
     }
 

@@ -186,10 +186,12 @@ pub(crate) mod ssh_keys {
 /// A module exporting a key specifier used for testing.
 #[cfg(test)]
 mod specifier {
-    use crate::{
-        ArtiPath, ArtiPathUnavailableError, CTorPath, KeyCertificateSpecifier, KeySpecifier,
-        KeySpecifierComponent,
-    };
+    #[cfg(feature = "experimental-api")]
+    use crate::key_specifier::derive::derive_deftly_template_CertSpecifier;
+    use crate::key_specifier::derive::derive_deftly_template_KeySpecifier;
+    use crate::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
+
+    use derive_deftly::Deftly;
 
     /// A key specifier path.
     pub(crate) const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
@@ -240,34 +242,25 @@ mod specifier {
         }
     }
 
+    /// A test certificate specifier, for subject keys of type TestSpecifier.
+    #[derive(Deftly)]
+    #[derive_deftly(KeySpecifier)]
+    #[deftly(prefix = "test")]
+    #[deftly(role = "simple_key")]
+    #[deftly(summary = "A test key specifier")]
+    pub(crate) struct TestDerivedKeySpecifier;
+
     /// A test certificate specifier.
-    pub(crate) struct TestCertSpecifier<SUBJ: KeySpecifier, SIGN: KeySpecifier> {
+    #[derive(Deftly)]
+    #[derive_deftly(CertSpecifier)]
+    #[cfg(feature = "experimental-api")]
+    pub(crate) struct TestCertSpecifier {
         /// The key specifier of the subject key.
-        pub(crate) subject_key_spec: SUBJ,
-        /// The key specifier of the signing key.
-        pub(crate) signing_key_spec: SIGN,
-        /// A list of denotators for distinguishing certs of this type.
-        pub(crate) denotator: Vec<String>,
-    }
-
-    impl<SUBJ: KeySpecifier, SIGN: KeySpecifier> KeyCertificateSpecifier
-        for TestCertSpecifier<SUBJ, SIGN>
-    {
-        fn cert_denotators(&self) -> Vec<&dyn KeySpecifierComponent> {
-            self.denotator
-                .iter()
-                .map(|s| s as &dyn KeySpecifierComponent)
-                .collect()
-        }
-
-        fn signing_key_specifier(&self) -> Option<&dyn KeySpecifier> {
-            Some(&self.signing_key_spec)
-        }
-
-        /// The key specifier of the subject key.
-        fn subject_key_specifier(&self) -> &dyn KeySpecifier {
-            &self.subject_key_spec
-        }
+        #[deftly(subject)]
+        pub(crate) subject_key_spec: TestDerivedKeySpecifier,
+        /// A denotators for distinguishing certs of this type.
+        #[deftly(denotator)]
+        pub(crate) denotator: String,
     }
 }
 

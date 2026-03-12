@@ -4,7 +4,7 @@
 
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    ArtiPath, BoxedKeystore, KeyCertificateSpecifier, KeyPath, KeyPathInfo, KeyPathInfoExtractor,
+    ArtiPath, BoxedKeystore, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoExtractor,
     KeyPathPattern, KeySpecifier, KeystoreCorruptionError, KeystoreEntryResult, KeystoreId,
     KeystoreSelector, Result,
 };
@@ -16,6 +16,9 @@ use tor_error::{bad_api_usage, internal, into_bad_api_usage};
 use tor_key_forge::{
     ItemType, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey,
 };
+
+#[cfg(feature = "experimental-api")]
+use crate::KeyCertificateSpecifier;
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
@@ -200,6 +203,45 @@ impl KeyMgr {
         let selector = entry.keystore_id().into();
         let store = self.select_keystore(&selector)?;
         self.get_from_store(entry.key_path(), entry.key_type(), [store].into_iter())
+    }
+
+    /// Retrieve the specified keystore certificate entry and the corresponding
+    /// subject and signing keys, deserializing the subject key as `K::Key`,
+    /// the cert as `C::Cert`, and the signing key as `C::SigningKey`.
+    ///
+    /// The `S` type parameter is the [`KeyCertificateSpecifier`] of the certificate.
+    ///
+    /// The key returned is retrieved from the key store specified in the [`KeystoreEntry`].
+    ///
+    /// Returns `Ok(None)` if the key store does not contain the requested entry.
+    ///
+    /// Returns an error if the item type of the [`KeystoreEntry`] does not match `C::item_type()`,
+    /// or if the certificate is not valid according to [`ToEncodableCert::validate`],
+    /// or if the [`ArtiPath`] of the entry cannot be converted to a certificate specifier
+    /// of type `S`.
+    #[cfg(feature = "experimental-api")]
+    pub fn get_cert_entry<
+        S: KeyCertificateSpecifier + for<'a> TryFrom<&'a KeyPath, Error = KeyPathError>,
+        K: ToEncodableKey,
+        C: ToEncodableCert<K>,
+    >(
+        &self,
+        entry: &KeystoreEntry,
+        signing_key_spec: &dyn KeySpecifier,
+    ) -> Result<Option<C>> {
+        let selector = entry.keystore_id().into();
+        let store = self.select_keystore(&selector)?;
+        let cert_spec = S::try_from(entry.key_path())
+            .map_err(into_bad_api_usage!("wrong cert specifier for entry?!"))?;
+        let subject_key_spec = cert_spec.subject_key_specifier();
+
+        self.get_cert_from_store(
+            entry.key_path(),
+            entry.key_type(),
+            signing_key_spec,
+            subject_key_spec,
+            [store].into_iter(),
+        )
     }
 
     /// Read the key identified by `key_spec`.
@@ -514,6 +556,33 @@ impl KeyMgr {
         Ok(None)
     }
 
+    /// Attempt to retrieve a certificate from one of the specified `stores`.
+    #[cfg(feature = "experimental-api")]
+    fn get_cert_from_store<'a, K: ToEncodableKey, C: ToEncodableCert<K>>(
+        &self,
+        cert_spec: &dyn KeySpecifier,
+        cert_type: &KeystoreItemType,
+        signing_cert_spec: &dyn KeySpecifier,
+        subject_cert_spec: &dyn KeySpecifier,
+        stores: impl Iterator<Item = &'a BoxedKeystore>,
+    ) -> Result<Option<C>> {
+        let Some(cert) = self.get_from_store_raw::<C::ParsedCert>(cert_spec, cert_type, stores)?
+        else {
+            return Ok(None);
+        };
+
+        // Get the subject key...
+        let Some(subject) =
+            self.get_from_store::<K>(subject_cert_spec, &K::Key::item_type(), self.all_stores())?
+        else {
+            return Ok(None);
+        };
+        let signed_with = self.get_cert_signing_key::<K, C>(signing_cert_spec)?;
+        let cert = C::validate(cert, &subject, &signed_with)?;
+
+        Ok(Some(cert))
+    }
+
     /// Attempt to retrieve a key from one of the specified `stores`.
     ///
     /// See [`KeyMgr::get`] for more details.
@@ -549,6 +618,7 @@ impl KeyMgr {
     pub fn get_key_and_cert<K, C>(
         &self,
         spec: &dyn KeyCertificateSpecifier,
+        signing_key_spec: &dyn KeySpecifier,
     ) -> Result<Option<(K, C)>>
     where
         K: ToEncodableKey,
@@ -576,7 +646,7 @@ impl KeyMgr {
         };
 
         // Finally, get the signing key and validate the cert
-        let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
+        let signed_with = self.get_cert_signing_key::<K, C>(signing_key_spec)?;
         let cert = C::validate(cert, &key, &signed_with)?;
 
         Ok(Some((key, cert)))
@@ -621,6 +691,7 @@ impl KeyMgr {
     pub fn get_or_generate_key_and_cert<K, C>(
         &self,
         spec: &dyn KeyCertificateSpecifier,
+        signing_key_spec: &dyn KeySpecifier,
         make_certificate: impl FnOnce(&K, &<C as ToEncodableCert<K>>::SigningKey) -> C,
         selector: KeystoreSelector,
         rng: &mut dyn KeygenRng,
@@ -660,7 +731,7 @@ impl KeyMgr {
             _ => self.generate(subject_key_spec, selector, rng, false)?,
         };
 
-        let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
+        let signed_with = self.get_cert_signing_key::<K, C>(signing_key_spec)?;
         let cert = match maybe_cert {
             Some(cert) => C::validate(cert, &subject_key, &signed_with)?,
             None => {
@@ -708,19 +779,12 @@ impl KeyMgr {
     #[cfg(feature = "experimental-api")]
     fn get_cert_signing_key<K, C>(
         &self,
-        spec: &dyn KeyCertificateSpecifier,
+        signing_key_spec: &dyn KeySpecifier,
     ) -> Result<C::SigningKey>
     where
         K: ToEncodableKey,
         C: ToEncodableCert<K>,
     {
-        let Some(signing_key_spec) = spec.signing_key_specifier() else {
-            return Err(bad_api_usage!(
-                "signing key specifier is None, but external signing key was not provided?"
-            )
-            .into());
-        };
-
         let Some(signing_key) = self.get_from_store::<C::SigningKey>(
             signing_key_spec,
             &<C::SigningKey as ToEncodableKey>::Key::item_type(),
@@ -788,12 +852,20 @@ mod tests {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cert::CertifiedKey;
     use tor_cert::Ed25519Cert;
+    use tor_checkable::TimeValidityError;
     use tor_error::{ErrorKind, HasKind};
     use tor_key_forge::{
-        CertData, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
+        CertData, CertType, EncodableItem, EncodedEd25519Cert, ErasedKey, InvalidCertError,
+        KeyType, KeystoreItem,
     };
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
     use tor_llcrypto::rng::FakeEntropicRng;
+
+    #[cfg(feature = "experimental-api")]
+    use {
+        crate::CertSpecifierPattern,
+        crate::test_utils::{TestCertSpecifier, TestCertSpecifierPattern, TestDerivedKeySpecifier},
+    };
 
     /// Metadata structure for tracking key operations in tests.
     #[derive(Clone, Debug, PartialEq)]
@@ -895,9 +967,25 @@ mod tests {
         meta: ItemMetadata,
     }
 
+    /// The type of certificate stored in the test key stores.
+    struct TestCert(TestItem);
+
+    impl ItemType for TestCert {
+        fn item_type() -> KeystoreItemType
+        where
+            Self: Sized,
+        {
+            CertType::Ed25519TorCert.into()
+        }
+    }
+
     /// A "certificate" used for testing purposes.
     #[derive(Clone, Debug)]
     struct AlwaysValidCert(TestItem);
+
+    /// An expired "certificate" used for testing purposes.
+    #[derive(Clone, Debug)]
+    struct AlwaysExpiredCert(TestItem);
 
     /// The corresponding fake public key type.
     #[derive(Clone, Debug)]
@@ -1003,7 +1091,7 @@ mod tests {
     }
 
     impl ToEncodableCert<TestItem> for AlwaysValidCert {
-        type ParsedCert = TestItem;
+        type ParsedCert = TestCert;
         type EncodableCert = TestItem;
         type SigningKey = TestItem;
 
@@ -1013,7 +1101,28 @@ mod tests {
             _signed_with: &Self::SigningKey,
         ) -> StdResult<Self, InvalidCertError> {
             // AlwaysValidCert is always valid
-            Ok(Self(cert))
+            Ok(Self(cert.0))
+        }
+
+        /// Convert this cert to a type that implements [`EncodableKey`].
+        fn to_encodable_cert(self) -> Self::EncodableCert {
+            self.0
+        }
+    }
+
+    impl ToEncodableCert<TestItem> for AlwaysExpiredCert {
+        type ParsedCert = TestCert;
+        type EncodableCert = TestItem;
+        type SigningKey = TestItem;
+
+        fn validate(
+            _cert: Self::ParsedCert,
+            _subject: &TestItem,
+            _signed_with: &Self::SigningKey,
+        ) -> StdResult<Self, InvalidCertError> {
+            Err(InvalidCertError::TimeValidity(TimeValidityError::Expired(
+                Duration::from_secs(60),
+            )))
         }
 
         /// Convert this cert to a type that implements [`EncodableKey`].
@@ -1092,7 +1201,19 @@ mod tests {
                     if arti_path == &key_spec && ty == item_type {
                         let mut k = k.clone();
                         k.meta.set_retrieved_from(self.id().clone());
-                        return Some(Box::new(k) as Box<dyn ItemType>);
+
+                        match item_type {
+                            KeystoreItemType::Key(_) => {
+                                return Some(Box::new(k) as Box<dyn ItemType>);
+                            }
+                            KeystoreItemType::Cert(_) => {
+                                // Hack: the KeyMgr code will want to downcast cert types
+                                // to C::ParsedCert, so we need to avoid returning the bare
+                                // TestItem here
+                                return Some(Box::new(TestCert(k)) as Box<dyn ItemType>);
+                            }
+                            _ => panic!("unknown item type?!"),
+                        }
                     }
                 }
                 None
@@ -1859,6 +1980,38 @@ mod tests {
         No,
     }
 
+    fn make_certificate(subject_key: &TestItem, signed_with: &TestItem) -> AlwaysValidCert {
+        let subject_id = subject_key.meta.as_key().unwrap().item_id.clone();
+        let signing_id = signed_with.meta.as_key().unwrap().item_id.clone();
+
+        let meta = ItemMetadata::Cert(CertMetadata {
+            subject_key_id: subject_id,
+            signing_key_id: signing_id,
+            retrieved_from: None,
+            is_generated: true,
+        });
+
+        // Note: this is not really a cert for `subject_key` signed with the `signed_with`
+        // key!. The two are `TestItem`s and not keys, so we can't really generate a real
+        // cert from them. We can, however, pretend we did, for testing purposes.
+        // Eventually we might want to rewrite these tests to use real items
+        // (like the `ArtiNativeKeystore` tests)
+        let mut rng = FakeEntropicRng(testing_rng());
+        let keypair = ed25519::Keypair::generate(&mut rng);
+        let encoded_cert = Ed25519Cert::constructor()
+            .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
+            .expiration(SystemTime::now() + Duration::from_secs(180))
+            .signing_key(keypair.public_key().into())
+            .cert_key(CertifiedKey::Ed25519(keypair.public_key().into()))
+            .encode_and_sign(&keypair)
+            .unwrap();
+        let test_cert = CertData::TorEd25519Cert(encoded_cert);
+        AlwaysValidCert(TestItem {
+            item: KeystoreItem::Cert(test_cert),
+            meta,
+        })
+    }
+
     #[cfg(feature = "experimental-api")]
     macro_rules! run_certificate_test {
         (
@@ -1878,9 +2031,8 @@ mod tests {
             let mgr = builder.build().unwrap();
 
             let spec = crate::test_utils::TestCertSpecifier {
-                subject_key_spec: TestKeySpecifier1,
-                signing_key_spec: TestKeySpecifier2,
-                denotator: vec!["foo".into()],
+                subject_key_spec: TestDerivedKeySpecifier,
+                denotator: "foo".into(),
             };
 
             if $generate_subject_key == Yes {
@@ -1905,41 +2057,12 @@ mod tests {
                     .unwrap();
             }
 
-            let make_certificate = move |subject_key: &TestItem, signed_with: &TestItem| {
-                let subject_id = subject_key.meta.as_key().unwrap().item_id.clone();
-                let signing_id = signed_with.meta.as_key().unwrap().item_id.clone();
 
-                let meta = ItemMetadata::Cert(CertMetadata {
-                    subject_key_id: subject_id,
-                    signing_key_id: signing_id,
-                    retrieved_from: None,
-                    is_generated: true,
-                });
-
-                // Note: this is not really a cert for `subject_key` signed with the `signed_with`
-                // key!. The two are `TestItem`s and not keys, so we can't really generate a real
-                // cert from them. We can, however, pretend we did, for testing purposes.
-                // Eventually we might want to rewrite these tests to use real items
-                // (like the `ArtiNativeKeystore` tests)
-                let mut rng = FakeEntropicRng(testing_rng());
-                let keypair = ed25519::Keypair::generate(&mut rng);
-                let encoded_cert = Ed25519Cert::constructor()
-                    .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
-                    .expiration(SystemTime::now() + Duration::from_secs(180))
-                    .signing_key(keypair.public_key().into())
-                    .cert_key(CertifiedKey::Ed25519(keypair.public_key().into()))
-                    .encode_and_sign(&keypair)
-                    .unwrap();
-                let test_cert = CertData::TorEd25519Cert(encoded_cert);
-                AlwaysValidCert(TestItem {
-                    item: KeystoreItem::Cert(test_cert),
-                    meta,
-                })
-            };
-
+            let signing_key_spec = TestKeySpecifier2;
             let res = mgr
                 .get_or_generate_key_and_cert::<TestItem, AlwaysValidCert>(
                     &spec,
+                    &signing_key_spec,
                     &make_certificate,
                     KeystoreSelector::Primary,
                     &mut rng,
@@ -2008,6 +2131,138 @@ mod tests {
         run_certificate_test!(
             generate_subject_key = Yes,
             generate_signing_key = Yes,
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-api")]
+    fn get_cert_entry() {
+        let mut rng = FakeEntropicRng(testing_rng());
+        let builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
+        let mgr = builder.build().unwrap();
+
+        // Generate the subject key
+        let _ = mgr
+            .generate::<TestItem>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Primary,
+                &mut rng,
+                false,
+            )
+            .unwrap();
+
+        // Generate the signing key
+        let _ = mgr
+            .generate::<TestItem>(
+                &TestKeySpecifier2,
+                KeystoreSelector::Primary,
+                &mut rng,
+                false,
+            )
+            .unwrap();
+
+        // Generate multiple test certificates for the same subject key
+        for cert_deno in 0..10 {
+            let cert_spec = TestCertSpecifier {
+                subject_key_spec: TestDerivedKeySpecifier,
+                denotator: cert_deno.to_string(),
+            };
+
+            let res = mgr.get_or_generate_key_and_cert::<TestItem, AlwaysValidCert>(
+                &cert_spec,
+                &TestKeySpecifier2,
+                &make_certificate,
+                KeystoreSelector::Primary,
+                &mut rng,
+            );
+
+            assert!(res.is_ok());
+        }
+
+        // Time to list all certs and retrieve them
+        let any_pat = TestCertSpecifierPattern::new_any().arti_pattern().unwrap();
+
+        // Ensure the pattern is what we expect it to be
+        assert_eq!(
+            any_pat,
+            KeyPathPattern::Arti("test/simple_key+@*".to_string())
+        );
+        let certs = mgr.list_matching(&any_pat).unwrap();
+
+        // We generated 10 certs, so there should be 10 matching entries
+        assert_eq!(certs.len(), 10);
+
+        // Ensure we collected all the expected paths
+        let all_paths = certs
+            .iter()
+            .map(|entry| entry.key_path().arti().unwrap().as_str().to_string())
+            .sorted()
+            .collect::<Vec<_>>();
+
+        let expected_paths = (0..10)
+            .map(|i| format!("test/simple_key+@{i}"))
+            .collect::<Vec<_>>();
+        assert_eq!(all_paths, expected_paths);
+
+        for entry in certs {
+            let always_valid_cert = mgr
+                .get_cert_entry::<TestCertSpecifier, TestItem, AlwaysValidCert>(
+                    &entry,
+                    &TestKeySpecifier2,
+                )
+                .unwrap();
+
+            // Check that the cert was found...
+            assert!(always_valid_cert.is_some());
+        }
+
+        /// A denotator for our expired cert specifier.
+        const EXPIRED_DENO: &str = "expired";
+
+        // Generate an invalid test certificate
+        let cert_spec = TestCertSpecifier {
+            subject_key_spec: TestDerivedKeySpecifier,
+            denotator: EXPIRED_DENO.to_string(),
+        };
+
+        // Dummy metadata
+        let meta = CertMetadata {
+            subject_key_id: "foo".to_string(),
+            signing_key_id: "bar".to_string(),
+            retrieved_from: None,
+            is_generated: false,
+        };
+        let test_cert =
+            CertData::TorEd25519Cert(EncodedEd25519Cert::dangerously_from_bytes(b"foobar"));
+        let cert = AlwaysExpiredCert(TestItem {
+            item: KeystoreItem::Cert(test_cert),
+            meta: ItemMetadata::Cert(meta),
+        });
+
+        let res = mgr.insert_cert::<TestItem, AlwaysExpiredCert>(
+            cert,
+            &cert_spec,
+            KeystoreSelector::Primary,
+        );
+        assert!(res.is_ok());
+
+        // Build a pattern for matching *only* the expired cert
+        let pat = KeyPathPattern::Arti(format!("test/simple_key+@{EXPIRED_DENO}"));
+        let certs = mgr.list_matching(&pat).unwrap();
+        assert_eq!(certs.len(), 1);
+        let entry = &certs[0];
+
+        let err = mgr
+            .get_cert_entry::<TestCertSpecifier, TestItem, AlwaysExpiredCert>(
+                entry,
+                &TestKeySpecifier2,
+            )
+            .unwrap_err();
+
+        // Can't retrieve the cert because it's expired!
+        assert!(
+            matches!(err, Error::InvalidCert(InvalidCertError::TimeValidity(_))),
+            "{err:?}"
         );
     }
 }
