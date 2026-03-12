@@ -43,6 +43,9 @@ use crate::{FamilyRules, Relay, SubnetConfig};
 /// Most callers should avoid using this structure;
 /// they should instead call higher-level functions
 /// like those in the `tor-relay-selection` crate.
+///
+/// For flags, see <https://spec.torproject.org/dir-spec/assigning-flags-vote.html>.
+
 #[derive(Clone)]
 pub struct RelayDetails<'a>(pub(crate) &'a super::Relay<'a>);
 
