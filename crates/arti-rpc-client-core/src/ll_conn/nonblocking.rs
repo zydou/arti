@@ -158,12 +158,12 @@ impl NonblockingConnection {
         self.stream = s.remove_mio();
     }
 
-    /// Return a new [`WriteHandle`] that can be used to queue messages to be sent via this stream.
+    /// Return a new [`WriteHandle`] that can be used to queue messages to be sent via this connection.
     pub(crate) fn writer(&self) -> WriteHandle {
         self.write_handle.clone()
     }
 
-    /// Try to return an OS-level handle for use with this stream.
+    /// Try to return an OS-level handle for use with this connection.
     ///
     /// This is an fd on unix and a SOCKET on windows.
     pub(crate) fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>> {
@@ -611,45 +611,45 @@ mod test {
     #[test]
     fn read_msg() {
         let test_stream = TestStream::default();
-        let mut stream = NonblockingConnection::new(
+        let mut nbconn = NonblockingConnection::new(
             Box::new(TestWaker::default()),
             Box::new(test_stream.clone()),
         );
 
         // Try interacting with nothing to do.
-        let r = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
 
         // Give it a partial message.
         test_stream.push(b"Hello world");
-        let r = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
 
         // Finish the message.
         test_stream.push(b"\nAnd many happy");
-        let r = stream.interact_once();
+        let r = nbconn.interact_once();
         assert_eq!(r.unwrap().unwrap_msg().as_str(), "Hello world\n");
 
         // Then it should block...
-        let r = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
 
         // Finish two more messages, and leave a partial message.
         test_stream.push(b" returns\nof the day\nto you!");
-        let r = stream.interact_once();
+        let r = nbconn.interact_once();
         assert_eq!(r.unwrap().unwrap_msg().as_str(), "And many happy returns\n");
-        let r = stream.interact_once();
+        let r = nbconn.interact_once();
         assert_eq!(r.unwrap().unwrap_msg().as_str(), "of the day\n");
     }
 
     #[test]
     fn write_msg() {
         let test_stream = TestStream::default();
-        let mut stream = NonblockingConnection::new(
+        let mut nbconn = NonblockingConnection::new(
             Box::new(TestWaker::default()),
             Box::new(test_stream.clone()),
         );
-        let writer = stream.writer();
+        let writer = nbconn.writer();
 
         // Make sure we can write in a nonblocking way...
         let req1 = r#"{"id":7,
@@ -666,8 +666,8 @@ mod test {
         }
 
         // Now interact. This will cause the whole request to get flushed.
-        let r = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
 
         let m = test_stream.drain(v.as_ref().len());
         assert_eq!(m, v.as_ref().as_bytes());
@@ -678,15 +678,15 @@ mod test {
         }
         writer.send_valid(&v).unwrap();
 
-        let r: Result<PollStatus, io::Error> = stream.interact_once();
-        assert_wants_rw(&stream, &r);
+        let r: Result<PollStatus, io::Error> = nbconn.interact_once();
+        assert_wants_rw(&nbconn, &r);
         {
             assert_eq!(test_stream.inner.lock().unwrap().received.len(), 32);
             // Make the capacity unlimited.
             test_stream.inner.lock().unwrap().receive_capacity = None;
         }
-        let r: Result<PollStatus, io::Error> = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r: Result<PollStatus, io::Error> = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
         let m = test_stream.drain(v.as_ref().len());
         assert_eq!(m, v.as_ref().as_bytes());
     }

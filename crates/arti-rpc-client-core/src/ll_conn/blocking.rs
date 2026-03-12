@@ -11,7 +11,7 @@ use std::io;
 use super::nonblocking::{EventLoop, NonblockingConnection, PollStatus, WriteHandle};
 use super::{MioStream, retry_eintr};
 
-/// An IO stream to Arti, along with any supporting logic necessary to check it for readiness.
+/// An IO connection to Arti, along with any supporting logic necessary to check it for readiness.
 ///
 /// Internally, this uses `mio` along with a [`NonblockingConnection`] to check for events.
 ///
@@ -56,7 +56,7 @@ pub(crate) struct BlockingConnection {
     /// before it can be dropped.
     ///
     /// We ensure these properties are obeyed as follows:
-    ///  - We hold the stream via `stream`, the NonblockingConnection member of this struct.
+    ///  - We hold the stream via `conn`, the NonblockingConnection member of this struct.
     ///    We do not let anybody outside this module have the stream or the `Poll`.
     ///  - We declare a Drop implementation that deregisters the stream.
     ///    This method ensures that the stream is dropped before it is closed.
@@ -65,14 +65,14 @@ pub(crate) struct BlockingConnection {
     /// A small buffer to receive IO readiness events.
     events: mio::Events,
 
-    /// The underlying stream.
+    /// The underlying NonblockingConnection.
     ///
-    /// Invariant: `stream.stream` is a [`MioStream`], so [`Stream::as_mio_stream`] will return
+    /// Invariant: `nbconn.stream` is a [`MioStream`], so [`Stream::as_mio_source`] will return
     /// Some when we call it.
     ///
     /// This is None only if we have called `into_nonblocking()` or `drop()`.
     /// We store this in an Option so that we can move it out of this object.
-    stream: Option<NonblockingConnection>,
+    nbconn: Option<NonblockingConnection>,
 }
 
 /// A `mio` token corresponding to the Waker we use to tell the interactor about new writes.
@@ -97,18 +97,18 @@ impl BlockingConnection {
         let poll = mio::Poll::new()?;
         let waker = mio::Waker::new(poll.registry(), WAKE_TOKEN)?;
 
-        let stream = NonblockingConnection::new(Box::new(MioWaker(waker)), stream);
+        let nbconn = NonblockingConnection::new(Box::new(MioWaker(waker)), stream);
 
         let mut cio = Self {
             poll,
             events: mio::Events::with_capacity(4),
-            stream: Some(stream),
+            nbconn: Some(nbconn),
         };
 
         // We register the stream here, since we want to use it exclusively with `reregister`
         // later on.  We do not deregister the stream until `Drop::drop` is called.
         cio.poll.registry().register(
-            cio.stream
+            cio.nbconn
                 .as_mut()
                 .expect("Logic error: stream not present")
                 .as_mio_source()
@@ -122,7 +122,7 @@ impl BlockingConnection {
 
     /// Return a new [`WriteHandle`] that can be used to queue messages to be sent via this stream.
     pub(crate) fn writer(&self) -> WriteHandle {
-        self.stream
+        self.nbconn
             .as_ref()
             .expect("logic error: stream not present")
             .writer()
@@ -146,13 +146,13 @@ impl BlockingConnection {
         // Should we try to read and write? Start out by assuming "yes".
 
         loop {
-            let stream = self
-                .stream
+            let nbconn = self
+                .nbconn
                 .as_mut()
-                .expect("logic error: stream not present!");
+                .expect("logic error: connection not present!");
 
             // Try interacting with the underlying stream.
-            match stream.interact_once()? {
+            match nbconn.interact_once()? {
                 PollStatus::Closed => return Ok(None),
                 PollStatus::Msg(msg) => return Ok(Some(msg)),
                 PollStatus::WouldBlock => {}
@@ -167,14 +167,14 @@ impl BlockingConnection {
             // If `wantio.want_write()` is false, Whenever it becomes true,
             // `MioWaker` will be invoked.  That will cause the
             // self.poll.poll() to return, and the loop to repeat.
-            let want_write = stream.wants_to_write();
+            let want_write = nbconn.wants_to_write();
             let interests = if want_write {
                 Interest::READABLE | Interest::WRITABLE
             } else {
                 Interest::READABLE
             };
             self.poll.registry().reregister(
-                stream
+                nbconn
                     .as_mio_source()
                     .expect("logic error: not a mio stream!"),
                 STREAM_TOKEN,
@@ -209,15 +209,15 @@ impl BlockingConnection {
     /// After this method is called, this object may no longer be used.
     fn deregister_and_take_nb_conn(&mut self) -> Option<NonblockingConnection> {
         // IO SAFETY: See "IO Safety" note in documentation for BlockingConnection.
-        let mut stream = self.stream.take()?;
-        let s: &mut _ = stream
+        let mut nbconn = self.nbconn.take()?;
+        let s: &mut _ = nbconn
             .as_mio_source()
             .expect("Logic error: Stream was not a MIO stream.");
         self.poll
             .registry()
             .deregister(s)
             .expect("Deregister operation failed");
-        Some(stream)
+        Some(nbconn)
     }
 }
 
