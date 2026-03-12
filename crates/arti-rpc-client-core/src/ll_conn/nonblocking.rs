@@ -31,6 +31,8 @@ use super::{Stream, retry_eintr};
 ///
 /// Unlike [`BlockingConnection`], this type _does not_ handle the IO event polling loops:
 /// the caller is required to provide their own.
+///
+/// [`BlockingConnection`]: super::BlockingConnection
 #[derive(derive_more::Debug)]
 pub(crate) struct NonblockingConnection {
     /// A write handle used to write onto this stream.
@@ -64,6 +66,8 @@ pub(crate) enum PollStatus {
 ///
 /// Note that queueing a message has no effect unless some party is polling the stream,
 /// either with [`BlockingConnection::interact()`], or [`NonblockingConnection::interact_once()`].
+///
+/// [`BlockingConnection::interact()`]: super::BlockingConnection::interact
 #[derive(Clone, Debug)]
 pub(crate) struct WriteHandle {
     /// The actual implementation type for this writer.

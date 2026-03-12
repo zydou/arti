@@ -67,7 +67,8 @@ pub(crate) struct BlockingConnection {
 
     /// The underlying NonblockingConnection.
     ///
-    /// Invariant: `nbconn.stream` is a [`MioStream`], so [`Stream::as_mio_source`] will return
+    /// Invariant: `nbconn.stream` is a [`MioStream`],
+    /// so [`NonblockingConnection::as_mio_source`] will return
     /// Some when we call it.
     ///
     /// This is None only if we have called `into_nonblocking()` or `drop()`.
