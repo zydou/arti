@@ -1,6 +1,6 @@
 //! Low-level nonblocking stream implementation.
 //!
-//! This module defines two main types: [`NonblockingStream`].
+//! This module defines two main types: [`NonblockingConnection`].
 //! (a low-level type for use by external tools
 //! that want to implement their own nonblocking IO),
 //! and [`BlockingConnection`] (a slightly higher-level type
@@ -33,7 +33,7 @@ use std::os::windows::io::{AsSocket as _, BorrowedSocket as BorrowedOsHandle};
 
 /// An IO stream to Arti, along with any supporting logic necessary to check it for readiness.
 ///
-/// Internally, this uses `mio` along with a [`NonblockingStream`] to check for events.
+/// Internally, this uses `mio` along with a [`NonblockingConnection`] to check for events.
 ///
 /// To use this type, mark the stream as nonblocking
 /// with e.g. [TcpStream::set_nonblocking](std::net::TcpStream::set_nonblocking),
@@ -76,7 +76,7 @@ pub(crate) struct BlockingConnection {
     /// before it can be dropped.
     ///
     /// We ensure these properties are obeyed as follows:
-    ///  - We hold the stream via `stream`, the NonblockingStream member of this struct.
+    ///  - We hold the stream via `stream`, the NonblockingConnection member of this struct.
     ///    We do not let anybody outside this module have the stream or the `Poll`.
     ///  - We declare a Drop implementation that deregisters the stream.
     ///    This method ensures that the stream is dropped before it is closed.
@@ -92,7 +92,7 @@ pub(crate) struct BlockingConnection {
     ///
     /// This is None only if we have called `into_nonblocking()` or `drop()`
     /// we store this in an Option so `that we can move it out of this object.
-    stream: Option<NonblockingStream>,
+    stream: Option<NonblockingConnection>,
 }
 
 /// A `mio` token corresponding to the Waker we use to tell the interactor about new writes.
@@ -117,7 +117,7 @@ impl BlockingConnection {
         let poll = mio::Poll::new()?;
         let waker = mio::Waker::new(poll.registry(), WAKE_TOKEN)?;
 
-        let stream = NonblockingStream::new(Box::new(MioWaker(waker)), stream);
+        let stream = NonblockingConnection::new(Box::new(MioWaker(waker)), stream);
 
         let mut cio = Self {
             poll,
@@ -213,9 +213,9 @@ impl BlockingConnection {
         }
     }
 
-    /// Downgrade this stream into a [`NonblockingStream`]
+    /// Downgrade this stream into a [`NonblockingConnection`]
     /// for use within an [`RpcPoll`](crate::RpcPoll).
-    pub(crate) fn into_nonblocking(mut self) -> NonblockingStream {
+    pub(crate) fn into_nonblocking(mut self) -> NonblockingConnection {
         let mut stream = self
             .deregister_and_take_stream()
             .expect("logic error: stream not present!");
@@ -225,11 +225,11 @@ impl BlockingConnection {
 
     /// Implementation helper for Drop and into_nonblocking:
     ///
-    /// Deregisters the NonblockingStream with the mio Registry, removes it from this object,
+    /// Deregisters the NonblockingConnection with the mio Registry, removes it from this object,
     /// and returns it.
     ///
     /// After this method is called, this object may no longer be used.
-    fn deregister_and_take_stream(&mut self) -> Option<NonblockingStream> {
+    fn deregister_and_take_stream(&mut self) -> Option<NonblockingConnection> {
         // IO SAFETY: See "IO Safety" note in documentation for BlockingConnection.
         let mut stream = self.stream.take()?;
         let s: &mut _ = stream
@@ -254,7 +254,7 @@ impl Drop for BlockingConnection {
 /// A handle that can be used to queue outgoing messages for a nonblocking stream.
 ///
 /// Note that queueing a message has no effect unless some party is polling the stream,
-/// either with [`BlockingConnection::interact()`], or [`NonblockingStream::interact_once()`].
+/// either with [`BlockingConnection::interact()`], or [`NonblockingConnection::interact_once()`].
 #[derive(Clone, Debug)]
 pub(crate) struct WriteHandle {
     /// The actual implementation type for this writer.
@@ -321,7 +321,7 @@ struct WriteHandleImpl {
 /// Unlike [`BlockingConnection`], this type _does not_ handle the IO event polling loops:
 /// the caller is required to provide their own.
 #[derive(derive_more::Debug)]
-pub(crate) struct NonblockingStream {
+pub(crate) struct NonblockingConnection {
     /// A write handle used to write onto this stream.
     #[debug(ignore)]
     write_handle: WriteHandle,
@@ -336,7 +336,7 @@ pub(crate) struct NonblockingStream {
     stream: Box<dyn Stream>,
 }
 
-/// A return value from [`NonblockingStream::interact_once`].
+/// A return value from [`NonblockingConnection::interact_once`].
 #[derive(Debug, Clone)]
 pub(crate) enum PollStatus {
     /// The stream is closed.
@@ -349,8 +349,8 @@ pub(crate) enum PollStatus {
     Msg(UnparsedResponse),
 }
 
-impl NonblockingStream {
-    /// Create a new `NonblockingStream` from a provided [`EventLoop`] and [`Stream`].
+impl NonblockingConnection {
+    /// Create a new `NonblockingConnection` from a provided [`EventLoop`] and [`Stream`].
     pub(crate) fn new(event_loop: Box<dyn EventLoop>, stream: Box<dyn Stream>) -> Self {
         Self {
             write_handle: WriteHandle {
@@ -376,7 +376,7 @@ impl NonblockingStream {
         self.stream.try_as_handle()
     }
 
-    /// Replace the current `EventLoop` this [`NonblockingStream`].
+    /// Replace the current `EventLoop` this [`NonblockingConnection`].
     ///
     /// This should only be done while nothing else is interacting with the stream or the waker.
     pub(crate) fn replace_event_loop_handle(&mut self, new_event_loop_handle: Box<dyn EventLoop>) {
@@ -384,7 +384,7 @@ impl NonblockingStream {
         h.event_loop = new_event_loop_handle;
     }
 
-    /// Return true iff this [`NonblockingStream`] currently wants to write
+    /// Return true iff this [`NonblockingConnection`] currently wants to write
     ///
     /// See [`RpcPoll::wants_to_write`] and [`EventLoop`]
     /// for the semantics.
@@ -509,7 +509,7 @@ impl NonblockingStream {
     }
 }
 
-/// Any type we can use as a target for [`NonblockingStream`].
+/// Any type we can use as a target for [`NonblockingConnection`].
 pub(crate) trait Stream: io::Read + io::Write + Send {
     /// If this Stream object is a [`MioStream`], upcast it to one.
     ///
@@ -892,12 +892,12 @@ mod test {
         }
     }
 
-    fn assert_wants_rw(nb: &NonblockingStream, r: &io::Result<PollStatus>) {
+    fn assert_wants_rw(nb: &NonblockingConnection, r: &io::Result<PollStatus>) {
         assert_matches!(r, Ok(PollStatus::WouldBlock));
         assert_eq!(nb.wants_to_write(), true);
     }
 
-    fn assert_wants_r_only(nb: &NonblockingStream, r: &io::Result<PollStatus>) {
+    fn assert_wants_r_only(nb: &NonblockingConnection, r: &io::Result<PollStatus>) {
         assert_matches!(r, Ok(PollStatus::WouldBlock));
         assert_eq!(nb.wants_to_write(), false);
     }
@@ -905,7 +905,7 @@ mod test {
     #[test]
     fn read_msg() {
         let test_stream = TestStream::default();
-        let mut stream = NonblockingStream::new(
+        let mut stream = NonblockingConnection::new(
             Box::new(TestWaker::default()),
             Box::new(test_stream.clone()),
         );
@@ -939,7 +939,7 @@ mod test {
     #[test]
     fn write_msg() {
         let test_stream = TestStream::default();
-        let mut stream = NonblockingStream::new(
+        let mut stream = NonblockingConnection::new(
             Box::new(TestWaker::default()),
             Box::new(test_stream.clone()),
         );

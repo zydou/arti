@@ -90,7 +90,7 @@ use crate::{
         request::{IdGenerator, ValidatedRequest},
         response::ValidatedResponse,
     },
-    nb_stream::{BlockingConnection, NonblockingStream},
+    nb_stream::{BlockingConnection, NonblockingConnection},
 };
 
 use super::{ProtoError, ShutdownError};
@@ -433,7 +433,7 @@ pub struct RpcPoll {
     receiver: Arc<Receiver>,
 
     /// The underling stream that we're using to send and receive messages.
-    stream: NonblockingStream,
+    stream: NonblockingConnection,
 }
 
 /// Instruction to alert some additional condvar(s) before releasing our lock and returning
