@@ -1197,4 +1197,14 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
             GenEdDiffError::MissingNewLine(3)
         );
     }
+
+    #[test]
+    fn mixed_with_crlf() {
+        let base = "";
+        let target = "foo\r\nbar\r\nbaz\nhello\r\n";
+        assert_eq!(
+            gen_ed_diff(base, target).unwrap(),
+            "0a\nfoo\r\nbar\r\nbaz\nhello\r\n.\n"
+        );
+    }
 }
