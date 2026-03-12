@@ -217,9 +217,12 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
         // Format the body.
         match hunk_type {
             HunkType::Append | HunkType::Change => {
-                let range = (hunk.after.start as usize)..(hunk.after.end as usize);
+                let range = (hunk.after.start)..(hunk.after.end);
                 let tlines = range
-                    .map(|idx| input.interner[input.after[idx]])
+                    .map(|idx| {
+                        let idx = usize::try_from(idx).expect("32-bit static assertion violated?");
+                        input.interner[input.after[idx]]
+                    })
                     .collect::<Vec<_>>();
 
                 // Check that all lines end with a \n.
