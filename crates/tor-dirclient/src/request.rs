@@ -592,6 +592,7 @@ enum RequestedExtraInfos {
     /// Just ask for all the extra-infos.
     ///
     /// `http://<hostname>/tor/extra/all`
+    // TODO: Rename this to `All`, alongside `RequestedRouterDescs`.
     AllExtraInfos,
     /// Download extra-infos with these SHA-1 digests.
     ///
