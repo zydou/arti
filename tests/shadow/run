@@ -18,6 +18,8 @@ Options:
 EOF
 }
 
+EXIT_STATUS=0
+
 SEED=1
 while getopts "hs:" opt ; do
     case "$opt" in
@@ -63,9 +65,9 @@ shadow \
 # up showing up here (even though we try to log them properly).
 nonempty_stderr=$(find shadow.data/hosts/ -name '*.stderr' -size +0 -print -quit)
 if [ -n "$nonempty_stderr" ]; then
-  echo "Found non-empty stderr file $nonempty_stderr:"
+  echo "FAIL: Found non-empty stderr file $nonempty_stderr:"
   cat "$nonempty_stderr"
-  exit 1
+  EXIT_STATUS=1
 fi
 
 # Look for errors in arti logs.
@@ -74,7 +76,7 @@ arti_errs=$(find shadow.data/hosts/ -name 'arti.log.txt' -exec grep --with-filen
 if [ -n "$arti_errs" ]; then
   echo "Found arti errors:"
   echo "$arti_errs"
-  exit 1
+  EXIT_STATUS=1
 fi
 
 check_host_xfers() {
@@ -88,7 +90,7 @@ check_host_xfers() {
     echo "PASS: $result"
   else
     echo "FAIL: $result"
-    exit 1
+    EXIT_STATUS=1
   fi
 }
 
@@ -136,8 +138,8 @@ for HOST in "${HOSTS[@]}"; do
   then
     echo "$HOST simulation successful"
   else
-    echo "Failed. Found $bugs internal errors in ${file[*]}."
-    exit 1
+    echo "FAIL: Found $bugs internal errors in ${file[*]}."
+    EXIT_STATUS=1
   fi
 done
 
@@ -146,15 +148,17 @@ for PCAP in *.pcap; do
 	# verify all connection are either from/to the bridge, or local.
 	LEAK=$(tshark -r "$PCAP" 'ip.src != 100.0.0.2 && ip.dst != 100.0.0.2 && ip.dst != 127.0.0.0/8')
 	if [ "$LEAK" ]; then
-		echo "Found tcp leaks in PCAP: $PCAP"
+		echo "FAIL: Found tcp leaks in PCAP: $PCAP"
 	        echo "$LEAK"
-		exit 1
+    EXIT_STATUS=1
 	fi
 done
 
 DNS_LEAK=$(grep -l shadow_hostname_to_addr_ipv4 arti.*.strace || true)
 if [ "$DNS_LEAK" ]; then
-	echo "Found DNS leaks in $DNS_LEAK"
-	exit 1
+	echo "FAIL: Found DNS leaks in $DNS_LEAK"
+	EXIT_STATUS=1
 fi
 popd
+
+exit "$EXIT_STATUS"
