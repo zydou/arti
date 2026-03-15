@@ -7,7 +7,9 @@ use std::sync::Arc;
 use anyhow::Context;
 use tokio::task::JoinSet;
 use tor_proto::RelayIdentities;
-use tracing::{debug, warn};
+use tracing::debug;
+#[cfg(unix)]
+use tracing::warn;
 
 use fs_mistrust::Mistrust;
 use tor_basic_utils::iter_join;
