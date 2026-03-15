@@ -29,7 +29,7 @@ use std::{
 #[cfg(unix)]
 use std::os::fd::{AsFd as _, BorrowedFd as BorrowedOsHandle};
 #[cfg(windows)]
-use std::os::windows::io::{AsSocket as _, BorroedSocket as BorrowedOsHandle};
+use std::os::windows::io::{AsSocket as _, BorrowedSocket as BorrowedOsHandle};
 
 /// An IO stream to Arti, along with any supporting logic necessary to check it for readiness.
 ///
