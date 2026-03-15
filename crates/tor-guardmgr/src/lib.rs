@@ -1113,7 +1113,7 @@ impl GuardMgrInner {
         let offset = match self.guards.active_set {
             GuardSetSelector::Default => -0.05,
             GuardSetSelector::Restricted => 0.05,
-            // If we're using bridges, then we don't switch between the other guard sets based on on the filter at all.
+            // If we're using bridges, then we don't switch between the other guard sets based on the filter at all.
             #[cfg(feature = "bridge-client")]
             GuardSetSelector::Bridges => return,
         };
@@ -2148,7 +2148,7 @@ mod test {
             assert_ne!(g3.ed_identity(), guard.ed_identity());
             mon.succeeded();
 
-            // Now record a success for for directory usage.
+            // Now record a success for directory usage.
             guardmgr.note_external_success(&guard, ExternalActivity::DirCache);
 
             // Now that the guard is working as a cache, asking for it should get us the same guard.

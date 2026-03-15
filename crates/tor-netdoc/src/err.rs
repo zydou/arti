@@ -115,7 +115,7 @@ impl Pos {
     /// If it was not, the results here may be nonsensical.
     ///
     /// TODO: I wish I knew an efficient safe way to do this that
-    /// guaranteed that we we always talking about the right string.
+    /// guaranteed that we always talking about the right string.
     #[must_use]
     pub fn within(self, s: &str) -> Self {
         match self {

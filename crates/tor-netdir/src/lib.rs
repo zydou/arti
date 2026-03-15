@@ -607,7 +607,7 @@ pub enum Timeliness {
     Strict,
     /// The network directory must be roughly timely.
     ///
-    /// This is, it must be be based on a consensus that is not _too_ far in the
+    /// This is, it must be based on a consensus that is not _too_ far in the
     /// future, and not _too_ far in the past.
     ///
     /// (The tolerances for "too far" will depend on configuration.)

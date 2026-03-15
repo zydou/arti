@@ -51,7 +51,7 @@ pub(crate) struct TimeBoundVanguard {
 /// `VanguardSet`s start out with a target size of `0`.
 ///
 /// Upon obtaining a `NetDir`, users of this type should update the target
-/// based on the the current [`NetParameters`](tor_netdir::params::NetParameters).
+/// based on the current [`NetParameters`](tor_netdir::params::NetParameters).
 #[derive(Default, Debug, Clone, PartialEq)] //
 #[derive(Serialize, Deserialize)] //
 #[serde(transparent)]

@@ -75,7 +75,7 @@ const CTOR_UNRECOGNIZED_ENTRY: &str = " Unrecognized entry
 pub(super) const LIST_OUTPUT_ARTI: &[&str] =
     &[CLIENT_KEY, UNRECOGNIZED_ENTRY, ID_KEY, UNRECOGNIZED_PATH];
 
-/// The the output relative to all the keys present
+/// The output relative to all the keys present
 /// in the test `CTorServiceKeystore`.
 ///
 // TODO: The hostname file of the ctor keystore is not

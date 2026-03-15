@@ -341,7 +341,7 @@ enum CircuitEvent {
     },
     /// Remove the specified circuit leg from the conflux set.
     ///
-    /// Returned whenever a single circuit leg needs to be be removed
+    /// Returned whenever a single circuit leg needs to be removed
     /// from the reactor's conflux set, without necessarily tearing down
     /// the whole set or shutting down the reactor.
     ///

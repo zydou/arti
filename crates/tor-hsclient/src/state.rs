@@ -160,7 +160,7 @@ type ServiceRecord<D> = isol_map::Record<HsClientSecretKeys, ServiceState<D>>;
 
 /// Value in the `Services` data structure
 ///
-/// State and history of of our connections, including connection to any connection task.
+/// State and history of our connections, including connection to any connection task.
 ///
 /// `last_used` is used to expire data eventually.
 //

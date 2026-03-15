@@ -2158,7 +2158,7 @@ pub(crate) mod test {
 
             // Run clients in a single task, doing our own round-robin
             // scheduling of writes to the reactor. Conversely, if we were to
-            // put each client in its own task, we would be at the the mercy of
+            // put each client in its own task, we would be at the mercy of
             // how fairly the runtime schedules the client tasks, which is outside
             // the scope of this test.
             rt.spawn({
@@ -2567,7 +2567,7 @@ pub(crate) mod test {
                 assert!(
                     err_src
                         .to_string()
-                        .contains("one more more conflux circuits are invalid")
+                        .contains("one more conflux circuits are invalid")
                 );
             }
         });

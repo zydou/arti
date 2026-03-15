@@ -351,7 +351,7 @@ pub mod doc_generated_code {}
 ///
 /// This attribute makes the generated `build()` method call a validation function
 /// on the configuration **after** it is built.
-/// The function must take the the configuration
+/// The function must take the configuration
 /// _by value_ as an argument,
 /// and `Result<`(the configuration)`,ConfigBuildError>`.  If the function
 /// returns an error, then the build method fails with that error.
@@ -382,7 +382,7 @@ pub mod doc_generated_code {}
 /// ```
 ///
 /// > Note:
-/// > You can also use this attribute to clean up or normalize the the configuration object.
+/// > You can also use this attribute to clean up or normalize the configuration object.
 ///
 /// <div id="tmeta:vis">
 ///

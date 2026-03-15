@@ -570,7 +570,7 @@ enum StreamEvent {
     },
     /// Send a message to the other endpoint.
     ///
-    /// This might be be XOFF, CONNECTED, or END
+    /// This might be XOFF, CONNECTED, or END
     SendMsg {
         /// The message.
         msg: AnyRelayMsgOuter,

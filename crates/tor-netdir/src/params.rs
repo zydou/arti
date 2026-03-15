@@ -355,11 +355,11 @@ pub struct NetParameters {
     pub cc_vegas_gamma_onion: BoundedInt32<0, 1000> = (4 * 62)
         from "cc_vegas_gamma_onion",
 
-    /// Parameter for Exit circuit that describe the the RFC3742 'cap', after which
+    /// Parameter for Exit circuit that describes the RFC3742 'cap', after which
     /// congestion window increments are reduced. The MAX disables RFC3742.
     pub cc_vegas_sscap_exit: BoundedInt32<100, { i32::MAX }> = (600)
         from "cc_sscap_exit",
-    /// Parameter for Onion circuit that describe the the RFC3742 'cap', after which
+    /// Parameter for Onion circuit that describe the RFC3742 'cap', after which
     /// congestion window increments are reduced. The MAX disables RFC3742.
     pub cc_vegas_sscap_onion: BoundedInt32<100, { i32::MAX }> = (475)
         from "cc_sscap_onion",

@@ -159,7 +159,7 @@ pub(crate) struct FlagListener<F> {
     /// change in the flag's count, even if that count has changed by more than
     /// 1.
     my_counts: Vec<usize>,
-    /// An an `EventListener` that will be notified when events are published,
+    /// An `EventListener` that will be notified when events are published,
     /// or when the final publisher is dropped.
     ///
     /// We must always have one of these available _before_ we check any counts

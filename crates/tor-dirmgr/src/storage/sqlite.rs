@@ -54,7 +54,7 @@ pub(crate) struct SqliteStore {
 ///
 /// We store large documents (currently, consensuses) in separate files,
 /// called "blobs",
-/// outside of the the sqlite database.
+/// outside of the sqlite database.
 /// We do this for performance reasons: for large objects,
 /// mmap is far more efficient than sqlite in RAM and CPU.
 ///

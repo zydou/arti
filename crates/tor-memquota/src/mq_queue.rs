@@ -175,7 +175,7 @@ struct ReceiverState<T: Debug + Send + 'static, C: ChannelSpec> {
 
 //---------- other types ----------
 
-/// Entry in in the inner queue
+/// Entry in the inner queue
 #[derive(Debug)]
 struct Entry<T> {
     /// The actual entry

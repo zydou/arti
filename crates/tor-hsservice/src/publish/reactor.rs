@@ -871,7 +871,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             return;
         };
 
-        // We will need to reupload this descriptor at at some point, so we pick
+        // We will need to reupload this descriptor at some point, so we pick
         // a random time between 60 minutes and 120 minutes in the future.
         //
         // See https://spec.torproject.org/rend-spec/deriving-keys.html#WHEN-HSDESC

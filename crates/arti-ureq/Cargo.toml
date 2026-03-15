@@ -21,7 +21,7 @@ tor-error = { path = "../tor-error", version = "0.40.0" }
 tor-proto = { path = "../tor-proto", features = [ "stream-ctrl" ], version = "0.40.0" }
 tor-rtcompat = { path = "../tor-rtcompat", default-features = false, version = "0.40.0" }
 # We rely on some of the APIs in ureq::unversioned, which are allowed to have semver
-# breaks between minor releases of ureq.  Therefore, we we use a tilde here, so that
+# breaks between minor releases of ureq.  Therefore, we use a tilde here, so that
 # we will only get patchlevel updates.
 #
 # See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2724#note_3162496

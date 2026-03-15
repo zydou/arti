@@ -1304,7 +1304,7 @@ impl Clone for Participation {
             // overflowed.  We can a busted `Participation`.
             //
             // We *haven't* incremented the refcount, so we mustn't return pid as a strong
-            // reference.  We aren't supposed to count towards PRecord.refcount, we we *can*
+            // reference.  We aren't supposed to count towards PRecord.refcount, we *can*
             // return the weak reference aid.  (`refcount` type-fu assures this is correct.)
             //
             // If the problem was refcount overflow, we're technically violating the

@@ -35,7 +35,7 @@
 # for each section.
 #   For each needed anchor
 #     If there are def(s) in this section, before the def collection, OK
-#     Otherwise write a a definition line to the new collection
+#     Otherwise write a definition line to the new collection
 #   Collect defs from existing final link def collection (if any)
 #   Sort the collection
 #   Replace the relevant part of the file with the normalised collection

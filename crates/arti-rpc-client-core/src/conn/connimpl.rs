@@ -319,7 +319,7 @@ enum ResponseDisposition<'a, Q: QueueId + ?Sized> {
     ForwardWaiting(&'a mut ResponseQueue<AnyRequestId>),
 
     /// This message is for some other request;
-    ///  we should instead forward it to the the polled request queue.
+    ///  we should instead forward it to the polled request queue.
     ForwardPollable(UserTag, &'a mut ResponseQueue<PolledRequests>),
 }
 
@@ -603,7 +603,7 @@ impl Receiver {
         &self,
         queue_id: &Q,
     ) -> Result<(Q::UserTag, ValidatedResponse), ProtoError> {
-        // Here in wait_on_message_for_impl, we do the the actual work
+        // Here in wait_on_message_for_impl, we do the actual work
         // of waiting for the message.
         let state = self.state.lock().expect("poisoned");
         let (result, mut state, should_alert) = self.wait_on_message_for_impl(state, queue_id);

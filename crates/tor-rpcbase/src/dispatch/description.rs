@@ -26,7 +26,7 @@ struct MethodDescription {
     applies_to_object_types: BTreeSet<String>,
 }
 
-/// A table describing the the set of RPC methods available,
+/// A table describing the set of RPC methods available,
 /// which types they expect and return, and which objects they apply to.
 ///
 /// This is, for now, a serialize-only type; it does nothing else.

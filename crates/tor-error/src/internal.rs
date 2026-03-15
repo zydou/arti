@@ -304,7 +304,7 @@ mod test {
     // This test case mainly is to ensure that we are using the backtrace module correctly, etc.,
     // which can be checked by doing it on one platform.
     //
-    // Doing the test on on *all* platforms would simply expose us to the vagaries of platform
+    // Doing the test on *all* platforms would simply expose us to the vagaries of platform
     // backtrace support.  Arti ought not to fail its tests just because someone is using a
     // platform with poor backtrace support.
     //

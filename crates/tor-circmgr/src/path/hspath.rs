@@ -652,7 +652,7 @@ mod test {
     // Prevents TROVE-2024-006 (arti#1425).
     //
     // Note: this, and all the other tests that disable vanguards,
-    // perhaps belong in ExitPathBuilder, as they are are effectively
+    // perhaps belong in ExitPathBuilder, as they are effectively
     // testing the vanilla pick_path() implementation.
     #[test]
     fn hs_path_no_vanguards_incompatible_target() {
