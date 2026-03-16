@@ -234,7 +234,7 @@ impl ClientTunnel {
     // un-registered.  However, nothing in the Tor protocol requires it.
     //
     // Any incoming request handlers installed on the other circuits
-    // (which are are shutdown using CtrlCmd::ShutdownAndReturnCircuit)
+    // (which are shutdown using CtrlCmd::ShutdownAndReturnCircuit)
     // will be discarded (along with the reactor of that circuit)
     #[cfg(feature = "hs-service")]
     #[allow(unreachable_code, unused_variables)] // TODO(conflux)

@@ -114,7 +114,7 @@ User configures or specifies:
        for the `K_relayid_rsa` and `K_relayid_ed`.
 
 Perhaps the linkage is done by an entry in the HSM's config section,
-linking the `ArtiPath`s for the keys to to the HSM keyslot numbers;
+linking the `ArtiPath`s for the keys to the HSM keyslot numbers;
 or perhaps it is done in the relay config section,
 and specifies, for both the RSA and ED identities,
 the HSM keystore nickname and

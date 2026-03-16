@@ -214,7 +214,7 @@ impl CoarseTimeProvider for DynTimeProvider {
 ///  * `mopa`
 ///  * `as_any`
 fn downcast_value<I: std::any::Any, O: Sized + 'static>(input: I) -> Result<O, I> {
-    // `MaybeUninit` makes it possible to to use `downcast_mut`
+    // `MaybeUninit` makes it possible to use `downcast_mut`
     // and, if it's successful, *move* out of the reference.
     //
     // It might be possible to write this function using `mme::transmute` instead.

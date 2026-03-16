@@ -307,7 +307,7 @@ impl RpcListenerSetConfig {
             // Make a map of instructions from our `file_options` telling
             // `ParsedConnectPoint::load_dir` about any filenames that might need special handling.
             //
-            // (This is where we we disable any connect point whose `file_options` ConnectPointOptions
+            // (This is where we disable any connect point whose `file_options` ConnectPointOptions
             // tells us it's disabled.)
             let load_options: HashMap<std::path::PathBuf, LoadOptions> = self
                 .file_options

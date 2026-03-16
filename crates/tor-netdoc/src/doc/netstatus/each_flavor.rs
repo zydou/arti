@@ -468,7 +468,7 @@ impl UnvalidatedConsensus {
     }
 
     /// Return true if a client who believes in exactly the provided
-    /// set of authority IDs might might consider this consensus to be
+    /// set of authority IDs might consider this consensus to be
     /// well-signed.
     ///
     /// (This is the case if the consensus claims to be signed by more than

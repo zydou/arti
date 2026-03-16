@@ -246,7 +246,7 @@ async fn oneshot_client_resolve_ptr_with_prefs(
 /// It can be used as the target of a single SOCKS request.
 ///
 /// Once used for a SOCKS connect request,
-/// the object will become a handle for the the underlying DataStream
+/// the object will become a handle for the underlying DataStream
 /// that was created with the request.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
 #[derive_deftly(DynMethod)]

@@ -248,7 +248,7 @@ where
     // we connect there.
     //
     // The SOCKS handshake can require multiple round trips (SOCKS5
-    // always does) so we we need to run this part of the process in a
+    // always does) so we need to run this part of the process in a
     // loop.
     let mut handshake = tor_socksproto::SocksProxyHandshake::new();
 

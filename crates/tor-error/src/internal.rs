@@ -59,7 +59,7 @@ mod ie_backtrace {
 // every crate's particular error type.
 pub struct Bug(Box<BugRepr>);
 
-/// The source of an Bug
+/// The source of a Bug
 type SourceError = Arc<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Debug, Clone)]
@@ -107,7 +107,7 @@ impl Bug {
         .into())
     }
 
-    /// Create an bug error report from another error, capturing this call site and backtrace
+    /// Create a bug error report from another error, capturing this call site and backtrace
     ///
     /// In `map_err`, and perhaps elsewhere, prefer to use [`into_internal!`],
     /// as that makes it easy to add additional information
@@ -157,7 +157,7 @@ impl Display for Bug {
 
 /// Extension trait for `.bug_context()` on `Result`
 pub trait BugContext: Sealed {
-    /// Adds context to a internal error or bug
+    /// Adds context to an internal error or bug
     ///
     /// Prepends `prepend + ": "` to the error message, if it's an error (`[Bug]`).
     fn bug_context<D: Display>(self, prefix: D) -> Self;
@@ -304,7 +304,7 @@ mod test {
     // This test case mainly is to ensure that we are using the backtrace module correctly, etc.,
     // which can be checked by doing it on one platform.
     //
-    // Doing the test on on *all* platforms would simply expose us to the vagaries of platform
+    // Doing the test on *all* platforms would simply expose us to the vagaries of platform
     // backtrace support.  Arti ought not to fail its tests just because someone is using a
     // platform with poor backtrace support.
     //

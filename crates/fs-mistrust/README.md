@@ -208,7 +208,7 @@ We use a somewhat inaccurate heuristic when we're checking the permissions
 of items _inside_ a target directory (using [`Verifier::check_content`] or
 [`CheckedDir`]): we continue to forbid untrusted-writeable directories and
 files, but we still allow readable ones, even if we insisted that the target
-directory itself was required to to be unreadable.  This is too permissive
+directory itself was required to be unreadable.  This is too permissive
 in the case of readable objects with hard links: if there is a hard link to
 the file somewhere else, then an untrusted user can read it.  It is also too
 restrictive in the case of writeable objects _without_ hard links: if

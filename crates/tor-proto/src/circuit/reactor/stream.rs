@@ -176,7 +176,7 @@ impl StreamReactor {
                 //   * circuit SENDMEs are initiated by the forward reactor,
                 //     by sending a BackwardReactorCmd::SendRelayMsg to BWD,
                 //   * stream SENDMEs will be initiated by StreamTarget::send_sendme(),
-                //     by sending a a control message to the reactor
+                //     by sending a control message to the reactor
                 //     (TODO(relay): not yet implemented)
                 //   * XOFFs are sent in response to messages on streams
                 //     (i.e. RELAY messages with non-zero stream IDs).

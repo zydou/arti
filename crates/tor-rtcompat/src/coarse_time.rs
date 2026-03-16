@@ -5,7 +5,7 @@
 // So this describes the implementation and rationale.)
 //
 //! We want to be able to mock coarsetime in tor-rtmock,
-//! so we need coarse time provision to to be part of a `Runtime`.
+//! so we need coarse time provision to be part of a `Runtime`.
 //!
 //! (We can't just use `coarsetime`'s mocking facilities,
 //! because they still use a process-wide global for the current time.)

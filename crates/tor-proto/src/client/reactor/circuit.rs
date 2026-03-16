@@ -139,7 +139,7 @@ pub(crate) struct Circuit {
     // SelectAll, but we can't really do that, since we need the ability to move them
     // from one conflux set to another, and a SelectAll doesn't let you actually
     // remove one of its constituent streams.  This issue might get solved along
-    // with the the rest of the next reactor refactoring.
+    // with the rest of the next reactor refactoring.
     pub(super) padding_event_stream: PaddingEventStream,
     /// Current rules for blocking traffic, according to the padding controller.
     #[cfg(feature = "circ-padding")]

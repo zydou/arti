@@ -472,7 +472,7 @@ mod ignored_impl {
 /// or if neither records unknown values at all.
 ///
 /// `Unknown` is not `Eq` or `Ord` because we won't want to relate a `Discarded`
-/// to a `Retained`.  That would be a a logic error.  `partial_cmp` gives `None` for this.
+/// to a `Retained`.  That would be a logic error.  `partial_cmp` gives `None` for this.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 #[non_exhaustive]
 pub enum Unknown<T> {

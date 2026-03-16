@@ -428,12 +428,12 @@ impl ClientCirc {
     pub fn last_hop_info(&self) -> Result<Option<OwnedChanTarget>> {
         let all_paths = self.all_paths();
         let path = all_paths.first().ok_or_else(|| {
-            tor_error::bad_api_usage!("Called last_hop_info an an un-constructed tunnel")
+            tor_error::bad_api_usage!("Called last_hop_info on an un-constructed tunnel")
         })?;
         Ok(path
             .hops()
             .last()
-            .expect("Called last_hop an an un-constructed circuit")
+            .expect("Called last_hop on an un-constructed circuit")
             .as_chan_target()
             .map(OwnedChanTarget::from_chan_target))
     }
@@ -2158,7 +2158,7 @@ pub(crate) mod test {
 
             // Run clients in a single task, doing our own round-robin
             // scheduling of writes to the reactor. Conversely, if we were to
-            // put each client in its own task, we would be at the the mercy of
+            // put each client in its own task, we would be at the mercy of
             // how fairly the runtime schedules the client tasks, which is outside
             // the scope of this test.
             rt.spawn({
@@ -2567,7 +2567,7 @@ pub(crate) mod test {
                 assert!(
                     err_src
                         .to_string()
-                        .contains("one more more conflux circuits are invalid")
+                        .contains("one more conflux circuits are invalid")
                 );
             }
         });

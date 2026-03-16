@@ -24,7 +24,7 @@ Therefore:
    may not unconditionally depend on `metrics`.
    If they do depend on it, the dependency must be feature-gated
    on features relating to relay/dirauth/etc. support.
-   Clients should not have metrics code compiled in in these crates.
+   Clients should not have metrics code compiled in these crates.
 
  * Higher-level crates relating to HSS eg (`tor-hsservice`, `tor-hsrproxy`)
    should have `metrics` enabled as an optional feature,

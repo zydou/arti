@@ -561,7 +561,7 @@ impl ConfluxSet {
 
         for leg in &legs {
             if !leg_is_valid(leg)? {
-                return Err(bad_api_usage!("one more more conflux circuits are invalid"));
+                return Err(bad_api_usage!("one more conflux circuits are invalid"));
             }
         }
 

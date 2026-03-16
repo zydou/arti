@@ -196,7 +196,7 @@ mod test {
                     .parse()
                     .unwrap();
 
-            // Although this is recommended, it isn't always-on in Arti yet yet.
+            // Although this is recommended, it isn't always-on in Arti yet.
             cfg_if! {
                 if #[cfg(feature="flowctl-cc")] {
                      let permitted_missing: tor_protover::Protocols =

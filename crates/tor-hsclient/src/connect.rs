@@ -779,7 +779,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let mut pow_client = HsPowClient::new(&self.hs_blind_id, desc);
 
         // We might consider making multiple INTRODUCE attempts to different
-        // IPTs in in parallel, and somehow aggregating the errors and
+        // IPTs in parallel, and somehow aggregating the errors and
         // experiences.
         // However our HS experts don't consider that important:
         //   https://gitlab.torproject.org/tpo/core/arti/-/issues/913#note_2914438

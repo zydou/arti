@@ -58,7 +58,7 @@ with_safe_logging_suppressed(|| log_encrypted_data(big_secret));
 ### An example deployment
 
 This crate was originally created for use in the `arti` project, which tries
-to implements the Tor anonymity protocol in Rust.  In `arti`, we want to
+to implement the Tor anonymity protocol in Rust.  In `arti`, we want to
 avoid logging information by default if it could compromise users'
 anonymity, or create an incentive for attacking users and relays in order to
 access their logs.

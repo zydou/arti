@@ -56,7 +56,7 @@ static OTHER_VERSION_CACHE: InternCache<str> = InternCache::new();
 ///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:m>
 ///
-/// This is different to the `m` line in in microdesc consensuses.
+/// This is different to the `m` line in microdesc consensuses.
 /// Plain consensuses don't have `m` lines at all.
 ///
 /// ### Non-invariants
