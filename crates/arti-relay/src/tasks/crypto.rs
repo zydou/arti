@@ -401,7 +401,6 @@ pub(crate) fn try_generate_keys<R: Runtime>(
     // Now that we have our up-to-date keys, build the RelayIdentities object.
     build_proto_identities(runtime, keymgr)
 }
-
 /// Task to rotate keys when they need to be rotated.
 pub(crate) async fn rotate_keys_task<R: Runtime>(
     runtime: R,
@@ -424,5 +423,247 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
             .checked_sub(KEY_ROTATION_EXPIRE_BUFFER)
             .unwrap_or(runtime.wallclock());
         runtime.sleep_until_wallclock(next_wake).await;
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    use tor_keymgr::{ArtiEphemeralKeystore, KeyMgrBuilder};
+    use tor_relay_crypto::pk::{
+        RelayLinkSigningKeypairSpecifierPattern, RelaySigningKeypairSpecifierPattern,
+    };
+    use tor_rtcompat::SleepProvider;
+    use tor_rtmock::MockRuntime;
+
+    /// Generate the non-rotating identity keys so the rest of the key machinery can run.
+    fn setup_identity_keys(keymgr: &KeyMgr) {
+        use tor_relay_crypto::pk::{
+            RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
+            RelayIdentityRsaKeypairSpecifier,
+        };
+        generate_key::<RelayIdentityKeypair>(keymgr, &RelayIdentityKeypairSpecifier::new())
+            .unwrap();
+        generate_key::<RelayIdentityRsaKeypair>(keymgr, &RelayIdentityRsaKeypairSpecifier::new())
+            .unwrap();
+    }
+
+    /// Initialize test basics that is runtime and a KeyMgr.
+    fn new_keymgr() -> KeyMgr {
+        let store = Box::new(ArtiEphemeralKeystore::new("test".to_string()));
+        KeyMgrBuilder::default()
+            .primary_store(store)
+            .build()
+            .unwrap()
+    }
+
+    /// Initial setup of a test. Build a mock runtime, key manager and setup identity keys.
+    fn setup() -> KeyMgr {
+        let keymgr = new_keymgr();
+        setup_identity_keys(&keymgr);
+        keymgr
+    }
+
+    /// Return a [`Timestamp`] given a [`SystemTime`] rounded down to its nearest second.
+    ///
+    /// In other words, the `tv_nsec` of a [`SystemTime`] is dropped.
+    fn to_timestamp_in_secs(valid_until: SystemTime) -> Timestamp {
+        use std::time::UNIX_EPOCH;
+        let seconds = valid_until.duration_since(UNIX_EPOCH).unwrap().as_secs();
+        Timestamp::from(UNIX_EPOCH + Duration::from_secs(seconds))
+    }
+
+    /// Return the number of link keys in the given KeyMgr.
+    fn count_link_keys(keymgr: &KeyMgr) -> usize {
+        keymgr
+            .list_matching(
+                &RelayLinkSigningKeypairSpecifierPattern::new_any()
+                    .arti_pattern()
+                    .unwrap(),
+            )
+            .unwrap()
+            .len()
+    }
+
+    /// Return the number of signing keys in the given KeyMgr.
+    fn count_signing_keys(keymgr: &KeyMgr) -> usize {
+        keymgr
+            .list_matching(
+                &RelaySigningKeypairSpecifierPattern::new_any()
+                    .arti_pattern()
+                    .unwrap(),
+            )
+            .unwrap()
+            .len()
+    }
+
+    /// Test the actual bootstrap function, `try_generate_keys()` which is in charge of
+    /// initializing the identities.
+    #[test]
+    fn test_bootstrap() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let keymgr = new_keymgr();
+
+            let _identities = match try_generate_keys(&runtime, &keymgr) {
+                Ok(ident) => ident,
+                Err(e) => {
+                    panic!("Unable to bootstrap keys and generate RelayIdentities: {e}");
+                }
+            };
+        });
+    }
+
+    /// Simulate the bootstrap when no keys exists. We should have one link key and one signing key
+    /// after the first rotation.
+    #[test]
+    fn test_initial_key_generation() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let keymgr = setup();
+
+            let (rotated, next_expiry) = try_rotate_keys(&runtime, &keymgr).unwrap();
+
+            assert!(
+                rotated,
+                "keys should be reported as generated on first rotation"
+            );
+            assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
+            assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
+
+            // The earliest expiry should be the link key (~2 days out).
+            let expected = runtime.wallclock() + KEY_DURATION_2DAYS;
+            assert_eq!(
+                next_expiry, expected,
+                "next expiry should be ~{KEY_DURATION_2DAYS:?} from now, got {next_expiry:?}"
+            );
+        });
+    }
+
+    /// Calling rotate_keys a second time with fresh keys should indicate no rotation.
+    #[test]
+    fn test_rotation_on_fresh_keys() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let keymgr = setup();
+            try_rotate_keys(&runtime, &keymgr).unwrap();
+
+            // Advance by 1 hour (inside 2 days of link key).
+            runtime.advance_by(Duration::from_secs(60 * 60)).await;
+
+            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+
+            assert!(!rotated, "fresh keys must not trigger a rotation");
+            assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
+            assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
+        });
+    }
+
+    /// Test rotation before and after rotation expiry buffer for the link key.
+    #[test]
+    fn test_rotation_link_key() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let keymgr = setup();
+            // First rotation creates the keys.
+            try_rotate_keys(&runtime, &keymgr).unwrap();
+
+            // Advance to 1 second _before_ the rotation-buffer threshold. We should not rotate
+            // with this.
+            let just_before =
+                KEY_DURATION_2DAYS - KEY_ROTATION_EXPIRE_BUFFER - Duration::from_secs(1);
+            runtime.advance_by(just_before).await;
+
+            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+
+            assert!(
+                !rotated,
+                "link key MUST NOT rotate before the expiry buffer threshold"
+            );
+            assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
+            assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
+
+            // Move it just after the expiry buffer and expect a rotation.
+            let just_after =
+                KEY_DURATION_2DAYS - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
+            runtime.advance_by(just_after).await;
+
+            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+            assert!(
+                rotated,
+                "link key should rotate inside the expiry buffer threshold"
+            );
+        });
+    }
+
+    /// Test rotation before and after rotation expiry buffer for the signing key.
+    #[test]
+    fn test_rotation_signing_key() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let keymgr = setup();
+            // First rotation creates the keys.
+            try_rotate_keys(&runtime, &keymgr).unwrap();
+
+            // Closure to get the relay signing key keystore entry.
+            let get_key_spec = || {
+                let entries = keymgr
+                    .list_matching(
+                        &RelaySigningKeypairSpecifierPattern::new_any()
+                            .arti_pattern()
+                            .unwrap(),
+                    )
+                    .unwrap();
+                let entry = entries.first().unwrap();
+                let spec: RelaySigningKeypairSpecifier = entry.key_path().try_into().unwrap();
+                spec
+            };
+
+            // Advance to 1 second _before_ the rotation-buffer threshold. We should not rotate
+            // with this.
+            let just_before =
+                KEY_DURATION_30DAYS - KEY_ROTATION_EXPIRE_BUFFER - Duration::from_secs(1);
+            runtime.advance_by(just_before).await;
+
+            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+            assert!(rotated, "Rotation must happen after 30 days");
+
+            let spec = get_key_spec();
+            assert_eq!(
+                spec.valid_until(),
+                to_timestamp_in_secs(
+                    runtime.wallclock() + KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1)
+                ),
+                "RelaySigningKeypairSpecifier should not have rotated"
+            );
+
+            assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
+            assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
+
+            // Move it just after the expiry buffer and expect a rotation.
+            let just_after =
+                KEY_DURATION_30DAYS - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
+            runtime.advance_by(just_after).await;
+
+            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+            assert!(rotated, "Rotation must happen after 30 days");
+
+            let spec = get_key_spec();
+            assert_eq!(
+                spec.valid_until(),
+                to_timestamp_in_secs(runtime.wallclock() + KEY_DURATION_30DAYS),
+                "RelaySigningKeypairSpecifier should have rotated"
+            );
+        });
     }
 }

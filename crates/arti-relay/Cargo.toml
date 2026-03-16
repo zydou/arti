@@ -82,6 +82,8 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 void = "1"
 
 [dev-dependencies]
+tor-keymgr = { path = "../tor-keymgr", version = "0.40.0", features = ["ephemeral-keystore"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.40.0" }
 
 [package.metadata.docs.rs]
 all-features = true
