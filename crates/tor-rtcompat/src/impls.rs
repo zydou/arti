@@ -20,6 +20,7 @@ pub(crate) mod native_tls;
 pub(crate) mod streamops;
 pub(crate) mod unimpl_tls;
 
+#[cfg(unix)]
 use tor_error::warn_report;
 
 /// Connection backlog size to use for `listen()` calls on IP sockets.
