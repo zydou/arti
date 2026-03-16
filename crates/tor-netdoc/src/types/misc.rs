@@ -78,7 +78,7 @@ pub(crate) trait FromBytes: Sized {
 
 /// Types for decoding base64-encoded values.
 mod b64impl {
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
+    use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
     use base64ct::{Base64, Base64Unpadded, Encoding};
     use std::fmt::{self, Display};
     use std::ops::RangeBounds;
@@ -152,6 +152,46 @@ mod b64impl {
                 .map_err(|_| EK::BadObjectVal.with_msg("Invalid length on base64 data"))
         }
     }
+
+    impl FromIterator<u8> for B64 {
+        fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
+            Self(iter.into_iter().collect())
+        }
+    }
+
+    impl NormalItemArgument for B64 {}
+
+    /// A byte array encoded in a hexadecimal with a fixed length.
+    #[derive(Clone)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(Hash, Eq, derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[debug(r#"FixedB64::<{N}>("{self}")"#)]
+    pub(crate) struct FixedB64<const N: usize>([u8; N]);
+
+    impl<const N: usize> Display for FixedB64<N> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            Display::fmt(&B64(self.0.to_vec()), f)
+        }
+    }
+
+    impl<const N: usize> std::str::FromStr for FixedB64<N> {
+        type Err = Error;
+        fn from_str(s: &str) -> Result<Self> {
+            Ok(Self(B64::from_str(s)?.0.try_into().map_err(|_| {
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("invalid length")
+            })?))
+        }
+    }
+
+    impl<const N: usize> PartialEq for FixedB64<N> {
+        fn eq(&self, other: &Self) -> bool {
+            B64(self.0.to_vec()).eq(&B64(other.0.to_vec()))
+        }
+    }
+
+    impl<const N: usize> NormalItemArgument for FixedB64<N> {}
 }
 
 // ============================================================
@@ -901,6 +941,7 @@ mod edcert {
 /// Digest identifiers, and digests in the form `ALGORITHM=BASE64U`
 ///
 /// As found in a vote's `m` line.
+// TODO Use FixedB64 here.
 mod identified_digest {
     use super::*;
 
