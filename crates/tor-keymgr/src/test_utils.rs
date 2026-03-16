@@ -242,12 +242,27 @@ mod specifier {
         }
     }
 
-    /// A test certificate specifier, for subject keys of type TestSpecifier.
+    /// A test keypair specifier.
+    #[derive(Deftly)]
+    #[derive_deftly(KeySpecifier)]
+    #[deftly(prefix = "test")]
+    #[deftly(role = "simple_keypair")]
+    #[deftly(summary = "A test keypair specifier")]
+    pub(crate) struct TestDerivedKeypairSpecifier;
+
+    impl From<&TestDerivedKeySpecifier> for TestDerivedKeypairSpecifier {
+        fn from(_: &TestDerivedKeySpecifier) -> Self {
+            Self
+        }
+    }
+
+    /// The public part of a `TestDerivedKeypairSpecifier`.
     #[derive(Deftly)]
     #[derive_deftly(KeySpecifier)]
     #[deftly(prefix = "test")]
     #[deftly(role = "simple_key")]
     #[deftly(summary = "A test key specifier")]
+    #[deftly(keypair_specifier = "TestDerivedKeypairSpecifier")]
     pub(crate) struct TestDerivedKeySpecifier;
 
     /// A test certificate specifier.
