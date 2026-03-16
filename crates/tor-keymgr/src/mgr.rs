@@ -728,7 +728,15 @@ impl KeyMgr {
         }
         let subject_key = match maybe_subject_key {
             Some(key) => key,
-            _ => self.generate(subject_key_spec, selector, rng, false)?,
+            _ => {
+                let subject_keypair_spec =
+                    subject_key_spec.keypair_specifier().ok_or_else(|| {
+                        internal!(
+                            "KeyCertificateSpecifier has no keypair specifier for the subject key?!"
+                        )
+                    })?;
+                self.generate(&*subject_keypair_spec, selector, rng, false)?
+            }
         };
 
         let signed_with = self.get_cert_signing_key::<K, C>(signing_key_spec)?;
