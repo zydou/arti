@@ -11,7 +11,7 @@ use tor_rpc_connect::auth::{
 };
 use tor_rpcbase::{self as rpc, templates::*};
 
-use crate::{Connection, RpcMgr};
+use crate::Connection;
 
 use super::{AuthenticateReply, AuthenticationFailure};
 
@@ -73,8 +73,8 @@ struct CookieBeginReply {
 struct CookieAuthInProgress {
     /// The cookie we're using to check the client's authentication.
     cookie: Arc<Cookie>,
-    /// The RPC manager we'll use, if successful, to create a session.
-    mgr: Weak<RpcMgr>,
+    /// The RPC connection we'll use, if successful, to create a session.
+    conn: Weak<Connection>,
     /// The nonce that the client sent us.
     client_nonce: CookieAuthNonce,
     /// The nonce that we sent to the client.
@@ -148,7 +148,7 @@ async fn cookie_begin(
 
     let auth_in_progress = Arc::new(CookieAuthInProgress {
         cookie,
-        mgr: unauth.mgr.clone(),
+        conn: Arc::downgrade(&unauth),
         client_nonce: method.client_nonce,
         server_nonce: Mutex::new(Some(server_nonce.clone())),
         server_addr: server_addr.clone(),
@@ -188,13 +188,12 @@ async fn cookie_continue(
     if expected_client_mac != method.client_mac {
         return Err(AuthenticationFailure::IncorrectAuthentication.into());
     }
-
-    let mgr = in_progress
-        .mgr
+    let conn = in_progress
+        .conn
         .upgrade()
         .ok_or(AuthenticationFailure::ShuttingDown)?;
     let auth = &super::RpcAuthentication {};
-    let session = mgr.create_session(auth);
+    let session = conn.create_session(auth)?;
     let session = ctx.register_owned(session);
 
     Ok(AuthenticateReply { session })

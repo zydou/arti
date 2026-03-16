@@ -159,6 +159,21 @@ class ArtiRpcConnBuilder(_RpcBase):
         )
         self._handle_error(rv, error)
 
+    def prefer_superuser_permission(self, required: bool = False) -> None:
+        """
+        Declare that we prefer connect points for which superuser
+        permissions are available.
+
+        If `required` is true, we do not try any other connect points.
+        Otherwise, we try other connect points if we cannot find any
+        with superuser permissions.
+        """
+        error = POINTER(arti_rpc.ffi.ArtiRpcError)()
+        rv = self._rpc.arti_rpc_conn_builder_prefer_superuser_permission(
+            self._builder, required, byref(error)
+        )
+        self._handle_error(rv, error)
+
     def prepend_literal_connect_point(self, connect_point: str) -> None:
         """
         Prepend `connect_point` to this builder's search path

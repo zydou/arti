@@ -361,6 +361,10 @@ A socket-connection table has the following members.
   forbidden otherwise.
   See "Implementing inet-auto" below.
 
+- `superuser`: A boolean declaring whether clients authenticating to this connect
+  point are granted permission to acquire a superuser capability.
+  May be absent. Defaults to "false".
+
 The `socket` members must be in a form accepted by
 [`general::SocketAddr::from_str`](https://docs.rs/tor-general-addr/latest/tor_general_addr/general/enum.SocketAddr.html#string-representation)
 _or_ in the `inet-auto` format, containing the prefix `inet-auto:` followed by

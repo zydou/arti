@@ -19,9 +19,12 @@ pub(crate) mod conntarget;
 pub(crate) mod listener;
 mod proxyinfo;
 mod session;
+mod superuser;
 
 use listener::RpcListenerSetConfig;
 pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
+
+use crate::rpc::superuser::RpcSuperuser;
 
 /// Configuration for Arti's RPC subsystem.
 ///
@@ -137,12 +140,13 @@ pub(crate) async fn launch_rpc_mgr<R: Runtime>(
     }
     let (rpc_state, rpc_state_sender) = RpcVisibleArtiState::new();
 
-    let rpc_mgr = RpcMgr::new(move |auth| ArtiRpcSession::new(auth, &client, &rpc_state))?;
+    let rpc_mgr = RpcMgr::new()?;
     // Register methods. Needed since TorClient is generic.
     //
     // TODO: If we accumulate a large number of generics like this, we should do this elsewhere.
     rpc_mgr.register_rpc_methods(TorClient::<R>::rpc_methods());
     rpc_mgr.register_rpc_methods(arti_rpcserver::rpc_methods::<R>());
+    rpc_mgr.register_rpc_methods(RpcSuperuser::<R>::rpc_methods());
 
     let rt_clone = runtime.clone();
     let rpc_mgr_clone = rpc_mgr.clone();
@@ -153,7 +157,7 @@ pub(crate) async fn launch_rpc_mgr<R: Runtime>(
     // succeeded or not. This is something we should fix when we refactor
     // our service-launching code.
     runtime.spawn(async move {
-        let result = run_rpc_listener(rt_clone, incoming, rpc_mgr_clone).await;
+        let result = run_rpc_listener(rt_clone, incoming, rpc_mgr_clone, client, rpc_state).await;
         if let Err(e) = result {
             tracing::warn!("RPC manager quit with an error: {}", e);
         }
@@ -170,11 +174,17 @@ async fn run_rpc_listener<R: Runtime>(
     runtime: R,
     mut incoming: impl futures::Stream<Item = IoResult<IncomingConn>> + Unpin,
     rpc_mgr: Arc<RpcMgr>,
+    client: TorClient<R>,
+    rpc_state: Arc<RpcVisibleArtiState>,
 ) -> Result<()> {
     while let Some((stream, _addr, info)) = incoming.next().await.transpose()? {
         debug!("Received incoming RPC connection from {}", &info.name);
 
-        let connection = rpc_mgr.new_connection(info.auth.clone());
+        let client_clone = client.clone();
+        let rpc_state_clone = rpc_state.clone();
+        let connection = rpc_mgr.new_connection(info.auth.clone(), move |auth| {
+            ArtiRpcSession::new(auth, &client_clone, &rpc_state_clone, &info) as _
+        });
         let (input, output) = stream.split();
 
         runtime.spawn(async {

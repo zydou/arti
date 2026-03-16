@@ -54,10 +54,7 @@ async fn authenticate_connection(
     }
 
     let auth = RpcAuthentication {};
-    let session = {
-        let mgr = unauth.mgr()?;
-        mgr.create_session(&auth)
-    };
+    let session = unauth.create_session(&auth)?;
     let session = ctx.register_owned(session);
     Ok(AuthenticateReply { session })
 }

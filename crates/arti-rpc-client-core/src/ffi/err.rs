@@ -165,6 +165,7 @@ pub(crate) enum FfiStatus {
     /// We tried to connect to Arti at a given connect point,
     /// but it could not be used:
     /// either because we don't know how,
+    /// because we were configured not to use it,
     /// or because we were not able to access some necessary file or directory.
     [c"Connect point was not usable"]
     ConnectPointNotUsable = 14,
@@ -330,6 +331,7 @@ impl IntoFfiError for crate::ConnectError {
             E::CookieMismatch => F::ConnectPointNotUsable,
             E::LoadCookie(_) => F::ConnectPointNotUsable,
             E::StreamTypeUnsupported => F::ConnectPointNotUsable,
+            E::NoSuperuserPermission => F::ConnectPointNotUsable,
         }
     }
 

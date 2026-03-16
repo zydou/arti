@@ -21,7 +21,7 @@ use serde_json::error::Category as JsonErrorCategory;
 use tor_async_utils::{SinkExt as _, mpsc_channel_no_memquota};
 
 use crate::{
-    RpcMgr,
+    RpcAuthentication,
     cancel::{self, Cancel, CancelHandle},
     err::RequestParseError,
     globalid::{GlobalId, MacKey},
@@ -31,6 +31,11 @@ use crate::{
 
 use tor_rpcbase::templates::*;
 use tor_rpcbase::{self as rpc, RpcError};
+
+/// A function we use to construct Session objects in response to authentication.
+//
+// TODO RPC: Perhaps this should return a Result?
+type SessionFactory = Box<dyn Fn(&RpcAuthentication) -> Arc<dyn rpc::Object> + Send + Sync>;
 
 /// An open connection from an RPC client.
 ///
@@ -53,6 +58,10 @@ use tor_rpcbase::{self as rpc, RpcError};
 /// it provides only those methods that you need
 /// in order to perform authentication
 /// and receive an `RpcSession`.
+///
+/// Note that a connection can only be authenticated once:
+/// If you drop the `RpcSession` returned by authenticating,
+/// you cannot get another one on the same connection.
 #[derive(Deftly)]
 #[derive_deftly(Object)]
 pub struct Connection {
@@ -75,9 +84,6 @@ pub struct Connection {
     /// A `MacKey` used to create `GlobalIds` for the objects whose identifiers
     /// need to exist outside this connection.
     global_id_mac_key: MacKey,
-
-    /// A reference to the manager associated with this session.
-    mgr: Weak<RpcMgr>,
 
     /// The authentication type that's required in order to get a session.
     require_auth: tor_rpc_connect::auth::RpcAuth,
@@ -102,6 +108,11 @@ struct Inner {
     ///
     /// TODO RPC: Maybe there is an easier way to do this while keeping `context` object-save?
     this_connection: Option<Weak<Connection>>,
+
+    /// A SessionFactory that will be used to create a session if authentication is successful.
+    ///
+    /// This is None if the connection has already been authenticated.
+    session_factory: Option<SessionFactory>,
 }
 
 /// How many updates can be pending, per connection, before they start to block?
@@ -151,21 +162,36 @@ impl Connection {
         connection_id: ConnectionId,
         dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
         global_id_mac_key: MacKey,
-        mgr: Weak<RpcMgr>,
         require_auth: tor_rpc_connect::auth::RpcAuth,
+        session_factory: SessionFactory,
     ) -> Arc<Self> {
         Arc::new_cyclic(|this_connection| Self {
             inner: Mutex::new(Inner {
                 inflight: HashMap::new(),
                 objects: ObjMap::new(),
                 this_connection: Some(Weak::clone(this_connection)),
+                session_factory: Some(session_factory),
             }),
             dispatch_table,
             connection_id,
             global_id_mac_key,
-            mgr,
             require_auth,
         })
+    }
+
+    /// Construct a new object to serve as the `session` for a connection.
+    pub(crate) fn create_session(
+        &self,
+        auth: &RpcAuthentication,
+    ) -> Result<Arc<dyn rpc::Object>, RpcError> {
+        let mut inner = self.inner.lock().expect("lock poisoned");
+        let session_factory = inner.session_factory.take().ok_or_else(|| {
+            RpcError::new(
+                "Cannot authenticate the same connection twice".into(),
+                rpc::RpcErrorKind::RequestError,
+            )
+        })?;
+        Ok((session_factory)(auth))
     }
 
     /// If possible, convert an `ObjectId` into a `GenIdx` that can be used in
@@ -512,14 +538,6 @@ impl Connection {
         // Note that we drop the read lock before we await this future!
         invoke_future.await
     }
-
-    /// Try to get a strong reference to the RpcMgr for this connection, and
-    /// return an error if we can't.
-    pub(crate) fn mgr(&self) -> Result<Arc<RpcMgr>, MgrDisappearedError> {
-        self.mgr
-            .upgrade()
-            .ok_or(MgrDisappearedError::RpcMgrDisappeared)
-    }
 }
 
 /// An error returned when an RPC request lists some feature as required,
@@ -601,19 +619,6 @@ impl ConnectionError {
             JsonCodecError::Io(e) => Self::ReadFailed(Arc::new(e)),
             JsonCodecError::Json(e) => Self::DecodeFailed(Arc::new(e)),
         }
-    }
-}
-
-/// A failure from trying to upgrade a `Weak<RpcMgr>`.
-#[derive(Clone, Debug, thiserror::Error, serde::Serialize)]
-pub(crate) enum MgrDisappearedError {
-    /// We tried to upgrade our reference to the RpcMgr, and failed.
-    #[error("RPC manager disappeared; Arti is shutting down?")]
-    RpcMgrDisappeared,
-}
-impl tor_error::HasKind for MgrDisappearedError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        tor_error::ErrorKind::ArtiShuttingDown
     }
 }
 

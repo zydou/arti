@@ -53,6 +53,28 @@ impl ParsedConnectPoint {
             CPE::Builtin(builtin) => CPE::Builtin(builtin.clone()),
         }))
     }
+
+    /// Check whether authenticating this connect point grants superuser permission.
+    pub fn superuser_permission(&self) -> crate::SuperuserPermission {
+        self.0.superuser_permission()
+    }
+
+    /// Return true if this connect point is an explicit abort.
+    pub fn is_explicit_abort(&self) -> bool {
+        self.0.is_explicit_abort()
+    }
+}
+
+impl ResolvedConnectPoint {
+    /// Check whether authenticating this connect point grants superuser permission.
+    pub fn superuser_permission(&self) -> crate::SuperuserPermission {
+        self.0.superuser_permission()
+    }
+
+    /// Return true if this connect point is an explicit abort.
+    pub fn is_explicit_abort(&self) -> bool {
+        self.0.is_explicit_abort()
+    }
 }
 
 impl FromStr for ParsedConnectPoint {
@@ -220,6 +242,33 @@ impl TryFrom<ConnectPointDe> for ConnectPointEnum<Unresolved> {
     }
 }
 
+impl<R: Addresses> ConnectPointEnum<R> {
+    /// Check whether authenticating this connect point grants superuser permission.
+    fn superuser_permission(&self) -> crate::SuperuserPermission {
+        use crate::SuperuserPermission::*;
+        match self {
+            ConnectPointEnum::Connect(connect) => {
+                if connect.superuser {
+                    Allowed
+                } else {
+                    NotAllowed
+                }
+            }
+            ConnectPointEnum::Builtin(_) => NotAllowed,
+        }
+    }
+
+    /// Return true if this connect point is an explicit abort.
+    fn is_explicit_abort(&self) -> bool {
+        matches!(
+            self,
+            ConnectPointEnum::Builtin(Builtin {
+                builtin: BuiltinVariant::Abort
+            })
+        )
+    }
+}
+
 /// A "builtin" connect point.
 ///
 /// This represents an approach to connecting that is handled purely
@@ -260,6 +309,10 @@ pub(crate) struct Connect<R: Addresses> {
     pub(crate) auth: Auth<R>,
     /// A file in which the actual value of an `inet-auto` address should be stored.
     pub(crate) socket_address_file: Option<R::Path>,
+    /// If true, we should allow authenticated connections to this connect point to acquire
+    /// superuser permissions.
+    #[serde(default)]
+    pub(crate) superuser: bool,
 }
 
 /// A target of a [`Connect`] connpt.
@@ -452,6 +505,7 @@ impl Connect<Unresolved> {
             socket_canonical,
             auth,
             socket_address_file,
+            superuser: self.superuser,
         }
         .validate()
     }

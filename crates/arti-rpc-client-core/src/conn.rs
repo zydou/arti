@@ -640,6 +640,9 @@ pub enum ConnectError {
     /// We were unable to access the configured cookie file.
     #[error("Unable to load secret cookie value")]
     LoadCookie(#[from] CookieAccessError),
+    /// We want superuser permission, and this connect point does not grant it.
+    #[error("Connect point does not provide superuser permission.")]
+    NoSuperuserPermission,
 }
 
 impl HasClientErrorAction for ConnectError {
@@ -665,6 +668,7 @@ impl HasClientErrorAction for ConnectError {
             E::ServerAddressMismatch { .. } => A::Abort,
             E::CookieMismatch => A::Abort,
             E::LoadCookie(e) => e.client_action(),
+            E::NoSuperuserPermission => A::Decline,
         }
     }
 }

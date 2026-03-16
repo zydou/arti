@@ -311,3 +311,21 @@ def check_tcp_auto_content(context):
     address = j["address"]
     assert address.startswith("inet:127.0.0.1:")
     assert address != "inet:127.0.0.1:0"
+
+
+@arti_test
+def test_prefer_su_not_found(context):
+    bld = ArtiRpcConnBuilder()
+    bld.prefer_superuser_permission(required=False)
+    bld.prepend_literal_connect_point(connpt_abort())
+    bld.prepend_literal_path(str(context.tcp_auto_connpt_path))
+    assert_builder_connects(bld)
+
+
+@arti_test
+def test_require_su_not_found(context):
+    bld = ArtiRpcConnBuilder()
+    bld.prefer_superuser_permission(required=True)
+    bld.prepend_literal_connect_point(connpt_abort())
+    bld.prepend_literal_path(str(context.tcp_auto_connpt_path))
+    assert_builder_aborts(bld)
