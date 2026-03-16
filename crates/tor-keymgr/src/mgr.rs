@@ -181,15 +181,7 @@ impl KeyMgr {
     ///
     /// Returns `Ok(None)` if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
-        let result = self.get_from_store(key_spec, &K::Key::item_type(), self.all_stores())?;
-        if result.is_none() {
-            // If the key_spec is the specifier for the public part of a keypair,
-            // try getting the pair and extracting the public portion from it.
-            if let Some(key_pair_spec) = key_spec.keypair_specifier() {
-                return Ok(self.get::<K::KeyPair>(&*key_pair_spec)?.map(|k| k.into()));
-            }
-        }
-        Ok(result)
+        self.get_from_store(key_spec, &K::Key::item_type(), self.all_stores())
     }
 
     /// Retrieve the specified keystore entry, and try to deserialize it as `K::Key`.
@@ -590,10 +582,20 @@ impl KeyMgr {
         &self,
         key_spec: &dyn KeySpecifier,
         key_type: &KeystoreItemType,
-        stores: impl Iterator<Item = &'a BoxedKeystore>,
+        stores: impl Iterator<Item = &'a BoxedKeystore> + Clone,
     ) -> Result<Option<K>> {
-        let Some(key) = self.get_from_store_raw::<K::Key>(key_spec, key_type, stores)? else {
-            return Ok(None);
+        let Some(key) = self.get_from_store_raw::<K::Key>(key_spec, key_type, stores.clone())?
+        else {
+            // If the key_spec is the specifier for the public part of a keypair,
+            // try getting the pair and extracting the public portion from it.
+            let Some(key_pair_spec) = key_spec.keypair_specifier() else {
+                return Ok(None);
+            };
+
+            let key_type = <K::KeyPair as ToEncodableKey>::Key::item_type();
+            return Ok(self
+                .get_from_store::<K::KeyPair>(&*key_pair_spec, &key_type, stores)?
+                .map(|k| k.into()));
         };
 
         Ok(Some(K::from_encodable_key(key)))
@@ -755,7 +757,7 @@ impl KeyMgr {
     }
 
     /// Return an iterator over all configured stores.
-    fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> {
+    fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> + Clone {
         iter::once(&self.primary_store).chain(self.secondary_stores.iter())
     }
 
