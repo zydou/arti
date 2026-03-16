@@ -47,9 +47,12 @@ const KEY_DURATION_6MONTHS: Duration = Duration::from_secs(6 * 30 * 24 * 60 * 60
 /// Every single certificate is generated in this function.
 ///
 /// This function assumes that all required keys are in the keymgr.
-fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
+fn build_proto_identities<R: Runtime>(
+    runtime: &R,
+    keymgr: &KeyMgr,
+) -> anyhow::Result<RelayIdentities> {
     let mut rng = tor_llcrypto::rng::CautiousRng;
-    let now = SystemTime::now();
+    let now = runtime.wallclock();
 
     // Get the identity keypairs.
     let rsa_id_kp: RelayIdentityRsaKeypair = keymgr
@@ -92,7 +95,7 @@ fn build_proto_identities(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
     // Create the RSA X509 certificate.
     let cert_id_x509_rsa = tor_cert::x509::create_legacy_rsa_id_cert(
         &mut rng,
-        SystemTime::now(),
+        now,
         &issuer_hostname,
         rsa_id_kp.keypair(),
     )
@@ -159,13 +162,15 @@ where
 ///
 /// Returns `(removed, min_remaining)` where `removed` indicates whether any entry was deleted and
 /// `min_remaining` is the minimum `valid_until` of the entries that were kept (if any).
-fn remove_expired<F>(
+fn remove_expired<R, F>(
+    runtime: &R,
     keymgr: &KeyMgr,
     pattern: &tor_keymgr::KeyPathPattern,
     label: &'static str,
     expiry_from_keypath: F,
 ) -> anyhow::Result<(bool, Option<SystemTime>)>
 where
+    R: Runtime,
     F: Fn(&KeyPath) -> anyhow::Result<Timestamp>,
 {
     let entries = keymgr.list_matching(pattern)?;
@@ -174,7 +179,7 @@ where
 
     for entry in entries {
         let valid_until = expiry_from_keypath(entry.key_path())?;
-        if valid_until <= Timestamp::from(SystemTime::now() + KEY_ROTATION_EXPIRE_BUFFER) {
+        if valid_until <= Timestamp::from(runtime.wallclock() + KEY_ROTATION_EXPIRE_BUFFER) {
             tracing::debug!("Expired {} in keymgr. Removing it.", label);
             keymgr.remove_entry(&entry)?;
             removed = true;
@@ -251,27 +256,30 @@ where
 ///
 /// Returns the minimum valid until value if a key was generated. Else, a None value indicates that
 /// no key was generated.
-fn try_generate_all(keymgr: &KeyMgr) -> anyhow::Result<Option<SystemTime>> {
-    let link_expiry = SystemTime::now() + KEY_DURATION_2DAYS;
+fn try_generate_all<R: Runtime>(
+    runtime: &R,
+    keymgr: &KeyMgr,
+) -> anyhow::Result<Option<SystemTime>> {
+    let link_expiry = runtime.wallclock() + KEY_DURATION_2DAYS;
     let link_spec = RelayLinkSigningKeypairSpecifier::new(Timestamp::from(link_expiry));
     let link_generated = try_generate_key::<
         RelayLinkSigningKeypair,
         RelayLinkSigningKeypairSpecifierPattern,
     >(keymgr, &link_spec)?;
 
-    fn make_signing_cert(
-        subject_key: &RelaySigningKeypair,
-        signing_key: &RelayIdentityKeypair,
-    ) -> RelaySigningKeyCert {
+    // The make certificate function needed for the get_or_generate_key_and_cert(). It is a closure
+    // so we can capture the runtime wallclock.
+    let make_signing_cert = |subject_key: &RelaySigningKeypair,
+                             signing_key: &RelayIdentityKeypair| {
         gen_signing_cert(
             signing_key,
             subject_key,
-            SystemTime::now() + KEY_DURATION_30DAYS,
+            runtime.wallclock() + KEY_DURATION_30DAYS,
         )
         .expect("failed to generate relay signing cert")
-    }
+    };
 
-    let cert_expiry = SystemTime::now() + KEY_DURATION_30DAYS;
+    let cert_expiry = runtime.wallclock() + KEY_DURATION_30DAYS;
     // We either get the existing one or generate this new one.
     let cert_spec = RelaySigningKeyCertSpecifier::new(RelaySigningPublicKeySpecifier::new(
         Timestamp::from(cert_expiry),
@@ -301,14 +309,19 @@ fn try_generate_all(keymgr: &KeyMgr) -> anyhow::Result<Option<SystemTime>> {
 /// Return (`removed`, `next_expiry`) where the `removed` indicates if at least one key has been
 /// removed because it was expired. The `next_expiry` is the minimum value of all valid_until which
 /// indicates the next closest expiry time.
-fn remove_expired_keys(keymgr: &KeyMgr) -> anyhow::Result<(bool, Option<SystemTime>)> {
+fn remove_expired_keys<R: Runtime>(
+    runtime: &R,
+    keymgr: &KeyMgr,
+) -> anyhow::Result<(bool, Option<SystemTime>)> {
     let (relaysign_removed, relaysign_expiry) = remove_expired(
+        runtime,
         keymgr,
         &RelaySigningKeypairSpecifierPattern::new_any().arti_pattern()?,
         "key KP_relaysign_ed",
         |key_path| Ok(RelaySigningKeypairSpecifier::try_from(key_path)?.valid_until()),
     )?;
     let (link_removed, link_expiry) = remove_expired(
+        runtime,
         keymgr,
         &RelayLinkSigningKeypairSpecifierPattern::new_any().arti_pattern()?,
         "key KP_link_ed",
@@ -319,6 +332,7 @@ fn remove_expired_keys(keymgr: &KeyMgr) -> anyhow::Result<(bool, Option<SystemTi
     // do a pass at the keystore considering the upcoming offline key feature that might have more
     // than one expired cert in the keystore.
     let (sign_cert_removed, sign_cert_expiry) = remove_expired(
+        runtime,
         keymgr,
         &RelaySigningKeyCertSpecifierPattern::new_any().arti_pattern()?,
         "signing key cert",
@@ -346,13 +360,13 @@ fn remove_expired_keys(keymgr: &KeyMgr) -> anyhow::Result<(bool, Option<SystemTi
 ///
 /// Returns (rotated, next_expiry) where `rotated` indicates if any key was rotated and
 /// `next_expiry` is the earliest expiry time across all keys.
-fn try_rotate_keys(keymgr: &KeyMgr) -> anyhow::Result<(bool, SystemTime)> {
+fn try_rotate_keys<R: Runtime>(runtime: &R, keymgr: &KeyMgr) -> anyhow::Result<(bool, SystemTime)> {
     // First do a pass to remove every expired key(s) or/and cert(s).
-    let (have_rotated, min_expiry) = remove_expired_keys(keymgr)?;
+    let (have_rotated, min_expiry) = remove_expired_keys(runtime, keymgr)?;
 
     // Then attempt to generate keys. If at least one was generated, we'll get the min expiry time
     // which we need to consider "rotated" so the caller can know that a new key appeared.
-    let gen_min_expiry = try_generate_all(keymgr)?;
+    let gen_min_expiry = try_generate_all(runtime, keymgr)?;
     let have_rotated = have_rotated || gen_min_expiry.is_some();
 
     // We should never get no expiry time.
@@ -374,17 +388,20 @@ fn try_rotate_keys(keymgr: &KeyMgr) -> anyhow::Result<(bool, SystemTime)> {
 ///
 /// This function is only called when our relay bootstraps in order to attempt to generate any
 /// missing keys or/and rotate expired keys.
-pub(crate) fn try_generate_keys(keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
+pub(crate) fn try_generate_keys<R: Runtime>(
+    runtime: &R,
+    keymgr: &KeyMgr,
+) -> anyhow::Result<RelayIdentities> {
     // Attempt to generate our identity keys (ed and RSA). Those keys DO NOT rotate. It won't be
     // replaced if they already exists.
     generate_key::<RelayIdentityKeypair>(keymgr, &RelayIdentityKeypairSpecifier::new())?;
     generate_key::<RelayIdentityRsaKeypair>(keymgr, &RelayIdentityRsaKeypairSpecifier::new())?;
 
     // Attempt to rotate the keys. Any missing keys (and cert) will be generated.
-    let _ = try_rotate_keys(keymgr)?;
+    let _ = try_rotate_keys(runtime, keymgr)?;
 
     // Now that we have our up-to-date keys, build the RelayIdentities object.
-    build_proto_identities(keymgr)
+    build_proto_identities(runtime, keymgr)
 }
 
 /// Task to rotate keys when they need to be rotated.
@@ -395,9 +412,9 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
 ) -> anyhow::Result<void::Void> {
     loop {
         // Attempt a rotation of all keys.
-        let (have_rotated, next_expiry) = try_rotate_keys(&keymgr)?;
+        let (have_rotated, next_expiry) = try_rotate_keys(&runtime, &keymgr)?;
         if have_rotated {
-            let ids = build_proto_identities(&keymgr)?;
+            let ids = build_proto_identities(&runtime, &keymgr)?;
             chanmgr
                 .set_relay_identities(Arc::new(ids))
                 .context("Failed to set relay identities on ChanMgr")?;
@@ -407,7 +424,7 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
         // If the subtraction would underflow, wake up immediately to rotate the expired key.
         let next_wake = next_expiry
             .checked_sub(KEY_ROTATION_EXPIRE_BUFFER)
-            .unwrap_or(SystemTime::now());
+            .unwrap_or(runtime.wallclock());
         runtime.sleep_until_wallclock(next_wake).await;
     }
 }
