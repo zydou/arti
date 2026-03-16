@@ -260,7 +260,9 @@ fn try_generate_all<R: Runtime>(
     runtime: &R,
     keymgr: &KeyMgr,
 ) -> anyhow::Result<Option<SystemTime>> {
-    let link_expiry = runtime.wallclock() + KEY_DURATION_2DAYS;
+    let now = runtime.wallclock();
+
+    let link_expiry = now + KEY_DURATION_2DAYS;
     let link_spec = RelayLinkSigningKeypairSpecifier::new(Timestamp::from(link_expiry));
     let link_generated = try_generate_key::<
         RelayLinkSigningKeypair,
@@ -271,15 +273,11 @@ fn try_generate_all<R: Runtime>(
     // so we can capture the runtime wallclock.
     let make_signing_cert = |subject_key: &RelaySigningKeypair,
                              signing_key: &RelayIdentityKeypair| {
-        gen_signing_cert(
-            signing_key,
-            subject_key,
-            runtime.wallclock() + KEY_DURATION_30DAYS,
-        )
-        .expect("failed to generate relay signing cert")
+        gen_signing_cert(signing_key, subject_key, now + KEY_DURATION_30DAYS)
+            .expect("failed to generate relay signing cert")
     };
 
-    let cert_expiry = runtime.wallclock() + KEY_DURATION_30DAYS;
+    let cert_expiry = now + KEY_DURATION_30DAYS;
     // We either get the existing one or generate this new one.
     let cert_spec = RelaySigningKeyCertSpecifier::new(RelaySigningPublicKeySpecifier::new(
         Timestamp::from(cert_expiry),
