@@ -640,8 +640,8 @@ impl ExpiryHours {
         let d = expiry
             .duration_since(std::time::SystemTime::UNIX_EPOCH)
             .map_err(|_| CertEncodeError::InvalidExpiration)?;
-        let sec = d.as_secs();
-        let hours = sec
+        let sec_ceil = d.as_secs() + if d.subsec_nanos() > 0 { 1 } else { 0 };
+        let hours = sec_ceil
             .div_ceil(SEC_PER_HOUR)
             .try_into()
             .map_err(|_| CertEncodeError::InvalidExpiration)?;
@@ -729,5 +729,21 @@ mod test {
         assert_eq!(r.remaining(), 7);
 
         Ok(())
+    }
+
+    #[cfg(feature = "encode")]
+    #[test]
+    fn expiry_hours_ceil() {
+        use std::time::{Duration, SystemTime};
+
+        let now = SystemTime::now();
+        let mut exp = now + Duration::from_secs(24 * 60 * 60);
+        for _ in 0..=3600 {
+            let eh = ExpiryHours::try_from_systemtime_ceil(exp).unwrap();
+            assert!(SystemTime::from(eh) >= exp);
+            assert!(SystemTime::from(eh) < exp + Duration::from_secs(SEC_PER_HOUR));
+
+            exp += Duration::from_secs(1);
+        }
     }
 }
