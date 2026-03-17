@@ -872,7 +872,10 @@ mod tests {
     #[cfg(feature = "experimental-api")]
     use {
         crate::CertSpecifierPattern,
-        crate::test_utils::{TestCertSpecifier, TestCertSpecifierPattern, TestDerivedKeySpecifier},
+        crate::test_utils::{
+            TestCertSpecifier, TestCertSpecifierPattern, TestDerivedKeySpecifier,
+            TestDerivedKeypairSpecifier,
+        },
     };
 
     /// Metadata structure for tracking key operations in tests.
@@ -1558,6 +1561,67 @@ mod tests {
 
         assert_eq!(key.meta.item_id(), key_id_2);
         assert_eq!(key.meta.retrieved_from(), Some(&keystore2_id));
+    }
+
+    #[test]
+    fn get_from_keypair() {
+        const KEYSTORE_ID1: &str = "keystore1";
+        const KEYSTORE_ID2: &str = "keystore2";
+
+        let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed(KEYSTORE_ID1));
+        builder
+            .secondary_stores()
+            .extend([Keystore::new_boxed(KEYSTORE_ID2)]);
+        let mgr = builder.build().unwrap();
+
+        let keystore2 = KeystoreId::from_str(KEYSTORE_ID2).unwrap();
+
+        // Insert a key into Keystore2
+        let _ = mgr
+            .insert(
+                TestItem::new("nightjar"),
+                &TestDerivedKeypairSpecifier,
+                KeystoreSelector::Id(&keystore2),
+                true,
+            )
+            .unwrap();
+
+        macro_rules! boxed {
+            ($closure:expr) => {
+                Box::new($closure) as _
+            };
+        }
+
+        #[allow(clippy::type_complexity)]
+        let getters: &[(&'static str, Box<dyn Fn() -> Result<Option<TestPublicKey>>>)] = &[
+            (
+                "get",
+                boxed!(|| mgr.get::<TestPublicKey>(&TestDerivedKeySpecifier)),
+            ),
+            (
+                "get_from",
+                boxed!(|| mgr.get_from::<TestPublicKey>(&TestDerivedKeySpecifier, &keystore2)),
+            ),
+            (
+                "remove",
+                boxed!(|| mgr.remove::<TestPublicKey>(
+                    &TestDerivedKeySpecifier,
+                    KeystoreSelector::Id(&keystore2)
+                )),
+            ),
+        ];
+
+        for (test_name, getter) in getters {
+            // Retrieve the public key (internally, the keymgr should be able
+            // to extract it from the TestItem "keypair" type).
+            //
+            // XXX all these tests **except** for get() currently fail
+            // because of a bug in get_from_store()
+            let key = getter().unwrap().expect(test_name);
+
+            assert_eq!(key.meta.item_id(), "nightjar", "{test_name}");
+            assert_eq!(key.meta.retrieved_from(), Some(&keystore2), "{test_name}");
+        }
     }
 
     #[test]
