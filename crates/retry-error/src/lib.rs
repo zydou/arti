@@ -246,26 +246,17 @@ impl<E> RetryError<E> {
         }
 
         for (attempt, err, timestamp) in other.errors {
+            let Some(new_n_errors) = self.n_errors.checked_add(attempt.count()) else {
+                break;
+            };
+
             let new_attempt = match attempt {
-                Attempt::Single(_) => {
-                    let Some(new_n_errors) = self.n_errors.checked_add(1) else {
-                        break;
-                    };
-                    self.n_errors = new_n_errors;
-                    Attempt::Single(new_n_errors)
-                }
-                Attempt::Range(first, last) => {
-                    let count = last - first + 1;
-                    let Some(new_n_errors) = self.n_errors.checked_add(count) else {
-                        break;
-                    };
-                    let start = self.n_errors + 1;
-                    self.n_errors = new_n_errors;
-                    Attempt::Range(start, new_n_errors)
-                }
+                Attempt::Single(_) => Attempt::Single(new_n_errors),
+                Attempt::Range(_, _) => Attempt::Range(self.n_errors + 1, new_n_errors),
             };
 
             self.errors.push((new_attempt, err, timestamp));
+            self.n_errors = new_n_errors;
         }
     }
 }
