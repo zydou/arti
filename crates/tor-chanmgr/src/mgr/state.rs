@@ -71,7 +71,6 @@ struct Inner<C: AbstractChannelFactory> {
     /// peer can coexist. Furthermore, these channels are never looked up for normal relay
     /// operations and so a pending state is not needed.
     #[cfg(feature = "relay")]
-    #[expect(unused)] // TODO(relay) Remove once used.
     unauth_channels: Vec<Arc<C::Channel>>,
 
     /// Parameters for channels that we create, and that all existing channels are using
@@ -392,12 +391,18 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     #[cfg(feature = "relay")]
     pub(crate) fn add_open(&self, channel: Arc<C::Channel>) -> Result<()> {
         let mut inner = self.inner.lock()?;
-        inner.channels.insert(ChannelState::Open(OpenEntry {
-            channel,
-            // TODO(relay): Relay need a different unused duration (if any). We can't use the
-            // client timeout value. Need to be figured out before production.
-            max_unused_duration: Self::random_max_unused_duration(),
-        }));
+        // Make sure this channel has verified relay identities. Else, put it in the
+        // unauthenticated channel list (ex: client channel as a relay responder).
+        if channel.has_any_identity() {
+            inner.channels.insert(ChannelState::Open(OpenEntry {
+                channel,
+                // TODO(relay): Relay need a different unused duration (if any). We can't use the
+                // client timeout value. Need to be figured out before production.
+                max_unused_duration: Self::random_max_unused_duration(),
+            }));
+        } else {
+            inner.unauth_channels.push(channel);
+        }
         Ok(())
     }
 
