@@ -131,6 +131,13 @@ impl From<&RelaySigningPublicKeySpecifier> for RelaySigningKeypairSpecifier {
     }
 }
 
+impl RelaySigningPublicKeySpecifier {
+    /// Returns the time at which this key becomes invalid.
+    pub fn valid_until(&self) -> Timestamp {
+        self.valid_until
+    }
+}
+
 /// Certificate specifier for the [`RelaySigningPublicKeySpecifier`] certificate.
 ///
 /// Represents `KP_relaysign_ed` signed by the `KS_relayid_ed` identity key.
