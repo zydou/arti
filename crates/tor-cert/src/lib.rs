@@ -178,7 +178,7 @@ caret_int! {
 pub struct Ed25519Cert {
     /// How many _hours_ after the epoch will this certificate expire?
     #[cfg_attr(feature = "encode", builder(setter(custom)))]
-    exp_hours: u32,
+    exp_hours: ExpiryHours,
     /// Type of the certificate; recognized values are in certtype::*
     cert_type: CertType,
     /// The key or object being certified.
@@ -352,7 +352,7 @@ impl Ed25519Cert {
             ));
         }
         let cert_type = r.take_u8()?.into();
-        let exp_hours = r.take_u32()?;
+        let exp_hours = r.extract()?;
         let mut cert_key_type = r.take_u8()?.into();
 
         // This is a workaround for a tor bug: the key type is
@@ -401,8 +401,7 @@ impl Ed25519Cert {
 
     /// Return the time at which this certificate becomes expired
     pub fn expiry(&self) -> std::time::SystemTime {
-        let d = std::time::Duration::new(u64::from(self.exp_hours) * 3600, 0);
-        std::time::SystemTime::UNIX_EPOCH + d
+        self.exp_hours.into()
     }
 
     /// Return true iff this certificate will be expired at the time `when`.
@@ -616,6 +615,55 @@ impl tor_checkable::Timebound<Ed25519Cert> for SigCheckedCert {
 
     fn dangerously_assume_timely(self) -> Ed25519Cert {
         self.cert.dangerously_assume_timely()
+    }
+}
+
+/// A certificate expiration time, represented in _hours_ since the unix epoch.
+#[derive(Debug, Clone, Copy)]
+struct ExpiryHours(u32);
+
+/// The number of seconds in an hour.
+const SEC_PER_HOUR: u64 = 3600;
+
+impl From<ExpiryHours> for std::time::SystemTime {
+    fn from(value: ExpiryHours) -> Self {
+        // TODO MSRV 1.91; use from_hours.
+        let d = std::time::Duration::from_secs(u64::from(value.0) * SEC_PER_HOUR);
+        std::time::SystemTime::UNIX_EPOCH + d
+    }
+}
+
+#[cfg(feature = "encode")]
+impl ExpiryHours {
+    /// Return the earliest possible `ExpiryHours` that is no earlier than `expiry`.
+    fn try_from_systemtime_ceil(expiry: std::time::SystemTime) -> Result<Self, CertEncodeError> {
+        let d = expiry
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map_err(|_| CertEncodeError::InvalidExpiration)?;
+        let sec = d.as_secs();
+        let hours = sec
+            .div_ceil(SEC_PER_HOUR)
+            .try_into()
+            .map_err(|_| CertEncodeError::InvalidExpiration)?;
+        Ok(ExpiryHours(hours))
+    }
+
+    /// Return the latest possible ExpiryHours
+    const fn max() -> Self {
+        ExpiryHours(u32::MAX)
+    }
+}
+
+impl Readable for ExpiryHours {
+    fn take_from(b: &mut Reader<'_>) -> BytesResult<Self> {
+        Ok(ExpiryHours(b.take_u32()?))
+    }
+}
+
+impl tor_bytes::Writeable for ExpiryHours {
+    fn write_onto<B: tor_bytes::Writer + ?Sized>(&self, b: &mut B) -> tor_bytes::EncodeResult<()> {
+        b.write_u32(self.0);
+        Ok(())
     }
 }
 

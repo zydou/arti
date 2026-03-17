@@ -3,10 +3,10 @@
 //! Only available when the crate is built with the `encode` feature.
 
 use crate::{
-    CertEncodeError, CertExt, Ed25519Cert, Ed25519CertConstructor, ExtType, SignedWithEd25519Ext,
-    UnrecognizedExt,
+    CertEncodeError, CertExt, Ed25519Cert, Ed25519CertConstructor, ExpiryHours, ExtType,
+    SignedWithEd25519Ext, UnrecognizedExt,
 };
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 use tor_bytes::{EncodeResult, Writeable, Writer};
 use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey, Ed25519SigningKey};
 
@@ -98,13 +98,9 @@ impl Ed25519CertConstructor {
     ///
     /// (The time will be rounded forward to the nearest hour after the epoch.)
     pub fn expiration(&mut self, expiration: SystemTime) -> &mut Self {
-        /// The number of seconds in an hour.
-        const SEC_PER_HOUR: u64 = 3600;
-        let duration = expiration
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or(Duration::from_secs(0));
-        let exp_hours = duration.as_secs().saturating_add(SEC_PER_HOUR - 1) / SEC_PER_HOUR;
-        self.exp_hours = Some(exp_hours.try_into().unwrap_or(u32::MAX));
+        let exp_hours = ExpiryHours::try_from_systemtime_ceil(expiration)
+            .unwrap_or_else(|_| ExpiryHours::max());
+        self.exp_hours = Some(exp_hours);
         self
     }
 
@@ -164,7 +160,7 @@ impl Ed25519CertConstructor {
                 .ok_or(CertEncodeError::MissingField("cert_type"))?
                 .into(),
         );
-        w.write_u32(exp_hours.ok_or(CertEncodeError::MissingField("expiration"))?);
+        w.write(&exp_hours.ok_or(CertEncodeError::MissingField("expiration"))?)?;
         let cert_key = cert_key
             .clone()
             .ok_or(CertEncodeError::MissingField("cert_key"))?;
@@ -205,6 +201,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::CertifiedKey;
+    use std::time::Duration;
     use tor_checkable::{SelfSigned, Timebound};
 
     #[test]

@@ -6,7 +6,7 @@ use derive_more::{AsRef, Deref, Into};
 use tor_bytes::Writer as _;
 use tor_llcrypto::pk::{ed25519, rsa};
 
-use crate::CertEncodeError;
+use crate::{CertEncodeError, ExpiryHours};
 
 /// An RSA cross certificate certificate,
 /// created using [`EncodedRsaCrosscert::encode_and_sign`].
@@ -37,14 +37,8 @@ impl EncodedRsaCrosscert {
     ) -> Result<Self, CertEncodeError> {
         let mut cert = Vec::new();
         cert.write(ed_identity)?;
-        let hours_since_epoch: u32 = expiration
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .map_err(|_| CertEncodeError::InvalidExpiration)?
-            .as_secs()
-            .div_ceil(super::SECS_PER_HOUR)
-            .try_into()
-            .map_err(|_| CertEncodeError::InvalidExpiration)?;
-        cert.write_u32(hours_since_epoch);
+        let exp_hours = ExpiryHours::try_from_systemtime_ceil(expiration)?;
+        cert.write(&exp_hours)?;
         {
             let signature = rsa_identity
                 .sign(&super::compute_digest(&cert))
@@ -78,7 +72,8 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_checkable::{ExternallySigned, Timebound};
 
-    use crate::rsa::{RsaCrosscert, SECS_PER_HOUR};
+    use crate::SEC_PER_HOUR;
+    use crate::rsa::RsaCrosscert;
 
     use super::*;
 
@@ -91,7 +86,7 @@ mod test {
                 .unwrap();
 
         let now = SystemTime::now();
-        let expiry = now + Duration::from_secs(24 * SECS_PER_HOUR);
+        let expiry = now + Duration::from_secs(24 * SEC_PER_HOUR);
 
         let cert = EncodedRsaCrosscert::encode_and_sign(&keypair, &ed_id, expiry).unwrap();
 
