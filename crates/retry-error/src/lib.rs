@@ -225,7 +225,7 @@ impl<E> RetryError<E> {
         for (attempt, err, timestamp) in old_errs {
             if let Some((last_attempt, last_err, ..)) = self.errors.last_mut() {
                 if same_err(last_err, &err) {
-                    last_attempt.grow();
+                    last_attempt.grow(attempt.count());
                 } else {
                     self.errors.push((attempt, err, timestamp));
                 }
@@ -279,12 +279,20 @@ impl<E: PartialEq<E>> RetryError<E> {
 }
 
 impl Attempt {
-    /// Extend this attempt by a single additional failure.
-    fn grow(&mut self) {
+    /// Extend this attempt by additional failures.
+    fn grow(&mut self, count: usize) {
         *self = match *self {
-            Attempt::Single(idx) => Attempt::Range(idx, idx + 1),
-            Attempt::Range(first, last) => Attempt::Range(first, last + 1),
+            Attempt::Single(idx) => Attempt::Range(idx, idx + count),
+            Attempt::Range(first, last) => Attempt::Range(first, last + count),
         };
+    }
+
+    /// Return amount of failures.
+    fn count(&self) -> usize {
+        match *self {
+            Attempt::Single(_) => 1,
+            Attempt::Range(first, last) => last - first + 1,
+        }
     }
 }
 
@@ -724,6 +732,47 @@ Attempts 1..3: invalid digit found in string"
         match err1.errors[2].0 {
             Attempt::Range(3, 5) => {}
             ref x => panic!("Expected range 3..5, got {:?}", x),
+        }
+    }
+
+    #[test]
+    fn dedup_after_extend_same_doing() {
+        let doing = "do thing";
+        let message = "error";
+        let n1 = Instant::now();
+        let mut err1: RetryError<anyhow::Error> = RetryError::in_attempt_to(doing);
+
+        // Push 1 error
+        err1.push(anyhow::Error::msg(message));
+        assert_eq!(err1.n_errors, 1);
+
+        let mut err2: RetryError<anyhow::Error> = RetryError::in_attempt_to(doing);
+        // Push 2 identical errors to create a range
+        err2.push_timed(anyhow::Error::msg(message), n1, None);
+        err2.push_timed(anyhow::Error::msg(message), n1, None);
+
+        // Dedup err2 so it has a range
+        err2.dedup_by(|e1, e2| e1.to_string() == e2.to_string());
+        assert_eq!(err2.len(), 1); // collapsed to 1 entry
+        match err2.errors[0].0 {
+            Attempt::Range(1, 2) => {}
+            _ => panic!("Expected range 1..2"),
+        }
+
+        // Extend err1 with err2
+        err1.extend_from_retry_error(err2);
+        assert_eq!(err1.len(), 2); // 1 single + 1 range
+        assert_eq!(err1.n_errors, 3); // 1 + 2 = 3 total attempts
+
+        // Dedup err1 so it has only one range
+        err1.dedup_by(|e1, e2| e1.to_string() == e2.to_string());
+        assert_eq!(err1.len(), 1); // collapsed to 1 entry
+        assert_eq!(err1.n_errors, 3); // 3 total attempts
+
+        // Check the range indices
+        match err1.errors[0].0 {
+            Attempt::Range(1, 3) => {}
+            ref x => panic!("Expected range 1..3, got {:?}", x),
         }
     }
 }
