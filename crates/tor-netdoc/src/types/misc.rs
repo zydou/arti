@@ -1105,7 +1105,7 @@ mod fingerprint {
     /// A "long identity" in the format used for Family members.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(Debug, Clone, Eq, PartialEq, Hash)] //
     #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct LongIdent(pub RsaIdentity);
@@ -1174,8 +1174,15 @@ mod fingerprint {
         }
     }
 
+    impl Display for LongIdent {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "${}", self.0.as_hex_upper())
+        }
+    }
+
     impl crate::NormalItemArgument for Fingerprint {}
     impl crate::NormalItemArgument for Base64Fingerprint {}
+    impl crate::NormalItemArgument for LongIdent {}
 }
 
 /// A type for relay nicknames
