@@ -9,7 +9,7 @@ use tor_llcrypto as ll;
 
 use digest::Digest;
 
-use crate::CertType;
+use crate::{CertType, ExpiryHours};
 
 #[cfg(feature = "encode")]
 mod encode;
@@ -29,15 +29,12 @@ pub struct RsaCrosscert {
     subject_key: ll::pk::ed25519::Ed25519Identity,
     /// The expiration time of this certificate, in hours since the
     /// unix epoch.
-    exp_hours: u32,
+    exp_hours: ExpiryHours,
     /// The digest of the signed part of the certificate (for checking)
     digest: [u8; 32],
     /// The (alleged) signature on the certificate.
     signature: Vec<u8>,
 }
-
-/// Number of seconds in an hour.
-const SECS_PER_HOUR: u64 = 3600;
 
 /// Prefix appended when generating a digest for an RsaCrosscert
 const PREFIX: &[u8] = b"Tor TLS RSA/Ed25519 cross-certificate";
@@ -53,8 +50,7 @@ fn compute_digest(c: &[u8]) -> [u8; 32] {
 impl RsaCrosscert {
     /// Return the time at which this certificate becomes expired
     pub fn expiry(&self) -> std::time::SystemTime {
-        let d = std::time::Duration::new(u64::from(self.exp_hours) * SECS_PER_HOUR, 0);
-        std::time::SystemTime::UNIX_EPOCH + d
+        self.exp_hours.into()
     }
 
     /// Return a reference to the digest.
@@ -77,7 +73,7 @@ impl RsaCrosscert {
         let mut r = Reader::from_slice(bytes);
         let signed_portion = r.peek(36)?; // TODO(nickm): a bit ugly.
         let subject_key = r.extract()?;
-        let exp_hours = r.take_u32()?;
+        let exp_hours = r.extract()?;
         let siglen = r.take_u8()?;
         let signature = r.take(siglen as usize)?.into();
 
