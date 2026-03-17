@@ -625,12 +625,14 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             return Ok(());
         }
 
-        for channel in inner.channels.values() {
-            let channel = match channel {
-                CS::Open(OpenEntry { channel, .. }) => channel,
-                CS::Building(_) => continue,
-            };
+        let channels = inner.channels.values().filter_map(|chan| match chan {
+            CS::Open(OpenEntry { channel, .. }) => Some(channel),
+            CS::Building(_) => None,
+        });
+        #[cfg(feature = "relay")]
+        let channels = channels.chain(inner.unauth_channels.iter());
 
+        for channel in channels {
             if let Some(ref update) = update {
                 // Ignore error (which simply means the channel is closed or gone)
                 let _ = channel.reparameterize(Arc::clone(update));
@@ -641,6 +643,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
                 let _ = channel.reparameterize_kist(kist);
             }
         }
+
         Ok(())
     }
 
