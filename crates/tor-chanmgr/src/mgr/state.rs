@@ -652,6 +652,22 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     /// Return a Duration until the next time at which
     /// a channel _could_ expire.
     pub(crate) fn expire_channels(&self) -> Duration {
+        // TODO(relay): First, I don't think dropping the ChannelState<> from the channel list
+        // actually closes a channel reactor. Because it holds a Arc<Channel>, the ref counter is
+        // simply decremented but the reactor still goes on. We can't have guarantees on an object
+        // in an `Arc<>` to be cleaned up when we drop it as it defeats the purpose of using an Arc
+        // as we don't know if other reference are held elsewhere.
+        //
+        // Second, Unauthenticated channels are relay only as in client/bridge connecting inbound.
+        // We need to expire any unused as well.
+        //
+        // Taking both points above, maybe it could be better to move the expiry logic into the
+        // channel reactor itself and make this function simply retain any channel that are
+        // `is_usable()`. This would remove the convoluted needs for ChannelDetails shared between
+        // a `Channel` (reactor handle) and the channel `Reactor`.
+        //
+        // We'll address all this in https://gitlab.torproject.org/tpo/core/arti/-/work_items/1600
+
         let mut ret = Duration::from_secs(180);
         self.inner
             .lock()
