@@ -1000,11 +1000,13 @@ mod tests {
     struct TestPublicKey {
         /// The underlying key.
         key: KeystoreItem,
+        /// Metadata about the key.
+        meta: ItemMetadata,
     }
 
     impl From<TestItem> for TestPublicKey {
         fn from(tk: TestItem) -> TestPublicKey {
-            TestPublicKey { key: tk.item }
+            TestPublicKey { key: tk.item, meta: tk.meta }
         }
     }
 
