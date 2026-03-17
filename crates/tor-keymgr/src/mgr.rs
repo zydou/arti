@@ -181,15 +181,7 @@ impl KeyMgr {
     ///
     /// Returns `Ok(None)` if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
-        let result = self.get_from_store(key_spec, &K::Key::item_type(), self.all_stores())?;
-        if result.is_none() {
-            // If the key_spec is the specifier for the public part of a keypair,
-            // try getting the pair and extracting the public portion from it.
-            if let Some(key_pair_spec) = key_spec.keypair_specifier() {
-                return Ok(self.get::<K::KeyPair>(&*key_pair_spec)?.map(|k| k.into()));
-            }
-        }
-        Ok(result)
+        self.get_from_store(key_spec, &K::Key::item_type(), self.all_stores())
     }
 
     /// Retrieve the specified keystore entry, and try to deserialize it as `K::Key`.
@@ -590,10 +582,20 @@ impl KeyMgr {
         &self,
         key_spec: &dyn KeySpecifier,
         key_type: &KeystoreItemType,
-        stores: impl Iterator<Item = &'a BoxedKeystore>,
+        stores: impl Iterator<Item = &'a BoxedKeystore> + Clone,
     ) -> Result<Option<K>> {
-        let Some(key) = self.get_from_store_raw::<K::Key>(key_spec, key_type, stores)? else {
-            return Ok(None);
+        let Some(key) = self.get_from_store_raw::<K::Key>(key_spec, key_type, stores.clone())?
+        else {
+            // If the key_spec is the specifier for the public part of a keypair,
+            // try getting the pair and extracting the public portion from it.
+            let Some(key_pair_spec) = key_spec.keypair_specifier() else {
+                return Ok(None);
+            };
+
+            let key_type = <K::KeyPair as ToEncodableKey>::Key::item_type();
+            return Ok(self
+                .get_from_store::<K::KeyPair>(&*key_pair_spec, &key_type, stores)?
+                .map(|k| k.into()));
         };
 
         Ok(Some(K::from_encodable_key(key)))
@@ -728,7 +730,15 @@ impl KeyMgr {
         }
         let subject_key = match maybe_subject_key {
             Some(key) => key,
-            _ => self.generate(subject_key_spec, selector, rng, false)?,
+            _ => {
+                let subject_keypair_spec =
+                    subject_key_spec.keypair_specifier().ok_or_else(|| {
+                        internal!(
+                            "KeyCertificateSpecifier has no keypair specifier for the subject key?!"
+                        )
+                    })?;
+                self.generate(&*subject_keypair_spec, selector, rng, false)?
+            }
         };
 
         let signed_with = self.get_cert_signing_key::<K, C>(signing_key_spec)?;
@@ -747,7 +757,7 @@ impl KeyMgr {
     }
 
     /// Return an iterator over all configured stores.
-    fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> {
+    fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> + Clone {
         iter::once(&self.primary_store).chain(self.secondary_stores.iter())
     }
 
@@ -840,6 +850,7 @@ mod tests {
     use super::*;
     use crate::keystore::arti::err::{ArtiNativeKeystoreError, MalformedPathError};
     use crate::raw::{RawEntryId, RawKeystoreEntry};
+    use crate::test_utils::{TestDerivedKeySpecifier, TestDerivedKeypairSpecifier};
     use crate::{
         ArtiPath, ArtiPathUnavailableError, Error, KeyPath, KeystoreEntryResult, KeystoreError,
         UnrecognizedEntryError,
@@ -864,7 +875,7 @@ mod tests {
     #[cfg(feature = "experimental-api")]
     use {
         crate::CertSpecifierPattern,
-        crate::test_utils::{TestCertSpecifier, TestCertSpecifierPattern, TestDerivedKeySpecifier},
+        crate::test_utils::{TestCertSpecifier, TestCertSpecifierPattern},
     };
 
     /// Metadata structure for tracking key operations in tests.
@@ -992,11 +1003,16 @@ mod tests {
     struct TestPublicKey {
         /// The underlying key.
         key: KeystoreItem,
+        /// Metadata about the key.
+        meta: ItemMetadata,
     }
 
     impl From<TestItem> for TestPublicKey {
         fn from(tk: TestItem) -> TestPublicKey {
-            TestPublicKey { key: tk.item }
+            TestPublicKey {
+                key: tk.item,
+                meta: tk.meta,
+            }
         }
     }
 
@@ -1351,12 +1367,16 @@ mod tests {
     impl_specifier!(TestPublicKeySpecifier1, "pub-spec1");
 
     /// Create a test `KeystoreEntry`.
-    fn entry_descriptor(specifier: impl KeySpecifier, keystore_id: &KeystoreId) -> KeystoreEntry {
+    fn entry_descriptor(
+        specifier: impl KeySpecifier,
+        key_type: KeystoreItemType,
+        keystore_id: &KeystoreId,
+    ) -> KeystoreEntry {
         let arti_path = specifier.arti_path().unwrap();
         let raw_id = RawEntryId::Path(PathBuf::from(arti_path.as_ref()));
         KeystoreEntry {
             key_path: arti_path.into(),
-            key_type: TestItem::item_type(),
+            key_type,
             keystore_id,
             raw_id,
         }
@@ -1544,6 +1564,65 @@ mod tests {
     }
 
     #[test]
+    fn get_from_keypair() {
+        const KEYSTORE_ID1: &str = "keystore1";
+        const KEYSTORE_ID2: &str = "keystore2";
+
+        let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed(KEYSTORE_ID1));
+        builder
+            .secondary_stores()
+            .extend([Keystore::new_boxed(KEYSTORE_ID2)]);
+        let mgr = builder.build().unwrap();
+
+        let keystore2 = KeystoreId::from_str(KEYSTORE_ID2).unwrap();
+
+        // Insert a key into Keystore2
+        let _ = mgr
+            .insert(
+                TestItem::new("nightjar"),
+                &TestDerivedKeypairSpecifier,
+                KeystoreSelector::Id(&keystore2),
+                true,
+            )
+            .unwrap();
+
+        macro_rules! boxed {
+            ($closure:expr) => {
+                Box::new($closure) as _
+            };
+        }
+
+        #[allow(clippy::type_complexity)]
+        let getters: &[(&'static str, Box<dyn Fn() -> Result<Option<TestPublicKey>>>)] = &[
+            (
+                "get",
+                boxed!(|| mgr.get::<TestPublicKey>(&TestDerivedKeySpecifier)),
+            ),
+            #[cfg(feature = "onion-service-cli-extra")]
+            (
+                "get_from",
+                boxed!(|| mgr.get_from::<TestPublicKey>(&TestDerivedKeySpecifier, &keystore2)),
+            ),
+            (
+                "remove",
+                boxed!(|| mgr.remove::<TestPublicKey>(
+                    &TestDerivedKeySpecifier,
+                    KeystoreSelector::Id(&keystore2)
+                )),
+            ),
+        ];
+
+        for (test_name, getter) in getters {
+            // Retrieve the public key (internally, the keymgr should be able
+            // to extract it from the TestItem "keypair" type).
+            let key = getter().unwrap().expect(test_name);
+
+            assert_eq!(key.meta.item_id(), "nightjar", "{test_name}");
+            assert_eq!(key.meta.retrieved_from(), Some(&keystore2), "{test_name}");
+        }
+    }
+
+    #[test]
     fn remove() {
         let mut builder = KeyMgrBuilder::default().primary_store(Keystore::new_boxed("keystore1"));
 
@@ -1725,7 +1804,7 @@ mod tests {
         let mgr = builder.build().unwrap();
 
         let keystore2 = KeystoreId::from_str("keystore2").unwrap();
-        let entry_desc1 = entry_descriptor(TestKeySpecifier1, &keystore2);
+        let entry_desc1 = entry_descriptor(TestKeySpecifier1, TestItem::item_type(), &keystore2);
         assert!(mgr.get_entry::<TestItem>(&entry_desc1).unwrap().is_none());
 
         mgr.insert(
@@ -1783,7 +1862,7 @@ mod tests {
         );
         assert_eq!(retrieved_key.meta.is_generated(), true);
 
-        let entry_desc2 = entry_descriptor(TestKeySpecifier2, &keystore3);
+        let entry_desc2 = entry_descriptor(TestKeySpecifier2, TestItem::item_type(), &keystore3);
         assert_eq!(
             mgr.get_entry::<TestItem>(&entry_desc2)
                 .unwrap()
