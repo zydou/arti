@@ -699,6 +699,50 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(with = "MODULE"))]`
     ///    `#[deftly(netdoc(flatten))]`
     ///    `#[deftly(netdoc(skip))]`
+    ///
+    /// ### Signature item ordering, and signatures covering signatures
+    ///
+    /// The derived code does not impose any mutual ordering of signatures.
+    /// If signatures are independent, hashing can be done with [`SignedDocumentBody`]
+    /// (from [`SignatureHashInputs::body`]).
+    ///
+    /// In sane netdoc signature scheme, no signatures would cover other signatures,
+    /// and there would be no ordering requirement on signatures on the same document.
+    ///  A relying party would verify the signatures that they are proposing to rely on
+    /// (which would generally include signatures for *one* algorithm, not several)
+    /// and ignore the others.
+    ///
+    /// Unfortunately, many Tor netdocs have signature schemes
+    /// which are not sane (by this definition).
+    ///
+    /// When signatures are specified to cover other signatures,
+    /// the signature item implementation must contain ad-hoc code in
+    /// [`SignatureItemParseable::from_unparsed_and_body`].
+    /// to hash not only the body, but also the prior signatures.
+    /// Methods on [`SignatureHashInputs`] are available to get
+    /// the relevant parts of the input document text
+    /// (eg, [`document_sofar`](SignatureHashInputs::document_sofar)).
+    ///
+    /// When the spec states a required ordering on signature items,
+    /// this should be enforced by ad-hoc code in implementation(s) of
+    /// `SignatureItemParseable`.
+    /// The implementation should use
+    /// [`HashAccu`](SignatureItemParseable::HashAccu)
+    /// to store any necessary state.
+    /// Usually, this can be achieved by using the same Rust struct for the
+    /// `HashAccu` of each of the signature items:
+    /// that will make the signature hashes computed so far, for items seen so far,
+    /// visible to subsequent items;
+    /// the subsequent items can check that the prior items filled in the hash,
+    /// thus imposing an ordering.
+    ///
+    /// Note that this enforcement should be done for protocol compliance
+    /// and availability reasons, but is not a security issue.
+    /// There is not a security risk from accepting documents some of whose signatures
+    /// aren't covered by other signatures even though the protocol specifies they should be:
+    /// relying parties *verify* the signatures but do not treat them as trusted data.
+    /// So there is no engineered safeguard against failing to implement
+    /// signature item ordering checks.
     export NetdocParseableSignatures for struct, expect items, beta_deftly:
 
     ${defcond F_INTRO false}
