@@ -1364,7 +1364,11 @@ mod tests {
     impl_specifier!(TestPublicKeySpecifier1, "pub-spec1");
 
     /// Create a test `KeystoreEntry`.
-    fn entry_descriptor(specifier: impl KeySpecifier, key_type: KeystoreItemType, keystore_id: &KeystoreId) -> KeystoreEntry {
+    fn entry_descriptor(
+        specifier: impl KeySpecifier,
+        key_type: KeystoreItemType,
+        keystore_id: &KeystoreId,
+    ) -> KeystoreEntry {
         let arti_path = specifier.arti_path().unwrap();
         let raw_id = RawEntryId::Path(PathBuf::from(arti_path.as_ref()));
         KeystoreEntry {
