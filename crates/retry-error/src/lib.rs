@@ -214,7 +214,7 @@ impl<E> RetryError<E> {
     /// Group up consecutive errors of the same kind, for easier display.
     ///
     /// Two errors have "the same kind" if they return `true` when passed
-    /// to the provided `dedup` function.
+    /// to the provided `same_err` function.
     pub fn dedup_by<F>(&mut self, same_err: F)
     where
         F: Fn(&E, &E) -> bool,
