@@ -1364,12 +1364,12 @@ mod tests {
     impl_specifier!(TestPublicKeySpecifier1, "pub-spec1");
 
     /// Create a test `KeystoreEntry`.
-    fn entry_descriptor(specifier: impl KeySpecifier, keystore_id: &KeystoreId) -> KeystoreEntry {
+    fn entry_descriptor(specifier: impl KeySpecifier, key_type: KeystoreItemType, keystore_id: &KeystoreId) -> KeystoreEntry {
         let arti_path = specifier.arti_path().unwrap();
         let raw_id = RawEntryId::Path(PathBuf::from(arti_path.as_ref()));
         KeystoreEntry {
             key_path: arti_path.into(),
-            key_type: TestItem::item_type(),
+            key_type,
             keystore_id,
             raw_id,
         }
@@ -1738,7 +1738,7 @@ mod tests {
         let mgr = builder.build().unwrap();
 
         let keystore2 = KeystoreId::from_str("keystore2").unwrap();
-        let entry_desc1 = entry_descriptor(TestKeySpecifier1, &keystore2);
+        let entry_desc1 = entry_descriptor(TestKeySpecifier1, TestItem::item_type(), &keystore2);
         assert!(mgr.get_entry::<TestItem>(&entry_desc1).unwrap().is_none());
 
         mgr.insert(
@@ -1796,7 +1796,7 @@ mod tests {
         );
         assert_eq!(retrieved_key.meta.is_generated(), true);
 
-        let entry_desc2 = entry_descriptor(TestKeySpecifier2, &keystore3);
+        let entry_desc2 = entry_descriptor(TestKeySpecifier2, TestItem::item_type(), &keystore3);
         assert_eq!(
             mgr.get_entry::<TestItem>(&entry_desc2)
                 .unwrap()
