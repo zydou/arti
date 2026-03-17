@@ -850,6 +850,7 @@ mod tests {
     use super::*;
     use crate::keystore::arti::err::{ArtiNativeKeystoreError, MalformedPathError};
     use crate::raw::{RawEntryId, RawKeystoreEntry};
+    use crate::test_utils::{TestDerivedKeySpecifier, TestDerivedKeypairSpecifier};
     use crate::{
         ArtiPath, ArtiPathUnavailableError, Error, KeyPath, KeystoreEntryResult, KeystoreError,
         UnrecognizedEntryError,
@@ -874,10 +875,7 @@ mod tests {
     #[cfg(feature = "experimental-api")]
     use {
         crate::CertSpecifierPattern,
-        crate::test_utils::{
-            TestCertSpecifier, TestCertSpecifierPattern, TestDerivedKeySpecifier,
-            TestDerivedKeypairSpecifier,
-        },
+        crate::test_utils::{TestCertSpecifier, TestCertSpecifierPattern},
     };
 
     /// Metadata structure for tracking key operations in tests.
@@ -1600,6 +1598,7 @@ mod tests {
                 "get",
                 boxed!(|| mgr.get::<TestPublicKey>(&TestDerivedKeySpecifier)),
             ),
+            #[cfg(feature = "onion-service-cli-extra")]
             (
                 "get_from",
                 boxed!(|| mgr.get_from::<TestPublicKey>(&TestDerivedKeySpecifier, &keystore2)),
