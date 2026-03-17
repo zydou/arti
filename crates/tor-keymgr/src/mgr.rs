@@ -1615,9 +1615,6 @@ mod tests {
         for (test_name, getter) in getters {
             // Retrieve the public key (internally, the keymgr should be able
             // to extract it from the TestItem "keypair" type).
-            //
-            // XXX all these tests **except** for get() currently fail
-            // because of a bug in get_from_store()
             let key = getter().unwrap().expect(test_name);
 
             assert_eq!(key.meta.item_id(), "nightjar", "{test_name}");
