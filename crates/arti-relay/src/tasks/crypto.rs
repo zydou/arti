@@ -47,12 +47,8 @@ const KEY_DURATION_6MONTHS: Duration = Duration::from_secs(6 * 30 * 24 * 60 * 60
 /// Every single certificate is generated in this function.
 ///
 /// This function assumes that all required keys are in the keymgr.
-fn build_proto_identities<R: Runtime>(
-    runtime: &R,
-    keymgr: &KeyMgr,
-) -> anyhow::Result<RelayIdentities> {
+fn build_proto_identities(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
     let mut rng = tor_llcrypto::rng::CautiousRng;
-    let now = runtime.wallclock();
 
     // Get the identity keypairs.
     let rsa_id_kp: RelayIdentityRsaKeypair = keymgr
@@ -162,15 +158,14 @@ where
 ///
 /// Returns `(removed, min_remaining)` where `removed` indicates whether any entry was deleted and
 /// `min_remaining` is the minimum `valid_until` of the entries that were kept (if any).
-fn remove_expired<R, F>(
-    runtime: &R,
+fn remove_expired<F>(
+    now: SystemTime,
     keymgr: &KeyMgr,
     pattern: &tor_keymgr::KeyPathPattern,
     label: &'static str,
     expiry_from_keypath: F,
 ) -> anyhow::Result<(bool, Option<SystemTime>)>
 where
-    R: Runtime,
     F: Fn(&KeyPath) -> anyhow::Result<Timestamp>,
 {
     let entries = keymgr.list_matching(pattern)?;
@@ -179,7 +174,7 @@ where
 
     for entry in entries {
         let valid_until = expiry_from_keypath(entry.key_path())?;
-        if valid_until <= Timestamp::from(runtime.wallclock() + KEY_ROTATION_EXPIRE_BUFFER) {
+        if valid_until <= Timestamp::from(now + KEY_ROTATION_EXPIRE_BUFFER) {
             tracing::debug!("Expired {} in keymgr. Removing it.", label);
             keymgr.remove_entry(&entry)?;
             removed = true;
@@ -256,12 +251,7 @@ where
 ///
 /// Returns the minimum valid until value if a key was generated. Else, a None value indicates that
 /// no key was generated.
-fn try_generate_all<R: Runtime>(
-    runtime: &R,
-    keymgr: &KeyMgr,
-) -> anyhow::Result<Option<SystemTime>> {
-    let now = runtime.wallclock();
-
+fn try_generate_all(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<Option<SystemTime>> {
     let link_expiry = now + KEY_DURATION_2DAYS;
     let link_spec = RelayLinkSigningKeypairSpecifier::new(Timestamp::from(link_expiry));
     let link_generated = try_generate_key::<
@@ -307,19 +297,19 @@ fn try_generate_all<R: Runtime>(
 /// Return (`removed`, `next_expiry`) where the `removed` indicates if at least one key has been
 /// removed because it was expired. The `next_expiry` is the minimum value of all valid_until which
 /// indicates the next closest expiry time.
-fn remove_expired_keys<R: Runtime>(
-    runtime: &R,
+fn remove_expired_keys(
+    now: SystemTime,
     keymgr: &KeyMgr,
 ) -> anyhow::Result<(bool, Option<SystemTime>)> {
     let (relaysign_removed, relaysign_expiry) = remove_expired(
-        runtime,
+        now,
         keymgr,
         &RelaySigningKeypairSpecifierPattern::new_any().arti_pattern()?,
         "key KP_relaysign_ed",
         |key_path| Ok(RelaySigningKeypairSpecifier::try_from(key_path)?.valid_until()),
     )?;
     let (link_removed, link_expiry) = remove_expired(
-        runtime,
+        now,
         keymgr,
         &RelayLinkSigningKeypairSpecifierPattern::new_any().arti_pattern()?,
         "key KP_link_ed",
@@ -330,7 +320,7 @@ fn remove_expired_keys<R: Runtime>(
     // do a pass at the keystore considering the upcoming offline key feature that might have more
     // than one expired cert in the keystore.
     let (sign_cert_removed, sign_cert_expiry) = remove_expired(
-        runtime,
+        now,
         keymgr,
         &RelaySigningKeyCertSpecifierPattern::new_any().arti_pattern()?,
         "signing key cert",
@@ -358,13 +348,13 @@ fn remove_expired_keys<R: Runtime>(
 ///
 /// Returns (rotated, next_expiry) where `rotated` indicates if any key was rotated and
 /// `next_expiry` is the earliest expiry time across all keys.
-fn try_rotate_keys<R: Runtime>(runtime: &R, keymgr: &KeyMgr) -> anyhow::Result<(bool, SystemTime)> {
+fn try_rotate_keys(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<(bool, SystemTime)> {
     // First do a pass to remove every expired key(s) or/and cert(s).
-    let (have_rotated, min_expiry) = remove_expired_keys(runtime, keymgr)?;
+    let (have_rotated, min_expiry) = remove_expired_keys(now, keymgr)?;
 
     // Then attempt to generate keys. If at least one was generated, we'll get the min expiry time
     // which we need to consider "rotated" so the caller can know that a new key appeared.
-    let gen_min_expiry = try_generate_all(runtime, keymgr)?;
+    let gen_min_expiry = try_generate_all(now, keymgr)?;
     let have_rotated = have_rotated || gen_min_expiry.is_some();
 
     // We should never get no expiry time.
@@ -390,16 +380,17 @@ pub(crate) fn try_generate_keys<R: Runtime>(
     runtime: &R,
     keymgr: &KeyMgr,
 ) -> anyhow::Result<RelayIdentities> {
+    let now = runtime.wallclock();
     // Attempt to generate our identity keys (ed and RSA). Those keys DO NOT rotate. It won't be
     // replaced if they already exists.
     generate_key::<RelayIdentityKeypair>(keymgr, &RelayIdentityKeypairSpecifier::new())?;
     generate_key::<RelayIdentityRsaKeypair>(keymgr, &RelayIdentityRsaKeypairSpecifier::new())?;
 
     // Attempt to rotate the keys. Any missing keys (and cert) will be generated.
-    let _ = try_rotate_keys(runtime, keymgr)?;
+    let _ = try_rotate_keys(now, keymgr)?;
 
     // Now that we have our up-to-date keys, build the RelayIdentities object.
-    build_proto_identities(runtime, keymgr)
+    build_proto_identities(now, keymgr)
 }
 /// Task to rotate keys when they need to be rotated.
 pub(crate) async fn rotate_keys_task<R: Runtime>(
@@ -408,10 +399,11 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
     chanmgr: Arc<ChanMgr<R>>,
 ) -> anyhow::Result<void::Void> {
     loop {
+        let now = runtime.wallclock();
         // Attempt a rotation of all keys.
-        let (have_rotated, next_expiry) = try_rotate_keys(&runtime, &keymgr)?;
+        let (have_rotated, next_expiry) = try_rotate_keys(now, &keymgr)?;
         if have_rotated {
-            let ids = build_proto_identities(&runtime, &keymgr)?;
+            let ids = build_proto_identities(now, &keymgr)?;
             chanmgr
                 .set_relay_identities(Arc::new(ids))
                 .context("Failed to set relay identities on ChanMgr")?;
@@ -421,7 +413,7 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
         // If the subtraction would underflow, wake up immediately to rotate the expired key.
         let next_wake = next_expiry
             .checked_sub(KEY_ROTATION_EXPIRE_BUFFER)
-            .unwrap_or(runtime.wallclock());
+            .unwrap_or(now);
         runtime.sleep_until_wallclock(next_wake).await;
     }
 }
@@ -534,8 +526,9 @@ mod test {
     fn test_initial_key_generation() {
         MockRuntime::test_with_various(|runtime| async move {
             let keymgr = setup();
+            let now = runtime.wallclock();
 
-            let (rotated, next_expiry) = try_rotate_keys(&runtime, &keymgr).unwrap();
+            let (rotated, next_expiry) = try_rotate_keys(now, &keymgr).unwrap();
 
             assert!(
                 rotated,
@@ -558,12 +551,13 @@ mod test {
     fn test_rotation_on_fresh_keys() {
         MockRuntime::test_with_various(|runtime| async move {
             let keymgr = setup();
-            try_rotate_keys(&runtime, &keymgr).unwrap();
+            let now = runtime.wallclock();
+            try_rotate_keys(now, &keymgr).unwrap();
 
             // Advance by 1 hour (inside 2 days of link key).
             runtime.advance_by(Duration::from_secs(60 * 60)).await;
 
-            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+            let (rotated, _) = try_rotate_keys(now, &keymgr).unwrap();
 
             assert!(!rotated, "fresh keys must not trigger a rotation");
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
@@ -577,7 +571,7 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let keymgr = setup();
             // First rotation creates the keys.
-            try_rotate_keys(&runtime, &keymgr).unwrap();
+            try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
 
             // Advance to 1 second _before_ the rotation-buffer threshold. We should not rotate
             // with this.
@@ -585,7 +579,7 @@ mod test {
                 KEY_DURATION_2DAYS - KEY_ROTATION_EXPIRE_BUFFER - Duration::from_secs(1);
             runtime.advance_by(just_before).await;
 
-            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+            let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
 
             assert!(
                 !rotated,
@@ -599,7 +593,7 @@ mod test {
                 KEY_DURATION_2DAYS - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
             runtime.advance_by(just_after).await;
 
-            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+            let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
             assert!(
                 rotated,
                 "link key should rotate inside the expiry buffer threshold"
@@ -613,7 +607,7 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let keymgr = setup();
             // First rotation creates the keys.
-            try_rotate_keys(&runtime, &keymgr).unwrap();
+            try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
 
             // Closure to get the relay signing key keystore entry.
             let get_key_spec = || {
@@ -635,7 +629,7 @@ mod test {
                 KEY_DURATION_30DAYS - KEY_ROTATION_EXPIRE_BUFFER - Duration::from_secs(1);
             runtime.advance_by(just_before).await;
 
-            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+            let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
             assert!(rotated, "Rotation must happen after 30 days");
 
             let spec = get_key_spec();
@@ -655,7 +649,7 @@ mod test {
                 KEY_DURATION_30DAYS - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
             runtime.advance_by(just_after).await;
 
-            let (rotated, _) = try_rotate_keys(&runtime, &keymgr).unwrap();
+            let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
             assert!(rotated, "Rotation must happen after 30 days");
 
             let spec = get_key_spec();
