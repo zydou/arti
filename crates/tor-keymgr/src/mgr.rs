@@ -1006,7 +1006,10 @@ mod tests {
 
     impl From<TestItem> for TestPublicKey {
         fn from(tk: TestItem) -> TestPublicKey {
-            TestPublicKey { key: tk.item, meta: tk.meta }
+            TestPublicKey {
+                key: tk.item,
+                meta: tk.meta,
+            }
         }
     }
 
