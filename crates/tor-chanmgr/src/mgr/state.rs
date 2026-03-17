@@ -63,6 +63,17 @@ struct Inner<C: AbstractChannelFactory> {
     /// A map from identity to channels, or to pending channel statuses.
     channels: ListByRelayIds<ChannelState<C::Channel>>,
 
+    /// A list of unauthenticated channels meaning they are client/bridge -> relay. We populate
+    /// this list as a relay responder accepting incoming connections.
+    ///
+    /// Notice here that [`ChannelState`] is NOT used because we don't need a pending state of
+    /// unauthenticated channels (inbound client/bridge) because multiple channel from the same
+    /// peer can coexist. Furthermore, these channels are never looked up for normal relay
+    /// operations and so a pending state is not needed.
+    #[cfg(feature = "relay")]
+    #[expect(unused)] // TODO(relay) Remove once used.
+    unauth_channels: Vec<Arc<C::Channel>>,
+
     /// Parameters for channels that we create, and that all existing channels are using
     ///
     /// Will be updated by a background task, which also notifies all existing
@@ -324,6 +335,8 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             inner: std::sync::Mutex::new(Inner {
                 builder,
                 channels: ListByRelayIds::new(),
+                #[cfg(feature = "relay")]
+                unauth_channels: Vec::new(),
                 config,
                 channels_params,
                 dormancy,
