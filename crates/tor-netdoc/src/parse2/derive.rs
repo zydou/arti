@@ -736,6 +736,9 @@ define_derive_deftly! {
     /// the subsequent items can check that the prior items filled in the hash,
     /// thus imposing an ordering.
     ///
+    /// Alternatively, the ordering could be enforced in the user-supplied
+    /// ad-hoc `verify` function(s) on `FooUUnverified`.
+    ///
     /// Note that this enforcement should be done for protocol compliance
     /// and availability reasons, but is not a security issue.
     /// There is not a security risk from accepting documents some of whose signatures
