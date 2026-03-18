@@ -225,19 +225,25 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
                     })
                     .collect::<Vec<_>>();
 
-                // Check that all lines end with a \n.
-                if let Some(lno) = tlines.iter().position(|l| !l.ends_with("\n")) {
-                    // +1 because 1-indexed.
-                    return Err(GenEdDiffError::MissingNewLine { lno: lno + 1 });
+                for (lno, line) in tlines.iter().copied().enumerate() {
+                    // Check that all lines end with a \n.
+                    if !line.ends_with("\n") {
+                        // +1 because 1-indexed.
+                        return Err(GenEdDiffError::MissingNewLine { lno: lno + 1 });
+                    }
+
+                    // Check for lines consisting of a single dot.
+                    if line.trim_end() == "." {
+                        // +1 because 1-indexed.
+                        return Err(GenEdDiffError::ContainsDotLine { lno: lno + 1 });
+                    }
+
+                    // All lines are newline terminated, no need to use writeln!
+                    write!(result, "{line}")?;
                 }
 
-                // Check for lines consisting of a single dot.
-                if let Some(lno) = tlines.iter().position(|l| l.trim_end() == ".") {
-                    // +1 because 1-indexed.
-                    return Err(GenEdDiffError::ContainsDotLine { lno: lno + 1 });
-                }
-
-                writeln!(result, "{}.", tlines.join(""))?;
+                // Write the terminating dot.
+                writeln!(result, ".")?;
             }
             HunkType::Delete => {}
         }
