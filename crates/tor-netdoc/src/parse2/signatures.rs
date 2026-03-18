@@ -223,10 +223,10 @@ pub trait SignatureHashesAccumulator: Clone {
 
 /// The part of a network document before the first signature item
 ///
-/// This is used for both Regular signatures
+/// This is used for both Orderly signatures
 /// where the hash does not contain any part of the signature Item
 /// (of which there are none yet)
-/// and Irregular signatures
+/// and Disorderly signatures
 /// where the hash contains part of the signature Item.
 ///
 /// See <https://gitlab.torproject.org/tpo/core/torspec/-/issues/322>.
@@ -247,15 +247,15 @@ pub struct SignedDocumentBody<'s> {
 /// Embodies:
 ///
 ///  * `&str` for the body, as for `SignedDocumentBody`.
-///    For calculating Regular signatures.
+///    For calculating Orderly signatures.
 ///    (That is, ones that do not include any part of the signature Item;
 ///    See [`SignedDocumentBody`].)
 ///
-///  * Extra information for calculating Irregular signatures.
-///    Irregular signature Items can only be implemented within this crate.
+///  * Extra information for calculating Disorderly signatures.
+///    Disorderly signature Items can only be implemented within this crate.
 #[derive(Copy, Debug, Clone, Eq, PartialEq, Hash, amplify::Getters)]
 pub struct SignatureHashInputs<'s> {
-    /// The Regular body (up to the first signature item)
+    /// The Orderly body (up to the first signature item)
     #[getter(as_copy)]
     pub(crate) body: SignedDocumentBody<'s>,
     /// The part of the document up to just before this signature item.

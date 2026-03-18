@@ -187,7 +187,7 @@ impl<'s> ItemStream<'s> {
         Ok(Some(peeked.keyword))
     }
 
-    /// Obtain the body so far, suitable for hashing for a Regular signature
+    /// Obtain the body so far, suitable for hashing for an Orderly signature
     pub fn body_sofar_for_signature(&self) -> SignedDocumentBody<'s> {
         let body = &self.whole_input[0..self.byte_position()];
         SignedDocumentBody { body }
@@ -265,7 +265,7 @@ impl<'s> ItemStream<'s> {
         r
     }
 
-    /// Obtain the inputs that would be needed to hash any (even Irregular) signature
+    /// Obtain the inputs that would be needed to hash any (even Disorderly) signature
     ///
     /// These are the hash inputs which would be needed for the next item,
     /// assuming it's a signature keyword.
