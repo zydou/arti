@@ -63,6 +63,16 @@ struct Inner<C: AbstractChannelFactory> {
     /// A map from identity to channels, or to pending channel statuses.
     channels: ListByRelayIds<ChannelState<C::Channel>>,
 
+    /// A list of unauthenticated channels meaning they are client/bridge -> relay. We populate
+    /// this list as a relay responder accepting incoming connections.
+    ///
+    /// Notice here that [`ChannelState`] is NOT used because we don't need a pending state of
+    /// unauthenticated channels (inbound client/bridge) because multiple channel from the same
+    /// peer can coexist. Furthermore, these channels are never looked up for normal relay
+    /// operations and so a pending state is not needed.
+    #[cfg(feature = "relay")]
+    unauth_channels: Vec<Arc<C::Channel>>,
+
     /// Parameters for channels that we create, and that all existing channels are using
     ///
     /// Will be updated by a background task, which also notifies all existing
@@ -324,6 +334,8 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             inner: std::sync::Mutex::new(Inner {
                 builder,
                 channels: ListByRelayIds::new(),
+                #[cfg(feature = "relay")]
+                unauth_channels: Vec::new(),
                 config,
                 channels_params,
                 dormancy,
@@ -379,12 +391,18 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     #[cfg(feature = "relay")]
     pub(crate) fn add_open(&self, channel: Arc<C::Channel>) -> Result<()> {
         let mut inner = self.inner.lock()?;
-        inner.channels.insert(ChannelState::Open(OpenEntry {
-            channel,
-            // TODO(relay): Relay need a different unused duration (if any). We can't use the
-            // client timeout value. Need to be figured out before production.
-            max_unused_duration: Self::random_max_unused_duration(),
-        }));
+        // Make sure this channel has verified relay identities. Else, put it in the
+        // unauthenticated channel list (ex: client channel as a relay responder).
+        if channel.has_any_identity() {
+            inner.channels.insert(ChannelState::Open(OpenEntry {
+                channel,
+                // TODO(relay): Relay need a different unused duration (if any). We can't use the
+                // client timeout value. Need to be figured out before production.
+                max_unused_duration: Self::random_max_unused_duration(),
+            }));
+        } else {
+            inner.unauth_channels.push(channel);
+        }
         Ok(())
     }
 
@@ -607,12 +625,14 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             return Ok(());
         }
 
-        for channel in inner.channels.values() {
-            let channel = match channel {
-                CS::Open(OpenEntry { channel, .. }) => channel,
-                CS::Building(_) => continue,
-            };
+        let channels = inner.channels.values().filter_map(|chan| match chan {
+            CS::Open(OpenEntry { channel, .. }) => Some(channel),
+            CS::Building(_) => None,
+        });
+        #[cfg(feature = "relay")]
+        let channels = channels.chain(inner.unauth_channels.iter());
 
+        for channel in channels {
             if let Some(ref update) = update {
                 // Ignore error (which simply means the channel is closed or gone)
                 let _ = channel.reparameterize(Arc::clone(update));
@@ -623,6 +643,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
                 let _ = channel.reparameterize_kist(kist);
             }
         }
+
         Ok(())
     }
 
@@ -631,6 +652,22 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     /// Return a Duration until the next time at which
     /// a channel _could_ expire.
     pub(crate) fn expire_channels(&self) -> Duration {
+        // TODO(relay): First, I don't think dropping the ChannelState<> from the channel list
+        // actually closes a channel reactor. Because it holds a Arc<Channel>, the ref counter is
+        // simply decremented but the reactor still goes on. We can't have guarantees on an object
+        // in an `Arc<>` to be cleaned up when we drop it as it defeats the purpose of using an Arc
+        // as we don't know if other reference are held elsewhere.
+        //
+        // Second, Unauthenticated channels are relay only as in client/bridge connecting inbound.
+        // We need to expire any unused as well.
+        //
+        // Taking both points above, maybe it could be better to move the expiry logic into the
+        // channel reactor itself and make this function simply retain any channel that are
+        // `is_usable()`. This would remove the convoluted needs for ChannelDetails shared between
+        // a `Channel` (reactor handle) and the channel `Reactor`.
+        //
+        // We'll address all this in https://gitlab.torproject.org/tpo/core/arti/-/work_items/1600
+
         let mut ret = Duration::from_secs(180);
         self.inner
             .lock()
