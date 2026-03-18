@@ -60,7 +60,6 @@ use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
 use crate::relay::reactor::backward::Backward;
 use crate::relay::reactor::forward::Forward;
-use crate::util::timeout::TimeoutEstimator;
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
@@ -121,7 +120,6 @@ impl<R: Runtime> Reactor<R> {
         chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
-        timeouts: Arc<dyn TimeoutEstimator>,
         memquota: &CircuitAccount,
     ) -> crate::Result<(Self, Arc<RelayCirc>)> {
         // NOTE: not registering this channel with the memquota subsystem is okay,
