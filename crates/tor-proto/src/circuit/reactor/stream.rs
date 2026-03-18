@@ -47,6 +47,19 @@ use std::time::Duration;
 // TODO(tuning): figure out if this is a good size for this buffer
 const CIRCUIT_BUFFER_SIZE: usize = 128;
 
+/// Trait for customizing the behavior of the stream reactor.
+///
+/// Used for plugging in the implementation-dependent (client vs relay)
+/// parts of the implementation into the generic one.
+pub(crate) trait StreamHandler: Send + Sync + 'static {
+    /// Return the amount of time a newly closed stream
+    /// should be kept in the stream map for.
+    ///
+    /// This is the amount of time we are willing to wait for
+    /// an END ack before removing the half-stream from the map.
+    fn halfstream_expiry(&self, hop: &CircHopOutbound) -> Duration;
+}
+
 /// The stream reactor for a given hop.
 ///
 /// Drives the application streams.
