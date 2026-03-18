@@ -134,7 +134,7 @@ impl<R: Runtime> Reactor<R> {
         let mut hop_mgr = HopMgr::new(
             runtime.clone(),
             unique_id,
-            timeouts,
+            StreamHandler,
             stream_tx,
             memquota.clone(),
         );

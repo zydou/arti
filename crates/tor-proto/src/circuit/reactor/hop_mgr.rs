@@ -3,11 +3,10 @@
 use crate::circuit::UniqId;
 use crate::circuit::circhop::{CircHopOutbound, HopSettings};
 use crate::circuit::reactor::circhop::CircHopList;
-use crate::circuit::reactor::stream::{ReadyStreamMsg, StreamMsg, StreamReactor};
+use crate::circuit::reactor::stream::{ReadyStreamMsg, StreamHandler, StreamMsg, StreamReactor};
 use crate::congestion::CongestionControl;
 use crate::memquota::CircuitAccount;
 use crate::util::err::ReactorError;
-use crate::util::timeout::TimeoutEstimator;
 use crate::{Error, HopNum, Result};
 
 #[cfg(any(feature = "hs-service", feature = "relay"))]
@@ -71,20 +70,18 @@ struct StreamReactorContext {
     /// This is shared with every StreamReactor.
     #[cfg(any(feature = "hs-service", feature = "relay"))]
     incoming: Arc<Mutex<Option<IncomingStreamRequestHandler>>>,
-    /// The circuit timeout estimator.
-    ///
-    /// Used for computing half-stream expiration.
-    timeouts: Arc<dyn TimeoutEstimator>,
+    /// A handler for customizing the stream reactor behavior.
+    handler: Arc<dyn StreamHandler>,
 }
 
 impl<R: Runtime> HopMgr<R> {
     /// Create a new [`HopMgr`] with an empty hop list.
     ///
     /// Hops are added with [`HopMgr::add_hop`].
-    pub(crate) fn new(
+    pub(crate) fn new<S: StreamHandler>(
         runtime: R,
         unique_id: UniqId,
-        timeouts: Arc<dyn TimeoutEstimator>,
+        handler: S,
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         memquota: CircuitAccount,
     ) -> Self {
@@ -95,7 +92,7 @@ impl<R: Runtime> HopMgr<R> {
             unique_id,
             #[cfg(any(feature = "hs-service", feature = "relay"))]
             incoming: Arc::new(Mutex::new(None)),
-            timeouts,
+            handler: Arc::new(handler),
         };
 
         Self {
@@ -229,7 +226,7 @@ impl<R: Runtime> HopMgr<R> {
             self.ctx.unique_id,
             fwd_stream_rx,
             self.bwd_tx.clone(),
-            Arc::clone(&self.ctx.timeouts),
+            Arc::clone(&self.ctx.handler),
             #[cfg(any(feature = "hs-service", feature = "relay"))]
             Arc::clone(&self.ctx.incoming),
             self.memquota.clone(),
