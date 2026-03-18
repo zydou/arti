@@ -462,6 +462,7 @@ enum RequestedDescs {
 }
 
 #[cfg(feature = "routerdesc")]
+// TODO: This is probably not a reasonable default.
 impl Default for RouterDescRequest {
     fn default() -> Self {
         RouterDescRequest {
@@ -602,6 +603,7 @@ enum RequestedExtraInfos {
 
 #[cfg(feature = "routerdesc")]
 impl Default for ExtraInfoRequest {
+    // TODO: This is probably not a reasonable default.
     fn default() -> Self {
         Self {
             requested_extra_infos: RequestedExtraInfos::Digests(Vec::new()),
