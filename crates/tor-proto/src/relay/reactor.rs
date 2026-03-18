@@ -40,6 +40,7 @@ pub(crate) mod backward;
 pub(crate) mod forward;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::channel::mpsc;
 
@@ -48,9 +49,10 @@ use tor_linkspec::OwnedChanTarget;
 use tor_rtcompat::Runtime;
 
 use crate::channel::Channel;
-use crate::circuit::circhop::HopSettings;
+use crate::circuit::circhop::{CircHopOutbound, HopSettings};
 use crate::circuit::reactor::Reactor as BaseReactor;
 use crate::circuit::reactor::hop_mgr::HopMgr;
+use crate::circuit::reactor::stream;
 use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::CircuitAccount;
@@ -70,6 +72,32 @@ type RelayBaseReactor<R> = BaseReactor<R, Forward, Backward>;
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
 pub(crate) struct Reactor<R: Runtime>(RelayBaseReactor<R>);
+
+/// A handler customizing the relay stream reactor.
+struct StreamHandler;
+
+impl stream::StreamHandler for StreamHandler {
+    fn halfstream_expiry(&self, hop: &CircHopOutbound) -> Duration {
+        let ccontrol = hop.ccontrol();
+
+        // Note: if we have no measurements for the RTT, this will be set to 0,
+        // so the stream will be removed from the stream map immediately,
+        // and any subsequent messages arriving on it will trigger
+        // a proto violation causing the circuit to close.
+        //
+        // TODO(relay-tuning): we should make sure that this doesn't cause us to
+        // wrongly close legitimate circuits that still have in-flight stream data
+        ccontrol
+            .lock()
+            .expect("poisoned lock")
+            .rtt()
+            .max_rtt_usec()
+            .map(|rtt| Duration::from_millis(u64::from(rtt)))
+            // TODO(relay): we should fallback to a non-zero default here
+            // if we don't have any RTT measurements yet
+            .unwrap_or_default()
+    }
+}
 
 #[allow(unused)] // TODO(relay)
 impl<R: Runtime> Reactor<R> {
