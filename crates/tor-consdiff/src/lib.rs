@@ -46,7 +46,7 @@
 #![deny(clippy::unused_async)]
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-use std::fmt::{self, Display, Formatter, Write};
+use std::fmt::{Display, Formatter, Write};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 
@@ -247,13 +247,16 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
 }
 
 /// The operational type of the hunk.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, derive_more::Display)]
 enum HunkType {
     /// This is a pure appending.
+    #[display("a")]
     Append,
     /// This is a pure deletion.
+    #[display("d")]
     Delete,
     /// This is change with potential additions and deletions.
+    #[display("c")]
     Change,
 }
 
@@ -266,17 +269,6 @@ impl HunkType {
             Self::Delete
         } else {
             Self::Change
-        }
-    }
-}
-
-impl Display for HunkType {
-    /// Formats the HunkType with the Tor specific control sequence.
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self {
-            HunkType::Append => write!(f, "a"),
-            HunkType::Delete => write!(f, "d"),
-            HunkType::Change => write!(f, "c"),
         }
     }
 }

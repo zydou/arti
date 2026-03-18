@@ -6862,6 +6862,7 @@ dependencies = [
 name = "tor-consdiff"
 version = "0.40.0"
 dependencies = [
+ "derive_more",
  "digest",
  "hex",
  "imara-diff",
