@@ -147,6 +147,9 @@ fn split_directory_signatures(input: &str) -> Result<(&str, &str)> {
     // Parse the consensus item by item until the first `directory-signature`.
     loop {
         // We only peek in order to get the proper byte offset.
+        // This is required because doing next() and breaking in the case of
+        // a `directory-signature` would then lead to `.byte_offset()` yielding
+        // the start of the second signature and not the start of the first one.
         let item = items
             .peek_keyword()
             .map_err(|e| ParseError::new(e, "consdiff", "", items.lno(), None))?;
