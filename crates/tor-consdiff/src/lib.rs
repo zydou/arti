@@ -106,14 +106,14 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
 
     // Compose the result with header.
     let ed_diff = gen_ed_diff(base_signed, target).map_err(|e| match e {
-        GenEdDiffError::MissingNewLine(lno) => Error::InvalidInput(ParseError::new(
+        GenEdDiffError::MissingNewLine { lno } => Error::InvalidInput(ParseError::new(
             ErrorProblem::OtherBadDocument("line does not end with '\\n'"),
             "consdiff",
             "",
             lno,
             None,
         )),
-        GenEdDiffError::ContainsDotLine(lno) => Error::InvalidInput(ParseError::new(
+        GenEdDiffError::ContainsDotLine { lno } => Error::InvalidInput(ParseError::new(
             ErrorProblem::OtherBadDocument("contains dotline"),
             "consdiff",
             "",
@@ -228,13 +228,13 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
                 // Check that all lines end with a \n.
                 if let Some(lno) = tlines.iter().position(|l| !l.ends_with("\n")) {
                     // +1 because 1-indexed.
-                    return Err(GenEdDiffError::MissingNewLine(lno + 1));
+                    return Err(GenEdDiffError::MissingNewLine { lno: lno + 1 });
                 }
 
                 // Check for lines consisting of a single dot.
                 if let Some(lno) = tlines.iter().position(|l| l.trim_end() == ".") {
                     // +1 because 1-indexed.
-                    return Err(GenEdDiffError::ContainsDotLine(lno + 1));
+                    return Err(GenEdDiffError::ContainsDotLine { lno: lno + 1 });
                 }
 
                 writeln!(result, "{}.", tlines.join(""))?;
@@ -1179,7 +1179,7 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         let target = "foo\nbar\n.\nbaz\nfoo\n";
         assert_eq!(
             gen_ed_diff(base, target).unwrap_err(),
-            GenEdDiffError::ContainsDotLine(3),
+            GenEdDiffError::ContainsDotLine { lno: 3 },
         );
     }
 
@@ -1189,7 +1189,7 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         let target = "foo\nbar\nbaz";
         assert_eq!(
             gen_ed_diff(base, target).unwrap_err(),
-            GenEdDiffError::MissingNewLine(3)
+            GenEdDiffError::MissingNewLine { lno: 3 }
         );
     }
 

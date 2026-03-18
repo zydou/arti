@@ -60,13 +60,19 @@ impl From<tor_error::Bug> for Error {
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub(crate) enum GenEdDiffError {
     /// Line does not end with '\n'.
-    #[error("Line {0} does not end with '\\n'")]
-    MissingNewLine(usize),
+    #[error("Line {lno} does not end with '\\n'")]
+    MissingNewLine {
+        /// The line number of the missing newline.
+        lno: usize,
+    },
 
     /// Diff results in the insertion of a line with a single dot, which is not
     /// possible according to the specification.
-    #[error("Dotline found at {0}")]
-    ContainsDotLine(usize),
+    #[error("Dotline found at {lno}")]
+    ContainsDotLine {
+        /// The line number of the missing newline.
+        lno: usize,
+    },
 
     /// Formatting error, mostly convenience to allow for `?` in write calls.
     #[error("Formatting error: {0}")]
