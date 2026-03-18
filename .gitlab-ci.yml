@@ -331,26 +331,38 @@ rust-recent-integration:
 
 .rust-recent-arti-extra-features-template:
   script: &rust-recent-arti-extra-features-script
+    - ./maint/common/apt-install jq
     - rustup show
+    # Disable:
+    # * flowctl-cc pending arti#2400
+    # * arti-client/experimental pending arti#2400 (because it enables flowctl-cc)
+    # * counter-galois-onion pending arti#2400 (because it enables flowctl-cc)
+    - disabled_features='["flowctl-cc", "arti-client/experimental", "counter-galois-onion"]'
+    # Include all features in `full` and `experimental`, except for those
+    # explicitly listed in `disabled_features`.
+    - included_features=$(
+      cargo metadata
+        --no-deps
+        --format-version 1
+      | jq -r "
+        .packages[]
+        | select(.name == \"arti\")
+        | .features.experimental
+          + .features.full
+          - $disabled_features
+        | join(\",\")
+        ")
+    - echo "included_features=$included_features"
     # Build the arti binary for use in chutney and shadow integration tests.
     #
-    # Note: we enable the `experimental-api` feature instead of `experimental`,
-    # because we don't want to build with `rpc` enabled. The `rpc` feature causes
-    # the RPC listener to try to bind to a Unix domain socket, and pathname Unix
-    # domain sockets are not currently supported by shadow.
-    #
-    # Consider enabling the rpc feature when shadow starts supporting pathname
-    # addresses, or when we add a config setting for disabling rpc.
-    #
-    # Note: `-p arti` is *not* already implied by `--bin arti`. If we omit it,
-    # we'll get the union of all features needed by anything in the workspace,
-    # including examples.
+    # Note: `-p arti` is *not* already implied by `--bin arti`. We need it so that
+    # that the features are specifically interpreted as features of the arti crate.
     - cargo build
       --profile $ARTI_CI_PROFILE
       --target x86_64-unknown-linux-gnu
-      -p arti -p tor-circmgr
+      -p arti
       --bin arti
-      --features full,restricted-discovery,arti-client/keymgr,onion-service-service,vanguards,ctor-keystore,opentelemetry
+      --features="$included_features"
 
 rust-recent-arti-extra-features:
   needs: []
