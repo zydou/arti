@@ -41,6 +41,7 @@ pub mod netstatus;
 #[cfg(any(doc, feature = "routerdesc"))]
 pub mod routerdesc;
 
+// TODO: Do not define this twice but do `pub use` instead.
 #[allow(missing_docs, clippy::missing_docs_in_private_items)]
 #[cfg(not(any(doc, feature = "routerdesc")))]
 pub mod routerdesc {
