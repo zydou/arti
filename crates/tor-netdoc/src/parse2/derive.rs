@@ -712,6 +712,9 @@ define_derive_deftly! {
     /// (which would generally include signatures for *one* algorithm, not several)
     /// and ignore the others.
     ///
+    /// (Such a signature, which also does not include any of its own item encoding
+    /// in its hash, is called Orderly.  See [SignedDocumentBody].)
+    ///
     /// Unfortunately, many Tor netdocs have signature schemes
     /// which are not sane (by this definition).
     ///

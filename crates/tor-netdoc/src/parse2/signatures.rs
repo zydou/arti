@@ -230,7 +230,9 @@ pub trait SignatureHashesAccumulator: Clone {
 /// where the hash contains part of the signature Item.
 /// (The Tor protocols currently only have Disorderly signatures.)
 ///
-/// See <https://gitlab.torproject.org/tpo/core/torspec/-/issues/322>.
+/// See "Signature item ordering, and signatures covering signatures"
+/// in the [`NetdocParseableSignatures` derive](derive_deftly_template_NetdocParseableSignatures)
+/// and <https://gitlab.torproject.org/tpo/core/torspec/-/issues/322>.
 //
 // This type exists as a separate newtype mostly to avoid mistakes inside
 // parser implementations, where lots of different strings are floating about.
