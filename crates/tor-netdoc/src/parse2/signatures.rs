@@ -225,6 +225,7 @@ pub trait SignatureHashesAccumulator: Clone {
 ///
 /// This is used for both Orderly signatures
 /// where the hash does not contain any part of the signature Item
+/// nor of any further signatures.
 /// and Disorderly signatures
 /// where the hash contains part of the signature Item.
 /// (The Tor protocols currently only have Disorderly signatures.)
