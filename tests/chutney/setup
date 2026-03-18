@@ -14,6 +14,7 @@ from pathlib import Path
 
 # "local" imports
 from config import Config
+from typing import Optional
 
 _SCRIPT_NAME = Path(sys.argv[0]).name
 _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
@@ -69,6 +70,47 @@ class ArtiBinResolver:
                     arti client not found.
                     Try setting --arti-bin or building one in this repo:
                     cargo build --locked --profile=quicktest -p arti
+                    """))
+            sys.exit(1)
+        res = Path(res_str)
+        if not os.access(res, os.X_OK):
+            print(f"arti resolved to {res}, but it isn't an executable file")
+            sys.exit(1)
+        return res
+
+
+class ArtiExtraBinResolver:
+    _DEST = "arti_extra_bin"
+
+    def __init__(self, parser: ArgumentParser) -> None:
+        parser.add_argument(
+            "--arti-extra-bin",
+            dest=self._DEST,
+            help="arti executable with extra features",
+        )
+
+    def resolve(self, args: Namespace) -> Path:
+        res_str = getattr(args, self._DEST)
+        if res_str is None:
+            for s in [
+                "target/x86_64-unknown-linux-gnu/quicktest/arti-extra",
+                "target/quicktest/arti-extra",
+                "target/x86_64-unknown-linux-gnu/debug/arti-extra",
+                "target/debug/arti-extra",
+            ]:
+                p = _TOP_LEVEL.joinpath(Path(s))
+                if p.exists():
+                    res_str = str(p)
+                    break
+        if res_str is None:
+            print(textwrap.dedent("""
+                    arti-extra client not found.
+                    Try setting --arti-extra-bin or building one in this repo.
+
+                    # See .rust-recent-arti-extra-features-template in .gitlab-ci.yml for current
+                    # --features list.
+                    $ cargo build --locked --profile=quicktest -p arti --features=full,experimental
+                    $ mv target/quicktest/arti target/quicktest/arti-extra
                     """))
             sys.exit(1)
         res = Path(res_str)
@@ -139,19 +181,20 @@ class ChutneyNetworkResolver:
             "--network",
             "-n",
             dest=self._DEST,
-            help="flag to 'chutney init' specifying network to use.",
+            help="flag to 'chutney init' specifying network to use."
+            " (Default: built-in network-builder)",
         )
 
-    def resolve(self, args: Namespace) -> str:
-        return getattr(args, self._DEST) or "--net-from-script-path=" + str(
-            _SCRIPT_DIR.joinpath("networks", "arti-ci")
-        )
+    def resolve(self, args: Namespace) -> Optional[str]:
+        res: Optional[str] = getattr(args, self._DEST)
+        return res
 
 
 class ConfigResolver:
     def __init__(self, parser: ArgumentParser) -> None:
         self._chutney_resolver = ChutneyBinResolver(parser)
         self._arti_resolver = ArtiBinResolver(parser)
+        self._arti_extra_resolver = ArtiExtraBinResolver(parser)
         self._arti_bench_resolver = ArtiBenchBinResolver(parser)
         self._chutney_data_dir_resolver = ChutneyDataDirResolver(parser)
         self._network_resolver = ChutneyNetworkResolver(parser)
@@ -160,6 +203,7 @@ class ConfigResolver:
         return Config(
             chutney=str(self._chutney_resolver.resolve(args)),
             arti=str(self._arti_resolver.resolve(args)),
+            arti_extra=str(self._arti_extra_resolver.resolve(args)),
             arti_bench=str(self._arti_bench_resolver.resolve(args)),
             chutney_data_dir=str(self._chutney_data_dir_resolver.resolve(args)),
             network=self._network_resolver.resolve(args),

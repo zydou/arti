@@ -667,7 +667,7 @@ integration-chutney:
 # Runs the chutney integration test under shadow.
 integration-chutney-shadow:
   stage: test
-  needs: ["build-shadow", "rust-recent-integration"]
+  needs: ["build-shadow", "rust-recent-integration", "rust-recent-arti-extra-features"]
   tags:
     - amd64
     # Non-TPA runners may not support running shadow.

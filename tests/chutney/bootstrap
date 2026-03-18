@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 
 # stdlib imports
-import os
 import sys
 import subprocess
 
 # stdlib "from" imports
 from pathlib import Path
 
+import chutney.TorNet
+
 # local imports
+import network as network_module
 from config import Config
 
 assert __name__ == "__main__"
@@ -19,7 +21,18 @@ _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
 config = Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
 
 config.export_env()
-os.environ["CHUTNEY_START_TIME"] = "300"
 
-subprocess.check_call([config.chutney, "init", config.network])
-subprocess.check_call([config.chutney, "bootstrap"])
+if config.network is not None:
+    # Use CLI to create and serialize network, as specified in config.network
+    subprocess.check_call([config.chutney, "init", config.network])
+    # Load the configured network that we just created.
+    network = chutney.TorNet.Network.from_nodes_dir(
+        Path(config.chutney_data_dir).joinpath("nodes")
+    )
+else:
+    # Create the default network via the network_module
+    network = network_module.make_network(config)
+    # Initialize to disk
+    network.init(data_dir=Path(config.chutney_data_dir))
+
+network.bootstrap()
