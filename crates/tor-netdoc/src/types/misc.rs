@@ -266,7 +266,11 @@ mod curve25519impl {
 /// Types for decoding ed25519 keys
 mod ed25519impl {
     use super::B64;
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
+    #[cfg(feature = "parse2")]
+    use crate::parse2::{
+        ErrorProblem as EP, ItemArgumentParseable, ItemValueParseable, UnparsedItem,
+    };
+    use crate::{Error, NetdocErrorKind as EK, Pos, Result, types::misc::FixedB64};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     /// An alleged ed25519 public key, encoded in base64 with optional
@@ -294,6 +298,36 @@ mod ed25519impl {
     impl From<Ed25519Public> for Ed25519Identity {
         fn from(pk: Ed25519Public) -> Ed25519Identity {
             pk.0
+        }
+    }
+
+    /// An Ed25519 public key found in a micro descriptor `id` line.
+    #[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
+    pub struct Ed25519IdentityLine(pub Ed25519Identity);
+
+    #[cfg(feature = "parse2")]
+    impl ItemValueParseable for Ed25519IdentityLine {
+        fn from_unparsed(mut item: UnparsedItem<'_>) -> std::result::Result<Self, EP> {
+            item.check_no_object()?;
+            if item.keyword() != "id" {
+                return Err(EP::MissingKeyword);
+            }
+
+            let args = item.args_mut();
+            let spec = args.next().ok_or(EP::MissingArgument { field: "id" })?;
+            if spec != "ed25519" {
+                return Err(EP::InvalidArgument {
+                    field: "id",
+                    column: 3,
+                });
+            }
+            let pk: [u8; 32] = FixedB64::from_args(args)
+                .map_err(|_| EP::InvalidArgument {
+                    field: "id ed25519",
+                    column: 11,
+                })?
+                .into();
+            Ok(Self(pk.into()))
         }
     }
 }
