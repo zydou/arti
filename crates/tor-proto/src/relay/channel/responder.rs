@@ -174,6 +174,7 @@ where
         // By building the ChannelAuthenticationData, we are certain that the authentication type
         // of the initiator is supported by us.
         let auth_body = ChannelAuthenticationData::build_responder(
+            initiator_auth_cell.auth_type(),
             &identities,
             self.clog_digest,
             self.slog_digest,

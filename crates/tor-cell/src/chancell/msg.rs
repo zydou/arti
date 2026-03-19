@@ -1099,6 +1099,11 @@ impl Authenticate {
         }
     }
 
+    /// Return the authentication type value.
+    pub fn auth_type(&self) -> u16 {
+        self.authtype
+    }
+
     /// Return a referrence to the body of the cell that is all fields minus the random bytes
     /// located before the signature.
     pub fn body_no_rand(&self) -> Result<&[u8]> {

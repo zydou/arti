@@ -321,6 +321,9 @@ impl ChannelAuthenticationData {
 
     /// Build a [`ChannelAuthenticationData`] for an initiator channel handshake.
     ///
+    /// `initiator_auth_type` is the authentication type from the [`msg::Authenticate`] received
+    /// from the initiator.
+    ///
     /// `identities` are our [`RelayIdentities`]
     ///
     /// `verified` is a [`VerifiedChannel`] which we need to consume the CLOG/SLOG
@@ -330,6 +333,7 @@ impl ChannelAuthenticationData {
     /// IMPORTANT: The CLOG and SLOG from the framed_tls codec is consumed here so calling twice
     /// build_auth_data() will result in different AUTHENTICATE cells.
     pub(crate) fn build_responder<T, S>(
+        initiator_auth_type: u16,
         identities: &Arc<RelayIdentities>,
         clog: [u8; 32],
         slog: [u8; 32],
@@ -341,7 +345,11 @@ impl ChannelAuthenticationData {
         S: CoarseTimeProvider + SleepProvider,
     {
         // Max on what we know.
-        let link_auth = *LINK_AUTH.iter().max().ok_or(Error::BadCellAuth)?;
+        let link_auth = if LINK_AUTH.contains(&initiator_auth_type) {
+            initiator_auth_type
+        } else {
+            return Err(Error::UnsupportedAuth(initiator_auth_type));
+        };
         // The ordering matter as this is a respodner. It is inversed from the initiator.
         let cid = identities.rsa_id_der_digest;
         let sid = verified.rsa_id_digest;
