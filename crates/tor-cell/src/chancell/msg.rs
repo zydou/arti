@@ -1,10 +1,8 @@
 //! Different kinds of messages that can be encoded in channel cells.
 
 use super::{BoxedCellBody, CELL_DATA_LEN, ChanCmd, RawCellBody};
-use std::{
-    net::{IpAddr, Ipv4Addr},
-    num::NonZeroUsize,
-};
+use std::net::{IpAddr, Ipv4Addr};
+
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -1107,27 +1105,18 @@ impl Authenticate {
         // The RAND field length.
         const RAND_LEN: usize = 24;
         let body = self.body()?;
-        if body.len() < RAND_LEN {
-            return Err(Error::Incomplete {
-                deficit: NonZeroUsize::new(RAND_LEN)
-                    .expect("NonZeroUsize bug")
-                    .into(),
-            });
-        }
-        Ok(&body[..body.len() - RAND_LEN])
+        let body_end_offset = body.len().checked_sub(RAND_LEN).ok_or(Error::MissingData)?;
+        Ok(&body[..body_end_offset])
     }
 
     /// Return a referrence to the body of the cell that is all fields except the signature.
     pub fn body(&self) -> Result<&[u8]> {
         let auth = self.auth();
-        if auth.len() < Self::SIG_LEN {
-            return Err(Error::Incomplete {
-                deficit: NonZeroUsize::new(Self::SIG_LEN)
-                    .expect("NonZeroUsize bug")
-                    .into(),
-            });
-        }
-        Ok(&auth[..auth.len() - Self::SIG_LEN])
+        let sig_end_offset = auth
+            .len()
+            .checked_sub(Self::SIG_LEN)
+            .ok_or(Error::MissingData)?;
+        Ok(&auth[..sig_end_offset])
     }
 
     /// Return a reference to the authentcation object.
@@ -1137,13 +1126,14 @@ impl Authenticate {
 
     /// Return a reference to the signature bytes.
     pub fn sig(&self) -> Result<&[u8; Self::SIG_LEN]> {
-        (&self.auth[self.auth.len() - Self::SIG_LEN..])
+        let auth = self.auth();
+        let sig_start_offset = auth
+            .len()
+            .checked_sub(Self::SIG_LEN)
+            .ok_or(Error::MissingData)?;
+        (&self.auth[sig_start_offset..])
             .try_into()
-            .map_err(|_| Error::Incomplete {
-                deficit: NonZeroUsize::new(Self::SIG_LEN)
-                    .expect("NonZeroUsize bug")
-                    .into(),
-            })
+            .map_err(|_| Error::Bug(tor_error::internal!("Failed to get signature bytes")))
     }
 }
 impl Body for Authenticate {
