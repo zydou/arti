@@ -143,6 +143,12 @@ pub struct IsStructural;
 
 //---------- provided blanket impls ----------
 
+impl<T: ItemArgumentParseable> ItemArgumentParseable for Arc<T> {
+    fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError> {
+        T::from_args(args).map(Arc::new)
+    }
+}
+
 impl<T: NormalItemArgument> ItemArgumentParseable for T {
     fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, AE> {
         let v = args
