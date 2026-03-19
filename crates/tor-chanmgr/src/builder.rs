@@ -191,7 +191,11 @@ where
         use tor_linkspec::OwnedChanTargetBuilder;
         use tor_proto::relay::MaybeVerifiableRelayResponderChannel;
 
-        let target = OwnedChanTargetBuilder::default()
+        // Note that as we accept a connection, we don't expect any specific identities and so we
+        // can only build a target from the peer address. This means that the verification process
+        // will not match the identities seen (if a relay <-> relay channel) to this target which
+        // is fine as we are a responder.
+        let target_no_ids = OwnedChanTargetBuilder::default()
             .addrs(vec![peer.into_inner()])
             .build()
             .map_err(|e| internal!("Unable to build chan target from peer sockaddr: {e}"))?;
@@ -244,20 +248,20 @@ where
             )
             .handshake(|| self.runtime.wallclock())
             .await
-            .map_err(|e| map_proto(e, &target, None))?;
+            .map_err(|e| map_proto(e, &target_no_ids, None))?;
 
         let (chan, reactor) = match unverified {
             MaybeVerifiableRelayResponderChannel::Verifiable(c) => {
                 let clock_skew = c.clock_skew();
                 let now = self.runtime.wallclock();
-                c.verify(&target, &our_cert, Some(now))
-                    .map_err(|e| map_proto(e, &target, Some(clock_skew)))?
+                c.verify(&target_no_ids, &our_cert, Some(now))
+                    .map_err(|e| map_proto(e, &target_no_ids, Some(clock_skew)))?
                     .finish()
                     .await
-                    .map_err(|e| map_proto(e, &target, Some(clock_skew)))?
+                    .map_err(|e| map_proto(e, &target_no_ids, Some(clock_skew)))?
             }
             MaybeVerifiableRelayResponderChannel::NonVerifiable(c) => {
-                c.finish().map_err(|e| map_proto(e, &target, None))?
+                c.finish().map_err(|e| map_proto(e, &target_no_ids, None))?
             }
         };
 

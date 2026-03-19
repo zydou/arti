@@ -109,7 +109,8 @@ where
 {
     /// Validate the certificates and keys in the relay's handshake.
     ///
-    /// 'peer' is the peer that we want to make sure we're connecting to.
+    /// 'peer_no_ids' is the peer, without identities as we are accepting a connection and thus
+    /// don't have expectations on any identity, that we want to make sure we're connecting to.
     ///
     /// 'our_cert' is the x.509 certificate that we presented during the TLS handshake.
     ///
@@ -120,7 +121,7 @@ where
     #[instrument(skip_all, level = "trace")]
     pub fn verify(
         self,
-        peer: &OwnedChanTarget,
+        peer_no_ids: &OwnedChanTarget,
         our_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedResponderRelayChannel<T, S>> {
@@ -152,7 +153,7 @@ where
         // Check the relay identities in the CERTS cell.
         let (relay_ids, _kp_relaysign_ed, rsa_id_digest) =
             self.inner
-                .check_relay_identities(peer, &self.certs_cell, now)?;
+                .check_relay_identities(peer_no_ids, &self.certs_cell, now)?;
         let kp_relayid_ed = relay_ids
             .ed_identity()
             .expect("Missing ed25519 identity after relay validation");
