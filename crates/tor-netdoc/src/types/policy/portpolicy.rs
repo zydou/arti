@@ -6,6 +6,9 @@ use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
 
+#[cfg(feature = "parse2")]
+use crate::parse2::{ErrorProblem as EP, ItemValueParseable, UnparsedItem};
+
 use super::{PolicyError, PortRange};
 use tor_basic_utils::intern::InternCache;
 
@@ -182,6 +185,21 @@ impl FromStr for PortPolicy {
             result.invert();
         }
         Ok(result)
+    }
+}
+
+// TODO: Derive parse2 directly on PortPolicy.
+#[cfg(feature = "parse2")]
+impl ItemValueParseable for PortPolicy {
+    fn from_unparsed(item: UnparsedItem<'_>) -> Result<Self, EP> {
+        item.check_no_object()?;
+        let args = item.args_copy().collect::<Vec<_>>().join(" ");
+        // The fact that we cannot obtain the column is not nice.
+        let port_policy = args.parse::<Self>().map_err(|_| EP::InvalidArgument {
+            field: "p/p6",
+            column: 0,
+        })?;
+        Ok(port_policy)
     }
 }
 
