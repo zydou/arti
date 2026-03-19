@@ -150,7 +150,7 @@ impl<R: Runtime> Reactor<R> {
         let forward_foo = Forward::new(unique_id, crypto_out, chan_provider, fwd_ev_tx);
         let backward_foo = Backward::new(crypto_in);
 
-        let (inner, handle) = crate::circuit::reactor::Reactor::new(
+        let (inner, handle) = BaseReactor::new(
             runtime,
             channel,
             circ_id,
