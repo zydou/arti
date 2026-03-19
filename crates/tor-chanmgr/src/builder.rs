@@ -418,6 +418,12 @@ where
             }
             #[cfg(feature = "relay")]
             ChannelType::RelayInitiator => {
+                // Make sure we don't attempt to use a PT method for this relay channel.
+                if !target.chan_method().is_direct() {
+                    return Err(Error::UnusableTarget(tor_error::bad_api_usage!(
+                        "Relays don't support outbound PT channels"
+                    )));
+                }
                 self.build_relay_channel(
                     tls,
                     peer_addr.inner(),
