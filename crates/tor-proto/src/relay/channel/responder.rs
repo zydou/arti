@@ -12,7 +12,7 @@ use std::{net::IpAddr, ops::Deref, sync::Arc, time::SystemTime};
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
-use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIds};
+use tor_linkspec::{OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -151,17 +151,14 @@ where
         // talking to the right relay that we wanted.
 
         // Check the relay identities in the CERTS cell.
-        let (relay_ids, _kp_relaysign_ed, rsa_id_digest) =
+        let (relay_ids, kp_relaysign_ed, rsa_id_digest) =
             self.inner
                 .check_relay_identities(peer_no_ids, &self.certs_cell, now)?;
-        let kp_relayid_ed = relay_ids
-            .ed_identity()
-            .expect("Missing ed25519 identity after relay validation");
 
         // Next, verify the LINK_AUTH cert (CertType 6).
         let peer_kp_link_ed = crate::channel::handshake::verify_link_auth_cert(
             &self.certs_cell,
-            kp_relayid_ed,
+            &kp_relaysign_ed,
             Some(now),
             self.inner.clock_skew,
         )?;

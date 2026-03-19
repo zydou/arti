@@ -714,7 +714,7 @@ impl<
 ///
 /// `certs` is the [`msg::Certs`] cell received during the handshake.
 ///
-/// `kp_relayid_ed` is the relay ed25519 identity key taken from the signing cert (CertType 4). It
+/// `kp_relaysign_ed` is the relay signing ed25519 key taken from the signing cert (CertType 4). It
 /// is used to sign the LINK_AUTH cert.
 ///
 /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
@@ -725,7 +725,7 @@ impl<
 /// If verification is successful, return the peer KP_link_ed.
 pub(crate) fn verify_link_auth_cert(
     certs: &msg::Certs,
-    kp_relayid_ed: &Ed25519Identity,
+    kp_relaysign_ed: &Ed25519Identity,
     now: Option<std::time::SystemTime>,
     clock_skew: ClockSkew,
 ) -> Result<Ed25519Identity> {
@@ -738,7 +738,7 @@ pub(crate) fn verify_link_auth_cert(
     // peer certificate.
     let cert = get_cert(certs, CertType::SIGNING_V_LINK_AUTH)?;
     let (cert, cert_sig) = cert
-        .should_be_signed_with(kp_relayid_ed)
+        .should_be_signed_with(kp_relaysign_ed)
         .map_err(Error::HandshakeCertErr)?
         .dangerously_split()
         .map_err(Error::HandshakeCertErr)?;
