@@ -9,6 +9,7 @@ use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
 use safelog::{MaybeSensitive, Sensitive};
 use std::{net::IpAddr, ops::Deref, sync::Arc, time::SystemTime};
+use subtle::ConstantTimeEq;
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
@@ -185,7 +186,8 @@ where
         let initiator_body_no_rand = initiator_auth_cell
             .body_no_rand()
             .map_err(|e| Error::ChanProto(format!("AUTHENTICATE body_no_rand malformed: {e}")))?;
-        if initiator_body_no_rand != auth_body {
+        // This equality is in constant-time to avoid timing attack oracle.
+        if initiator_body_no_rand.ct_eq(&auth_body).into() {
             return Err(Error::ChanProto(
                 "AUTHENTICATE was unexpected. Failing authentication".into(),
             ));
