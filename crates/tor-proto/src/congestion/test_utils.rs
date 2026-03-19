@@ -1,21 +1,17 @@
 //! Test helpers.
 
-#[cfg(test)]
 use super::{CongestionWindow, rtt::RoundtripTimeEstimator};
 
 // Make a new RTT estimator.
-#[cfg(test)]
 pub(crate) fn new_rtt_estimator() -> RoundtripTimeEstimator {
     RoundtripTimeEstimator::new(&params::build_rtt_params())
 }
 
 // Make a new congestion window.
-#[cfg(test)]
 pub(crate) fn new_cwnd() -> CongestionWindow {
     CongestionWindow::new(params::build_cwnd_params())
 }
 
-#[cfg(test)]
 pub(crate) mod params {
     use tor_units::Percentage;
 
