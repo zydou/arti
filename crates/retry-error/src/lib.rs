@@ -700,7 +700,6 @@ Attempts 1..3: invalid digit found in string"
 
         let mut err2: RetryError<anyhow::Error> = RetryError::in_attempt_to("do thing 2");
         // Push 3 identical errors to create a range
-        let _err_msg = anyhow::Error::msg("repeated");
         err2.push_timed(anyhow::Error::msg("repeated"), n1, None);
         err2.push_timed(anyhow::Error::msg("repeated"), n1, None);
         err2.push_timed(anyhow::Error::msg("repeated"), n1, None);
