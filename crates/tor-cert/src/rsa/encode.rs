@@ -6,7 +6,7 @@ use derive_more::{AsRef, Deref, Into};
 use tor_bytes::Writer as _;
 use tor_llcrypto::pk::{ed25519, rsa};
 
-use crate::{CertEncodeError, ExpiryHours};
+use crate::{CertEncodeError, EncodedCert, ExpiryHours};
 
 /// An RSA cross certificate certificate,
 /// created using [`EncodedRsaCrosscert::encode_and_sign`].
@@ -49,6 +49,16 @@ impl EncodedRsaCrosscert {
         }
 
         Ok(EncodedRsaCrosscert(cert))
+    }
+}
+
+impl EncodedCert for EncodedRsaCrosscert {
+    fn cert_type(&self) -> crate::CertType {
+        crate::CertType::RSA_ID_V_IDENTITY
+    }
+
+    fn encoded(&self) -> &[u8] {
+        &self.0
     }
 }
 

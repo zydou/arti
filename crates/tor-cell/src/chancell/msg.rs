@@ -945,6 +945,15 @@ impl Certs {
         self.certs.push(TorCert { certtype, cert });
     }
 
+    /// Add a new encoded certificate to this cell,
+    /// taking taking the type from the certificate itself.
+    pub fn push_cert<C>(&mut self, cert: &C)
+    where
+        C: tor_cert::EncodedCert,
+    {
+        self.push_cert_body(cert.cert_type(), cert.encoded());
+    }
+
     /// Return the body of the certificate tagged with 'tp', if any.
     pub fn cert_body(&self, tp: tor_cert::CertType) -> Option<&[u8]> {
         let tp: u8 = tp.into();

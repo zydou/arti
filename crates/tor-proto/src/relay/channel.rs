@@ -18,9 +18,9 @@ use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
 use tor_cell::chancell::msg;
+use tor_cert::EncodedEd25519Cert;
 use tor_cert::rsa::EncodedRsaCrosscert;
 use tor_cert::x509::TlsKeyAndCert;
-use tor_cert::{CertType, EncodedEd25519Cert};
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIdRef, RelayIdType};
 use tor_llcrypto as ll;
@@ -345,33 +345,24 @@ pub(crate) fn build_certs_cell(
     is_responder: bool,
 ) -> msg::Certs {
     let mut certs = msg::Certs::new_empty();
-    // Push into the cell the CertType 2 RSA
+    // Push into the cell the CertType 2 RSA (RSA_ID_X509)
     certs.push_cert_body(
         tor_cert::CertType::RSA_ID_X509,
         identities.cert_id_x509_rsa.clone(),
     );
 
-    // Push into the cell the CertType 7 RSA
-    certs.push_cert_body(CertType::RSA_ID_V_IDENTITY, identities.cert_id_rsa.clone());
+    // Push into the cell the CertType 7 RSA (RSA_ID_V_IDENTITY)
+    certs.push_cert(&identities.cert_id_rsa);
 
-    // Push into the cell the CertType 4 Ed25519
-    certs.push_cert_body(
-        CertType::IDENTITY_V_SIGNING,
-        identities.cert_id_sign_ed.clone(),
-    );
+    // Push into the cell the CertType 4 Ed25519 (IDENTITY_V_SIGNING)
+    certs.push_cert(&identities.cert_id_sign_ed);
     // Push into the cell the CertType 5/6 Ed25519
     if is_responder {
-        // Responder has CertType 5
-        certs.push_cert_body(
-            CertType::SIGNING_V_TLS_CERT,
-            identities.cert_sign_tls_ed.clone(),
-        );
+        // Responder has CertType 5 (SIGNING_V_TLS)
+        certs.push_cert(&identities.cert_sign_tls_ed);
     } else {
-        // Initiator has CertType 6
-        certs.push_cert_body(
-            CertType::SIGNING_V_LINK_AUTH,
-            identities.cert_sign_link_auth_ed.clone(),
-        );
+        // Initiator has CertType 6 (SIGINING_V_LINK_AUTH)
+        certs.push_cert(&identities.cert_sign_link_auth_ed);
     }
     certs
 }
