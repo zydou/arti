@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use crate::types::misc::LongIdent;
-use crate::{Error, NetdocErrorKind, Pos, Result};
+use crate::{Error, NetdocErrorKind, NormalItemArgument, Pos, Result};
 use base64ct::Encoding;
 use derive_deftly::Deftly;
 use tor_basic_utils::intern::InternCache;
@@ -147,6 +147,8 @@ impl Ord for RelayFamilyId {
         Ord::cmp(&self.to_string(), &other.to_string())
     }
 }
+
+impl NormalItemArgument for RelayFamilyId {}
 
 #[cfg(test)]
 mod test {
