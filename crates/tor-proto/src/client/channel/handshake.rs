@@ -1,5 +1,6 @@
 //! Implementations for the client channel handshake
 
+use digest::Digest;
 use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
 use std::sync::Arc;
@@ -14,8 +15,8 @@ use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::ClockSkew;
 use crate::Result;
 use crate::channel::handshake::{
-    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, VerifiedChannel,
-    unauthenticated_clock_skew,
+    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, UnverifiedInitiatorChannel,
+    VerifiedChannel, unauthenticated_clock_skew,
 };
 use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
@@ -113,10 +114,14 @@ impl<
         // Receive versions cell.
         let link_protocol = self.recv_versions_cell().await?;
 
-        // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell, we don't need it as
-        // we are not authenticating with our responder because we are a client.
-        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
-            self.recv_cells_from_responder().await?;
+        // VERSIONS cell have been exchanged, set the link protocol into our channel frame.
+        self.set_link_protocol(link_protocol)?;
+
+        // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell and SLOG; we don't need
+        // them as we are not authenticating with our responder because we are a client.
+        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at), _) = self
+            .recv_cells_from_responder(/* take_slog= */ false)
+            .await?;
 
         // Get the clock skew.
         let clock_skew = unauthenticated_clock_skew(
@@ -129,15 +134,17 @@ impl<
         trace!(stream_id = %self.unique_id, "received handshake, ready to verify.");
 
         Ok(UnverifiedClientChannel {
-            inner: UnverifiedChannel {
-                link_protocol,
-                framed_tls: self.framed_tls,
-                certs_cell: Some(certs_cell),
-                clock_skew,
-                target_method: self.target_method.take(),
-                unique_id: self.unique_id,
-                sleep_prov: self.sleep_prov.clone(),
-                memquota: self.memquota.clone(),
+            inner: UnverifiedInitiatorChannel {
+                inner: UnverifiedChannel {
+                    link_protocol,
+                    framed_tls: self.framed_tls,
+                    clock_skew,
+                    target_method: self.target_method.take(),
+                    unique_id: self.unique_id,
+                    sleep_prov: self.sleep_prov.clone(),
+                    memquota: self.memquota.clone(),
+                },
+                certs_cell,
             },
             netinfo_cell,
         })
@@ -150,8 +157,8 @@ pub struct UnverifiedClientChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
-    /// Inner generic unverified channel.
-    inner: UnverifiedChannel<T, S>,
+    /// Inner generic unverified initiator channel.
+    inner: UnverifiedInitiatorChannel<T, S>,
     /// Received [`msg::Netinfo`] cell during the handshake.
     netinfo_cell: msg::Netinfo,
 }
@@ -182,7 +189,9 @@ impl<
         peer_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedClientChannel<T, S>> {
-        let inner = self.inner.check(peer, peer_cert, now)?;
+        let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_cert).into();
+        let inner = self.inner.verify(peer, peer_cert_digest, now)?;
+
         Ok(VerifiedClientChannel {
             inner,
             netinfo_cell: self.netinfo_cell,
@@ -191,13 +200,13 @@ impl<
 
     /// Return the clock skew of this channel.
     pub fn clock_skew(&self) -> ClockSkew {
-        self.inner.clock_skew
+        self.inner.inner.clock_skew
     }
 
     /// Return the link protocol version of this channel.
     #[cfg(test)]
     pub(crate) fn link_protocol(&self) -> u16 {
-        self.inner.link_protocol
+        self.inner.inner.link_protocol
     }
 }
 
@@ -241,7 +250,7 @@ impl<
         // This could be a client Guard so it is sensitive.
         let peer_info = MaybeSensitive::sensitive(PeerInfo::new(
             peer_addr.into_inner(),
-            self.inner.relay_ids()?,
+            self.inner.relay_ids().clone(),
         ));
 
         // Finish the channel to get a reactor.

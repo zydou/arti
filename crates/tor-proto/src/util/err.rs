@@ -186,6 +186,11 @@ pub enum Error {
     /// Memory quota error
     #[error("memory quota error")]
     Memquota(#[from] tor_memquota::Error),
+    /// An unsupported authentication type value. This is raised during the relay <-> relay channel
+    /// handshake if the authentication presented from the other side is unsupported.
+    #[cfg(feature = "relay")]
+    #[error("Authentication type {0} is unsupported")]
+    UnsupportedAuth(u16),
 }
 
 /// Error which indicates that the channel was closed.
@@ -284,6 +289,8 @@ impl From<Error> for std::io::Error {
 
             #[cfg(feature = "relay")]
             LinkspecDecodeErr { .. } => ErrorKind::InvalidData,
+            #[cfg(feature = "relay")]
+            UnsupportedAuth(_) => ErrorKind::Unsupported,
 
             Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
 
@@ -341,6 +348,8 @@ impl HasKind for Error {
             E::ExcessPadding(_, _) => EK::TorProtocolViolation,
             E::Memquota(err) => err.kind(),
             E::Bug(e) => e.kind(),
+            #[cfg(feature = "relay")]
+            E::UnsupportedAuth(_) => EK::RemoteProtocolViolation,
         }
     }
 }

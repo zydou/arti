@@ -2,6 +2,7 @@
 
 use super::{BoxedCellBody, CELL_DATA_LEN, ChanCmd, RawCellBody};
 use std::net::{IpAddr, Ipv4Addr};
+
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -1084,6 +1085,9 @@ pub struct Authenticate {
     auth: Vec<u8>,
 }
 impl Authenticate {
+    /// The signature field length.
+    const SIG_LEN: usize = 64;
+
     /// Create a new Authenticate message from a given type and body.
     pub fn new<B>(authtype: u16, body: B) -> Self
     where
@@ -1093,6 +1097,48 @@ impl Authenticate {
             authtype,
             auth: body.into(),
         }
+    }
+
+    /// Return the authentication type value.
+    pub fn auth_type(&self) -> u16 {
+        self.authtype
+    }
+
+    /// Return a referrence to the body of the cell that is all fields minus the random bytes
+    /// located before the signature.
+    pub fn body_no_rand(&self) -> Result<&[u8]> {
+        // The RAND field length.
+        const RAND_LEN: usize = 24;
+        let body = self.body()?;
+        let body_end_offset = body.len().checked_sub(RAND_LEN).ok_or(Error::MissingData)?;
+        Ok(&body[..body_end_offset])
+    }
+
+    /// Return a referrence to the body of the cell that is all fields except the signature.
+    pub fn body(&self) -> Result<&[u8]> {
+        let auth = self.auth();
+        let sig_end_offset = auth
+            .len()
+            .checked_sub(Self::SIG_LEN)
+            .ok_or(Error::MissingData)?;
+        Ok(&auth[..sig_end_offset])
+    }
+
+    /// Return a reference to the authentcation object.
+    pub fn auth(&self) -> &[u8] {
+        &self.auth
+    }
+
+    /// Return a reference to the signature bytes.
+    pub fn sig(&self) -> Result<&[u8; Self::SIG_LEN]> {
+        let auth = self.auth();
+        let sig_start_offset = auth
+            .len()
+            .checked_sub(Self::SIG_LEN)
+            .ok_or(Error::MissingData)?;
+        (&self.auth[sig_start_offset..])
+            .try_into()
+            .map_err(|_| Error::Bug(tor_error::internal!("Failed to get signature bytes")))
     }
 }
 impl Body for Authenticate {

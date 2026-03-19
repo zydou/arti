@@ -217,12 +217,13 @@ impl ChannelAuthenticationData {
         }
     }
 
-    /// Consume ourself and return an AUTHENTICATE cell from the data we hold.
-    pub(crate) fn into_authenticate<C: CertifiedConn>(
-        self,
-        tls: &C,
-        link_ed: &RelayLinkSigningKeypair,
-    ) -> Result<msg::Authenticate> {
+    /// Return a vector of bytes of an [`msg::Authenticate`] cell but without the random bytes and
+    /// the signature.
+    ///
+    /// This is needed so a responder can compare what is expected from what it got. A responder
+    /// can only verify the signature and so we can't compare the full [`msg::Authenticate`]
+    /// message we received with what we expect.
+    pub(crate) fn as_body_no_rand<C: CertifiedConn>(&self, tls: &C) -> Result<Vec<u8>> {
         // The body is exactly 352 bytes so optimize a bit memory.
         let mut body = Vec::with_capacity(352);
 
@@ -244,6 +245,18 @@ impl ChannelAuthenticationData {
         )?;
         body.extend_from_slice(tls_secrets.as_slice());
 
+        Ok(body)
+    }
+
+    /// Consume ourself and return an AUTHENTICATE cell from the data we hold.
+    pub(crate) fn into_authenticate<C: CertifiedConn>(
+        self,
+        tls: &C,
+        link_ed: &RelayLinkSigningKeypair,
+    ) -> Result<msg::Authenticate> {
+        // Get us everything except the random bytes and signature.
+        let mut body = self.as_body_no_rand(tls)?;
+
         // Add the random bytes.
         let random: [u8; 24] = rand::rng().random();
         body.extend_from_slice(&random);
@@ -257,72 +270,42 @@ impl ChannelAuthenticationData {
         Ok(msg::Authenticate::new(self.link_auth, body))
     }
 
-    /// Build the [`ChannelAuthenticationData`] given a [`VerifiedChannel`].
+    /// Build a [`ChannelAuthenticationData`] for an initiator channel handshake.
     ///
-    /// We should never check or build authentication data if the channel is not verified thus the
-    /// requirement to pass the verified channel to this function.
+    /// `auth_challenge_cell` is the [`msg::AuthChallenge`] we recevied during the handshake.
     ///
-    /// The `our_cert` parameter is for the responder case only that is it contains our certificate
-    /// that we presented as the TLS server side. This MUST be Some() if auth_challenge_cell is
-    /// None.
+    /// `identities` are our [`RelayIdentities`]
     ///
-    /// Both initiator and responder handshake build this data in order to authenticate.
+    /// `verified` is a [`VerifiedChannel`] which we need to consume the CLOG/SLOG
     ///
-    /// IMPORTANT: The CLOG and SLOG from the framed_tls codec is consumed here so calling twice
-    /// build_auth_data() will result in different AUTHENTICATE cells.
-    pub(crate) fn build<T, S>(
-        auth_challenge_cell: Option<&msg::AuthChallenge>,
+    /// `peer_cert_digest` is the TLS certificate presented by the peer.
+    pub(crate) fn build_initiator<T, S>(
+        auth_challenge_cell: &msg::AuthChallenge,
         identities: &Arc<RelayIdentities>,
+        clog: [u8; 32],
+        slog: [u8; 32],
         verified: &mut VerifiedChannel<T, S>,
-        our_cert: Option<[u8; 32]>,
+        peer_cert_digest: [u8; 32],
     ) -> Result<ChannelAuthenticationData>
     where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        // With an AUTH_CHALLENGE, we are the Initiator. With an AUTHENTICATE, we are the
-        // Responder. See tor-spec for a diagram of messages.
-        let is_responder = auth_challenge_cell.is_none();
-
-        // Without an AUTH_CHALLENGE, we use our known link protocol value. Else, we only keep what
-        // we know from the AUTH_CHALLENGE and we max() on it.
+        // Keep what we know from the AUTH_CHALLENGE and we max() on it.
         let link_auth = *LINK_AUTH
             .iter()
-            .filter(|m| auth_challenge_cell.is_none_or(|cell| cell.methods().contains(m)))
+            .filter(|m| auth_challenge_cell.methods().contains(m))
             .max()
             .ok_or(Error::BadCellAuth)?;
-        // The ordering matter based on if initiator or responder.
+        // The ordering matter as this is an initiator.
         let cid = identities.rsa_id_der_digest;
         let sid = verified.rsa_id_digest;
         let cid_ed = identities.ed_id_bytes();
-        let sid_ed = verified.ed25519_id.into();
-        // Both values are consumed from the underlying codec.
-        let send_log = verified.framed_tls.codec_mut().take_send_log_digest()?;
-        let recv_log = verified.framed_tls.codec_mut().take_recv_log_digest()?;
-
-        let (cid, sid, cid_ed, sid_ed) = if is_responder {
-            // Reverse when responder as in CID becomes SID, and so on.
-            (sid, cid, sid_ed, cid_ed)
-        } else {
-            // Keep it that way if we are initiator.
-            (cid, sid, cid_ed, sid_ed)
-        };
-
-        let (clog, slog) = if is_responder {
-            // We're the responder (acting like a server),
-            // so the SLOG is the digest of the bytes we sent.
-            (recv_log, send_log)
-        } else {
-            // We're the initiator (acting like a client),
-            // so the CLOG is the digest of the bytes we sent.
-            (send_log, recv_log)
-        };
-
-        let scert = if is_responder {
-            our_cert.ok_or(internal!("Responder channel without own certificate"))?
-        } else {
-            verified.peer_cert_digest
-        };
+        let sid_ed = (*verified
+            .relay_ids()
+            .ed_identity()
+            .expect("Verified channel without Ed25519 identity"))
+        .into();
 
         Ok(Self {
             link_auth,
@@ -332,7 +315,61 @@ impl ChannelAuthenticationData {
             sid_ed,
             clog,
             slog,
-            scert,
+            scert: peer_cert_digest,
+        })
+    }
+
+    /// Build a [`ChannelAuthenticationData`] for an initiator channel handshake.
+    ///
+    /// `initiator_auth_type` is the authentication type from the [`msg::Authenticate`] received
+    /// from the initiator.
+    ///
+    /// `identities` are our [`RelayIdentities`]
+    ///
+    /// `verified` is a [`VerifiedChannel`] which we need to consume the CLOG/SLOG
+    ///
+    /// `our_cert_digest` is our TLS certificate that we presented as a channel responder.
+    ///
+    /// IMPORTANT: The CLOG and SLOG from the framed_tls codec is consumed here so calling twice
+    /// build_auth_data() will result in different AUTHENTICATE cells.
+    pub(crate) fn build_responder<T, S>(
+        initiator_auth_type: u16,
+        identities: &Arc<RelayIdentities>,
+        clog: [u8; 32],
+        slog: [u8; 32],
+        verified: &mut VerifiedChannel<T, S>,
+        our_cert_digest: [u8; 32],
+    ) -> Result<ChannelAuthenticationData>
+    where
+        T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
+        S: CoarseTimeProvider + SleepProvider,
+    {
+        // Max on what we know.
+        let link_auth = if LINK_AUTH.contains(&initiator_auth_type) {
+            initiator_auth_type
+        } else {
+            return Err(Error::UnsupportedAuth(initiator_auth_type));
+        };
+        // The ordering matter as this is a respodner. It is inversed from the initiator.
+        let cid = identities.rsa_id_der_digest;
+        let sid = verified.rsa_id_digest;
+        let cid_ed = identities.ed_id_bytes();
+        let sid_ed = (*verified
+            .relay_ids()
+            .ed_identity()
+            .expect("Verified channel without Ed25519 identity"))
+        .into();
+
+        Ok(Self {
+            link_auth,
+            // Notice, everything is inversed here as the responder.
+            cid: sid,
+            sid: cid,
+            cid_ed: sid_ed,
+            sid_ed: cid_ed,
+            clog,
+            slog,
+            scert: our_cert_digest,
         })
     }
 }

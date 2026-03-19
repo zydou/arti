@@ -191,7 +191,11 @@ where
         use tor_linkspec::OwnedChanTargetBuilder;
         use tor_proto::relay::MaybeVerifiableRelayResponderChannel;
 
-        let target = OwnedChanTargetBuilder::default()
+        // Note that as we accept a connection, we don't expect any specific identities and so we
+        // can only build a target from the peer address. This means that the verification process
+        // will not match the identities seen (if a relay <-> relay channel) to this target which
+        // is fine as we are a responder.
+        let target_no_ids = OwnedChanTargetBuilder::default()
             .addrs(vec![peer.into_inner()])
             .build()
             .map_err(|e| internal!("Unable to build chan target from peer sockaddr: {e}"))?;
@@ -226,14 +230,6 @@ where
             ))?
             .clone();
 
-        let peer_cert = tls
-            .peer_certificate()
-            .map_err(|e| map_ioe(e.into(), "TLS Certs"))?
-            .ok_or_else(|| Error::Internal(internal!("TLS connection with no peer certificate")))?
-            // Note: we could skip this "into_owned" if we computed any necessary digest on the
-            // certificate earlier.  That would require changing out channel negotiation APIs,
-            // though, and might not be worth it.
-            .into_owned();
         let our_cert = tls
             .own_certificate()
             .map_err(|e| map_ioe(e.into(), "TLS Certs"))?
@@ -252,20 +248,20 @@ where
             )
             .handshake(|| self.runtime.wallclock())
             .await
-            .map_err(|e| map_proto(e, &target, None))?;
+            .map_err(|e| map_proto(e, &target_no_ids, None))?;
 
         let (chan, reactor) = match unverified {
             MaybeVerifiableRelayResponderChannel::Verifiable(c) => {
                 let clock_skew = c.clock_skew();
                 let now = self.runtime.wallclock();
-                c.verify(&target, &peer_cert, &our_cert, Some(now))
-                    .map_err(|e| map_proto(e, &target, Some(clock_skew)))?
+                c.verify(&target_no_ids, &our_cert, Some(now))
+                    .map_err(|e| map_proto(e, &target_no_ids, Some(clock_skew)))?
                     .finish()
                     .await
-                    .map_err(|e| map_proto(e, &target, Some(clock_skew)))?
+                    .map_err(|e| map_proto(e, &target_no_ids, Some(clock_skew)))?
             }
             MaybeVerifiableRelayResponderChannel::NonVerifiable(c) => {
-                c.finish().map_err(|e| map_proto(e, &target, None))?
+                c.finish().map_err(|e| map_proto(e, &target_no_ids, None))?
             }
         };
 
@@ -422,6 +418,12 @@ where
             }
             #[cfg(feature = "relay")]
             ChannelType::RelayInitiator => {
+                // Make sure we don't attempt to use a PT method for this relay channel.
+                if !target.chan_method().is_direct() {
+                    return Err(Error::UnusableTarget(tor_error::bad_api_usage!(
+                        "Relays don't support outbound PT channels"
+                    )));
+                }
                 self.build_relay_channel(
                     tls,
                     peer_addr.inner(),

@@ -8,7 +8,8 @@
 use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
 use safelog::{MaybeSensitive, Sensitive};
-use std::{net::IpAddr, ops::Deref, sync::Arc};
+use std::{net::IpAddr, ops::Deref, sync::Arc, time::SystemTime};
+use subtle::ConstantTimeEq;
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
@@ -70,12 +71,18 @@ pub struct UnverifiedResponderRelayChannel<
     pub(crate) auth_cell: msg::Authenticate,
     /// The netinfo cell received from the initiator.
     pub(crate) netinfo_cell: msg::Netinfo,
+    /// The [`msg::Certs`] cell received from the initiator.
+    pub(crate) certs_cell: msg::Certs,
     /// Our identity keys needed for authentication.
     pub(crate) identities: Arc<RelayIdentities>,
     /// Our advertised addresses.
     pub(crate) my_addrs: Vec<IpAddr>,
     /// The peer address which we know is a relay.
     pub(crate) peer_addr: PeerAddr,
+    /// The CLOG digest.
+    pub(crate) clog_digest: [u8; 32],
+    /// The SLOG digest.
+    pub(crate) slog_digest: [u8; 32],
 }
 
 /// A verified relay responder channel.
@@ -103,10 +110,8 @@ where
 {
     /// Validate the certificates and keys in the relay's handshake.
     ///
-    /// 'peer' is the peer that we want to make sure we're connecting to.
-    ///
-    /// 'peer_cert' is the x.509 certificate that the peer presented during its TLS handshake
-    /// (ServerHello).
+    /// 'peer_no_ids' is the peer, without identities as we are accepting a connection and thus
+    /// don't have expectations on any identity, that we want to make sure we're connecting to.
     ///
     /// 'our_cert' is the x.509 certificate that we presented during the TLS handshake.
     ///
@@ -117,8 +122,7 @@ where
     #[instrument(skip_all, level = "trace")]
     pub fn verify(
         self,
-        peer: &OwnedChanTarget,
-        peer_cert: &[u8],
+        peer_no_ids: &OwnedChanTarget,
         our_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedResponderRelayChannel<T, S>> {
@@ -128,27 +132,82 @@ where
         let initiator_auth_cell = self.auth_cell;
         let my_addrs = self.my_addrs;
 
+        let now = now.unwrap_or_else(SystemTime::now);
+
+        // We are a client initiating a channel to a relay or a bridge. We have received a CERTS
+        // cell and we need to verify these certs:
+        //
+        //   Relay Identities:
+        //      IDENTITY_V_SIGNING_CERT (CertType 4)
+        //      RSA_ID_X509             (CertType 2)
+        //      RSA_ID_V_IDENTITY       (CertType 7)
+        //
+        //   Connection Cert:
+        //      SIGNING_V_TLS_CERT      (CertType 5)
+        //
+        // Validating the relay identities first so we can make sure we are talking to the relay
+        // (peer) we wanted. Then, check the TLS cert validity.
+        //
+        // The end result is a verified channel (not authenticated yet) which guarantee that we are
+        // talking to the right relay that we wanted.
+
+        // Check the relay identities in the CERTS cell.
+        let (relay_ids, kp_relaysign_ed, rsa_id_digest) =
+            self.inner
+                .check_relay_identities(peer_no_ids, &self.certs_cell, now)?;
+
+        // Next, verify the LINK_AUTH cert (CertType 6).
+        let peer_kp_link_ed = crate::channel::handshake::verify_link_auth_cert(
+            &self.certs_cell,
+            &kp_relaysign_ed,
+            Some(now),
+            self.inner.clock_skew,
+        )?;
+
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self.inner.check(peer, peer_cert, now)?;
+        let mut verified = self.inner.into_verified(relay_ids, rsa_id_digest);
+
         let our_cert_digest = ll::d::Sha256::digest(our_cert).into();
 
         // By building the ChannelAuthenticationData, we are certain that the authentication type
         // of the initiator is supported by us.
-        let our_auth_cell = ChannelAuthenticationData::build(
-            None,
+        let auth_body = ChannelAuthenticationData::build_responder(
+            initiator_auth_cell.auth_type(),
             &identities,
+            self.clog_digest,
+            self.slog_digest,
             &mut verified,
-            Some(our_cert_digest),
+            our_cert_digest,
         )?
-        .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
+        .as_body_no_rand(verified.framed_tls.deref())?;
 
         // CRITICAL: This if is what authenticates a channel on the responder side. We compare
         // what we expected to what we received.
-        if initiator_auth_cell != our_auth_cell {
+        let initiator_body_no_rand = initiator_auth_cell
+            .body_no_rand()
+            .map_err(|e| Error::ChanProto(format!("AUTHENTICATE body_no_rand malformed: {e}")))?;
+        // This equality is in constant-time to avoid timing attack oracle.
+        if initiator_body_no_rand.ct_eq(&auth_body).into() {
             return Err(Error::ChanProto(
                 "AUTHENTICATE was unexpected. Failing authentication".into(),
             ));
         }
+
+        // CRITICAL: Verify the signature of the AUTHENTICATE cell with the peer KP_link_ed.
+        let pk: tor_llcrypto::pk::ed25519::PublicKey = peer_kp_link_ed
+            .try_into()
+            .expect("Peer KP_link_ed fails to convert to PublicKey");
+        let sig =
+            tor_llcrypto::pk::ed25519::Signature::from_bytes(initiator_auth_cell.sig().map_err(
+                |e| Error::ChanProto(format!("AUTHENTICATE sig field is invalid: {e}")),
+            )?);
+        let initiator_body = initiator_auth_cell
+            .body()
+            .map_err(|e| Error::ChanProto(format!("AUTHENTICATE body malformed: {e}")))?;
+        pk.verify(initiator_body, &sig).map_err(|e| {
+            Error::ChanProto(format!("AUTHENTICATE cell signature failed to verify: {e}"))
+        })?;
+
         // This part is very important as we now flag that we are verified and thus authenticated.
         //
         // At this point, the underlying cell handler is in the Handshake state. Setting the
@@ -185,8 +244,10 @@ where
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Relay<->Relay channels are NOT sensitive as we need their info in the log.
-        let peer_info =
-            MaybeSensitive::not_sensitive(PeerInfo::new(self.peer_addr, self.inner.relay_ids()?));
+        let peer_info = MaybeSensitive::not_sensitive(PeerInfo::new(
+            self.peer_addr,
+            self.inner.relay_ids().clone(),
+        ));
         self.inner
             .finish(&self.netinfo_cell, &self.my_addrs, peer_info)
             .await

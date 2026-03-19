@@ -11,6 +11,7 @@
 //! Note that channel cells are sent in the handshake upon connection. And then in the finish()
 //! process. The verify can be CPU intensive and thus in its own function.
 
+use digest::Digest;
 use futures::{AsyncRead, AsyncWrite, SinkExt};
 use safelog::MaybeSensitive;
 use std::{net::IpAddr, ops::Deref, sync::Arc};
@@ -24,7 +25,7 @@ use crate::{
     ClockSkew, RelayIdentities, Result,
     channel::{
         Channel, Reactor,
-        handshake::{UnverifiedChannel, VerifiedChannel},
+        handshake::{UnverifiedInitiatorChannel, VerifiedChannel},
     },
     peer::{PeerAddr, PeerInfo},
     relay::channel::ChannelAuthenticationData,
@@ -39,9 +40,11 @@ pub struct UnverifiedInitiatorRelayChannel<
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// The common unverified channel that both client and relays use.
-    pub(crate) inner: UnverifiedChannel<T, S>,
+    pub(crate) inner: UnverifiedInitiatorChannel<T, S>,
     /// AUTH_CHALLENGE cell received from the responder.
     pub(crate) auth_challenge_cell: msg::AuthChallenge,
+    /// The SLOG digest.
+    pub(crate) slog_digest: [u8; 32],
     /// The netinfo cell received from the responder.
     pub(crate) netinfo_cell: msg::Netinfo,
     /// Our identity keys needed for authentication.
@@ -79,18 +82,10 @@ where
         let my_addrs = self.my_addrs;
         let netinfo_cell = self.netinfo_cell;
 
-        // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self.inner.check(peer, peer_cert, now)?;
+        let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_cert).into();
 
-        // By building the ChannelAuthenticationData, we are certain that the authentication
-        // type requested by the responder is supported by us.
-        let auth_cell = ChannelAuthenticationData::build(
-            Some(&auth_challenge_cell),
-            &identities,
-            &mut verified,
-            None,
-        )?
-        .into_authenticate(verified.framed_tls.deref(), &identities.link_sign_kp)?;
+        // Verify our inner channel and then proceed to handle the authentication challenge if any.
+        let mut verified = self.inner.verify(peer, peer_cert_digest, now)?;
 
         // This part is very important as we now flag that we are authenticated. The responder
         // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
@@ -107,14 +102,16 @@ where
             inner: verified,
             identities,
             netinfo_cell,
-            auth_cell,
+            auth_challenge_cell,
+            peer_cert_digest,
+            slog_digest: self.slog_digest,
             my_addrs,
         })
     }
 
     /// Return the clock skew of this channel.
     pub fn clock_skew(&self) -> ClockSkew {
-        self.inner.clock_skew
+        self.inner.inner.clock_skew
     }
 }
 
@@ -135,8 +132,12 @@ pub struct VerifiedInitiatorRelayChannel<
     identities: Arc<RelayIdentities>,
     /// The netinfo cell that we got from the relay.
     netinfo_cell: msg::Netinfo,
-    /// The AUTHENTICATE cell built during verification process.
-    auth_cell: msg::Authenticate,
+    /// The AUTH_CHALLENGE cell that we got from the relay.
+    auth_challenge_cell: msg::AuthChallenge,
+    /// The peer TLS certificate digest.
+    peer_cert_digest: [u8; 32],
+    /// The SLOG digest.
+    slog_digest: [u8; 32],
     /// Our advertised IP addresses.
     my_addrs: Vec<IpAddr>,
 }
@@ -152,12 +153,36 @@ where
     /// The resulting channel is considered, by Tor protocol standard, an authenticated relay
     /// channel on which circuits can be opened.
     pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // Send CERTS, AUTHENTICATE, NETINFO
+        // Send the CERTS cell.
         let certs = super::build_certs_cell(&self.identities, /* is_responder */ false);
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
         self.inner.framed_tls.send(certs.into()).await?;
+
+        // We're the initiator, which means that the send log is the CLOG.
+        //
+        // We can finalize the CLOG now that we're about to send the AUTHENTICATE cell.
+        //
+        // > The CLOG field is computed as the SHA-256 digest of all bytes sent within
+        // > the TLS channel up to but not including the AUTHENTICATE cell.
+        let clog_digest = self.inner.framed_tls.codec_mut().take_send_log_digest()?;
+
+        // Build the AUTHENTICATE cell.
+        //
+        // By building the ChannelAuthenticationData, we are certain that the authentication
+        // type requested by the responder is supported by us.
+        let auth_cell = ChannelAuthenticationData::build_initiator(
+            &self.auth_challenge_cell,
+            &self.identities,
+            clog_digest,
+            self.slog_digest,
+            &mut self.inner,
+            self.peer_cert_digest,
+        )?
+        .into_authenticate(self.inner.framed_tls.deref(), &self.identities.link_sign_kp)?;
+
+        // Send the AUTHENTICATE cell.
         trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");
-        self.inner.framed_tls.send(self.auth_cell.into()).await?;
+        self.inner.framed_tls.send(auth_cell.into()).await?;
 
         // Send our NETINFO cell. This will indicate the end of the handshake.
         let netinfo = super::build_netinfo_cell(
@@ -170,7 +195,7 @@ where
 
         // Relay only initiate to another relay so NOT sensitive.
         let peer_info =
-            MaybeSensitive::not_sensitive(PeerInfo::new(peer_addr, self.inner.relay_ids()?));
+            MaybeSensitive::not_sensitive(PeerInfo::new(peer_addr, self.inner.relay_ids().clone()));
 
         // Get a Channel and a Reactor.
         self.inner
