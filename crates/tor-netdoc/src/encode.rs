@@ -13,6 +13,29 @@
 //! It is the caller's responsibility to call `.item()` in the right order,
 //! with the right keywords and arguments.
 
+// TODO Plan for encoding signed documents:
+//
+//  * Derive an encoder function for Foo; the encoder gives you Encoded<Foo>.
+//  * Write code ad-hoc to construct FooSignatures.
+//  * Call encoder-core-provided method on Encoded to add the signatures
+//
+// Method(s) on Encoded<Foo> are provided centrally to let you get the &str to hash it.
+//
+// Nothing cooked is provided to help with the signature encoding layering violation:
+// the central encoding derives do not provide any way to obtain a partly-encoded
+// signature item so that it can be added to the hash.
+//
+// So the signing code must recapitulate some of the item encoding.  This will generally
+// be simply a const str (or similar) with the encoded item name and any parameters,
+// in precisely the form that needs to be appended to the hash.
+//
+// This does leave us open to bugs where the hashed data doesn't match what ends up
+// being encoded, but since it's a fixed string, such a bug couldn't survive a smoke test.
+//
+// If there are items where the layering violation involves encoding
+// of variable parameters, this would need further work, either ad-hoc,
+// or additional traits/macrology/etc. if there's enough cases where it's needed.
+
 mod multiplicity;
 #[macro_use]
 mod derive;

@@ -225,6 +225,9 @@ pub enum VerifyFailed {
     /// Something else is wrong
     #[error("document has uncategorised problem found during verification")]
     Other,
+    /// Bug
+    #[error("verification prevented by software bug")]
+    Bug,
 }
 
 impl From<signature::Error> for VerifyFailed {

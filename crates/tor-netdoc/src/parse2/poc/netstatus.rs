@@ -48,14 +48,14 @@ pub struct NdiR {
 pub enum NdiDirectorySignature {
     /// Known "hash function" name
     Known {
+        /// Hash algorithm
+        hash_algo: DirectorySignatureHashAlgo,
         /// H(KP\_auth\_id\_rsa)
         h_kp_auth_id_rsa: pk::rsa::RsaIdentity,
         /// H(kp\_auth\_sign\_rsa)
         h_kp_auth_sign_rsa: pk::rsa::RsaIdentity,
         /// RSA signature
         rsa_signature: Vec<u8>,
-        /// Hash of the covered text
-        hash: DirectorySignatureHash,
     },
     /// Unknown "hash function" name
     ///
@@ -65,27 +65,68 @@ pub enum NdiDirectorySignature {
 }
 define_derive_deftly! {
     /// Ad-hoc derives for [`DirectorySignatureHash`] impls, avoiding copypasta bugs
-    DirectorySignatureHash expect items, beta_deftly:
+    ///
+    /// # Input
+    ///
+    ///  * `pub enum DirectorySignatureHashAlgo`
+    ///  * Unit variants
+    ///  * Each variant with `#[deftly(hash_len = "N")]`
+    ///    where `N` is the digest length in bytes.
+    ///
+    /// # Generated code
+    ///
+    ///  * `pub enum DirectorySignaturesHashesAccu`,
+    ///    with each variant a 1-tuple containing `Option<[u8; N]>`.
+    ///    (These are `None` if this hash has not been computed yet.)
+    ///
+    ///  * `DirectorySignaturesHashesAccu::parse_keyword_and_hash`
+    ///
+    ///  * `DirectorySignaturesHashesAccu::hash_slice_for_verification`
+    DirectorySignatureHashesAccu expect items, beta_deftly:
 
-    impl $ttype {
+    ${define FNAME ${paste ${snake_case $vname}} }
+
+    /// `directory-signature`a hash algorithm argument
+    #[derive(Clone, Copy, Default, Debug, Eq, PartialEq, Deftly)]
+    #[derive_deftly(AsMutSelf)]
+    #[non_exhaustive]
+    pub struct DirectorySignaturesHashesAccu {
+      $(
+        ${vattrs doc}
+        $FNAME: Option<[u8; ${vmeta(hash_len) as expr}]>,
+      )
+    }
+
+    impl DirectorySignaturesHashesAccu {
         /// If `algorithm` is an algorithm name, calculate the hash
-        fn parse_keyword_and_hash(algorithm: &str, body: &SignatureHashInputs) -> Option<Self> {
+        ///
+        /// Otherwise, return `None`.
+        fn parse_keyword_and_hash(
+            &mut self,
+            algorithm: &str,
+            body: &SignatureHashInputs,
+        ) -> Option<$ttype> {
             Some(match algorithm {
               $(
-                ${concat ${kebab_case $vname}} => {
+                ${concat $FNAME} => {
                     let mut h = tor_llcrypto::d::$vname::new();
                     h.update(body.body().body());
                     h.update(body.signature_item_kw_spc);
-                    Self::$vname(h.finalize().into())
+                    self.$FNAME = Some(h.finalize().into());
+                    $vtype
                 }
               )
                 _ => return None,
             })
         }
 
-        fn hash_slice_for_verification(&self) -> &[u8] {
-            match self { $(
-                $vpat => f_0,
+        /// Return the hash value for this algorithm, as a slice
+        ///
+        /// `None` if the value wasn't computed.
+        /// That shouldn't happen.
+        fn hash_slice_for_verification(&self, algo: $ttype) -> Option<&[u8]> {
+            match algo { $(
+                $vtype => Some(self.$FNAME.as_ref()?),
             ) }
         }
     }
@@ -93,13 +134,15 @@ define_derive_deftly! {
 
 /// `directory-signature` hash algorithm argument
 #[derive(Clone, Copy, Debug, Eq, PartialEq, strum::EnumString, Deftly)]
-#[derive_deftly(DirectorySignatureHash)]
+#[derive_deftly(DirectorySignatureHashesAccu)]
 #[non_exhaustive]
-pub enum DirectorySignatureHash {
+pub enum DirectorySignatureHashAlgo {
     /// SHA-1
-    Sha1([u8; 20]),
+    #[deftly(hash_len = "20")]
+    Sha1,
     /// SHA-256
-    Sha256([u8; 32]),
+    #[deftly(hash_len = "32")]
+    Sha256,
 }
 
 /// Unsupported `vote-status` value
@@ -111,10 +154,13 @@ pub enum DirectorySignatureHash {
 pub struct InvalidNetworkStatusVoteStatus {}
 
 impl SignatureItemParseable for NdiDirectorySignature {
+    type HashAccu = DirectorySignaturesHashesAccu;
+
     // TODO torspec#350.  That's why this manual impl is needed
     fn from_unparsed_and_body<'s>(
         mut input: UnparsedItem<'s>,
         document_body: &SignatureHashInputs<'_>,
+        hashes: &mut DirectorySignaturesHashesAccu,
     ) -> Result<Self, EP> {
         let object = input.object();
         let args = input.args_mut();
@@ -122,22 +168,22 @@ impl SignatureItemParseable for NdiDirectorySignature {
             field: "algorithm/h_kp_auth_id_rsa",
         })?;
 
-        let hash = if let Some(hash) =
-            DirectorySignatureHash::parse_keyword_and_hash(maybe_algorithm, document_body)
-        {
-            let _: &str = args.next().expect("we just peeked");
-            hash
-        } else if maybe_algorithm
-            .find(|c: char| !c.is_ascii_hexdigit())
-            .is_some()
-        {
-            // Not hex.  Must be some unknown algorithm.
-            // There might be Object, but don't worry if not.
-            return Ok(NdiDirectorySignature::Unknown {});
-        } else {
-            DirectorySignatureHash::parse_keyword_and_hash("sha1", document_body)
-                .expect("sha1 is not valid?")
-        };
+        let hash_algo =
+            if let Some(algo) = hashes.parse_keyword_and_hash(maybe_algorithm, document_body) {
+                let _: &str = args.next().expect("we just peeked");
+                algo
+            } else if maybe_algorithm
+                .find(|c: char| !c.is_ascii_hexdigit())
+                .is_some()
+            {
+                // Not hex.  Must be some unknown algorithm.
+                // There might be Object, but don't worry if not.
+                return Ok(NdiDirectorySignature::Unknown {});
+            } else {
+                hashes
+                    .parse_keyword_and_hash("sha1", document_body)
+                    .expect("sha1 is not valid?")
+            };
 
         let rsa_signature = object.ok_or(EP::MissingObject)?.decode_data()?;
 
@@ -153,10 +199,10 @@ impl SignatureItemParseable for NdiDirectorySignature {
         };
 
         Ok(NdiDirectorySignature::Known {
+            hash_algo,
             rsa_signature,
             h_kp_auth_id_rsa: fingerprint_arg("h_kp_auth_id_rsa")?,
             h_kp_auth_sign_rsa: fingerprint_arg("h_kp_auth_sign_rsa")?,
-            hash,
         })
     }
 }
@@ -169,6 +215,7 @@ impl SignatureItemParseable for NdiDirectorySignature {
 ///
 /// Does not check validity time.
 fn verify_general_timeless(
+    hashes: &DirectorySignaturesHashesAccu,
     signatures: &[NdiDirectorySignature],
     trusted: &[pk::rsa::RsaIdentity],
     certs: &[&DirAuthKeyCert],
@@ -179,7 +226,7 @@ fn verify_general_timeless(
     for sig in signatures {
         match sig {
             NdiDirectorySignature::Known {
-                hash,
+                hash_algo,
                 h_kp_auth_id_rsa,
                 h_kp_auth_sign_rsa,
                 rsa_signature,
@@ -201,7 +248,9 @@ fn verify_general_timeless(
                     continue;
                 };
 
-                let h = hash.hash_slice_for_verification();
+                let h = hashes
+                    .hash_slice_for_verification(*hash_algo)
+                    .ok_or(VF::Bug)?;
 
                 let () = cert.dir_signing_key.verify(h, rsa_signature)?;
 

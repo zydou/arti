@@ -31,7 +31,7 @@
 //!   * **`FooUnverified`**: a signed `Foo`, with its signatures, not yet verified.
 //!     Implements [`NetdocUnverified`],
 //!     typically by invoking the
-//!     [`NetdocUnverified` derive macro](crate::derive_deftly_template_NetdocUnverified)
+//!     [`NetdocUParseablenverified` derive macro](crate::derive_deftly_template_NetdocParseableUnverified)
 //!     on `Foo`.
 //!
 //!     Type-specific methods are provided for verification,
@@ -40,12 +40,13 @@
 //!   * **`Foo`**: the body data for the document.
 //!     This doesn't contain any signatures.
 //!     Having one of these to play with means signatures have already been validated.
-//!     Implement `NetdocParseable`, via
-//!     [derive](crate::derive_deftly_template_NetdocParseable).
+//!     Can be parsed as part of the signed document,
+//!     via the `NetdocParseable` implementation on `FooUnverified`,
+//!     and then obtained via `.verify_...` method(s) on `FooUnverified`,
 //!
 //!   * **`FooSignatures`**: the signatures for a `Foo`.
-//!     Implement `NetdocParseable`, via
-//!     [derive](crate::derive_deftly_template_NetdocParseable),
+//!     Implements `NetdocParseableSignatures`, via
+//!     [derive](crate::derive_deftly_template_NetdocParseableSignatures),
 //!     with `#[deftly(netdoc(signatures))]`.
 //!
 //! # Relationship to tor_netdoc::parse
@@ -106,8 +107,9 @@ pub use keyword::KeywordRef;
 pub use lex::{ArgumentStream, ItemStream, NoFurtherArguments, UnparsedItem, UnparsedObject};
 pub use lines::{Lines, Peeked, StrExt};
 pub use signatures::{
-    NetdocUnverified, SignatureHashInputs, SignatureItemParseable, check_validity_time,
-    check_validity_time_tolerance, sig_hash_methods,
+    HasUnverifiedParsedBody, NetdocParseableSignatures, NetdocUnverified, SignatureHashInputs,
+    SignatureHashesAccumulator, SignatureItemParseable, SignaturesData, check_validity_time,
+    check_validity_time_tolerance, sig_hashes,
 };
 pub use structural::{StopAt, StopPredicate};
 pub use traits::{

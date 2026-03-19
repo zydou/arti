@@ -187,7 +187,7 @@ impl<'s> ItemStream<'s> {
         Ok(Some(peeked.keyword))
     }
 
-    /// Obtain the body so far, suitable for hashing for a Regular signature
+    /// Obtain the body so far, suitable for hashing for an Orderly signature
     pub fn body_sofar_for_signature(&self) -> SignedDocumentBody<'s> {
         let body = &self.whole_input[0..self.byte_position()];
         SignedDocumentBody { body }
@@ -212,9 +212,19 @@ impl<'s> ItemStream<'s> {
     }
 
     /// Parse a (sub-)document with its own signatures
+    ///
+    /// Used (mostly) by the
+    /// [`NetdocParseableUnverified`](derive_deftly_template_NetdocParseableUnverified)
+    /// derive macro.
+    ///
+    /// Generic parameters:
+    ///
+    ///  * **`B`**: the body type: the type to which `NetdocParseableUnverified` is applied.
+    ///  * **`S`**: the signatures section type.
+    ///  * **`O`**: the `FooUnverified` type, which embodies the parsed body and signatures.
     pub fn parse_signed<
-        B: NetdocParseable,
-        S: NetdocParseable,
+        B: HasUnverifiedParsedBody,
+        S: NetdocParseableSignatures,
         O: NetdocUnverified<Body = B, Signatures = S>,
     >(
         &mut self,
@@ -225,10 +235,25 @@ impl<'s> ItemStream<'s> {
             ..self.clone()
         };
         let r = (|| {
-            let inner_always_stop = outer_stop | StopAt::doc_intro::<B>();
-            let body = B::from_items(&mut input, inner_always_stop | StopAt::doc_intro::<S>())?;
-            let signatures = S::from_items(&mut input, inner_always_stop)?;
-            let signed = O::from_parts(body, signatures);
+            let inner_always_stop = outer_stop | StopAt::doc_intro::<B::UnverifiedParsedBody>();
+            let body = B::UnverifiedParsedBody::from_items(
+                &mut input,
+                inner_always_stop | StopAt(S::is_item_keyword),
+            )?;
+            let signed_doc_body = input.body_sofar_for_signature();
+            let unsigned_body_len = signed_doc_body.body().len();
+            let mut hashes = S::HashesAccu::default();
+            let sigs = S::from_items(&mut input, signed_doc_body, &mut hashes, inner_always_stop)?;
+            let sigs = SignaturesData {
+                sigs,
+                unsigned_body_len,
+                hashes,
+            };
+            // SECURITY
+            // We unwrap the UnverifiedParsedBody and immediately wrap it up again
+            // in FooUnverified, passing on the obligation to verify the signatures,
+            // and still enforcing that with a newtype.
+            let signed = O::from_parts(B::unverified_into_inner_unchecked(body), sigs);
             Ok(signed)
         })(); // don't exit here
 
@@ -240,7 +265,7 @@ impl<'s> ItemStream<'s> {
         r
     }
 
-    /// Obtain the inputs that would be needed to hash any (even Irregular) signature
+    /// Obtain the inputs that would be needed to hash any (even Disorderly) signature
     ///
     /// These are the hash inputs which would be needed for the next item,
     /// assuming it's a signature keyword.
@@ -252,10 +277,12 @@ impl<'s> ItemStream<'s> {
         let PeekState::Some(peeked) = &self.peeked else {
             return Ok(None);
         };
+        let document_sofar = self.body_sofar_for_signature().body();
         let signature_item_line = self.lines.peeked_line(&peeked.line);
         let signature_item_kw_spc = signature_item_line.strip_end_counted(peeked.args_len);
         Ok(Some(SignatureHashInputs {
             body,
+            document_sofar,
             signature_item_kw_spc,
             signature_item_line,
         }))

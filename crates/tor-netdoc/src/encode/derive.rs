@@ -240,8 +240,6 @@ define_derive_deftly! {
     /// TODO NETDOC ENCODE provide an example when signatures are implemented.
     export NetdocEncodable beta_deftly, for struct, expect items:
 
-    ${if T_SIGNATURES { ${error "Encoding of signatures sub-documents is not yet supported" }}}
-
     impl<$tgens> $P::NetdocEncodable for $ttype {
         fn encode_unsigned(&self, out: &mut $P::NetdocEncoder) -> Result<(), $P::Bug> {
             use $P::*;
@@ -424,9 +422,6 @@ define_derive_deftly! {
                                 <$ftype as Display>::fmt
                       }}
                                 ));
-                  }
-                  F_SIG_HASH {
-                    ${error "NYI"}
                   }
                   F_OBJECT {
                             // We do this one later, in case it's not last in the struct.

@@ -29,7 +29,7 @@ pub type Router = ns_type!(
 /// The preamble items are members of this struct.
 /// The rest are handled as sub-documents.
 #[derive(Deftly, Clone, Debug)]
-#[derive_deftly(NetdocParseable, NetdocUnverified)]
+#[derive_deftly(NetdocParseableUnverified)]
 #[deftly(netdoc(doctype_for_error = "TOPLEVEL_DOCTYPE_FOR_ERROR"))]
 #[non_exhaustive]
 pub struct NetworkStatus {
@@ -70,8 +70,8 @@ pub struct NetworkStatus {
 
 /// Signatures on a network status document
 #[derive(Deftly, Clone, Debug)]
-#[derive_deftly(NetdocParseable)]
-#[deftly(netdoc(signatures))]
+#[derive_deftly(NetdocParseableSignatures)]
+#[deftly(netdoc(signatures(hashes_accu = "DirectorySignaturesHashesAccu")))]
 #[non_exhaustive]
 pub struct NetworkStatusSignatures {
     /// `directory-signature`s
@@ -330,14 +330,15 @@ ns_choose! { (
         pub fn verify_selfcert(
             self,
             now: SystemTime,
-        ) -> Result<(NetworkStatus, NetworkStatusSignatures), VF> {
+        ) -> Result<(NetworkStatus, SignaturesData<NetworkStatusUnverified>), VF> {
             let validity = *self.body.published.0 ..= *self.body.valid_until.0;
             check_validity_time(now, validity)?;
 
             let cert = self.body.parse_authcert()?.verify_selfcert(now)?;
 
             netstatus::verify_general_timeless(
-                slice::from_ref(&self.signatures.directory_signature),
+                &self.sigs.hashes,
+                slice::from_ref(&self.sigs.sigs.directory_signature),
                 &[*cert.fingerprint],
                 &[&cert],
                 1,
@@ -399,7 +400,7 @@ ns_choose! { (
             now: SystemTime,
             authorities: &[pk::rsa::RsaIdentity],
             certs: &[&DirAuthKeyCert],
-        ) -> Result<(NetworkStatus, NetworkStatusSignatures), VF> {
+        ) -> Result<(NetworkStatus, SignaturesData<NetworkStatusUnverified>), VF> {
             let threshold = authorities.len() / 2 + 1; // strict majority
             let validity_start = self.body.valid_after.0
                 .checked_sub(Duration::from_secs(self.body.voting_delay.dist_seconds.into()))
@@ -407,7 +408,8 @@ ns_choose! { (
             check_validity_time(now, validity_start..= *self.body.valid_until.0)?;
 
             netstatus::verify_general_timeless(
-                &self.signatures.directory_signature,
+                &self.sigs.hashes,
+                &self.sigs.sigs.directory_signature,
                 authorities,
                 certs,
                 threshold,

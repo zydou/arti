@@ -136,9 +136,10 @@ pub trait ItemSetMethods: Copy + Sized {
     {
     }
     /// Check that the element type is a Signature
-    fn check_signature_item_parseable(self)
+    fn check_signature_item_parseable<H>(self, _: &mut H)
     where
         Self::Each: SignatureItemParseable,
+        H: AsMut<<Self::Each as SignatureItemParseable>::HashAccu>,
     {
     }
     /// Check that the element type is a sub-document

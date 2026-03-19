@@ -34,7 +34,9 @@ mod build;
 pub use build::AuthCertBuilder;
 
 #[cfg(feature = "parse2")]
-use crate::parse2::{self, ItemObjectParseable, SignatureHashInputs};
+use crate::parse2::{
+    self, ItemObjectParseable, SignatureHashInputs, sig_hashes::Sha1WholeKeywordLine,
+};
 
 // TODO DIRAUTH untangle these feature(s)
 #[cfg(all(feature = "parse2", feature = "plain-consensus"))]
@@ -90,7 +92,7 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 /// To make a fresh `AuthCert`, use [`AuthCertConstructor`].
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Constructor)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable, NetdocUnverified))]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableUnverified))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -500,8 +502,8 @@ pub struct CrossCertObject(pub Vec<u8>);
 #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
 #[cfg_attr(
     feature = "parse2",
-    derive_deftly(NetdocParseable),
-    deftly(netdoc(signatures))
+    derive_deftly(NetdocParseableSignatures),
+    deftly(netdoc(signatures(hashes_accu = "Sha1WholeKeywordLine")))
 )]
 #[non_exhaustive]
 pub struct AuthCertSignatures {
@@ -522,7 +524,7 @@ pub struct AuthCertSignatures {
 #[cfg_attr(
     feature = "parse2",
     derive_deftly(ItemValueParseable),
-    deftly(netdoc(no_extra_args))
+    deftly(netdoc(no_extra_args, signature(hash_accu = "Sha1WholeKeywordLine")))
 )]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
@@ -531,10 +533,6 @@ pub struct AuthCertSignature {
     /// The bytes of the signature (base64-decoded).
     #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::parse2::raw_data_object"))]
     pub signature: Vec<u8>,
-
-    /// The SHA1 hash of the document.
-    #[deftly(netdoc(sig_hash = "whole_keyword_line_sha1"))]
-    pub hash: [u8; 20],
 }
 
 #[cfg(feature = "parse2")]
@@ -588,7 +586,7 @@ impl AuthCertUnverified {
         post_tolerance: Duration,
         now: SystemTime,
     ) -> StdResult<AuthCert, parse2::VerifyFailed> {
-        let (body, signatures) = (self.body, self.signatures);
+        let (body, sigs) = (self.body, self.sigs);
 
         // (1) Check whether this comes from a valid authority in `v3idents`.
         if !v3idents.contains(&body.fingerprint.0) {
@@ -612,8 +610,8 @@ impl AuthCertUnverified {
 
         // (5) Check the outer certificate (proof-of-ownership of identity key).
         body.dir_identity_key.verify(
-            &signatures.dir_key_certification.hash,
-            &signatures.dir_key_certification.signature,
+            &sigs.hashes.0.ok_or(parse2::VerifyFailed::Bug)?,
+            &sigs.sigs.dir_key_certification.signature,
         )?;
 
         Ok(body)
@@ -747,7 +745,7 @@ mod test {
         };
 
         use crate::{
-            parse2::{self, ErrorProblem, ParseError, ParseInput, VerifyFailed},
+            parse2::{self, ErrorProblem, NetdocUnverified, ParseError, ParseInput, VerifyFailed},
             types::{self, Iso8601TimeSp},
         };
 
@@ -861,9 +859,10 @@ mod test {
                 .read_to_string(&mut input)
                 .unwrap();
 
-            let res = parse2::parse_netdoc::<AuthCert>(&ParseInput::new(&input, "")).unwrap();
+            let res =
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(&input, "")).unwrap();
             assert_eq!(
-                res,
+                *res.inspect_unverified().0,
                 AuthCert {
                     dir_key_certificate_version: AuthCertVersion::V3,
                     dir_address: None,
