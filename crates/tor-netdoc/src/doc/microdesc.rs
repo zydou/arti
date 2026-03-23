@@ -73,14 +73,6 @@ pub struct Microdesc {
     /// anymore and just waste space.
     onion_key: OnionKeyIntro,
 
-    /// The SHA256 digest of the text of this microdescriptor.  This
-    /// value is used to identify the microdescriptor when downloading
-    /// it, and when listing it in a consensus document.
-    // TODO: maybe this belongs somewhere else. Once it's used to store
-    // correlate the microdesc to a consensus, it's never used again.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(skip)))]
-    pub sha256: MdDigest,
-
     /// Public key used for the ntor circuit extension protocol.
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub ntor_onion_key: curve25519::PublicKey,
@@ -88,6 +80,10 @@ pub struct Microdesc {
     /// Declared family for this relay.
     #[cfg_attr(feature = "parse2", deftly(netdoc(default)))]
     pub family: Arc<RelayFamily>,
+
+    /// Family identities for this relay.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(default)))]
+    pub family_ids: RelayFamilyIds,
 
     /// List of IPv4 ports to which this relay will exit
     #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "p", default)))]
@@ -105,11 +101,15 @@ pub struct Microdesc {
     )]
     pub ed25519_id: Ed25519IdentityLine,
 
-    /// Family identities for this relay.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(default)))]
-    pub family_ids: RelayFamilyIds,
     // addr is obsolete and doesn't go here any more
     // pr is obsolete and doesn't go here any more.
+    /// The SHA256 digest of the text of this microdescriptor.  This
+    /// value is used to identify the microdescriptor when downloading
+    /// it, and when listing it in a consensus document.
+    // TODO: maybe this belongs somewhere else. Once it's used to store
+    // correlate the microdesc to a consensus, it's never used again.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(skip)))]
+    pub sha256: MdDigest,
 }
 
 impl Microdesc {
