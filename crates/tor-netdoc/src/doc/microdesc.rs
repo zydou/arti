@@ -661,4 +661,98 @@ mod test {
         assert!(res[2].is_err());
         Ok(())
     }
+
+    #[test]
+    #[cfg(feature = "parse2")]
+    fn parse2() {
+        use tor_llcrypto::pk::ed25519::Ed25519Identity;
+
+        use crate::parse2;
+
+        let md = include_str!("../../testdata2/cached-microdescs.new");
+        let mds = parse2::parse_netdoc_multiple::<Microdesc>(&parse2::ParseInput::new(
+            md,
+            "../../testdata2/cached-microdescs.new",
+        ))
+        .unwrap();
+
+        assert_eq!(mds.len(), 7);
+        assert_eq!(
+            mds[0],
+            Microdesc {
+                onion_key: OnionKeyIntro(rsa::PublicKey::from_der(&[
+                    48, 129, 137, 2, 129, 129, 0, 203, 22, 116, 179, 242, 53, 84, 39, 53, 225, 8,
+                    144, 90, 53, 243, 79, 188, 113, 130, 72, 131, 217, 133, 147, 114, 120, 19, 147,
+                    1, 202, 62, 190, 180, 196, 111, 185, 163, 245, 77, 170, 76, 21, 170, 224, 211,
+                    39, 210, 27, 159, 57, 134, 61, 209, 122, 179, 206, 180, 68, 104, 169, 41, 74,
+                    161, 156, 188, 55, 34, 70, 229, 55, 90, 201, 244, 250, 230, 17, 200, 17, 108,
+                    91, 145, 124, 169, 143, 158, 72, 42, 65, 95, 59, 97, 56, 250, 174, 41, 57, 205,
+                    176, 87, 103, 124, 167, 158, 28, 230, 48, 203, 127, 180, 48, 249, 78, 226, 163,
+                    211, 23, 38, 204, 181, 155, 192, 80, 192, 57, 132, 64, 18, 31, 2, 3, 1, 0, 1
+                ])),
+                sha256: [0; 32],
+                ntor_onion_key: curve25519::PublicKey::from([
+                    184, 138, 153, 120, 194, 74, 182, 46, 83, 41, 253, 9, 159, 245, 234, 210, 227,
+                    45, 218, 104, 244, 91, 17, 49, 200, 147, 68, 175, 8, 31, 152, 117
+                ]),
+                family: Arc::new({
+                    let mut rf = RelayFamily::new();
+                    rf.push(
+                        rsa::RsaIdentity::from_hex("6ACAECCF578C44EAA16059C3E6C206CFA6933D35")
+                            .unwrap(),
+                    );
+                    rf.push(
+                        rsa::RsaIdentity::from_hex("A0296DDC9EC50AA42ED9D477D51DD4607D7876D3")
+                            .unwrap(),
+                    );
+                    rf
+                }),
+                ipv4_policy: Default::default(),
+                ipv6_policy: Default::default(),
+                ed25519_id: Ed25519IdentityLine(
+                    Ed25519Identity::from_bytes(&[
+                        237, 209, 188, 66, 237, 200, 186, 192, 178, 198, 125, 179, 110, 108, 62, 8,
+                        36, 89, 83, 230, 181, 94, 89, 217, 95, 217, 10, 16, 117, 79, 54, 27
+                    ])
+                    .unwrap()
+                ),
+                family_ids: Vec::new()
+            }
+        );
+        assert_eq!(
+            mds[6],
+            Microdesc {
+                onion_key: OnionKeyIntro(rsa::PublicKey::from_der(&[
+                    48, 129, 137, 2, 129, 129, 0, 198, 61, 90, 2, 164, 198, 200, 220, 67, 151, 135,
+                    232, 186, 122, 184, 170, 248, 159, 22, 31, 96, 144, 229, 212, 194, 31, 79, 175,
+                    185, 44, 213, 49, 187, 55, 118, 80, 118, 173, 173, 13, 147, 129, 201, 0, 10,
+                    79, 242, 238, 42, 147, 170, 111, 174, 68, 47, 94, 130, 123, 87, 108, 182, 27,
+                    181, 89, 33, 150, 32, 208, 13, 163, 2, 152, 105, 116, 16, 5, 92, 168, 88, 172,
+                    230, 136, 129, 35, 249, 242, 134, 224, 104, 244, 153, 223, 61, 186, 101, 152,
+                    238, 224, 184, 127, 125, 203, 163, 70, 156, 207, 119, 33, 80, 137, 194, 4, 241,
+                    120, 102, 100, 205, 176, 239, 126, 63, 192, 175, 51, 250, 73, 57, 213, 2, 3, 1,
+                    0, 1
+                ])),
+                sha256: [0; 32],
+                ntor_onion_key: curve25519::PublicKey::from([
+                    64, 77, 233, 130, 69, 118, 107, 22, 241, 6, 252, 12, 186, 66, 75, 213, 211, 63,
+                    148, 96, 1, 160, 61, 253, 223, 78, 107, 177, 113, 179, 221, 122
+                ]),
+                family: Default::default(),
+                ipv4_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),
+                ipv6_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),
+                ed25519_id: Ed25519IdentityLine(
+                    Ed25519Identity::from_bytes(&[
+                        79, 23, 163, 165, 39, 202, 146, 148, 56, 73, 45, 36, 41, 112, 105, 69, 28,
+                        23, 40, 0, 221, 249, 96, 162, 54, 242, 130, 171, 144, 35, 124, 43
+                    ])
+                    .unwrap()
+                ),
+                family_ids: vec![RelayFamilyId::Ed25519(
+                    Ed25519Identity::from_base64("5vHhiPVy3pZwFsR2GBudhkdKYrkdGVtAxrwpZ1weiYU")
+                        .unwrap()
+                )],
+            }
+        );
+    }
 }
