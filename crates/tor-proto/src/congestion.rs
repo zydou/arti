@@ -18,7 +18,7 @@
 //! Furthermore, as we receive and emit SENDMEs, it also has entry point for those two events in
 //! order to update the state.
 
-#[cfg(any(test, feature = "testing"))]
+#[cfg(test)]
 pub(crate) mod test_utils;
 
 mod fixed;
