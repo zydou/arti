@@ -113,7 +113,7 @@ class _TagMap:
     def _get_tag(self, tag: int, is_final: bool) -> Optional[object]:
         """
         Given an integer tag returned by `_next_tag`,
-        return the request tag object assocaited with it.
+        return the request tag object associated with it.
 
         If `is_final` is true, we have received the final response for
         the associated request: remove the tag from this map.
@@ -333,7 +333,7 @@ class ArtiRpcConnBuilder(_RpcBase):
         and for making sure that `ArtiRpcPoll.poll` is called on the
         connection whenever it is ready.
         The event loop should _always_ be watching for "readable" events,
-        and should watch for "writeable" whenever the conenction
+        and should watch for "writable" whenever the connection
         "wants to write" as determined by start_writing and stop_writing.
 
         (When this method is used to create the ArtiRpcConn,
@@ -533,7 +533,7 @@ class ArtiRpcConn(_RpcBase):
     ) -> None:
         """
         Launch an RPC request on this connection, so that its responses
-        can later be retried with `wait` or `poll.`
+        can later be retrieved with `wait` or `poll`.
 
         `user_tag` may be any object; it will later be returned along
         with any response(s) to the request.
@@ -991,7 +991,7 @@ class ArtiRpcResponse:
     def update(self) -> Optional[dict]:
         """
         If this is an incremental update, return its 'update' member.
-        Otherwise return `None.`
+        Otherwise return `None`.
         """
         return self._obj.get("update")
 

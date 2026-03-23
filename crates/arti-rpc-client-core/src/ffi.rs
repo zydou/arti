@@ -50,7 +50,7 @@ pub struct ArtiRpcConnBuilder(Mutex<RpcConnBuilder>);
 
 /// An object used to poll a nonblocking RPC connection for responses.
 ///
-/// `ArtiRpcPoll` is used to integrate and Arti RPC connection with a polling-based
+/// `ArtiRpcPoll` is used to integrate an Arti RPC connection with a polling-based
 /// event loop.  See [`arti_rpc_conn_builder_connect_polling`] for more information.
 //
 // Note: we add a mutex to ArtiRpcPoll because we do not trust the user to keep its
