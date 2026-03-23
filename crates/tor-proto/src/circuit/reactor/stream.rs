@@ -12,7 +12,6 @@ use crate::stream::queue::stream_queue;
 use crate::streammap;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
-use crate::util::timeout::TimeoutEstimator;
 use crate::{Error, HopNum};
 
 #[cfg(any(feature = "hs-service", feature = "relay"))]
@@ -46,6 +45,19 @@ use std::time::Duration;
 ///
 // TODO(tuning): figure out if this is a good size for this buffer
 const CIRCUIT_BUFFER_SIZE: usize = 128;
+
+/// Trait for customizing the behavior of the stream reactor.
+///
+/// Used for plugging in the implementation-dependent (client vs relay)
+/// parts of the implementation into the generic one.
+pub(crate) trait StreamHandler: Send + Sync + 'static {
+    /// Return the amount of time a newly closed stream
+    /// should be kept in the stream map for.
+    ///
+    /// This is the amount of time we are willing to wait for
+    /// an END ack before removing the half-stream from the map.
+    fn halfstream_expiry(&self, hop: &CircHopOutbound) -> Duration;
+}
 
 /// The stream reactor for a given hop.
 ///
@@ -100,10 +112,8 @@ pub(crate) struct StreamReactor {
     /// after the virtual hop is created.
     #[cfg(any(feature = "hs-service", feature = "relay"))]
     incoming: Arc<Mutex<Option<IncomingStreamRequestHandler>>>,
-    /// The circuit timeout estimator.
-    ///
-    /// Used for computing half-stream expiration.
-    timeouts: Arc<dyn TimeoutEstimator>,
+    /// A handler for customizing the stream reactor behavior.
+    inner: Arc<dyn StreamHandler>,
     /// Memory quota account
     memquota: CircuitAccount,
 }
@@ -119,7 +129,7 @@ impl StreamReactor {
         unique_id: UniqId,
         cell_rx: mpsc::Receiver<StreamMsg>,
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
-        timeouts: Arc<dyn TimeoutEstimator>,
+        inner: Arc<dyn StreamHandler>,
         #[cfg(any(feature = "hs-service", feature = "relay"))] //
         incoming: Arc<Mutex<Option<IncomingStreamRequestHandler>>>,
         memquota: CircuitAccount,
@@ -133,7 +143,7 @@ impl StreamReactor {
             incoming,
             cell_rx,
             bwd_tx,
-            timeouts,
+            inner,
             memquota,
         }
     }
@@ -528,31 +538,7 @@ impl StreamReactor {
     async fn handle_stream_event(&mut self, event: StreamEvent) -> StdResult<(), ReactorError> {
         match event {
             StreamEvent::Closed { sid, behav, reason } => {
-                let max_rtt = {
-                    let mut ccontrol = self.hop.ccontrol().lock().expect("poisoned lock");
-
-                    // Note: if we have no measurements for the RTT, this will be set to 0,
-                    // and the timeout will be 2 * CBT.
-                    ccontrol
-                        .rtt()
-                        .max_rtt_usec()
-                        .map(|rtt| Duration::from_millis(u64::from(rtt)))
-                        .unwrap_or_default()
-                };
-
-                // The length of the circuit up until the hop that has the half-streeam.
-                //
-                // +1, because HopNums are zero-based.
-                //
-                /// If we're an exit, the estimated circ_len is hard-coded to 3.
-                /// TODO: But maybe we need a better way of estimating the circuit length here?...
-                const FALLBACK_CIRC_HOP: usize = 2;
-                let circ_len = self.hopnum.map(usize::from).unwrap_or(FALLBACK_CIRC_HOP) + 1;
-
-                // We double the CBT to account for rend circuits,
-                // which are twice as long (otherwise we risk expiring
-                // the rend half-streams too soon).
-                let timeout = std::cmp::max(max_rtt, 2 * self.estimate_cbt(circ_len));
+                let timeout = self.inner.halfstream_expiry(&self.hop);
                 let expire_at = self.time_provider.now() + timeout;
                 let res =
                     self.hop
@@ -586,13 +572,6 @@ impl StreamReactor {
             .map_err(|_| ReactorError::Shutdown)?;
 
         Ok(())
-    }
-
-    /// The estimated circuit build timeout for a circuit of the specified length.
-    ///
-    /// Note: this duplicates the client implementation
-    fn estimate_cbt(&self, length: usize) -> Duration {
-        self.timeouts.circuit_build_timeout(length)
     }
 }
 
