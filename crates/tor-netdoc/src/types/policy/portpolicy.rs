@@ -34,7 +34,7 @@ use tor_basic_utils::intern::InternCache;
 /// assert!(! policy.allows_port(1024));
 /// assert!(! policy.allows_port(9000));
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct PortPolicy {
     /// A list of port ranges that this policy allows.
     ///
