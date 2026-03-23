@@ -119,7 +119,7 @@ impl<
 
         // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell and SLOG; we don't need
         // them as we are not authenticating with our responder because we are a client.
-        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at), _) =
+        let (_auth_chal_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at), _slog) =
             self.recv_cells_from_responder(AuthLogAction::Leave).await?;
 
         // Get the clock skew.
