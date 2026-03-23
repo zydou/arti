@@ -209,7 +209,7 @@ typedef struct ArtiRpcConnBuilder ArtiRpcConnBuilder;
 /**
  * An object used to poll a nonblocking RPC connection for responses.
  *
- * `ArtiRpcPoll` is used to integrate and Arti RPC connection with a polling-based
+ * `ArtiRpcPoll` is used to integrate an Arti RPC connection with a polling-based
  * event loop.  See [`arti_rpc_conn_builder_connect_polling`] for more information.
  */
 typedef struct ArtiRpcPoll ArtiRpcPoll;
@@ -567,6 +567,8 @@ ArtiRpcStatus arti_rpc_conn_builder_connect(const struct ArtiRpcConnBuilder *bui
  * The `start_writing_callback` and `start_reading_callback` functions
  * must be provided.  They will be invoked (respectively) whenever the connection
  * starts wanting to write, or stops wanting to write.
+ * They should return 0 on success, and _return_ an `errno` value on failure.
+ * (Any `errno` value that they _set_ will be ignored.)
  * They will be passed `callback_data_ptr` as an argument.
  *
  * If your program invokes `arti_rpc_*` from multiple threads,
@@ -738,8 +740,6 @@ void arti_rpc_handle_free(ArtiRpcHandle *handle);
  * (If nobody is running [`arti_rpc_conn_wait()`] or [`arti_rpc_poll_poll()`],
  * then responses will never be handled,
  * and can potentially fill up memory.)
- *
- * It is safe to call this function from multiple threads at once.
  *
  * # Ownership
  *
