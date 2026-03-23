@@ -3,7 +3,7 @@
 //! Only available when the crate is built with the `encode` feature.
 
 use crate::{
-    CertEncodeError, CertExt, Ed25519Cert, Ed25519CertConstructor, ExpiryHours, ExtType,
+    CertEncodeError, CertExt, CertType, Ed25519Cert, Ed25519CertConstructor, ExpiryHours, ExtType,
     SignedWithEd25519Ext, UnrecognizedExt,
 };
 use std::time::SystemTime;
@@ -184,6 +184,25 @@ impl Ed25519CertConstructor {
     }
 }
 
+/// A certificate with an encoded representation.
+pub trait EncodedCert {
+    /// Return the type of this certificate.
+    fn cert_type(&self) -> CertType;
+    /// Return the encoding of this certificate.
+    fn encoded(&self) -> &[u8];
+}
+
+impl EncodedCert for EncodedEd25519Cert {
+    fn cert_type(&self) -> CertType {
+        // The cert type is the second byte of the certificate.
+        self.0[1].into()
+    }
+
+    fn encoded(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -216,6 +235,8 @@ mod test {
             .cert_type(7.into())
             .encode_and_sign(&keypair)
             .unwrap();
+
+        assert_eq!(encoded.cert_type(), 7.into());
 
         let decoded = Ed25519Cert::decode(&encoded).unwrap(); // Well-formed?
         let validated = decoded
