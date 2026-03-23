@@ -1,6 +1,7 @@
 //! Implement a concrete type to build channels over a transport.
 
 use async_trait::async_trait;
+use futures::{AsyncRead, AsyncWrite};
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -18,16 +19,12 @@ use tor_proto::channel::ChannelType;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::ChannelAccount;
+use tor_proto::peer::PeerAddr;
 use tor_rtcompat::SpawnExt;
-use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
+use tor_rtcompat::{CertifiedConn, Runtime, StreamOps, TlsProvider, tls::TlsConnector};
 
 #[cfg(feature = "relay")]
-use {
-    futures::{AsyncRead, AsyncWrite},
-    std::net::IpAddr,
-    tor_proto::{RelayIdentities, peer::PeerAddr},
-    tor_rtcompat::{CertifiedConn, StreamOps},
-};
+use {std::net::IpAddr, tor_proto::RelayIdentities};
 
 /// TLS-based channel builder.
 ///
@@ -323,17 +320,6 @@ where
             }
         };
 
-        // Helper to map protocol level error.
-        //
-        // We are logging the `target` here as these protocol error happens during the handshake
-        // and we need to log the identities that are being tried but it will honor safe logging
-        // for the relay <-> relay case which is not ideal but a tradeoff in complexity.
-        let map_proto = |source, target: &OwnedChanTarget, clock_skew| Error::Proto {
-            source,
-            peer: target.to_logged(),
-            clock_skew,
-        };
-
         {
             // TODO(nickm): At some point, it would be helpful to the
             // bootstrapping logic if we could distinguish which
@@ -369,52 +355,20 @@ where
                 .expect("Lock poisoned")
                 .record_tls_finished();
         }
-        let now = self.runtime.wallclock();
 
         // Store this so we can log it in case we don't recognize it.
         let outbound_chan_type = self.outbound_chan_type();
         let chan = match outbound_chan_type {
             ChannelType::ClientInitiator => {
-                // Get the client specific channel builder.
-                let mut builder = tor_proto::ClientChannelBuilder::new();
-                builder.set_declared_method(target.chan_method());
-                // Going full sensitive.
-                let peer_addr = Sensitive::new(peer_addr.inner());
-
-                let unverified = builder
-                    .launch(
-                        tls,
-                        self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
-                        memquota,
-                    )
-                    .connect(|| self.runtime.wallclock())
-                    .await
-                    .map_err(|e| Error::from_proto_no_skew(e, target))?;
-
-                let clock_skew = unverified.clock_skew();
-                let (chan, reactor) = unverified
-                    .verify(target, &peer_cert, Some(now))
-                    .map_err(|source| match &source {
-                        tor_proto::Error::HandshakeCertsExpired { .. } => {
-                            event_sender
-                                .lock()
-                                .expect("Lock poisoned")
-                                .record_handshake_done_with_skewed_clock();
-                            map_proto(source, target, Some(clock_skew))
-                        }
-                        _ => Error::from_proto_no_skew(source, target),
-                    })?
-                    .finish(peer_addr)
-                    .await
-                    .map_err(|e| map_proto(e, target, Some(clock_skew)))?;
-
-                // Launch a task to run the channel reactor.
-                self.runtime
-                    .spawn(async {
-                        let _ = reactor.run().await;
-                    })
-                    .map_err(|e| Error::from_spawn("client channel reactor", e))?;
-                chan
+                self.build_client_channel(
+                    tls,
+                    peer_addr.inner(),
+                    target,
+                    &peer_cert,
+                    memquota,
+                    event_sender.clone(),
+                )
+                .await?
             }
             #[cfg(feature = "relay")]
             ChannelType::RelayInitiator => {
@@ -511,6 +465,76 @@ where
         } else {
             Ok(())
         }
+    }
+
+    /// Build a client channel (always initiator).
+    ///
+    /// This spawns the Reactor and return the [`tor_proto::channel::Channel`].
+    async fn build_client_channel<T>(
+        &self,
+        tls: T,
+        peer_addr: PeerAddr,
+        target: &OwnedChanTarget,
+        peer_cert: &[u8],
+        memquota: ChannelAccount,
+        event_sender: Arc<Mutex<ChanMgrEventSender>>,
+    ) -> crate::Result<Arc<tor_proto::channel::Channel>>
+    where
+        T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
+    {
+        // Helper to map protocol level error.
+        //
+        // We are logging the `target` here as these protocol error happens during the handshake
+        // and we need to log the identities that are being tried but it will honor safe logging
+        // for the relay <-> relay case which is not ideal but a tradeoff in complexity.
+        let map_proto = |source, target: &OwnedChanTarget, clock_skew| Error::Proto {
+            source,
+            peer: target.to_logged(),
+            clock_skew,
+        };
+
+        let now = self.runtime.wallclock();
+
+        // Get the client specific channel builder.
+        let mut builder = tor_proto::ClientChannelBuilder::new();
+        builder.set_declared_method(target.chan_method());
+        // Going full sensitive.
+        let peer_addr = Sensitive::new(peer_addr);
+
+        let unverified = builder
+            .launch(
+                tls,
+                self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
+                memquota,
+            )
+            .connect(|| self.runtime.wallclock())
+            .await
+            .map_err(|e| Error::from_proto_no_skew(e, target))?;
+
+        let clock_skew = unverified.clock_skew();
+        let (chan, reactor) = unverified
+            .verify(target, peer_cert, Some(now))
+            .map_err(|source| match &source {
+                tor_proto::Error::HandshakeCertsExpired { .. } => {
+                    event_sender
+                        .lock()
+                        .expect("Lock poisoned")
+                        .record_handshake_done_with_skewed_clock();
+                    map_proto(source, target, Some(clock_skew))
+                }
+                _ => Error::from_proto_no_skew(source, target),
+            })?
+            .finish(peer_addr)
+            .await
+            .map_err(|e| map_proto(e, target, Some(clock_skew)))?;
+
+        // Launch a task to run the channel reactor.
+        self.runtime
+            .spawn(async {
+                let _ = reactor.run().await;
+            })
+            .map_err(|e| Error::from_spawn("client channel reactor", e))?;
+        Ok(chan)
     }
 
     /// Build a relay initiator channel.
