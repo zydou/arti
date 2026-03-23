@@ -418,12 +418,6 @@ where
             }
             #[cfg(feature = "relay")]
             ChannelType::RelayInitiator => {
-                // Make sure we don't attempt to use a PT method for this relay channel.
-                if !target.chan_method().is_direct() {
-                    return Err(Error::UnusableTarget(tor_error::bad_api_usage!(
-                        "Relays don't support outbound PT channels"
-                    )));
-                }
                 self.build_relay_channel(
                     tls,
                     peer_addr.inner(),
@@ -455,6 +449,15 @@ where
     #[cfg(feature = "relay")]
     fn validate_relay_target(&self, target: &OwnedChanTarget) -> crate::Result<()> {
         use tor_linkspec::{HasAddrs, HasRelayIds};
+
+        // Make sure we don't attempt to use a PT method for this relay channel.
+        if !target.chan_method().is_direct() {
+            // Return an internal error because the circuit reactor asking us to use a PT is a code
+            // flow issue, not a protocol violation.
+            return Err(Error::UnusableTarget(tor_error::bad_api_usage!(
+                "Relays don't support outbound PT channels"
+            )));
+        }
 
         // Make sure no target address is ourself.
         for addr in target.addrs() {
