@@ -5,7 +5,7 @@
 
 use super::Microdesc;
 
-use crate::types::family::{RelayFamily, RelayFamilyId};
+use crate::types::family::{RelayFamily, RelayFamilyId, RelayFamilyIds};
 use crate::types::policy::PortPolicy;
 use crate::{BuildError as Error, BuildResult as Result, Error as ParseError};
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -30,7 +30,7 @@ pub struct MicrodescBuilder {
     /// See [`Microdesc::family`].
     family: RelayFamily,
     /// See [`Microdesc::family_ids`]
-    family_ids: Vec<RelayFamilyId>,
+    family_ids: RelayFamilyIds,
     /// See [`Microdesc::ipv4_policy`]
     ipv4_policy: PortPolicy,
     /// See [`Microdesc::ipv6_policy`]
@@ -45,7 +45,7 @@ impl MicrodescBuilder {
         MicrodescBuilder {
             ntor_onion_key: None,
             family: RelayFamily::new(),
-            family_ids: Vec::new(),
+            family_ids: RelayFamilyIds::new(),
             ipv4_policy: PortPolicy::new_reject_all(),
             ipv6_policy: PortPolicy::new_reject_all(),
             ed25519_id: None,

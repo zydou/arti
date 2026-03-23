@@ -15,7 +15,7 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::SectionRules;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::family::{RelayFamily, RelayFamilyId};
+use crate::types::family::{RelayFamily, RelayFamilyId, RelayFamilyIds};
 use crate::types::misc::*;
 use crate::types::policy::PortPolicy;
 use crate::util;
@@ -106,10 +106,8 @@ pub struct Microdesc {
     pub ed25519_id: Ed25519IdentityLine,
 
     /// Family identities for this relay.
-    // TODO SPEC: The spec is incoherent, it allows at most one family-id,
-    // whereas arti always allowed more than one.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    pub family_ids: Vec<RelayFamilyId>,
+    #[cfg_attr(feature = "parse2", deftly(netdoc(default)))]
+    pub family_ids: RelayFamilyIds,
     // addr is obsolete and doesn't go here any more
     // pr is obsolete and doesn't go here any more.
 }
@@ -163,7 +161,7 @@ impl Microdesc {
     }
     /// Return a list of family ids for this microdesc.
     pub fn family_ids(&self) -> &[RelayFamilyId] {
-        &self.family_ids[..]
+        self.family_ids.as_ref()
     }
 }
 
@@ -362,7 +360,7 @@ impl Microdesc {
             .unwrap_or("")
             .split_ascii_whitespace()
             .map(RelayFamilyId::from_str)
-            .collect::<Result<_>>()?;
+            .collect::<Result<RelayFamilyIds>>()?;
 
         // exit policies.
         let ipv4_policy = body
@@ -605,7 +603,7 @@ mod test {
         assert_eq!(mds.len(), 2);
         let md0 = mds[0].md();
         let md1 = mds[1].md();
-        assert_eq!(md0.family_ids().len(), 0);
+        assert!(md0.family_ids().is_empty());
         assert_eq!(
             md1.family_ids(),
             &[
@@ -716,7 +714,7 @@ mod test {
                     ])
                     .unwrap()
                 ),
-                family_ids: Vec::new()
+                family_ids: Default::default(),
             }
         );
         assert_eq!(
@@ -748,10 +746,13 @@ mod test {
                     ])
                     .unwrap()
                 ),
-                family_ids: vec![RelayFamilyId::Ed25519(
-                    Ed25519Identity::from_base64("5vHhiPVy3pZwFsR2GBudhkdKYrkdGVtAxrwpZ1weiYU")
-                        .unwrap()
-                )],
+                family_ids: RelayFamilyIds::from_iter(vec![
+                    RelayFamilyId::Ed25519(
+                        Ed25519Identity::from_base64("5vHhiPVy3pZwFsR2GBudhkdKYrkdGVtAxrwpZ1weiYU")
+                            .unwrap(),
+                    );
+                    2
+                ]),
             }
         );
     }

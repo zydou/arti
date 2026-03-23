@@ -150,6 +150,29 @@ impl Ord for RelayFamilyId {
 
 impl NormalItemArgument for RelayFamilyId {}
 
+/// A list of multiple [`RelayFamilyId`] entries as found in microdescs.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Deftly, derive_more::AsRef)]
+#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+pub struct RelayFamilyIds(Vec<RelayFamilyId>);
+
+impl RelayFamilyIds {
+    /// Return a new empty [`RelayFamilyIds`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Push `family_id` onto this instance.
+    pub fn push(&mut self, family_id: RelayFamilyId) {
+        self.0.push(family_id);
+    }
+}
+
+impl FromIterator<RelayFamilyId> for RelayFamilyIds {
+    fn from_iter<T: IntoIterator<Item = RelayFamilyId>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
