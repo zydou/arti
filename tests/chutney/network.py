@@ -80,6 +80,25 @@ def make_network(config: config_module.Config) -> chutney.TorNet.Network:
             bridgeclient=True,
             launch_phase=LAUNCH_PHASE_CLIENTS,
         ).getN(1)
+    # hidden services
+    for tag, path in artis.items():
+        if tag == "av":
+            # "vanilla" arti doesn't support running hidden services.
+            # TODO: probe for this capability.
+            continue
+        configs += NodeConfig(
+            tag="hs" + tag,
+            arti=path,
+            backend=NodeBackend.ARTI,
+            hs=True,
+            launch_phase=LAUNCH_PHASE_CLIENTS,
+        ).getN(1)
+    configs += NodeConfig(
+        tag="hst",
+        backend=NodeBackend.TOR,
+        hs=True,
+        launch_phase=LAUNCH_PHASE_CLIENTS,
+    ).getN(1)
 
     network = chutney.TorNet.Network()
     network.addNodes(configs)
