@@ -137,13 +137,16 @@ impl MicrodescBuilder {
             .ok_or(Error::CannotBuild("Missing ntor_key"))?;
         let ed25519_id = self
             .ed25519_id
-            .ok_or(Error::CannotBuild("Missing ed25519_id"))?;
+            .ok_or(Error::CannotBuild("Missing ed25519_id"))?
+            .into();
 
         // We generate a random sha256 value here, since this is only
         // for testing.
         let sha256 = rand::rng().random();
 
         Ok(Microdesc {
+            // Including an empty onion_key is totally fine and valid.
+            onion_key: Default::default(),
             sha256,
             ntor_onion_key,
             family: self.family.clone().intern(),

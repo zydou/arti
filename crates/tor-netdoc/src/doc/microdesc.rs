@@ -26,12 +26,15 @@ use tor_error::internal;
 use tor_llcrypto::d;
 use tor_llcrypto::pk::{curve25519, ed25519, rsa};
 
+use derive_deftly::Deftly;
 use digest::Digest;
 use std::str::FromStr as _;
 use std::sync::Arc;
 use std::sync::LazyLock;
-
 use std::time;
+
+#[cfg(feature = "parse2")]
+use crate::parse2::ItemObjectParseable;
 
 #[cfg(feature = "build_docs")]
 mod build;
@@ -56,31 +59,59 @@ pub struct MicrodescAnnotation {
 pub type MdDigest = [u8; DOC_DIGEST_LEN];
 
 /// A single microdescriptor.
-#[derive(Clone, Debug)]
+///
+/// <https://spec.torproject.org/dir-spec/computing-microdescriptors.html>
+#[derive(Clone, Debug, Deftly, PartialEq, Eq)]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
 #[non_exhaustive]
 pub struct Microdesc {
+    /// The legacy onion key, whose object is optional but whose item serves
+    /// as the intro line for these kind of descriptors.
+    ///
+    /// Let's keep this private for now to prevent interfacing applications
+    /// from generating microdesc's with an onion-key; they are not necessary
+    /// anymore and just waste space.
+    onion_key: OnionKeyIntro,
+
     /// The SHA256 digest of the text of this microdescriptor.  This
     /// value is used to identify the microdescriptor when downloading
     /// it, and when listing it in a consensus document.
     // TODO: maybe this belongs somewhere else. Once it's used to store
     // correlate the microdesc to a consensus, it's never used again.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(skip)))]
     pub sha256: MdDigest,
+
     /// Public key used for the ntor circuit extension protocol.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub ntor_onion_key: curve25519::PublicKey,
+
     /// Declared family for this relay.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(default)))]
     pub family: Arc<RelayFamily>,
+
     /// List of IPv4 ports to which this relay will exit
+    #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "p", default)))]
     pub ipv4_policy: Arc<PortPolicy>,
+
     /// List of IPv6 ports to which this relay will exit
+    #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "p6", default)))]
     pub ipv6_policy: Arc<PortPolicy>,
+
     /// Ed25519 identity for this relay
-    pub ed25519_id: ed25519::Ed25519Identity,
+    // TODO SPEC: Set this to "exactly once".
+    #[cfg_attr(
+        feature = "parse2",
+        deftly(netdoc(keyword = "id", with = "Ed25519IdentityLine"))
+    )]
+    pub ed25519_id: Ed25519IdentityLine,
+
     /// Family identities for this relay.
+    // TODO SPEC: The spec is incoherent, it allows at most one family-id,
+    // whereas arti always allowed more than one.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub family_ids: Vec<RelayFamilyId>,
     // addr is obsolete and doesn't go here any more
     // pr is obsolete and doesn't go here any more.
-    // The legacy "tap" onion-key is obsolete, and though we parse it, we don't
-    // save it.
 }
 
 impl Microdesc {
@@ -98,6 +129,11 @@ impl Microdesc {
     #[cfg(feature = "build_docs")]
     pub fn builder() -> MicrodescBuilder {
         MicrodescBuilder::new()
+    }
+
+    /// Return the optional onion key of this microdesc.
+    pub fn onion_key(&self) -> Option<&rsa::PublicKey> {
+        self.onion_key.0.as_ref()
     }
 
     /// Return the sha256 digest of this microdesc.
@@ -123,13 +159,23 @@ impl Microdesc {
     /// Return the ed25519 identity for this microdesc, if its
     /// Ed25519 identity is well-formed.
     pub fn ed25519_id(&self) -> &ed25519::Ed25519Identity {
-        &self.ed25519_id
+        &self.ed25519_id.0
     }
     /// Return a list of family ids for this microdesc.
     pub fn family_ids(&self) -> &[RelayFamilyId] {
         &self.family_ids[..]
     }
 }
+
+/// Intro line for a [`Microdesc`].
+///
+/// The object (the onion key) is deprecated and optional, but the item itself
+/// must be present, because it is used to mark the start of the netdoc.
+#[derive(Debug, Clone, Default, Deftly, PartialEq, Eq)]
+#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+struct OnionKeyIntro(
+    #[cfg_attr(feature = "parse2", deftly(netdoc(object)))] Option<rsa::PublicKey>,
+);
 
 /// A microdescriptor annotated with additional data
 ///
@@ -338,7 +384,7 @@ impl Microdesc {
                 None => {
                     return Err(EK::MissingToken.with_msg("id ed25519"));
                 }
-                Some(tok) => tok.parse_arg::<Ed25519Public>(1)?.into(),
+                Some(tok) => Ed25519IdentityLine(tok.parse_arg::<Ed25519Public>(1)?.into()),
             }
         };
 
@@ -359,6 +405,7 @@ impl Microdesc {
         let location = Extent::new(s, text);
 
         let md = Microdesc {
+            onion_key: Default::default(),
             sha256,
             ntor_onion_key,
             family,
