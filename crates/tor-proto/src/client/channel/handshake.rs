@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, instrument, trace};
 
-use safelog::{MaybeSensitive, Sensitive};
+use safelog::MaybeSensitive;
 use tor_cell::chancell::msg;
 use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
@@ -240,7 +240,7 @@ impl<
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(
         mut self,
-        peer_addr: Sensitive<PeerAddr>,
+        peer_addr: MaybeSensitive<PeerAddr>,
     ) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Send the NETINFO message.
         let netinfo = msg::Netinfo::from_client(peer_addr.netinfo_addr());
@@ -249,7 +249,7 @@ impl<
 
         // This could be a client Guard so it is sensitive.
         let peer_info = MaybeSensitive::sensitive(PeerInfo::new(
-            peer_addr.into_inner(),
+            peer_addr.inner(),
             self.inner.relay_ids().clone(),
         ));
 

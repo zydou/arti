@@ -362,7 +362,7 @@ where
             ChannelType::ClientInitiator => {
                 self.build_client_channel(
                     tls,
-                    peer_addr.inner(),
+                    peer_addr,
                     target,
                     &peer_cert,
                     memquota,
@@ -374,7 +374,7 @@ where
             ChannelType::RelayInitiator => {
                 self.build_relay_channel(
                     tls,
-                    peer_addr.inner(),
+                    peer_addr,
                     target,
                     &peer_cert,
                     memquota,
@@ -473,7 +473,7 @@ where
     async fn build_client_channel<T>(
         &self,
         tls: T,
-        peer_addr: PeerAddr,
+        peer_addr: MaybeSensitive<PeerAddr>,
         target: &OwnedChanTarget,
         peer_cert: &[u8],
         memquota: ChannelAccount,
@@ -498,8 +498,6 @@ where
         // Get the client specific channel builder.
         let mut builder = tor_proto::ClientChannelBuilder::new();
         builder.set_declared_method(target.chan_method());
-        // Going full sensitive.
-        let peer_addr = Sensitive::new(peer_addr);
 
         let unverified = builder
             .launch(
@@ -544,7 +542,7 @@ where
     async fn build_relay_channel<T>(
         &self,
         tls: T,
-        peer_addr: PeerAddr,
+        peer_addr: MaybeSensitive<PeerAddr>,
         target: &OwnedChanTarget,
         peer_cert: &[u8],
         memquota: ChannelAccount,
@@ -593,7 +591,8 @@ where
                 }
                 _ => Error::from_proto_no_skew(source, target),
             })?
-            .finish(peer_addr)
+            // Peer address is not sensitive as this is a relay<->relay connection.
+            .finish(peer_addr.inner())
             .await
             .map_err(|source| Error::Proto {
                 source,
