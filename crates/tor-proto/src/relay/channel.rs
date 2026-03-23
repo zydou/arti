@@ -320,7 +320,7 @@ impl ChannelAuthenticationData {
         })
     }
 
-    /// Build a [`ChannelAuthenticationData`] for an initiator channel handshake.
+    /// Build a [`ChannelAuthenticationData`] for a responder channel handshake.
     ///
     /// `initiator_auth_type` is the authentication type from the [`msg::Authenticate`] received
     /// from the initiator.

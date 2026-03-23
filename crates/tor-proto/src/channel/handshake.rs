@@ -483,7 +483,7 @@ impl<
             .build()
             .expect("Unable to build RelayIds");
 
-        // We enforce that the relay proved that it has every ID that we wanted:
+        // We enforce that the relay claimed to have every ID that we wanted:
         // it may also have additional IDs that we didn't ask for.
         match super::check_id_match_helper(&actual_identity, peer) {
             Err(Error::ChanMismatch(msg)) => Err(Error::HandshakeProto(msg)),
@@ -651,7 +651,7 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > UnverifiedInitiatorChannel<T, S>
 {
-    /// Validate the TLS cert (CertType 5) located in our `certs_cell`.
+    /// Validate the TLS cert (CertType 5) located in the received `certs_cell`.
     ///
     /// `peer` is the relay we want to connect to.
     ///
@@ -732,8 +732,8 @@ impl<
 ///
 /// `certs` is the [`msg::Certs`] cell received during the handshake.
 ///
-/// `kp_relaysign_ed` is the relay signing ed25519 key taken from the signing cert (CertType 4). It
-/// is used to sign the LINK_AUTH cert.
+/// `kp_relaysign_ed` is the relay signing ed25519 key taken from the signing cert
+/// IDENTITY_V_SIGNING. It is used to sign the LINK_AUTH cert.
 ///
 /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
 /// current time. It can be used for testing to override the current view of the time.

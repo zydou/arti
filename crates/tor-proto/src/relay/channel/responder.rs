@@ -135,8 +135,8 @@ where
 
         let now = now.unwrap_or_else(SystemTime::get);
 
-        // We are a client initiating a channel to a relay or a bridge. We have received a CERTS
-        // cell and we need to verify these certs:
+        // We are a relay responder. We have received a CERTS cell and we need to verify these
+        // certs:
         //
         //   Relay Identities:
         //      IDENTITY_V_SIGNING_CERT (CertType 4)
@@ -144,10 +144,10 @@ where
         //      RSA_ID_V_IDENTITY       (CertType 7)
         //
         //   Connection Cert:
-        //      SIGNING_V_TLS_CERT      (CertType 5)
+        //      SIGNING_V_LINK_AUTH     (CertType 6)
         //
         // Validating the relay identities first so we can make sure we are talking to the relay
-        // (peer) we wanted. Then, check the TLS cert validity.
+        // (peer) we wanted. Then, check the AUTHENTICATE cell.
         //
         // The end result is a verified channel (not authenticated yet) which guarantee that we are
         // talking to the right relay that we wanted.

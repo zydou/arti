@@ -433,8 +433,7 @@ impl<
 
     /// Send all expected cells to the initiator of the channel as the responder.
     ///
-    /// Return the sending times of the [`msg::Versions`] so it can be used for clock skew
-    /// validation, and the SLOG digest to be later used when verifying the initiator's
+    /// Return the SLOG (send log) digest to be later used when verifying the initiator's
     /// AUTHENTICATE cell.
     async fn send_cells_to_initiator(&mut self) -> Result<AuthLogDigest> {
         // Send the CERTS message.
