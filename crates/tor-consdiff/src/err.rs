@@ -59,9 +59,9 @@ impl From<tor_error::Bug> for Error {
 // ApplyConsDiffError.
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub(crate) enum GenEdDiffError {
-    /// Line does not end with '\n'.
-    #[error("Line {lno} does not end with '\\n'")]
-    MissingNewLine {
+    /// Line does not end with a Unix line ending.
+    #[error("Line {lno} does not end with a Unix line ending")]
+    MissingUnixLineEnding {
         /// The line number of the missing newline.
         lno: usize,
     },

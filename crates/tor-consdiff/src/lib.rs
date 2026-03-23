@@ -106,7 +106,7 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
 
     // Compose the result with header.
     let ed_diff = gen_ed_diff(base_signed, target).map_err(|e| match e {
-        GenEdDiffError::MissingNewLine { lno } => Error::InvalidInput(ParseError::new(
+        GenEdDiffError::MissingUnixLineEnding { lno } => Error::InvalidInput(ParseError::new(
             ErrorProblem::OtherBadDocument("line does not end with '\\n'"),
             "consdiff",
             "",
@@ -229,10 +229,10 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
                     .collect::<Vec<_>>();
 
                 for (lno, line) in tlines.iter().copied().enumerate() {
-                    // Check that all lines end with a \n.
-                    if !line.ends_with("\n") {
+                    // Check that all lines end with a Unix line ending.
+                    if line.ends_with("\r\n") || !line.ends_with("\n") {
                         // +1 because 1-indexed.
-                        return Err(GenEdDiffError::MissingNewLine { lno: lno + 1 });
+                        return Err(GenEdDiffError::MissingUnixLineEnding { lno: lno + 1 });
                     }
 
                     // Check for lines consisting of a single dot.
@@ -1198,7 +1198,7 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         let target = "foo\nbar\nbaz";
         assert_eq!(
             gen_ed_diff(base, target).unwrap_err(),
-            GenEdDiffError::MissingNewLine { lno: 3 }
+            GenEdDiffError::MissingUnixLineEnding { lno: 3 }
         );
     }
 
@@ -1207,8 +1207,8 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         let base = "";
         let target = "foo\r\nbar\r\nbaz\nhello\r\n";
         assert_eq!(
-            gen_ed_diff(base, target).unwrap(),
-            "0a\nfoo\r\nbar\r\nbaz\nhello\r\n.\n"
+            gen_ed_diff(base, target).unwrap_err(),
+            GenEdDiffError::MissingUnixLineEnding { lno: 1 }
         );
     }
 }
