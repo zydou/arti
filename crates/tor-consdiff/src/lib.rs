@@ -236,7 +236,9 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
                     }
 
                     // Check for lines consisting of a single dot.
-                    if line.trim_end() == "." {
+                    // Because we assured the line has a Unix line ending, we
+                    // do not need to trim anything.
+                    if line == ".\n" {
                         // +1 because 1-indexed.
                         return Err(GenEdDiffError::ContainsDotLine { lno: lno + 1 });
                     }
@@ -1189,6 +1191,22 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         assert_eq!(
             gen_ed_diff(base, target).unwrap_err(),
             GenEdDiffError::ContainsDotLine { lno: 3 },
+        );
+
+        // Use gen_cons_diff here to assume that it is actually applied.
+        let base = "directory-signature foo baz\n";
+        let target = ".foo bar\n. bar\ndirectory-signature foo baz\n";
+        assert_eq!(
+            gen_cons_diff(base, target).unwrap(),
+            "network-status-diff-version 1\n\
+            hash D8138DC27D9A66F5760058A6BCB71B755462B9D26B811828F124D036DE329A58 \
+            506AC3A4407BC5305DD0D08FED3F09C2FE69847541F642A8FD13D3BD06FFE432\n\
+            1,$d\n\
+            0a\n\
+            .foo bar\n\
+            . bar\n\
+            directory-signature foo baz\n\
+            .\n"
         );
     }
 
