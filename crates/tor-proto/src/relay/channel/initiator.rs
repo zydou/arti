@@ -24,7 +24,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::{
     ClockSkew, RelayIdentities, Result,
     channel::{
-        Channel, Reactor,
+        AuthLogDigest, Channel, Reactor,
         handshake::{UnverifiedInitiatorChannel, VerifiedChannel},
     },
     peer::{PeerAddr, PeerInfo},
@@ -44,7 +44,7 @@ pub struct UnverifiedInitiatorRelayChannel<
     /// AUTH_CHALLENGE cell received from the responder.
     pub(crate) auth_challenge_cell: msg::AuthChallenge,
     /// The SLOG digest.
-    pub(crate) slog_digest: [u8; 32],
+    pub(crate) slog_digest: AuthLogDigest,
     /// The netinfo cell received from the responder.
     pub(crate) netinfo_cell: msg::Netinfo,
     /// Our identity keys needed for authentication.
@@ -137,7 +137,7 @@ pub struct VerifiedInitiatorRelayChannel<
     /// The peer TLS certificate digest.
     peer_cert_digest: [u8; 32],
     /// The SLOG digest.
-    slog_digest: [u8; 32],
+    slog_digest: AuthLogDigest,
     /// Our advertised IP addresses.
     my_addrs: Vec<IpAddr>,
 }

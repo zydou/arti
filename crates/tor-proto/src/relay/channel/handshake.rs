@@ -20,7 +20,7 @@ use crate::channel::handshake::{
     ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, UnverifiedInitiatorChannel,
     unauthenticated_clock_skew,
 };
-use crate::channel::{ChannelFrame, ChannelType, UniqId, new_frame};
+use crate::channel::{AuthLogDigest, ChannelFrame, ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::peer::PeerAddr;
 use crate::relay::channel::initiator::UnverifiedInitiatorRelayChannel;
@@ -319,11 +319,7 @@ impl<
     async fn recv_cells_from_initiator(
         &mut self,
     ) -> Result<(
-        Option<(
-            msg::Certs,
-            msg::Authenticate,
-            /* the CLOG digest */ [u8; 32],
-        )>,
+        Option<(msg::Certs, msg::Authenticate, AuthLogDigest /* CLOG */)>,
         (msg::Netinfo, coarsetime::Instant),
     )> {
         // IMPORTANT: Protocol wise, we MUST only allow one single cell of each type for a valid
@@ -441,7 +437,7 @@ impl<
     /// Return the sending times of the [`msg::Versions`] so it can be used for clock skew
     /// validation, and the SLOG digest to be later used when verifying the initiator's
     /// AUTHENTICATE cell.
-    async fn send_cells_to_initiator(&mut self) -> Result<[u8; 32]> {
+    async fn send_cells_to_initiator(&mut self) -> Result<AuthLogDigest> {
         // Send the CERTS message.
         let certs = build_certs_cell(&self.identities, /* is_responder */ true);
         trace!(channel_id = %self.unique_id, "Sending CERTS as responder cell.");

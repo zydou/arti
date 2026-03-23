@@ -7,6 +7,7 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use tor_llcrypto::pk::ValidatableSignature;
 
+use crate::channel::handler::AuthLogDigest;
 use crate::channel::{Canonicity, ChannelFrame, UniqId};
 use crate::memquota::ChannelAccount;
 use crate::peer::PeerInfo;
@@ -147,9 +148,7 @@ where
         msg::AuthChallenge,
         msg::Certs,
         (msg::Netinfo, coarsetime::Instant),
-        // TODO: We should typedef this somewhere.
-        /* the SLOG digest */
-        Option<[u8; 32]>,
+        Option<AuthLogDigest>,
     )> {
         // IMPORTANT: Protocol wise, we MUST only allow one single cell of each type for a valid
         // handshake. Any duplicates lead to a failure.

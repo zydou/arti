@@ -21,7 +21,7 @@ use web_time_compat::{SystemTime, SystemTimeExt};
 use crate::{
     ClockSkew, Error, RelayIdentities, Result,
     channel::{
-        Channel, Reactor,
+        AuthLogDigest, Channel, Reactor,
         handshake::{UnverifiedChannel, VerifiedChannel},
     },
     peer::{PeerAddr, PeerInfo},
@@ -81,9 +81,9 @@ pub struct UnverifiedResponderRelayChannel<
     /// The peer address which we know is a relay.
     pub(crate) peer_addr: PeerAddr,
     /// The CLOG digest.
-    pub(crate) clog_digest: [u8; 32],
+    pub(crate) clog_digest: AuthLogDigest,
     /// The SLOG digest.
-    pub(crate) slog_digest: [u8; 32],
+    pub(crate) slog_digest: AuthLogDigest,
 }
 
 /// A verified relay responder channel.

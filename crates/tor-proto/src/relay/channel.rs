@@ -32,6 +32,7 @@ use tor_llcrypto::pk::{
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
+use crate::channel::AuthLogDigest;
 use crate::channel::handshake::VerifiedChannel;
 use crate::peer::PeerAddr;
 use crate::relay::channel::handshake::{AUTHTYPE_ED25519_SHA256_RFC5705, RelayResponderHandshake};
@@ -193,9 +194,9 @@ pub(crate) struct ChannelAuthenticationData {
     /// The responder KP_relayid_ed.
     pub(crate) sid_ed: [u8; 32],
     /// Initiator log SHA256 digest.
-    pub(crate) clog: [u8; 32],
+    pub(crate) clog: AuthLogDigest,
     /// Responder log SHA256 digest.
-    pub(crate) slog: [u8; 32],
+    pub(crate) slog: AuthLogDigest,
     /// SHA256 of responder's TLS certificate.
     pub(crate) scert: [u8; 32],
 }
@@ -282,8 +283,8 @@ impl ChannelAuthenticationData {
     pub(crate) fn build_initiator<T, S>(
         auth_challenge_cell: &msg::AuthChallenge,
         identities: &Arc<RelayIdentities>,
-        clog: [u8; 32],
-        slog: [u8; 32],
+        clog: AuthLogDigest,
+        slog: AuthLogDigest,
         verified: &mut VerifiedChannel<T, S>,
         peer_cert_digest: [u8; 32],
     ) -> Result<ChannelAuthenticationData>
@@ -335,8 +336,8 @@ impl ChannelAuthenticationData {
     pub(crate) fn build_responder<T, S>(
         initiator_auth_type: u16,
         identities: &Arc<RelayIdentities>,
-        clog: [u8; 32],
-        slog: [u8; 32],
+        clog: AuthLogDigest,
+        slog: AuthLogDigest,
         verified: &mut VerifiedChannel<T, S>,
         our_cert_digest: [u8; 32],
     ) -> Result<ChannelAuthenticationData>
