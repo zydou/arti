@@ -568,13 +568,19 @@ pub(crate) mod test {
 
     use chanmsg::AnyChanMsg;
 
-    pub(crate) fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> AnyChanMsg {
+    pub(crate) fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg, early: bool) -> AnyChanMsg {
         // TODO #1947: test other formats.
         let rfmt = RelayCellFormat::V0;
         let body: BoxedCellBody = AnyRelayMsgOuter::new(id, msg)
             .encode(rfmt, &mut testing_rng())
             .unwrap();
         let chanmsg = chanmsg::Relay::from(body);
-        AnyChanMsg::Relay(chanmsg)
+
+        if early {
+            let chanmsg = chanmsg::RelayEarly::from(chanmsg);
+            AnyChanMsg::RelayEarly(chanmsg)
+        } else {
+            AnyChanMsg::Relay(chanmsg)
+        }
     }
 }

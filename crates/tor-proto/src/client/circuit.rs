@@ -1526,7 +1526,7 @@ pub(crate) mod test {
             };
 
             let extended2 = relaymsg::Extended2::new(reply).into();
-            sink.send(rmsg_to_ccmsg(None, extended2)).await.unwrap();
+            sink.send(rmsg_to_ccmsg(None, extended2, false)).await.unwrap();
             (sink, rx) // gotta keep the sink and receiver alive, or the reactor will exit.
         };
 
@@ -1651,7 +1651,7 @@ pub(crate) mod test {
     fn bad_extend_wronghop() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let extended2 = relaymsg::Extended2::new(vec![]).into();
-            let cc = rmsg_to_ccmsg(None, extended2);
+            let cc = rmsg_to_ccmsg(None, extended2, false);
 
             let error = bad_extend_test_impl(&rt, 1.into(), cc).await;
             // This case shows up as a CircDestroy, since a message sent
@@ -1670,7 +1670,7 @@ pub(crate) mod test {
     fn bad_extend_wrongtype() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let extended = relaymsg::Extended::new(vec![7; 200]).into();
-            let cc = rmsg_to_ccmsg(None, extended);
+            let cc = rmsg_to_ccmsg(None, extended, false);
 
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             match error {
@@ -1701,7 +1701,7 @@ pub(crate) mod test {
     fn bad_extend_crypto() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let extended2 = relaymsg::Extended2::new(vec![99; 256]).into();
-            let cc = rmsg_to_ccmsg(None, extended2);
+            let cc = rmsg_to_ccmsg(None, extended2, false);
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             assert_matches!(error, Error::BadCircHandshakeAuth);
         });
@@ -1746,7 +1746,7 @@ pub(crate) mod test {
 
                 // Reply with a Connected cell to indicate success.
                 let connected = relaymsg::Connected::new_empty().into();
-                sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(streamid, connected, false)).await.unwrap();
 
                 // Now read a DATA cell...
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
@@ -1770,11 +1770,11 @@ pub(crate) mod test {
                 let data = relaymsg::Data::new(b"HTTP/1.0 404 Not found\r\n")
                     .unwrap()
                     .into();
-                sink.send(rmsg_to_ccmsg(streamid, data)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(streamid, data, false)).await.unwrap();
 
                 // Send an END cell to say that the conversation is over.
                 let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE).into();
-                sink.send(rmsg_to_ccmsg(streamid, end)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(streamid, end, false)).await.unwrap();
 
                 (rx, sink) // gotta keep these alive, or the reactor will exit.
             };
@@ -1823,7 +1823,7 @@ pub(crate) mod test {
                 // Reply with a CONNECTED.
                 let connected =
                     relaymsg::Connected::new_with_addr("10.0.0.1".parse().unwrap(), 1234).into();
-                sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(streamid, connected, false)).await.unwrap();
 
                 // Expect an END.
                 let (_, msg) = rx.next().await.unwrap().into_circid_and_msg();
@@ -1890,7 +1890,7 @@ pub(crate) mod test {
                 // Reply with a CONNECTED.
                 let connected =
                     relaymsg::Connected::new_with_addr("10.0.0.1".parse().unwrap(), 1234).into();
-                sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(streamid, connected, false)).await.unwrap();
 
                 (rx, streamid, sink) // keep these alive or the reactor will exit.
             };
@@ -1908,7 +1908,7 @@ pub(crate) mod test {
             // Write some more data on the half-stream.
             // The half-stream hasn't expired yet, so it will simply be ignored.
             let data = relaymsg::Data::new(b"hello").unwrap();
-            sink.send(rmsg_to_ccmsg(streamid, AnyRelayMsg::Data(data)))
+            sink.send(rmsg_to_ccmsg(streamid, AnyRelayMsg::Data(data), false))
                 .await
                 .unwrap();
             rt.progress_until_stalled().await;
@@ -1926,7 +1926,7 @@ pub(crate) mod test {
             // Sending this cell is a protocol violation now
             // that the half-stream expired.
             let data = relaymsg::Data::new(b"hello").unwrap();
-            sink.send(rmsg_to_ccmsg(streamid, AnyRelayMsg::Data(data)))
+            sink.send(rmsg_to_ccmsg(streamid, AnyRelayMsg::Data(data), false))
                 .await
                 .unwrap();
             rt.progress_until_stalled().await;
@@ -1987,7 +1987,7 @@ pub(crate) mod test {
             assert_matches!(rmsg, AnyRelayMsg::Begin(_));
             // Reply with a connected cell...
             let connected = relaymsg::Connected::new_empty().into();
-            sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+            sink.send(rmsg_to_ccmsg(streamid, connected, false)).await.unwrap();
             // Now read bytes from the stream until we have them all.
             let mut bytes_received = 0_usize;
             let mut cells_received = 0_usize;
@@ -2067,11 +2067,11 @@ pub(crate) mod test {
                 let c_sendme =
                     relaymsg::Sendme::new_tag(hex!("6400000000000000000000000000000000000000"))
                         .into();
-                sink.send(rmsg_to_ccmsg(None, c_sendme)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(None, c_sendme, false)).await.unwrap();
 
                 // Make and send a stream-level sendme.
                 let s_sendme = relaymsg::Sendme::new_empty().into();
-                sink.send(rmsg_to_ccmsg(streamid, s_sendme)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(streamid, s_sendme, false)).await.unwrap();
 
                 sink
             };
@@ -2112,7 +2112,7 @@ pub(crate) mod test {
                 let c_sendme =
                     relaymsg::Sendme::new_tag(hex!("FFFF0000000000000000000000000000000000FF"))
                         .into();
-                sink.send(rmsg_to_ccmsg(None, c_sendme)).await.unwrap();
+                sink.send(rmsg_to_ccmsg(None, c_sendme, false)).await.unwrap();
                 sink
             };
 
@@ -2210,7 +2210,7 @@ pub(crate) mod test {
                                 1234,
                             )
                             .into();
-                            sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+                            sink.send(rmsg_to_ccmsg(streamid, connected, false)).await.unwrap();
                         }
                         RelayCmd::DATA => {
                             let data_msg = relaymsg::Data::try_from(rmsg).unwrap();
@@ -2729,7 +2729,7 @@ pub(crate) mod test {
             let payload = V1LinkPayload::new(nonce, V1DesiredUx::NO_OPINION);
             // Send a LINKED cell
             let linked = relaymsg::ConfluxLinked::new(payload).into();
-            sink.send(rmsg_to_ccmsg(None, linked)).await.unwrap();
+            sink.send(rmsg_to_ccmsg(None, linked, false)).await.unwrap();
 
             rt.advance_until_stalled().await;
             assert!(tunnel.is_closed());
@@ -2756,7 +2756,7 @@ pub(crate) mod test {
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ1
                 .circ_tx
-                .send(rmsg_to_ccmsg(None, linked))
+                .send(rmsg_to_ccmsg(None, linked, false))
                 .await
                 .unwrap();
 
@@ -2791,22 +2791,23 @@ pub(crate) mod test {
                     rmsg_to_ccmsg(
                         None,
                         relaymsg::ConfluxLinked::new(bad_link_payload.clone()).into(),
+                        false,
                     ),
                     "Received CONFLUX_LINKED cell with mismatched nonce",
                 ),
                 (
-                    rmsg_to_ccmsg(None, relaymsg::ConfluxLink::new(bad_link_payload).into()),
+                    rmsg_to_ccmsg(None, relaymsg::ConfluxLink::new(bad_link_payload).into(), false),
                     "Unexpected CONFLUX_LINK cell from hop #3 on client circuit",
                 ),
                 (
-                    rmsg_to_ccmsg(None, relaymsg::ConfluxSwitch::new(0).into()),
+                    rmsg_to_ccmsg(None, relaymsg::ConfluxSwitch::new(0).into(), false),
                     "Received CONFLUX_SWITCH on unlinked circuit?!",
                 ),
                 // TODO: this currently causes the reactor to shut down immediately,
                 // without sending a response on the handshake channel
                 /*
                 (
-                    rmsg_to_ccmsg(None, extended2),
+                    rmsg_to_ccmsg(None, extended2, false),
                     "Received CONFLUX_LINKED cell with mismatched nonce",
                 ),
                 */
@@ -2854,12 +2855,14 @@ pub(crate) mod test {
                 rmsg_to_ccmsg(
                     None,
                     relaymsg::ConfluxLinked::new(link_payload.clone()).into(),
+                    false,
                 ),
                 rmsg_to_ccmsg(
                     None,
                     relaymsg::ConfluxLink::new(link_payload.clone()).into(),
+                    false,
                 ),
-                rmsg_to_ccmsg(None, relaymsg::ConfluxSwitch::new(0).into()),
+                rmsg_to_ccmsg(None, relaymsg::ConfluxSwitch::new(0).into(), false),
             ];
 
             for bad_cell in bad_cells {
@@ -2896,7 +2899,7 @@ pub(crate) mod test {
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ1
                 .circ_tx
-                .send(rmsg_to_ccmsg(None, linked))
+                .send(rmsg_to_ccmsg(None, linked, false))
                 .await
                 .unwrap();
 
@@ -2904,13 +2907,13 @@ pub(crate) mod test {
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ2
                 .circ_tx
-                .send(rmsg_to_ccmsg(None, linked))
+                .send(rmsg_to_ccmsg(None, linked, false))
                 .await
                 .unwrap();
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ2
                 .circ_tx
-                .send(rmsg_to_ccmsg(None, linked))
+                .send(rmsg_to_ccmsg(None, linked, false))
                 .await
                 .unwrap();
 
@@ -2952,7 +2955,7 @@ pub(crate) mod test {
                 for circ in [&mut circ1, &mut circ2] {
                     let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
                     circ.circ_tx
-                        .send(rmsg_to_ccmsg(None, linked))
+                        .send(rmsg_to_ccmsg(None, linked, false))
                         .await
                         .unwrap();
                 }
@@ -2962,7 +2965,7 @@ pub(crate) mod test {
 
                 // Now send a bad SWITCH cell on the first leg.
                 // This will cause the tunnel reactor to shut down.
-                let msg = rmsg_to_ccmsg(None, bad_cell.clone().into());
+                let msg = rmsg_to_ccmsg(None, bad_cell.clone().into(), false);
                 circ1.circ_tx.send(msg).await.unwrap();
 
                 // The tunnel should be shutting down
@@ -2991,7 +2994,7 @@ pub(crate) mod test {
             for circ in [&mut circ1, &mut circ2] {
                 let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
                 circ.circ_tx
-                    .send(rmsg_to_ccmsg(None, linked))
+                    .send(rmsg_to_ccmsg(None, linked, false))
                     .await
                     .unwrap();
             }
@@ -3001,7 +3004,7 @@ pub(crate) mod test {
 
             // Send a valid SWITCH cell on the first leg.
             let switch1 = relaymsg::ConfluxSwitch::new(10);
-            let msg = rmsg_to_ccmsg(None, switch1.into());
+            let msg = rmsg_to_ccmsg(None, switch1.into(), false);
             circ1.circ_tx.send(msg).await.unwrap();
 
             // The tunnel should not be shutting down
@@ -3010,7 +3013,7 @@ pub(crate) mod test {
 
             // Send another valid SWITCH cell on the same leg.
             let switch2 = relaymsg::ConfluxSwitch::new(12);
-            let msg = rmsg_to_ccmsg(None, switch2.into());
+            let msg = rmsg_to_ccmsg(None, switch2.into(), false);
             circ1.circ_tx.send(msg).await.unwrap();
 
             // The tunnel should now be shutting down
@@ -3233,7 +3236,7 @@ pub(crate) mod test {
 
         // Reply with a LINKED cell...
         let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
-        sink.send(rmsg_to_ccmsg(None, linked)).await.unwrap();
+        sink.send(rmsg_to_ccmsg(None, linked, false)).await.unwrap();
 
         // Wait for the client to respond with LINKED_ACK...
         let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
@@ -3343,7 +3346,7 @@ pub(crate) mod test {
                         };
 
                         circ.circ_tx
-                            .send(rmsg_to_ccmsg(streamid, cell))
+                            .send(rmsg_to_ccmsg(streamid, cell, false))
                             .await
                             .unwrap();
 
@@ -3382,7 +3385,7 @@ pub(crate) mod test {
                     // Reply with a connected cell...
                     let connected = relaymsg::Connected::new_empty().into();
                     circ.circ_tx
-                        .send(rmsg_to_ccmsg(streamid, connected))
+                        .send(rmsg_to_ccmsg(streamid, connected, false))
                         .await
                         .unwrap();
                     // Tell the other leg we received a BEGIN cell
@@ -3455,7 +3458,7 @@ pub(crate) mod test {
                         let sendme = relaymsg::Sendme::from(tag).into();
 
                         circ.circ_tx
-                            .send(rmsg_to_ccmsg(None, sendme))
+                            .send(rmsg_to_ccmsg(None, sendme, false))
                             .await
                             .unwrap();
                     }
@@ -3470,7 +3473,7 @@ pub(crate) mod test {
         if is_sending_leg && !end_recvd {
             let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE).into();
             circ.circ_tx
-                .send(rmsg_to_ccmsg(streamid, end))
+                .send(rmsg_to_ccmsg(streamid, end, false))
                 .await
                 .unwrap();
             stream_state.lock().unwrap().end_sent = true;
@@ -4005,7 +4008,7 @@ pub(crate) mod test {
             for circ in [&mut circ1, &mut circ2] {
                 let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
                 circ.circ_tx
-                    .send(rmsg_to_ccmsg(None, linked))
+                    .send(rmsg_to_ccmsg(None, linked, false))
                     .await
                     .unwrap();
             }
