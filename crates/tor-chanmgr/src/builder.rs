@@ -454,7 +454,41 @@ where
     /// We avoid building channels to ourselves as a relay.
     #[cfg(feature = "relay")]
     fn validate_relay_target(&self, target: &OwnedChanTarget) -> crate::Result<()> {
-        use tor_linkspec::HasRelayIds;
+        use tor_linkspec::{HasAddrs, HasRelayIds};
+
+        // Make sure no target address is ourself.
+        for addr in target.addrs() {
+            if self.my_addrs.contains(&addr.ip()) {
+                return Err(Error::Proto {
+                    source: tor_proto::Error::ChanProto("Target address is ours".into()),
+                    peer: target.clone().into(),
+                    clock_skew: None,
+                });
+            }
+        }
+
+        // Make sure that each address has a valid port.
+        if !target.has_all_valid_port() {
+            return Err(Error::Proto {
+                source: tor_proto::Error::ChanProto("Target address port is invalid".into()),
+                peer: target.clone().into(),
+                clock_skew: None,
+            });
+        }
+
+        // Make sure that all addresses are globally reachable. We need to avoid a relay attempting
+        // to connect to a local/private network for security reasons as a it could lead to network
+        // scanning by measuring latency between successful connect() and failures.
+        //
+        // If no addresses, it returns true and thus no error.
+        if !target.has_all_reachable_addresses() {
+            return Err(Error::Proto {
+                source: tor_proto::Error::ChanProto("Target address is invalid".into()),
+                peer: target.clone().into(),
+                clock_skew: None,
+            });
+        }
+
         // Client with the relay feature won't have identities. A relay without identities is not
         // possible but even if it was, it won't be able to build a channel to itself as a relay
         // channel. Hence, returning Ok(()) here is fine as without identities ourself, we can
