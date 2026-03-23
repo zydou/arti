@@ -15,8 +15,8 @@ use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::ClockSkew;
 use crate::Result;
 use crate::channel::handshake::{
-    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, UnverifiedInitiatorChannel,
-    VerifiedChannel, unauthenticated_clock_skew,
+    AuthLogAction, ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel,
+    UnverifiedInitiatorChannel, VerifiedChannel, unauthenticated_clock_skew,
 };
 use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
@@ -119,9 +119,8 @@ impl<
 
         // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell and SLOG; we don't need
         // them as we are not authenticating with our responder because we are a client.
-        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at), _) = self
-            .recv_cells_from_responder(/* take_slog= */ false)
-            .await?;
+        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at), _) =
+            self.recv_cells_from_responder(AuthLogAction::Leave).await?;
 
         // Get the clock skew.
         let clock_skew = unauthenticated_clock_skew(

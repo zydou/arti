@@ -120,6 +120,24 @@ where
     }
 }
 
+/// Helper: This enum is for adding semantic to the function receiving cells indicating it to
+/// either take the auth log out or leave it in place.
+///
+/// With this, we avoid using a flat bool which is confusing at the call site.
+pub(crate) enum AuthLogAction {
+    /// Leave it in place.
+    Leave,
+    /// Take it out.
+    Take,
+}
+
+impl AuthLogAction {
+    /// Return true iff this value is [`AuthLogAction::Take`]
+    fn is_take(&self) -> bool {
+        matches!(self, Self::Take)
+    }
+}
+
 /// Handshake initiator base trait. All initiator handshake should implement this trait in order to
 /// enjoy the helper functions.
 ///
@@ -140,10 +158,11 @@ where
     /// - [msg::Certs] cell
     /// - [msg::Netinfo] cell
     /// - the instant when the netinfo cell was received (needed for the clock skew calculation)
-    /// - the SLOG digest if `take_slog` is true (needed if we send an [msg::Authenticate] cell in the future)
+    /// - the SLOG digest if `auth_log_action` is [`AuthLogAction::Take`] (needed if we send an
+    ///   [msg::Authenticate] cell in the future)
     async fn recv_cells_from_responder(
         &mut self,
-        take_slog: bool,
+        auth_log_action: AuthLogAction,
     ) -> Result<(
         msg::AuthChallenge,
         msg::Certs,
@@ -226,7 +245,7 @@ where
             };
         };
 
-        let slog_digest = if take_slog {
+        let slog_digest = if auth_log_action.is_take() {
             // We're the initiator, which means that the recv log is the SLOG.
             Some(self.framed_tls().codec_mut().take_recv_log_digest()?)
         } else {

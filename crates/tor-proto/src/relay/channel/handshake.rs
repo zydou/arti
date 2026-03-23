@@ -17,8 +17,8 @@ use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::channel::handshake::{
-    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, UnverifiedInitiatorChannel,
-    unauthenticated_clock_skew,
+    AuthLogAction, ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel,
+    UnverifiedInitiatorChannel, unauthenticated_clock_skew,
 };
 use crate::channel::{AuthLogDigest, ChannelFrame, ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
@@ -124,9 +124,8 @@ impl<
         self.set_link_protocol(link_protocol)?;
 
         // Read until we have all the remaining cells from the responder.
-        let (auth_challenge_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at), slog_digest) = self
-            .recv_cells_from_responder(/* take_slog= */ true)
-            .await?;
+        let (auth_challenge_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at), slog_digest) =
+            self.recv_cells_from_responder(AuthLogAction::Take).await?;
 
         // TODO: It would be nice to come up with a better design for getting the SLOG.
         let slog_digest = slog_digest.ok_or(internal!("Asked for SLOG, but `None` returned?"))?;
