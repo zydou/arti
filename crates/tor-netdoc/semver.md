@@ -35,3 +35,4 @@ BREAKING: `doc::netstatus::Preamble`, added `known_flags`
 ADDED: `NumericBoolean` type
 ADDED: `OverloadGeneral` type
 ADDED: `OverloadGeneralVersion` type
+ADDED: Implement `Eq` for `Nickname`

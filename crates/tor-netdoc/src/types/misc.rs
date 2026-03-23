@@ -1506,7 +1506,7 @@ mod nickname {
     ///
     /// Nicknames are required to be ASCII, alphanumeric, and between 1 and 19
     /// characters inclusive.
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
 
     /// Invalid nickname
