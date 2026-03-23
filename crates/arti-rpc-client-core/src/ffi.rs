@@ -7,15 +7,21 @@ pub mod err;
 mod util;
 
 use err::{ArtiRpcError, InvalidInput};
-use std::ffi::{c_char, c_int};
+use std::ffi::{c_char, c_int, c_void};
 use std::sync::Mutex;
 use util::{
     OptOutPtrExt as _, OptOutValExt, OutBoxedPtr, OutSocketOwned, OutVal, ffi_body_raw,
     ffi_body_with_err,
 };
 
+#[cfg(not(windows))]
+use std::os::fd::{AsRawFd, BorrowedFd};
+
+#[cfg(windows)]
+use std::os::windows::io::{AsRawSocket, BorrowedSocket};
+
 use crate::{
-    ObjectId, RpcConnBuilder,
+    ObjectId, RpcConnBuilder, RpcPoll,
     conn::{AnyResponse, RequestHandle},
     util::Utf8CString,
 };
@@ -41,6 +47,15 @@ pub type ArtiRpcConn = crate::RpcConn;
 ///
 /// Once you are done with this object, you must free it with [`arti_rpc_conn_builder_free`].
 pub struct ArtiRpcConnBuilder(Mutex<RpcConnBuilder>);
+
+/// An object used to poll a nonblocking RPC connection for responses.
+///
+/// `ArtiRpcPoll` is used to integrate an Arti RPC connection with a polling-based
+/// event loop.  See [`arti_rpc_conn_builder_connect_polling`] for more information.
+//
+// Note: we add a mutex to ArtiRpcPoll because we do not trust the user to keep its
+// use to a single thread.
+pub struct ArtiRpcPoll(Mutex<RpcPoll>);
 
 /// An owned string, returned by this library.
 ///
@@ -83,6 +98,91 @@ impl Default for ArtiRpcRawSocket {
         {
             Self(-1)
         }
+    }
+}
+#[cfg(not(windows))]
+impl<'a> From<BorrowedFd<'a>> for ArtiRpcRawSocket {
+    fn from(value: BorrowedFd<'a>) -> Self {
+        Self(value.as_raw_fd())
+    }
+}
+#[cfg(windows)]
+impl<'a> From<BorrowedSocket<'a>> for ArtiRpcRawSocket {
+    fn from(value: BorrowedSocket<'a>) -> Self {
+        Self(value.as_raw_socket())
+    }
+}
+
+/// User-provided information used to implement [`crate::EventLoop`].
+///
+/// This type is crate-internal; in the API, we instead take its members as arguments.
+///
+/// See [`crate::EventLoop`] for semantics, and [`arti_rpc_conn_builder_connect_polling`]
+/// for semantics.
+struct UserEventLoop {
+    /// A function to invoke with `callback_data_ptr` when the connection starts wanting to write.
+    /// Returns 0 or an errno.
+    start_writing_callback: unsafe extern "C" fn(*mut c_void) -> c_int,
+    /// A function to invoke with `callback_data_ptr` when the connection stop wanting to write.
+    /// Returns 0 or an errno.
+    stop_writing_callback: unsafe extern "C" fn(*mut c_void) -> c_int,
+    /// An argument to pass to one of the callbacks in this struct.
+    callback_data_ptr: *mut c_void,
+}
+
+impl crate::EventLoop for UserEventLoop {
+    fn stop_writing(&mut self) -> std::io::Result<()> {
+        // SAFETY: the safety requirements for this function are documented in
+        // `arti_rpc_conn_builder_connect_polling`.
+        let r = unsafe { (self.stop_writing_callback)(self.callback_data_ptr) };
+        if r == 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::from_raw_os_error(r))
+        }
+    }
+
+    fn start_writing(&mut self) -> std::io::Result<()> {
+        // SAFETY: the safety requirements for this function are documented in
+        // `arti_rpc_conn_builder_connect_polling`.
+        let r = unsafe { (self.start_writing_callback)(self.callback_data_ptr) };
+        if r == 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::from_raw_os_error(r))
+        }
+    }
+}
+
+// SAFETY: We document the thread-safety requirements for UserEventLoop's members in
+// `arti_rpc_conn_builder_connect_polling`.
+unsafe impl Send for UserEventLoop {}
+unsafe impl Sync for UserEventLoop {}
+
+/// A user-provided tag used to distinguish responses for requests submitted to
+/// [`arti_rpc_conn_submit()`].
+///
+/// This value is two pointers wide to facilitate using it to store
+/// a function pointer and an argument, where appropriate.
+#[derive(Clone, Copy, Default)]
+#[repr(C)]
+#[allow(missing_docs, clippy::exhaustive_structs)]
+pub struct ArtiRpcUserTag {
+    pub a: usize,
+    pub b: usize,
+}
+
+impl From<crate::UserTag> for ArtiRpcUserTag {
+    fn from(value: crate::UserTag) -> Self {
+        Self {
+            a: value.0,
+            b: value.1,
+        }
+    }
+}
+impl From<ArtiRpcUserTag> for crate::UserTag {
+    fn from(value: ArtiRpcUserTag) -> Self {
+        Self(value.a, value.b)
     }
 }
 
@@ -249,6 +349,88 @@ pub unsafe extern "C" fn arti_rpc_conn_builder_connect(
             let b = builder.0.lock().expect("Poisoned lock");
             let conn = b.connect()?;
             rpc_conn_out.write_boxed_value_if_ptr_set(conn);
+        }
+    )
+}
+
+/// Use `builder` to open a new RPC connection to Arti,
+/// with support to integrate with an event-driven IO loop.
+///
+/// If you are not integrating with poll() or select()-style loop,
+/// you do not need to use this function.
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`,
+/// set `rpc_conn_out` to a new ArtiRpcConn,
+/// and set `poll_out` to a new ArtiRpcPoll.
+/// Otherwise return some other status code, set *conn_out and *poll_out to NULL,
+/// and set `*error_out` (if provided) to a newly allocated error object.
+///
+/// # Callbacks, data, and requirements.
+///
+/// The user code must provide an event loop
+/// that can monitor an underlying connection for readability and writability.
+///
+/// The RPC library provides the user code with an OS handle to monitor.
+/// The user code should always monitor this handle for readability.
+/// It should monitor the handle for writability whenever the connection
+/// "wants to write".
+/// Whenever one of these events occurs, the user code should invoke
+/// `arti_rpc_poll_poll` until it indicates that it would block.
+///
+/// The `start_writing_callback` and `start_reading_callback` functions
+/// must be provided.  They will be invoked (respectively) whenever the connection
+/// starts wanting to write, or stops wanting to write.
+/// They should return 0 on success, and _return_ an `errno` value on failure.
+/// (Any `errno` value that they _set_ will be ignored.)
+/// They will be passed `callback_data_ptr` as an argument.
+///
+/// If your program invokes `arti_rpc_*` from multiple threads,
+/// these functions must be thread-safe.
+///
+/// There are additional requirements for these functions.
+/// For full information, see the documentation for [`EventLoop`](crate::EventLoop`).
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*rpc_conn_out`,
+/// `*rpc_poll_out`, and `*error_out`,
+/// if set, are eventually freed.
+///
+/// The caller is responsible for making sure that `callback_data_ptr`,
+/// and the callback functions,
+/// live for at least as long as the returned `ArtiRpcPoll`.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_conn_builder_connect_polling(
+    builder: *const ArtiRpcConnBuilder,
+    start_writing_callback: Option<unsafe extern "C" fn(*mut c_void) -> c_int>,
+    stop_writing_callback: Option<unsafe extern "C" fn(*mut c_void) -> c_int>,
+    callback_data_ptr: *mut c_void,
+    rpc_conn_out: *mut *mut ArtiRpcConn,
+    rpc_poll_out: *mut *mut ArtiRpcPoll,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let builder: Option<&ArtiRpcConnBuilder> [in_ptr_opt];
+            let rpc_conn_out: Option<OutBoxedPtr<ArtiRpcConn>> [out_ptr_opt];
+            let rpc_poll_out: Option<OutBoxedPtr<ArtiRpcPoll>> [out_ptr_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
+        } in {
+            let builder = builder.ok_or(InvalidInput::NullPointer)?;
+            let start_writing_callback = start_writing_callback.ok_or(InvalidInput::NullPointer)?;
+            let stop_writing_callback = stop_writing_callback.ok_or(InvalidInput::NullPointer)?;
+
+            let event_loop = Box::new(UserEventLoop {
+                start_writing_callback, stop_writing_callback,
+                callback_data_ptr,
+            });
+
+            let b = builder.0.lock().expect("Poisoned lock");
+            let (conn, poll) = b.connect_polling(event_loop)?;
+            let poll = ArtiRpcPoll(Mutex::new(poll));
+            rpc_conn_out.write_boxed_value_if_ptr_set(conn);
+            rpc_poll_out.write_boxed_value_if_ptr_set(poll);
         }
     )
 }
@@ -427,7 +609,7 @@ impl AnyResponse {
 /// Wait until some response arrives on an arti_rpc_handle, or until an error occurs.
 ///
 /// On success, return `ARTI_RPC_STATUS_SUCCESS`; set `*response_out`, if present, to a
-/// newly allocated string, and set `*response_type_out`, to the type of the response.
+/// newly allocated string, and set `*response_type_out`, if present, to the type of the response.
 /// (The type will be `ARTI_RPC_RESPONSE_TYPE_RESULT` if the response is a final result,
 /// or `ARTI_RPC_RESPONSE_TYPE_ERROR` if the response is a final error,
 /// or `ARTI_RPC_RESPONSE_TYPE_UPDATE` if the response is a non-final update.)
@@ -493,6 +675,270 @@ pub unsafe extern "C" fn arti_rpc_handle_free(handle: *mut ArtiRpcHandle) {
         }
     );
 }
+
+/// Submit an RPC request to `rpc_conn`, but do not wait for a response.
+///
+/// The message `msg` should be a valid RPC request in JSON format.
+/// If you omit its `id` field, one will be generated:
+/// this is typically the best way to use this function.
+///
+/// The `tag` value should be a value to identify this request;
+/// it will be returned later along with any responses to this request.
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`.
+///
+/// Otherwise return some other status code,  set `*response_out` to NULL,
+/// and set `*error_out` (if provided) to a newly allocated error object.
+///
+/// After calling this function, the caller must later make sure
+/// that [`arti_rpc_conn_wait()`] is called on the connection to wait for responses
+/// to _any_ submitted request.
+/// (If the  connection was crated with [`arti_rpc_conn_builder_connect_polling`],
+/// the user must call [`arti_rpc_poll_poll()`] instead.)
+///
+/// (If nobody is running [`arti_rpc_conn_wait()`] or [`arti_rpc_poll_poll()`],
+/// then responses will never be handled,
+/// and can potentially fill up memory.)
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+///
+/// # Thread safety
+///
+/// It is safe to call this function from multiple threads at once;
+/// it is not specified which thread will receive notifications for which request.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_conn_submit(
+    rpc_conn: *const ArtiRpcConn,
+    msg: *const c_char,
+    tag: *const ArtiRpcUserTag,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
+            let msg: Option<&str> [in_str_opt];
+            let tag: Option<&ArtiRpcUserTag> [in_ptr_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
+        } in {
+            let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
+            let msg = msg.ok_or(InvalidInput::NullPointer)?;
+            let tag = tag.ok_or(InvalidInput::NullPointer)?;
+
+            let () = rpc_conn.submit((*tag).into(), msg)?;
+        }
+    )
+}
+
+/// Wait for responses to arrive for requests sent via [`arti_rpc_conn_submit`].
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`;
+/// set `*tag_out`, if present,  to the `ArtiRpcUserTag` originally provided with the request;
+/// set `*response_out`, if present, to a newly allocated string;
+/// and set `*response_type_out`,  if present, to the type of the response.
+/// (The type will be `ARTI_RPC_RESPONSE_TYPE_RESULT` if the response is a final result,
+/// or `ARTI_RPC_RESPONSE_TYPE_ERROR` if the response is a final error,
+/// or `ARTI_RPC_RESPONSE_TYPE_UPDATE` if the response is a non-final update.)
+///
+/// Otherwise return some other status code, set `*response_out` to NULL,
+/// set `*response_type_out` and `*tag_out` to zero,
+/// and set `*error_out` (if provided) to a newly allocated error object.
+///
+/// Note that receiving an error reply from Arti is _not_ treated as an error in this function.
+/// That is to say, if Arti sends back an error, this function will return `ARTI_SUCCESS`,
+/// and deliver the error from Arti in `*response_out`, setting `*response_type_out` to
+/// `ARTI_RPC_RESPONSE_TYPE_ERROR`.
+///
+/// # Thread safety
+///
+/// It is safe to call this function from multiple threads at once;
+/// it is not specified which thread will receive notifications for which request.
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+///
+/// The caller is responsible for making sure that `*response_out`, if set,
+/// is eventually freed.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_conn_wait(
+    rpc_conn: *const ArtiRpcConn,
+    tag_out: *mut ArtiRpcUserTag,
+    response_out: *mut *mut ArtiRpcStr,
+    response_type_out: *mut ArtiRpcResponseType,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
+            let tag_out: Option<OutVal<ArtiRpcUserTag>> [out_val_opt];
+            let response_out: Option<OutBoxedPtr<ArtiRpcStr>> [out_ptr_opt];
+            let response_type_out: Option<OutVal<ArtiRpcResponseType>> [out_val_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
+        } in {
+            let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
+
+            let (tag, response) = rpc_conn.wait()?;
+            tag_out.write_value_if_ptr_set(tag.into());
+
+            let rtype = response.response_type();
+            response_type_out.write_value_if_ptr_set(rtype);
+            response_out.write_boxed_value_if_ptr_set(response.into_string());
+        }
+    )
+}
+
+/// Handle IO events for the associated RPC connection, without blocking.
+///
+/// This method requires that the connection was created with
+/// [`arti_rpc_conn_builder_connect_polling()`].
+/// It reads and writes data from the RPC server, until either:
+///
+/// * A response is available to a request created with [`arti_rpc_conn_submit`].
+///   In this case,
+///   `*tag_out`, if present, is set to the `ArtiRpcUserTag` originally provided with the request;
+///   `*response_out`, if present, is set to a newly allocated string;
+///   `*response_type_out`, if present, is set to the type of the response.
+///   The `*would_block_out` flag, if present, is set to 0.
+///   Other output pointers, if present, are set to NULL or 0.
+///
+/// * No further progress can be made without blocking.
+///   In this case,
+///   `*would_block_out` is set to 1.
+///   Other output pointers, if present, are set to NULL or 0.
+///
+/// * An error occurs.
+///   (This does not include receiving an error response from the RPC server.)
+///   In this case, `*error_out`, if present, is set to that error.
+///   Other output pointers, if present, are set to NULL or 0.
+///
+/// Returns `ARTI_RPC_SUCCESS` in the first two cases,
+/// and an error code on failure.
+///
+/// # Thread safety
+///
+/// While it is not unsafe to call this function at once,
+/// it is generally pointless:
+/// only one thread can make progress at a time.
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure
+/// that `*tag_out`, *response_out`, and `*error_out`,
+/// if set, are eventually freed.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_poll_poll(
+    rpc_poll: *const ArtiRpcPoll,
+    tag_out: *mut ArtiRpcUserTag,
+    response_out: *mut *mut ArtiRpcStr,
+    response_type_out: *mut ArtiRpcResponseType,
+    would_block_out: *mut c_int,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!({
+        let rpc_poll: Option<&ArtiRpcPoll> [in_ptr_opt];
+        let tag_out: Option<OutVal<ArtiRpcUserTag>> [out_val_opt];
+        let response_out: Option<OutBoxedPtr<ArtiRpcStr>> [out_ptr_opt];
+        let response_type_out: Option<OutVal<ArtiRpcResponseType>> [out_val_opt];
+        let would_block_out: Option<OutVal<c_int>> [out_val_opt];
+        err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
+    } in {
+        let rpc_poll = rpc_poll.ok_or(InvalidInput::NullPointer)?;
+
+        let (tag, response)  = match rpc_poll.0.lock().expect("Lock poisoned").poll()? {
+            Ok(v) => v,
+            Err(crate::WouldBlock) => {
+                would_block_out.write_value_if_ptr_set(1);
+                return Ok(());
+            }
+        };
+
+        tag_out.write_value_if_ptr_set(tag.into());
+        let rtype = response.response_type();
+        response_type_out.write_value_if_ptr_set(rtype);
+        response_out.write_boxed_value_if_ptr_set(response.into_string());
+    })
+}
+
+/// Return true if `rpc_poll` wants to write,
+/// and false otherwise.
+///
+/// See [`arti_rpc_conn_builder_connect_polling`] for more information.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_poll_wants_to_write(rpc_poll: *const ArtiRpcPoll) -> c_int {
+    ffi_body_raw!({
+        let rpc_poll: Option<&ArtiRpcPoll> [in_ptr_opt];
+    } in {
+        let Some(rpc_poll) = rpc_poll else {
+            return 0;
+        };
+        let wants_to_write: bool = rpc_poll.0.lock()
+            .expect("Lock poisoned")
+            .wants_to_write();
+        // Safety: return type is c_int; trivially safe.
+        c_int::from(wants_to_write)
+    })
+}
+
+/// Return the raw OS socket associated with the provided `ArtiRpcPoll`.
+///
+/// This function returns a SOCKET on windows, and a file descriptor elsewhere.
+///
+/// On failure, returns INVALID_SOCKET on windows, and -1 elsewhere.
+///
+/// # Ownership
+///
+/// The returned socket is owned by the `ArtiRpcPoll`.
+/// The caller must not close it, read from it, or write to it.
+/// It should _only_ be polled for readiness events.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_poll_get_socket(
+    rpc_poll: *const ArtiRpcPoll,
+) -> ArtiRpcRawSocket {
+    ffi_body_raw!({
+        let rpc_poll: Option<&ArtiRpcPoll> [in_ptr_opt];
+    } in {
+        let Some(rpc_poll) = rpc_poll else {
+            return ArtiRpcRawSocket::default();
+        };
+        let raw_socket: Result<ArtiRpcRawSocket, _> = {
+            let rpc_poll = rpc_poll.0.lock().expect("Lock poisoned");
+            #[cfg(windows)]
+            {
+                rpc_poll.try_as_socket().map(ArtiRpcRawSocket::from)
+            }
+            #[cfg(not(windows))]
+            {
+                rpc_poll.try_as_fd().map(ArtiRpcRawSocket::from)
+            }
+        };
+
+        // Safety: return type is trivially safe.
+        raw_socket.unwrap_or_default()
+    })
+}
+
+/// Free the provided `ArtiRpcPoll`.
+#[allow(clippy::missing_safety_doc)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn arti_rpc_poll_free(rpc_poll: *mut ArtiRpcPoll) {
+    ffi_body_raw!(
+        {
+            let rpc_poll: Option<Box<ArtiRpcPoll>> [in_ptr_consume_opt];
+        } in {
+            drop(rpc_poll);
+            // Safety: Return value is (); trivially safe.
+            ()
+        }
+    );
+}
+
 /// Free a string returned by the Arti RPC API.
 #[allow(clippy::missing_safety_doc)]
 #[unsafe(no_mangle)]
