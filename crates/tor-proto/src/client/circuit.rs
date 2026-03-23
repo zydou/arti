@@ -999,6 +999,7 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::test::{CodecResult, new_reactor};
     use crate::circuit::CircuitRxSender;
+    use crate::circuit::reactor::test::rmsg_to_ccmsg;
     use crate::client::circuit::padding::new_padding;
     use crate::client::stream::DataStream;
     #[cfg(feature = "hs-service")]
@@ -1075,16 +1076,6 @@ pub(crate) mod test {
                     });
             TargetHop::Hop(receiver.await.unwrap().unwrap())
         }
-    }
-
-    fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> AnyChanMsg {
-        // TODO #1947: test other formats.
-        let rfmt = RelayCellFormat::V0;
-        let body: BoxedCellBody = AnyRelayMsgOuter::new(id, msg)
-            .encode(rfmt, &mut testing_rng())
-            .unwrap();
-        let chanmsg = chanmsg::Relay::from(body);
-        AnyChanMsg::Relay(chanmsg)
     }
 
     // Example relay IDs and keys

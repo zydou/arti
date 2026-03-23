@@ -545,3 +545,36 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         }
     }
 }
+
+#[cfg(test)]
+pub(crate) mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_cell::chancell::{BoxedCellBody, msg as chanmsg};
+    use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, msg as relaymsg};
+
+    use chanmsg::AnyChanMsg;
+
+    pub(crate) fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> AnyChanMsg {
+        // TODO #1947: test other formats.
+        let rfmt = RelayCellFormat::V0;
+        let body: BoxedCellBody = AnyRelayMsgOuter::new(id, msg)
+            .encode(rfmt, &mut testing_rng())
+            .unwrap();
+        let chanmsg = chanmsg::Relay::from(body);
+        AnyChanMsg::Relay(chanmsg)
+    }
+}
