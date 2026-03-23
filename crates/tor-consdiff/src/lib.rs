@@ -152,7 +152,7 @@ fn split_directory_signatures(input: &str) -> Result<(&str, &str)> {
         // the start of the second signature and not the start of the first one.
         let item = items
             .peek_keyword()
-            .map_err(|e| ParseError::new(e, "consdiff", "", items.lno(), None))?;
+            .map_err(|e| ParseError::new(e, "consdiff", "", items.lno_for_error(), None))?;
 
         match item {
             Some(DIRECTORY_SIGNATURE_KEYWORD) => {
@@ -171,7 +171,7 @@ fn split_directory_signatures(input: &str) -> Result<(&str, &str)> {
                     },
                     "consdiff",
                     "",
-                    items.lno(),
+                    items.lno_for_error(),
                     None,
                 )));
             }
