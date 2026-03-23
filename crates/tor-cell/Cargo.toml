@@ -28,8 +28,12 @@ testing = ["experimental-udp", "__is_experimental"]
 # Onion service proof of work schemes
 hs-pow-full = ["tor-hscrypto/hs-pow-full", "__is_experimental"]
 
+# Support for relay-only operations
+relay = ["tor-cert/encode"]
+
 full = [
     "caret/full",
+    "relay",
     "tor-basic-utils/full",
     "tor-bytes/full",
     "tor-cert/full",

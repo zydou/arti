@@ -124,7 +124,7 @@ tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-async-utils = { path = "../tor-async-utils", version = "0.40.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.40.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.40.0" }
-tor-cell = { path = "../tor-cell", version = "0.40.0" }
+tor-cell = { path = "../tor-cell", version = "0.40.0", features = ["relay"] }
 tor-cert = { path = "../tor-cert", version = "0.40.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.40.0" }
 tor-config = { path = "../tor-config", version = "0.40.0" }

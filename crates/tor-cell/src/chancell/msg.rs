@@ -947,6 +947,7 @@ impl Certs {
 
     /// Add a new encoded certificate to this cell,
     /// taking taking the type from the certificate itself.
+    #[cfg(feature = "relay")]
     pub fn push_cert<C>(&mut self, cert: &C)
     where
         C: tor_cert::EncodedCert,
