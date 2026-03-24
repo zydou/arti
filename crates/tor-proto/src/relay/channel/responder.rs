@@ -150,7 +150,22 @@ where
         // (peer) we wanted. Then, check the AUTHENTICATE cell.
         //
         // The end result is a verified channel (not authenticated yet) which guarantee that we are
-        // talking to the right relay that we wanted.
+        // talking to the right relay that we wanted. We validate so we can prove these:
+        //
+        // - IDENTITY_V_SIGNING proves that KP_relaysign_ed speaks on behalf of KP_relayid_ed
+        // - SIGNING_V_LINK_AUTH proves that KP_link_ed speaks on behalf of KP_relaysign_ed
+        // - The AUTHENTICATE cell proves that the TLS session's key material is known by the
+        //   owner of KP_link_ed
+        // - Therefore, we have a chain from:
+        //   KS_relayid_ed → KP_relaysign_ed → KP_link_ed → AUTHENTICATE cell → the channel itself.
+        //
+        // As for legacy certs, they prove nothing but we can extract keys:
+        //
+        // - RSA_ID_X509 proves nothing; we just extract its subject key as KP_relayid_rsa.
+        // - RSA_ID_V_IDENTITY proves that KP_relayid_ed speaks on behalf of KP_relayid_rsa.
+        // - Therefore we have a chain from:
+        //   KP_relayid_rsa → KS_relayid_ed → KP_relaysign_ed → KP_link_ed → AUTHENTICATE cell →
+        //   the channel itself.
 
         // Check the relay identities in the CERTS cell.
         let (relay_ids, kp_relaysign_ed, rsa_id_digest) =
