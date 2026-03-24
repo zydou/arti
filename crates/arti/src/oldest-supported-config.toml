@@ -67,6 +67,13 @@
 # level `info` or higher.
 #log_sensitive_information = false
 
+# Whether to promote protocol-violation log messages to warning level.
+#
+# If set to `false` (the default), protocol violations are logged at their
+# original level. If set to `true`, violations of kind `TorProtocolViolation`
+# are promoted to `warn`. Intended for use in private test networks.
+#protocol_warnings = false
+
 # Locations to use for storing things on disk.
 #
 # These paths can use ~ to indicate the user's home directory, or a set
