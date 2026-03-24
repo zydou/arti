@@ -568,6 +568,9 @@ pub(crate) mod test {
 
     use chanmsg::AnyChanMsg;
 
+    #[cfg(feature = "hs-service")]
+    use crate::client::stream::IncomingStreamRequestFilter;
+
     pub(crate) fn rmsg_to_ccmsg(
         id: Option<StreamId>,
         msg: relaymsg::AnyRelayMsg,
@@ -585,6 +588,19 @@ pub(crate) mod test {
             AnyChanMsg::RelayEarly(chanmsg)
         } else {
             AnyChanMsg::Relay(chanmsg)
+        }
+    }
+
+    #[cfg(feature = "hs-service")]
+    pub(crate) struct AllowAllStreamsFilter;
+    #[cfg(feature = "hs-service")]
+    impl IncomingStreamRequestFilter for AllowAllStreamsFilter {
+        fn disposition(
+            &mut self,
+            _ctx: &crate::client::stream::IncomingStreamRequestContext<'_>,
+            _circ: &crate::circuit::CircHopSyncView<'_>,
+        ) -> crate::Result<crate::client::stream::IncomingStreamRequestDisposition> {
+            Ok(crate::client::stream::IncomingStreamRequestDisposition::Accept)
         }
     }
 }

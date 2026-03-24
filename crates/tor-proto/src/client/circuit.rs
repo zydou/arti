@@ -1002,8 +1002,6 @@ pub(crate) mod test {
     use crate::circuit::reactor::test::rmsg_to_ccmsg;
     use crate::client::circuit::padding::new_padding;
     use crate::client::stream::DataStream;
-    #[cfg(feature = "hs-service")]
-    use crate::client::stream::IncomingStreamRequestFilter;
     use crate::congestion::params::CongestionControlParams;
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
@@ -1048,6 +1046,9 @@ pub(crate) mod test {
         tor_cell::relaycell::msg::ConfluxLink,
         tor_rtmock::MockRuntime,
     };
+
+    #[cfg(feature = "hs-service")]
+    use crate::circuit::reactor::test::AllowAllStreamsFilter;
 
     impl PendingClientTunnel {
         /// Testing only: Extract the circuit ID for this pending circuit.
@@ -2283,19 +2284,6 @@ pub(crate) mod test {
 
         p.extend_by_ed25519_id = false;
         assert!(!p.extend_by_ed25519_id);
-    }
-
-    #[cfg(feature = "hs-service")]
-    struct AllowAllStreamsFilter;
-    #[cfg(feature = "hs-service")]
-    impl IncomingStreamRequestFilter for AllowAllStreamsFilter {
-        fn disposition(
-            &mut self,
-            _ctx: &crate::client::stream::IncomingStreamRequestContext<'_>,
-            _circ: &crate::circuit::CircHopSyncView<'_>,
-        ) -> Result<crate::client::stream::IncomingStreamRequestDisposition> {
-            Ok(crate::client::stream::IncomingStreamRequestDisposition::Accept)
-        }
     }
 
     #[traced_test]
