@@ -334,18 +334,15 @@ impl ChannelAuthenticationData {
     ///
     /// IMPORTANT: The CLOG and SLOG from the framed_tls codec is consumed here so calling twice
     /// build_auth_data() will result in different AUTHENTICATE cells.
-    pub(crate) fn build_responder<T, S>(
+    pub(crate) fn build_responder(
         initiator_auth_type: u16,
         identities: &Arc<RelayIdentities>,
         clog: AuthLogDigest,
         slog: AuthLogDigest,
-        verified: &mut VerifiedChannel<T, S>,
+        peer_rsa_id_digest: [u8; 32],
+        peer_relayid_ed: Ed25519Identity,
         our_cert_digest: [u8; 32],
-    ) -> Result<ChannelAuthenticationData>
-    where
-        T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-        S: CoarseTimeProvider + SleepProvider,
-    {
+    ) -> Result<ChannelAuthenticationData> {
         // Max on what we know.
         let link_auth = if LINK_AUTH.contains(&initiator_auth_type) {
             initiator_auth_type
@@ -354,13 +351,9 @@ impl ChannelAuthenticationData {
         };
         // The ordering matter as this is a respodner. It is inversed from the initiator.
         let cid = identities.rsa_id_der_digest;
-        let sid = verified.rsa_id_digest;
+        let sid = peer_rsa_id_digest;
         let cid_ed = identities.ed_id_bytes();
-        let sid_ed = (*verified
-            .relay_ids()
-            .ed_identity()
-            .expect("Verified channel without Ed25519 identity"))
-        .into();
+        let sid_ed = peer_relayid_ed.into();
 
         Ok(Self {
             link_auth,

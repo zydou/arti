@@ -13,7 +13,7 @@ use subtle::ConstantTimeEq;
 use tracing::instrument;
 
 use tor_cell::chancell::msg;
-use tor_linkspec::{OwnedChanTarget, RelayIds};
+use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 use web_time_compat::{SystemTime, SystemTimeExt};
@@ -168,7 +168,7 @@ where
         //   the channel itself.
 
         // Check the relay identities in the CERTS cell.
-        let (relay_ids, kp_relaysign_ed, rsa_id_digest) =
+        let (relay_ids, kp_relaysign_ed, peer_rsa_id_digest) =
             self.inner
                 .check_relay_identities(peer_no_ids, &self.certs_cell, now)?;
 
@@ -180,10 +180,10 @@ where
             self.inner.clock_skew,
         )?;
 
-        // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self.inner.into_verified(relay_ids, rsa_id_digest);
-
         let our_cert_digest = ll::d::Sha256::digest(our_cert).into();
+        let peer_relayid_ed = *relay_ids
+            .ed_identity()
+            .expect("Validated relay channel without Ed25519 identity");
 
         // By building the ChannelAuthenticationData, we are certain that the authentication type
         // of the initiator is supported by us.
@@ -192,10 +192,11 @@ where
             &identities,
             self.clog_digest,
             self.slog_digest,
-            &mut verified,
+            peer_rsa_id_digest,
+            peer_relayid_ed,
             our_cert_digest,
         )?
-        .as_body_no_rand(verified.framed_tls.deref())?;
+        .as_body_no_rand(self.inner.framed_tls.deref())?;
 
         // CRITICAL: This if is what authenticates a channel on the responder side. We compare
         // what we expected to what we received.
@@ -223,6 +224,9 @@ where
         pk.verify(initiator_body, &sig).map_err(|e| {
             Error::ChanProto(format!("AUTHENTICATE cell signature failed to verify: {e}"))
         })?;
+
+        // Transform our inner into a verified channel now that we are verified.
+        let mut verified = self.inner.into_verified(relay_ids, peer_rsa_id_digest);
 
         // This part is very important as we now flag that we are verified and thus authenticated.
         //
