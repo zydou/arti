@@ -170,9 +170,9 @@ impl<
     /// Validate the certificates and keys in the relay's handshake. As a client, we always verify
     /// but we don't authenticate.
     ///
-    /// 'peer' is the peer that we want to make sure we're connecting to.
+    /// 'peer_target' is the peer that we want to make sure we're connecting to.
     ///
-    /// 'peer_cert' is the x.509 certificate that the peer presented during
+    /// 'peer_tls_cert' is the x.509 certificate that the peer presented during
     /// its TLS handshake (ServerHello).
     ///
     /// 'now' is the time at which to check that certificates are
@@ -184,12 +184,12 @@ impl<
     #[instrument(skip_all, level = "trace")]
     pub fn verify(
         self,
-        peer: &OwnedChanTarget,
-        peer_cert: &[u8],
+        peer_target: &OwnedChanTarget,
+        peer_tls_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedClientChannel<T, S>> {
-        let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_cert).into();
-        let inner = self.inner.verify(peer, peer_cert_digest, now)?;
+        let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_tls_cert).into();
+        let inner = self.inner.verify(peer_target, peer_cert_digest, now)?;
 
         Ok(VerifiedClientChannel {
             inner,

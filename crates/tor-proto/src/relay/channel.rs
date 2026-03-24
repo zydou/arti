@@ -151,14 +151,14 @@ impl RelayChannelBuilder {
         sleep_prov: S,
         identities: Arc<RelayIdentities>,
         my_addrs: Vec<IpAddr>,
-        peer: &OwnedChanTarget,
+        peer_target: &OwnedChanTarget,
         memquota: ChannelAccount,
     ) -> RelayInitiatorHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        RelayInitiatorHandshake::new(tls, sleep_prov, identities, my_addrs, peer, memquota)
+        RelayInitiatorHandshake::new(tls, sleep_prov, identities, my_addrs, peer_target, memquota)
     }
 
     /// Accept a new handshake over a TLS stream.
@@ -301,7 +301,7 @@ impl ChannelAuthenticationData {
             .ok_or(Error::BadCellAuth)?;
         // The ordering matter as this is an initiator.
         let cid = identities.rsa_id_der_digest;
-        let sid = verified.rsa_id_digest;
+        let sid = verified.peer_rsa_id_digest;
         let cid_ed = identities.ed_id_bytes();
         let sid_ed = (*verified
             .relay_ids()

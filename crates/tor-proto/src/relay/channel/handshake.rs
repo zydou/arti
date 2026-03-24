@@ -89,7 +89,7 @@ impl<
         sleep_prov: S,
         identities: Arc<RelayIdentities>,
         my_addrs: Vec<IpAddr>,
-        peer: &OwnedChanTarget,
+        peer_target: &OwnedChanTarget,
         memquota: ChannelAccount,
     ) -> Self {
         Self {
@@ -99,7 +99,7 @@ impl<
             identities,
             memquota,
             my_addrs,
-            target_method: peer.chan_method(),
+            target_method: peer_target.chan_method(),
         }
     }
 

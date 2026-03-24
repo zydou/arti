@@ -61,9 +61,9 @@ where
     /// Validate the certificates and keys in the relay's handshake. As an initiator, we always
     /// authenticate no matter what.
     ///
-    /// 'peer' is the peer that we want to make sure we're connecting to.
+    /// 'peer_target' is the peer that we want to make sure we're connecting to.
     ///
-    /// 'peer_cert' is the x.509 certificate that the peer presented during its TLS handshake
+    /// 'peer_tls_cert' is the x.509 certificate that the peer presented during its TLS handshake
     /// (ServerHello).
     ///
     /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
@@ -72,8 +72,8 @@ where
     /// This is a separate function because it's likely to be somewhat CPU-intensive.
     pub fn verify(
         self,
-        peer: &OwnedChanTarget,
-        peer_cert: &[u8],
+        peer_target: &OwnedChanTarget,
+        peer_tls_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedInitiatorRelayChannel<T, S>> {
         // Get these object out as we consume "self" in the inner check().
@@ -82,10 +82,10 @@ where
         let my_addrs = self.my_addrs;
         let netinfo_cell = self.netinfo_cell;
 
-        let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_cert).into();
+        let peer_tls_cert_digest = tor_llcrypto::d::Sha256::digest(peer_tls_cert).into();
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self.inner.verify(peer, peer_cert_digest, now)?;
+        let mut verified = self.inner.verify(peer_target, peer_tls_cert_digest, now)?;
 
         // This part is very important as we now flag that we are authenticated. The responder
         // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
@@ -103,7 +103,7 @@ where
             identities,
             netinfo_cell,
             auth_challenge_cell,
-            peer_cert_digest,
+            peer_tls_cert_digest,
             slog_digest: self.slog_digest,
             my_addrs,
         })
@@ -135,7 +135,7 @@ pub struct VerifiedInitiatorRelayChannel<
     /// The AUTH_CHALLENGE cell that we got from the relay.
     auth_challenge_cell: msg::AuthChallenge,
     /// The peer TLS certificate digest.
-    peer_cert_digest: [u8; 32],
+    peer_tls_cert_digest: [u8; 32],
     /// The SLOG digest.
     slog_digest: AuthLogDigest,
     /// Our advertised IP addresses.
@@ -176,7 +176,7 @@ where
             clog_digest,
             self.slog_digest,
             &mut self.inner,
-            self.peer_cert_digest,
+            self.peer_tls_cert_digest,
         )?
         .into_authenticate(self.inner.framed_tls.deref(), &self.identities.link_sign_kp)?;
 

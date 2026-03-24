@@ -111,10 +111,10 @@ where
 {
     /// Validate the certificates and keys in the relay's handshake.
     ///
-    /// 'peer_no_ids' is the peer, without identities as we are accepting a connection and thus
+    /// 'peer_target_no_ids' is the peer, without identities as we are accepting a connection and thus
     /// don't have expectations on any identity, that we want to make sure we're connecting to.
     ///
-    /// 'our_cert' is the x.509 certificate that we presented during the TLS handshake.
+    /// 'our_tls_cert' is the x.509 certificate that we presented during the TLS handshake.
     ///
     /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
     /// current time. It can be used for testing to override the current view of the time.
@@ -123,14 +123,14 @@ where
     #[instrument(skip_all, level = "trace")]
     pub fn verify(
         self,
-        peer_no_ids: &OwnedChanTarget,
-        our_cert: &[u8],
+        peer_target_no_ids: &OwnedChanTarget,
+        our_tls_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedResponderRelayChannel<T, S>> {
         // Get these object out as we consume "self" in the inner check().
         let identities = self.identities;
-        let netinfo_cell = self.netinfo_cell;
-        let initiator_auth_cell = self.auth_cell;
+        let peer_netinfo_cell = self.netinfo_cell;
+        let peer_auth_cell = self.auth_cell;
         let my_addrs = self.my_addrs;
 
         let now = now.unwrap_or_else(SystemTime::get);
@@ -168,65 +168,70 @@ where
         //   the channel itself.
 
         // Check the relay identities in the CERTS cell.
-        let (relay_ids, kp_relaysign_ed, peer_rsa_id_digest) =
-            self.inner
-                .check_relay_identities(peer_no_ids, &self.certs_cell, now)?;
+        let (peer_relay_ids, peer_kp_relaysign_ed, peer_rsa_id_digest) = self
+            .inner
+            .check_relay_identities(peer_target_no_ids, &self.certs_cell, now)?;
 
         // Next, verify the LINK_AUTH cert (CertType 6).
         let peer_kp_link_ed = crate::channel::handshake::verify_link_auth_cert(
             &self.certs_cell,
-            &kp_relaysign_ed,
+            &peer_kp_relaysign_ed,
             Some(now),
             self.inner.clock_skew,
         )?;
 
-        let our_cert_digest = ll::d::Sha256::digest(our_cert).into();
-        let peer_relayid_ed = *relay_ids
+        let our_tls_cert_digest = ll::d::Sha256::digest(our_tls_cert).into();
+        let peer_relayid_ed = *peer_relay_ids
             .ed_identity()
             .expect("Validated relay channel without Ed25519 identity");
 
         // By building the ChannelAuthenticationData, we are certain that the authentication type
         // of the initiator is supported by us.
-        let auth_body = ChannelAuthenticationData::build_responder(
-            initiator_auth_cell.auth_type(),
+        let expected_auth_body = ChannelAuthenticationData::build_responder(
+            peer_auth_cell.auth_type(),
             &identities,
             self.clog_digest,
             self.slog_digest,
             peer_rsa_id_digest,
             peer_relayid_ed,
-            our_cert_digest,
+            our_tls_cert_digest,
         )?
         .as_body_no_rand(self.inner.framed_tls.deref())?;
 
         // CRITICAL: This if is what authenticates a channel on the responder side. We compare
         // what we expected to what we received.
-        let initiator_body_no_rand = initiator_auth_cell
+        let peer_auth_cell_body_no_rand = peer_auth_cell
             .body_no_rand()
             .map_err(|e| Error::ChanProto(format!("AUTHENTICATE body_no_rand malformed: {e}")))?;
         // This equality is in constant-time to avoid timing attack oracle.
-        if initiator_body_no_rand.ct_eq(&auth_body).into() {
+        if peer_auth_cell_body_no_rand
+            .ct_eq(&expected_auth_body)
+            .into()
+        {
             return Err(Error::ChanProto(
                 "AUTHENTICATE was unexpected. Failing authentication".into(),
             ));
         }
 
         // CRITICAL: Verify the signature of the AUTHENTICATE cell with the peer KP_link_ed.
-        let pk: tor_llcrypto::pk::ed25519::PublicKey = peer_kp_link_ed
+        let peer_link_ed_pubkey: tor_llcrypto::pk::ed25519::PublicKey = peer_kp_link_ed
             .try_into()
             .expect("Peer KP_link_ed fails to convert to PublicKey");
-        let sig =
-            tor_llcrypto::pk::ed25519::Signature::from_bytes(initiator_auth_cell.sig().map_err(
+        let peer_auth_cell_sig =
+            tor_llcrypto::pk::ed25519::Signature::from_bytes(peer_auth_cell.sig().map_err(
                 |e| Error::ChanProto(format!("AUTHENTICATE sig field is invalid: {e}")),
             )?);
-        let initiator_body = initiator_auth_cell
+        let peer_body = peer_auth_cell
             .body()
             .map_err(|e| Error::ChanProto(format!("AUTHENTICATE body malformed: {e}")))?;
-        pk.verify(initiator_body, &sig).map_err(|e| {
-            Error::ChanProto(format!("AUTHENTICATE cell signature failed to verify: {e}"))
-        })?;
+        peer_link_ed_pubkey
+            .verify(peer_body, &peer_auth_cell_sig)
+            .map_err(|e| {
+                Error::ChanProto(format!("AUTHENTICATE cell signature failed to verify: {e}"))
+            })?;
 
         // Transform our inner into a verified channel now that we are verified.
-        let mut verified = self.inner.into_verified(relay_ids, peer_rsa_id_digest);
+        let mut verified = self.inner.into_verified(peer_relay_ids, peer_rsa_id_digest);
 
         // This part is very important as we now flag that we are verified and thus authenticated.
         //
@@ -240,7 +245,7 @@ where
 
         Ok(VerifiedResponderRelayChannel {
             inner: verified,
-            netinfo_cell,
+            netinfo_cell: peer_netinfo_cell,
             my_addrs,
             peer_addr: self.peer_addr,
         })

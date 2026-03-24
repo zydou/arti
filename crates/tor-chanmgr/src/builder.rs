@@ -340,7 +340,7 @@ where
             .await
             .map_err(map_ioe("TLS negotiation"))?;
 
-        let peer_cert = tls
+        let peer_tls_cert = tls
             .peer_certificate()
             .map_err(map_ioe("TLS certs"))?
             .ok_or_else(|| Error::Internal(internal!("TLS connection with no peer certificate")))?
@@ -364,7 +364,7 @@ where
                     tls,
                     peer_addr,
                     target,
-                    &peer_cert,
+                    &peer_tls_cert,
                     memquota,
                     event_sender.clone(),
                 )
@@ -376,7 +376,7 @@ where
                     tls,
                     peer_addr,
                     target,
-                    &peer_cert,
+                    &peer_tls_cert,
                     memquota,
                     event_sender.clone(),
                 )
@@ -475,7 +475,7 @@ where
         tls: T,
         peer_addr: MaybeSensitive<PeerAddr>,
         target: &OwnedChanTarget,
-        peer_cert: &[u8],
+        peer_tls_cert: &[u8],
         memquota: ChannelAccount,
         event_sender: Arc<Mutex<ChanMgrEventSender>>,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>>
@@ -511,7 +511,7 @@ where
 
         let clock_skew = unverified.clock_skew();
         let (chan, reactor) = unverified
-            .verify(target, peer_cert, Some(now))
+            .verify(target, peer_tls_cert, Some(now))
             .map_err(|source| match &source {
                 tor_proto::Error::HandshakeCertsExpired { .. } => {
                     event_sender
@@ -544,7 +544,7 @@ where
         tls: T,
         peer_addr: MaybeSensitive<PeerAddr>,
         target: &OwnedChanTarget,
-        peer_cert: &[u8],
+        peer_tls_cert: &[u8],
         memquota: ChannelAccount,
         event_sender: Arc<Mutex<ChanMgrEventSender>>,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>>
@@ -576,7 +576,7 @@ where
         let now = self.runtime.wallclock();
         let clock_skew = unverified.clock_skew();
         let (chan, reactor) = unverified
-            .verify(target, peer_cert, Some(now))
+            .verify(target, peer_tls_cert, Some(now))
             .map_err(|source| match &source {
                 tor_proto::Error::HandshakeCertsExpired { .. } => {
                     event_sender
