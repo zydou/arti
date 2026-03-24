@@ -85,18 +85,7 @@ where
         let peer_tls_cert_digest = tor_llcrypto::d::Sha256::digest(peer_tls_cert).into();
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self.inner.verify(peer_target, peer_tls_cert_digest, now)?;
-
-        // This part is very important as we now flag that we are authenticated. The responder
-        // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
-        //
-        // At this point, the underlying cell handler is in the Handshake state. Setting the
-        // channel type here as authenticated means that once the handler transition to the Open
-        // state, it will carry this authenticated flag leading to the message filter of the
-        // channel codec to adapt its restricted message sets (meaning R2R only).
-        //
-        // After this call, it is considered a R2R channel.
-        verified.set_authenticated()?;
+        let verified = self.inner.verify(peer_target, peer_tls_cert_digest, now)?;
 
         Ok(VerifiedInitiatorRelayChannel {
             inner: verified,
