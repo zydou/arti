@@ -1,6 +1,7 @@
 //! Support for using `tor-error` with the `tracing` crate.
 
 use crate::ErrorKind;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 #[doc(hidden)]
 pub use static_assertions;
@@ -8,6 +9,42 @@ pub use static_assertions;
 pub use tracing::{Level, event};
 
 use paste::paste;
+
+/// Runtime policy for handling protocol warnings.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u8)]
+#[non_exhaustive]
+pub enum ProtocolWarningMode {
+    /// Do not promote protocol-violation reports based on runtime policy.
+    Off = 0,
+    /// Promote protocol-violation reports to warning level.
+    Warn = 1,
+}
+
+impl ProtocolWarningMode {
+    /// Convert a integer (raw bytes) to a protocol-warning mode (enum).
+    fn from_raw(raw: u8) -> Option<Self> {
+        match raw {
+            0 => Some(Self::Off),
+            1 => Some(Self::Warn),
+            _ => None,
+        }
+    }
+}
+
+/// Global runtime state for protocol-warning behavior.
+static PROTOCOL_WARNING_MODE: AtomicU8 = AtomicU8::new(ProtocolWarningMode::Off as u8);
+
+/// Set runtime policy for protocol-warning log handling.
+pub fn set_protocol_warning_mode(mode: ProtocolWarningMode) {
+    PROTOCOL_WARNING_MODE.store(mode as u8, Ordering::Relaxed);
+}
+
+/// Return current runtime policy for protocol-warning log handling.
+pub fn protocol_warning_mode() -> ProtocolWarningMode {
+    let raw = PROTOCOL_WARNING_MODE.load(Ordering::Relaxed);
+    ProtocolWarningMode::from_raw(raw).unwrap_or(ProtocolWarningMode::Off)
+}
 
 impl ErrorKind {
     /// Return true if this [`ErrorKind`] should always be logged as
@@ -58,7 +95,13 @@ macro_rules! event_report {
         {
             use $crate::{tracing as tr, HasKind as _, };
             let err = $err;
-            if err.kind().is_always_a_warning() && tr::Level::WARN < $level {
+            let kind = err.kind();
+            if kind.is_always_a_warning() && tr::Level::WARN < $level {
+                $crate::event_report!(@raw tr::Level::WARN, err, $($arg)*);
+            } else if tr::protocol_warning_mode() == tr::ProtocolWarningMode::Warn
+                && kind == $crate::ErrorKind::TorProtocolViolation
+                && tr::Level::WARN < $level
+            {
                 $crate::event_report!(@raw tr::Level::WARN, err, $($arg)*);
             } else {
                 $crate::event_report!(@raw $level, err, $($arg)*);
@@ -175,8 +218,146 @@ mod test {
 
     use crate::internal;
     use crate::report::ErrorReport;
+    use std::sync::Mutex;
     use thiserror::Error;
     use tracing_test::traced_test;
+
+    static PROTOCOL_MODE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn protocol_warning_mode_roundtrip_and_fallback() {
+        let _lock = PROTOCOL_MODE_TEST_LOCK.lock().expect("poisoned mutex");
+
+        struct RestoreMode(super::ProtocolWarningMode);
+
+        impl Drop for RestoreMode {
+            fn drop(&mut self) {
+                super::set_protocol_warning_mode(self.0);
+            }
+        }
+
+        let original = super::protocol_warning_mode();
+        let _restore = RestoreMode(original);
+
+        super::set_protocol_warning_mode(super::ProtocolWarningMode::Off);
+        assert_eq!(
+            super::protocol_warning_mode(),
+            super::ProtocolWarningMode::Off
+        );
+
+        super::set_protocol_warning_mode(super::ProtocolWarningMode::Warn);
+        assert_eq!(
+            super::protocol_warning_mode(),
+            super::ProtocolWarningMode::Warn
+        );
+
+        super::PROTOCOL_WARNING_MODE.store(u8::MAX, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            super::protocol_warning_mode(),
+            super::ProtocolWarningMode::Off
+        );
+    }
+
+    #[derive(Debug)]
+    struct KindError(super::ErrorKind);
+
+    impl std::fmt::Display for KindError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "kind error")
+        }
+    }
+
+    impl std::error::Error for KindError {}
+
+    impl crate::HasKind for KindError {
+        fn kind(&self) -> super::ErrorKind {
+            self.0
+        }
+    }
+
+    #[test]
+    #[traced_test]
+    #[allow(clippy::cognitive_complexity)]
+    fn event_report_protocol_warning_policy() {
+        let _lock = PROTOCOL_MODE_TEST_LOCK.lock().expect("poisoned mutex");
+
+        struct RestoreMode(super::ProtocolWarningMode);
+
+        impl Drop for RestoreMode {
+            fn drop(&mut self) {
+                super::set_protocol_warning_mode(self.0);
+            }
+        }
+
+        let original = super::protocol_warning_mode();
+        let _restore = RestoreMode(original);
+
+        let msg_off = "torproto-off-debug";
+        super::set_protocol_warning_mode(super::ProtocolWarningMode::Off);
+        let err = KindError(super::ErrorKind::TorProtocolViolation);
+        debug_report!(err, "{msg_off}");
+
+        let msg_warn = "torproto-warn-promoted";
+        super::set_protocol_warning_mode(super::ProtocolWarningMode::Warn);
+        let err = KindError(super::ErrorKind::TorProtocolViolation);
+        debug_report!(err, "{msg_warn}");
+
+        let msg_internal = "internal-always-warn";
+        super::set_protocol_warning_mode(super::ProtocolWarningMode::Off);
+        let err = KindError(super::ErrorKind::Internal);
+        debug_report!(err, "{msg_internal}");
+
+        let msg_other = "other-kind-stays-debug";
+        super::set_protocol_warning_mode(super::ProtocolWarningMode::Warn);
+        let err = KindError(super::ErrorKind::TorDirectoryUnusable);
+        debug_report!(err, "{msg_other}");
+
+        logs_assert(|lines: &[&str]| {
+            let level_for = |needle: &str| {
+                lines
+                    .iter()
+                    .find(|line| line.contains(needle))
+                    .ok_or_else(|| format!("missing log line containing '{needle}'"))
+                    .and_then(|line| {
+                        line.split_whitespace()
+                            .find(|tok| {
+                                matches!(*tok, "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR")
+                            })
+                            .ok_or_else(|| format!("could not parse level from line: {line}"))
+                    })
+            };
+
+            let msg_off_level = level_for(msg_off)?;
+            if msg_off_level != "DEBUG" {
+                return Err(format!(
+                    "expected DEBUG for '{msg_off}', got {msg_off_level}"
+                ));
+            }
+
+            let msg_warn_level = level_for(msg_warn)?;
+            if msg_warn_level != "WARN" {
+                return Err(format!(
+                    "expected WARN for '{msg_warn}', got {msg_warn_level}"
+                ));
+            }
+
+            let msg_internal_level = level_for(msg_internal)?;
+            if msg_internal_level != "WARN" {
+                return Err(format!(
+                    "expected WARN for '{msg_internal}', got {msg_internal_level}"
+                ));
+            }
+
+            let msg_other_level = level_for(msg_other)?;
+            if msg_other_level != "DEBUG" {
+                return Err(format!(
+                    "expected DEBUG for '{msg_other}', got {msg_other_level}"
+                ));
+            }
+
+            Ok(())
+        });
+    }
 
     #[derive(Error, Debug)]
     #[error("my error")]
