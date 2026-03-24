@@ -151,7 +151,6 @@ async fn connect_to_one<R: Runtime>(
             Err((e, a)) => {
                 // We got a failure on one of the streams. Store the error.
                 // TODO(eta): ideally we'd start the next connection attempt immediately.
-                tor_error::warn_report!(&e, "Connection to {} failed", sv(a));
                 errors.push((e, a));
             }
         }
