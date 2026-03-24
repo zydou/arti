@@ -50,9 +50,15 @@ use std::sync::{self, Arc, Weak};
 use std::time::{Duration, Instant};
 use tor_rtcompat::SpawnExt;
 use tracing::{debug, instrument, trace, warn};
-use weak_table::PtrWeakHashSet;
-
 mod streams;
+
+/// Alias to force use of RandomState, regardless of features enabled in `weak_tables`.
+///
+/// See <https://github.com/tov/weak-table-rs/issues/23> for discussion.
+///
+/// (We could probably get away with a weaker hash function in this case, since
+/// the attacker _probably_ doesn't have control over our pointers.)
+type PtrWeakHashSet<T> = weak_table::PtrWeakHashSet<T, std::hash::RandomState>;
 
 /// Description of how we got a tunnel.
 #[non_exhaustive]

@@ -93,7 +93,11 @@ pub mod macro_prelude {
     pub use std::sync::{Arc, Mutex, Weak};
     pub use tor_error::ErrorReport;
     pub use tracing;
-    pub use weak_table::WeakValueHashMap;
+
+    /// Alias to force use of RandomState, regardless of features enabled in `weak_tables`.
+    ///
+    /// See <https://github.com/tov/weak-table-rs/issues/23> for discussion.
+    pub type WeakValueHashMap<K, V> = weak_table::WeakValueHashMap<K, V, std::hash::RandomState>;
 }
 
 /// A group of events that can be logged singly or in a summary over a period of time.

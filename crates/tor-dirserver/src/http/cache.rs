@@ -12,6 +12,11 @@ use crate::{
     err::DatabaseError,
 };
 
+/// Alias to force use of RandomState, regardless of features enabled in `weak_tables`.
+///
+/// See <https://github.com/tov/weak-table-rs/issues/23> for discussion.
+type WeakValueHash<K, V> = weak_table::WeakValueHashMap<K, V, std::hash::RandomState>;
+
 /// Representation of the store cache.
 ///
 /// The cache serves the purpose to not store the same document multiple times
