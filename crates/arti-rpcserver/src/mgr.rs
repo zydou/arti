@@ -6,13 +6,17 @@ use rand::Rng;
 use rpc::InvalidRpcIdentifier;
 use tor_rpcbase as rpc;
 use tracing::warn;
-use weak_table::WeakValueHashMap;
 
 use crate::{
     RpcAuthentication,
     connection::{Connection, ConnectionId},
     globalid::{GlobalId, MacKey},
 };
+
+/// Alias to force use of RandomState, regardless of features enabled in `weak_tables`.
+///
+/// See <https://github.com/tov/weak-table-rs/issues/23> for discussion.
+type WeakValueHashMap<K, V> = weak_table::WeakValueHashMap<K, V, std::hash::RandomState>;
 
 /// Shared state, configuration, and data for all RPC sessions.
 ///

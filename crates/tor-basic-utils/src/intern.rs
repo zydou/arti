@@ -2,7 +2,11 @@
 
 use std::hash::Hash;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
-use weak_table::WeakHashSet;
+
+/// Alias to force use of RandomState, regardless of features enabled in `weak_tables`.
+///
+/// See <https://github.com/tov/weak-table-rs/issues/23> for discussion.
+type WeakHashSet<T> = weak_table::WeakHashSet<T, std::hash::RandomState>;
 
 /// An InternCache is a lazily-constructed weak set of objects.
 ///
