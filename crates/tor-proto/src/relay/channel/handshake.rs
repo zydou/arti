@@ -2,20 +2,19 @@
 
 use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
-use futures::stream::{Stream, StreamExt};
 use rand::Rng;
 use safelog::Sensitive;
 use std::net::IpAddr;
 use std::{sync::Arc, time::SystemTime};
 use tracing::trace;
 
-use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
-use tor_cell::restrict::{RestrictedMsg, restricted_msg};
+use tor_cell::chancell::msg;
+use tor_cell::restrict::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
+use crate::Result;
 use crate::channel::handshake::{
     AuthLogAction, ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel,
     UnverifiedInitiatorChannel, unauthenticated_clock_skew,
@@ -29,7 +28,6 @@ use crate::relay::channel::responder::{
     UnverifiedResponderRelayChannel,
 };
 use crate::relay::channel::{RelayIdentities, build_certs_cell, build_netinfo_cell};
-use crate::{Error, Result};
 
 /// The "Ed25519-SHA256-RFC5705" link authentication which is value "00 03".
 pub(super) static AUTHTYPE_ED25519_SHA256_RFC5705: u16 = 3;
@@ -325,43 +323,6 @@ impl<
         // handshake. Any duplicates lead to a failure.
         // They must arrive in a specific order in order for the CLOG calculation to be valid.
 
-        /// Read a message from the stream.
-        ///
-        /// The `expecting` parameter is used for logging purposes, not filtering.
-        async fn read_msg<T>(
-            stream_id: UniqId,
-            mut stream: impl Stream<Item = Result<AnyChanCell>> + Unpin,
-        ) -> Result<T>
-        where
-            T: RestrictedMsg + TryFrom<AnyChanMsg, Error = AnyChanMsg>,
-        {
-            let Some(cell) = stream.next().await.transpose()? else {
-                // The entire channel has ended, so nothing else to be done.
-                return Err(Error::HandshakeProto("Stream ended unexpectedly".into()));
-            };
-
-            let (id, m) = cell.into_circid_and_msg();
-            trace!(%stream_id, "received a {} cell", m.cmd());
-
-            // TODO: Maybe also check this in the channel handshake codec?
-            if let Some(id) = id {
-                return Err(Error::HandshakeProto(format!(
-                    "Expected no circ ID for {} cell, but received circ ID of {id} instead",
-                    m.cmd(),
-                )));
-            }
-
-            let m = m.try_into().map_err(|m: AnyChanMsg| {
-                Error::HandshakeProto(format!(
-                    "Expected [{}] cell, but received {} cell instead",
-                    tor_basic_utils::iter_join(", ", T::cmds_for_logging().iter()),
-                    m.cmd(),
-                ))
-            })?;
-
-            Ok(m)
-        }
-
         // Note that the `ChannelFrame` already restricts the messages due to its handshake cell
         // handler.
 
@@ -379,7 +340,12 @@ impl<
                    }
                 }
 
-                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
+                break match crate::channel::handshake::read_msg(
+                    *self.unique_id(),
+                    self.framed_tls(),
+                )
+                .await?
+                {
                     CertsNetinfoMsg::Vpadding(_) => continue,
                     // If a NETINFO cell, the initiator did not authenticate and we can stop early.
                     CertsNetinfoMsg::Netinfo(msg) => {
@@ -403,7 +369,12 @@ impl<
                    }
                 }
 
-                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
+                break match crate::channel::handshake::read_msg(
+                    *self.unique_id(),
+                    self.framed_tls(),
+                )
+                .await?
+                {
                     AuthenticateMsg::Vpadding(_) => continue,
                     AuthenticateMsg::Authenticate(msg) => msg,
                 };
@@ -419,7 +390,12 @@ impl<
                    }
                 }
 
-                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
+                break match crate::channel::handshake::read_msg(
+                    *self.unique_id(),
+                    self.framed_tls(),
+                )
+                .await?
+                {
                     NetinfoMsg::Vpadding(_) => continue,
                     NetinfoMsg::Netinfo(msg) => (msg, coarsetime::Instant::now()),
                 };

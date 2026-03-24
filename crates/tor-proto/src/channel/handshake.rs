@@ -173,43 +173,6 @@ where
         // handshake. Any duplicates lead to a failure.
         // They must arrive in a specific order in order for the SLOG calculation to be valid.
 
-        /// Read a message from the stream.
-        ///
-        /// The `expecting` parameter is used for logging purposes, not filtering.
-        async fn read_msg<T>(
-            stream_id: UniqId,
-            mut stream: impl Stream<Item = Result<AnyChanCell>> + Unpin,
-        ) -> Result<T>
-        where
-            T: RestrictedMsg + TryFrom<AnyChanMsg, Error = AnyChanMsg>,
-        {
-            let Some(cell) = stream.next().await.transpose()? else {
-                // The entire channel has ended, so nothing else to be done.
-                return Err(Error::HandshakeProto("Stream ended unexpectedly".into()));
-            };
-
-            let (id, m) = cell.into_circid_and_msg();
-            trace!(%stream_id, "received a {} cell", m.cmd());
-
-            // TODO: Maybe also check this in the channel handshake codec?
-            if let Some(id) = id {
-                return Err(Error::HandshakeProto(format!(
-                    "Expected no circ ID for {} cell, but received circ ID of {id} instead",
-                    m.cmd(),
-                )));
-            }
-
-            let m = m.try_into().map_err(|m: AnyChanMsg| {
-                Error::HandshakeProto(format!(
-                    "Expected [{}] cell, but received {} cell instead",
-                    tor_basic_utils::iter_join(", ", T::cmds_for_logging().iter()),
-                    m.cmd(),
-                ))
-            })?;
-
-            Ok(m)
-        }
-
         // Note that the `ChannelFrame` already restricts the messages due to its handshake cell
         // handler.
 
@@ -868,6 +831,43 @@ fn build_filtered_chan_target(
     peer_builder
         .build()
         .expect("OwnedChanTarget builder failed")
+}
+
+/// Read a message from the stream.
+///
+/// The `expecting` parameter is used for logging purposes, not filtering.
+pub(crate) async fn read_msg<T>(
+    stream_id: UniqId,
+    mut stream: impl Stream<Item = Result<AnyChanCell>> + Unpin,
+) -> Result<T>
+where
+    T: RestrictedMsg + TryFrom<AnyChanMsg, Error = AnyChanMsg>,
+{
+    let Some(cell) = stream.next().await.transpose()? else {
+        // The entire channel has ended, so nothing else to be done.
+        return Err(Error::HandshakeProto("Stream ended unexpectedly".into()));
+    };
+
+    let (id, m) = cell.into_circid_and_msg();
+    trace!(%stream_id, "received a {} cell", m.cmd());
+
+    // TODO: Maybe also check this in the channel handshake codec?
+    if let Some(id) = id {
+        return Err(Error::HandshakeProto(format!(
+            "Expected no circ ID for {} cell, but received circ ID of {id} instead",
+            m.cmd(),
+        )));
+    }
+
+    let m = m.try_into().map_err(|m: AnyChanMsg| {
+        Error::HandshakeProto(format!(
+            "Expected [{}] cell, but received {} cell instead",
+            tor_basic_utils::iter_join(", ", T::cmds_for_logging().iter()),
+            m.cmd(),
+        ))
+    })?;
+
+    Ok(m)
 }
 
 #[cfg(test)]
