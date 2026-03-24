@@ -60,7 +60,7 @@ pub enum NdiDirectorySignature {
     /// Unknown "hash function" name
     ///
     /// TODO torspec#350;
-    /// might have been an unknown algorithm, or might be invalid hex, or soemthing.
+    /// might have been an unknown algorithm, or might be invalid hex, or something.
     Unknown {},
 }
 define_derive_deftly! {

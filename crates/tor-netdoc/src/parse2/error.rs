@@ -154,7 +154,7 @@ pub enum ErrorProblem {
     /// Base64-encoded Object contains valid base64 specifying invalid data
     #[error("base64-encoded Object contains invalid data")]
     ObjectInvalidData,
-    /// Other parsing proble
+    /// Other parsing problem
     #[error("other problem: {0}")]
     OtherBadDocument(&'static str),
     /// Internal error in document parser

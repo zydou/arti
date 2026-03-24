@@ -154,7 +154,7 @@ impl Forward {
         let mut hops = hop_mgr.hops().write().expect("poisoned lock");
         let decode_res = hops
             .get_mut(hopnum)
-            .ok_or_else(|| internal!("msg from non-existant hop???"))?
+            .ok_or_else(|| internal!("msg from non-existent hop???"))?
             .inbound
             .decode(body.into())?;
 

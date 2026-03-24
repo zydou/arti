@@ -52,7 +52,7 @@ Downloaded and massaged by $0
 From CI data at "$url"
 END
 
-# v3-status-votes is the votes concatenaed, etc.
+# v3-status-votes is the votes concatenated, etc.
 
 split-file () {
     local f=$1

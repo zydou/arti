@@ -140,7 +140,7 @@ enum State {
 /// configuration primitives that stay constant throughout the runtime of the
 /// program, such as the [`ConsensusFlavor`], the [`AuthorityContacts`], and the
 /// [`DirTolerance`].  It can be kept throughout the entire runtime and only
-/// consists for convience in order to not give each state machine related
+/// consists for convenience in order to not give each state machine related
 /// (then static) method a super long signature containing these fields.
 ///
 /// The state itself is computed fully deterministically from the data found
@@ -169,7 +169,7 @@ struct StaticEngine {
     rt: PreferredRuntime,
 }
 
-/// Additional state machine data concering a single consensus.
+/// Additional state machine data concerning a single consensus.
 ///
 /// This enum stores and keeps track of the consensus we are serving and in
 /// which ✨state✨ it is currently in, such as whether it is verified or not,
@@ -277,7 +277,7 @@ impl StaticEngine {
             // ConsensusBoundData::None means that we currently have no
             // consensus in memory.  This may be the case because we just
             // started up or because we just downloaded, validated, and inserted
-            // a consensus into the database and resetted ConsensusBoundData to
+            // a consensus into the database and reset ConsensusBoundData to
             // None afterwards.
             ConsensusBoundData::None => {
                 // Check whether there is a valid consensus in the database at all.
@@ -583,7 +583,7 @@ impl StaticEngine {
                     sk_fingerprint: unverified_body.dir_signing_key.to_rsa_identity(),
                 };
 
-                // Skip certficates we did not asked for.
+                // Skip certificates we did not asked for.
                 //
                 // Not much of an issue because certificate verification will
                 // usually fail anyways, except for this weird edge-case where we

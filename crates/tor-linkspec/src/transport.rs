@@ -672,7 +672,7 @@ impl ChannelMethod {
     /// channel handshake on which we need the actual peer address we are connected to and not all
     /// the possibilities.
     ///
-    /// When connecting or accepting, that addres is put in the OwnedChanTarget and so this
+    /// When connecting or accepting, that address is put in the OwnedChanTarget and so this
     /// extracts it.
     pub fn unique_direct_addr(&self) -> Option<SocketAddr> {
         match self {

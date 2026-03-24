@@ -98,7 +98,7 @@ The following provides a basic comparison on *oniux* vs. *torsocks*:
 
 *oniux* works by immediately spawning a child process using the `clone(2)`
 system call, which is isolated in its own network, mount, PID, and user
-namespace.  This proces then mounts its own copy of `/proc` followed by UID and
+namespace.  This process then mounts its own copy of `/proc` followed by UID and
 GID mappings to the respective UID and GID of the parent process.
 
 Afterwards, it creates a temporary file with nameserver entries which will then

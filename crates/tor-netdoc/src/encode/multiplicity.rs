@@ -183,7 +183,7 @@ pub trait OptionalityMethods: Copy + Sized {
     /// The input type: the type of the field in the item struct.
     type Field: Sized;
 
-    /// Yield the elemnet, if there is one
+    /// Yield the element, if there is one
     fn as_option<'f>(self, f: &'f Self::Field) -> Option<&'f Self::Each>;
 }
 impl<T: 'static> OptionalityMethods for MultiplicitySelector<Option<T>> {

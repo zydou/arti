@@ -387,7 +387,7 @@ impl RpcConnBuilder {
     /// Once you have received an RpcPoll from this function,
     /// you _must_ honour the methods on [`EventLoop`]
     /// and call [`RpcPoll::poll()`] as documented;
-    /// otherwise, no requests--even those crated with `execute` methods--will receive responses.
+    /// otherwise, no requests--even those created with `execute` methods--will receive responses.
     ///
     /// [`EventLoop`]: crate::EventLoop
     pub fn connect_polling(

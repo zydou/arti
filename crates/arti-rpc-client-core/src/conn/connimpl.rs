@@ -871,7 +871,7 @@ impl RpcPoll {
     /// This method reads and writes data from the RPC server,
     /// until either:
     ///
-    ///   * A response is available to a request crated with [`RpcConn::submit`];
+    ///   * A response is available to a request created with [`RpcConn::submit`];
     ///     in which case, `RpcPoll::poll` returns that response.
     ///
     ///   * No further progress can be made without blocking;

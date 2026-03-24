@@ -154,7 +154,7 @@ We ensure that all control cells are exempt from blocking at the client-side
 machines by defining blocking to operate only on the packaging of DATA cells
 in the [Blocking for Client-side Machines](#blocking-for-client-side-machines).
 
-We ensure that critical circuit-setup control cells are not delayed relay-side, by requring
+We ensure that critical circuit-setup control cells are not delayed relay-side, by requiring
 that relay-side machines MUST NOT block while the usage of RELAY_EARLY cells is ongoing,
 in the [Blocking for Relay-side Machines](#blocking-for-relay-side-machines) section.
 
@@ -165,7 +165,7 @@ between padding machines and congestion control. Padding machine induced blockin
 is NOT a congestion signal to the congestion control system (unlike TLS-induced blocking,
 which is such a signal).
 
-Addtionally, we do not have *any* interaction between padding and congestion control at
+Additionally, we do not have *any* interaction between padding and congestion control at
 client-side machines, because our [Client-side Blocking Design](#blocking-for-client-side-machines)
 only operates on the packaging of DATA cells from streams. With this design, client-side blocking
 is always safe to use, because blocking at this point only causes _local pushback_ on streams,

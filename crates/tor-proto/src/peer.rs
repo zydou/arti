@@ -48,7 +48,7 @@ impl PeerAddr {
 
     /// Return the socket address of this peer.
     ///
-    /// None means that this is a PT and doesn't use an internet addres. One example is it uses a
+    /// None means that this is a PT and doesn't use an internet address. One example is it uses a
     /// hostname.
     pub fn socket_addr(&self) -> Option<SocketAddr> {
         match self {

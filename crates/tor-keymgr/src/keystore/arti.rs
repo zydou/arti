@@ -810,7 +810,7 @@ mod tests {
         let entries = key_store.list().unwrap();
 
         // Remove valid entry
-        let vaild_spcifier = entries
+        let valid_specifier = entries
             .iter()
             .find_map(|res| {
                 let Ok(entry) = res else {
@@ -830,7 +830,9 @@ mod tests {
                 }
             })
             .unwrap();
-        key_store.remove_unchecked(vaild_spcifier.raw_id()).unwrap();
+        key_store
+            .remove_unchecked(valid_specifier.raw_id())
+            .unwrap();
         let entries = key_store.list().unwrap();
         // Assert no valid entries are encountered
         assert!(

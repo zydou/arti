@@ -16,7 +16,7 @@ as a foundation to build on.
 Basic idea is that we want the arti-relay binary to spawn any reactor/tasks and
 join its handles. On failure, it can check if transient error or fatal and
 attempt a recovery or not. Any of these tasks dying means we have a
-malfunctionning relay and we have to stop the relay or possibly take actions.
+malfunctioning relay and we have to stop the relay or possibly take actions.
 
 ## Glossary
 
@@ -38,7 +38,7 @@ design from C-tor.
 
 ## Tasks
 
-Bellow are the catalogued tasks from C-tor which will translate to either a
+Below are the catalogued tasks from C-tor which will translate to either a
 task or rector in arti relay.
 
 1. Circuit Tasks
@@ -47,7 +47,7 @@ task or rector in arti relay.
     -> Expire non origin circuits that have no streams and been opened for too long.
 
   This logic should be in the circuit reactor itself. With a timer, it should
-  wake up and regurlarly check if it has existed for a long time without
+  wake up and regularly check if it has existed for a long time without
   streams. If so, auto shutdown.
 
   Hence, no background task needed here, logic is pushed into the circuit
@@ -66,7 +66,7 @@ task or rector in arti relay.
        removing dead descriptors.
 
   There are many tasks related to directory and they are critical to a well
-  functionning relay so we propose to use a "Reactor" concept as it would need a
+  functioning relay so we propose to use a "Reactor" concept as it would need a
   communication channel to receive commands. For example, a command to rebuild a
   new descriptor coming from other subsystems such as key rotation task.
 
@@ -104,7 +104,7 @@ task or rector in arti relay.
 
   We also need to synchronize all these tasks in order to have a single rebuild
   descriptor request made to the directory reactor (2) so to avoid all
-  independant tasks to trigger such rebuild. Rebuld and upload are expensive.
+  independent tasks to trigger such rebuild. Rebuild and upload are expensive.
   We might require a rate limit approach like onion service publisher has. Or a
   grace period before uploading. Uncertain.
 
@@ -124,7 +124,7 @@ task or rector in arti relay.
     -> Emit warnings (log, RPC) on reachability failure.
 
   This should be a "background task" on its own as it really lives by itself.
-  It simply regurlarly checks if the relay is reachable (timer base). The
+  It simply regularly checks if the relay is reachable (timer base). The
   likely design we discussed is that this task will control if the directory
   reactor (2) can or not publish.
 
@@ -181,7 +181,7 @@ task or rector in arti relay.
 
   This could be a "background task" but requires read access to a lot of history.
 
-  This goes back to the famous possible "global state" mentionned at the
+  This goes back to the famous possible "global state" mentioned at the
   beginning. As we start designing our stats and history (7), we'll know more
   on how to proceed with this task so at the moment, this is low priority.
   Still many open questions.

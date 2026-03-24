@@ -259,7 +259,7 @@ pub trait ArgumentSetMethods: Copy + Sized {
     /// The output type: the type of the field in the Item struct.
     ///
     /// This is *not* the type of an individual netdoc argument;
-    /// that is not explicity represented in the trait.
+    /// that is not explicitly represented in the trait.
     type Field: Sized;
 
     /// Parse zero or more argument(s) into `Self::Field`.

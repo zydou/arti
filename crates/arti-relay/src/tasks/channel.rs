@@ -1,7 +1,7 @@
 //! Channel tasks of the arti-relay.
 //!
 //! The tasks are:
-//!     * [`ChannelHouseKeepingTask`] which is in charge of regurlarly going over existing channels
+//!     * [`ChannelHouseKeepingTask`] which is in charge of regularly going over existing channels
 //!       to clean up expiring ones and prune duplicates. At the start, it will run in
 //!       [`ChannelHouseKeepingTask::START_TICK_TIME`] seconds and then the channel expiry function
 //!       tells it how much time to sleep.

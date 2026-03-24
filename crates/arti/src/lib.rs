@@ -241,7 +241,7 @@ where
 
     // Configure tor-log-ratelim early before we begin logging.
     tor_log_ratelim::install_runtime(runtime.clone())
-        .context("Failed to initialze tor-log-ratelim")?;
+        .context("Failed to initialize tor-log-ratelim")?;
 
     // Use the runtime's `Debug` impl to describe it for the version string.
     let features = list_enabled_features();

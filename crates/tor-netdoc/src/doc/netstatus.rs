@@ -291,7 +291,7 @@ pub mod consensus_methods_comma_separated {
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:params>
 ///
 /// The same syntax is also used, and this type used for parsing, in various other places,
-/// for example routerstatus entry `w` items (bandwith weights):
+/// for example routerstatus entry `w` items (bandwidth weights):
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct NetParams<T> {

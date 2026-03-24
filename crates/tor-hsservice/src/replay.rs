@@ -356,7 +356,7 @@ pub(crate) enum ReplayError {
     Log(Arc<std::io::Error>),
 }
 
-/// Error occured while opening replay log.
+/// Error occurred while opening replay log.
 #[derive(thiserror::Error, Clone, Debug)]
 #[error("unable to open replay log: {file:?}")]
 pub struct OpenReplayLogError {

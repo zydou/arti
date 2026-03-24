@@ -673,7 +673,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
     fn check_solve(self: &Arc<Self>, solve: &ProofOfWorkV1) -> Result<(), PowSolveError> {
         // Note that we put the nonce into the replay log before we check the solve. While this
         // might not be ideal, it's not a problem and is probably the most reasonable thing to do.
-        // See commit bc5b313028 for a more full explaination.
+        // See commit bc5b313028 for a more full explanation.
         {
             let state = self.0.write().expect("Lock poisoned");
             let mut replay_log = match state.verifiers.get(&solve.seed_head()) {
@@ -1036,7 +1036,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         inner.total_effort = 0;
     }
 
-    /// Loop to accept message from the wrapped [`mpsc::Receiver`], validate PoW sovles, and
+    /// Loop to accept message from the wrapped [`mpsc::Receiver`], validate PoW solves, and
     /// enqueue onto the priority queue.
     #[allow(clippy::cognitive_complexity)]
     fn accept_loop<P: MockablePowManager>(
@@ -1138,7 +1138,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                             inner.total_effort = total_effort;
                         } else {
                             tracing::warn!(
-                                "PoW total_effort would overflow. The total effort has been capped, but this is not expected to happen - please file a bug report with logs and information about the circumstances under which this occured."
+                                "PoW total_effort would overflow. The total effort has been capped, but this is not expected to happen - please file a bug report with logs and information about the circumstances under which this occurred."
                             );
                             inner.total_effort = u64::MAX;
                         }

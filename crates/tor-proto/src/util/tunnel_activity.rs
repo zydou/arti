@@ -42,7 +42,7 @@ pub(crate) struct TunnelActivity {
 ///
 /// This is a separate type to keep it private.
 //
-// NOTE: Don't re-order these: we rely on the speicific behavior of
+// NOTE: Don't re-order these: we rely on the specific behavior of
 // derive(PartialOrd) in order to get the behavior we want.
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 enum Inner {

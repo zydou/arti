@@ -564,7 +564,7 @@ define_derive_deftly! {
     /// * **`#[deftly(netdoc(subdoc))]`**:
     ///
     ///   This field is a sub-document.
-    ///   The value type `T` must implment [`NetdocParseable`]
+    ///   The value type `T` must implement [`NetdocParseable`]
     ///   *instead of* `ItemValueParseable`.
     ///
     ///   The field name is not used for parsging;
@@ -1157,7 +1157,7 @@ define_derive_deftly! {
     ///
     /// * **`#[deftly(netdoc(debug))]`**:
     ///
-    ///   Currently implemented only as a placeholde
+    ///   Currently implemented only as a placeholder
     ///
     ///   The generated implementation may in future generate copious debug output
     ///   to the program's stderr when it is run.

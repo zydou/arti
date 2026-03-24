@@ -100,8 +100,8 @@ impl DirMirror {
     /// # Notes
     ///
     /// **Beware of [`DirTolerance::default()`]!**, as the default values are
-    /// inteded for clients, not directory mirrors.  Tolerances of several days
-    /// are not recommened for directory mirrors.  Consider using something in
+    /// intended for clients, not directory mirrors.  Tolerances of several days
+    /// are not recommended for directory mirrors.  Consider using something in
     /// the minute range instead, such as `60s`, which is what ctor uses.[^1]
     ///
     /// TODO DIRMIRROR: This is unacceptable for the actual release.  We **NEED**
