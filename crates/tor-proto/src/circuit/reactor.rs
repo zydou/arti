@@ -591,9 +591,9 @@ pub(crate) mod test {
         }
     }
 
-    #[cfg(feature = "hs-service")]
+    #[cfg(any(feature = "hs-service", feature = "relay"))]
     pub(crate) struct AllowAllStreamsFilter;
-    #[cfg(feature = "hs-service")]
+    #[cfg(any(feature = "hs-service", feature = "relay"))]
     impl IncomingStreamRequestFilter for AllowAllStreamsFilter {
         fn disposition(
             &mut self,
