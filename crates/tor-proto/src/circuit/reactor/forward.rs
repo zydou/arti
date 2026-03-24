@@ -341,7 +341,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         let mut hops = self.hop_mgr.hops().write().expect("poisoned lock");
         let hop = hops
             .get_mut(hopnum)
-            .ok_or_else(|| internal!("msg from non-existant hop???"))?;
+            .ok_or_else(|| internal!("msg from non-existent hop???"))?;
 
         // Check whether we are allowed to receive more data for this circuit hop.
         hop.inbound.decrement_cell_limit()?;

@@ -122,7 +122,7 @@ impl ItemArgumentParseable for NdaNetworkStatusVersionFlavour {
     }
 }
 
-/// The document type argumnet in `vote-status`
+/// The document type argument in `vote-status`
 const NDA_VOTE_STATUS: &str = ns_expr!("vote", "consensus", "consensus");
 
 impl FromStr for NdaVoteStatus {

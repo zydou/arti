@@ -779,7 +779,7 @@ mod edcert {
     }
 }
 
-/// Digest identifeirs, and digests in the form `ALGORITHM=BASE64U`
+/// Digest identifiers, and digests in the form `ALGORITHM=BASE64U`
 ///
 /// As found in a vote's `m` line.
 mod identified_digest {
@@ -874,7 +874,7 @@ mod identified_digest {
 
     /// Invalid syntax parsing an `IdentifiedDigest`
     #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, thiserror::Error)]
-    #[error("invalid syntax, espected ALGORITHM=DIGEST: {0}")]
+    #[error("invalid syntax, expected ALGORITHM=DIGEST: {0}")]
     pub struct IdentifiedDigestParseError(String);
 
     impl FromStr for IdentifiedDigest {

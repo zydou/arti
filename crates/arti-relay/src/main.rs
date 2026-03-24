@@ -206,7 +206,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
 
         // Configure tor-log-ratelim early before we begin logging.
         tor_log_ratelim::install_runtime(runtime.clone())
-            .context("Failed to initialze tor-log-ratelim")?;
+            .context("Failed to initialize tor-log-ratelim")?;
 
         let path_resolver = base_resolver();
         let relay =

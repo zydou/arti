@@ -310,7 +310,7 @@ impl futures_codec::Decoder for NewChannelHandler {
             recv_log.update(&data);
         }
 
-        // Get the actual boddy from the data.
+        // Get the actual body from the data.
         let body = data.split_off(HEADER_SIZE).freeze();
         let mut reader = Reader::from_bytes(&body);
 

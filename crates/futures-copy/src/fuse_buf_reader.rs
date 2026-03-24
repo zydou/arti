@@ -30,7 +30,7 @@ use crate::arc_io_result::ArcIoResult;
 #[derive(Debug)]
 #[pin_project]
 pub(crate) struct FuseBufReader<R> {
-    /// The inner reader that we're wraping.
+    /// The inner reader that we're wrapping.
     #[pin]
     inner: R,
 

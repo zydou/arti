@@ -116,7 +116,7 @@ pub(super) const CTOR_KEYSTORE5_PATH: &str =
 
 /// Path to a state directory containing a fully populated Arti native keystore.
 ///
-/// The keystore contains two vaild restricted service discovery keys.
+/// The keystore contains two valid restricted service discovery keys.
 pub(super) const KEYSTORE_PATH: &str = "./tests/testcases/hsc-extra/hsc.in/local/state-dir";
 
 /// ID that will be assigned to the C Tor keystore in every test for `hsc ctor-migrate`.

@@ -101,7 +101,7 @@ inter-component channels to buffer is because it is simpler to keep
 all the buffering layers at the "edge" of the reactor
 (i.e. at the `chan_sender` sinks, `StreamQueueSender`, etc.).
 That way, blocking (for example due to an outbound MPSC channel being full)
-can only be initiated by these egdes, and not by the intermediate MPSC channels.
+can only be initiated by these edges, and not by the intermediate MPSC channels.
 
 > Note: eventually, we might want non-zero amounts of buffering on the
 > inner MPSC channels for performance reasons.
@@ -401,7 +401,7 @@ will never get initialized with an outgoing Tor channel.
 The only responsibility of this reactor will be to read cells coming from the guard,
 and forward them either to `BWD` (in the case of circuit-level SENDMEs),
 or to the stream data `Sink` (connected either to `StreamReactor`, for
-single-path cirucits, or `ConfluxController`, for the multi-path ones).
+single-path circuits, or `ConfluxController`, for the multi-path ones).
 The `BWD` will write cells to the (Tor) channel to the guard.
 
 > At this point, it's obvious `FWD` and `BWD` have become misnomers:

@@ -185,7 +185,7 @@ define_derive_deftly! {
     impl $ttype {
         // TODO(conflux)
         //
-        // As we add multi path support accross the code, we'll might need or not some specific
+        // As we add multi path support across the code, we'll might need or not some specific
         // functions that would go here.
     }
 }

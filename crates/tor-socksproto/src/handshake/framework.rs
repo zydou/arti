@@ -186,7 +186,7 @@ impl<'b, O> Finished<'b, O, PreciseReads> {
 impl<'b, O, P: ReadPrecision> Finished<'b, O, P> {
     /// Return the output, and the following already-read data as a slice
     ///
-    /// (After callin gthis, the following already-read data
+    /// (After calling this, the following already-read data
     /// will no longer be in the `Buffer`.)
     pub fn into_output_and_slice(self) -> (O, &'b [u8]) {
         let filled = mem::take(&mut self.buffer.filled);

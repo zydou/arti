@@ -1,6 +1,6 @@
 //! This contains restricted message sets namespaced by link protocol version.
 //!
-//! In other words, each protocl version define sets of possible messages depending on the channel
+//! In other words, each protocol version define sets of possible messages depending on the channel
 //! type as in client or relay and initiator or responder.
 //!
 //! This module also defines [`MessageFilter`] which can be used to filter messages based on

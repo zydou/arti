@@ -262,7 +262,7 @@ where
 /// but where the certs have not been checked.
 ///
 /// Both relay and client have specialized objects for an unverified channel which include this one
-/// as the base in order to share functionnalities.
+/// as the base in order to share functionalities.
 pub(crate) struct UnverifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
@@ -312,7 +312,7 @@ pub(crate) struct UnverifiedInitiatorChannel<
 /// CPU, and you might want to do it as a separate task or after a yield.
 ///
 /// Both relay and client have specialized objects for an unverified channel which include this one
-/// as the base in order to share functionnalities.
+/// as the base in order to share functionalities.
 pub(crate) struct VerifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,

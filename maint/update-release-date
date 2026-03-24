@@ -31,7 +31,7 @@ DATE_RE = re.compile(r"const ARTI_CLIENT_RELEASE_DATE: &str = \"([-\d]*)\";")
 def check_date(filename: Path, date: time.struct_time, tolerance: int):
     contents = filename.open("r").read()
     if not contents.startswith(WARNING_TEXT):
-        print(f"{filename} does not start with our usual warning. Not proceding.")
+        print(f"{filename} does not start with our usual warning. Not proceeding.")
         sys.exit(1)
 
     m = DATE_RE.search(contents)
@@ -53,7 +53,7 @@ def check_date(filename: Path, date: time.struct_time, tolerance: int):
 def update_date(filename: Path, date: time.struct_time):
     contents = filename.open("r").read()
     if not contents.startswith(WARNING_TEXT):
-        print(f"{filename} does not start with our usual warning. Not proceding.")
+        print(f"{filename} does not start with our usual warning. Not proceeding.")
         sys.exit(1)
 
     date_text = time.strftime("%Y-%m-%d", date)
@@ -108,7 +108,7 @@ def run():
         filename = Path(args.filename)
 
     if not filename.is_file():
-        print(f"{filename} does not exist; not proceding")
+        print(f"{filename} does not exist; not proceeding")
         sys.exit(1)
 
     if check_only:

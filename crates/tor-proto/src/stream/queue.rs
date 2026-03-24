@@ -61,7 +61,7 @@ pub(crate) fn stream_queue(
     ))
 }
 
-/// For testing purposes, create a stream queue wth a no-op memquota account and a fake time
+/// For testing purposes, create a stream queue with a no-op memquota account and a fake time
 /// provider.
 #[cfg(test)]
 pub(crate) fn fake_stream_queue(

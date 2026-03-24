@@ -37,7 +37,7 @@ impl WebHandler {
 
         // Default path.
         Ok(Response::builder().status(StatusCode::OK).body(format!(
-            "You have succesfully reached your onion service served by Arti and hyper.\n\nYour request:\n\n{} {}",
+            "You have successfully reached your onion service served by Arti and hyper.\n\nYour request:\n\n{} {}",
             request.method(),
             path
         ))?)

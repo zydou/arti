@@ -88,7 +88,7 @@ PRAGMA busy_timeout=1000;
 "
 );
 
-/// Convience macro for implementing a hash type in a rusqlite compatible fashion.
+/// Convenience macro for implementing a hash type in a rusqlite compatible fashion.
 ///
 /// This macro accepts the following parameters:
 /// 1. `name` for specifying an identifier of the type, such as [`Sha256`].
@@ -209,16 +209,16 @@ pub(crate) enum ContentEncoding {
 /// This type can be safely converted from and into a [`SystemTime`], because
 /// it is just a wrapper type.
 ///
-/// # Saturating Artihmetic
+/// # Saturating Arithmetic
 ///
 /// This type implements [`Add`] and [`Sub`] for [`Duration`] and [`Timestamp`]
-/// ([`Sub`] only) using saturating artihmetic from the [`saturating_time`]
+/// ([`Sub`] only) using saturating arithmetic from the [`saturating_time`]
 /// crate.  It means that addition and subtraction can be safely performed
 /// without the potential risk of an unexpected panic, instead wrapping to
 /// a local maximum/minimum or [`Duration::ZERO`] depending on the type.
 ///
 /// Note that we don't provide a saturating version of [`Duration`], so addition
-/// or substraction of two [`Duration`]s still needs care to avoid panics.
+/// or subtraction of two [`Duration`]s still needs care to avoid panics.
 ///
 /// # SQLite Interaction
 ///
@@ -570,7 +570,7 @@ impl AuthCertMeta {
         //
         // This query selects the most recent timestamp valid certificate from
         // the database for a single given key pair.  It means that this query
-        // has to be executed as many times as there are entires in
+        // has to be executed as many times as there are entries in
         // `signatories`.
         //
         // Unfortunately, there is no neater way to do this, because the
@@ -723,7 +723,7 @@ pub(crate) use sql;
 /// SQLite database.  In WAL, opening a database might acquire an exclusive lock
 /// for a very short amount of time, in order to perform clean-up from previous
 /// connections alongside other tasks for maintaining database integrity?  This
-/// means, that opening multiple SQLite databases simultanously will result in
+/// means, that opening multiple SQLite databases simultaneously will result in
 /// a busy error regardless of a busy handler, as setting a busy handler will
 /// require an existing connection, something we are unable to obtain in the
 /// first place.
@@ -798,8 +798,8 @@ pub(crate) fn open<P: AsRef<Path>>(
 ///
 /// **The closure shall not perform write operations!**
 /// Not only do they get rolled back anyways, but upgrading the [`Transaction`]
-/// from a read to a write transaction will lead to other simultanous write upgrades
-/// to fail.  Unfortunately, there is no real programatic way to ensure this.
+/// from a read to a write transaction will lead to other simultaneous write upgrades
+/// to fail.  Unfortunately, there is no real programmatic way to ensure this.
 pub(crate) fn read_tx<U, F>(pool: &Pool<SqliteConnectionManager>, op: F) -> Result<U, DatabaseError>
 where
     F: FnOnce(&Transaction<'_>) -> U,

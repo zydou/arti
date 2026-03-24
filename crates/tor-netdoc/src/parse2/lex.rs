@@ -379,7 +379,7 @@ impl<'s> UnparsedItem<'s> {
         }
         Ok(())
     }
-    /// Convenience method for handling an error parsing an arguemnt
+    /// Convenience method for handling an error parsing an argument
     ///
     /// Returns a closure that converts every error into [`ArgumentError::Invalid`]
     /// and then to an [`ErrorProblem`] using
@@ -429,7 +429,7 @@ impl<'s> ArgumentStream<'s> {
         }
     }
 
-    /// Consume this whole `ArgumnetStream`, giving the remaining arguments as a string
+    /// Consume this whole `ArgumentStream`, giving the remaining arguments as a string
     ///
     /// The returned string won't start with whitespace.
     //
@@ -440,7 +440,7 @@ impl<'s> ArgumentStream<'s> {
         mem::take(&mut self.rest)
     }
 
-    /// Return the component parts of this `ArgumnetStream`
+    /// Return the component parts of this `ArgumentStream`
     ///
     /// The returned string might start with whitespace.
     pub fn whole_line_len(&self) -> usize {

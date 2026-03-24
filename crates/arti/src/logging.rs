@@ -167,7 +167,7 @@ pub(crate) struct OpentelemetryHttpExporterConfig {
     /// Timeout for sending data.
     ///
     /// If this is set to [`None`], it will be left at the OpenTelemetry default, which is
-    /// currently 10 seconds unless overrided with a environment variable.
+    /// currently 10 seconds unless overridden with a environment variable.
     //
     // NOTE: there is no way to actually override this with None, so we have to say
     // "no magic" to tell dd(TorConfig) not to worry about that.

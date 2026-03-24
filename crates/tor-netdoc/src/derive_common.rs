@@ -223,7 +223,7 @@ define_derive_deftly_module! {
     ${define DOC_DEBUG_PLACEHOLDER {
         /// * **`#[deftly(netdoc(debug))]`**:
         ///
-        ///   Currently implemented only as a placeholde
+        ///   Currently implemented only as a placeholder
         ///
         ///   The generated implementation may in future generate copious debug output
         ///   to the program's stderr when it is run.

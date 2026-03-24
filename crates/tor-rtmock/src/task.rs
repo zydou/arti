@@ -968,7 +968,7 @@ impl MockExecutor {
                 break r;
             }
 
-            // Pending.  Switch back to the exeuctor thread.
+            // Pending.  Switch back to the executor thread.
             // When the future becomes ready, the Waker will be woken, waking the task,
             // so that the executor will "poll" us again.
             trace!("MockExecutor thread {id:?}, s.t._block_on_future poll -> Pending");

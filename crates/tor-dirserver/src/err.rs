@@ -67,7 +67,7 @@ impl IsFatal for AuthorityRequestError {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum DatabaseError {
-    /// A low-level SQLite error has occurred, which can have a bascially
+    /// A low-level SQLite error has occurred, which can have a basically
     /// infinite amount of reasons, all of them outlined in the actual SQLite
     /// and [`rusqlite`] documentation.
     #[error("low-level rusqlite error: {0}")]
@@ -81,7 +81,7 @@ pub(crate) enum DatabaseError {
     /// In the latter case we actually initialize the database, whereas in the
     /// previous one, we fail early in order to not corrupt an existing database.
     /// Future versions of this crate should continue with this promise in order
-    /// to ensure forward compatability.
+    /// to ensure forward compatibility.
     #[error("incompatible schema version: {version}")]
     IncompatibleSchema {
         /// The incompatible schema version found in the database.

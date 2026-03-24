@@ -46,7 +46,7 @@
 //!   they are correctly removed during migration.
 //! - `unrecognized-path` and `unrecognized-entry` are included to verify that
 //!   the migration process does not remove them. Form more information about unrecognized entries
-//!   and paths see [keys list documention](../../../../doc/keys.md).
+//!   and paths see [keys list documentation](../../../../doc/keys.md).
 
 use crate::hss::util::{
     ARTI_KEYSTORE_POPULATION, CFG_CTOR_PATH, CFG_PATH, CTorMigrateCmd, EXPECTED_ID_KEY_PATH,

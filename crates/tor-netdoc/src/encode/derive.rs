@@ -37,7 +37,7 @@ define_derive_deftly_module! {
 
     ${define P { $crate::encode }}
 
-    // Suffix for error handling - specifically to add field informaton.
+    // Suffix for error handling - specifically to add field information.
     //
     // Usage:
     //    some_function().$BUG_CONTEXT?;
@@ -223,7 +223,7 @@ define_derive_deftly! {
     /// * **`#[deftly(netdoc(subdoc))]`**:
     ///
     ///   This field is a sub-document.
-    ///   The value type `T` must implment [`NetdocEncodable`]
+    ///   The value type `T` must implement [`NetdocEncodable`]
     ///   *instead of* `ItemValueEncodable`.
     ///
     ///   The field name is not used for parsging;

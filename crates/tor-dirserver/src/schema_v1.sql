@@ -139,7 +139,7 @@ CREATE TABLE consensus_router_descriptor_member(
     -- without signatures.
     --
     -- This is required to query/check server descriptors and micro descriptors.
-    -- Unfortuantely, server descriptors use SHA-1 exclusively whereas
+    -- Unfortunately, server descriptors use SHA-1 exclusively whereas
     -- micro descriptors use SHA-2 exclusively.  We compute and store both
     -- although that would not be required.  Unfortunately, SQL does not offer
     -- a nicer way to model this.  Storing either 40 or 64 bytes and deciding

@@ -73,7 +73,7 @@ type EndpointFn = fn(
 /// A type that implements [`Body`] for a list of [`Arc<[u8]>`] data.
 ///
 /// This is required because we use the reference counts as first-level return
-/// types in order to avoid duplicate entires of the same data in memory.
+/// types in order to avoid duplicate entries of the same data in memory.
 /// See the documentation of [`StoreCache`] for more information on that.
 struct DocumentBody(VecDeque<Arc<[u8]>>);
 
@@ -144,7 +144,7 @@ impl HttpServer {
     ///
     /// This function does not fail, because all errors that could potentially
     /// occur, occur in further sub-tasks spawned by it and handled appropriately,
-    /// that is ususally logging the error and continuing the exeuction.
+    /// that is usually logging the error and continuing the execution.
     #[allow(clippy::cognitive_complexity)]
     pub(crate) async fn serve<I, S, E>(self, mut listener: I) -> Result<(), tor_error::Bug>
     where

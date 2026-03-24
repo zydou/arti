@@ -19,7 +19,7 @@ use super::*;
 // https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc
 //
 // The document digest moves about, and vote `m` items are even more exciting.
-// This is for the benefit of the `with` annotations for theses two fields:
+// This is for the benefit of the `with` annotations for these two fields:
 //
 //  RouterStatus.r.doc_digest aka RouterStatusIntroItem.doc_digest
 //  RouterStatus.m

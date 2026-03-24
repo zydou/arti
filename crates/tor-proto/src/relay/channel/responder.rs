@@ -27,7 +27,7 @@ use crate::{
     relay::channel::ChannelAuthenticationData,
 };
 
-/// An enum combining both the possibility of a verifable (relay) or non verifiable channel
+/// An enum combining both the possibility of a verifiable (relay) or non verifiable channel
 /// (client/bridge).
 #[allow(clippy::exhaustive_enums)]
 pub enum MaybeVerifiableRelayResponderChannel<
