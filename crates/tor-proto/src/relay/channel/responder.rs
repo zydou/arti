@@ -19,7 +19,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 use web_time_compat::{SystemTime, SystemTimeExt};
 
 use crate::{
-    ClockSkew, Error, RelayIdentities, Result,
+    ClockSkew, Error, RelayChannelAuthMaterial, Result,
     channel::{
         AuthLogDigest, Channel, Reactor,
         handshake::{UnverifiedChannel, VerifiedChannel},
@@ -74,8 +74,8 @@ pub struct UnverifiedResponderRelayChannel<
     pub(crate) netinfo_cell: msg::Netinfo,
     /// The [`msg::Certs`] cell received from the initiator.
     pub(crate) certs_cell: msg::Certs,
-    /// Our identity keys needed for authentication.
-    pub(crate) identities: Arc<RelayIdentities>,
+    /// Our authentication key material.
+    pub(crate) auth_material: Arc<RelayChannelAuthMaterial>,
     /// Our advertised addresses.
     pub(crate) my_addrs: Vec<IpAddr>,
     /// The peer address which we know is a relay.
@@ -128,7 +128,7 @@ where
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedResponderRelayChannel<T, S>> {
         // Get these object out as we consume "self" in the inner check().
-        let identities = self.identities;
+        let identities = self.auth_material;
         let peer_netinfo_cell = self.netinfo_cell;
         let peer_auth_cell = self.auth_cell;
         let my_addrs = self.my_addrs;

@@ -27,7 +27,7 @@ use crate::relay::channel::responder::{
     MaybeVerifiableRelayResponderChannel, NonVerifiableResponderRelayChannel,
     UnverifiedResponderRelayChannel,
 };
-use crate::relay::channel::{RelayIdentities, build_certs_cell, build_netinfo_cell};
+use crate::relay::channel::{RelayChannelAuthMaterial, build_certs_cell, build_netinfo_cell};
 
 /// The "Ed25519-SHA256-RFC5705" link authentication which is value "00 03".
 pub(super) static AUTHTYPE_ED25519_SHA256_RFC5705: u16 = 3;
@@ -49,7 +49,7 @@ pub struct RelayInitiatorHandshake<
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
     /// Our identity keys needed for authentication.
-    identities: Arc<RelayIdentities>,
+    auth_material: Arc<RelayChannelAuthMaterial>,
     /// The peer we are attempting to connect to.
     target_method: ChannelMethod,
     /// Our advertised addresses. Needed for the NETINFO.
@@ -87,7 +87,7 @@ impl<
     pub(crate) fn new(
         tls: T,
         sleep_prov: S,
-        identities: Arc<RelayIdentities>,
+        auth_material: Arc<RelayChannelAuthMaterial>,
         my_addrs: Vec<IpAddr>,
         peer_target: &OwnedChanTarget,
         memquota: ChannelAccount,
@@ -96,7 +96,7 @@ impl<
             framed_tls: new_frame(tls, ChannelType::RelayInitiator),
             unique_id: UniqId::new(),
             sleep_prov,
-            identities,
+            auth_material,
             memquota,
             my_addrs,
             target_method: peer_target.chan_method(),
@@ -156,7 +156,7 @@ impl<
             auth_challenge_cell,
             slog_digest,
             netinfo_cell,
-            identities: self.identities,
+            auth_material: self.auth_material,
             my_addrs: self.my_addrs,
         })
     }
@@ -184,7 +184,7 @@ pub struct RelayResponderHandshake<
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
     /// Our identity keys needed for authentication.
-    identities: Arc<RelayIdentities>,
+    auth_material: Arc<RelayChannelAuthMaterial>,
 }
 
 /// Implement the base channel handshake trait.
@@ -212,7 +212,7 @@ impl<
         my_addrs: Vec<IpAddr>,
         tls: T,
         sleep_prov: S,
-        identities: Arc<RelayIdentities>,
+        auth_material: Arc<RelayChannelAuthMaterial>,
         memquota: ChannelAccount,
     ) -> Self {
         Self {
@@ -226,7 +226,7 @@ impl<
             ),
             unique_id: UniqId::new(),
             sleep_prov,
-            identities,
+            auth_material,
             memquota,
         }
     }
@@ -293,7 +293,7 @@ impl<
                     netinfo_cell,
                     // TODO(relay): Should probably put that in the match {} and not assume.
                     certs_cell: certs_cell.expect("AUTHENTICATE cell without CERTS cell"),
-                    identities: self.identities,
+                    auth_material: self.auth_material,
                     my_addrs: self.my_addrs,
                     peer_addr: self.peer_addr.into_inner(), // Relay address.
                     clog_digest,
@@ -413,7 +413,7 @@ impl<
     /// AUTHENTICATE cell.
     async fn send_cells_to_initiator(&mut self) -> Result<AuthLogDigest> {
         // Send the CERTS message.
-        let certs = build_certs_cell(&self.identities, /* is_responder */ true);
+        let certs = build_certs_cell(&self.auth_material, /* is_responder */ true);
         trace!(channel_id = %self.unique_id, "Sending CERTS as responder cell.");
         self.framed_tls.send(certs.into()).await?;
 

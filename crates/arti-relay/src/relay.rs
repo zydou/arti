@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use tokio::task::JoinSet;
-use tor_proto::RelayIdentities;
+use tor_proto::RelayChannelAuthMaterial;
 use tracing::debug;
 #[cfg(unix)]
 use tracing::warn;
@@ -125,10 +125,10 @@ impl InertTorRelay {
     /// Connect the [`InertTorRelay`] to the Tor network.
     pub(crate) async fn init<R: Runtime>(self, runtime: R) -> anyhow::Result<TorRelay<R>> {
         // Attempt to generate any missing keys/cert from the KeyMgr.
-        let identities = crate::tasks::crypto::try_generate_keys(&runtime, &self.keymgr)
+        let auth_material = crate::tasks::crypto::try_generate_keys(&runtime, &self.keymgr)
             .context("Failed to generate keys")?;
 
-        TorRelay::init(runtime, self, identities).await
+        TorRelay::init(runtime, self, auth_material).await
     }
 
     /// Create the [key manager](KeyMgr).
@@ -186,14 +186,14 @@ impl<R: Runtime> TorRelay<R> {
     async fn init(
         runtime: R,
         inert: InertTorRelay,
-        identities: RelayIdentities,
+        auth_material: RelayChannelAuthMaterial,
     ) -> anyhow::Result<Self> {
         let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
             .context("Failed to initialize memquota tracker")?;
 
         let config = ChanMgrConfig::new(inert.config.channel.clone())
             .with_my_addrs(inert.config.relay.advertise.all_ips())
-            .with_identities(Arc::new(identities));
+            .with_auth_material(Arc::new(auth_material));
         let chanmgr = Arc::new(
             ChanMgr::new(
                 runtime.clone(),

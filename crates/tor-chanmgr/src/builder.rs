@@ -11,7 +11,7 @@ use crate::factory::{BootstrapReporter, ChannelFactory, IncomingChannelFactory};
 use crate::transport::TransportImplHelper;
 use crate::{Error, event::ChanMgrEventSender};
 
-use safelog::{MaybeSensitive, Sensitive};
+use safelog::MaybeSensitive;
 use tor_basic_utils::rand_hostname;
 use tor_error::internal;
 use tor_linkspec::{HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
@@ -24,7 +24,7 @@ use tor_rtcompat::SpawnExt;
 use tor_rtcompat::{CertifiedConn, Runtime, StreamOps, TlsProvider, tls::TlsConnector};
 
 #[cfg(feature = "relay")]
-use {std::net::IpAddr, tor_proto::RelayIdentities};
+use {safelog::Sensitive, std::net::IpAddr, tor_proto::RelayChannelAuthMaterial};
 
 /// TLS-based channel builder.
 ///
@@ -51,12 +51,12 @@ where
     /// Object to accept TLS connections.
     #[cfg(feature = "relay")]
     tls_acceptor: Option<<R as TlsProvider<H::Stream>>::Acceptor>,
-    /// Relay identities needed for relay channels.
+    /// Relay authentication key material needed for relay channels.
     #[cfg(feature = "relay")]
-    identities: Option<Arc<RelayIdentities>>,
+    auth_material: Option<Arc<RelayChannelAuthMaterial>>,
     /// Our address(es) to use in the NETINFO cell.
     // TODO: We might want one day to support updating the addresses here in the same way we
-    // support updating the identities. One use case for this is the relay config reload.
+    // support updating the auth_material. One use case for this is the relay config reload.
     #[cfg(feature = "relay")]
     my_addrs: Vec<IpAddr>,
 }
@@ -75,7 +75,7 @@ where
             #[cfg(feature = "relay")]
             tls_acceptor: None,
             #[cfg(feature = "relay")]
-            identities: None,
+            auth_material: None,
             #[cfg(feature = "relay")]
             my_addrs: Vec::new(),
         }
@@ -86,39 +86,42 @@ where
     pub fn new_relay(
         runtime: R,
         transport: H,
-        identities: Arc<RelayIdentities>,
+        auth_material: Arc<RelayChannelAuthMaterial>,
         my_addrs: Vec<IpAddr>,
     ) -> crate::Result<Self> {
         use tor_error::into_internal;
         use tor_rtcompat::tls::TlsAcceptorSettings;
 
         // Build the TLS acceptor.
-        let tls_settings = TlsAcceptorSettings::new(identities.tls_key_and_cert().clone())
+        let tls_settings = TlsAcceptorSettings::new(auth_material.tls_key_and_cert().clone())
             .map_err(into_internal!("Unable to build TLS acceptor setting"))?;
         let tls_acceptor = <R as TlsProvider<H::Stream>>::tls_acceptor(&runtime, tls_settings)
             .map_err(into_internal!("Unable to build TLS acceptor"))?;
 
-        // Same builder as a client but with identities and acceptor.
+        // Same builder as a client but with auth material and acceptor.
         let mut builder = Self::new_client(runtime, transport);
-        builder.identities = Some(identities);
+        builder.auth_material = Some(auth_material);
         builder.tls_acceptor = Some(tls_acceptor);
         builder.my_addrs = my_addrs;
 
         Ok(builder)
     }
 
-    /// Build a new `ChanBuilder` with the given `identities`, cloning our runtime and transport.
+    /// Build a new `ChanBuilder` with the given `auth_material`, cloning our runtime and transport.
     ///
-    /// This is needed because the relay identities rotate over time.
+    /// This is needed because some relay keys rotate over time.
     #[cfg(feature = "relay")]
-    pub fn rebuild_with_identities(&self, identities: Arc<RelayIdentities>) -> crate::Result<Self>
+    pub fn rebuild_with_auth_material(
+        &self,
+        auth_material: Arc<RelayChannelAuthMaterial>,
+    ) -> crate::Result<Self>
     where
         H: Clone,
     {
         Self::new_relay(
             self.runtime.clone(),
             self.transport.clone(),
-            identities,
+            auth_material,
             self.my_addrs.clone(),
         )
     }
@@ -132,7 +135,7 @@ where
     /// is called.
     fn outbound_chan_type(&self) -> ChannelType {
         #[cfg(feature = "relay")]
-        if self.identities.is_some() {
+        if self.auth_material.is_some() {
             return ChannelType::RelayInitiator;
         }
         ChannelType::ClientInitiator
@@ -219,11 +222,11 @@ where
             .negotiate_unvalidated(stream, "ignored")
             .await
             .map_err(|e| map_ioe(e.into(), "TLS negotiation"))?;
-        let identities = self
-            .identities
+        let auth_material = self
+            .auth_material
             .as_ref()
             .ok_or(internal!(
-                "Unable to build relay channel without identities"
+                "Unable to build relay channel without auth material"
             ))?
             .clone();
 
@@ -240,7 +243,7 @@ where
                 self.my_addrs.clone(),
                 tls,
                 self.runtime.clone(),
-                identities,
+                auth_material,
                 memquota,
             )
             .handshake(|| self.runtime.wallclock())
@@ -446,15 +449,15 @@ where
             });
         }
 
-        // Client with the relay feature won't have identities. A relay without identities is not
+        // Client with the relay feature won't have auth material. A relay without it is not
         // possible but even if it was, it won't be able to build a channel to itself as a relay
-        // channel. Hence, returning Ok(()) here is fine as without identities ourself, we can
+        // channel. Hence, returning Ok(()) here is fine as without auth material ourself, we can
         // connect wherever.
-        let Some(identities) = &self.identities else {
+        let Some(auth_material) = &self.auth_material else {
             return Ok(());
         };
         // Any of our identities match the given target, we are connecting to ourselves, refuse.
-        if identities.has_any_relay_id_from(target) {
+        if auth_material.has_any_relay_id_from(target) {
             Err(Error::Proto {
                 source: tor_proto::Error::ChanProto(
                     "Refusing to build channel to ourselves".into(),
@@ -552,11 +555,11 @@ where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
     {
         let builder = tor_proto::RelayChannelBuilder::new();
-        let identities = self
-            .identities
+        let auth_material = self
+            .auth_material
             .as_ref()
             .ok_or(internal!(
-                "Unable to build relay channel without identities"
+                "Unable to build relay channel without auth material"
             ))?
             .clone();
 
@@ -564,7 +567,7 @@ where
             .launch(
                 tls,
                 self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
-                identities,
+                auth_material,
                 self.my_addrs.clone(),
                 target,
                 memquota,

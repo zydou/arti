@@ -20,7 +20,7 @@ use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount}
 use tracing::{instrument, trace};
 
 #[cfg(feature = "relay")]
-use {safelog::Sensitive, std::net::IpAddr, tor_proto::RelayIdentities};
+use {safelog::Sensitive, std::net::IpAddr, tor_proto::RelayChannelAuthMaterial};
 
 mod select;
 mod state;
@@ -108,9 +108,9 @@ pub(crate) trait AbstractChannelFactory {
 pub struct ChanMgrConfig {
     /// Channel configuration which usually comes from a configuration file.
     pub(crate) cfg: ChannelConfig,
-    /// Relay identities needed for relay channels.
+    /// Relay authentication key material for relay channels.
     #[cfg(feature = "relay")]
-    pub(crate) identities: Option<Arc<RelayIdentities>>,
+    pub(crate) auth_material: Option<Arc<RelayChannelAuthMaterial>>,
     /// Our address(es). When building outgoing channel, we need our addresses in order to send
     /// them in the NETINFO cell.
     #[cfg(feature = "relay")]
@@ -124,16 +124,16 @@ impl ChanMgrConfig {
         Self {
             cfg,
             #[cfg(feature = "relay")]
-            identities: None,
+            auth_material: None,
             #[cfg(feature = "relay")]
             my_addrs: Vec::new(),
         }
     }
 
-    /// Set the relay identities and return itself.
+    /// Set the relay channel authentication key material and return itself.
     #[cfg(feature = "relay")]
-    pub fn with_identities(mut self, ids: Arc<RelayIdentities>) -> Self {
-        self.identities = Some(ids);
+    pub fn with_auth_material(mut self, auth_material: Arc<RelayChannelAuthMaterial>) -> Self {
+        self.auth_material = Some(auth_material);
         self
     }
 

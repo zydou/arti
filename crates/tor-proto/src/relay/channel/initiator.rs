@@ -22,7 +22,7 @@ use tor_linkspec::OwnedChanTarget;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::{
-    ClockSkew, RelayIdentities, Result,
+    ClockSkew, RelayChannelAuthMaterial, Result,
     channel::{
         AuthLogDigest, Channel, Reactor,
         handshake::{UnverifiedInitiatorChannel, VerifiedChannel},
@@ -47,8 +47,8 @@ pub struct UnverifiedInitiatorRelayChannel<
     pub(crate) slog_digest: AuthLogDigest,
     /// The netinfo cell received from the responder.
     pub(crate) netinfo_cell: msg::Netinfo,
-    /// Our identity keys needed for authentication.
-    pub(crate) identities: Arc<RelayIdentities>,
+    /// Our channel key material needed for authentication.
+    pub(crate) auth_material: Arc<RelayChannelAuthMaterial>,
     /// Our advertised IP addresses for the final NETINFO
     pub(crate) my_addrs: Vec<IpAddr>,
 }
@@ -78,7 +78,7 @@ where
     ) -> Result<VerifiedInitiatorRelayChannel<T, S>> {
         // Get these object out as we consume "self" in the inner check().
         let auth_challenge_cell = self.auth_challenge_cell;
-        let identities = self.identities;
+        let identities = self.auth_material;
         let my_addrs = self.my_addrs;
         let netinfo_cell = self.netinfo_cell;
 
@@ -89,7 +89,7 @@ where
 
         Ok(VerifiedInitiatorRelayChannel {
             inner: verified,
-            identities,
+            auth_material: identities,
             netinfo_cell,
             auth_challenge_cell,
             peer_tls_cert_digest,
@@ -117,8 +117,8 @@ pub struct VerifiedInitiatorRelayChannel<
 > {
     /// The common unverified channel that both client and relays use.
     inner: VerifiedChannel<T, S>,
-    /// Relay identities.
-    identities: Arc<RelayIdentities>,
+    /// Relay channel authentication material.
+    auth_material: Arc<RelayChannelAuthMaterial>,
     /// The netinfo cell that we got from the relay.
     netinfo_cell: msg::Netinfo,
     /// The AUTH_CHALLENGE cell that we got from the relay.
@@ -143,7 +143,7 @@ where
     /// channel on which circuits can be opened.
     pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Send the CERTS cell.
-        let certs = super::build_certs_cell(&self.identities, /* is_responder */ false);
+        let certs = super::build_certs_cell(&self.auth_material, /* is_responder */ false);
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
         self.inner.framed_tls.send(certs.into()).await?;
 
@@ -161,13 +161,16 @@ where
         // type requested by the responder is supported by us.
         let auth_cell = ChannelAuthenticationData::build_initiator(
             &self.auth_challenge_cell,
-            &self.identities,
+            &self.auth_material,
             clog_digest,
             self.slog_digest,
             &mut self.inner,
             self.peer_tls_cert_digest,
         )?
-        .into_authenticate(self.inner.framed_tls.deref(), &self.identities.link_sign_kp)?;
+        .into_authenticate(
+            self.inner.framed_tls.deref(),
+            &self.auth_material.link_sign_kp,
+        )?;
 
         // Send the AUTHENTICATE cell.
         trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");

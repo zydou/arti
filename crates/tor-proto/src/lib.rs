@@ -73,7 +73,7 @@ mod util;
 #[cfg(feature = "relay")]
 pub mod relay;
 #[cfg(feature = "relay")]
-pub use relay::channel::{RelayChannelBuilder, RelayIdentities};
+pub use relay::channel::{RelayChannelAuthMaterial, RelayChannelBuilder};
 
 pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
