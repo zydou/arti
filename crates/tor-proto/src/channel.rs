@@ -870,13 +870,13 @@ impl Channel {
     #[cfg(feature = "relay")]
     pub(crate) async fn new_outbound_circ(
         self: &Arc<Self>,
+        memquota: CircuitAccount,
     ) -> Result<(CircId, CircuitRxReceiver, oneshot::Receiver<CreateResponse>)> {
         if self.is_closing() {
             return Err(ChannelClosed.into());
         }
 
         let time_prov = self.time_provider().clone();
-        let memquota = CircuitAccount::new(&self.details.memquota)?;
 
         // TODO: blocking is risky, but so is unbounded.
         let (sender, receiver) =
