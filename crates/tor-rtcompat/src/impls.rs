@@ -96,6 +96,7 @@ const LISTEN_BACKLOG: i32 = u16::MAX as i32;
 /// socket with the options we need and with consistent behaviour across all runtimes. For example
 /// if each runtime were using a different `listen()` backlog size, it might be difficult to debug
 /// related issues.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub(crate) fn tcp_listen(addr: &std::net::SocketAddr) -> std::io::Result<std::net::TcpListener> {
     use socket2::{Domain, Socket, Type};
 
@@ -156,6 +157,12 @@ pub(crate) fn tcp_listen(addr: &std::net::SocketAddr) -> std::io::Result<std::ne
     socket.listen(LISTEN_BACKLOG)?;
 
     Ok(socket.into())
+}
+
+/// Stub replacement for tcp_listen on wasm32-unknown
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub(crate) fn tcp_listen(_addr: &std::net::SocketAddr) -> std::io::Result<std::net::TcpListener> {
+    Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
 }
 
 /// Helper: Implement an unreachable NetProvider<unix::SocketAddr> for a given runtime.
