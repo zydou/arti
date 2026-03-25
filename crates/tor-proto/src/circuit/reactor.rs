@@ -130,13 +130,44 @@
 //!
 //! #### `ForwardReactor`
 //!
-//! It handles
+//! It handles forward cells, by delegating to the implementation-dependent
+//! [`ForwardHandler::handle_forward_cell`], which decides
+//! whether the cell needs to be handled in `ForwardReactor`,
+//! or in the `ForwardHandler` itself.
 //!
-//!  * unrecognized RELAY cells, by delegating to the implementation-dependent
-//!    [`ForwardHandler::handle_unrecognized_cell`]
-//!  * recognized RELAY cells, by splitting each cell into individual messages, and handling
-//!    each message individually as described in the table below
-//!    (Note: since prop340 is not yet implemented, in practice there is only 1 message per cell).
+//! More concretely:
+//!
+//! ```text
+//!
+//! Legend: `F` = "forward reactor", `H` = "ForwardHandler"
+//!
+//! | Message           | Received in | Handled in | Description                            |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | DESTROY           | F           | H          | Handled internally by the FowardHandler|
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | PADDING_NEGOTIATE | F           | H          | Handled internally by the FowardHandler|
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | *unrecognized*    | F           | H          | Unrecognized relay cell handling is    |
+//! | RELAY OR          |             |            | implementation-dependent so these are  |
+//! | RELAY_EARLY       |             |            | handled in the ForwardHandler.         |
+//! |                   |             |            |                                        |
+//! |                   |             |            | The relay ForwardHandler will handle   |
+//! |                   |             |            | these by forwarding them to the next   |
+//! |                   |             |            | hop, if there is one.                  |
+//! |                   |             |            |                                        |
+//! |                   |             |            | Clients don't yet implement            |
+//! |                   |             |            | ForwardHandler, but when they do,      |
+//! |                   |             |            | its implementation will simply reject  |
+//! |                   |             |            | any messages that can't be decrypted   |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | *recognized*      | F           | see table  | Handling depends on the cmd            |
+//! | RELAY OR          |             | below      |                                        |
+//! | RELAY_EARLY       |             |            |                                        |
+//! ```
+//!
+//! Recognized relay cells are handled by splitting each cell into individual messages,
+//! and handling each message individually as described in the table below
+//! (Note: since prop340 is not yet implemented, in practice there is only 1 message per cell):
 //!
 //! ```text
 //!
