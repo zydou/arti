@@ -238,8 +238,9 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
                     // Check for lines consisting of a single dot plus trailing
                     // whitespace characters.  No need to bother about "\r\n",
                     // because we checked that one above.  Although technically
-                    // lines such as `. \n` are possible and understood, we
-                    // want to be more defensive here for now; if it becomes a
+                    // lines such as `. \n` are possible and understood
+                    // as part of ed diffs, they are not legal in tor netdocs, and
+                    // we want to be more defensive here for now; if it becomes a
                     // problem, we may remove it later.
                     if line.trim_end() == "." {
                         // +1 because 1-indexed.
