@@ -46,15 +46,247 @@
 #![deny(clippy::unused_async)]
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{Display, Formatter, Write};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 
 mod err;
+use digest::Digest;
 pub use err::Error;
+use imara_diff::{Algorithm, Diff, Hunk, InternedInput};
+use tor_error::internal;
+use tor_netdoc::parse2::{ErrorProblem, ItemStream, KeywordRef, ParseError, ParseInput};
+
+use crate::err::GenEdDiffError;
 
 /// Result type used by this crate
 type Result<T> = std::result::Result<T, Error>;
+
+/// The keyword that identifies a directory signature line.
+// TODO: We probably want this in tor-netdoc.
+const DIRECTORY_SIGNATURE_KEYWORD: KeywordRef = KeywordRef::new_const("directory-signature");
+
+/// When hashing the signed part of the consensus, append this tail to the end.
+const CONSENSUS_SIGNED_SHA3_256_HASH_TAIL: &str = "directory-signature ";
+
+// Do not compile if we cannot safely convert a u32 into a usize.
+static_assertions::const_assert!(std::mem::size_of::<usize>() >= std::mem::size_of::<u32>());
+
+/// Generates a consensus diff.
+///
+/// This implementation is different from the one in CTor, because it uses a
+/// different algorithm, namely [`Algorithm::Myers`] from the [`imara_diff`]
+/// crate, which is more efficient than CTor in terms of runtime and about as
+/// equally efficient as CTor in output size.
+///
+/// The CTor implementation makes heavy use of the fact that the input is a
+/// valid consensus and that the routers in it are ordered.  This allows for
+/// some divide-and-conquer mechanisms and the cost of requiring more parsing.
+///
+/// Here, we only minimally parse the consensus, in order to only obtain the
+/// first `directory-signature` item and to cut everything including itself off
+/// from the input, as demanded by the specification.
+///
+/// All outputs of this function are guaranteed to work with this
+/// [`apply_diff()`] implementation as a check is performed before returning,
+/// because returning an unusable diff would be terrible.
+pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
+    // Throw away the signatures.
+    let (base_signed, _) = split_directory_signatures(base)?;
+    let base_lines = base_signed.chars().filter(|c| *c == '\n').count() + 1;
+
+    // Compute the hashes for the header.
+    let base_signed_hash = hex::encode_upper({
+        let mut h = tor_llcrypto::d::Sha3_256::new();
+        h.update(base_signed);
+        h.update(CONSENSUS_SIGNED_SHA3_256_HASH_TAIL);
+        h.finalize()
+    });
+    let target_hash = hex::encode_upper(tor_llcrypto::d::Sha3_256::digest(target.as_bytes()));
+
+    // Compose the result with header.
+    let ed_diff = gen_ed_diff(base_signed, target).map_err(|e| match e {
+        GenEdDiffError::MissingUnixLineEnding { lno } => Error::InvalidInput(ParseError::new(
+            ErrorProblem::OtherBadDocument("line does not end with '\\n'"),
+            "consdiff",
+            "",
+            lno,
+            None,
+        )),
+        GenEdDiffError::ContainsDotLine { lno } => Error::InvalidInput(ParseError::new(
+            ErrorProblem::OtherBadDocument("contains dotline"),
+            "consdiff",
+            "",
+            lno,
+            None,
+        )),
+        GenEdDiffError::Write(_) => internal!("string write was not infallible?").into(),
+    })?;
+
+    let result = format!(
+        "network-status-diff-version 1\n\
+        hash {base_signed_hash} {target_hash}\n\
+        {base_lines},$d\n\
+        {ed_diff}"
+    );
+
+    // Ensure it is valid, refuse to emit an invalid diff.
+    let check = apply_diff(base, &result, None).map_err(|_| internal!("apply call failed"))?;
+    if check.to_string() != target {
+        Err(internal!("result does not match?"))?;
+    }
+
+    Ok(result)
+}
+
+/// Splits `input` at the first `directory-signature`.
+fn split_directory_signatures(input: &str) -> Result<(&str, &str)> {
+    let parse_input = ParseInput::new(input, "");
+    let mut items = ItemStream::new(&parse_input)?;
+
+    // Parse the consensus item by item until the first `directory-signature`.
+    loop {
+        // We only peek in order to get the proper byte offset.
+        // This is required because doing next() and breaking in the case of
+        // a `directory-signature` would then lead to `.byte_offset()` yielding
+        // the start of the second signature and not the start of the first one.
+        let item = items
+            .peek_keyword()
+            .map_err(|e| ParseError::new(e, "consdiff", "", items.lno_for_error(), None))?;
+
+        match item {
+            Some(DIRECTORY_SIGNATURE_KEYWORD) => {
+                let offset = items.byte_position();
+                return Ok((&input[..offset], &input[offset..]));
+            }
+            Some(_) => {
+                // Consume the just peeked item.
+                let _ = items.next();
+            }
+            None => {
+                // We are finished.
+                return Err(Error::InvalidInput(ParseError::new(
+                    ErrorProblem::MissingItem {
+                        keyword: DIRECTORY_SIGNATURE_KEYWORD.as_str(),
+                    },
+                    "consdiff",
+                    "",
+                    items.lno_for_error(),
+                    None,
+                )));
+            }
+        }
+    }
+}
+
+/// Generates an input agnostic ed diff.
+///
+/// This function does the general logic of [`gen_cons_diff()`] but works in a
+/// document agnostic fashion.
+fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDiffError> {
+    let mut result = String::new();
+
+    // We use Myers' algorithm as benchmarks have shown that it provides an
+    // equal diff size as the ctor one while keeping an acceptable performance.
+    let input = InternedInput::new(base, target);
+    let mut diff = Diff::compute(Algorithm::Myers, &input);
+    diff.postprocess_lines(&input);
+
+    // Iterate through every a hunk, with a hunk being a block of changes.
+    let hunks = diff.hunks().collect::<Vec<_>>();
+    for hunk in hunks.into_iter().rev() {
+        // Format the header.
+        let hunk_type = HunkType::determine(&hunk);
+        match hunk_type {
+            // No need to do +1 because append is AFTER.
+            HunkType::Append => writeln!(result, "{}{hunk_type}", hunk.before.start)?,
+            HunkType::Delete | HunkType::Change => {
+                if hunk.before.start + 1 == hunk.before.end {
+                    // +1 because 1-indexed.
+                    writeln!(result, "{}{hunk_type}", hunk.before.start + 1)?;
+                } else {
+                    // +1 because 1-indexed; no need to do +1 on end because
+                    // the range is inclusive.
+                    writeln!(
+                        result,
+                        "{},{}{hunk_type}",
+                        hunk.before.start + 1,
+                        hunk.before.end
+                    )?;
+                }
+            }
+        }
+
+        // Format the body.
+        match hunk_type {
+            HunkType::Append | HunkType::Change => {
+                let range = (hunk.after.start)..(hunk.after.end);
+                let tlines = range
+                    .map(|idx| {
+                        let idx = usize::try_from(idx).expect("32-bit static assertion violated?");
+                        input.interner[input.after[idx]]
+                    })
+                    .collect::<Vec<_>>();
+
+                for (lno, line) in tlines.iter().copied().enumerate() {
+                    // Check that all lines end with a Unix line ending.
+                    if line.ends_with("\r\n") || !line.ends_with("\n") {
+                        // +1 because 1-indexed.
+                        return Err(GenEdDiffError::MissingUnixLineEnding { lno: lno + 1 });
+                    }
+
+                    // Check for lines consisting of a single dot plus trailing
+                    // whitespace characters.  No need to bother about "\r\n",
+                    // because we checked that one above.  Although technically
+                    // lines such as `. \n` are possible and understood
+                    // as part of ed diffs, they are not legal in tor netdocs, and
+                    // we want to be more defensive here for now; if it becomes a
+                    // problem, we may remove it later.
+                    if line.trim_end() == "." {
+                        // +1 because 1-indexed.
+                        return Err(GenEdDiffError::ContainsDotLine { lno: lno + 1 });
+                    }
+
+                    // All lines are newline terminated, no need to use writeln!
+                    write!(result, "{line}")?;
+                }
+
+                // Write the terminating dot.
+                writeln!(result, ".")?;
+            }
+            HunkType::Delete => {}
+        }
+    }
+
+    Ok(result)
+}
+
+/// The operational type of the hunk.
+#[derive(Clone, Copy, Debug, derive_more::Display)]
+enum HunkType {
+    /// This is a pure appending.
+    #[display("a")]
+    Append,
+    /// This is a pure deletion.
+    #[display("d")]
+    Delete,
+    /// This is change with potential additions and deletions.
+    #[display("c")]
+    Change,
+}
+
+impl HunkType {
+    /// Determines the type of the hunk.
+    fn determine(hunk: &Hunk) -> Self {
+        if hunk.is_pure_insertion() {
+            Self::Append
+        } else if hunk.is_pure_removal() {
+            Self::Delete
+        } else {
+            Self::Change
+        }
+    }
+}
 
 /// Return true if `s` looks more like a consensus diff than some other kind
 /// of document.
@@ -577,6 +809,10 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use rand::seq::IndexedRandom;
+    use tor_basic_utils::test_rng::testing_rng;
+
     use super::*;
 
     #[test]
@@ -908,5 +1144,104 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         assert!(cmds("5,5d\n5,6d\n").is_err());
 
         Ok(())
+    }
+
+    /// Test for cons diff using a random word generator.
+    #[test]
+    fn cons_diff() {
+        // cat /usr/share/dict/words | sort -R | head -n 20 | sed 's/^/"/g' | sed 's/$/",/g'
+        const WORDS: &[&str] = &[
+            "citole",
+            "aflow",
+            "plowfoot",
+            "coom",
+            "retape",
+            "perish",
+            "overstifle",
+            "ramshackle",
+            "Romeo",
+            "alme",
+            "expressivity",
+            "Kieffer",
+            "tobe",
+            "pronucleus",
+            "countersconce",
+            "puli",
+            "acupunctuate",
+            "heterolysis",
+            "unwattled",
+            "bismerpund",
+        ];
+
+        let rng = &mut testing_rng();
+        let mut left = (0..1000)
+            .map(|_| WORDS.choose(rng).unwrap().to_string() + "\n")
+            .collect::<String>();
+        left += "directory-signature foo bar\n";
+        let mut right = (0..1015)
+            .map(|_| WORDS.choose(rng).unwrap().to_string() + "\n")
+            .collect::<String>();
+        right += "directory-signature foo baz\n";
+
+        let diff = gen_cons_diff(&left, &right).unwrap();
+        let check = apply_diff(&left, &diff, None).unwrap().to_string();
+        assert_eq!(right, check);
+    }
+
+    #[test]
+    fn dot_line() {
+        let base = "";
+        let target = "foo\nbar\n.\nbaz\nfoo\n";
+        assert_eq!(
+            gen_ed_diff(base, target).unwrap_err(),
+            GenEdDiffError::ContainsDotLine { lno: 3 },
+        );
+
+        // Also check for dot lines with trailing spaces.
+        let target = "foo\nbar\n.   \t \nbaz\nfoo\n";
+        assert_eq!(
+            gen_ed_diff(base, target).unwrap_err(),
+            GenEdDiffError::ContainsDotLine { lno: 3 },
+        );
+
+        // A line starting with a dot and not ending in WS shall be fine though.
+        let target = "foo\nbar\n.   foo\nbaz\nfoo\n";
+        let _ = gen_ed_diff(base, target).unwrap();
+
+        // Use gen_cons_diff here to assume that it is actually applied.
+        let base = "directory-signature foo baz\n";
+        let target = ".foo bar\n. bar\ndirectory-signature foo baz\n";
+        assert_eq!(
+            gen_cons_diff(base, target).unwrap(),
+            "network-status-diff-version 1\n\
+            hash D8138DC27D9A66F5760058A6BCB71B755462B9D26B811828F124D036DE329A58 \
+            506AC3A4407BC5305DD0D08FED3F09C2FE69847541F642A8FD13D3BD06FFE432\n\
+            1,$d\n\
+            0a\n\
+            .foo bar\n\
+            . bar\n\
+            directory-signature foo baz\n\
+            .\n"
+        );
+    }
+
+    #[test]
+    fn missing_newline() {
+        let base = "";
+        let target = "foo\nbar\nbaz";
+        assert_eq!(
+            gen_ed_diff(base, target).unwrap_err(),
+            GenEdDiffError::MissingUnixLineEnding { lno: 3 }
+        );
+    }
+
+    #[test]
+    fn mixed_with_crlf() {
+        let base = "";
+        let target = "foo\r\nbar\r\nbaz\nhello\r\n";
+        assert_eq!(
+            gen_ed_diff(base, target).unwrap_err(),
+            GenEdDiffError::MissingUnixLineEnding { lno: 1 }
+        );
     }
 }
