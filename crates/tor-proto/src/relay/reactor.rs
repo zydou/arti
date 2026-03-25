@@ -108,7 +108,7 @@ impl<R: Runtime> Reactor<R> {
     ///
     /// The internal unique identifier for this circuit will be `unique_id`.
     #[allow(clippy::too_many_arguments)] // TODO
-    pub(super) fn new(
+    pub(crate) fn new(
         runtime: R,
         channel: &Arc<Channel>,
         circ_id: CircId,
@@ -117,7 +117,7 @@ impl<R: Runtime> Reactor<R> {
         crypto_in: Box<dyn InboundRelayLayer + Send>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         settings: &HopSettings,
-        chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+        chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
         memquota: &CircuitAccount,

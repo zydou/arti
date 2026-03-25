@@ -63,7 +63,7 @@ pub(crate) struct Forward {
     /// Note: all circuit reactors of a relay need to be initialized
     /// with the *same* underlying Tor channel provider (`ChanMgr`),
     /// to enable the reuse of existing Tor channels where possible.
-    chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+    chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
     /// Whether we have received an EXTEND2 on this circuit.
     ///
     // TODO(relay): bools can be finicky.
@@ -121,7 +121,7 @@ impl Forward {
     pub(crate) fn new(
         unique_id: UniqId,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
-        chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send>,
+        chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
         event_tx: mpsc::Sender<CircEvent>,
     ) -> Self {
         Self {
