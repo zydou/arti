@@ -280,6 +280,18 @@ pub(crate) struct LoggingConfig {
     /// Example: "info,tor_proto::channel=trace"
     #[deftly(tor_config(default = "DEFAULT_LOG_LEVEL.to_string()"))]
     pub(crate) console: String,
+
+    /// If set to false, we avoid logging sensitive information at level `info` or higher.
+    /// This `info` level distinction is not enforced through any technical means,
+    /// but is according to our `doc/dev/Safelogging.md` guidelines.
+    ///
+    /// If set to true, we disable safe logging on all logs,
+    /// and store potentially sensitive information at all log levels.
+    ///
+    /// This can be useful for debugging, but it increases the value of your logs to an attacker.
+    /// Do not turn this on in production unless you have a good log rotation mechanism.
+    #[deftly(tor_config(default))]
+    pub(crate) log_sensitive_information: bool,
 }
 
 impl LoggingConfigBuilder {

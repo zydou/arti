@@ -70,6 +70,7 @@ use clap::Parser;
 use futures::FutureExt;
 use safelog::with_safe_logging_suppressed;
 use tor_basic_utils::iter_join;
+use tor_error::warn_report;
 use tor_relay_crypto::pk::{
     RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
     RelayIdentityRsaKeypairSpecifier,
@@ -200,6 +201,25 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
         .with_writer(std::io::stderr)
         .finish();
     let logger = tracing::Dispatch::new(logger);
+
+    // Disable safe logging if requested.
+    // This guard will be dropped at the end of this function,
+    // which means we effectively re-enable safe logging once this function returns.
+    // TODO: Do we want this guard behaviour?
+    // I think it would be better to enable safe-logging forever?
+    let _safelog_guard = if config.logging.log_sensitive_information {
+        match safelog::disable_safe_logging() {
+            Ok(guard) => Some(guard),
+            Err(e) => {
+                // We don't need to propagate this error;
+                // it isn't the end of the world if we were unable to disable safe logging.
+                warn_report!(e, "Unable to disable safe logging");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     tracing::dispatcher::with_default(&logger, || {
         let runtime = init_runtime().context("Failed to initialize the runtime")?;
