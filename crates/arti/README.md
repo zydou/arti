@@ -41,7 +41,7 @@ location.
 |---------|----------------------------------------------------|
 | Unix    | `~/.config/arti/arti.toml`                         |
 | macOS   | `~/Library/Application Support/org.torproject.arti/arti.toml`     |
-| Windows | `\Users\<USERNAME>\AppData\Roaming\arti\arti.toml` |
+| Windows | `\Users\<USERNAME>\AppData\Roaming\torproject\Arti\config\arti.toml` |
 
 The configuration file is TOML.
 For an example see `arti-example-config.toml`
