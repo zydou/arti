@@ -20,23 +20,6 @@ Most users will instead want to use the `arti` binary
 to run an onion service proxy, or use the `TorClient::launch_onion_service` API
 in the `arti-client` crate.
 
-## Limitations
-
-This crate is a work in progress.
-
-As of February 2024, there are some features missing that are necessary for
-running a secure, private onion service.  Notably these include:
-
- * Resistance to denial of service attacks
-    * Support for proof-of-work checking and validation
-    * Detection and response to out-of-memory conditions
- * Vanguard relays for resistance to path discovery
- * Descriptor encryption keys,
-   so that only certain clients to connect to the service.
-  * Removal of old keys and state information.
-    (Currently, the on-disk state will grow slowly but without bound,
-    with sensitive information retained indefinitely.)
-
 ## Reference
 
 You can learn more about the protocols here as part of the onion services
