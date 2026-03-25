@@ -22,7 +22,7 @@ pub enum ProtocolWarningMode {
 }
 
 impl ProtocolWarningMode {
-    /// Convert a integer (raw bytes) to a protocol-warning mode (enum).
+    /// Convert an integer (raw bytes) to a protocol-warning mode (enum).
     fn from_raw(raw: u8) -> Option<Self> {
         match raw {
             0 => Some(Self::Off),
@@ -46,6 +46,20 @@ pub fn protocol_warning_mode() -> ProtocolWarningMode {
     ProtocolWarningMode::from_raw(raw).unwrap_or(ProtocolWarningMode::Off)
 }
 
+/// Return true if the given [`ErrorKind`] is eligible for promotion to `WARN` by
+/// [`event_report!`] and related macros.
+///
+/// This is true if [`ErrorKind::is_always_a_warning`] returns true, or if
+/// `kind` is [`ErrorKind::TorProtocolViolation`] and the runtime
+/// protocol-warning mode is set to [`ProtocolWarningMode::Warn`].
+#[doc(hidden)]
+#[inline]
+pub fn __should_promote_to_warn(kind: ErrorKind) -> bool {
+    kind.is_always_a_warning()
+        || (protocol_warning_mode() == ProtocolWarningMode::Warn
+            && kind == ErrorKind::TorProtocolViolation)
+}
+
 impl ErrorKind {
     /// Return true if this [`ErrorKind`] should always be logged as
     /// a warning (or more severe).
@@ -57,8 +71,10 @@ impl ErrorKind {
 /// Log a [`Report`](crate::Report) of a provided error at a given level, or a
 /// higher level if appropriate.
 ///
-/// (If [`ErrorKind::is_always_a_warning`] returns true for the error's kind, we
-/// log it at WARN, unless this event is already at level WARN or ERROR.)
+/// If [`ErrorKind::is_always_a_warning`] returns true for the error's kind, or
+/// if the runtime protocol-warning policy is active and the error's kind is
+/// [`ErrorKind::TorProtocolViolation`], we log it at `WARN` when the requested
+/// level is lower than `WARN`.
 ///
 /// # Examples
 ///
@@ -96,12 +112,7 @@ macro_rules! event_report {
             use $crate::{tracing as tr, HasKind as _, };
             let err = $err;
             let kind = err.kind();
-            if kind.is_always_a_warning() && tr::Level::WARN < $level {
-                $crate::event_report!(@raw tr::Level::WARN, err, $($arg)*);
-            } else if tr::protocol_warning_mode() == tr::ProtocolWarningMode::Warn
-                && kind == $crate::ErrorKind::TorProtocolViolation
-                && tr::Level::WARN < $level
-            {
+            if tr::Level::WARN < $level && tr::__should_promote_to_warn(kind) {
                 $crate::event_report!(@raw tr::Level::WARN, err, $($arg)*);
             } else {
                 $crate::event_report!(@raw $level, err, $($arg)*);

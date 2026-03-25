@@ -601,11 +601,12 @@ pub(crate) fn setup_logging(
         None
     };
 
-    if config.protocol_warnings {
-        tor_error::tracing::set_protocol_warning_mode(
-            tor_error::tracing::ProtocolWarningMode::Warn,
-        );
-    }
+    let mode = if config.protocol_warnings {
+        tor_error::tracing::ProtocolWarningMode::Warn
+    } else {
+        tor_error::tracing::ProtocolWarningMode::Off
+    };
+    tor_error::tracing::set_protocol_warning_mode(mode);
 
     install_panic_handler();
 
