@@ -34,7 +34,7 @@ use super::{PolicyError, PortRange};
 ///  accept *:9000-65535
 ///  reject *:*
 /// ```
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AddrPolicy {
     /// A list of rules to apply to find out whether an address is
     /// contained by this policy.
@@ -83,7 +83,7 @@ impl AddrPolicy {
 /// A single rule in an address policy.
 ///
 /// Contains a pattern and what to do with things that match it.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct AddrPolicyRule {
     /// What do we do with items that match the pattern?
     kind: RuleKind,
