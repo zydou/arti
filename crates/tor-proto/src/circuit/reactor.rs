@@ -130,13 +130,44 @@
 //!
 //! #### `ForwardReactor`
 //!
-//! It handles
+//! It handles forward cells, by delegating to the implementation-dependent
+//! [`ForwardHandler::handle_forward_cell`], which decides
+//! whether the cell needs to be handled in `ForwardReactor`,
+//! or in the `ForwardHandler` itself.
 //!
-//!  * unrecognized RELAY cells, by delegating to the implementation-dependent
-//!    [`ForwardHandler::handle_unrecognized_cell`]
-//!  * recognized RELAY cells, by splitting each cell into individual messages, and handling
-//!    each message individually as described in the table below
-//!    (Note: since prop340 is not yet implemented, in practice there is only 1 message per cell).
+//! More concretely:
+//!
+//! ```text
+//!
+//! Legend: `F` = "forward reactor", `H` = "ForwardHandler"
+//!
+//! | Message           | Received in | Handled in | Description                            |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | DESTROY           | F           | H          | Handled internally by the FowardHandler|
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | PADDING_NEGOTIATE | F           | H          | Handled internally by the FowardHandler|
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | *unrecognized*    | F           | H          | Unrecognized relay cell handling is    |
+//! | RELAY OR          |             |            | implementation-dependent so these are  |
+//! | RELAY_EARLY       |             |            | handled in the ForwardHandler.         |
+//! |                   |             |            |                                        |
+//! |                   |             |            | The relay ForwardHandler will handle   |
+//! |                   |             |            | these by forwarding them to the next   |
+//! |                   |             |            | hop, if there is one.                  |
+//! |                   |             |            |                                        |
+//! |                   |             |            | Clients don't yet implement            |
+//! |                   |             |            | ForwardHandler, but when they do,      |
+//! |                   |             |            | its implementation will simply reject  |
+//! |                   |             |            | any messages that can't be decrypted   |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | *recognized*      | F           | see table  | Handling depends on the cmd            |
+//! | RELAY OR          |             | below      |                                        |
+//! | RELAY_EARLY       |             |            |                                        |
+//! ```
+//!
+//! Recognized relay cells are handled by splitting each cell into individual messages,
+//! and handling each message individually as described in the table below
+//! (Note: since prop340 is not yet implemented, in practice there is only 1 message per cell):
 //!
 //! ```text
 //!
@@ -542,6 +573,65 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         match cmd {
             CtrlMsg::Forward(c) => self.fwd_ctrl.send_msg(c),
             CtrlMsg::Backward(c) => self.bwd_ctrl.send_msg(c),
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_cell::chancell::{BoxedCellBody, msg as chanmsg};
+    use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, msg as relaymsg};
+
+    use chanmsg::AnyChanMsg;
+
+    #[cfg(feature = "hs-service")]
+    use crate::client::stream::IncomingStreamRequestFilter;
+
+    pub(crate) fn rmsg_to_ccmsg(
+        id: Option<StreamId>,
+        msg: relaymsg::AnyRelayMsg,
+        early: bool,
+    ) -> AnyChanMsg {
+        // TODO #1947: test other formats.
+        let rfmt = RelayCellFormat::V0;
+        let body: BoxedCellBody = AnyRelayMsgOuter::new(id, msg)
+            .encode(rfmt, &mut testing_rng())
+            .unwrap();
+        let chanmsg = chanmsg::Relay::from(body);
+
+        if early {
+            let chanmsg = chanmsg::RelayEarly::from(chanmsg);
+            AnyChanMsg::RelayEarly(chanmsg)
+        } else {
+            AnyChanMsg::Relay(chanmsg)
+        }
+    }
+
+    #[cfg(any(feature = "hs-service", feature = "relay"))]
+    pub(crate) struct AllowAllStreamsFilter;
+    #[cfg(any(feature = "hs-service", feature = "relay"))]
+    impl IncomingStreamRequestFilter for AllowAllStreamsFilter {
+        fn disposition(
+            &mut self,
+            _ctx: &crate::client::stream::IncomingStreamRequestContext<'_>,
+            _circ: &crate::circuit::CircHopSyncView<'_>,
+        ) -> crate::Result<crate::client::stream::IncomingStreamRequestDisposition> {
+            Ok(crate::client::stream::IncomingStreamRequestDisposition::Accept)
         }
     }
 }

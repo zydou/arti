@@ -380,7 +380,7 @@ impl Forward {
         let (hopnum, res) = self.decode_relay_cell(hop_mgr, cell)?;
         let (tag, decode_res) = match res {
             CellDecodeResult::Unrecognizd(body) => {
-                self.handle_unrecognized_cell(body, None)?;
+                self.handle_unrecognized_cell(body, None, early)?;
                 return Ok(None);
             }
             CellDecodeResult::Recognized(tag, res) => (tag, res),
@@ -392,6 +392,45 @@ impl Forward {
             hopnum,
             tag,
         }))
+    }
+
+    /// Handle a forward cell that we could not decrypt.
+    fn handle_unrecognized_cell(
+        &mut self,
+        body: RelayCellBody,
+        info: Option<QueuedCellPaddingInfo>,
+        early: bool,
+    ) -> StdResult<(), ReactorError> {
+        // TODO(relay): remove this log once we add some tests
+        // and confirm relaying cells works as expected
+        // (in practice it will be too noisy to be useful, even at trace level).
+        trace!(
+            circ_id = %self.unique_id,
+            "Forwarding unrecognized cell"
+        );
+
+        let Some(chan) = self.outbound.as_mut() else {
+            // The client shouldn't try to send us any cells before it gets
+            // an EXTENDED2 cell from us
+            return Err(Error::CircProto(
+                "Asked to forward cell before the circuit was extended?!".into(),
+            )
+            .into());
+        };
+
+        let msg = Relay::from(BoxedCellBody::from(body));
+        let relay = if early {
+            AnyChanMsg::RelayEarly(msg.into())
+        } else {
+            AnyChanMsg::Relay(msg)
+        };
+        let cell = AnyChanCell::new(Some(chan.circ_id), relay);
+
+        // Note: this future is always `Ready`, because we checked the sink for readiness
+        // before polling the input channel, so await won't block.
+        chan.outbound_chan_tx.start_send_unpin((cell, info))?;
+
+        Ok(())
     }
 
     /// Handle a TRUNCATE cell.
@@ -437,39 +476,6 @@ impl ForwardHandler for Forward {
             RelayCmd::TRUNCATE => self.handle_truncate().await,
             cmd => Err(internal!("relay cmd {cmd} not supported").into()),
         }
-    }
-
-    fn handle_unrecognized_cell(
-        &mut self,
-        body: RelayCellBody,
-        info: Option<QueuedCellPaddingInfo>,
-    ) -> StdResult<(), ReactorError> {
-        // TODO(relay): remove this log once we add some tests
-        // and confirm relaying cells works as expected
-        // (in practice it will be too noisy to be useful, even at trace level).
-        trace!(
-            circ_id = %self.unique_id,
-            "Forwarding unrecognized cell"
-        );
-
-        let Some(chan) = self.outbound.as_mut() else {
-            // The client shouldn't try to send us any cells before it gets
-            // an EXTENDED2 cell from us
-            return Err(Error::CircProto(
-                "Asked to forward cell before the circuit was extended?!".into(),
-            )
-            .into());
-        };
-
-        let msg = Relay::from(BoxedCellBody::from(body));
-        let relay = AnyChanMsg::Relay(msg);
-        let cell = AnyChanCell::new(Some(chan.circ_id), relay);
-
-        // Note: this future is always `Ready`, because we checked the sink for readiness
-        // before polling the input channel, so await won't block.
-        chan.outbound_chan_tx.start_send_unpin((cell, info))?;
-
-        Ok(())
     }
 
     async fn handle_forward_cell<R: Runtime>(

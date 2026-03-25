@@ -7,7 +7,6 @@ use crate::circuit::reactor::macros::derive_deftly_template_CircuitReactor;
 use crate::circuit::reactor::stream::StreamMsg;
 use crate::circuit::reactor::{ControlHandler, ReactorResultChannel};
 use crate::congestion::sendme;
-use crate::crypto::cell::RelayCellBody;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::msg_streamid;
 use crate::util::err::ReactorError;
@@ -19,7 +18,7 @@ use crate::stream::incoming::{
 };
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
-use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
+use crate::client::circuit::padding::PaddingController;
 
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
@@ -158,15 +157,6 @@ pub(crate) trait ForwardHandler: ControlHandler {
         hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
         relay_cell_format: RelayCellFormat,
-    ) -> StdResult<(), ReactorError>;
-
-    /// Handle a forward cell that we could not decrypt.
-    ///
-    /// Only used by relays.
-    fn handle_unrecognized_cell(
-        &mut self,
-        body: RelayCellBody,
-        info: Option<QueuedCellPaddingInfo>,
     ) -> StdResult<(), ReactorError>;
 
     /// Handle a forward (TODO terminology) cell.
