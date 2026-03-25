@@ -47,6 +47,7 @@ full = [
     "arti-rpcserver?/full",
     "fs-mistrust/full",
     "rpc",
+    "http-connect",
     "safelog/full",
     "tor-config/full",
     "tor-error/full",
@@ -136,7 +137,6 @@ experimental = [
     "arti-client/experimental",
     "experimental-api",
     "hs-pow-full",
-    "http-connect",
     "keymgr",
     "metrics",
     "hsc",
@@ -149,7 +149,7 @@ experimental = [
     "tokio-console",
 ]
 metrics = ["dep:metrics-exporter-prometheus", "tor-hsservice?/metrics", "tor-hsrproxy?/metrics", "__is_experimental"]
-http-connect = ["__is_experimental", "base64ct", "http", "hyper", "tor-error/http", "tor-cell"]
+http-connect = ["base64ct", "http", "hyper", "tor-error/http", "tor-cell"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
 tokio-console = ["dep:console-subscriber", "__is_experimental"]
 __is_experimental = []
