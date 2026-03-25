@@ -11,6 +11,9 @@ keywords = ["tor", "arti", "download", "async"]
 categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = ["mmap", "compression"]
 full = [
@@ -68,7 +71,6 @@ digest = "0.10.0"
 educe = "0.4.22"
 event-listener = "5"
 fs-mistrust = { path = "../fs-mistrust", version = "0.14.0" }
-fslock = { version = "0.2.0" }
 futures = "0.3.14"
 hex = "0.4"
 humantime = "2"
@@ -112,6 +114,10 @@ tor-proto = { path = "../tor-proto", version = "0.40.0" }
 tor-protover = { path = "../tor-protover", version = "0.40.0", features = ["serde"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.40.0" }
 tracing = "0.1.36"
+void = "1"
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+fslock = "0.2.0"
 
 [dev-dependencies]
 anyhow = "1.0.23"
@@ -123,5 +129,3 @@ tor-linkspec = { path = "../tor-linkspec", version = "0.40.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.40.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.40.0" }
 tracing-test = "0.2.4"
-[package.metadata.docs.rs]
-all-features = true

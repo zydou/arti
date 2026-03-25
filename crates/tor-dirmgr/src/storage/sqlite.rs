@@ -32,6 +32,9 @@ use rusqlite::{OpenFlags, OptionalExtension, Transaction, params};
 use time::OffsetDateTime;
 use tracing::{trace, warn};
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+use fslock::LockFile;
+
 /// Local directory cache using a Sqlite3 connection.
 pub(crate) struct SqliteStore {
     /// Connection to the sqlite3 database.
@@ -47,7 +50,33 @@ pub(crate) struct SqliteStore {
     ///
     /// (sqlite supports that with connection locking, but we want to
     /// be a little more coarse-grained here)
-    lockfile: Option<fslock::LockFile>,
+    lockfile: Option<LockFile>,
+}
+
+/// Wasm-only: a non-implementation of LockFile.
+///
+/// TODO #2106 -- remove this when we migrate to use File::lock.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+struct LockFile(void::Void);
+
+#[allow(clippy::missing_docs_in_private_items)]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+impl LockFile {
+    fn open<P: AsRef<Path>>(_path: P) -> std::io::Result<Self> {
+        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+    }
+
+    fn try_lock(&mut self) -> std::io::Result<bool> {
+        void::unreachable(self.0)
+    }
+
+    fn unlock(&mut self) -> std::io::Result<()> {
+        void::unreachable(self.0)
+    }
+
+    fn owns_lock(&self) -> bool {
+        void::unreachable(self.0)
+    }
 }
 
 /// # Some notes on blob consistency, and the lack thereof.
@@ -188,7 +217,7 @@ impl SqliteStore {
             }
         }
 
-        let mut lockfile = fslock::LockFile::open(&lockpath).map_err(Error::from_lockfile)?;
+        let mut lockfile = LockFile::open(&lockpath).map_err(Error::from_lockfile)?;
         if !readonly && !lockfile.try_lock().map_err(Error::from_lockfile)? {
             readonly = true; // we couldn't get the lock!
         };

@@ -20,7 +20,6 @@ use futures::task::SpawnError;
 use tracing::{debug, info, trace};
 
 use safelog::sensitive;
-use tor_basic_utils::BinaryHeapExt as _;
 use tor_basic_utils::retry::RetryDelay;
 use tor_checkable::{SelfSigned, Timebound};
 use tor_circmgr::CircMgr;
@@ -634,7 +633,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescMgr<R, M> {
             schedule: &mut BinaryHeap<RefetchEntry<TT, RD>>,
             was_state: &str,
         ) {
-            schedule.retain_ext(|b| note_found_keep_p(new_bridges, &b.bridge, was_state));
+            schedule.retain(|b| note_found_keep_p(new_bridges, &b.bridge, was_state));
         }
 
         let mut state = self.mgr.lock_then_process();
