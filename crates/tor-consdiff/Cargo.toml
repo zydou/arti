@@ -28,7 +28,7 @@ static_assertions = "1.1.0"
 thiserror = "2"
 tor-error = { path = "../tor-error", version = "0.40.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.40.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.40.0", features = ["full", "experimental"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.40.0", features = ["parse2"] }
 
 [dev-dependencies]
 rand = "0.9"
