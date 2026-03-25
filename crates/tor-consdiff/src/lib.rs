@@ -235,10 +235,13 @@ fn gen_ed_diff(base: &str, target: &str) -> std::result::Result<String, GenEdDif
                         return Err(GenEdDiffError::MissingUnixLineEnding { lno: lno + 1 });
                     }
 
-                    // Check for lines consisting of a single dot.
-                    // Because we assured the line has a Unix line ending, we
-                    // do not need to trim anything.
-                    if line == ".\n" {
+                    // Check for lines consisting of a single dot plus trailing
+                    // whitespace characters.  No need to bother about "\r\n",
+                    // because we checked that one above.  Although technically
+                    // lines such as `. \n` are possible and understood, we
+                    // want to be more defensive here for now; if it becomes a
+                    // problem, we may remove it later.
+                    if line.trim_end() == "." {
                         // +1 because 1-indexed.
                         return Err(GenEdDiffError::ContainsDotLine { lno: lno + 1 });
                     }
@@ -1192,6 +1195,17 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
             gen_ed_diff(base, target).unwrap_err(),
             GenEdDiffError::ContainsDotLine { lno: 3 },
         );
+
+        // Also check for dot lines with trailing spaces.
+        let target = "foo\nbar\n.   \t \nbaz\nfoo\n";
+        assert_eq!(
+            gen_ed_diff(base, target).unwrap_err(),
+            GenEdDiffError::ContainsDotLine { lno: 3 },
+        );
+
+        // A line starting with a dot and not ending in WS shall be fine though.
+        let target = "foo\nbar\n.   foo\nbaz\nfoo\n";
+        let _ = gen_ed_diff(base, target).unwrap();
 
         // Use gen_cons_diff here to assume that it is actually applied.
         let base = "directory-signature foo baz\n";
