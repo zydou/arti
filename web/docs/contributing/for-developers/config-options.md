@@ -8,11 +8,11 @@ title: Creating configuration options
 
 The default location of Arti's configuration file is platform-dependent.
 
-| OS | Header 2 |
+| OS | Configuration File |
 |----------|----------|
 | Unix | `~/.config/arti/arti.toml` |
 | macOS | `~/Library/Application Support/org.torproject.arti/arti.toml` |
-| Windows | `\Users\<USERNAME>\AppData\Roaming\arti\arti.toml` |
+| Windows | `\Users\<USERNAME>\AppData\Roaming\torproject\Arti\config\arti.toml` |
 
 You can change the default configuration file location from the command line, using the `--config` option.
 
