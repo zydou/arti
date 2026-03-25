@@ -915,218 +915,45 @@ where
 }
 
 #[cfg(test)]
-pub(super) mod test {
+pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use hex_literal::hex;
     use regex::Regex;
-    use std::time::{Duration, SystemTime};
+    use std::time::SystemTime;
     use tor_llcrypto::pk::rsa::RsaIdentity;
 
     use super::*;
+    use crate::Result;
     use crate::channel::handler::test::MsgBuf;
     use crate::channel::{ChannelType, new_frame};
     use crate::util::fake_mq;
     use crate::{Result, channel::ClientInitiatorHandshake};
     use tor_cell::chancell::msg::{self, Netinfo};
-    use tor_rtcompat::PreferredRuntime;
+    use tor_rtcompat::{PreferredRuntime, Runtime};
 
-    const VERSIONS: &[u8] = &hex!("0000 07 0006 0003 0004 0005");
+    pub(crate) const VERSIONS: &[u8] = &hex!("0000 07 0006 0003 0004 0005");
     // no certificates in this cell, but connect() doesn't care.
-    const NOCERTS: &[u8] = &hex!("00000000 81 0001 00");
-    const NETINFO_PREFIX: &[u8] = &hex!(
+    pub(crate) const NOCERTS: &[u8] = &hex!("00000000 81 0001 00");
+    pub(crate) const NETINFO_PREFIX: &[u8] = &hex!(
         "00000000 08 00000000
          04 04 7f 00 00 02
          01
          04 04 7f 00 00 03"
     );
-    const NETINFO_PREFIX_WITH_TIME: &[u8] = &hex!(
+    pub(crate) const NETINFO_PREFIX_WITH_TIME: &[u8] = &hex!(
         "00000000 08 48949290
          04 04 7f 00 00 02
          01
          04 04 7f 00 00 03"
     );
-    const AUTHCHALLENGE: &[u8] = &hex!(
+    pub(crate) const AUTHCHALLENGE: &[u8] = &hex!(
         "00000000 82 0026
          FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
          FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
          0002 0003 00ff"
     );
 
-    const VPADDING: &[u8] = &hex!("00000000 80 0003 FF FF FF");
-
-    fn add_padded(buf: &mut Vec<u8>, cell: &[u8]) {
-        let len_prev = buf.len();
-        buf.extend_from_slice(cell);
-        buf.resize(len_prev + 514, 0);
-    }
-    fn add_netinfo(buf: &mut Vec<u8>) {
-        add_padded(buf, NETINFO_PREFIX);
-    }
-
-    #[test]
-    fn connect_ok() -> Result<()> {
-        tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let now = humantime::parse_rfc3339("2008-08-02T17:00:00Z").unwrap();
-            let mut buf = Vec::new();
-            // versions cell
-            buf.extend_from_slice(VERSIONS);
-            // certs cell -- no certs in it, but this function doesn't care.
-            buf.extend_from_slice(NOCERTS);
-            // auth_challenge cell
-            buf.extend_from_slice(AUTHCHALLENGE);
-            // netinfo cell -- quite minimal.
-            add_padded(&mut buf, NETINFO_PREFIX);
-            let mb = MsgBuf::new(&buf[..]);
-            let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
-            let unverified = handshake.connect(|| now).await?;
-
-            assert_eq!(unverified.link_protocol(), 5);
-            // No timestamp in the NETINFO, so no skew.
-            assert_eq!(unverified.clock_skew(), ClockSkew::None);
-
-            // Try again with some padding.
-            let mut buf = Vec::new();
-            buf.extend_from_slice(VERSIONS);
-            buf.extend_from_slice(NOCERTS);
-            buf.extend_from_slice(VPADDING);
-            buf.extend_from_slice(AUTHCHALLENGE);
-            buf.extend_from_slice(VPADDING);
-            add_padded(&mut buf, NETINFO_PREFIX_WITH_TIME);
-            let mb = MsgBuf::new(&buf[..]);
-            let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
-            let unverified = handshake.connect(|| now).await?;
-            // Correct timestamp in the NETINFO, so no skew.
-            assert_eq!(unverified.clock_skew(), ClockSkew::None);
-
-            // Now pretend our clock is fast.
-            let now2 = now + Duration::from_secs(3600);
-            let mb = MsgBuf::new(&buf[..]);
-            let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
-            let unverified = handshake.connect(|| now2).await?;
-            assert_eq!(
-                unverified.clock_skew(),
-                ClockSkew::Fast(Duration::from_secs(3600))
-            );
-
-            Ok(())
-        })
-    }
-
-    async fn connect_err<T: Into<Vec<u8>>, S>(input: T, sleep_prov: S) -> Error
-    where
-        S: CoarseTimeProvider + SleepProvider,
-    {
-        let mb = MsgBuf::new(input);
-        let handshake = ClientInitiatorHandshake::new(mb, None, sleep_prov, fake_mq());
-        handshake.connect(SystemTime::get).await.err().unwrap()
-    }
-
-    #[test]
-    fn connect_badver() {
-        tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let err = connect_err(&b"HTTP://"[..], rt.clone()).await;
-            assert!(matches!(err, Error::HandshakeProto(_)));
-            assert_eq!(
-                format!("{}", err),
-                "Handshake protocol violation: Invalid CircID in variable cell"
-            );
-
-            let err = connect_err(&hex!("0000 07 0004 1234 ffff")[..], rt.clone()).await;
-            assert!(matches!(err, Error::HandshakeProto(_)));
-            assert_eq!(
-                format!("{}", err),
-                "Handshake protocol violation: No shared link protocols"
-            );
-        });
-    }
-
-    #[test]
-    fn connect_cellparse() {
-        tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let mut buf = Vec::new();
-            buf.extend_from_slice(VERSIONS);
-            // Here's a certs cell that will fail.
-            buf.extend_from_slice(&hex!("00000000 81 0001 01")[..]);
-            let err = connect_err(buf, rt.clone()).await;
-            assert!(matches!(err, Error::HandshakeProto { .. }));
-        });
-    }
-
-    #[test]
-    fn connect_duplicates() {
-        tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let mut buf = Vec::new();
-            buf.extend_from_slice(VERSIONS);
-            buf.extend_from_slice(NOCERTS);
-            buf.extend_from_slice(NOCERTS);
-            add_netinfo(&mut buf);
-            let err = connect_err(buf, rt.clone()).await;
-            assert!(matches!(err, Error::HandshakeProto(_)));
-            assert_eq!(
-                format!("{}", err),
-                "Handshake protocol violation: Expected [VPADDING, AUTH_CHALLENGE] cell, but received CERTS cell instead"
-            );
-
-            let mut buf = Vec::new();
-            buf.extend_from_slice(VERSIONS);
-            buf.extend_from_slice(NOCERTS);
-            buf.extend_from_slice(AUTHCHALLENGE);
-            buf.extend_from_slice(AUTHCHALLENGE);
-            add_netinfo(&mut buf);
-            let err = connect_err(buf, rt.clone()).await;
-            assert!(matches!(err, Error::HandshakeProto(_)));
-            assert_eq!(
-                format!("{}", err),
-                "Handshake protocol violation: Expected [VPADDING, NETINFO] cell, but received AUTH_CHALLENGE cell instead"
-            );
-        });
-    }
-
-    #[test]
-    fn connect_missing_certs() {
-        tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let mut buf = Vec::new();
-            buf.extend_from_slice(VERSIONS);
-            add_netinfo(&mut buf);
-            let err = connect_err(buf, rt.clone()).await;
-            assert!(matches!(err, Error::HandshakeProto(_)));
-            assert_eq!(
-                format!("{}", err),
-                "Handshake protocol violation: Expected [VPADDING, CERTS] cell, but received NETINFO cell instead"
-            );
-        });
-    }
-
-    #[test]
-    fn connect_missing_netinfo() {
-        tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let mut buf = Vec::new();
-            buf.extend_from_slice(VERSIONS);
-            buf.extend_from_slice(NOCERTS);
-            let err = connect_err(buf, rt.clone()).await;
-            assert!(matches!(err, Error::HandshakeProto(_)));
-            assert_eq!(
-                format!("{}", err),
-                "Handshake protocol violation: Stream ended unexpectedly"
-            );
-        });
-    }
-
-    #[test]
-    fn connect_misplaced_cell() {
-        tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let mut buf = Vec::new();
-            buf.extend_from_slice(VERSIONS);
-            // here's a create cell.
-            add_padded(&mut buf, &hex!("00000001 01")[..]);
-            let err = connect_err(buf, rt.clone()).await;
-            assert!(matches!(err, Error::HandshakeProto(_)));
-            assert_eq!(
-                format!("{}", err),
-                "Handshake protocol violation: Decoding cell error: Error while parsing channel cell: Bad object: Unexpected command CREATE in HandshakeRelayResponderMsg"
-            );
-        });
-    }
+    pub(crate) const VPADDING: &[u8] = &hex!("00000000 80 0003 FF FF FF");
 
     fn make_unverified<R>(runtime: R) -> UnverifiedChannel<MsgBuf, R>
     where
@@ -1401,40 +1228,5 @@ pub(super) mod test {
         pub(crate) const PEER_ED: &[u8] =
             &hex!("dcb604db2034b00fd16986d4adb9d16b21cb4e4457a33dec0f538903683e96e9");
         pub(crate) const PEER_RSA: &[u8] = &hex!("2f1fb49bb332a9eec617e41e911c33fb3890aef3");
-    }
-
-    #[test]
-    fn test_finish() {
-        tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let peer_addr = "127.1.1.2:443".parse().unwrap();
-            let mut framed_tls = new_frame(MsgBuf::new(&b""[..]), ChannelType::ClientInitiator);
-            let _ = framed_tls.codec_mut().set_link_version(4);
-            let ver = VerifiedChannel {
-                link_protocol: 4,
-                framed_tls,
-                unique_id: UniqId::new(),
-                target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
-                peer_relay_ids: RelayIds::empty(),
-                peer_rsa_id_digest: [0; 32],
-                clock_skew: ClockSkew::None,
-                sleep_prov: rt,
-                memquota: fake_mq(),
-            };
-
-            let peer_ip = peer_addr.ip();
-            let netinfo = Netinfo::from_client(Some(peer_ip));
-
-            let (_chan, _reactor) = ver
-                .finish(
-                    &netinfo,
-                    &[],
-                    MaybeSensitive::not_sensitive(PeerInfo::EMPTY),
-                    ChannelMode::Client,
-                )
-                .await
-                .unwrap();
-
-            // TODO: check contents of netinfo cell
-        });
     }
 }

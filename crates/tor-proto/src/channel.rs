@@ -1183,6 +1183,8 @@ pub(crate) mod test {
     use tor_cell::chancell::{AnyChanCell, msg};
     use tor_rtcompat::test_with_one_runtime;
 
+    pub(crate) use super::handler::test::MsgBuf;
+
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     pub(crate) fn fake_channel(
         rt: impl SleepProvider + CoarseTimeProvider,
