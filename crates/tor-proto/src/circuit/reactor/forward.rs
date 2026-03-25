@@ -167,6 +167,7 @@ pub(crate) trait ForwardHandler: ControlHandler {
         &mut self,
         body: RelayCellBody,
         info: Option<QueuedCellPaddingInfo>,
+        early: bool,
     ) -> StdResult<(), ReactorError>;
 
     /// Handle a forward (TODO terminology) cell.

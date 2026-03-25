@@ -627,9 +627,7 @@ pub(crate) mod test {
                 .await;
             rt.advance_until_stalled().await;
             let recvd_begin = expect_cell!(RelayEarly, Begin);
-            // TODO(#2417): this currently fails
             assert_eq!(begin, recvd_begin);
-
         });
     }
 
