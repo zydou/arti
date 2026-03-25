@@ -33,7 +33,7 @@
 //! # Data structure
 //!
 //! The connection has
-//!   - an outbound queue for outbound messages, in its [`PollingStream`].
+//!   - an outbound queue for outbound messages, in its [`BlockingConnection`].
 //!   - [`RequestMap`], a data structure containing outstanding requests,
 //!     which is used for knowing what to do with inbound messages
 //!
@@ -55,8 +55,12 @@
 //!
 //! At any given time,
 //! multiple threads can be waiting for responses on the same RpcConn object.
-//! Exactly of them will actually be holding the [`PollingStream`]
+//! If [`RpcPoll`] is not in use,
+//! exactly of these threads will actually be holding the [`BlockingConnection`]
 //! and trying to read from the network.
+//! (Otherwise (if [`RpcPoll`] is in use), the `RpcPoll` object will be holding the
+//! [`NonblockingConnection`] and will be responsible for all reads and writes.)
+//!
 //! If it finds a response for itself, it returns that response.
 //! Otherwise, it puts the response in the appropriate queue,
 //! and signal's the condvar associated with that queue.
@@ -85,12 +89,12 @@ use std::{
 use crate::{
     UserTag,
     conn::AnyResponse,
+    ll_conn::{BlockingConnection, NonblockingConnection},
     msgs::{
         AnyRequestId, ObjectId,
         request::{IdGenerator, ValidatedRequest},
         response::ValidatedResponse,
     },
-    nb_stream::{NonblockingStream, PollingStream},
 };
 
 use super::{ProtoError, ShutdownError};
@@ -237,7 +241,7 @@ struct ResponseQueue<Q: QueueId + ?Sized> {
     ///
     /// * When we queue a response for this request.
     /// * When we store a fatal error affecting all requests in the RpcConn.
-    /// * When the thread currently interacting with he [`PollingStream`] for this
+    /// * When the thread currently interacting with he [`BlockingConnection`] for this
     ///   RpcConn stops doing so, and the request waiting
     ///   on this thread has been chosen to take responsibility for interacting.
     ///
@@ -347,7 +351,7 @@ struct ReceiverState {
     ///   must take on the interactor role.
     ///
     /// (Therefore, when it becomes Some, we must signal a cv, if any is set.)
-    stream: Option<PollingStream>,
+    conn: Option<BlockingConnection>,
 }
 
 impl RequestMap {
@@ -397,7 +401,7 @@ pub(super) struct Receiver {
     /// Mutable state.
     ///
     /// This lock should only be held briefly, and never while interacting with the
-    /// `PollingStream`.
+    /// `BlockingConnection`.
     state: Mutex<ReceiverState>,
 }
 
@@ -412,7 +416,7 @@ pub struct RpcConn {
     pub(super) receiver: Arc<Receiver>,
 
     /// A writer that we use to queue requests to be sent back to Arti.
-    writer: crate::nb_stream::WriteHandle,
+    writer: crate::ll_conn::WriteHandle,
 
     /// If set, we are authenticated and we have negotiated a session that has
     /// this ObjectID.
@@ -432,8 +436,9 @@ pub struct RpcPoll {
     /// The message-receiver that we're using to track request state and report responses.
     receiver: Arc<Receiver>,
 
-    /// The underling stream that we're using to send and receive messages.
-    stream: NonblockingStream,
+    /// The underling nonblocking connection that we're polling for readiness,
+    /// and using to send and receive messages.
+    nbconn: NonblockingConnection,
 }
 
 /// Instruction to alert some additional condvar(s) before releasing our lock and returning
@@ -444,14 +449,14 @@ pub struct RpcPoll {
 #[derive(Debug)]
 enum AlertWhom {
     /// We don't need to alert anybody;
-    /// we have not taken the stream, or registered our own condvar:
-    /// therefore nobody expects us to take the stream.
+    /// we have not taken the connection, or registered our own condvar:
+    /// therefore nobody expects us to take the connection.
     Nobody,
-    /// We have taken the stream or been alerted via our condvar:
+    /// We have taken the connection or been alerted via our condvar:
     /// therefore, we are responsible for making sure
-    /// that _somebody_ takes the stream.
+    /// that _somebody_ takes the connection.
     ///
-    /// We should therefore alert somebody if nobody currently has the stream.
+    /// We should therefore alert somebody if nobody currently has the connection.
     Anybody,
     /// We have been the first to encounter a fatal error.
     /// Therefore, we should inform _everybody_.
@@ -459,16 +464,16 @@ enum AlertWhom {
 }
 
 impl RpcConn {
-    /// Construct a new RpcConn with a given PollingStream.
-    pub(super) fn new(stream: PollingStream) -> Self {
-        let writer = stream.writer();
+    /// Construct a new RpcConn with a given BlockingConnection.
+    pub(super) fn new(conn: BlockingConnection) -> Self {
+        let writer = conn.writer();
         Self {
             receiver: Arc::new(Receiver {
                 state: Mutex::new(ReceiverState {
                     id_gen: IdGenerator::default(),
                     fatal: None,
                     pending: RequestMap::default(),
-                    stream: Some(stream),
+                    conn: Some(conn),
                 }),
             }),
             writer,
@@ -478,22 +483,22 @@ impl RpcConn {
 
     /// Return a new [`RpcPoll`] to use for managing an RpcConn using event-driven IO.
     ///
-    /// Removes the `PollingStream` from this `RpcConn`
+    /// Removes the `BlockingConnection` from this `RpcConn`
     /// and drops any mio resources associated with it.
     /// After this method is called is called, only `RpcPoll::poll()` can interact with it.
     ///
     /// See caveats on [`RpcConnBuilder::connect_polling`](crate::RpcConnBuilder::connect_polling).
     pub(crate) fn construct_rpc_poll(
         &mut self,
-        event_loop: Box<dyn crate::nb_stream::EventLoop>,
+        event_loop: Box<dyn crate::ll_conn::EventLoop>,
     ) -> Option<RpcPoll> {
         let mut state = self.receiver.state.lock().expect("Lock poisoned");
         // TODO nb: enforce that nobody else is holding the state?  Return an error?
-        let mut stream = state.stream.take()?.into_nonblocking();
-        stream.replace_event_loop_handle(event_loop);
+        let mut nbconn = state.conn.take()?.into_nonblocking();
+        nbconn.replace_event_loop_handle(event_loop);
         Some(RpcPoll {
             receiver: Arc::clone(&self.receiver),
-            stream,
+            nbconn,
         })
     }
 
@@ -638,7 +643,7 @@ impl Receiver {
 
             match should_alert {
                 AlertWhom::Nobody => {}
-                AlertWhom::Anybody if state.stream.is_none() => {}
+                AlertWhom::Anybody if state.conn.is_none() => {}
                 AlertWhom::Anybody => state.pending.alert_anybody(),
                 AlertWhom::Everybody => state.pending.alert_everybody(),
             }
@@ -671,8 +676,8 @@ impl Receiver {
         AlertWhom,
     ) {
         // At this point, we have not registered on a condvar, and we have not
-        // taken the PollingStream.
-        // Therefore, we do not yet need to ensure that anybody else takes the PollingStream.
+        // taken the BlockingConnection.
+        // Therefore, we do not yet need to ensure that anybody else takes the BlockingConnection.
         //
         // TODO: It is possibly too easy to forget to set this,
         // or to set it to a less "alerty" value.  Refactoring might help;
@@ -688,7 +693,7 @@ impl Receiver {
             Err(err) => return (Err(err), state_lock, should_alert),
         };
 
-        let mut stream = loop {
+        let mut conn = loop {
             // Note: It might be nice to use a hash_map::Entry here, but it
             // doesn't really work the way we want.  The `entry()` API is always
             // ready to insert, and requires that we clone `id`.  But what we
@@ -704,12 +709,12 @@ impl Receiver {
                 return (ready.map_err(ProtoError::from), state_lock, should_alert);
             }
 
-            // If we reach this point, we are about to either take the stream or
+            // If we reach this point, we are about to either take the connection or
             // register a cv.  This means that when we return, we need to make
             // sure that at least one other cv gets notified.
             should_alert = AlertWhom::Anybody;
 
-            if let Some(r) = state.stream.take() {
+            if let Some(r) = state.conn.take() {
                 // Nobody else is polling; we have to do it.
                 break r;
             }
@@ -730,19 +735,19 @@ impl Receiver {
             this_ent.waiter = None;
 
             // We have been notified: either there is a reply or us,
-            // or we are supposed to take the stream.  We'll find out on our
+            // or we are supposed to take the connection.  We'll find out on our
             // next time through the loop.
         };
 
         let (result, mut state_lock, should_alert) =
-            self.read_until_message_for(state_lock, &mut stream, queue_id);
-        // Put the stream back.
-        state_lock.stream = Some(stream);
+            self.read_until_message_for(state_lock, &mut conn, queue_id);
+        // Put the connection back.
+        state_lock.conn = Some(conn);
 
         (result.map_err(ProtoError::from), state_lock, should_alert)
     }
 
-    /// Interact with `stream`, writing any queued messages,
+    /// Interact with `conn`, writing any queued messages,
     /// reading messages, and
     /// delivering them as appropriate, until we find one for the queue `queue_id`
     /// or a fatal error occurs.
@@ -752,13 +757,13 @@ impl Receiver {
     /// The caller is responsible for restoring the following state before
     /// dropping the `MutexGuard`:
     ///
-    /// - Putting `stream` back into the `stream` field.
+    /// - Putting `conn` back into the `conn` field.
     /// - Other invariants as discussed in wait_on_message_for_impl.
     #[allow(clippy::type_complexity)]
     fn read_until_message_for<'a, Q: QueueId>(
         &'a self,
         mut state_lock: MutexGuard<'a, ReceiverState>,
-        stream: &mut PollingStream,
+        conn: &mut BlockingConnection,
         queue_id: &Q,
     ) -> (
         Result<(Q::UserTag, ValidatedResponse), ShutdownError>,
@@ -770,7 +775,7 @@ impl Receiver {
             // This is okay, since all our invariants should hold at this point.
             drop(state_lock);
 
-            let result = match stream.interact() {
+            let result = match conn.interact() {
                 Err(e) => Err(ShutdownError::Read(Arc::new(e))),
                 Ok(None) => Err(ShutdownError::ConnectionClosed),
                 Ok(Some(m)) => m.try_validate().map_err(ShutdownError::from),
@@ -832,7 +837,7 @@ impl RpcPoll {
     /// but may become possible in the future.
     /// Applications should consider this a fatal error.
     pub fn try_as_fd(&self) -> std::io::Result<std::os::fd::BorrowedFd<'_>> {
-        self.stream.try_as_handle()
+        self.nbconn.try_as_handle()
     }
 
     #[cfg(windows)]
@@ -844,7 +849,7 @@ impl RpcPoll {
     /// but may become possible in the future.
     /// Applications should consider this a fatal error.
     pub fn try_as_socket(&self) -> std::io::Result<std::os::windows::io::BorrowedSocket<'_>> {
-        self.stream.try_as_handle()
+        self.nbconn.try_as_handle()
     }
 
     /// Return true iff this [`RpcPoll`] currently wants to write
@@ -863,7 +868,7 @@ impl RpcPoll {
     ///
     /// [`EventLoop`]: crate::EventLoop
     pub fn wants_to_write(&self) -> bool {
-        self.stream.wants_to_write()
+        self.nbconn.wants_to_write()
     }
 
     /// Handle IO for the associated RPC connection, without blocking.
@@ -880,10 +885,10 @@ impl RpcPoll {
     /// This is used in conjunction with `EventLoop` and/or `wants_to_write`;
     /// see [the `EventLoop` documentation] for details.
     pub fn poll(&mut self) -> Result<Result<(UserTag, AnyResponse), WouldBlock>, ProtoError> {
-        use crate::nb_stream::PollStatus;
+        use crate::ll_conn::PollStatus;
         // We try reading _and_ writing regardless; it won't hurt anything.
         loop {
-            let r = self.stream.interact_once();
+            let r = self.nbconn.interact_once();
             let response = match r {
                 Ok(PollStatus::Msg(m)) => m.try_validate().map_err(ShutdownError::from),
                 Ok(PollStatus::Closed) => return Err(ShutdownError::ConnectionClosed.into()),

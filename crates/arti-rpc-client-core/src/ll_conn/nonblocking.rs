@@ -1,20 +1,14 @@
-//! Low-level nonblocking stream implementation.
+//! Lower level connection type based on nonblocking IO.
 //!
-//! This module defines two main types: [`NonblockingStream`].
-//! (a low-level type for use by external tools
-//! that want to implement their own nonblocking IO),
-//! and [`PollingStream`] (a slightly higher-level type
-//! that we use internally when we are asked to provide
-//! our own nonblocking IO loop(s)).
+//! This module defines [`NonblockingConnection`], which provides a nonblocking
+//! wrapper around an underlying nonblocking stream,
+//! [`WriteHandle`], which queues messages for a `NonblockingConnection`,
+//! and [`EventLoop`], a trait wrapping access to an event loop
+//! based on poll, select, kqueue, epoll, etc.
 //!
-//! This module also defines several traits for use by these types.
-//!
-//! Treats messages as unrelated strings, and validates outgoing messages for correctness.
-//!
-//! TODO nb: For now, nothing in this module is actually public;
-//! we'll want to expose some of these types.
-
-use mio::Interest;
+//! `NonblockingConnection` is used directly in `RpcPoll` if the user wants to provide their own
+//! event loop, or wrapped in a [`BlockingConnection`](super::BlockingConnection)
+//! if this RPC library is providing its own event loop.
 
 use crate::{
     msgs::{request::ValidatedRequest, response::UnparsedResponse},
@@ -22,239 +16,58 @@ use crate::{
 };
 use std::{
     io::{self, Read as _, Write as _},
-    mem,
+    mem::{self},
     sync::{Arc, Mutex},
 };
 
 #[cfg(unix)]
-use std::os::fd::{AsFd as _, BorrowedFd as BorrowedOsHandle};
+use std::os::fd::BorrowedFd as BorrowedOsHandle;
 #[cfg(windows)]
-use std::os::windows::io::{AsSocket as _, BorrowedSocket as BorrowedOsHandle};
+use std::os::windows::io::BorrowedSocket as BorrowedOsHandle;
 
-/// An IO stream to Arti, along with any supporting logic necessary to check it for readiness.
-///
-/// Internally, this uses `mio` along with a [`NonblockingStream`] to check for events.
-///
-/// To use this type, mark the stream as nonblocking
-/// with e.g. [TcpStream::set_nonblocking](std::net::TcpStream::set_nonblocking),
-/// convert it into a [`mio::event::Source`],
-/// and pass it to [`PollingStream::new()`]
-///
-/// At this point, you can read and write messages via nonblocking IO.
-///
-/// The [`PollingStream::writer()`] method will return a handle that you can use from any thread
-/// that you can use to queue an outbound message.
-///
-/// No messages are actually sent or received unless
-/// some thread is calling [`PollingStream::interact()`].
-///
-/// ## Concurrency and interior mutability
-///
-/// A `PollingStream` has (limited) interior mutability.
-///
-/// Only a single call to `interact` can be made at the same time.
-/// So only one thread can be waiting for responses, and
-/// the caller of `interact` must demultiplex responses as necessary.
-///
-/// But, one or more [`WriteHandle`]s can be created,
-/// and these are `'static + Send + Sync`.
-/// Using `WriteHandle`, multiple threads can enqueue requests,
-/// with [`send_valid`](WriteHandle::send_valid), concurrently.
-///
-/// (All these restrictions imposed on the caller are enforced by the Rust type system.)
-#[derive(Debug)]
-pub(crate) struct PollingStream {
-    /// The poll object.
-    ///
-    /// (This typically corresponds to a kqueue or epoll handle.)
-    ///
-    /// ## IO Safety
-    ///
-    /// This object (semantically) contains references to the `fd`s or `SOCKETS`
-    /// of any inserted [`mio::event::Source`].  Therefore it must not outlive those sources.
-    /// Further, according to `mio`'s documentation, every Source must be deregistered
-    /// before it can be dropped.
-    ///
-    /// We ensure these properties are obeyed as follows:
-    ///  - We hold the stream via `stream`, the NonblockingStream member of this struct.
-    ///    We do not let anybody outside this module have the stream or the `Poll`.
-    ///  - We declare a Drop implementation that deregisters the stream.
-    ///    This method ensures that the stream is dropped before it is closed.
-    poll: mio::Poll,
+use super::{Stream, retry_eintr};
 
-    /// A small buffer to receive IO readiness events.
-    events: mio::Events,
+/// A lower-level implementation of nonblocking IO for an open stream to the RPC server.
+///
+/// Unlike [`BlockingConnection`], this type _does not_ handle the IO event polling loops:
+/// the caller is required to provide their own.
+///
+/// [`BlockingConnection`]: super::BlockingConnection
+#[derive(derive_more::Debug)]
+pub(crate) struct NonblockingConnection {
+    /// A write handle used to write onto this stream.
+    #[debug(ignore)]
+    write_handle: WriteHandle,
 
-    /// The underlying stream.
-    ///
-    /// Invariant: `stream.stream` is a [`MioStream`], so [`Stream::as_mio_stream`] will return
-    /// Some when we call it.
-    ///
-    /// This is None only if we have called `into_nonblocking()` or `drop()`
-    /// we store this in an Option so `that we can move it out of this object.
-    stream: Option<NonblockingStream>,
+    /// A buffer of incoming messages (possibly partial) from the RPC server.
+    //
+    // TODO: Consider using a VecDeque or BytesMut or such.
+    read_buf: Vec<u8>,
+
+    /// The underlying nonblocking stream.
+    #[debug(ignore)]
+    stream: Box<dyn Stream>,
 }
 
-/// A `mio` token corresponding to the Waker we use to tell the interactor about new writes.
-const WAKE_TOKEN: mio::Token = mio::Token(0);
+/// A return value from [`NonblockingConnection::interact_once`].
+#[derive(Debug, Clone)]
+pub(crate) enum PollStatus {
+    /// The stream is closed.
+    Closed,
 
-/// A `mio` token corresponding to the Stream connecting to the RPC
-const STREAM_TOKEN: mio::Token = mio::Token(1);
+    /// No progress can be made until the stream is available for further IO.
+    WouldBlock,
 
-/// Wrapper around [`mio::Waker`] on which we implement [`EventLoop`].
-///
-/// We don't do so on `mio::Waker` directly
-/// since other implementations of `EventLoop` on `mio::Waker`
-/// are possible.
-struct MioWaker(mio::Waker);
-
-impl PollingStream {
-    /// Create a new PollingStream.
-    ///
-    /// The `stream` will be set to use nonblocking IO;
-    /// on Unix this will affect the behaviour of other `dup`s of the same fd!
-    pub(crate) fn new(stream: Box<dyn MioStream>) -> io::Result<Self> {
-        let poll = mio::Poll::new()?;
-        let waker = mio::Waker::new(poll.registry(), WAKE_TOKEN)?;
-
-        let stream = NonblockingStream::new(Box::new(MioWaker(waker)), stream);
-
-        let mut cio = Self {
-            poll,
-            events: mio::Events::with_capacity(4),
-            stream: Some(stream),
-        };
-
-        // We register the stream here, since we want to use it exclusively with `reregister`
-        // later on.  We do not deregister the stream until `Drop::drop` is called.
-        cio.poll.registry().register(
-            cio.stream
-                .as_mut()
-                .expect("Logic error: stream not present")
-                .stream
-                .as_mio_stream()
-                .expect("logic error: not a mio stream."),
-            STREAM_TOKEN,
-            Interest::READABLE,
-        )?;
-
-        Ok(cio)
-    }
-
-    /// Return a new [`WriteHandle`] that can be used to queue messages to be sent via this stream.
-    pub(crate) fn writer(&self) -> WriteHandle {
-        self.stream
-            .as_ref()
-            .expect("logic error: stream not present")
-            .writer()
-    }
-
-    /// Interact with the peer until some response is received.
-    ///
-    /// Sends all requests given to [`WriteHandle::send_valid`]
-    /// (including calls to `send_valid` made while `interact` is running)
-    /// while looking for a response from the server.
-    /// Returns when the first response is received.
-    ///
-    ///
-    /// Returns an error if an IO condition has failed.
-    /// Returns None if the other side has closed the stream.
-    /// Otherwise, returns an unparsed message from the RPC server.
-    ///
-    /// Unless some thread is calling this method, nobody will actually be reading or writing from
-    /// the [`PollingStream`], and so nobody's requests will be sent or answered.
-    pub(crate) fn interact(&mut self) -> io::Result<Option<UnparsedResponse>> {
-        // Should we try to read and write? Start out by assuming "yes".
-
-        loop {
-            let stream = self
-                .stream
-                .as_mut()
-                .expect("logic error: stream not present!");
-
-            // Try interacting with the underlying stream.
-            match stream.interact_once()? {
-                PollStatus::Closed => return Ok(None),
-                PollStatus::Msg(msg) => return Ok(Some(msg)),
-                PollStatus::WouldBlock => {}
-            };
-
-            // We're blocking on reading and possibly writing.  Register our interest,
-            // so that we get woken as appropriate.
-            //
-            // TOCTOU note: If `want_write` is true, it will not become
-            // false until the next time we call stream.interact_once().
-            //
-            // If `wantio.want_write()` is false, Whenever it becomes true,
-            // `MioWaker` will be invoked.  That will cause the
-            // self.poll.poll() to return, and the loop to repeat.
-            let want_write = stream.wants_to_write();
-            let interests = if want_write {
-                Interest::READABLE | Interest::WRITABLE
-            } else {
-                Interest::READABLE
-            };
-            self.poll.registry().reregister(
-                stream
-                    .stream
-                    .as_mio_stream()
-                    .expect("logic error: not a mio stream!"),
-                STREAM_TOKEN,
-                interests,
-            )?;
-
-            // Poll until the socket is ready to read or write,
-            // _or_ until somebody invokes the EventLoop because they have queued more to write.
-            let () = retry_eintr(|| self.poll.poll(&mut self.events, None))?;
-
-            // Now that we've been woken, see which events we've been woken with,
-            // and adjust our plans accordingly on the next time through the loop.
-            self.events.clear();
-        }
-    }
-
-    /// Downgrade this stream into a [`NonblockingStream`]
-    /// for use within an [`RpcPoll`](crate::RpcPoll).
-    pub(crate) fn into_nonblocking(mut self) -> NonblockingStream {
-        let mut stream = self
-            .deregister_and_take_stream()
-            .expect("logic error: stream not present!");
-        stream.stream = stream.stream.remove_mio();
-        stream
-    }
-
-    /// Implementation helper for Drop and into_nonblocking:
-    ///
-    /// Deregisters the NonblockingStream with the mio Registry, removes it from this object,
-    /// and returns it.
-    ///
-    /// After this method is called, this object may no longer be used.
-    fn deregister_and_take_stream(&mut self) -> Option<NonblockingStream> {
-        // IO SAFETY: See "IO Safety" note in documentation for PollingStream.
-        let mut stream = self.stream.take()?;
-        let s: &mut _ = stream
-            .stream
-            .as_mio_stream()
-            .expect("Logic error: Stream was not a MIO stream.");
-        self.poll
-            .registry()
-            .deregister(s)
-            .expect("Deregister operation failed");
-        Some(stream)
-    }
-}
-
-impl Drop for PollingStream {
-    fn drop(&mut self) {
-        // IO SAFETY: See "IO Safety" note in documentation for PollingStream.
-        let _ = self.deregister_and_take_stream();
-    }
+    /// We have received a message.
+    Msg(UnparsedResponse),
 }
 
 /// A handle that can be used to queue outgoing messages for a nonblocking stream.
 ///
 /// Note that queueing a message has no effect unless some party is polling the stream,
-/// either with [`PollingStream::interact()`], or [`NonblockingStream::interact_once()`].
+/// either with [`BlockingConnection::interact()`], or [`NonblockingConnection::interact_once()`].
+///
+/// [`BlockingConnection::interact()`]: super::BlockingConnection::interact
 #[derive(Clone, Debug)]
 pub(crate) struct WriteHandle {
     /// The actual implementation type for this writer.
@@ -316,41 +129,8 @@ struct WriteHandleImpl {
     event_loop: Box<dyn EventLoop>,
 }
 
-/// A lower-level implementation of nonblocking IO for an open stream to the RPC server.
-///
-/// Unlike [`PollingStream`], this type _does not_ handle the IO event polling loops:
-/// the caller is required to provide their own.
-#[derive(derive_more::Debug)]
-pub(crate) struct NonblockingStream {
-    /// A write handle used to write onto this stream.
-    #[debug(ignore)]
-    write_handle: WriteHandle,
-
-    /// A buffer of incoming messages (possibly partial) from the RPC server.
-    //
-    // TODO: Consider using a VecDeque or BytesMut or such.
-    read_buf: Vec<u8>,
-
-    /// The underlying nonblocking stream.
-    #[debug(ignore)]
-    stream: Box<dyn Stream>,
-}
-
-/// A return value from [`NonblockingStream::interact_once`].
-#[derive(Debug, Clone)]
-pub(crate) enum PollStatus {
-    /// The stream is closed.
-    Closed,
-
-    /// No progress can be made until the stream is available for further IO.
-    WouldBlock,
-
-    /// We have received a message.
-    Msg(UnparsedResponse),
-}
-
-impl NonblockingStream {
-    /// Create a new `NonblockingStream` from a provided [`EventLoop`] and [`Stream`].
+impl NonblockingConnection {
+    /// Create a new `NonblockingConnection` from a provided [`EventLoop`] and [`Stream`].
     pub(crate) fn new(event_loop: Box<dyn EventLoop>, stream: Box<dyn Stream>) -> Self {
         Self {
             write_handle: WriteHandle {
@@ -364,19 +144,37 @@ impl NonblockingStream {
         }
     }
 
-    /// Return a new [`WriteHandle`] that can be used to queue messages to be sent via this stream.
+    /// Return a reference to this connection as a mio source.
+    ///
+    /// Returns None if this is was not constructed with a mio stream,
+    /// or if `downgrade_source` has been called.
+    pub(super) fn as_mio_source(&mut self) -> Option<&mut dyn mio::event::Source> {
+        self.stream.as_mut().as_mio_source()
+    }
+
+    /// Remove any mio wrappers from this connection.
+    pub(super) fn downgrade_source(&mut self) {
+        // We need this rigamarole because `self.stream = self.stream.remove_mio()`
+        // gives a "can't move out of self.stream, which is behind a mutable reference"
+        // error.
+        let mut s: Box<dyn Stream> = Box::new(std::io::empty());
+        mem::swap(&mut s, &mut self.stream);
+        self.stream = s.remove_mio();
+    }
+
+    /// Return a new [`WriteHandle`] that can be used to queue messages to be sent via this connection.
     pub(crate) fn writer(&self) -> WriteHandle {
         self.write_handle.clone()
     }
 
-    /// Try to return an OS-level handle for use with this stream.
+    /// Try to return an OS-level handle for use with this connection.
     ///
     /// This is an fd on unix and a SOCKET on windows.
     pub(crate) fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>> {
         self.stream.try_as_handle()
     }
 
-    /// Replace the current `EventLoop` this [`NonblockingStream`].
+    /// Replace the current `EventLoop` this [`NonblockingConnection`].
     ///
     /// This should only be done while nothing else is interacting with the stream or the waker.
     pub(crate) fn replace_event_loop_handle(&mut self, new_event_loop_handle: Box<dyn EventLoop>) {
@@ -384,7 +182,7 @@ impl NonblockingStream {
         h.event_loop = new_event_loop_handle;
     }
 
-    /// Return true iff this [`NonblockingStream`] currently wants to write
+    /// Return true iff this [`NonblockingConnection`] currently wants to write
     ///
     /// See [`RpcPoll::wants_to_write`] and [`EventLoop`]
     /// for the semantics.
@@ -396,10 +194,6 @@ impl NonblockingStream {
     }
 
     /// Try to exchange messages with the RPC server.
-    ///
-    /// If `try_reading` is true, then we should try reading from the RPC server.
-    /// If `try_writing` is true, then we should try flushing messages to the RPC server
-    /// (if we have any).
     ///
     /// If the stream proves to be closed, returns [`PollStatus::Closed`].
     ///
@@ -512,25 +306,6 @@ impl NonblockingStream {
         }
     }
 }
-
-/// Any type we can use as a target for [`NonblockingStream`].
-pub(crate) trait Stream: io::Read + io::Write + Send {
-    /// If this Stream object is a [`MioStream`], upcast it to one.
-    ///
-    /// Otherwise return None.
-    fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream>;
-
-    /// Discard any mio-specific wrappers on this stream.
-    fn remove_mio(self: Box<Self>) -> Box<dyn Stream>;
-
-    /// Return an os-specific handle for using this stream type within a nonblocking event loop.
-    ///
-    /// (This will be an fd on unix and a SOCKET on windows.)
-    fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>>;
-}
-
-/// A [`Stream`] that we can use inside a [`PollingStream`].
-pub(crate) trait MioStream: Stream + mio::event::Source {}
 
 /// Representation of an event loop that can watch a handle and arrange to call `poll`
 ///
@@ -690,61 +465,6 @@ pub trait EventLoop: Send + Sync {
     fn start_writing(&mut self) -> io::Result<()>;
 }
 
-impl EventLoop for MioWaker {
-    fn start_writing(&mut self) -> io::Result<()> {
-        mio::Waker::wake(&self.0)
-    }
-    fn stop_writing(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-/// Implement Stream and MioStream for a related pair of types.
-macro_rules! impl_traits {
-    { $stream:ty => $mio_stream:ty } => {
-        impl Stream for $stream {
-            fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream> {
-                None
-            }
-            fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {
-                self
-            }
-            fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>> {
-                cfg_if::cfg_if!{
-                    if #[cfg(unix)] {
-                        Ok(self.as_fd())
-                    } else if #[cfg(windows)] {
-                        Ok(self.as_socket())
-                    }
-                }
-            }
-        }
-        impl Stream for $mio_stream {
-            fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream> {
-                Some(self as _)
-            }
-            fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {
-                Box::new(<$stream>::from(*self))
-            }
-            fn try_as_handle(&self) -> io::Result<BorrowedOsHandle<'_>> {
-                cfg_if::cfg_if!{
-                    if #[cfg(unix)] {
-                        Ok(self.as_fd())
-                    } else if #[cfg(windows)] {
-                        Ok(self.as_socket())
-                    }
-                }
-            }
-        }
-        impl MioStream for $mio_stream {
-        }
-    }
-}
-
-impl_traits! { std::net::TcpStream => mio::net::TcpStream }
-#[cfg(unix)]
-impl_traits! { std::os::unix::net::UnixStream => mio::net::UnixStream }
-
 /// Remove n elements from the front of v.
 ///
 /// # Panics
@@ -755,20 +475,6 @@ fn vec_pop_from_front(v: &mut Vec<u8>, n: usize) {
     // The compiler appears to be smart enough to optimize it away.
     // (Cargo asm indicates that this optimizes down to a memmove.)
     v.drain(0..n);
-}
-
-/// Retry `f` until it returns Ok() or an error whose kind is not `Interrupted`.
-fn retry_eintr<F, T>(mut f: F) -> io::Result<T>
-where
-    F: FnMut() -> io::Result<T>,
-{
-    loop {
-        let r = f();
-        match r {
-            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
-            _ => return r,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -885,7 +591,7 @@ mod test {
         }
     }
     impl Stream for TestStream {
-        fn as_mio_stream(&mut self) -> Option<&mut dyn MioStream> {
+        fn as_mio_source(&mut self) -> Option<&mut dyn mio::event::Source> {
             None
         }
         fn remove_mio(self: Box<Self>) -> Box<dyn Stream> {
@@ -896,12 +602,12 @@ mod test {
         }
     }
 
-    fn assert_wants_rw(nb: &NonblockingStream, r: &io::Result<PollStatus>) {
+    fn assert_wants_rw(nb: &NonblockingConnection, r: &io::Result<PollStatus>) {
         assert_matches!(r, Ok(PollStatus::WouldBlock));
         assert_eq!(nb.wants_to_write(), true);
     }
 
-    fn assert_wants_r_only(nb: &NonblockingStream, r: &io::Result<PollStatus>) {
+    fn assert_wants_r_only(nb: &NonblockingConnection, r: &io::Result<PollStatus>) {
         assert_matches!(r, Ok(PollStatus::WouldBlock));
         assert_eq!(nb.wants_to_write(), false);
     }
@@ -909,45 +615,45 @@ mod test {
     #[test]
     fn read_msg() {
         let test_stream = TestStream::default();
-        let mut stream = NonblockingStream::new(
+        let mut nbconn = NonblockingConnection::new(
             Box::new(TestWaker::default()),
             Box::new(test_stream.clone()),
         );
 
         // Try interacting with nothing to do.
-        let r = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
 
         // Give it a partial message.
         test_stream.push(b"Hello world");
-        let r = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
 
         // Finish the message.
         test_stream.push(b"\nAnd many happy");
-        let r = stream.interact_once();
+        let r = nbconn.interact_once();
         assert_eq!(r.unwrap().unwrap_msg().as_str(), "Hello world\n");
 
         // Then it should block...
-        let r = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
 
         // Finish two more messages, and leave a partial message.
         test_stream.push(b" returns\nof the day\nto you!");
-        let r = stream.interact_once();
+        let r = nbconn.interact_once();
         assert_eq!(r.unwrap().unwrap_msg().as_str(), "And many happy returns\n");
-        let r = stream.interact_once();
+        let r = nbconn.interact_once();
         assert_eq!(r.unwrap().unwrap_msg().as_str(), "of the day\n");
     }
 
     #[test]
     fn write_msg() {
         let test_stream = TestStream::default();
-        let mut stream = NonblockingStream::new(
+        let mut nbconn = NonblockingConnection::new(
             Box::new(TestWaker::default()),
             Box::new(test_stream.clone()),
         );
-        let writer = stream.writer();
+        let writer = nbconn.writer();
 
         // Make sure we can write in a nonblocking way...
         let req1 = r#"{"id":7,
@@ -964,8 +670,8 @@ mod test {
         }
 
         // Now interact. This will cause the whole request to get flushed.
-        let r = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
 
         let m = test_stream.drain(v.as_ref().len());
         assert_eq!(m, v.as_ref().as_bytes());
@@ -976,18 +682,16 @@ mod test {
         }
         writer.send_valid(&v).unwrap();
 
-        let r: Result<PollStatus, io::Error> = stream.interact_once();
-        assert_wants_rw(&stream, &r);
+        let r: Result<PollStatus, io::Error> = nbconn.interact_once();
+        assert_wants_rw(&nbconn, &r);
         {
             assert_eq!(test_stream.inner.lock().unwrap().received.len(), 32);
             // Make the capacity unlimited.
             test_stream.inner.lock().unwrap().receive_capacity = None;
         }
-        let r: Result<PollStatus, io::Error> = stream.interact_once();
-        assert_wants_r_only(&stream, &r);
+        let r: Result<PollStatus, io::Error> = nbconn.interact_once();
+        assert_wants_r_only(&nbconn, &r);
         let m = test_stream.drain(v.as_ref().len());
         assert_eq!(m, v.as_ref().as_bytes());
     }
-
-    // TODO nb: It would be good to have additional tests for the MIO code as well.
 }
