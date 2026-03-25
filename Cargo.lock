@@ -6968,6 +6968,7 @@ dependencies = [
  "tor-rtmock",
  "tracing",
  "tracing-test",
+ "void",
 ]
 
 [[package]]
