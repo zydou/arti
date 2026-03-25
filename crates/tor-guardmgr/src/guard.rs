@@ -446,7 +446,7 @@ impl Guard {
                 (_, R::Reachable) => info!("We have found that guard {} is usable.", self),
                 (R::Untried | R::Reachable, R::Unreachable) => match self.retry_at {
                     Some(retry_at) => warn!(
-                        "Could not connect to guard {}. Retrying in {:?}.",
+                        "Could not connect to guard {}. Retrying in {}.",
                         self,
                         humantime::format_duration(retry_at - Instant::now()),
                     ),
