@@ -13,6 +13,7 @@ use crate::ArtiConfig;
 ///
 /// This doesn't actually do anything on windows.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub(crate) fn use_max_file_limit(config: &ArtiConfig) {
     match rlimit::increase_nofile_limit(config.system.max_files) {
         Ok(n) => tracing::debug!("Increased process file limit to {}", n),

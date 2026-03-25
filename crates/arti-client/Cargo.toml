@@ -10,6 +10,9 @@ description = "Library for connecting to the Tor network as an anonymous client"
 keywords = ["tor", "arti", "privacy", "anonymity", "networking"]
 categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[package.metadata.docs.rs]
+all-features = true
 #
 # examples call TorClient::create_bootstrapped which needs PreferredRuntime
 # @@ test-all-crates conditional-option minimal --features=tokio,native-tls
@@ -213,6 +216,10 @@ tracing = "0.1.36"
 visibility = { version = "0.1.0", optional = true }
 void = "1"
 
+# TODO wasm: Remove this once there is a supported wasm StateMgr.
+[target.'cfg(all(target_arch="wasm32", target_os="unknown"))'.dependencies]
+tor-persist = { path = "../tor-persist", version = "0.40.0", features = ["testing"] }
+
 [dev-dependencies]
 anyhow = "1.0.23"
 rand = "0.9.1"
@@ -232,6 +239,3 @@ tor-relay-selection = { path = "../tor-relay-selection", version = "0.40.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.40.0", features = ["tokio", "native-tls"] }
 tracing-subscriber = "0.3.20"
 tracing-test = "0.2.4"
-
-[package.metadata.docs.rs]
-all-features = true
