@@ -56,7 +56,7 @@ impl CfgAddr {
                 #[cfg(not(unix))]
                 {
                     // Give this error early on non-unix platforms, so that we don't confuse the user.
-                    return Err(unix::NoAfUnixSocketSupport::default().into());
+                    Err(unix::NoAfUnixSocketSupport::default().into())
                 }
                 #[cfg(unix)]
                 {
