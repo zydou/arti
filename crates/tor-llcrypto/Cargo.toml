@@ -62,7 +62,7 @@ hex = "0.4"
 openssl = { version = "0.10.48", optional = true }
 rand = "0.9.1"
 rand_core = "0.9.3"
-rand_core_06 = { package = "rand_core", version = "0.6" }
+rand_core_06 = { package = "rand_core", version = "0.6", default-features = false }
 rsa = "0.9.0"
 safelog = { version = "0.8.0", path = "../safelog" }
 serde = "1.0.103"
@@ -91,9 +91,15 @@ all-features = true
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
 rdrand = "0.8"
 
-[target.'cfg(not(taret_arch = "wasm32"))'.dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rand_chacha = "0.9"
 rand_jitter = { version = "0.5", features = ["std"] }
 
 [target.wasm32-unknown-unknown.dependencies]
-getrandom = "0.4.0"
+getrandom = { version = "0.4.0", features = ["wasm_js"] }
+# rand_core 0.6 needs this version of getrandom, and we need to tell it to use
+# the js feature.
+getrandom_02 = { package = "getrandom", version = "0.2.0", features = ["js"] }
+# rand_core 0.9 needs this version of getrandom, and we need to tell it to use
+# the wasm_js feature.
+getrandom_03 = { package = "getrandom", version = "0.3.0", features = ["wasm_js"] }
