@@ -89,6 +89,7 @@ pub(crate) fn run<R: ToplevelRuntime>(
         }
     }
 
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     process::use_max_file_limit(&config);
 
     let rt_copy = runtime.clone();
