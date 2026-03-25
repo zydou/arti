@@ -55,6 +55,12 @@
 # The syntax here is the same as for socks_listen.
 #dns_listen = 0
 
+# If this is set to true (the default) and the `http-connect` feature
+# is enabled, then all members of socks_listen also support the HTTP CONNECT
+# proxy protocol, with extensions documented at
+# https://spec.torproject.org/http-connect.html
+#enable_http_connect = true
+
 # Configure logging
 [logging]
 

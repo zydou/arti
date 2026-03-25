@@ -37,6 +37,33 @@ use anyhow::{Context, Result, anyhow};
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) enum RpcMgr {}
 
+/// A set of proxy protocols to support on a listener.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[derive(Copy, Clone, Debug)]
+#[non_exhaustive]
+pub(crate) enum ListenProtocols {
+    /// Only the socks protocol.
+    SocksOnly,
+    /// Socks _and_ HTTP CONNECT.
+    SocksAndHttpConnect,
+}
+
+impl ListenProtocols {
+    /// Return true if http connect is included in this set of protocols.
+    fn http_connect_supported(self) -> bool {
+        matches!(self, Self::SocksAndHttpConnect)
+    }
+}
+
+impl std::fmt::Display for ListenProtocols {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ListenProtocols::SocksOnly => write!(f, "SOCKS"),
+            ListenProtocols::SocksAndHttpConnect => write!(f, "SOCKS+HTTP"),
+        }
+    }
+}
+
 /// A Key used to isolate connections.
 ///
 /// Composed of an usize (representing which listener socket accepted
@@ -269,6 +296,8 @@ struct ProxyContext<R: Runtime> {
     /// sessions.
     #[cfg(feature = "rpc")]
     rpc_mgr: Option<Arc<arti_rpcserver::RpcMgr>>,
+    /// The protocols that we support.
+    protocols: ListenProtocols,
 }
 
 /// Type alias for the isolation information associated with a given proxy
@@ -337,6 +366,8 @@ pub(crate) struct StreamProxy<R: Runtime> {
     tor_client: TorClient<R>,
     /// The listeners that we've actually bound to.
     listeners: Vec<<R as NetStreamProvider>::Listener>,
+    /// The protocols we respond to.
+    protocols: ListenProtocols,
     /// An RPC manager to use when incoming requests are tied to streams.
     rpc_mgr: Option<Arc<RpcMgr>>,
 }
@@ -355,6 +386,7 @@ pub(crate) async fn bind_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
+    protocols: ListenProtocols,
     rpc_mgr: Option<Arc<RpcMgr>>,
 ) -> Result<StreamProxy<R>> {
     if !listen.is_loopback_only() {
@@ -401,6 +433,7 @@ pub(crate) async fn bind_proxy<R: Runtime>(
     Ok(StreamProxy {
         tor_client,
         listeners,
+        protocols,
         rpc_mgr,
     })
 }
@@ -411,9 +444,10 @@ impl<R: Runtime> StreamProxy<R> {
         let StreamProxy {
             tor_client,
             listeners,
+            protocols,
             rpc_mgr,
         } = self;
-        run_proxy_with_listeners(tor_client, listeners, rpc_mgr).await
+        run_proxy_with_listeners(tor_client, listeners, protocols, rpc_mgr).await
     }
 
     /// Return a list of the ports that we've bound to.
@@ -421,18 +455,17 @@ impl<R: Runtime> StreamProxy<R> {
         let mut ports = Vec::new();
         for listener in &self.listeners {
             let address = listener.local_addr()?;
-            ports.extend([
-                port_info::Port {
-                    protocol: port_info::SupportedProtocol::Socks,
-                    address: address.into(),
-                },
-                // If http-connect is enabled, every socks proxy is also http.
-                #[cfg(feature = "http-connect")]
-                port_info::Port {
+            ports.push(port_info::Port {
+                protocol: port_info::SupportedProtocol::Socks,
+                address: address.into(),
+            });
+            #[cfg(feature = "http-connect")]
+            if self.protocols.http_connect_supported() {
+                ports.push(port_info::Port {
                     protocol: port_info::SupportedProtocol::Http,
                     address: address.into(),
-                },
-            ]);
+                });
+            }
         }
 
         Ok(ports)
@@ -445,6 +478,7 @@ impl<R: Runtime> StreamProxy<R> {
 pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
     tor_client: TorClient<R>,
     listeners: Vec<<R as tor_rtcompat::NetStreamProvider>::Listener>,
+    protocols: ListenProtocols,
     rpc_mgr: Option<Arc<RpcMgr>>,
 ) -> Result<()> {
     // Create a stream of (incoming socket, listener_id) pairs, selected
@@ -477,6 +511,7 @@ pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
             tor_client: tor_client.clone(),
             #[cfg(feature = "rpc")]
             rpc_mgr: rpc_mgr.clone(),
+            protocols,
         };
         tor_client.runtime().spawn(async move {
             let res = handle_proxy_conn(proxy_context, stream, (sock_id, addr.ip())).await;
@@ -533,14 +568,13 @@ where
     }
     match classify_protocol_from_first_byte(buf[0]) {
         Some(ProxyProtocols::Http1) => {
-            cfg_if::cfg_if! {
-                if #[cfg(feature="http-connect")] {
-                    http_connect::handle_http_conn(context, stream, isolation_info).await
-                } else {
-                    write_all_and_close(&mut stream, socks::WRONG_PROTOCOL_PAYLOAD).await?;
-                    Ok(())
-                }
+            #[cfg(feature = "http-connect")]
+            if context.protocols.http_connect_supported() {
+                return http_connect::handle_http_conn(context, stream, isolation_info).await;
             }
+
+            write_all_and_close(&mut stream, socks::WRONG_PROTOCOL_PAYLOAD).await?;
+            Ok(())
         }
         Some(ProxyProtocols::Socks) => {
             socks::handle_socks_conn(context, stream, isolation_info).await

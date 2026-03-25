@@ -36,7 +36,6 @@ cfg_if::cfg_if! {
 
 /// Payload to return when an HTTP connection arrive on a Socks port
 /// without HTTP support.
-#[cfg(not(feature = "http-connect"))]
 pub(super) const WRONG_PROTOCOL_PAYLOAD: &[u8] = br#"HTTP/1.0 501 Not running as an HTTP Proxy
 Content-Type: text/html; charset=utf-8
 

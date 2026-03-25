@@ -17,7 +17,7 @@ use tor_rtcompat::ToplevelRuntime;
 use crate::dns;
 use crate::{
     ArtiConfig, TorClient, exit, process,
-    proxy::{self, port_info},
+    proxy::{self, ListenProtocols, port_info},
     reload_cfg,
 };
 
@@ -96,6 +96,7 @@ pub(crate) fn run<R: ToplevelRuntime>(
         runtime,
         socks_listen,
         dns_listen,
+        config.proxy().protocols(),
         cfg_sources,
         config,
         client_config,
@@ -116,6 +117,7 @@ async fn run_proxy<R: ToplevelRuntime>(
     runtime: R,
     socks_listen: Listen,
     dns_listen: Listen,
+    protocols: ListenProtocols,
     config_sources: ConfigurationSources,
     arti_config: ArtiConfig,
     client_config: TorClientConfig,
@@ -188,12 +190,9 @@ async fn run_proxy<R: ToplevelRuntime>(
         let runtime = runtime.clone();
         let client = client.isolated_client();
         let socks_listen = socks_listen.clone();
-        #[cfg(feature = "http-connect")]
-        let listener_type = "SOCKS+HTTP";
-        #[cfg(not(feature = "http-connect"))]
-        let listener_type = "SOCKS";
+        let listener_type = protocols.to_string();
 
-        let stream_proxy = proxy::bind_proxy(runtime, client, socks_listen, rpc_mgr)
+        let stream_proxy = proxy::bind_proxy(runtime, client, socks_listen, protocols, rpc_mgr)
             .await
             .with_context(|| format!("Unable to launch {listener_type} proxy"))?;
         let port_info = stream_proxy.port_info()?;
