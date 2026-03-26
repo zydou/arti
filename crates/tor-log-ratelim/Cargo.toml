@@ -25,6 +25,7 @@ tor-error = { path = "../tor-error", version = "0.40.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.40.0" }
 tracing = "0.1.36"
 weak-table = "0.3.0"
+web-time-compat = { path = "../web-time-compat", version = "0.1.0" }
 
 [dev-dependencies]
 
