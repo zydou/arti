@@ -36,3 +36,4 @@ ADDED: `NumericBoolean` type
 ADDED: `OverloadGeneral` type
 ADDED: `OverloadGeneralVersion` type
 ADDED: Implement `Eq` for `Nickname`
+ADDED: `RouterDescIntroItem` type

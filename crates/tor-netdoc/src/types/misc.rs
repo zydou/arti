@@ -1763,7 +1763,10 @@ mod boolean {
 /// Types for router descriptors.
 #[cfg(feature = "routerdesc")]
 mod routerdesc {
-    use crate::{NormalItemArgument, types::Iso8601TimeSp};
+    use crate::{
+        NormalItemArgument,
+        types::{Iso8601TimeSp, Nickname},
+    };
     use derive_deftly::Deftly;
 
     /// Version argument found in an `overload-general` item.
@@ -1786,6 +1789,27 @@ mod routerdesc {
         pub version: OverloadGeneralVersion,
         /// The timestamp since when the relay is overloaded.
         pub since: Iso8601TimeSp,
+    }
+
+    /// Introduction line of a router descriptor.
+    #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
+    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[non_exhaustive]
+    pub struct RouterDescIntroItem {
+        /// A valid router [`Nickname`].
+        pub nickname: Nickname,
+
+        /// An IPv4 address in dotted-squad format.
+        pub address: std::net::Ipv4Addr,
+
+        /// The TCP port of the onion router.
+        pub orport: u16,
+
+        /// Legacy.
+        pub socksport: u16,
+
+        /// Legacy.
+        pub dirport: u16,
     }
 }
 
