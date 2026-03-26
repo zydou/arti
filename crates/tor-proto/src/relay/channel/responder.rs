@@ -8,7 +8,7 @@
 use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
 use safelog::{MaybeSensitive, Sensitive};
-use std::{net::IpAddr, ops::Deref, sync::Arc, time::SystemTime};
+use std::{net::IpAddr, ops::Deref, sync::Arc};
 use subtle::ConstantTimeEq;
 use tracing::instrument;
 
@@ -16,6 +16,7 @@ use tor_cell::chancell::msg;
 use tor_linkspec::{OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
+use web_time_compat::{SystemTime, SystemTimeExt};
 
 use crate::{
     ClockSkew, Error, RelayIdentities, Result,
@@ -132,7 +133,7 @@ where
         let initiator_auth_cell = self.auth_cell;
         let my_addrs = self.my_addrs;
 
-        let now = now.unwrap_or_else(SystemTime::now);
+        let now = now.unwrap_or_else(SystemTime::get);
 
         // We are a client initiating a channel to a relay or a bridge. We have received a CERTS
         // cell and we need to verify these certs:

@@ -93,7 +93,7 @@ impl<
     /// the relay's handshake information.
     ///
     /// Takes a function that reports the current time.  In theory, this can just be
-    /// `SystemTime::now()`.
+    /// `SystemTime::get()`.
     #[instrument(skip_all, level = "trace")]
     pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedClientChannel<T, S>>
     where

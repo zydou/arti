@@ -1,7 +1,8 @@
 //! Helpers for tracking whether a tunnel or circuit is still active.
 
 use derive_deftly::Deftly;
-use std::{num::NonZeroUsize, time::Instant};
+use std::num::NonZeroUsize;
+use web_time_compat::{Instant, InstantExt};
 
 /// An object to track whether a tunnel or circuit should still be considered active.
 ///
@@ -132,7 +133,7 @@ impl TunnelActivity {
             *n_open_streams = new_value;
         } else {
             self.inner = Inner::Disused {
-                since: Instant::now(),
+                since: Instant::get(),
             };
         }
     }
@@ -154,7 +155,7 @@ impl TunnelActivity {
     ///
     /// # A note about time
     ///
-    /// The returned Instant value is a direct result of an earlier call to `Instant::now()`.
+    /// The returned Instant value is a direct result of an earlier call to `Instant::get()`.
     /// It is not affected by any runtime mocking.
     pub(crate) fn disused_since(&self) -> Option<Instant> {
         match self.inner {
@@ -189,7 +190,7 @@ mod test {
     #[test]
     fn ordering() {
         use Inner::*;
-        let t1 = Instant::now();
+        let t1 = Instant::get();
         let t2 = t1 + Duration::new(60, 0);
         let t3 = t2 + Duration::new(120, 0);
         let sorted = vec![

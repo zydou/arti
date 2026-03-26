@@ -24,6 +24,7 @@ use std::{sync::Arc, task::Waker};
 
 use maybenot::{MachineId, TriggerEvent};
 use smallvec::SmallVec;
+use web_time_compat::InstantExt;
 
 use super::{Bypass, Duration, Instant, PerHopPaddingEvent, PerHopPaddingEventVec, Replace};
 
@@ -341,7 +342,8 @@ impl<const N: usize> MaybenotPadder<N> {
             rules.machines.clone(),
             rules.max_outbound_padding_frac,
             rules.max_outbound_blocking_frac,
-            Instant::now(),
+            // TODO #2428 PADDING: We should be taking this from a SleepProvider!
+            Instant::get(),
             ThisThreadRng,
         )?;
         Ok(Self::from_framework(framework))
