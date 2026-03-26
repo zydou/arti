@@ -7,6 +7,7 @@
 
 pub(crate) use b16impl::*;
 pub use b64impl::*;
+pub use contact_info::*;
 pub use curve25519impl::*;
 pub use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
@@ -1282,6 +1283,17 @@ mod nickname {
     }
 
     impl crate::NormalItemArgument for Nickname {}
+}
+
+/// Contact information of the relay operator.
+mod contact_info {
+    use super::*;
+
+    /// Contact information of the relay operator.
+    #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
+    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[non_exhaustive]
+    pub struct ContactInfo(#[cfg_attr(feature = "parse2", deftly(netdoc(rest)))] pub String);
 }
 
 #[cfg(test)]
