@@ -210,6 +210,11 @@ impl NetdocEncoder {
             .ok_or_else(|| internal!("NetdocEncoder::slice out of bounds, Cursor mismanaged"))
     }
 
+    /// Obtain the document so far in textual form
+    pub fn text_sofar(&self) -> Result<&str, Bug> {
+        self.built.as_deref().map_err(Clone::clone)
+    }
+
     /// Build the document into textual form
     pub fn finish(self) -> Result<String, Bug> {
         self.built
