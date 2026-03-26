@@ -91,6 +91,7 @@ use tor_netdoc::doc::netstatus::ProtoStatuses;
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::{Runtime, SpawnExt};
 use tracing::{debug, info, instrument, trace, warn};
+use web_time_compat::SystemTimeExt;
 
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -182,7 +183,8 @@ impl<R: Runtime> NetDirProvider for DirMgr<R> {
                 .extend_lifetime(netdir.lifetime()),
             Timeliness::Unchecked => return Ok(netdir),
         };
-        let now = SystemTime::now();
+        // TODO #2384 -- we have a runtime here; we should use it.
+        let now = SystemTime::get();
         if lifetime.valid_after() > now {
             Err(NetDirError::DirNotYetValid)
         } else if lifetime.valid_until() < now {

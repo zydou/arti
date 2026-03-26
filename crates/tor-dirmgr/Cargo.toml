@@ -115,6 +115,7 @@ tor-protover = { path = "../tor-protover", version = "0.40.0", features = ["serd
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.40.0" }
 tracing = "0.1.36"
 void = "1"
+web-time-compat = { path = "../web-time-compat", version = "0.1.0" }
 
 [target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
 fslock = "0.2.0"

@@ -17,6 +17,7 @@ use tor_netdoc::doc::microdesc::MdDigest;
 use tor_netdoc::doc::netstatus::{ConsensusFlavor, Lifetime};
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
+use web_time_compat::SystemTimeExt;
 
 #[cfg(feature = "bridge-client")]
 pub(crate) use {crate::storage::CachedBridgeDescriptor, tor_guardmgr::bridge::BridgeConfig};
@@ -610,7 +611,7 @@ impl Store for SqliteStore {
             names
         };
 
-        let now = OffsetDateTime::now_utc();
+        let now = now_utc();
         tx.execute(DROP_OLD_EXTDOCS, [])?;
 
         // In theory bad system clocks might generate table rows with times far in the future.
@@ -1166,6 +1167,11 @@ fn cmeta_from_row(row: &rusqlite::Row<'_>) -> Result<ConsensusMeta> {
     ))
 }
 
+/// Return `SystemTime::get()` as an OffsetDateTime in UTC.
+fn now_utc() -> OffsetDateTime {
+    SystemTime::get().into()
+}
+
 /// Set up the tables for the arti cache schema in a sqlite database.
 const INSTALL_V0_SCHEMA: &str = "
   -- Helps us version the schema.  The schema here corresponds to a
@@ -1538,7 +1544,7 @@ pub(crate) mod test {
     fn blobs() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
 
-        let now = OffsetDateTime::now_utc();
+        let now = now_utc();
         let one_week = 1.weeks();
 
         let fname1 = store.save_blob(
@@ -1598,7 +1604,7 @@ pub(crate) mod test {
         use tor_netdoc::doc::netstatus;
 
         let (_tmp_dir, mut store) = new_empty()?;
-        let now = OffsetDateTime::now_utc();
+        let now = now_utc();
         let one_hour = 1.hours();
 
         assert_eq!(
@@ -1702,7 +1708,7 @@ pub(crate) mod test {
     #[test]
     fn authcerts() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
-        let now = OffsetDateTime::now_utc();
+        let now = now_utc();
         let one_hour = 1.hours();
 
         let keyids = AuthCertKeyIds {
@@ -1729,7 +1735,7 @@ pub(crate) mod test {
     fn microdescs() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
 
-        let now = OffsetDateTime::now_utc();
+        let now = now_utc();
         let one_day = 1.days();
 
         let d1 = [5_u8; 32];
@@ -1770,7 +1776,7 @@ pub(crate) mod test {
     fn routerdescs() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
 
-        let now = OffsetDateTime::now_utc();
+        let now = now_utc();
         let one_day = 1.days();
         let long_ago: OffsetDateTime = now - one_day * 100;
         let recently = now - one_day;
@@ -1843,7 +1849,7 @@ pub(crate) mod test {
         */
         assert_eq!(store.blob_dir.read_directory(".")?.count(), 0);
 
-        let now = OffsetDateTime::now_utc();
+        let now = now_utc();
         let one_week = 1.weeks();
         let _fname_good = store.save_blob(
             b"Goodbye, dear friends",
@@ -1880,7 +1886,7 @@ pub(crate) mod test {
     fn unreferenced_consensus_blob() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
 
-        let now = OffsetDateTime::now_utc();
+        let now = now_utc();
         let one_week = 1.weeks();
 
         // Make a blob that claims to be a consensus, and which has not yet expired, but which is
@@ -1918,7 +1924,7 @@ pub(crate) mod test {
     fn vanished_blob_cleanup() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
 
-        let now = OffsetDateTime::now_utc();
+        let now = now_utc();
         let one_week = 1.weeks();
 
         // Make a few blobs.
@@ -1972,7 +1978,7 @@ pub(crate) mod test {
     fn protocol_statuses() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
 
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let hour = 1.hours();
 
         let valid_after = now;

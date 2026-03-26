@@ -7,7 +7,6 @@ use std::fmt::{self, Debug, Display};
 use std::num::NonZeroU8;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
-use std::time::{Duration, Instant, SystemTime};
 
 use async_trait::async_trait;
 use derive_more::{Deref, DerefMut};
@@ -29,6 +28,7 @@ use tor_guardmgr::bridge::{BridgeConfig, BridgeDesc};
 use tor_guardmgr::bridge::{BridgeDescError, BridgeDescEvent, BridgeDescList, BridgeDescProvider};
 use tor_netdoc::doc::routerdesc::RouterDesc;
 use tor_rtcompat::{Runtime, SpawnExt as _};
+use web_time_compat::{Duration, Instant, SystemTime};
 
 use crate::event::FlagPublisher;
 use crate::storage::CachedBridgeDescriptor;
