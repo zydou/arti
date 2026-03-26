@@ -7,7 +7,7 @@
 //     of bridges is very small, see if we can still use that to make a
 //     low-confidence value.
 
-use std::time::{Duration, Instant};
+use web_time_compat::{Duration, Instant};
 
 use tor_proto::ClockSkew;
 
@@ -245,6 +245,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use float_eq::assert_float_eq;
+    use web_time_compat::InstantExt;
 
     /// Tolerance for float comparison.
     const TOL: f64 = 0.00001;
@@ -327,7 +328,7 @@ mod test {
     #[test]
     fn estimate_with_no_data() {
         // zero inputs -> output is none.
-        let now = Instant::now();
+        let now = Instant::get();
         let est = SkewEstimate::estimate_skew([].iter(), now);
         assert!(est.is_none());
 
@@ -365,7 +366,7 @@ mod test {
         mins.iter()
             .map(|m| SkewObservation {
                 skew: ClockSkew::from_secs_f64(m * 60.0).unwrap(),
-                when: Instant::now(),
+                when: Instant::get(),
             })
             .collect()
     }
@@ -383,7 +384,7 @@ mod test {
         // confidence.
         let obs = from_minutes(&[-20.0, -10.0, -20.0, -25.0, 0.0, -18.0, -22.0, -22.0]);
 
-        let est = SkewEstimate::estimate_skew(obs.iter(), Instant::now()).unwrap();
+        let est = SkewEstimate::estimate_skew(obs.iter(), Instant::get()).unwrap();
         assert_eq!(
             est.to_string(),
             "slow by around 17m 7s (based on 8 recent observations, with some confidence)"
@@ -401,7 +402,7 @@ mod test {
             -100.0, 100.0, -3.0, -2.0, 0.0, 1.0, 0.5, 6.0, 3.0, 0.5, 99.0,
         ]);
 
-        let est = SkewEstimate::estimate_skew(obs.iter(), Instant::now()).unwrap();
+        let est = SkewEstimate::estimate_skew(obs.iter(), Instant::get()).unwrap();
         assert_eq!(
             est.to_string(),
             "not skewed by more than 15m (based on 8 recent observations, with high confidence)"
