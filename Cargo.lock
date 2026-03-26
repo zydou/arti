@@ -275,6 +275,7 @@ dependencies = [
  "trycmd",
  "visibility",
  "walkdir",
+ "web-time-compat",
  "winapi",
 ]
 
