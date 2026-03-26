@@ -6680,6 +6680,7 @@ dependencies = [
  "tor-checkable",
  "tor-error",
  "tor-llcrypto",
+ "web-time-compat",
 ]
 
 [[package]]
