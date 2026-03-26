@@ -18,6 +18,7 @@ use crate::{Error, HopNum, Result};
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
 
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult, OutboundChanSender};
+use crate::relay::reactor::CircuitAccount;
 use tor_cell::chancell::msg::{AnyChanMsg, Destroy, PaddingNegotiate, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
 use tor_cell::relaycell::msg::{Extend2, Extended2, SendmeTag};
@@ -78,6 +79,8 @@ pub(crate) struct Forward {
     relay_early_count: usize,
     /// A stream of events to be read from the main loop of the reactor.
     event_tx: mpsc::Sender<CircEvent>,
+    /// Memory quota account
+    memquota: CircuitAccount,
 }
 
 /// A type of event issued by the relay forward reactor.
@@ -123,6 +126,7 @@ impl Forward {
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
         event_tx: mpsc::Sender<CircEvent>,
+        memquota: CircuitAccount,
     ) -> Self {
         Self {
             unique_id,
@@ -133,6 +137,7 @@ impl Forward {
             have_seen_extend2: false,
             relay_early_count: 0,
             event_tx,
+            memquota,
         }
     }
 
@@ -227,6 +232,7 @@ impl Forward {
         let mut result_tx = self.event_tx.clone();
         let rt = runtime.clone();
         let unique_id = self.unique_id;
+        let memquota = self.memquota.clone();
 
         // TODO(relay): because we dispatch this the entire EXTEND2 handling to a background task,
         // we don't really need the channel provider to send us the outcome via an MPSC channel,
@@ -234,7 +240,7 @@ impl Forward {
         // because it runs in another task). Maybe we need to rethink the ChannelProvider API?
         runtime
             .spawn(async move {
-                let res = Self::extend_circuit(rt, unique_id, extend2, chan_rx).await;
+                let res = Self::extend_circuit(rt, unique_id, extend2, chan_rx, memquota).await;
 
                 // Discard the error if the reactor shut down before we had
                 // a chance to complete the extend handshake
@@ -276,6 +282,7 @@ impl Forward {
         unique_id: UniqId,
         extend2: Extend2,
         mut chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
+        memquota: CircuitAccount,
     ) -> StdResult<ExtendResult, ReactorError> {
         // We expect the channel build timeout to be enforced by the ChannelProvider
         let chan_res = chan_rx
@@ -306,7 +313,8 @@ impl Forward {
         // new_outbound_circ() sends a control message to the channel reactor handles,
         // which is handled asynchronously. In practice, we're not actually waiting on
         // the network here, so in theory we shouldn't need a timeout for this operation.
-        let (circ_id, outbound_chan_rx, createdreceiver) = channel.new_outbound_circ().await?;
+        let (circ_id, outbound_chan_rx, createdreceiver) =
+            channel.new_outbound_circ(memquota).await?;
 
         // We have allocated a circuit in the channel's circmap,
         // now it's time to send the CREATE2 and wait for the response.
