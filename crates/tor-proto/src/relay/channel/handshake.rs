@@ -17,7 +17,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::Result;
 use crate::channel::handshake::{
     AuthLogAction, ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel,
-    UnverifiedInitiatorChannel, unauthenticated_clock_skew,
+    UnverifiedInitiatorChannel, read_msg, unauthenticated_clock_skew,
 };
 use crate::channel::{AuthLogDigest, ChannelFrame, ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
@@ -340,12 +340,7 @@ impl<
                    }
                 }
 
-                break match crate::channel::handshake::read_msg(
-                    *self.unique_id(),
-                    self.framed_tls(),
-                )
-                .await?
-                {
+                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                     CertsNetinfoMsg::Vpadding(_) => continue,
                     // If a NETINFO cell, the initiator did not authenticate and we can stop early.
                     CertsNetinfoMsg::Netinfo(msg) => {
@@ -369,12 +364,7 @@ impl<
                    }
                 }
 
-                break match crate::channel::handshake::read_msg(
-                    *self.unique_id(),
-                    self.framed_tls(),
-                )
-                .await?
-                {
+                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                     AuthenticateMsg::Vpadding(_) => continue,
                     AuthenticateMsg::Authenticate(msg) => msg,
                 };
@@ -390,12 +380,7 @@ impl<
                    }
                 }
 
-                break match crate::channel::handshake::read_msg(
-                    *self.unique_id(),
-                    self.framed_tls(),
-                )
-                .await?
-                {
+                break match read_msg(*self.unique_id(), self.framed_tls()).await? {
                     NetinfoMsg::Vpadding(_) => continue,
                     NetinfoMsg::Netinfo(msg) => (msg, coarsetime::Instant::now()),
                 };
