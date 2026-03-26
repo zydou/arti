@@ -1,12 +1,9 @@
 //! Main implementation of the connection functionality
 
-use std::time::Duration;
-
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use std::time::Instant;
 
 use async_trait::async_trait;
 use educe::Educe;
@@ -27,6 +24,7 @@ use tor_hscrypto::Subcredential;
 use tor_proto::TargetHop;
 use tor_proto::client::circuit::handshake::hs_ntor;
 use tracing::{debug, instrument, trace};
+use web_time_compat::{Duration, Instant};
 
 use retry_error::RetryError;
 use safelog::{DispRedacted, Sensitive};

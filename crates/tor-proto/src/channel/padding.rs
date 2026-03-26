@@ -29,7 +29,7 @@
 
 use std::pin::Pin;
 // TODO, coarsetime maybe?  But see arti#496 and also we want to use the mockable SleepProvider
-use std::time::{Duration, Instant};
+use web_time_compat::{Duration, Instant};
 
 use derive_builder::Builder;
 use educe::Educe;
@@ -400,7 +400,7 @@ impl<R: SleepProvider> Timer<R> {
         self.as_mut().select_fresh_timeout();
 
         // Bet that we will be going to sleep again, and set up the new trigger time
-        // and waker now.  This will save us a future call to Instant::now.
+        // and waker now.  This will save us a future call to Instant::get.
         self.as_mut().prepare_to_sleep(Some(now));
 
         Padding::new()

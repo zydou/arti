@@ -429,6 +429,7 @@ mod test {
     use tor_netdoc::doc::netstatus::RelayWeight;
     use tor_netdoc::types::relay_flags::RelayFlag;
     use tor_rtmock::MockRuntime;
+    use web_time_compat::SystemTimeExt;
 
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use {
@@ -601,7 +602,8 @@ mod test {
         let netdir_provider: Arc<dyn NetDirProvider> = netdir_provider;
         guards.install_netdir_provider(&netdir_provider).unwrap();
         let config = PathConfig::default();
-        let now = SystemTime::now();
+        // TODO #2428.  (This is just testing, though)
+        let now = SystemTime::get();
         let dirinfo = (netdir).into();
         HsPathBuilder::new(target.cloned(), stem_kind, circ_kind)
             .pick_path_with_vanguards(&mut rng, dirinfo, &guards, &vanguardmgr, &config, now)
@@ -616,7 +618,8 @@ mod test {
     ) -> Result<TorPath<'a>> {
         let mut rng = testing_rng();
         let config = PathConfig::default();
-        let now = SystemTime::now();
+        // TODO #2428. (This is just testing, though)
+        let now = SystemTime::get();
         let dirinfo = (netdir).into();
         let guards = tor_guardmgr::GuardMgr::new(
             MockRuntime::new(),

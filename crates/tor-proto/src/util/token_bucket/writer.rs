@@ -4,7 +4,7 @@ use std::future::Future;
 use std::num::NonZero;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+use web_time_compat::{Duration, Instant};
 
 use futures::AsyncWrite;
 use futures::io::Error;
@@ -26,7 +26,9 @@ pub(crate) struct RateLimitedWriter<W: AsyncWrite, P: SleepProvider> {
     ///
     /// While we use [`Instant`] for the time, we should always get the time from this
     /// [`SleepProvider`].
-    /// For example, use [`SleepProvider::now()`], not [`Instant::now()`].
+    /// For example, use [`SleepProvider::now()`],
+    /// not [`Instant::now()`](std::time::Instant::now) or
+    /// [`InstantExt::get`](web_time_compat::InstantExt::get).
     #[educe(Debug(ignore))]
     sleep_provider: P,
     /// See [`RateLimitedWriterConfig::wake_when_bytes_available`].

@@ -70,9 +70,9 @@ async fn check_bridges(
     obfs4_path: String,
     new_bridges_rx: broadcast::Receiver<Vec<String>>,
 ) -> (StatusCode, Json<BridgesResult>) {
-    let commencement_time = OffsetDateTime::now_utc();
+    let commencement_time = now_utc();
     let mainop = crate::checking::main_test(bridge_lines.clone(), &obfs4_path).await;
-    let end_time = OffsetDateTime::now_utc();
+    let end_time = now_utc();
     let diff = (end_time - commencement_time).as_seconds_f64();
     let (bridge_results, error) = match mainop {
         Ok((bridge_results, channels)) => {
@@ -133,6 +133,14 @@ async fn add_new_bridges(
         Ok(_) => StatusCode::OK,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
+}
+
+/// Helper: Return an OffsetDateTime equal to the current time in UTC.
+///
+/// Uses web_time_compat to avoid panics on wasm environments.
+fn now_utc() -> OffsetDateTime {
+    use web_time_compat::{SystemTime, SystemTimeExt};
+    OffsetDateTime::from(SystemTime::get())
 }
 
 /// Run the HTTP server and call the required methods to initialize the testing

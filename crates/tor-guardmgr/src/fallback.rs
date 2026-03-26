@@ -6,9 +6,9 @@
 
 use crate::{dirstatus::DirStatus, skew::SkewObservation};
 use rand::seq::IteratorRandom;
-use std::time::{Duration, Instant};
 use tor_dircommon::fallback::{FallbackDir, FallbackList};
 use tor_linkspec::HasRelayIds;
+use web_time_compat::{Duration, Instant};
 
 use crate::{PickGuardError, ids::FallbackId};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
@@ -201,6 +201,7 @@ mod test {
     use super::*;
     use rand::Rng;
     use tor_basic_utils::test_rng::testing_rng;
+    use web_time_compat::InstantExt;
 
     /// Construct a `FallbackDir` with random identity keys and addresses.
     ///
@@ -297,7 +298,7 @@ mod test {
         let filter = crate::GuardFilter::unfiltered();
 
         let mut counts = [0_usize; 4];
-        let now = Instant::now();
+        let now = Instant::get();
         dbg!("A");
         fn lookup_idx(set: &FallbackState, id: &impl HasRelayIds) -> Option<usize> {
             set.fallbacks
@@ -365,7 +366,7 @@ mod test {
             .map(|ent| FallbackId::from_relay_ids(&ent.fallback))
             .collect();
 
-        let now = Instant::now();
+        let now = Instant::get();
 
         // There's no "next retry time" when everybody's up.
         assert!(set.next_retry().is_none());

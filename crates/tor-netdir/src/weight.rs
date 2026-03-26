@@ -427,6 +427,7 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder};
     use tor_netdoc::types::relay_flags::{RelayFlag, RelayFlags};
+    use web_time_compat::SystemTimeExt;
 
     #[test]
     fn t_clamp() {
@@ -642,7 +643,7 @@ mod test {
     #[test]
     fn weightset_from_consensus() {
         use rand::Rng;
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let one_hour = Duration::new(3600, 0);
         let mut rng = testing_rng();
         let mut bld = MdConsensus::builder();

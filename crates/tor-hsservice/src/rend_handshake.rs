@@ -176,10 +176,10 @@ pub(crate) trait RendCircConnector: Send + Sync {
     /// Return the current time instant from the runtime.
     ///
     /// This provides mockable time for use in error tracking.
-    fn now(&self) -> std::time::Instant;
+    fn now(&self) -> Instant;
 
     /// Return the current wall-clock time from the runtime.
-    fn wallclock(&self) -> std::time::SystemTime;
+    fn wallclock(&self) -> SystemTime;
 }
 
 #[async_trait]
@@ -192,11 +192,11 @@ impl<R: Runtime> RendCircConnector for HsCircPool<R> {
         HsCircPool::get_or_launch_svc_rend(self, netdir, target).await
     }
 
-    fn now(&self) -> std::time::Instant {
+    fn now(&self) -> Instant {
         HsCircPool::now(self)
     }
 
-    fn wallclock(&self) -> std::time::SystemTime {
+    fn wallclock(&self) -> SystemTime {
         HsCircPool::wallclock(self)
     }
 }

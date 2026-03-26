@@ -52,6 +52,7 @@ use tor_error::{Bug, internal};
 use tor_linkspec::RelayIds;
 use tor_llcrypto::pk;
 use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
+use web_time_compat::{Duration, Instant, SystemTime};
 
 use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
@@ -69,7 +70,6 @@ use std::borrow::Borrow;
 use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
 
 use extender::HandshakeAuxDataHandler;
 

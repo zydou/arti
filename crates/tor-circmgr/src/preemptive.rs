@@ -3,8 +3,8 @@
 use crate::{PathConfig, PreemptiveCircuitConfig, TargetPort, TargetTunnelUsage};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
 use tracing::warn;
+use web_time_compat::{Instant, InstantExt};
 
 /// Predicts what circuits might be used in future based on past activity, and suggests
 /// circuits to preemptively build as a result.
@@ -25,11 +25,11 @@ impl PreemptiveCircuitPredictor {
         let mut usages = HashMap::new();
         for port in &config.initial_predicted_ports {
             // TODO(nickm) should this be IPv6? Should we have a way to configure IPv6 initial ports?
-            usages.insert(Some(TargetPort::ipv4(*port)), Instant::now());
+            usages.insert(Some(TargetPort::ipv4(*port)), Instant::get());
         }
 
         // We want to build circuits for resolving DNS, too.
-        usages.insert(None, Instant::now());
+        usages.insert(None, Instant::get());
 
         Self {
             usages,
@@ -57,7 +57,7 @@ impl PreemptiveCircuitPredictor {
     /// Make some predictions for what circuits should be built.
     pub(crate) fn predict(&self, path_config: &PathConfig) -> Vec<TargetTunnelUsage> {
         let config = self.config();
-        let now = Instant::now();
+        let now = Instant::get();
         let circs = config.min_exit_circs_for_port;
         self.usages
             .iter()
@@ -110,7 +110,7 @@ mod test {
         PathConfig, PreemptiveCircuitConfig, PreemptiveCircuitPredictor, TargetPort,
         TargetTunnelUsage,
     };
-    use std::time::{Duration, Instant};
+    use web_time_compat::{Duration, Instant, InstantExt};
 
     use crate::isolation::test::{IsolationTokenEq, assert_isoleq};
 
@@ -175,7 +175,7 @@ mod test {
             }]
         );
 
-        predictor.note_usage(Some(TargetPort::ipv4(1234)), Instant::now());
+        predictor.note_usage(Some(TargetPort::ipv4(1234)), Instant::get());
 
         let results = predictor.predict(&path_config);
         assert_eq!(results.len(), 2);
@@ -206,7 +206,7 @@ mod test {
         cfg.set_initial_predicted_ports(vec![]);
         cfg.prediction_lifetime(Duration::from_secs(2));
         let mut predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
-        let now = Instant::now();
+        let now = Instant::get();
         let three_seconds_ago = now - Duration::from_secs(2 + 1);
 
         predictor.note_usage(Some(TargetPort::ipv4(2345)), three_seconds_ago);

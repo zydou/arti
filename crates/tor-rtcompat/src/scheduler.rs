@@ -7,7 +7,7 @@ use futures::{Stream, StreamExt};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant, SystemTime};
+use web_time_compat::{Duration, Instant, SystemTime};
 
 use pin_project::pin_project;
 
@@ -267,7 +267,7 @@ mod test {
     use crate::{SleepProvider, test_with_all_runtimes};
     use futures::FutureExt;
     use futures::StreamExt;
-    use std::time::{Duration, Instant};
+    use web_time_compat::{Duration, Instant, InstantExt};
 
     #[test]
     fn it_fires_immediately() {
@@ -335,7 +335,7 @@ mod test {
             let (mut sch, hdl) = TaskSchedule::new(rt);
             assert!(sch.next().now_or_never().is_some());
 
-            hdl.fire_at(Instant::now() + Duration::from_millis(100));
+            hdl.fire_at(Instant::get() + Duration::from_millis(100));
 
             assert!(sch.next().now_or_never().is_none());
             assert!(sch.next().await.is_some());
@@ -354,7 +354,7 @@ mod test {
             let (mut sch, hdl) = TaskSchedule::new(rt.clone());
             assert!(sch.next().now_or_never().is_some());
 
-            hdl.fire_at(Instant::now() + Duration::from_millis(100));
+            hdl.fire_at(Instant::get() + Duration::from_millis(100));
 
             assert!(sch.next().now_or_never().is_none());
 
@@ -378,7 +378,7 @@ mod test {
             let (mut sch, hdl) = TaskSchedule::new(rt.clone());
             assert!(sch.next().now_or_never().is_some());
 
-            hdl.fire_at(Instant::now() + Duration::from_millis(100));
+            hdl.fire_at(Instant::get() + Duration::from_millis(100));
             hdl.fire();
 
             assert!(sch.next().now_or_never().is_some());

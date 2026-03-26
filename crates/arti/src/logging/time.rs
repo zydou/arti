@@ -7,6 +7,7 @@
 use std::num::NonZeroU8;
 
 use time::format_description;
+use web_time_compat::{SystemTime, SystemTimeExt};
 
 /// Construct a new [`FormatTime`](tracing_subscriber::fmt::time::FormatTime)
 /// from a given user-supplied description of the desired log granularity.
@@ -215,11 +216,8 @@ impl LogTimer {
 impl tracing_subscriber::fmt::time::FormatTime for LogTimer {
     fn format_time(&self, w: &mut tracing_subscriber::fmt::format::Writer<'_>) -> std::fmt::Result {
         // See NOTE above: This function mustn't panic.
-        w.write_str(
-            &self
-                .time_to_string(time::OffsetDateTime::now_utc())
-                .map_err(|_| std::fmt::Error)?,
-        )
+        let now_utc: time::OffsetDateTime = SystemTime::get().into();
+        w.write_str(&self.time_to_string(now_utc).map_err(|_| std::fmt::Error)?)
     }
 }
 

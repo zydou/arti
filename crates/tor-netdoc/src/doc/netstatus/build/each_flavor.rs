@@ -416,11 +416,11 @@ mod test {
     use crate::types::relay_flags::RelayFlag;
 
     use std::net::SocketAddr;
-    use std::time::{Duration, SystemTime};
+    use web_time_compat::{Duration, SystemTime, SystemTimeExt};
 
     #[test]
     fn consensus() {
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let one_hour = Duration::new(3600, 0);
 
         let mut builder = crate::doc::netstatus::MdConsensus::builder();

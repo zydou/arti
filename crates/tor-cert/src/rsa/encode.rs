@@ -1,6 +1,6 @@
 //! RSA cross-cert generation
 
-use std::time::SystemTime;
+use web_time_compat::SystemTime;
 
 use derive_more::{AsRef, Deref, Into};
 use tor_bytes::Writer as _;
@@ -81,6 +81,7 @@ mod test {
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_checkable::{ExternallySigned, Timebound};
+    use web_time_compat::SystemTimeExt;
 
     use crate::SEC_PER_HOUR;
     use crate::rsa::RsaCrosscert;
@@ -95,7 +96,7 @@ mod test {
             ed25519::Ed25519Identity::from_base64("dGhhdW1hdHVyZ3kgaXMgc3RvcmVkIGluIHRoZSBvcmI")
                 .unwrap();
 
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let expiry = now + Duration::from_secs(24 * SEC_PER_HOUR);
 
         let cert = EncodedRsaCrosscert::encode_and_sign(&keypair, &ed_id, expiry).unwrap();

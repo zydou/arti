@@ -34,3 +34,4 @@ x509-cert = { version = "0.2.5", features = ["builder", "hazmat"] }
 
 [dev-dependencies]
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.40.0" }
+web-time-compat = { path = "../web-time-compat", version = "0.1.0" }

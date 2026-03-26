@@ -3,7 +3,7 @@
 use std::cmp::{max, min};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use web_time_compat::{Duration, Instant};
 
 use super::params::RoundTripEstimatorParams;
 use super::{CongestionWindow, State};
@@ -269,7 +269,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::time::{Duration, Instant};
+    use web_time_compat::{Duration, Instant, InstantExt};
 
     use crate::congestion::test_utils::{new_cwnd, new_rtt_estimator};
 
@@ -333,7 +333,7 @@ mod test {
     #[test]
     fn test_vectors() {
         let mut rtt = new_rtt_estimator();
-        let now = Instant::now();
+        let now = Instant::get();
         // from C-tor src/test/test_congestion_control.c
         let vectors = [
             [100000, 200000, 124, 1, 100000, 100000, 100000],

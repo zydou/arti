@@ -831,6 +831,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::sealed::RequestableInner;
     use super::*;
+    use web_time_compat::SystemTimeExt;
 
     #[test]
     fn test_md_request() -> Result<()> {
@@ -915,7 +916,7 @@ mod test {
         .unwrap();
 
         let d2 = b"blah blah blah 12 blah blah blah";
-        let d3 = SystemTime::now();
+        let d3 = SystemTime::get();
         let mut req = ConsensusRequest::default();
 
         let when = httpdate::fmt_http_date(d3);

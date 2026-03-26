@@ -71,12 +71,12 @@ use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_socks::tcp::Socks5Stream;
 use tor_config::{ConfigurationSource, ConfigurationSources};
 use tor_rtcompat::ToplevelRuntime;
 use tracing::info;
+use web_time_compat::{SystemTime, SystemTimeExt};
 
 /// Generate a random payload of bytes of the given size
 fn random_payload(size: usize) -> Vec<u8> {
@@ -181,18 +181,18 @@ fn run_timing(mut stream: TcpStream, send: &Arc<[u8]>, receive: &Arc<[u8]>) -> R
     let mut total_read = 0;
 
     info!("Accepted connection from {}", peer_addr);
-    let accepted_ts = SystemTime::now();
+    let accepted_ts = SystemTime::get();
     let mut data: &[u8] = send.deref();
     let copied = std::io::copy(&mut data, &mut stream)?;
     stream.flush()?;
-    let copied_ts = SystemTime::now();
+    let copied_ts = SystemTime::get();
     assert_eq!(copied, send.len() as u64);
     info!("Copied {} bytes payload to {}.", copied, peer_addr);
     let read = stream.read(&mut received)?;
     if read == 0 {
         panic!("unexpected EOF");
     }
-    let first_byte_ts = SystemTime::now();
+    let first_byte_ts = SystemTime::get();
     if received[0..read] != expected[0..read] {
         mismatch = true;
     }
@@ -209,7 +209,7 @@ fn run_timing(mut stream: TcpStream, send: &Arc<[u8]>, receive: &Arc<[u8]>) -> R
         expected = &expected[read..];
         total_read += read;
     }
-    let read_done_ts = SystemTime::now();
+    let read_done_ts = SystemTime::get();
     info!("Received {} bytes payload from {}.", total_read, peer_addr);
     // Check we actually got what we thought we would get.
     if mismatch {
@@ -252,22 +252,22 @@ async fn client<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<ClientTiming> {
     // Do this potentially costly allocation before we do all the timing stuff.
     let mut received = vec![0_u8; receive.len()];
-    let started_ts = SystemTime::now();
+    let started_ts = SystemTime::get();
 
     let read = socket.read(&mut received).await?;
     if read == 0 {
         return Err(anyhow!("unexpected EOF"));
     }
-    let first_byte_ts = SystemTime::now();
+    let first_byte_ts = SystemTime::get();
     socket.read_exact(&mut received[read..]).await?;
-    let read_done_ts = SystemTime::now();
+    let read_done_ts = SystemTime::get();
     info!("Received {} bytes payload.", received.len());
     let mut send_data = &send as &[u8];
 
     tokio::io::copy(&mut send_data, &mut socket).await?;
     socket.flush().await?;
     info!("Sent {} bytes payload.", send.len());
-    let copied_ts = SystemTime::now();
+    let copied_ts = SystemTime::get();
 
     // Check we actually got what we thought we would get.
     if received != receive.deref() {

@@ -438,17 +438,17 @@ mod test {
     use std::io::Result as IoResult;
     use std::net::SocketAddr;
     use std::net::{Ipv4Addr, SocketAddrV4};
-    use std::time::{Duration, Instant};
+    use web_time_compat::{Duration, Instant, InstantExt, SystemTimeExt};
 
     // Test "sleep" with a tiny delay, and make sure that at least that
     // much delay happens.
     fn small_delay<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         let rt = runtime.clone();
         runtime.block_on(async {
-            let i1 = Instant::now();
+            let i1 = Instant::get();
             let one_msec = Duration::from_millis(1);
             rt.sleep(one_msec).await;
-            let i2 = Instant::now();
+            let i2 = Instant::get();
             assert!(i2 >= i1 + one_msec);
         });
         Ok(())
@@ -488,14 +488,14 @@ mod test {
     fn tiny_wallclock<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         let rt = runtime.clone();
         runtime.block_on(async {
-            let i1 = Instant::now();
+            let i1 = Instant::get();
             let now = runtime.wallclock();
             let one_millis = Duration::from_millis(1);
             let one_millis_later = now + one_millis;
 
             rt.sleep_until_wallclock(one_millis_later).await;
 
-            let i2 = Instant::now();
+            let i2 = Instant::get();
             let newtime = runtime.wallclock();
             assert!(newtime >= one_millis_later);
             assert!(i2 - i1 >= one_millis);
@@ -687,7 +687,7 @@ mod test {
         let mut rng = tor_basic_utils::test_rng::testing_rng();
         let tls_cert = tor_cert_x509::TlsKeyAndCert::create(
             &mut rng,
-            std::time::SystemTime::now(),
+            std::time::SystemTime::get(),
             "prospit.example.org",
             "derse.example.org",
         )

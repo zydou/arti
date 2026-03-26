@@ -2,9 +2,9 @@
 
 use futures::task::SpawnError;
 use std::sync::Arc;
-use std::time::Instant;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind};
+use web_time_compat::{Instant, InstantExt};
 
 /// A error caused by a failure to pick a guard.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -19,7 +19,7 @@ pub enum PickGuardError {
         suitable.display_frac_rejected(),
         filtered.display_frac_rejected(),
         if let Some(retry_at) = retry_at {
-            format!(" Retrying in {}.", humantime::format_duration(*retry_at - Instant::now()))
+            format!(" Retrying in {}.", humantime::format_duration(*retry_at - Instant::get()))
         } else {
             "".to_string()
         },

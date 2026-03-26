@@ -140,6 +140,7 @@ tor-relay-selection = { path = "../tor-relay-selection", version = "0.40.0" }
 tor-rtcompat = { version = "0.40.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 void = "1"
+web-time-compat = { version = "0.1.0", path = "../web-time-compat" }
 
 [dev-dependencies]
 libc = { version = "0.2", default-features = false }

@@ -69,6 +69,7 @@ use tor_error::{bad_api_usage, internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use tor_protover::named;
 use tor_rtcompat::DynTimeProvider;
+use web_time_compat::Instant;
 
 use crate::circuit::UniqId;
 
@@ -488,8 +489,8 @@ impl ClientCirc {
     ///
     /// NOTE that the Instant returned by this method is not affected by
     /// any runtime mocking; it is the output of an ordinary call to
-    /// `Instant::now()`.
-    pub async fn disused_since(&self) -> Result<Option<std::time::Instant>> {
+    /// `Instant::get()`.
+    pub async fn disused_since(&self) -> Result<Option<Instant>> {
         let (tx, rx) = oneshot::channel();
         self.command
             .unbounded_send(CtrlCmd::GetTunnelActivity { sender: tx })

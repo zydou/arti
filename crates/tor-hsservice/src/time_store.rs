@@ -26,8 +26,8 @@
 //!
 //! ```
 //! use serde::{Serialize, Deserialize};
-//! use std::time::{Duration, Instant};
 //! use tor_rtcompat::{PreferredRuntime, SleepProvider as _};
+//! use web_time_compat::{Duration, Instant};
 //!
 //! # use tor_hsservice::time_store_for_doctests_unstable_no_semver_guarantees as time_store;
 //! # #[cfg(all)] // works like #[cfg(FALSE)].  Instead, we have this workaround ^.
@@ -80,7 +80,7 @@
 
 use std::fmt::{self, Display};
 use std::str::FromStr;
-use std::time::{Duration, Instant, SystemTime};
+use web_time_compat::{Duration, Instant, SystemTime};
 
 use derive_deftly::{Deftly, define_derive_deftly};
 use serde::{Deserialize, Serialize};
@@ -492,6 +492,7 @@ mod test {
     use humantime::parse_rfc3339;
     use itertools::{Itertools, chain};
     use tor_rtmock::{MockRuntime, simple_time::SimpleMockTimeProvider};
+    use web_time_compat::InstantExt;
 
     fn secs(s: u64) -> Duration {
         Duration::from_secs(s)
@@ -561,7 +562,7 @@ mod test {
             s2: FutureTimestamp,
         }
 
-        let real_instant = Instant::now();
+        let real_instant = Instant::get();
         let test_systime = parse_rfc3339("2008-08-02T00:00:00Z").unwrap();
 
         let mk_runtime = |instant, systime| {

@@ -343,11 +343,9 @@ pub(crate) mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::{
-        collections::VecDeque,
-        time::{Duration, Instant},
-    };
+    use std::collections::VecDeque;
     use tor_units::Percentage;
+    use web_time_compat::{Duration, Instant, InstantExt};
 
     use super::*;
     use crate::congestion::{
@@ -433,7 +431,7 @@ pub(crate) mod test {
             self.vegas.set_inflight(p.inflight_in);
             self.vegas.set_is_blocked_on_chan(p.or_conn_blocked_in);
 
-            let now = Instant::now();
+            let now = Instant::get();
             self.rtt
                 .expect_sendme(now + Duration::from_micros(p.sent_usec_in));
             let ret = self.rtt.update(

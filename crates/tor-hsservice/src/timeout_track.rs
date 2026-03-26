@@ -147,7 +147,7 @@
 
 use std::cell::Cell;
 use std::cmp::Ordering;
-use std::time::{Duration, Instant, SystemTime};
+use web_time_compat::{Duration, Instant, SystemTime};
 
 use derive_deftly::{Deftly, define_derive_deftly};
 use futures::{FutureExt as _, future, select_biased};
@@ -634,6 +634,7 @@ mod test {
     use std::task::Poll;
     use tor_rtcompat::ToplevelBlockOn;
     use tor_rtmock::MockRuntime;
+    use web_time_compat::InstantExt;
 
     fn parse_rfc3339(s: &str) -> SystemTime {
         humantime::parse_rfc3339(s).unwrap()
@@ -715,7 +716,7 @@ mod test {
     #[test]
     fn arith_instant_combined() {
         // Adding 1Ms gives us some headroom, since we don't want to underflow
-        let earliest = Instant::now() + secs(1000000);
+        let earliest = Instant::get() + secs(1000000);
         let middle_d = secs(200);
         let middle = earliest + middle_d;
         let later_d = secs(300);

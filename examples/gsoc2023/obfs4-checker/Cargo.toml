@@ -21,6 +21,7 @@ tor-guardmgr = { path = "../../../crates/tor-guardmgr", version = "0.40", featur
 tor-proto = { path = "../../../crates/tor-proto", version = "0.40", features = [] }
 tor-rtcompat = { path = "../../../crates/tor-rtcompat", version = "0.40" }
 tracing-subscriber = "0.3.20"
+web-time-compat = { path = "../../../crates/web-time-compat", version = "0.1.0" }
 
 [features]
 full = [

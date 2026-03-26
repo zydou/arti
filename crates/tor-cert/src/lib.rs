@@ -57,7 +57,7 @@ use tor_bytes::{Error as BytesError, Result as BytesResult};
 use tor_bytes::{Readable, Reader};
 use tor_llcrypto::pk::*;
 
-use std::time;
+use web_time_compat as time;
 
 pub use err::CertError;
 
@@ -625,7 +625,7 @@ struct ExpiryHours(u32);
 /// The number of seconds in an hour.
 const SEC_PER_HOUR: u64 = 3600;
 
-impl From<ExpiryHours> for std::time::SystemTime {
+impl From<ExpiryHours> for time::SystemTime {
     fn from(value: ExpiryHours) -> Self {
         // TODO MSRV 1.91; use from_hours.
         let d = std::time::Duration::from_secs(u64::from(value.0) * SEC_PER_HOUR);
@@ -636,9 +636,9 @@ impl From<ExpiryHours> for std::time::SystemTime {
 #[cfg(feature = "encode")]
 impl ExpiryHours {
     /// Return the earliest possible `ExpiryHours` that is no earlier than `expiry`.
-    fn try_from_systemtime_ceil(expiry: std::time::SystemTime) -> Result<Self, CertEncodeError> {
+    fn try_from_systemtime_ceil(expiry: time::SystemTime) -> Result<Self, CertEncodeError> {
         let d = expiry
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .duration_since(time::SystemTime::UNIX_EPOCH)
             .map_err(|_| CertEncodeError::InvalidExpiration)?;
         let sec_ceil = d.as_secs() + if d.subsec_nanos() > 0 { 1 } else { 0 };
         let hours = sec_ceil
@@ -684,6 +684,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use hex_literal::hex;
+    use web_time_compat::SystemTimeExt;
 
     #[test]
     fn parse_unrecognized_ext() -> BytesResult<()> {
@@ -736,7 +737,7 @@ mod test {
     fn expiry_hours_ceil() {
         use std::time::{Duration, SystemTime};
 
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let mut exp = now + Duration::from_secs(24 * 60 * 60);
         for _ in 0..=3600 {
             let eh = ExpiryHours::try_from_systemtime_ceil(exp).unwrap();

@@ -70,6 +70,7 @@
 //! use tor_persist::state_dir;
 //! use state_dir::{InstanceIdentity, InstancePurgeHandler};
 //! use state_dir::{InstancePurgeInfo, InstanceStateHandle, StateDirectory, StorageHandle};
+//! use web_time_compat::SystemTimeExt;
 //! #
 //! # // fake up some things; we do this rather than using real ones
 //! # // since this example will move, with the module, to a lower level crate.
@@ -134,7 +135,7 @@
 //!     retain_for: Duration,
 //! ) -> Result<(), Error> {
 //!     state_dir.purge_instances(
-//!         SystemTime::now(),
+//!         SystemTime::get(),
 //!         &mut PurgeHandler(currently_configured_nicks, retain_for),
 //!     )?;
 //!     Ok(())
@@ -174,7 +175,7 @@ use std::io;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use web_time_compat::{Duration, SystemTime, SystemTimeExt};
 
 use derive_deftly::{Deftly, define_derive_deftly};
 use derive_more::{AsRef, Deref};
@@ -1013,7 +1014,8 @@ fn touch_instance_dir(dir: &CheckedDir) -> Result<()> {
     let dir = dir.as_path();
     let resource = || Resource::Directory { dir: dir.into() };
 
-    filetime::set_file_mtime(dir, filetime::FileTime::now())
+    let mtime = filetime::FileTime::from_system_time(SystemTime::get());
+    filetime::set_file_mtime(dir, mtime)
         .map_err(|source| Error::new(source, Action::Initializing, resource()))
 }
 
@@ -1137,6 +1139,7 @@ mod test {
     use tor_basic_utils::PathExt as _;
     use tor_error::HasKind as _;
     use tracing_test::traced_test;
+    use web_time_compat::SystemTimeExt;
 
     use tor_error::ErrorKind as TEK;
 
@@ -1147,7 +1150,7 @@ mod test {
     }
 
     fn now() -> SystemTime {
-        SystemTime::now()
+        SystemTime::get()
     }
 
     struct Garlic(Slug);

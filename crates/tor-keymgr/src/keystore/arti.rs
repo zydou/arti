@@ -421,12 +421,12 @@ mod tests {
     use std::cmp::Ordering;
     use std::fs;
     use std::path::PathBuf;
-    use std::time::{Duration, SystemTime};
     use tempfile::{TempDir, tempdir};
     use tor_cert::{CertifiedKey, Ed25519Cert};
     use tor_checkable::{SelfSigned, Timebound};
     use tor_key_forge::{CertType, KeyType, ParsedEd25519Cert};
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
+    use web_time_compat::{Duration, SystemTime};
 
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;

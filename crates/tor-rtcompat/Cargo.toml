@@ -107,6 +107,7 @@ tor-error = { version = "0.40.0", path = "../tor-error", features = ["tracing"] 
 tor-general-addr = { version = "0.40.0", path = "../tor-general-addr" }
 tracing = "0.1.36"
 void = "1"
+web-time-compat = { version = "0.1.0", path = "../web-time-compat" }
 zeroize = "1"
 
 [target.'cfg(not(all(target_arch="wasm32", target_os="unknown")))'.dependencies]

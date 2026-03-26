@@ -839,6 +839,7 @@ mod test {
     use float_eq::assert_float_eq;
     use futures::stream::StreamExt;
     use tor_rtcompat::test_with_all_runtimes;
+    use web_time_compat::SystemTimeExt;
 
     #[test]
     fn subscribe_and_publish() {
@@ -965,7 +966,7 @@ mod test {
 
     #[test]
     fn dir_status_basics() {
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let hour = Duration::new(3600, 0);
 
         let nothing = DirStatus {

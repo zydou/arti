@@ -169,7 +169,6 @@ mod test {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::{Context, Poll};
-    use std::time::Duration;
 
     use async_trait::async_trait;
     use fs_mistrust::Mistrust;

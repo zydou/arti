@@ -1,7 +1,7 @@
 //! Code to collect and publish information about a client's bootstrapping
 //! status.
 
-use std::{borrow::Cow, fmt, fmt::Display, time::SystemTime};
+use std::{borrow::Cow, fmt, fmt::Display};
 
 use educe::Educe;
 use futures::{Stream, StreamExt};
@@ -10,6 +10,7 @@ use tor_chanmgr::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_circmgr::{ClockSkewEvents, SkewEstimate};
 use tor_dirmgr::{DirBlockage, DirBootstrapStatus};
 use tracing::debug;
+use web_time_compat::{SystemTime, SystemTimeExt};
 
 /// Information about how ready a [`crate::TorClient`] is to handle requests.
 ///
@@ -40,7 +41,7 @@ impl BootstrapStatus {
     /// 0 is defined as "just started"; 1 is defined as "ready to use."
     pub fn as_frac(&self) -> f32 {
         // Coefficients chosen arbitrarily.
-        self.conn_status.frac() * 0.15 + self.dir_status.frac_at(SystemTime::now()) * 0.85
+        self.conn_status.frac() * 0.15 + self.dir_status.frac_at(SystemTime::get()) * 0.85
     }
 
     /// Return true if the status indicates that the client is ready for
@@ -49,7 +50,7 @@ impl BootstrapStatus {
     /// For the purposes of this function, the client is "ready for traffic" if,
     /// as far as we know, we can start acting on a new client request immediately.
     pub fn ready_for_traffic(&self) -> bool {
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         self.conn_status.usable() && self.dir_status.usable_at(now)
     }
 
@@ -84,7 +85,7 @@ impl BootstrapStatus {
             } else {
                 Some(Blockage { kind, message })
             }
-        } else if let Some(b) = self.dir_status.blockage(SystemTime::now()) {
+        } else if let Some(b) = self.dir_status.blockage(SystemTime::get()) {
             let message = b.to_string().into();
             let kind = b.into();
             Some(Blockage { kind, message })

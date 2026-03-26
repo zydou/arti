@@ -108,7 +108,7 @@ impl<
     /// Connect to another relay as the relay Initiator.
     ///
     /// Takes a function that reports the current time.  In theory, this can just be
-    /// `SystemTime::now()`.
+    /// `SystemTime::get()`.
     pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedInitiatorRelayChannel<T, S>>
     where
         F: FnOnce() -> SystemTime,
@@ -237,7 +237,7 @@ impl<
     /// Begin the handshake process.
     ///
     /// Takes a function that reports the current time.  In theory, this can just be
-    /// `SystemTime::now()`.
+    /// `SystemTime::get()`.
     pub async fn handshake<F>(
         mut self,
         now_fn: F,

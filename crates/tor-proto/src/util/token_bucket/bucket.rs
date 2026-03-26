@@ -1,7 +1,7 @@
 //! A token bucket implementation.
 
 use std::fmt::Debug;
-use std::time::{Duration, Instant};
+use web_time_compat::{Duration, Instant};
 
 /// A token bucket.
 ///

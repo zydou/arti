@@ -15,7 +15,6 @@
 use crate::{MdReceiver, PartialNetDir};
 use std::iter;
 use std::net::SocketAddr;
-use std::time::{Duration, SystemTime};
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
@@ -23,6 +22,7 @@ use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayWeight};
 use tor_netdoc::doc::netstatus::{MdConsensus, MdConsensusBuilder};
 use tor_netdoc::types::relay_flags::RelayFlag;
 pub use tor_netdoc::{BuildError, BuildResult};
+use web_time_compat::{Duration, SystemTime, SystemTimeExt};
 
 /// A set of builder objects for a single node.
 #[derive(Debug, Clone)]
@@ -201,7 +201,7 @@ where
     ];
 
     let lifetime = lifetime.map(Ok).unwrap_or_else(|| {
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let one_day = Duration::new(86400, 0);
 
         Lifetime::new(now, now + one_day / 2, now + one_day)

@@ -5,7 +5,6 @@ use std::fmt::Debug;
 use std::mem;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{Duration, Instant};
 
 use futures::FutureExt as _;
 use futures::task::SpawnError;
@@ -23,6 +22,7 @@ use tor_error::{Bug, ErrorReport as _, debug_report, error_report, internal};
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDir;
 use tor_rtcompat::{Runtime, SpawnExt as _};
+use web_time_compat::{Duration, Instant};
 
 use crate::isol_map;
 use crate::{ConnError, HsClientConnector, HsClientSecretKeys};

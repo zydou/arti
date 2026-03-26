@@ -37,7 +37,6 @@ pub(crate) use {
     std::path::{Path, PathBuf},
     std::str::FromStr,
     std::sync::{Arc, Mutex, MutexGuard},
-    std::time::{Duration, Instant, SystemTime},
 };
 
 //---------- upstreams ----------
@@ -110,6 +109,7 @@ pub(crate) use {
     tor_proto::client::stream::DataStream,
     tor_rtcompat::SleepProvider,
     tor_rtcompat::{Runtime, SleepProviderExt as _},
+    web_time_compat::{Duration, Instant, SystemTime},
 };
 
 //---------- names from this crate ----------

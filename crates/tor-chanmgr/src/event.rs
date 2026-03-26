@@ -4,11 +4,9 @@
 use educe::Educe;
 use futures::{Stream, StreamExt};
 use postage::watch;
-use std::{
-    fmt,
-    time::{Duration, Instant},
-};
+use std::fmt;
 use tor_basic_utils::skip_fmt;
+use web_time_compat::{Duration, Instant, InstantExt};
 
 /// The status of our connection to the internet.
 #[derive(Default, Debug, Clone)]
@@ -344,12 +342,12 @@ impl ChanMgrEventSender {
     /// Note that an attempt to connect has been started.
     pub(crate) fn record_attempt(&mut self) {
         self.mgr_status.record_attempt();
-        self.push_at(Instant::now());
+        self.push_at(Instant::get());
     }
 
     /// Note that we've successfully done a TCP handshake with an alleged relay.
     pub(crate) fn record_tcp_success(&mut self) {
-        let now = Instant::now();
+        let now = Instant::get();
         self.mgr_status.record_tcp_success(now);
         self.push_at(now);
     }
@@ -358,7 +356,7 @@ impl ChanMgrEventSender {
     ///
     /// (Its identity won't be verified till the next step.)
     pub(crate) fn record_tls_finished(&mut self) {
-        let now = Instant::now();
+        let now = Instant::get();
         self.mgr_status.record_tls_finished(now);
         self.push_at(now);
     }
@@ -366,7 +364,7 @@ impl ChanMgrEventSender {
     /// Record that a handshake has succeeded _except for the certificate
     /// timeliness check, which may indicate a skewed clock.
     pub(crate) fn record_handshake_done_with_skewed_clock(&mut self) {
-        let now = Instant::now();
+        let now = Instant::get();
         self.mgr_status.record_handshake_done_with_skewed_clock(now);
         self.push_at(now);
     }
@@ -376,7 +374,7 @@ impl ChanMgrEventSender {
     /// (This includes performing the TLS handshake, and verifying that the
     /// relay was indeed the one that we wanted to reach.)
     pub(crate) fn record_handshake_done(&mut self) {
-        let now = Instant::now();
+        let now = Instant::get();
         self.mgr_status.record_handshake_done(now);
         self.push_at(now);
     }
@@ -388,7 +386,7 @@ pub(crate) fn channel() -> (ChanMgrEventSender, ConnStatusEvents) {
     let receiver = ConnStatusEvents { inner: receiver };
     let sender = ChanMgrEventSender {
         last_conn_status: ConnStatus::default(),
-        mgr_status: ChanMgrStatus::new_at(Instant::now()),
+        mgr_status: ChanMgrStatus::new_at(Instant::get()),
         sender,
     };
     (sender, receiver)
@@ -485,7 +483,7 @@ mod test {
 
     #[test]
     fn derive_status() {
-        let start = Instant::now();
+        let start = Instant::get();
         let sec = Duration::from_secs(1);
         let hour = Duration::from_secs(3600);
 

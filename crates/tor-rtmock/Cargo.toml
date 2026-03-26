@@ -33,6 +33,7 @@ tor-rtcompat = { version = "0.40.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 tracing-test = "0.2.4"
 void = "1"
+web-time-compat = { version = "0.1.0", path = "../web-time-compat" }
 
 [dev-dependencies]
 futures-await-test = "0.3.0"

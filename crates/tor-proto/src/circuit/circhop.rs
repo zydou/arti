@@ -39,7 +39,7 @@ use std::num::NonZeroU32;
 use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use web_time_compat::Instant;
 
 #[cfg(test)]
 use tor_cell::relaycell::msg::SendmeTag;

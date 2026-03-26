@@ -5,7 +5,6 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::SystemTime;
 
 use crate::{
     bridge::BridgeConfig,
@@ -20,6 +19,7 @@ use tor_linkspec::{ChanTarget, HasChanMethod, HasRelayIds, OwnedChanTarget};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdir::RelayWeight;
 use tor_netdoc::doc::routerdesc::RouterDesc;
+use web_time_compat::{SystemTime, SystemTimeExt};
 
 use super::BridgeRelay;
 
@@ -239,13 +239,13 @@ impl Universe for BridgeSet {
         }
     }
 
-    fn timestamp(&self) -> std::time::SystemTime {
+    fn timestamp(&self) -> SystemTime {
         // We just use the current time as the timestamp of this BridgeSet.
         // This makes the guard code treat a BridgeSet as _continuously updated_:
         // anything listed in the guard set is treated as listed right up to this
         // moment, and anything unlisted is treated as unlisted right up to this
         // moment.
-        SystemTime::now()
+        SystemTime::get()
     }
 
     /// Note that for a BridgeSet, we always treat the current weight as 0 and

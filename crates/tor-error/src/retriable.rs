@@ -1,11 +1,9 @@
 //! Declare the `RetryTime` enumeration and related code.
 
 use derive_more::{From, Into};
-use std::{
-    cmp::Ordering,
-    time::{Duration, Instant},
-};
+use std::{cmp::Ordering, time::Duration};
 use strum::EnumDiscriminants;
+use web_time_compat::Instant;
 
 /// A description of when an operation may be retried.
 ///
@@ -87,7 +85,7 @@ pub enum RetryTime {
     /// The operation can be retried at some particular time in the future.
     ///
     /// The recipient of this this `RetryTime` variant should wait until the
-    /// current time (as returned by `Instant::now` or `SleepProvider::now` as
+    /// current time (as returned by `Instant::get` or `SleepProvider::now` as
     /// appropriate) is at least this given instant.
     ///
     /// This case is appropriate for when we have a failure condition caused by
@@ -274,13 +272,15 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
     use super::*;
+    use web_time_compat::InstantExt;
 
     #[test]
     fn comparison() {
         use RetryTime as RT;
         let sec = Duration::from_secs(1);
-        let now = Instant::now();
+        let now = Instant::get();
 
         let sorted = vec![
             RT::Immediate,
@@ -304,7 +304,7 @@ mod test {
     fn abs_comparison() {
         use AbsRetryTime as ART;
         let sec = Duration::from_secs(1);
-        let now = Instant::now();
+        let now = Instant::get();
 
         let sorted = vec![
             ART::Immediate,
@@ -324,7 +324,7 @@ mod test {
     #[test]
     fn earliest_absolute() {
         let sec = Duration::from_secs(1);
-        let now = Instant::now();
+        let now = Instant::get();
 
         let times = vec![RetryTime::AfterWaiting, RetryTime::Never];
 
@@ -337,7 +337,7 @@ mod test {
 
     #[test]
     fn abs_from_sum() {
-        let base = Instant::now();
+        let base = Instant::get();
         let delta = Duration::from_secs(1);
         assert_eq!(
             AbsRetryTime::from_sum(base, delta),

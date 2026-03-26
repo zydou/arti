@@ -14,9 +14,9 @@ use oneshot_fused_workaround as oneshot;
 use serde::{Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 use tor_error::warn_report;
 use tracing::info;
+use web_time_compat::{SystemTime, SystemTimeExt};
 
 /// Implementation of StateMgr that stores state as JSON files on disk.
 ///
@@ -223,7 +223,7 @@ impl StateMgr for FsStateMgr {
             .try_lock()
             .map_err(|e| Error::new(e, Action::Locking, self.err_resource_lock()))?
         {
-            self.clean(SystemTime::now());
+            self.clean(SystemTime::get());
             Ok(LockStatus::NewlyAcquired)
         } else {
             Ok(LockStatus::NoLock)
@@ -341,7 +341,7 @@ mod test {
         assert_eq!(count, 3); // two files, one lock.
 
         // Now we can make sure that "clean" actually removes the right file.
-        store.clean(SystemTime::now() + Duration::from_secs(365 * 86400));
+        store.clean(SystemTime::get() + Duration::from_secs(365 * 86400));
         let lst: Vec<_> = statedir.read_dir().unwrap().collect();
         assert_eq!(lst.len(), 2); // one file, one lock.
         assert!(
@@ -374,7 +374,7 @@ mod test {
 
         // Make the store directory read-only and make sure that we can't delete from it.
         std::fs::set_permissions(&statedir, ro_dir).unwrap();
-        store.clean(SystemTime::now() + Duration::from_secs(365 * 86400));
+        store.clean(SystemTime::get() + Duration::from_secs(365 * 86400));
         let lst: Vec<_> = statedir.read_dir().unwrap().collect();
         if lst.len() == 2 {
             // We must be root.  Don't do any more tests here.

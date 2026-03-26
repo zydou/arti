@@ -19,7 +19,6 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use std::{io, thread};
 use tor_basic_utils::PathExt as _;
 use tor_error::{internal, warn_report};
@@ -27,6 +26,7 @@ use tor_linkspec::PtTransportName;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_socksproto::SocksVersion;
 use tracing::{debug, error, info, trace, warn};
+use web_time_compat::{Duration, Instant, InstantExt};
 
 /// Amount of time we give a pluggable transport child process to exit gracefully.
 const GRACEFUL_EXIT_TIME: Duration = Duration::from_secs(5);
@@ -601,7 +601,7 @@ pub(crate) mod sealed {
             match rt
                 .timeout(
                     // FIXME(eta): It'd be nice if SleepProviderExt took an `Instant` natively.
-                    deadline.saturating_duration_since(Instant::now()),
+                    deadline.saturating_duration_since(Instant::get()),
                     async_child.recv(),
                 )
                 .await
@@ -916,7 +916,7 @@ impl PluggableClientTransport {
                 all_env_vars,
             )?;
 
-        let deadline = Instant::now() + self.common_params.timeout.unwrap_or(PT_START_TIMEOUT);
+        let deadline = Instant::get() + self.common_params.timeout.unwrap_or(PT_START_TIMEOUT);
         let mut cmethods = HashMap::new();
         let mut proxy_done = self.client_params.proxy_uri.is_none();
 
@@ -1070,7 +1070,7 @@ impl PluggableServerTransport {
                 all_env_vars,
             )?;
 
-        let deadline = Instant::now() + self.common_params.timeout.unwrap_or(PT_START_TIMEOUT);
+        let deadline = Instant::get() + self.common_params.timeout.unwrap_or(PT_START_TIMEOUT);
         let mut smethods = HashMap::new();
 
         loop {

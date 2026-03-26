@@ -152,6 +152,7 @@ mod test {
     use super::*;
     use hex_literal::hex;
     use std::time::Duration;
+    use web_time_compat::SystemTimeExt;
 
     fn rsa1() -> rsa::PublicKey {
         let der = hex!(
@@ -169,7 +170,7 @@ mod test {
 
     #[test]
     fn simple_cert() {
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let one_hour = Duration::new(3600, 0);
         let later = now + one_hour * 2;
         let addr = "192.0.0.1:9090".parse().unwrap();
@@ -189,7 +190,7 @@ mod test {
 
     #[test]
     fn failing_cert() {
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let one_hour = Duration::new(3600, 0);
         let later = now + one_hour * 2;
 

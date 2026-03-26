@@ -620,6 +620,7 @@ pub(crate) mod test {
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
     use tor_persist::TestingStateMgr;
+    use web_time_compat::SystemTimeExt;
 
     impl IsolationTokenEq for TargetTunnelUsage {
         fn isol_eq(&self, other: &Self) -> bool {
@@ -956,7 +957,7 @@ pub(crate) mod test {
                 tor_guardmgr::GuardMgr::new(rt.clone(), statemgr.clone(), &TestConfig::default())
                     .unwrap();
             guards.install_test_netdir(&netdir);
-            let now = SystemTime::now();
+            let now = SystemTime::get();
 
             // Only doing basic tests for now.  We'll test the path
             // building code a lot more closely in the tests for TorPath
@@ -1071,7 +1072,7 @@ pub(crate) mod test {
                 tor_guardmgr::GuardMgr::new(rt.clone(), statemgr.clone(), &TestConfig::default())
                     .unwrap();
             guards.install_test_netdir(&netdir);
-            let now = SystemTime::now();
+            let now = SystemTime::get();
 
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             let vanguards =

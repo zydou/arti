@@ -1,7 +1,7 @@
 //! Types and code to track the readiness status of a directory cache.
 
-use std::time::{Duration, Instant};
 use tor_basic_utils::retry::RetryDelay;
+use web_time_compat::{Duration, Instant};
 
 /// Status information about whether a
 /// [`FallbackDir`](tor_dircommon::fallback::FallbackDir) or
@@ -78,10 +78,11 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use web_time_compat::InstantExt;
 
     #[test]
     fn status_basics() {
-        let now = Instant::now();
+        let now = Instant::get();
 
         /// floor to use for testing.
         const FLOOR: Duration = Duration::from_secs(99);

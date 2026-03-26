@@ -31,7 +31,7 @@ use backend::PaddingBackend;
 /// The type of Instant that we'll use for our padding machines.
 ///
 /// We use a separate type alias here in case we want to move to coarsetime.
-type Instant = std::time::Instant;
+type Instant = web_time_compat::Instant;
 
 /// The type of Duration that we'll use for our padding machines.
 ///

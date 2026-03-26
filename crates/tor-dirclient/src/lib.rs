@@ -593,6 +593,7 @@ mod test {
     use tor_rtmock::io::stream_pair;
 
     use tor_rtmock::simple_time::SimpleMockTimeProvider;
+    use web_time_compat::{SystemTime, SystemTimeExt};
 
     use futures_await_test::async_test;
 
@@ -633,7 +634,7 @@ mod test {
         // We don't need to do anything fancy here, since we aren't simulating
         // a timeout.
         #[allow(deprecated)] // TODO #1885
-        let mock_time = SimpleMockTimeProvider::from_wallclock(std::time::SystemTime::now());
+        let mock_time = SimpleMockTimeProvider::from_wallclock(SystemTime::get());
 
         let mut output = Vec::new();
         let mut stream = match get_decoder(data, encoding, AnonymizedRequest::Direct) {

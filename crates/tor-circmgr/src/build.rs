@@ -10,7 +10,6 @@ use std::sync::{
     Arc,
     atomic::{AtomicU32, Ordering},
 };
-use std::time::{Duration, Instant};
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
 use tor_error::into_internal;
 use tor_guardmgr::GuardStatus;
@@ -23,6 +22,7 @@ use tor_rtcompat::SpawnExt;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
 use tracing::instrument;
+use web_time_compat::{Duration, Instant};
 
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
 use tor_guardmgr::vanguards::VanguardMgr;

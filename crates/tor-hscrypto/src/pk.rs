@@ -818,8 +818,8 @@ mod test {
 
     use hex_literal::hex;
     use itertools::izip;
-    use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
+    use web_time_compat::{Duration, SystemTime, SystemTimeExt};
 
     use super::*;
 
@@ -872,7 +872,7 @@ mod test {
     fn key_blinding_blackbox() {
         let mut rng = testing_rng();
         let offset = Duration::new(12 * 60 * 60, 0);
-        let when = TimePeriod::new(Duration::from_secs(3600), SystemTime::now(), offset).unwrap();
+        let when = TimePeriod::new(Duration::from_secs(3600), SystemTime::get(), offset).unwrap();
         let keypair = ed25519::Keypair::generate(&mut rng);
         let id_pub = HsIdKey::from(keypair.verifying_key());
         let id_keypair = HsIdKeypair::from(ed25519::ExpandedKeypair::from(&keypair));

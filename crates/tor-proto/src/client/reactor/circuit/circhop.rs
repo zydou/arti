@@ -27,6 +27,7 @@ use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, StreamId,
     UnparsedRelayMsg,
 };
+use web_time_compat::Instant;
 
 use safelog::sensitive as sv;
 use tor_error::Bug;
@@ -35,7 +36,6 @@ use tracing::instrument;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::Poll;
-use std::time::Instant;
 
 #[cfg(test)]
 use tor_cell::relaycell::msg::SendmeTag;

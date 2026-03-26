@@ -219,6 +219,7 @@ mod test {
     use tor_persist::TestingStateMgr;
     use tor_relay_selection::LowLevelRelayPredicate;
     use tor_rtcompat::SleepProvider;
+    use web_time_compat::SystemTimeExt;
 
     impl<'a> MaybeOwnedRelay<'a> {
         fn can_share_circuit(
@@ -283,7 +284,7 @@ mod test {
             let guards =
                 tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, &TestConfig::default()).unwrap();
             guards.install_test_netdir(&netdir);
-            let now = SystemTime::now();
+            let now = SystemTime::get();
 
             for _ in 0..1000 {
                 let (path, _, _) = ExitPathBuilder::from_target_ports(ports.clone())
@@ -317,7 +318,7 @@ mod test {
             let guards =
                 tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, &TestConfig::default()).unwrap();
             guards.install_test_netdir(&netdir);
-            let now = SystemTime::now();
+            let now = SystemTime::get();
 
             let config = PathConfig::default();
             for _ in 0..1000 {
@@ -372,7 +373,7 @@ mod test {
                 tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, &TestConfig::default()).unwrap();
             guards.install_test_netdir(&netdir);
             let config = PathConfig::default();
-            let now = SystemTime::now();
+            let now = SystemTime::get();
 
             // With target ports
             let outcome = ExitPathBuilder::from_target_ports(vec![TargetPort::ipv4(80)])

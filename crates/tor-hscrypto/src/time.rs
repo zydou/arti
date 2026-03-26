@@ -1,12 +1,10 @@
 //! Manipulate time periods (as used in the onion service system)
 
-use std::{
-    fmt::Display,
-    time::{Duration, SystemTime},
-};
+use std::fmt::Display;
 
 use humantime::format_rfc3339_seconds;
 use tor_units::IntegerMinutes;
+use web_time_compat::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 

@@ -22,8 +22,8 @@ use std::collections::hash_map;
 use std::num::NonZeroU16;
 use std::pin::Pin;
 use std::task::{Poll, Waker};
-use std::time::Instant;
 use tor_error::{bad_api_usage, internal};
+use web_time_compat::Instant;
 
 use rand::Rng;
 
@@ -590,6 +590,7 @@ mod test {
     use crate::client::circuit::test::fake_mpsc;
     use crate::stream::queue::fake_stream_queue;
     use crate::{client::stream::OutboundDataCmdChecker, congestion::sendme::StreamSendWindow};
+    use web_time_compat::InstantExt;
 
     #[test]
     fn test_wrapping_next_stream_id() {
@@ -650,7 +651,7 @@ mod test {
 
         // Test terminate
         use TerminateReason as TR;
-        let expiry = Instant::now(); // dummy value, unused outside of the reactor
+        let expiry = Instant::get(); // dummy value, unused outside of the reactor
         assert!(map.terminate(nonesuch_id, TR::ExplicitEnd, expiry).is_err());
         assert_eq!(map.n_open_streams(), 127);
         assert_eq!(

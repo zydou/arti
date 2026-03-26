@@ -6,8 +6,8 @@ use pin_project::pin_project;
 use std::{
     pin::Pin,
     task::{Context, Poll},
-    time::{Duration, SystemTime},
 };
+use web_time_compat::{Duration, SystemTime};
 
 /// An error value given when a function times out.
 ///
@@ -207,6 +207,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     #![allow(clippy::erasing_op)]
+    use web_time_compat::SystemTimeExt;
 
     #[cfg(not(miri))]
     use super::*;
@@ -219,7 +220,7 @@ mod test {
         }
         let minute = Duration::from_secs(60);
         let second = Duration::from_secs(1);
-        let start = SystemTime::now();
+        let start = SystemTime::get();
 
         let target = start + 30 * minute;
 

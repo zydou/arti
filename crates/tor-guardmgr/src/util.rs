@@ -77,10 +77,11 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use tor_basic_utils::test_rng::testing_rng;
+    use web_time_compat::SystemTimeExt;
 
     #[test]
     fn test_randomize_time() {
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let one_hour = humantime::parse_duration("1hr").unwrap();
         let ten_sec = humantime::parse_duration("10s").unwrap();
         let mut rng = testing_rng();
