@@ -7,7 +7,6 @@ mod pool;
 use std::{
     ops::Deref,
     sync::{Arc, Mutex, Weak},
-    time::Duration,
 };
 
 use crate::{
@@ -35,6 +34,7 @@ use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
 };
 use tracing::{debug, instrument, trace, warn};
+use web_time_compat::{Duration, Instant, SystemTime};
 
 use std::result::Result as StdResult;
 
@@ -373,12 +373,12 @@ impl<R: Runtime> HsCircPool<R> {
     ///
     /// This provides mockable time for use in error tracking and other
     /// time-sensitive operations.
-    pub fn now(&self) -> std::time::Instant {
+    pub fn now(&self) -> Instant {
         self.0.circmgr.mgr.peek_runtime().now()
     }
 
     /// Return the current wall-clock time from the runtime.
-    pub fn wallclock(&self) -> std::time::SystemTime {
+    pub fn wallclock(&self) -> SystemTime {
         self.0.circmgr.mgr.peek_runtime().wallclock()
     }
 }

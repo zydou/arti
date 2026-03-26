@@ -19,6 +19,7 @@ use tor_proto::circuit::UniqId;
 use tor_proto::client::circuit::{CircParameters, Path};
 use tor_rtcompat::Runtime;
 use tracing::instrument;
+use web_time_compat::Instant;
 
 #[async_trait]
 impl mgr::AbstractTunnel for tor_proto::ClientTunnel {
@@ -65,7 +66,7 @@ impl mgr::AbstractTunnel for tor_proto::ClientTunnel {
         circ.extend(target, params).await
     }
 
-    async fn last_known_to_be_used_at(&self) -> tor_proto::Result<Option<std::time::Instant>> {
+    async fn last_known_to_be_used_at(&self) -> tor_proto::Result<Option<Instant>> {
         self.disused_since().await
     }
 }

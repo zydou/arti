@@ -9,6 +9,7 @@ use tor_persist::StateMgr;
 use tor_proto::circuit::UniqId;
 use tor_proto::client::circuit::{CircParameters, Path};
 use tor_rtcompat::Runtime;
+use web_time_compat::Instant;
 
 use async_trait::async_trait;
 use std::sync::{self, Arc};
@@ -74,7 +75,7 @@ impl AbstractTunnel for FakeCirc {
         todo!()
     }
 
-    async fn last_known_to_be_used_at(&self) -> tor_proto::Result<Option<std::time::Instant>> {
+    async fn last_known_to_be_used_at(&self) -> tor_proto::Result<Option<Instant>> {
         Ok(None)
     }
 }

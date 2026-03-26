@@ -114,6 +114,7 @@ tracing = "0.1.36"
 visibility = { version = "0.1.0", optional = true }
 void = "1.0"
 weak-table = "0.3.0"
+web-time-compat = { path = "../web-time-compat", version = "0.1.0" }
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
