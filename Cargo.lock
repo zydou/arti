@@ -6753,6 +6753,7 @@ dependencies = [
  "signature",
  "thiserror 2.0.18",
  "tor-llcrypto",
+ "web-time-compat",
 ]
 
 [[package]]
