@@ -499,6 +499,22 @@ pub struct CrossCert {
 pub struct CrossCertObject(pub Vec<u8>);
 impl_debug_hex! { CrossCertObject . 0 }
 
+#[cfg(feature = "encode")]
+impl CrossCert {
+    /// Make a `CrossCert`
+    pub fn new(
+        k_auth_sign_rsa: &rsa::KeyPair,
+        h_kp_auth_id_rsa: &RsaIdentity,
+    ) -> StdResult<Self, Bug> {
+        let signature = k_auth_sign_rsa
+            .sign(h_kp_auth_id_rsa.as_bytes())
+            .map_err(into_internal!("failed to sign cross-cert"))?;
+        Ok(CrossCert {
+            signature: CrossCertObject(signature),
+        })
+    }
+}
+
 /// Signatures for [`AuthCert`]
 ///
 /// Signed by [`AuthCert::dir_identity_key`] in order to prove ownership.
@@ -621,6 +637,50 @@ impl AuthCertUnverified {
         )?;
 
         Ok(body)
+    }
+}
+
+#[cfg(feature = "encode")]
+impl AuthCert {
+    /// Make the base for a new `AuthCert`
+    ///
+    /// This contains only the mandatory fields (the ones in `AuthCertConstructor`).
+    /// This method is an alternative to providing a `AuthCertConstructor` value display,
+    /// and is convenient because an authcert contains much recapitulated information.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # fn main() -> Result<(), anyhow::Error> {
+    /// use tor_netdoc::doc::authcert::AuthCert;
+    /// let (k_auth_id_rsa, k_auth_sign_rsa, published, expires) = todo!();
+    /// let authcert = AuthCert {
+    ///     dir_address: Some("192.0.2.17:7000".parse()?),
+    ///     ..AuthCert::new_base(&k_auth_id_rsa, &k_auth_sign_rsa, published, expires)?
+    /// };
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn new_base(
+        k_auth_id_rsa: &rsa::KeyPair,
+        k_auth_sign_rsa: &rsa::KeyPair,
+        published: SystemTime,
+        expires: SystemTime,
+    ) -> StdResult<Self, Bug> {
+        let fingerprint = k_auth_id_rsa.to_public_key().to_rsa_identity();
+        let dir_key_crosscert = CrossCert::new(k_auth_sign_rsa, &fingerprint)?;
+
+        let base = AuthCertConstructor {
+            fingerprint: fingerprint.into(),
+            dir_key_published: published.into(),
+            dir_key_expires: expires.into(),
+            dir_identity_key: k_auth_id_rsa.to_public_key(),
+            dir_signing_key: k_auth_sign_rsa.to_public_key(),
+            dir_key_crosscert,
+        }
+        .construct();
+
+        Ok(base)
     }
 }
 
