@@ -7,8 +7,8 @@
 
 pub(crate) use b16impl::*;
 pub use b64impl::*;
-pub(crate) use curve25519impl::*;
-pub(crate) use ed25519impl::*;
+pub use curve25519impl::*;
+pub use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
