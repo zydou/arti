@@ -1,3 +1,4 @@
 BREAKING: `ItemEncoder::object()` renamed to `.object_bytes()`
+ADDED: `ItemEncoder::object()` taking an `ItemObjectEncodable`
 BREAKING: `AuthCertUnverified::verify_self_signed()` renamed to `.verify()`
 ADDED: `SpFingerprint`, `Fingerprint`, `Base64Fingerprint` `LongIdent` impl `From<RsaIdentity>`

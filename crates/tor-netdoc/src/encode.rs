@@ -322,6 +322,19 @@ impl<'n> ItemEncoder<'n> {
         self.doc.raw(&format_args!(" {}", args));
     }
 
+    /// Add an `ItemObjectEncodable` to the item
+    //
+    // Note that the `ItemValueEncodable` derive macro (in `derive.rs`)
+    // also implements this functionality.
+    pub fn object(self, object: &dyn ItemObjectEncodable) {
+        let label = object.label();
+        let mut buf = vec![];
+        object
+            .write_object_onto(&mut buf)
+            .unwrap_or_else(|err| self.doc.built = Err(err));
+        self.object_bytes(label, buf);
+    }
+
     /// Add an object to the item, given the keyword and a `tor_bytes::WriteableOnce`
     ///
     /// Checks that `keywords` is in the correct syntax.

@@ -442,6 +442,10 @@ define_derive_deftly! {
                 ${define CHECK_OBJECT_ENCODABLE {
                             selector.${paste_spanned $fname check_item_object_encodable}();
                 }}
+                            // This is, sort of, a recapitulation of `ItemEncoder::object`.
+                            // We can't conveniently just call that because we want to support
+                            // overriding the label, even when we're using ItemObjectEncodable.
+
                             // Bind to `label`
                             let label =
                 ${fmeta(netdoc(object(label))) as str, default {
