@@ -20,4 +20,7 @@ disallowed-methods = [
     { path = "weak_table::WeakKeyHashMap::retain", reason = "`WeakKeyHashMap::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
     { path = "weak_table::WeakValueHashMap::retain", reason = "`WeakValueHashMap::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
     { path = "weak_table::WeakWeakHashMap::retain", reason = "`WeakWeakHashMap::retain` is buggy; see https://github.com/tov/weak-table-rs/issues/22" },
+    { path = "std::time::Instant::now", reason = "For wasm compatibility, use `web_time_compat::InstantExt::get` instead." },
+    { path = "std::time::SystemTime::now", reason = "For wasm compatibility, use `web_time_compat::SystemTimeExt::get` instead." },
+    { path = "time::OffsetDateTime::now_utc", reason = "For wasm compatibility, use `web_time_compat::SystemTimeExt::get().into()` instead." },
 ]
