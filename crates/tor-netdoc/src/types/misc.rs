@@ -241,6 +241,7 @@ mod curve25519impl {
 
     /// A Curve25519 public key, encoded in base64 with optional padding
     #[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::Into)]
+    #[allow(clippy::exhaustive_structs)]
     pub struct Curve25519Public(pub PublicKey);
 
     impl std::str::FromStr for Curve25519Public {
@@ -274,6 +275,7 @@ mod ed25519impl {
     /// An alleged ed25519 public key, encoded in base64 with optional
     /// padding.
     #[derive(Debug, Clone, PartialEq, Eq)]
+    #[allow(clippy::exhaustive_structs)]
     pub struct Ed25519Public(pub Ed25519Identity);
 
     impl std::str::FromStr for Ed25519Public {
@@ -304,7 +306,7 @@ mod ed25519impl {
     #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::FromStr)]
     #[display(rename_all = "lowercase")]
     #[from_str(rename_all = "lowercase")]
-    #[allow(clippy::manual_non_exhaustive)]
+    #[allow(clippy::exhaustive_enums)]
     pub enum Ed25519AlgorithmString {
         /// Ed25519 encoded as `ed25519`.
         Ed25519,
@@ -315,6 +317,7 @@ mod ed25519impl {
     /// An Ed25519 public key found in a micro descriptor `id` line.
     #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
     #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[non_exhaustive]
     pub struct Ed25519IdentityLine {
         /// Fixed magic identifier (`ed25519`) for this line.
         pub alg: Ed25519AlgorithmString,
