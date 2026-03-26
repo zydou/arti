@@ -99,8 +99,9 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Constructor)]
 #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableUnverified))]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[allow(clippy::exhaustive_structs)]
 pub struct AuthCert {
@@ -513,6 +514,7 @@ impl_debug_hex! { CrossCertObject . 0 }
     derive_deftly(NetdocParseableSignatures),
     deftly(netdoc(signatures(hashes_accu = "Sha1WholeKeywordLine")))
 )]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
 #[non_exhaustive]
 pub struct AuthCertSignatures {
     /// Contains the actual signature, see [`AuthCertSignatures`].
@@ -534,8 +536,9 @@ pub struct AuthCertSignatures {
     derive_deftly(ItemValueParseable),
     deftly(netdoc(no_extra_args, signature(hash_accu = "Sha1WholeKeywordLine")))
 )]
+#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
 #[non_exhaustive]
 pub struct AuthCertSignature {
     /// The bytes of the signature (base64-decoded).
