@@ -83,6 +83,7 @@ tor-persist = { path = "../tor-persist", version = "0.40.0" }
 tracing = "0.1.36"
 visibility = { version = "0.1.0" }
 walkdir = { version = "2" }
+web-time-compat = { path = "../web-time-compat", version = "0.1.0" }
 zeroize = "1"
 
 [dev-dependencies]

@@ -859,7 +859,6 @@ mod tests {
     use std::result::Result as StdResult;
     use std::str::FromStr;
     use std::sync::{Arc, RwLock};
-    use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cert::CertifiedKey;
     use tor_cert::Ed25519Cert;
@@ -871,6 +870,7 @@ mod tests {
     };
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
     use tor_llcrypto::rng::FakeEntropicRng;
+    use web_time_compat::{Duration, SystemTime, SystemTimeExt};
 
     #[cfg(feature = "experimental-api")]
     use {
@@ -2079,7 +2079,7 @@ mod tests {
         let keypair = ed25519::Keypair::generate(&mut rng);
         let encoded_cert = Ed25519Cert::constructor()
             .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
-            .expiration(SystemTime::now() + Duration::from_secs(180))
+            .expiration(SystemTime::get() + Duration::from_secs(180))
             .signing_key(keypair.public_key().into())
             .cert_key(CertifiedKey::Ed25519(keypair.public_key().into()))
             .encode_and_sign(&keypair)
