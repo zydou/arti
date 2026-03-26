@@ -7322,6 +7322,7 @@ dependencies = [
  "tracing-test",
  "void",
  "walkdir",
+ "web-time-compat",
 ]
 
 [[package]]

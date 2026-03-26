@@ -8,7 +8,6 @@ use std::{
     collections::{BTreeSet, HashMap, VecDeque},
     sync::{Arc, Mutex, RwLock},
     task::Waker,
-    time::{Duration, Instant, SystemTime},
 };
 
 use arrayvec::ArrayVec;
@@ -39,6 +38,7 @@ use tor_persist::{
 };
 use tor_rtcompat::Runtime;
 use tor_rtcompat::SpawnExt;
+use web_time_compat::{Duration, Instant, InstantExt, SystemTime, SystemTimeExt};
 
 use crate::{
     BlindIdPublicKeySpecifier, OnionServiceConfig, RendRequest, ReplayError, StartupError,
@@ -426,7 +426,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 .checked_sub(SEED_EARLY_ROTATION_TIME)
                 .expect("SEED_EARLY_ROTATION_TIME too high, or EXPIRATION_TIME_MINS_MIN too low.");
             let delay = next_update_time
-                .map(|x| x.duration_since(SystemTime::now()).unwrap_or(MAX_DELAY))
+                .map(|x| x.duration_since(SystemTime::get()).unwrap_or(MAX_DELAY))
                 .unwrap_or(MAX_DELAY)
                 .min(MAX_DELAY)
                 .min(suggested_effort_update_delay);
@@ -439,7 +439,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
     /// Make a randomized seed expiration time.
     fn make_next_expiration_time<Rng: RngCore + CryptoRng>(rng: &mut Rng) -> SystemTime {
-        SystemTime::now()
+        SystemTime::get()
             + Duration::from_secs(
                 60 * rng
                     .gen_range_checked(EXPIRATION_TIME_MINS_MIN..=EXPIRATION_TIME_MINS_MAX)
@@ -519,7 +519,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 let rotation_time = Self::calculate_early_rotation_time(info.next_expiration_time);
                 update_times.push(rotation_time);
 
-                if rotation_time <= SystemTime::now() {
+                if rotation_time <= SystemTime::get() {
                     // This does not allow for easy testing, but because we're in a async function, it's
                     // non-trivial to pass in a Rng from the outside world. If we end up writing tests that
                     // require that, we can take a function to generate a Rng, but for now, just using the
@@ -774,7 +774,7 @@ impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
             request,
             pow,
             max_effort,
-            recv_time: Instant::now(),
+            recv_time: Instant::get(),
             request_num,
         })
     }

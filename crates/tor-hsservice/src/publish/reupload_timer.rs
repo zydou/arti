@@ -53,15 +53,15 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use std::collections::BinaryHeap;
-    use std::time::Duration;
 
     use super::*;
+    use web_time_compat::InstantExt;
 
     #[test]
     fn reupload_for_time_period_ordering() {
         const ONE_SEC: Duration = Duration::from_secs(1);
 
-        let now = Instant::now();
+        let now = Instant::get();
         let later = now + ONE_SEC;
         let later_still = now + ONE_SEC * 2;
         let timer1 = ReuploadTimer {
