@@ -4,7 +4,6 @@ use arti_client::config::{BridgeConfigBuilder, CfgPath, TorClientConfigBuilder};
 use arti_client::{TorClient, TorClientConfig};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use time::OffsetDateTime;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::{Duration, timeout};
@@ -14,7 +13,7 @@ use tor_proto::channel::Channel;
 use tor_proto::memquota::{ChannelAccount, SpecificAccount as _};
 use tor_rtcompat::PreferredRuntime;
 
-use crate::BridgeResult;
+use crate::{BridgeResult, now_utc};
 
 /// The maximum number of open connections to relays at any given time
 const MAX_CONNECTIONS: usize = 10;
@@ -101,7 +100,7 @@ async fn test_bridges(
                         let bridge_config = bridge.build().unwrap();
                         let tor_client = common_tor_client.isolated_client();
                         tokio::spawn(async move {
-                            let current_time = OffsetDateTime::now_utc();
+                            let current_time = now_utc();
                             match is_bridge_online(&bridge_config, &tor_client).await {
                                 Ok(functional) => {
                                     (rawbridgeline, Some(functional), current_time, None)
@@ -120,7 +119,7 @@ async fn test_bridges(
                         })
                     }
                     Err(e) => tokio::spawn(async move {
-                        let current_time = OffsetDateTime::now_utc();
+                        let current_time = now_utc();
                         // Build error here since we can't
                         // represent the actual Arti-related errors
                         // by `dyn ErrorReport` and we need the

@@ -3983,6 +3983,7 @@ dependencies = [
  "tor-proto",
  "tor-rtcompat",
  "tracing-subscriber",
+ "web-time-compat",
 ]
 
 [[package]]
