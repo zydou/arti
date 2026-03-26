@@ -321,14 +321,14 @@ impl<'n> ItemEncoder<'n> {
         self.doc.raw(&format_args!(" {}", args));
     }
 
-    /// Add an object to the item
+    /// Add an object to the item, given the keyword and a `tor_bytes::WriteableOnce`
     ///
     /// Checks that `keywords` is in the correct syntax.
     /// Doesn't check that it makes semantic sense for the position of the document.
     /// `data` will be PEM (base64) encoded.
     //
     // If keyword is not in the correct syntax, a `Bug` is stored in self.doc.
-    pub fn object(
+    pub fn object_bytes(
         self,
         keywords: &str,
         // Writeable isn't dyn-compatible
@@ -565,16 +565,16 @@ qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
             .arg(&Iso8601TimeSp::from_str("2021-04-18 08:36:57").unwrap());
         encode
             .item(ACK::DIR_IDENTITY_KEY)
-            .object("RSA PUBLIC KEY", &*pk_rsa);
+            .object_bytes("RSA PUBLIC KEY", &*pk_rsa);
         encode
             .item(ACK::DIR_SIGNING_KEY)
-            .object("RSA PUBLIC KEY", &*pk_rsa);
+            .object_bytes("RSA PUBLIC KEY", &*pk_rsa);
         encode
             .item(ACK::DIR_KEY_CROSSCERT)
-            .object("ID SIGNATURE", []);
+            .object_bytes("ID SIGNATURE", []);
         encode
             .item(ACK::DIR_KEY_CERTIFICATION)
-            .object("SIGNATURE", []);
+            .object_bytes("SIGNATURE", []);
 
         let doc = encode.finish().unwrap();
         eprintln!("{}", doc);

@@ -120,7 +120,7 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
                 .arg(&Base64::encode_string(&auth_client.encrypted_cookie));
         }
 
-        encoder.item(ENCRYPTED).object("MESSAGE", encrypted);
+        encoder.item(ENCRYPTED).object_bytes("MESSAGE", encrypted);
         encoder.finish().map_err(|e| e.into())
     }
 }

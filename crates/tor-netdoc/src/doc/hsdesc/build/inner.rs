@@ -182,7 +182,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
 
             encoder
                 .item(AUTH_KEY)
-                .object("ED25519 CERT", signed_auth_key.as_ref());
+                .object_bytes("ED25519 CERT", signed_auth_key.as_ref());
 
             // "The key is a base64 encoded curve25519 public key used to encrypt the introduction
             // request to service. (`KP_hss_ntor`)"
@@ -227,7 +227,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
 
             encoder
                 .item(ENC_KEY_CERT)
-                .object("ED25519 CERT", signed_enc_key.as_ref());
+                .object_bytes("ED25519 CERT", signed_enc_key.as_ref());
         }
 
         encoder.finish().map_err(|e| e.into())

@@ -464,7 +464,7 @@ define_derive_deftly! {
                                 .map_err(into_internal!("failed to encode byte array!"))
                                 .$BUG_CONTEXT?;
 
-                            out.object(label, data);
+                            out.object_bytes(label, data);
 
                         } // if let Some(field)
               }}
