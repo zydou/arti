@@ -241,7 +241,7 @@ define_derive_deftly! {
     export NetdocEncodable beta_deftly, for struct, expect items:
 
     impl<$tgens> $P::NetdocEncodable for $ttype {
-        fn encode_unsigned(&self, out: &mut $P::NetdocEncoder) -> Result<(), $P::Bug> {
+        fn encode_unsigned(&self, out: &mut $P::NetdocEncoder) -> $P::Result<(), $P::Bug> {
             use $P::*;
 
             $FIELD_ORDERING_CHECK
