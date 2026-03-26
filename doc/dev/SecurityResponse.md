@@ -12,6 +12,10 @@ It should be read in conjunction with:
 
 ## Handling upstream RUSTSEC issues
 
+This should be read in conjunction with the overall policy.
+Notably, when we see a RUSTSEC issue, we need to figure out
+what the impact is (if any), just as for any other issue.
+
 In general, we do not need to keep RUSTSEC issues confidential:
 any attacker who would spend their time trawling our bugtracker
 for cargo-audit failures could just as easily run cargo-audit themselves.
@@ -23,12 +27,12 @@ that would not be easy for an attacker to figure out on their own.
 (It's okay to make things confidential at first if you're not sure.)
 
 Upon finding a RUSTSEC issue in a dependency,
-we typically just bump the dependency in Cargo.lock.
+normally it's sufficient to just bump the dependency in Cargo.lock.
 
 > TODO: Add an official means to alert users and distributors
 > for issues at trivial/low/medium severity.
 
-If the issue looks very important
+If our analysis of the issue suggests it's important
 (typically, "high" or worse according to our [Security Policy])
 we might update our dependency in Cargo.toml
 and put out a new interim Arti release.
