@@ -50,6 +50,8 @@ use {
 
 pub use nickname::{InvalidNickname, Nickname};
 
+pub use boolean::NumericBoolean;
+
 pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
 pub use identified_digest::{DigestName, IdentifiedDigest};
@@ -1652,6 +1654,43 @@ mod contact_info {
                 .map_err(|_e| item.args().handle_error("info", ArgumentError::Invalid))
         }
     }
+}
+
+/// Types for boolean-like types.
+mod boolean {
+    use std::{fmt::Display, str::FromStr};
+
+    use derive_more::{From, Into};
+
+    use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos};
+
+    /// A boolean that is represented by a `0` (false) or `1` (true).
+    // TODO DIRMIRROR: Derive Transparent
+    #[derive(Clone, Copy, Debug, Default, From, Into)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct NumericBoolean(pub bool);
+
+    impl FromStr for NumericBoolean {
+        type Err = Error;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s {
+                "0" => Ok(Self(false)),
+                "1" => Ok(Self(true)),
+                _ => Err(EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("Invalid numeric boolean")),
+            }
+        }
+    }
+
+    impl Display for NumericBoolean {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", u8::from(self.0))
+        }
+    }
+
+    impl NormalItemArgument for NumericBoolean {}
 }
 
 #[cfg(test)]

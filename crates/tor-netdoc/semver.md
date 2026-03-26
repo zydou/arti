@@ -32,3 +32,4 @@ ADDED: `doc::netstatus::PreambleConstructor`
 ADDED: `NetdocEncodableFields` impl for `doc::netstatus::Preamble`
 ADDED: `DocRelayFlags::new_empty_unknown_discarded()` convenience constructor
 BREAKING: `doc::netstatus::Preamble`, added `known_flags`
+ADDED: `NumericBoolean` type
