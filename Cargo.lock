@@ -7551,6 +7551,7 @@ dependencies = [
  "tracing",
  "typed-index-collections",
  "visibility",
+ "web-time-compat",
 ]
 
 [[package]]
