@@ -7,7 +7,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Context, Poll, Waker};
-use std::time::{Duration, Instant, SystemTime};
+use web_time_compat::{Duration, Instant, InstantExt, SystemTime, SystemTimeExt};
 
 use derive_more::AsMut;
 use priority_queue::priority_queue::PriorityQueue;
@@ -121,7 +121,7 @@ impl Provider {
     /// Like any [`SimpleMockTimeProvider`], the time is frozen and only changes
     /// due to calls to `advance`.
     pub fn from_real() -> Self {
-        Provider::from_wallclock(SystemTime::now())
+        Provider::from_wallclock(SystemTime::get())
     }
     /// Return a new mock time provider starting at a specified wallclock time
     ///
@@ -131,7 +131,7 @@ impl Provider {
     /// nor can a fixed `Instant` be constructed,
     /// so this is usually sufficient for a reproducible test.)
     pub fn from_wallclock(wallclock: SystemTime) -> Self {
-        Provider::new(Instant::now(), wallclock)
+        Provider::new(Instant::get(), wallclock)
     }
 
     /// Advance the simulated time by `d`
@@ -320,7 +320,7 @@ mod test {
         FUT: Future<Output = ()>,
     {
         let sp = Provider::new(
-            Instant::now(), // it would have been nice to make this fixed for the test
+            Instant::get(), // it would have been nice to make this fixed for the test
             parse_rfc3339("2000-01-01T00:00:00Z").unwrap(),
         );
         let exec = MockExecutor::new();

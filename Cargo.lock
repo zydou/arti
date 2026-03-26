@@ -7872,6 +7872,7 @@ dependencies = [
  "tor-general-addr",
  "tracing",
  "void",
+ "web-time-compat",
  "zeroize",
 ]
 
@@ -7903,6 +7904,7 @@ dependencies = [
  "tracing",
  "tracing-test",
  "void",
+ "web-time-compat",
 ]
 
 [[package]]

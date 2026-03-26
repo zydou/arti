@@ -22,7 +22,7 @@ use tor_rtmock::time::MockSleepProvider;
 use futures::FutureExt;
 use oneshot_fused_workaround as oneshot;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, SystemTime};
+use web_time_compat::{Duration, SystemTime, SystemTimeExt};
 
 #[test]
 fn timeouts() {
@@ -31,7 +31,7 @@ fn timeouts() {
         oneshot::Sender<()>,
         Timeout<oneshot::Receiver<()>, tor_rtmock::time::Sleeping>,
     ) {
-        let start = SystemTime::now();
+        let start = SystemTime::get();
         let (send, recv) = oneshot::channel::<()>();
         let mock_sp = MockSleepProvider::new(start);
         let ten_min = Duration::new(10 * 60, 0);

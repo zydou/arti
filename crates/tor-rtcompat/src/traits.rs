@@ -9,8 +9,8 @@ use std::borrow::Cow;
 use std::fmt::Debug;
 use std::io::{self, Result as IoResult};
 use std::net;
-use std::time::{Duration, Instant, SystemTime};
 use tor_general_addr::unix;
+use web_time_compat::{Duration, Instant, InstantExt, SystemTime, SystemTimeExt};
 
 #[cfg(feature = "tls-server")]
 use tor_cert_x509::TlsKeyAndCert;
@@ -121,14 +121,14 @@ pub trait SleepProvider: Clone + Send + Sync + 'static {
     ///
     /// (This is the same as `Instant::now`, if not running in test mode.)
     fn now(&self) -> Instant {
-        Instant::now()
+        Instant::get()
     }
 
     /// Return the SleepProvider's view of the current wall-clock time.
     ///
     /// (This is the same as `SystemTime::now`, if not running in test mode.)
     fn wallclock(&self) -> SystemTime {
-        SystemTime::now()
+        SystemTime::get()
     }
 
     /// Signify that a test running under mock time shouldn't advance time yet, with a given
