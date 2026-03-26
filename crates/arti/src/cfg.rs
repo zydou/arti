@@ -114,6 +114,10 @@ pub(crate) struct ProxyConfig {
     //
     // TODO:
     // At some point in the future we might want per-port configuration, like Tor has.
+    #[deftly(tor_config(
+        cfg = r#" feature="http-connect" "#,
+        cfg_desc = "with HTTP CONNECT support"
+    ))]
     #[deftly(tor_config(default = "true"))]
     pub(crate) enable_http_connect: bool,
 }
@@ -556,7 +560,6 @@ mod test {
                 "use_obsolete_software",
                 "circuit_timing.disused_circuit_timeout",
                 "storage.port_info_file",
-                "proxy.enable_http_connect",
             ],
         );
 
@@ -675,6 +678,16 @@ mod test {
                 "address_filter.allow_onion_addrs",
                 "circuit_timing.hs_desc_fetch_attempts",
                 "circuit_timing.hs_intro_rend_attempts",
+            ],
+        );
+
+        declare_exceptions(
+            None,
+            Some(InNew),
+            FeatureDependent,
+            &[
+                // HTTP Connect settings
+                "proxy.enable_http_connect",
             ],
         );
 
