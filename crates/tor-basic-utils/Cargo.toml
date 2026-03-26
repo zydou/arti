@@ -38,5 +38,8 @@ full = ["serde"]
 [package.metadata.docs.rs]
 all-features = true
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
