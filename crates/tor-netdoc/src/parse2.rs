@@ -101,7 +101,6 @@ pub mod poc;
 use internal_prelude::*;
 
 pub use error::{ArgumentError, ErrorProblem, ParseError, UnexpectedArgument, VerifyFailed};
-pub use impls::raw_data_object;
 pub use impls::times::NdaSystemTimeDeprecatedSyntax;
 pub use keyword::KeywordRef;
 pub use lex::{ArgumentStream, ItemStream, NoFurtherArguments, UnparsedItem, UnparsedObject};

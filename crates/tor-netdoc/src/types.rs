@@ -21,6 +21,11 @@ pub use misc::{Base64Fingerprint, Fingerprint, Ignored, IgnoredItemOrObjectValue
 pub use misc::{DigestName, IdentifiedDigest};
 pub use misc::{Iso8601TimeNoSp, Iso8601TimeSp};
 
+#[cfg(any(feature = "parse2", feature = "encode"))]
+mod parse2_encode;
+#[cfg(any(feature = "parse2", feature = "encode"))]
+pub use parse2_encode::raw_data_object;
+
 use crate::NormalItemArgument;
 
 impl NormalItemArgument for std::net::Ipv4Addr {}

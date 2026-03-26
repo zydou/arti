@@ -539,7 +539,7 @@ pub struct AuthCertSignatures {
 #[non_exhaustive]
 pub struct AuthCertSignature {
     /// The bytes of the signature (base64-decoded).
-    #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::parse2::raw_data_object"))]
+    #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::types::raw_data_object"))]
     pub signature: Vec<u8>,
 }
 
