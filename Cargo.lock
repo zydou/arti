@@ -6609,6 +6609,7 @@ dependencies = [
  "smallvec",
  "thiserror 2.0.18",
  "weak-table",
+ "web-time-compat",
 ]
 
 [[package]]
@@ -6695,6 +6696,7 @@ dependencies = [
  "tor-basic-utils",
  "tor-error",
  "tor-llcrypto",
+ "web-time-compat",
  "x509-cert",
 ]
 
@@ -7047,6 +7049,7 @@ dependencies = [
  "tracing",
  "tracing-test",
  "void",
+ "web-time-compat",
 ]
 
 [[package]]
