@@ -39,6 +39,11 @@ use crate::parse2::{
     self, ItemObjectParseable, SignatureHashInputs, sig_hashes::Sha1WholeKeywordLine,
 };
 
+#[cfg(feature = "encode")]
+use {
+    crate::encode::{Bug, ItemObjectEncodable},
+};
+
 // TODO DIRAUTH untangle these feature(s)
 #[cfg(all(feature = "parse2", feature = "plain-consensus"))]
 mod encoded;
@@ -460,8 +465,9 @@ impl AuthCert {
     derive_deftly(ItemValueParseable),
     deftly(netdoc(no_extra_args))
 )]
+#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
 #[non_exhaustive]
 pub struct CrossCert {
     /// The bytes of the signature (base64-decoded).
@@ -548,6 +554,18 @@ impl ItemObjectParseable for CrossCertObject {
 
     fn from_bytes(input: &[u8]) -> StdResult<Self, parse2::EP> {
         Ok(Self(input.to_vec()))
+    }
+}
+
+#[cfg(feature = "encode")]
+impl ItemObjectEncodable for CrossCertObject {
+    fn label(&self) -> &str {
+        "ID SIGNATURE"
+    }
+
+    fn write_object_onto(&self, b: &mut Vec<u8>) -> StdResult<(), Bug> {
+        b.extend(&self.0);
+        Ok(())
     }
 }
 
