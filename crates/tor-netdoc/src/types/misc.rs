@@ -1765,7 +1765,10 @@ mod boolean {
 mod routerdesc {
     use crate::{
         NormalItemArgument,
-        types::{Iso8601TimeSp, Nickname},
+        types::{
+            Iso8601TimeSp, Nickname,
+            misc::{FixedB16U, FixedB64},
+        },
     };
     use derive_deftly::Deftly;
 
@@ -1810,6 +1813,18 @@ mod routerdesc {
 
         /// Legacy.
         pub dirport: u16,
+    }
+
+    /// Digest identifying the extra-info document.
+    #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
+    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[non_exhaustive]
+    pub struct ExtraInfoDigests {
+        /// Mandatory SHA-1 of the signed data in base 16.
+        pub sha1: FixedB16U<20>,
+
+        /// Optional SHA-256 of the entire extra-info in base 64.
+        pub sha2: Option<FixedB64<32>>,
     }
 }
 
