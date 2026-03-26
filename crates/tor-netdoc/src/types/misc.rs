@@ -300,33 +300,41 @@ mod ed25519impl {
         }
     }
 
+    /// Helper that checks for the presence of `ed25519`.
+    #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::FromStr)]
+    #[display(rename_all = "lowercase")]
+    #[from_str(rename_all = "lowercase")]
+    #[allow(clippy::manual_non_exhaustive)]
+    pub enum Ed25519AlgorithmString {
+        /// Ed25519 encoded as `ed25519`.
+        Ed25519,
+    }
+
+    impl NormalItemArgument for Ed25519AlgorithmString {}
+
     /// An Ed25519 public key found in a micro descriptor `id` line.
-    #[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
-    pub struct Ed25519IdentityLine(pub Ed25519Identity);
+    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    pub struct Ed25519IdentityLine {
+        /// Fixed magic identifier (`ed25519`) for this line.
+        pub alg: Ed25519AlgorithmString,
 
-    #[cfg(feature = "parse2")]
-    impl ItemValueParseable for Ed25519IdentityLine {
-        fn from_unparsed(mut item: UnparsedItem<'_>) -> std::result::Result<Self, EP> {
-            item.check_no_object()?;
-            if item.keyword() != "id" {
-                return Err(EP::MissingKeyword);
-            }
+        /// The actual Ed25519 identity.
+        pub pk: Ed25519Public,
+    }
 
-            let args = item.args_mut();
-            let spec = args.next().ok_or(EP::MissingArgument { field: "id" })?;
-            if spec != "ed25519" {
-                return Err(EP::InvalidArgument {
-                    field: "id",
-                    column: 3,
-                });
+    impl From<Ed25519Public> for Ed25519IdentityLine {
+        fn from(pk: Ed25519Public) -> Self {
+            Self {
+                alg: Ed25519AlgorithmString::Ed25519,
+                pk,
             }
-            let pk: [u8; 32] = FixedB64::from_args(args)
-                .map_err(|_| EP::InvalidArgument {
-                    field: "id ed25519",
-                    column: 11,
-                })?
-                .into();
-            Ok(Self(pk.into()))
+        }
+    }
+
+    impl From<Ed25519Identity> for Ed25519IdentityLine {
+        fn from(pk: Ed25519Identity) -> Self {
+            Ed25519Public(pk).into()
         }
     }
 }

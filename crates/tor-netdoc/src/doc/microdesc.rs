@@ -157,7 +157,7 @@ impl Microdesc {
     /// Return the ed25519 identity for this microdesc, if its
     /// Ed25519 identity is well-formed.
     pub fn ed25519_id(&self) -> &ed25519::Ed25519Identity {
-        &self.ed25519_id.0
+        &self.ed25519_id.pk.0
     }
     /// Return a list of family ids for this microdesc.
     pub fn family_ids(&self) -> &[RelayFamilyId] {
@@ -382,7 +382,10 @@ impl Microdesc {
                 None => {
                     return Err(EK::MissingToken.with_msg("id ed25519"));
                 }
-                Some(tok) => Ed25519IdentityLine(tok.parse_arg::<Ed25519Public>(1)?.into()),
+                Some(tok) => Ed25519IdentityLine {
+                    alg: Ed25519AlgorithmString::Ed25519,
+                    pk: tok.parse_arg::<Ed25519Public>(1)?,
+                },
             }
         };
 
@@ -710,13 +713,12 @@ mod test {
                 }),
                 ipv4_policy: Default::default(),
                 ipv6_policy: Default::default(),
-                ed25519_id: Ed25519IdentityLine(
-                    Ed25519Identity::from_bytes(&[
-                        237, 209, 188, 66, 237, 200, 186, 192, 178, 198, 125, 179, 110, 108, 62, 8,
-                        36, 89, 83, 230, 181, 94, 89, 217, 95, 217, 10, 16, 117, 79, 54, 27
-                    ])
-                    .unwrap()
-                ),
+                ed25519_id: Ed25519Identity::from_bytes(&[
+                    237, 209, 188, 66, 237, 200, 186, 192, 178, 198, 125, 179, 110, 108, 62, 8, 36,
+                    89, 83, 230, 181, 94, 89, 217, 95, 217, 10, 16, 117, 79, 54, 27
+                ])
+                .unwrap()
+                .into(),
                 family_ids: Default::default(),
             }
         );
@@ -744,13 +746,12 @@ mod test {
                 family: Default::default(),
                 ipv4_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),
                 ipv6_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),
-                ed25519_id: Ed25519IdentityLine(
-                    Ed25519Identity::from_bytes(&[
-                        79, 23, 163, 165, 39, 202, 146, 148, 56, 73, 45, 36, 41, 112, 105, 69, 28,
-                        23, 40, 0, 221, 249, 96, 162, 54, 242, 130, 171, 144, 35, 124, 43
-                    ])
-                    .unwrap()
-                ),
+                ed25519_id: Ed25519Identity::from_bytes(&[
+                    79, 23, 163, 165, 39, 202, 146, 148, 56, 73, 45, 36, 41, 112, 105, 69, 28, 23,
+                    40, 0, 221, 249, 96, 162, 54, 242, 130, 171, 144, 35, 124, 43
+                ])
+                .unwrap()
+                .into(),
                 family_ids: RelayFamilyIds::from_iter(vec![
                     RelayFamilyId::Ed25519(
                         Ed25519Identity::from_base64("5vHhiPVy3pZwFsR2GBudhkdKYrkdGVtAxrwpZ1weiYU")
