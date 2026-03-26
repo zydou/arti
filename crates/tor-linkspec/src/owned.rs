@@ -3,7 +3,7 @@
 use safelog::Redactable;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use tor_config::impl_standard_builder;
 use tor_llcrypto::pk;
 
@@ -183,39 +183,6 @@ impl OwnedChanTarget {
     ///
     pub fn chan_method_mut(&mut self) -> &mut ChannelMethod {
         &mut self.method
-    }
-
-    /// Return true iff all addresses are reachable global addresses that is they are routable
-    /// addresses that can be used on the far distant land of the Internet.
-    ///
-    /// If no address are found, true is returned.
-    ///
-    /// NOTE: The set of RFCs checked here are not expected to change over time and so this should
-    /// be a check that yields the same result regardless of the Rust library version. HOWEVER, it
-    /// doesn't mean that each relay/client on the network uses the same set of checks.
-    pub fn has_all_reachable_addresses(&self) -> bool {
-        self.addrs().all(|addr| match addr.ip() {
-            IpAddr::V4(v4) => {
-                !(v4.is_loopback() // RFC 1122 (127.0.0.0/8)
-                    || v4.is_private() // RFC1918
-                    || v4.is_unspecified() // 0.0.0.0
-                    || v4.is_documentation() // RFC 5737
-                    || v4.is_multicast() // RFC 5771 (224.0.0.0/4)
-                    || v4.is_link_local()) // RFC 3927 (169.254.0.0/16)
-            }
-            IpAddr::V6(v6) => {
-                !(v6.is_loopback() // RFC 4291 (::1)
-                    || v6.is_multicast() // RFC 4291 (ff00::/8)
-                    || v6.is_unspecified() // RFC 4291 (::)
-                    || v6.is_unique_local() // RFC 4193 (fc00::/7)
-                    || v6.is_unicast_link_local()) // RFC 4291 (fe80::/10)
-            }
-        })
-    }
-
-    /// Return true iff all addresses' port are valid that is are non zero.
-    pub fn has_all_valid_port(&self) -> bool {
-        self.addrs().all(|addr| addr.port() != 0)
     }
 }
 

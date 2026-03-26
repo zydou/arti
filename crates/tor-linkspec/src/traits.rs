@@ -4,7 +4,11 @@
 use derive_deftly::derive_deftly_adhoc;
 use itertools::Itertools;
 use safelog::Redactable;
-use std::{fmt, iter::FusedIterator, net::SocketAddr};
+use std::{
+    fmt,
+    iter::FusedIterator,
+    net::{IpAddr, SocketAddr},
+};
 use tor_llcrypto::pk;
 
 use crate::{ChannelMethod, RelayIdRef, RelayIdType, RelayIdTypeIter};
@@ -312,6 +316,38 @@ pub trait ChanTarget: HasRelayIds + HasAddrs + HasChanMethod {
         Self: Sized,
     {
         DisplayChanTarget { inner: self }
+    }
+
+    /// Return true if we think all addresses are reachable from the public Internet.
+    ///
+    /// If no address are found, true is returned.
+    ///
+    /// NOTE: The set of RFCs checked here are not expected to change over time and so this should
+    /// be a check that yields the same result regardless of the Rust library version. HOWEVER, it
+    /// doesn't mean that each relay/client on the network uses the same set of checks.
+    fn has_all_reachable_addresses(&self) -> bool {
+        self.addrs().all(|addr| match addr.ip() {
+            IpAddr::V4(v4) => {
+                !(v4.is_loopback() // RFC 1122 (127.0.0.0/8)
+                    || v4.is_private() // RFC1918
+                    || v4.is_unspecified() // 0.0.0.0
+                    || v4.is_documentation() // RFC 5737
+                    || v4.is_multicast() // RFC 5771 (224.0.0.0/4)
+                    || v4.is_link_local()) // RFC 3927 (169.254.0.0/16)
+            }
+            IpAddr::V6(v6) => {
+                !(v6.is_loopback() // RFC 4291 (::1)
+                    || v6.is_multicast() // RFC 4291 (ff00::/8)
+                    || v6.is_unspecified() // RFC 4291 (::)
+                    || v6.is_unique_local() // RFC 4193 (fc00::/7)
+                    || v6.is_unicast_link_local()) // RFC 4291 (2001:db8::/32, fe80::/10)
+            }
+        })
+    }
+
+    /// Return true iff none or all addresses' port are valid that is are non zero.
+    fn has_all_valid_port(&self) -> bool {
+        self.addrs().all(|addr| addr.port() != 0)
     }
 }
 
