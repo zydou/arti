@@ -360,11 +360,6 @@ define_derive_deftly! {
 
     ${define P { $crate::encode }}
 
-    ${define LET_SELECTOR {
-                    let selector = MultiplicitySelector::<$ftype>::default();
-                    let selector = selector.selector();
-    }}
-
     ${define BUG_CONTEXT {
         // We use .map_err() rather than .bug_context() so that we nail down the error type
         map_err(|bug: Bug| bug.bug_context(
@@ -398,7 +393,8 @@ define_derive_deftly! {
                 ${select1
                   F_NORMAL {
                             let _ = &rest_must_come_last_marker;
-                            $LET_SELECTOR
+                            let selector = MultiplicitySelector::<$ftype>::default();
+                            let selector = selector.selector();
                       ${if not(fmeta(netdoc(with))) {
                             selector.${paste_spanned $fname check_item_argument_encodable}();
                       }}
@@ -439,7 +435,7 @@ define_derive_deftly! {
               ${for fields {
                 ${when F_OBJECT}
 
-                        $LET_SELECTOR
+                        let selector = MultiplicitySelector::<$ftype>::default();
                         if let Some(object) = selector
                             .${paste_spanned $fname as_option}(&self.$fname)
                         {
