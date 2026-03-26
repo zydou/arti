@@ -114,7 +114,7 @@ mod test {
     use super::*;
     use Bound::{Excluded as Excl, Included as Incl, Unbounded};
     use std::fmt::Debug;
-    use std::time::{Duration, SystemTime};
+    use web_time_compat::{Duration, SystemTime, SystemTimeExt};
 
     /// A helper that computes the intersection of `range1` and `range2`.
     ///
@@ -247,7 +247,7 @@ mod test {
         // [t1, t2]:                [.......]
         // [t3, t4]:                    [.......]
         // intersection:                [...]
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         let t1 = now;
         let t2 = now + 2 * MIN;
 

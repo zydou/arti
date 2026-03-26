@@ -411,6 +411,7 @@ mod test {
 
     use super::*;
     use tor_basic_utils::test_rng::testing_rng;
+    use web_time_compat::SystemTimeExt;
 
     #[test]
     fn identity_cert_generation() {
@@ -418,7 +419,7 @@ mod test {
         let keypair = RsaKeypair::generate(&mut rng).unwrap();
         let cert = create_legacy_rsa_id_cert(
             &mut rng,
-            SystemTime::now(),
+            SystemTime::get(),
             "www.house-of-pancakes.example.com",
             &keypair,
         )
@@ -438,7 +439,7 @@ mod test {
         let mut rng = testing_rng();
         let certified = TlsKeyAndCert::create(
             &mut rng,
-            SystemTime::now(),
+            SystemTime::get(),
             "foo.example.com",
             "bar.example.com",
         )
