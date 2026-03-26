@@ -75,7 +75,7 @@ pub struct Microdesc {
 
     /// Public key used for the ntor circuit extension protocol.
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    pub ntor_onion_key: curve25519::PublicKey,
+    pub ntor_onion_key: Curve25519Public,
 
     /// Declared family for this relay.
     #[cfg_attr(feature = "parse2", deftly(netdoc(default)))]
@@ -140,7 +140,7 @@ impl Microdesc {
     }
     /// Return the ntor onion key for this microdesc
     pub fn ntor_key(&self) -> &curve25519::PublicKey {
-        &self.ntor_onion_key
+        &self.ntor_onion_key.0
     }
     /// Return the ipv4 exit policy for this microdesc
     pub fn ipv4_policy(&self) -> &Arc<PortPolicy> {
@@ -340,8 +340,7 @@ impl Microdesc {
         // Ntor onion key
         let ntor_onion_key = body
             .required(NTOR_ONION_KEY)?
-            .parse_arg::<Curve25519Public>(0)?
-            .into();
+            .parse_arg::<Curve25519Public>(0)?;
 
         // family
         //
@@ -698,7 +697,8 @@ mod test {
                 ntor_onion_key: curve25519::PublicKey::from([
                     184, 138, 153, 120, 194, 74, 182, 46, 83, 41, 253, 9, 159, 245, 234, 210, 227,
                     45, 218, 104, 244, 91, 17, 49, 200, 147, 68, 175, 8, 31, 152, 117
-                ]),
+                ])
+                .into(),
                 family: Arc::new({
                     let mut rf = RelayFamily::new();
                     rf.push(
@@ -742,7 +742,8 @@ mod test {
                 ntor_onion_key: curve25519::PublicKey::from([
                     64, 77, 233, 130, 69, 118, 107, 22, 241, 6, 252, 12, 186, 66, 75, 213, 211, 63,
                     148, 96, 1, 160, 61, 253, 223, 78, 107, 177, 113, 179, 221, 122
-                ]),
+                ])
+                .into(),
                 family: Default::default(),
                 ipv4_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),
                 ipv6_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),

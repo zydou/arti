@@ -2,22 +2,6 @@
 
 use super::*;
 
-/// Types related to elliptic curves.
-mod ec {
-    use tor_llcrypto::pk::curve25519;
-
-    use crate::types::misc::FixedB64;
-
-    use super::*;
-
-    impl ItemArgumentParseable for curve25519::PublicKey {
-        fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError> {
-            let pk: [u8; 32] = FixedB64::from_args(args)?.into();
-            Ok(pk.into())
-        }
-    }
-}
-
 /// Types related to RSA keys
 mod rsa {
     use super::*;

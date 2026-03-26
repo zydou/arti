@@ -134,7 +134,8 @@ impl MicrodescBuilder {
     pub fn testing_md(&self) -> Result<Microdesc> {
         let ntor_onion_key = self
             .ntor_onion_key
-            .ok_or(Error::CannotBuild("Missing ntor_key"))?;
+            .ok_or(Error::CannotBuild("Missing ntor_key"))?
+            .into();
         let ed25519_id = self
             .ed25519_id
             .ok_or(Error::CannotBuild("Missing ed25519_id"))?

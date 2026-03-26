@@ -234,31 +234,31 @@ mod b16impl {
 
 /// Types for decoding curve25519 keys
 mod curve25519impl {
-    use super::B64;
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
+    use std::fmt::Display;
+
+    use crate::{Error, NormalItemArgument, Result, types::misc::FixedB64};
     use tor_llcrypto::pk::curve25519::PublicKey;
 
     /// A Curve25519 public key, encoded in base64 with optional padding
-    pub(crate) struct Curve25519Public(PublicKey);
+    #[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::Into)]
+    pub struct Curve25519Public(pub PublicKey);
 
     impl std::str::FromStr for Curve25519Public {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
-            let b64: B64 = s.parse()?;
-            let array: [u8; 32] = b64.as_bytes().try_into().map_err(|_| {
-                EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("bad length for curve25519 key.")
-            })?;
-            Ok(Curve25519Public(array.into()))
+            let pk: FixedB64<32> = s.parse()?;
+            let pk: [u8; 32] = pk.into();
+            Ok(Curve25519Public(pk.into()))
         }
     }
 
-    impl From<Curve25519Public> for PublicKey {
-        fn from(w: Curve25519Public) -> PublicKey {
-            w.0
+    impl Display for Curve25519Public {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            FixedB64::from(self.0.to_bytes()).fmt(f)
         }
     }
+
+    impl NormalItemArgument for Curve25519Public {}
 }
 
 // ============================================================
