@@ -1343,6 +1343,8 @@ mod identified_digest {
 /// Types for decoding RSA fingerprints
 mod fingerprint {
     use super::*;
+    #[cfg(feature = "parse2")]
+    use crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable};
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use base64ct::{Base64Unpadded, Encoding as _};
     use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -1395,6 +1397,36 @@ mod fingerprint {
         fn from_str(s: &str) -> Result<SpFingerprint> {
             let ident = parse_hex_ident(&s.replace(' ', "")).map_err(|e| e.at_pos(Pos::at(s)))?;
             Ok(SpFingerprint(ident))
+        }
+    }
+
+    #[cfg(feature = "parse2")]
+    impl ItemArgumentParseable for SpFingerprint {
+        fn from_args<'s>(
+            args: &mut ArgumentStream<'s>,
+        ) -> std::result::Result<Self, ArgumentError> {
+            // Take the first 10 arguments because an SpFingerprint consists of
+            // 10 x 4 = 40 characters.
+            let fp = args.take(10).collect::<Vec<_>>();
+
+            // Less than 10 means missing arguments.
+            if fp.len() < 10 {
+                return Err(ArgumentError::Missing);
+            }
+
+            // More than 10 should be impossible due to .take(10).
+            debug_assert_eq!(fp.len(), 10);
+
+            // All arguments must be 4 characters long.
+            if fp.iter().any(|arg| arg.len() != 4) {
+                return Err(ArgumentError::Invalid);
+            }
+
+            // Convert it to a string without spaces, RsaIdentity::from_hex will
+            // verify the rest.
+            Ok(Self(
+                RsaIdentity::from_hex(fp.join("").as_str()).ok_or(ArgumentError::Invalid)?,
+            ))
         }
     }
 
