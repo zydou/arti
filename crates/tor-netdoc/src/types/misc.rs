@@ -12,7 +12,7 @@ pub(crate) use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
-pub(crate) use rsa::*;
+pub use rsa::*;
 pub use timeimpl::*;
 
 #[cfg(feature = "encode")]
@@ -35,7 +35,11 @@ use {
         MultiplicitySelector as P2MultiplicitySelector,
         ObjectSetMethods,
     },
-    crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable}, //
+    crate::parse2::sig_hashes::Sha1WholeKeywordLine,
+    crate::parse2::{
+        ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable,
+        SignatureHashInputs,
+    },
 };
 
 pub use nickname::Nickname;
@@ -658,6 +662,7 @@ mod timeimpl {
 
 /// Types for decoding RSA keys
 mod rsa {
+    use super::*;
     use crate::{NetdocErrorKind as EK, Pos, Result};
     use std::ops::RangeBounds;
     use tor_llcrypto::pk::rsa::PublicKey;
@@ -679,6 +684,38 @@ mod rsa {
     #[allow(non_camel_case_types)]
     #[derive(Clone, Debug)]
     pub(crate) struct RsaPublicParse1Helper(PublicKey, Pos);
+
+    /// RSA signature using SHA-1 as per "Signing documents" in dir-spec
+    ///
+    /// <https://spec.torproject.org/dir-spec/netdoc.html#signing>
+    ///
+    /// Used for
+    /// [`AuthCert::dir-key-certification`](crate::doc::authcert::AuthCert::dir-key-certification),
+    /// for example.
+    ///
+    /// # Caveats
+    ///
+    /// This type MUST NOT be used for anomalous signatures
+    /// such as
+    /// [`AuthCert::dir_key_crosscert`](crate::doc::authcert::AuthCert::dir_key_crosscert);
+    /// in that case because `dir_key_crosscert`'s
+    /// set of allowed object labels includes `ID SIGNATURE` whereas this type
+    /// is always `SIGNATURE`
+    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[cfg_attr(
+        feature = "parse2",
+        derive_deftly(ItemValueParseable),
+        deftly(netdoc(no_extra_args, signature(hash_accu = "Sha1WholeKeywordLine")))
+    )]
+    #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+    // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
+    #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+    #[non_exhaustive]
+    pub struct RsaSha1Signature {
+        /// The bytes of the signature (base64-decoded).
+        #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::types::raw_data_object"))]
+        pub signature: Vec<u8>,
+    }
 
     impl From<RsaPublicParse1Helper> for PublicKey {
         fn from(k: RsaPublicParse1Helper) -> PublicKey {

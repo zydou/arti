@@ -10,7 +10,7 @@ use crate::batching_split_before::IteratorExt as _;
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublicParse1Helper};
+use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublicParse1Helper, RsaSha1Signature};
 use crate::util::str::Extent;
 use crate::{NetdocErrorKind as EK, NormalItemArgument, Result};
 
@@ -36,7 +36,7 @@ pub use build::AuthCertBuilder;
 
 #[cfg(feature = "parse2")]
 use crate::parse2::{
-    self, ItemObjectParseable, SignatureHashInputs, sig_hashes::Sha1WholeKeywordLine,
+    self, ItemObjectParseable, sig_hashes::Sha1WholeKeywordLine,
 };
 
 #[cfg(feature = "encode")]
@@ -518,33 +518,16 @@ impl_debug_hex! { CrossCertObject . 0 }
 #[non_exhaustive]
 pub struct AuthCertSignatures {
     /// Contains the actual signature, see [`AuthCertSignatures`].
-    pub dir_key_certification: AuthCertSignature,
+    pub dir_key_certification: RsaSha1Signature,
 }
 
-/// RSA signature for data in [`AuthCert`] and related structures
+/// RSA signature for data in [`AuthCert`]
 ///
 /// <https://spec.torproject.org/dir-spec/netdoc.html#signing>
 ///
-/// # Caveats
-///
-/// This type **MUST NOT** be used for [`AuthCert::dir_key_crosscert`]
-/// because its set of object labels is a strict superset of the object
-/// labels used by this type.
-#[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-#[cfg_attr(
-    feature = "parse2",
-    derive_deftly(ItemValueParseable),
-    deftly(netdoc(no_extra_args, signature(hash_accu = "Sha1WholeKeywordLine")))
-)]
-#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
-// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
-#[non_exhaustive]
-pub struct AuthCertSignature {
-    /// The bytes of the signature (base64-decoded).
-    #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::types::raw_data_object"))]
-    pub signature: Vec<u8>,
-}
+/// Compatibility type alias for [`RsaSha1Signature`].
+#[deprecated = "use RsaSha1Signature"]
+pub type AuthCertSignature = RsaSha1Signature;
 
 #[cfg(feature = "parse2")]
 impl ItemObjectParseable for CrossCertObject {
