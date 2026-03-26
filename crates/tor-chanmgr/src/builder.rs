@@ -14,7 +14,7 @@ use crate::{Error, event::ChanMgrEventSender};
 use safelog::MaybeSensitive;
 use tor_basic_utils::rand_hostname;
 use tor_error::internal;
-use tor_linkspec::{HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
+use tor_linkspec::{ChanTarget, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::channel::ChannelType;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
@@ -428,7 +428,7 @@ where
         }
 
         // Make sure that each address has a valid port.
-        if !target.has_all_valid_port() {
+        if !target.has_all_nonzero_port() {
             return Err(Error::Proto {
                 source: tor_proto::Error::ChanProto("Target address port is invalid".into()),
                 peer: target.clone().into(),

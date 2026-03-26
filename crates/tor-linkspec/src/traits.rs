@@ -345,8 +345,8 @@ pub trait ChanTarget: HasRelayIds + HasAddrs + HasChanMethod {
         })
     }
 
-    /// Return true iff none or all addresses' port are valid that is are non zero.
-    fn has_all_valid_port(&self) -> bool {
+    /// Return true iff all addresses' ports are non-zero, or there are no addresses.
+    fn has_all_nonzero_port(&self) -> bool {
         self.addrs().all(|addr| addr.port() != 0)
     }
 }
