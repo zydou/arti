@@ -265,35 +265,34 @@ mod curve25519impl {
 
 /// Types for decoding ed25519 keys
 mod ed25519impl {
-    use super::B64;
-    #[cfg(feature = "parse2")]
-    use crate::parse2::{
-        ErrorProblem as EP, ItemArgumentParseable, ItemValueParseable, UnparsedItem,
-    };
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result, types::misc::FixedB64};
+    use std::fmt::Display;
+
+    use crate::{Error, NormalItemArgument, Result, types::misc::FixedB64};
+    use derive_deftly::Deftly;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     /// An alleged ed25519 public key, encoded in base64 with optional
     /// padding.
-    pub(crate) struct Ed25519Public(Ed25519Identity);
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Ed25519Public(pub Ed25519Identity);
 
     impl std::str::FromStr for Ed25519Public {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
-            let b64: B64 = s.parse()?;
-            if b64.as_bytes().len() != 32 {
-                return Err(EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("bad length for ed25519 key."));
-            }
-            let key = Ed25519Identity::from_bytes(b64.as_bytes()).ok_or_else(|| {
-                EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("bad value for ed25519 key.")
-            })?;
-            Ok(Ed25519Public(key))
+            let pk: FixedB64<32> = s.parse()?;
+            Ok(Ed25519Public(Ed25519Identity::new(pk.into())))
         }
     }
+
+    impl Display for Ed25519Public {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let pk: [u8; 32] = self.0.into();
+            let pk = FixedB64::from(pk);
+            pk.fmt(f)
+        }
+    }
+
+    impl NormalItemArgument for Ed25519Public {}
 
     impl From<Ed25519Public> for Ed25519Identity {
         fn from(pk: Ed25519Public) -> Ed25519Identity {
