@@ -39,6 +39,7 @@
 mod multiplicity;
 #[macro_use]
 mod derive;
+mod impls;
 
 use std::cmp;
 use std::collections::BTreeSet;
