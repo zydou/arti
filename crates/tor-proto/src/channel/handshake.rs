@@ -341,11 +341,15 @@ impl<
         }
     }
 
-    /// This validates the relay identities (Ed25519 and RSA) and signing key cert (Ed25519).
-    /// Successful validation returns the relay ed25519 identitiy key, the ed25519 signing key and
-    /// the RSA public key.
+    /// This validates the relay identities (Ed25519 and RSA) and signing key cert (Ed25519) found
+    /// in the received [`msg::Certs`] cell. It also enforces that the peer claimed IDs are the one
+    /// we expected (`peer_target`).
     ///
-    /// Reason for the RSA public key is because the caller needs to the SHA256 digest for the
+    /// Successful validation returns the relay ed25519 identitiy key, the ed25519 signing key and
+    /// the RSA public key of the peer. This means that we consider the peer verified as in we've
+    /// established that we are talking to the right target.
+    ///
+    /// Reason for the RSA public key is because the caller needs the SHA256 digest for the
     /// [`msg::Authenticate`] cell.
     pub(crate) fn check_relay_identities<U: ChanTarget + ?Sized>(
         &self,
