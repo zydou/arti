@@ -325,7 +325,7 @@ pub trait ChanTarget: HasRelayIds + HasAddrs + HasChanMethod {
     /// NOTE: The set of RFCs checked here are not expected to change over time and so this should
     /// be a check that yields the same result regardless of the Rust library version. HOWEVER, it
     /// doesn't mean that each relay/client on the network uses the same set of checks.
-    fn has_all_reachable_addresses(&self) -> bool {
+    fn has_all_public_addresses(&self) -> bool {
         self.addrs().all(|addr| match addr.ip() {
             IpAddr::V4(v4) => {
                 !(v4.is_loopback() // RFC 1122 (127.0.0.0/8)

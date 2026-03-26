@@ -441,7 +441,7 @@ where
         // scanning by measuring latency between successful connect() and failures.
         //
         // If no addresses, it returns true and thus no error.
-        if !target.has_all_reachable_addresses() {
+        if !target.has_all_public_addresses() {
             return Err(Error::Proto {
                 source: tor_proto::Error::ChanProto("Target address is invalid".into()),
                 peer: target.clone().into(),
