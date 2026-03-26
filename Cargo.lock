@@ -7759,6 +7759,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "visibility",
+ "web-time-compat",
 ]
 
 [[package]]
