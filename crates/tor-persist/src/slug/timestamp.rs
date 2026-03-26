@@ -4,7 +4,6 @@ use crate::slug::{BadSlug, Slug};
 
 use std::fmt;
 use std::str::FromStr;
-use std::time::SystemTime;
 
 use derive_more::{From, Into};
 use thiserror::Error;
@@ -12,6 +11,7 @@ use time::format_description::FormatItem;
 use time::macros::format_description;
 use time::{OffsetDateTime, PrimitiveDateTime};
 use tor_error::{Bug, into_internal};
+use web_time_compat::SystemTime;
 
 /// A UTC timestamp that can be encoded in ISO 8601 format,
 /// and that can be used as a `Slug`.

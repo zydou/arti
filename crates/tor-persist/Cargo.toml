@@ -51,6 +51,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.40.0" }
 tor-error = { path = "../tor-error", version = "0.40.0", features = ["tracing"] }
 tracing = "0.1.36"
 void = "1"
+web-time-compat = { path = "../web-time-compat", version = "0.1.0" }
 
 [dev-dependencies]
 anyhow = { version = "1.0.23" }

@@ -1,14 +1,12 @@
 //! Code to remove obsolete and extraneous files from a filesystem-based state
 //! directory.
 
-use std::{
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime},
-};
+use std::path::{Path, PathBuf};
 
 use tor_basic_utils::PathExt as _;
 use tor_error::warn_report;
 use tracing::warn;
+use web_time_compat::{Duration, SystemTime};
 
 /// Return true if `path` looks like a filename we'd like to remove from our
 /// state directory.
@@ -114,6 +112,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use web_time_compat::SystemTimeExt;
 
     #[test]
     fn fnames() {
@@ -135,7 +134,7 @@ mod test {
         let dir = tempfile::TempDir::new().unwrap();
 
         let fname1 = dir.path().join("quokka");
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         std::fs::write(fname1, "hello world").unwrap();
 
         let mut r = std::fs::read_dir(dir.path()).unwrap();
@@ -147,7 +146,7 @@ mod test {
     #[test]
     fn list() {
         let dir = tempfile::TempDir::new().unwrap();
-        let now = SystemTime::now();
+        let now = SystemTime::get();
 
         let fname1 = dir.path().join("quokka.toml");
         std::fs::write(fname1, "hello world").unwrap();
@@ -171,7 +170,7 @@ mod test {
     fn absent() {
         let dir = tempfile::TempDir::new().unwrap();
         let dir2 = dir.path().join("subdir_that_doesnt_exist");
-        let r = files_to_delete(&dir2, SystemTime::now());
+        let r = files_to_delete(&dir2, SystemTime::get());
         assert!(r.is_empty());
     }
 }
