@@ -32,6 +32,7 @@ tor-config = { path = "../tor-config", version = "0.40.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.40.0", features = ["tokio", "native-tls"] }
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+web-time-compat = { version = "0.1.0", path = "../web-time-compat" }
 
 [features]
 full = [
