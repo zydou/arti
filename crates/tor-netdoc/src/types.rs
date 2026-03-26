@@ -24,6 +24,9 @@ pub use misc::{Curve25519Public, Ed25519AlgorithmString, Ed25519IdentityLine, Ed
 pub use misc::{DigestName, IdentifiedDigest};
 pub use misc::{Iso8601TimeNoSp, Iso8601TimeSp};
 
+#[cfg(feature = "routerdesc")]
+pub use misc::{OverloadGeneral, OverloadGeneralVersion};
+
 #[cfg(any(feature = "parse2", feature = "encode"))]
 mod parse2_encode;
 #[cfg(any(feature = "parse2", feature = "encode"))]

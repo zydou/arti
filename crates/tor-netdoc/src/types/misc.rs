@@ -14,6 +14,8 @@ pub use ed25519impl::*;
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
 pub use hostname::*;
+#[cfg(feature = "routerdesc")]
+pub use routerdesc::*;
 pub use rsa::*;
 pub use timeimpl::*;
 
@@ -1756,6 +1758,35 @@ mod boolean {
     }
 
     impl NormalItemArgument for NumericBoolean {}
+}
+
+/// Types for router descriptors.
+#[cfg(feature = "routerdesc")]
+mod routerdesc {
+    use crate::{NormalItemArgument, types::Iso8601TimeSp};
+    use derive_deftly::Deftly;
+
+    /// Version argument found in an `overload-general` item.
+    #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, strum::EnumString, strum::Display)]
+    #[non_exhaustive]
+    pub enum OverloadGeneralVersion {
+        /// Version 1, currently the only supported and specified one.
+        #[strum(serialize = "1")]
+        V1,
+    }
+
+    impl NormalItemArgument for OverloadGeneralVersion {}
+
+    /// The overload general type found in router descriptors.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Deftly)]
+    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[non_exhaustive]
+    pub struct OverloadGeneral {
+        /// The version of the item.
+        pub version: OverloadGeneralVersion,
+        /// The timestamp since when the relay is overloaded.
+        pub since: Iso8601TimeSp,
+    }
 }
 
 #[cfg(test)]
