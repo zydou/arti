@@ -12,7 +12,7 @@ pub use curve25519impl::*;
 pub use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
-pub(crate) use fingerprint::*;
+pub use fingerprint::*;
 pub use hostname::*;
 #[cfg(feature = "routerdesc")]
 pub use routerdesc::*;
@@ -1359,7 +1359,7 @@ mod fingerprint {
     #[derive(Debug, Clone, Eq, PartialEq, Hash, Deftly)]
     #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
-    pub(crate) struct SpFingerprint(pub RsaIdentity);
+    pub struct SpFingerprint(pub RsaIdentity);
 
     /// A hex-encoded fingerprint with no spaces.
     ///

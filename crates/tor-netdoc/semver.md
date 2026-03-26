@@ -44,3 +44,4 @@ ADDED: Implement `PartialEq` and `Eq` for `AddrPolicy`
 ADDED: Implement `PartialEq` and `Eq` for `AddrPolicyRule`
 ADDED: Implement `NormalItemArgument` for `AddrPortPattern`
 ADDED: Implement `NetdocParseableFields` for `AddrPolicy`
+ADDED: `SpFingerprint` type
