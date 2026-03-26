@@ -440,7 +440,9 @@ define_derive_deftly! {
                 ${when F_OBJECT}
 
                         $LET_SELECTOR
-                        if let Some(object) = selector.as_option(&self.$fname) {
+                        if let Some(object) = selector
+                            .${paste_spanned $fname as_option}(&self.$fname)
+                        {
                 ${define CHECK_OBJECT_ENCODABLE {
                             selector.${paste_spanned $fname check_item_object_encodable}();
                 }}
