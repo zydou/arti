@@ -7185,6 +7185,7 @@ dependencies = [
  "tor-rtmock",
  "tracing",
  "tracing-test",
+ "web-time-compat",
 ]
 
 [[package]]

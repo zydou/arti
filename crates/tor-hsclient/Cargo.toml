@@ -90,6 +90,7 @@ tor-proto = { version = "0.40.0", path = "../tor-proto", features = ["hs-client"
 tor-protover = { version = "0.40.0", path = "../tor-protover" }
 tor-rtcompat = { version = "0.40.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
+web-time-compat = { version = "0.1.0", path = "../web-time-compat" }
 
 [dev-dependencies]
 humantime = "2"

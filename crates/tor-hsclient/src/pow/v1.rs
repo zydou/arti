@@ -1,7 +1,6 @@
 //! Client support for the `v1` onion service proof of work scheme
 
 use crate::err::ProofOfWorkError;
-use std::time::Instant;
 use tor_async_utils::oneshot;
 use tor_async_utils::oneshot::Canceled;
 use tor_cell::relaycell::hs::pow::v1::ProofOfWorkV1;
@@ -10,6 +9,7 @@ use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::pow::v1::{Effort, Instance, SolverInput};
 use tor_netdoc::doc::hsdesc::pow::v1::PowParamsV1;
 use tracing::debug;
+use web_time_compat::{Instant, InstantExt};
 
 /// Double effort at retry until this threshold.
 ///
@@ -93,7 +93,7 @@ impl HsPowClientV1 {
         // TODO: config option
         input.runtime(Default::default());
 
-        let start_time = Instant::now();
+        let start_time = Instant::get();
         debug!("beginning solve, {:?}", self.effort);
 
         let (result_sender, result_receiver) = oneshot::channel();
