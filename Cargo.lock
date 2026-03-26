@@ -7771,6 +7771,7 @@ dependencies = [
  "tor-keymgr",
  "tor-llcrypto",
  "tor-persist",
+ "web-time-compat",
 ]
 
 [[package]]

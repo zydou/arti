@@ -2,7 +2,6 @@
 //! KeyMgr so some of them can be stored on disk.
 
 use std::fmt;
-use std::time::SystemTime;
 
 use derive_deftly::Deftly;
 use derive_more::Constructor;
@@ -15,6 +14,7 @@ use tor_keymgr::{
     derive_deftly_template_CertSpecifier, derive_deftly_template_KeySpecifier,
 };
 use tor_persist::slug::{Slug, timestamp::Iso8601TimeSlug};
+use web_time_compat::SystemTime;
 
 define_ed25519_keypair!(
     /// [KP_relayid_ed] Long-term identity keypair. Never rotates.

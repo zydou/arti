@@ -1,11 +1,10 @@
 //! Certificate related types and functions for an arti relay.
 
-use std::time::SystemTime;
-
 use tor_cert::{CertEncodeError, CertType, CertifiedKey, Ed25519Cert, EncodedEd25519Cert};
 use tor_checkable::{SelfSigned, Timebound};
 use tor_key_forge::{InvalidCertError, ParsedEd25519Cert, ToEncodableCert};
 use tor_llcrypto::pk::ed25519::{self, Ed25519Identity};
+use web_time_compat::{SystemTime, SystemTimeExt};
 
 use crate::pk::{RelayIdentityKeypair, RelayLinkSigningKeypair, RelaySigningKeypair};
 
@@ -113,7 +112,7 @@ impl ToEncodableCert<RelaySigningKeypair> for RelaySigningKeyCert {
         signed_with: &Self::SigningKey,
     ) -> Result<Self, InvalidCertError> {
         // TODO: take the time/time provider as an arg?
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         validate_ed25519_cert(
             cert,
             &subject.public().into(),
@@ -140,7 +139,7 @@ impl ToEncodableCert<RelayLinkSigningKeypair> for RelayLinkSigningKeyCert {
         signed_with: &Self::SigningKey,
     ) -> Result<Self, InvalidCertError> {
         // TODO: take the time/time provider as an arg?
-        let now = SystemTime::now();
+        let now = SystemTime::get();
         validate_ed25519_cert(
             cert,
             &subject.public().into(),
