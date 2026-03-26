@@ -362,6 +362,7 @@ dependencies = [
  "tracing-test",
  "visibility",
  "void",
+ "web-time-compat",
 ]
 
 [[package]]
