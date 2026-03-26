@@ -108,6 +108,31 @@ pub(crate) struct ProxyConfig {
     /// Addresses to listen on for incoming DNS connections.
     #[deftly(tor_config(default = "Listen::new_none()"))]
     pub(crate) dns_listen: Listen,
+
+    /// If true, and the `http-connect` feature is enabled,
+    /// all members of `socks_listen` also support HTTP CONNECT.
+    //
+    // TODO:
+    // At some point in the future we might want per-port configuration, like Tor has.
+    #[deftly(tor_config(
+        cfg = r#" feature="http-connect" "#,
+        cfg_desc = "with HTTP CONNECT support"
+    ))]
+    #[deftly(tor_config(default = "true"))]
+    pub(crate) enable_http_connect: bool,
+}
+
+impl ProxyConfig {
+    /// Return the stream proxy protocols we support according to this configuration.
+    pub(crate) fn protocols(&self) -> crate::proxy::ListenProtocols {
+        use crate::proxy::ListenProtocols::*;
+        #[cfg(feature = "http-connect")]
+        if self.enable_http_connect {
+            return SocksAndHttpConnect;
+        }
+
+        SocksOnly
+    }
 }
 
 /// Configuration for arti-specific storage locations.
@@ -653,6 +678,16 @@ mod test {
                 "address_filter.allow_onion_addrs",
                 "circuit_timing.hs_desc_fetch_attempts",
                 "circuit_timing.hs_intro_rend_attempts",
+            ],
+        );
+
+        declare_exceptions(
+            None,
+            Some(InNew),
+            FeatureDependent,
+            &[
+                // HTTP Connect settings
+                "proxy.enable_http_connect",
             ],
         );
 

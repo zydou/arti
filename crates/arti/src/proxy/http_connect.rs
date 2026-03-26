@@ -882,6 +882,7 @@ mod test {
             tor_client,
             #[cfg(feature = "rpc")]
             rpc_mgr: None,
+            protocols: crate::proxy::ListenProtocols::SocksAndHttpConnect,
         };
         let handle = rt.spawn_join("HTTP Handler", handle_http_conn(context, s1, iso));
         Ok((s2, handle, dir))

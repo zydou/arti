@@ -49,6 +49,10 @@ client-side support for:
 Going forward, Arti is the preferred Tor client for new feature development.
 All new client features will have implementations in Arti.
 
+For proxies, we support Tor's 
+[socks extensions](https://spec.torproject.org/socks-extensions.html)
+and [HTTP CONNECT extensions](https://spec.torproject.org/http-connect.html).
+
 [^cons28]: If a consensus method before 28 is used, we won't find IPv6
     addresses correctly. All such consensus methods are currently obsolete,
     though, and authorities won't negotiate them any more.
