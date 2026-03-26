@@ -313,7 +313,8 @@ impl Forward {
         // new_outbound_circ() sends a control message to the channel reactor handles,
         // which is handled asynchronously. In practice, we're not actually waiting on
         // the network here, so in theory we shouldn't need a timeout for this operation.
-        let (circ_id, outbound_chan_rx, createdreceiver) = channel.new_outbound_circ(memquota).await?;
+        let (circ_id, outbound_chan_rx, createdreceiver) =
+            channel.new_outbound_circ(memquota).await?;
 
         // We have allocated a circuit in the channel's circmap,
         // now it's time to send the CREATE2 and wait for the response.

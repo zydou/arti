@@ -147,7 +147,13 @@ impl<R: Runtime> Reactor<R> {
         // but we might need it if we start using it for more than just EXTENDED2 events
         #[allow(clippy::disallowed_methods)]
         let (fwd_ev_tx, fwd_ev_rx) = mpsc::channel(0);
-        let forward_foo = Forward::new(unique_id, crypto_out, chan_provider, fwd_ev_tx, memquota.clone());
+        let forward_foo = Forward::new(
+            unique_id,
+            crypto_out,
+            chan_provider,
+            fwd_ev_tx,
+            memquota.clone(),
+        );
         let backward_foo = Backward::new(crypto_in);
 
         let (inner, handle) = BaseReactor::new(
