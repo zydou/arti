@@ -7601,6 +7601,7 @@ dependencies = [
  "visibility",
  "visible",
  "void",
+ "web-time-compat",
  "zeroize",
 ]
 

@@ -320,6 +320,7 @@ mod test {
     use tor_hscrypto::time::TimePeriod;
     use tor_linkspec::LinkSpec;
     use tor_llcrypto::pk::{curve25519, ed25519::ExpandedKeypair};
+    use web_time_compat::SystemTimeExt;
 
     // TODO: move the test helpers to a separate module and make them more broadly available if
     // necessary.
@@ -410,7 +411,7 @@ mod test {
             .compute_blinded_key(period)
             .unwrap();
 
-        let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
+        let expiry = SystemTime::get() + Duration::from_secs(CERT_EXPIRY_SECS);
         let mut rng = Config::Deterministic.into_rng();
         let intro_points = vec![IntroPointDesc {
             link_specifiers: vec![
