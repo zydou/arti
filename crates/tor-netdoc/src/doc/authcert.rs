@@ -1191,4 +1191,47 @@ mod test {
             );
         }
     }
+
+    #[cfg(all(feature = "encode", feature = "parse2"))]
+    mod encode_test {
+        use super::*;
+        use crate::parse2::{ParseInput, parse_netdoc};
+        use humantime::parse_rfc3339;
+        use std::result::Result;
+        use tor_basic_utils::test_rng;
+
+        #[test]
+        fn roundtrip() -> Result<(), anyhow::Error> {
+            let mut rng = test_rng::testing_rng();
+            let k_auth_id_rsa = rsa::KeyPair::generate(&mut rng)?;
+            let k_auth_sign_rsa = rsa::KeyPair::generate(&mut rng)?;
+
+            let secs = |s| Duration::from_secs(s);
+            let now = parse_rfc3339("1993-01-01T00:00:00Z")?;
+            let published = now - secs(1000);
+            let expires = published + secs(86400);
+            let tolerance = secs(10);
+
+            let input_value = AuthCert {
+                dir_address: Some("192.0.2.17:7000".parse()?),
+                ..AuthCert::new_base(&k_auth_id_rsa, &k_auth_sign_rsa, published, expires)?
+            };
+            dbg!(&input_value);
+
+            let encoded = input_value.encode_sign(&k_auth_id_rsa)?;
+
+            let reparsed_uv: AuthCertUnverified =
+                parse_netdoc(&ParseInput::new(encoded.as_ref(), "<encoded>"))?;
+            let reparsed_value = reparsed_uv.verify(
+                &[k_auth_id_rsa.to_public_key().to_rsa_identity()],
+                tolerance,
+                tolerance,
+                now,
+            )?;
+            dbg!(&reparsed_value);
+
+            assert_eq!(input_value, reparsed_value);
+            Ok(())
+        }
+    }
 }
