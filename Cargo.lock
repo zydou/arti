@@ -6744,6 +6744,7 @@ dependencies = [
  "tracing",
  "url",
  "void",
+ "web-time-compat",
 ]
 
 [[package]]
