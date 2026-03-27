@@ -664,46 +664,7 @@ impl MemoryQuotaTracker {
 
         let parent_aid_good = parent
             .map(|parent| {
-                // Find and check the requested parent's Accountid
-
-                let Enabled(parent, _enabled) = &parent.0 else {
-                    return Err(
-                        internal!("used no-op Account as parent for enabled new_account").into(),
-                    );
-                };
-
-                let parent_aid = *parent.aid;
-                let parent_arecord = state
-                    .accounts
-                    .get_mut(parent_aid)
-                    .ok_or(Error::AccountClosed)?;
-
-                // Can we insert the new child without reallocating?
-                if !parent_arecord.children.spare_capacity_mut().is_empty() {
-                    return Ok(parent_aid);
-                }
-
-                // No.  Well, let's do some garbage collection.
-                // (Otherwise .children might grow without bound as accounts come and go)
-                //
-                // We would like to scan the accounts array while mutating this account.
-                // Instead, steal the children array temporarily and put the filtered one back.
-                // Must be infallible!
-                //
-                // The next line can't be in the closure (confuses borrowck)
-                let mut parent_children = mem::take(&mut parent_arecord.children);
-                (|| {
-                    parent_children.retain(|child_aid| state.accounts.contains_key(*child_aid));
-
-                    // Put the filtered list back, so sanity is restored.
-                    state
-                        .accounts
-                        .get_mut(parent_aid)
-                        .expect("parent vanished!")
-                        .children = parent_children;
-                })();
-
-                Ok::<_, Error>(parent_aid)
+                state.prepare_parent_aid(parent)
             })
             .transpose()?;
 
@@ -1377,6 +1338,55 @@ impl State {
             }
         }
         out
+    }
+
+    /// Find and check the requested parent's account ID
+    ///
+    /// This is called in preparation for adding another account
+    /// to `parent`'s list of child accounts.
+    ///
+    /// Returns an error if the specified `parent` account is not enabled,
+    /// or if it has been torn down.
+    #[allow(clippy::redundant_closure_call)] // We have IEFEs for good reasons
+    fn prepare_parent_aid(&mut self, parent: &Account) -> crate::Result<AId> {
+        let Enabled(parent, _enabled) = &parent.0 else {
+            return Err(
+                internal!("used no-op Account as parent for enabled new_account").into(),
+            );
+        };
+
+        let parent_aid = *parent.aid;
+        let parent_arecord = self
+            .accounts
+            .get_mut(parent_aid)
+            .ok_or(Error::AccountClosed)?;
+
+        // Can we insert the new child without reallocating?
+        if !parent_arecord.children.spare_capacity_mut().is_empty() {
+            return Ok(parent_aid);
+        }
+
+        // No.  Well, let's do some garbage collection.
+        // (Otherwise .children might grow without bound as accounts come and go)
+        //
+        // We would like to scan the accounts array while mutating this account.
+        // Instead, steal the children array temporarily and put the filtered one back.
+        // Must be infallible!
+        //
+        // The next line can't be in the closure (confuses borrowck)
+        let mut parent_children = mem::take(&mut parent_arecord.children);
+        (|| {
+            parent_children.retain(|child_aid| self.accounts.contains_key(*child_aid));
+
+            // Put the filtered list back, so sanity is restored.
+            self
+                .accounts
+                .get_mut(parent_aid)
+                .expect("parent vanished!")
+                .children = parent_children;
+        })();
+
+        Ok::<_, Error>(parent_aid)
     }
 }
 
