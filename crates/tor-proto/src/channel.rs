@@ -879,12 +879,6 @@ impl Channel {
         let time_prov = self.time_provider().clone();
 
         // TODO: blocking is risky, but so is unbounded.
-
-        // TODO(#2427): the ChannelAccount of the outbound
-        // channel should be set as the (additional) parent
-        // of the `memquota` CircuitAccount.
-        //
-        // This will require some tor-memquota API changes
         let (sender, receiver) =
             MpscSpec::new(128).new_mq(time_prov.clone(), memquota.as_raw_account())?;
         let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
@@ -904,6 +898,10 @@ impl Channel {
         // the outbound relay circuits...
         let (id, circ_unique_id, _padding_ctrl, _padding_stream) =
             rx.await.map_err(|_| ChannelClosed)??;
+
+        let channel_account = self.details.memquota.as_raw_account();
+        // Link the memquota circuit account with the outbound channel account:
+        memquota.as_raw_account().add_parent(channel_account)?;
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
