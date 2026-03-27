@@ -721,3 +721,61 @@ fn errors() {
         }
     });
 }
+
+#[traced_test]
+#[test]
+fn multi_parent_acct() {
+    test_with_various_mocks(|rt| async move {
+        let trk = mk_tracker(&rt);
+        let parent1 = trk.new_account(None).unwrap();
+        let parent2 = trk.new_account(None).unwrap();
+        let acct = trk.new_account(Some(&parent1)).unwrap();
+        let child = trk.new_account(Some(&acct)).unwrap();
+
+        let assert_bug = |err: crate::Result<()>, msg| {
+            let err = match err.unwrap_err() {
+                Error::Bug(e) => e,
+                e => panic!("unexpected error {e:?}"),
+            };
+            assert!(err.to_string().contains(msg));
+        };
+
+        // Cannot add self as parent
+        assert_bug(acct.add_parent(&acct), "circular parent relationship");
+
+        // Or self's children
+        assert_bug(acct.add_parent(&child), "circular parent relationship");
+
+        // But parent2 is a valid parent
+        acct.add_parent(&parent2).unwrap();
+
+        // Adding the same parent again shouldn't work,
+        // because acct is already a child of parent2
+        assert_bug(acct.add_parent(&parent2), "duplicate child account");
+
+        let state = trk.lock().unwrap().into_enabled().unwrap();
+
+        let assert_is_child = |acct: &Account, parent: &Account, is_child: bool| {
+            let acct = acct.0.as_enabled().unwrap();
+            let parent = parent.0.as_enabled().unwrap();
+            let p_arecord = state
+                .accounts
+                .iter()
+                .find_map(|(aid, arecord)| {
+                    if *parent.aid == aid {
+                        Some(arecord)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+
+            assert_eq!(p_arecord.children.contains(&acct.aid), is_child);
+        };
+
+        assert_is_child(&acct, &parent1, true);
+        assert_is_child(&acct, &parent2, true);
+        assert_is_child(&acct, &acct, false);
+        assert_is_child(&acct, &child, false);
+    });
+}

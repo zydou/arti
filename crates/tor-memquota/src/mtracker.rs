@@ -894,6 +894,47 @@ impl Account {
         self_.tracker.new_account(Some(self))
     }
 
+    /// Make `parent` an additional parent of this account
+    ///
+    /// Adds `self` to `parent`'s list of children.
+    ///
+    /// Returns an error is `self` is already a child of `parent`,
+    /// or if `parent` is a descendant of `self`.
+    pub fn add_parent(&self, parent: &Account) -> Result<(), Error> {
+        let Enabled(acc, _enabled) = &self.0 else {
+            return Ok(());
+        };
+
+        let Enabled(mut state, _enabled) = acc.tracker.lock()? else {
+            return Ok(());
+        };
+
+        let parent_aid_good = state.prepare_parent_aid(parent)?;
+
+        if state
+            .get_aid_and_children_recursively(*acc.aid)
+            .contains(&parent_aid_good)
+        {
+            return Err(tor_error::bad_api_usage!(
+                "tried to create circular parent relationship?!"
+            )
+            .into());
+        }
+
+        let children = &mut state
+            .accounts
+            .get_mut(parent_aid_good)
+            .expect("parent vanished!")
+            .children;
+
+        if children.contains(&acc.aid) {
+            return Err(tor_error::bad_api_usage!("tried to add duplicate child account?!").into());
+        }
+        children.push(*acc.aid);
+
+        Ok(())
+    }
+
     /// Obtains a handle for the `MemoryQuotaTracker`
     pub fn tracker(&self) -> Arc<MemoryQuotaTracker> {
         let Enabled(self_, _enabled) = &self.0 else {
@@ -1348,6 +1389,7 @@ impl State {
     #[allow(clippy::redundant_closure_call)] // We have IEFEs for good reasons
     fn prepare_parent_aid(&mut self, parent: &Account) -> crate::Result<AId> {
         let Enabled(parent, _enabled) = &parent.0 else {
+            // XXX this error is now inaccurate
             return Err(internal!("used no-op Account as parent for enabled new_account").into());
         };
 
