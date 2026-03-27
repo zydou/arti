@@ -663,9 +663,7 @@ impl MemoryQuotaTracker {
         };
 
         let parent_aid_good = parent
-            .map(|parent| {
-                state.prepare_parent_aid(parent)
-            })
+            .map(|parent| state.prepare_parent_aid(parent))
             .transpose()?;
 
         // We have resolved the parent AId and prepared to add the new account to its list of
@@ -1350,9 +1348,7 @@ impl State {
     #[allow(clippy::redundant_closure_call)] // We have IEFEs for good reasons
     fn prepare_parent_aid(&mut self, parent: &Account) -> crate::Result<AId> {
         let Enabled(parent, _enabled) = &parent.0 else {
-            return Err(
-                internal!("used no-op Account as parent for enabled new_account").into(),
-            );
+            return Err(internal!("used no-op Account as parent for enabled new_account").into());
         };
 
         let parent_aid = *parent.aid;
@@ -1379,8 +1375,7 @@ impl State {
             parent_children.retain(|child_aid| self.accounts.contains_key(*child_aid));
 
             // Put the filtered list back, so sanity is restored.
-            self
-                .accounts
+            self.accounts
                 .get_mut(parent_aid)
                 .expect("parent vanished!")
                 .children = parent_children;
