@@ -165,7 +165,7 @@ all listed below.
   to experiment with wasm ports.) ([!3814], [!3816], [!3818], [!3819])
 - Include a compatibility layer for using web_time on
   the wasm32-unknown-unknown platform.
-  ([#3820], [!3820])
+  ([#2356], [!3820])
 
 
 ### Acknowledgments
@@ -252,6 +252,7 @@ for funding the development of Arti!
 [#2000]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2000
 [#2063]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2063
 [#2285]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2285
+[#2356]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2356
 [#2366]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2366
 [#2375]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2375
 [#2376]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2376
@@ -267,7 +268,6 @@ for funding the development of Arti!
 [#2412]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2412
 [#2417]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2417
 [#2422]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2422
-[#3820]: https://gitlab.torproject.org/tpo/core/arti/-/issues/3820
 [04e8874058966f45]: https://gitlab.torproject.org/tpo/core/arti/-/commit/04e8874058966f45a08558dc78b941ab7edc9b6b
 [074072ad66bf35e1]: https://gitlab.torproject.org/tpo/core/arti/-/commit/074072ad66bf35e170bd3ce467aad6a6097e24be
 [501ba52b79814425]: https://gitlab.torproject.org/tpo/core/arti/-/commit/501ba52b79814425958176948610f863df3ee0e0
