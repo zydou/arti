@@ -921,28 +921,32 @@ mod fingerprint {
     /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
+    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct SpFingerprint(pub RsaIdentity);
 
     /// A hex-encoded fingerprint with no spaces.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
+    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Fingerprint(pub RsaIdentity);
 
     /// A base64-encoded fingerprint (unpadded)
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
+    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Base64Fingerprint(pub RsaIdentity);
 
     /// A "long identity" in the format used for Family members.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
+    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct LongIdent(pub RsaIdentity);
 
