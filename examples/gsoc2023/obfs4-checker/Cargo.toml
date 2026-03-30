@@ -31,4 +31,5 @@ full = [
     "tor-guardmgr/full",
     "tor-proto/full",
     "tor-rtcompat/full",
+    "web-time-compat/full",
 ]

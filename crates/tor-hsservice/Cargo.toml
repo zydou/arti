@@ -62,6 +62,7 @@ full = [
     "tor-relay-selection/full",
     "tor-rtcompat/full",
     "equix?/full",
+    "web-time-compat/full",
 ]
 
 # Enable experimental APIs that are not yet officially supported.

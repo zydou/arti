@@ -49,6 +49,7 @@ full = [
     "slotmap-careful/full",
     "tor-memquota/full",
     "tor-protover/full",
+    "web-time-compat/full",
 ]
 __is_experimental = []
 experimental = ["keymgr", "hs-pow-full"]

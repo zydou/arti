@@ -26,6 +26,7 @@ full = [
     "x509",
     "tor-error/full",
     "tor-cert-x509?/full",
+    "web-time-compat/full",
 ]
 x509 = ["tor-cert-x509"]
 # Enable experimental APIs that are not yet officially supported.

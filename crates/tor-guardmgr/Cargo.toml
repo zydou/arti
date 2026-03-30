@@ -35,6 +35,7 @@ full = [
     "tor-rtmock?/full",
     "oneshot-fused-workaround/full",
     "tor-dircommon/full",
+    "web-time-compat/full",
 ]
 experimental = ["testing"]
 

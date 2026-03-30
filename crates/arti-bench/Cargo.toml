@@ -41,6 +41,7 @@ full = [
     "fs-mistrust/full",
     "tor-config/full",
     "tor-rtcompat/full",
+    "web-time-compat/full",
 ]
 [package.metadata.docs.rs]
 all-features = true

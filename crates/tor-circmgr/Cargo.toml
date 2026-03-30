@@ -42,6 +42,7 @@ full = [
     "tor-memquota/full",
     "tor-units/full",
     "tor-dircommon/full",
+    "web-time-compat/full",
 ]
 specific-relay = []
 vanguards = ["tor-guardmgr/vanguards"]

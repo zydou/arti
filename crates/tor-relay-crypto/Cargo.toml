@@ -21,6 +21,7 @@ full = [
     "tor-persist/full",
     "tor-checkable/full",
     "tor-llcrypto/full",
+    "web-time-compat/full",
 ]
 
 [dependencies]
