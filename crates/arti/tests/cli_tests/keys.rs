@@ -3,6 +3,49 @@
 //! The `assert_cmd` crate is used here instead of the preferred `trycmd` (see
 //! [`README`](../README.md)) because the output of `keys list` is not deterministic across
 //! different machines. The design choices of some components are workarounds for this limitation.
+//!
+//! ## Note on the test data
+//!
+//! Test data for this suite is stored in the `keys/keys.in/local` directory. The structure is as follows:
+//!
+//! ```
+//! local/
+//! ├── ctor-keystore
+//! │   ├── hostname
+//! │   ├── hs_ed25519_public_key
+//! │   ├── hs_ed25519_secret_key
+//! │   └── hs_unrecognized_entry
+//! └── state-dir
+//!     └── keystore
+//!         ├── client
+//!         │   └── mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad
+//!         │       └── ks_hsc_desc_enc.x25519_private
+//!         ├── hss
+//!         │   └── allium-cepa
+//!         │       ├── ks_hs_id.ed25519_expanded_private
+//!         │       └── unrecognized-entry
+//!         └── unrecognized-path-dir
+//!             └── ks_hs_id.ed25519_expanded_private
+//! ```
+//!
+//! Where:
+//!
+//! - `local/ctor-keystore` is a fully populated CTor keystore.
+//! - `local/state-dir` is an example Arti state directory, partially populated.
+//!   This directory typically corresponds to `~/.local/share/arti`. For the
+//!   purposes of testing, it contains only `local/state-dir/keystore`.
+//! - `local/state-dir/keystore/hss/allium-cepa` is a partially populated keystore for the hidden service
+//!   `allium-cepa`. It includes a long-term identity key and an unregistered entry.
+//! - `local/state-dir/keystore/client/mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad/ks_hsc_desc_enc.x25519_private`
+//!   is a service discovery key for the hidden service `mnyi[..]tad.onion`.
+//! - `local/state-dir/keystore/unrecognized-path-dir/ks_hs_id.ed25519_expanded_private` is an
+//!   unrecognized path.
+//!
+//! Form more information about unrecognized entries and paths see
+//! [keys list documentation](../../../../doc/keys.md).
+// TODO: it would be desirable to have a deterministic script that generates the test files, like
+// the one that genearates the keys for `hsc ctor-migrate` (see `maint/keygen-client-auth-test`).
+// See issue #2334
 
 use crate::keys::util::{
     KeysListCmdBuilder, KeysListKeystoreCmdBuilder, LIST_OUTPUT_ARTI, LIST_OUTPUT_CTOR,

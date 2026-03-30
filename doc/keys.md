@@ -67,7 +67,7 @@ $ arti -c keys.toml keys list -k arti
  --------------------------------------------------------------------------------
 
  Keystore ID: arti
- Unrecognized path: herba-spontanea/ks_hs_id.ed25519_expanded_private
+ Unrecognized path: unrecognized-path-dir/ks_hs_id.ed25519_expanded_private
 
  --------------------------------------------------------------------------------
 
@@ -111,7 +111,7 @@ $ arti -c keys.toml keys list
  --------------------------------------------------------------------------------
 
  Keystore ID: arti
- Unrecognized path: herba-spontanea/ks_hs_id.ed25519_expanded_private
+ Unrecognized path: unrecognized-path-dir/ks_hs_id.ed25519_expanded_private
 
  --------------------------------------------------------------------------------
 

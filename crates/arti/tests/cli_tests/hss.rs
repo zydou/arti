@@ -40,8 +40,8 @@
 //! - `local/state-dir` is an example Arti state directory, partially populated.
 //!   This directory typically corresponds to `~/.local/share/arti`. For the
 //!   purposes of testing, it contains only `local/state-dir/keystore`.
-//! - `local/state-dir/hss/allium-cepa` is a partially populated keystore for the hidden service
-//!   `allium-cepa`. It includes a long-term identity key and several derived keys.
+//! - `local/state-dir/keystore/hss/allium-cepa` is a partially populated keystore for the hidden
+//!   service `allium-cepa`. It includes a long-term identity key and several derived keys.
 //!   For testing purposes, all derived keys may be empty files. Their presence ensures
 //!   they are correctly removed during migration.
 //! - `unrecognized-path` and `unrecognized-entry` are included to verify that

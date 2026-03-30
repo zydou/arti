@@ -23,8 +23,8 @@ const CLIENT_KEY: &str = " Keystore ID: arti
 /// An unrecognized entry of an `ArtiNativeKeystore`
 const UNRECOGNIZED_ENTRY: &str = " Unrecognized entry
  Keystore ID: arti
- Location: hss/allium-cepa/herba-spontanea
- Error: Key has invalid path: hss/allium-cepa/herba-spontanea
+ Location: hss/allium-cepa/unrecognized-entry
+ Error: Key has invalid path: hss/allium-cepa/unrecognized-entry
 ";
 
 /// The long term identity of an `ArtiNativeKeystore`
@@ -39,7 +39,7 @@ const ID_KEY: &str = " Keystore ID: arti
 
 /// An unrecognized path in an `ArtiNativeKeystore`
 const UNRECOGNIZED_PATH: &str =
-    " Unrecognized path herba-spontanea/ks_hs_id.ed25519_expanded_private";
+    " Unrecognized path unrecognized-path-dir/ks_hs_id.ed25519_expanded_private";
 
 /// The secret key of an `CTorServiceKeystore`
 const CTOR_SECRET: &str = "Keystore ID: ctor
@@ -67,8 +67,8 @@ const CTOR_HOSTNAME: &str = " Unrecognized entry
 /// An unrecognized entry in a `CTorServiceKeystore`
 const CTOR_UNRECOGNIZED_ENTRY: &str = " Unrecognized entry
  Keystore ID: ctor
- Location: hs_herba_spontanea
- Error: Key hs_herba_spontanea is malformed
+ Location: hs_unrecognized_entry
+ Error: Key hs_unrecognized_entry is malformed
 ";
 
 /// The output relative to all the keys present in the test `ArtiNativeKeystore`.
