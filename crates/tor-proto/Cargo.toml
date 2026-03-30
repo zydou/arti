@@ -113,7 +113,7 @@ polyval = { version = "0.7", optional = true }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.9.1"
 rand_core = "0.9.3"
-safelog = { path = "../safelog", version = "0.8.0" }
+safelog = { path = "../safelog", version = "0.8.1" }
 slotmap-careful = { path = "../slotmap-careful", version = "0.7.0" }
 smallvec = { version = "1.10", features = ["const_generics"] }
 static_assertions = "1"

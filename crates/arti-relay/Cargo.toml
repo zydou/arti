@@ -50,7 +50,7 @@ futures = "0.3.14"
 libc = "0.2"
 rand = "0.9.1"
 rustls = { version = "0.23.5", default-features = false, features = ["logging", "ring"] }
-safelog = { path = "../safelog", version = "0.8.0" }
+safelog = { path = "../safelog", version = "0.8.1" }
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
