@@ -14,6 +14,7 @@ use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublicParse1Helper};
 use crate::util::str::Extent;
 use crate::{NetdocErrorKind as EK, NormalItemArgument, Result};
 
+use tor_basic_utils::impl_debug_hex;
 use tor_checkable::{signed, timed};
 use tor_llcrypto::pk::rsa;
 use tor_llcrypto::{d, pk, pk::rsa::RsaIdentity};
@@ -486,9 +487,10 @@ pub struct CrossCert {
 /// # Specifications
 ///
 /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Deref)]
+#[derive(Clone, PartialEq, Eq, derive_more::Deref)]
 #[non_exhaustive]
 pub struct CrossCertObject(pub Vec<u8>);
+impl_debug_hex! { CrossCertObject . 0 }
 
 /// Signatures for [`AuthCert`]
 ///
