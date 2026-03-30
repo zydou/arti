@@ -18,7 +18,7 @@ set -euo pipefail
 
 # So instead, we sed its output.  Urgh.
 
-(TERM=dumb cargo sort --check --workspace || test $? = 1) 2>&1 | perl -ne '
+(TERM=dumb ${CARGO-cargo} sort --check --workspace || test $? = 1) 2>&1 | perl -ne '
 
     use Cwd;              # Load the Cwd module to get the current working directory
     use File::Basename;   # Load the File::Basename module to extract the top folder name
