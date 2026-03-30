@@ -45,6 +45,11 @@ all listed below.
   `from_get_body`. ([04e8874058966f45])
 - In `tor-keymgr`, replace `KeySpecifier::has_certificate`
   with usage of the new `CertSpecifier` macro. ([efa1e2540f9c23c5])
+- Throughout all crates,
+  all APIs that used to accept or return an `Instant`
+  now accept or return a `web_time::Instant`
+  when built on the `wasm32-unknown-unknown` target.
+  ([!3820])
 
 ### Relay development
 
