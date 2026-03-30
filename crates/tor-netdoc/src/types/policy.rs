@@ -26,6 +26,8 @@ use thiserror::Error;
 pub use addrpolicy::{AddrPolicy, AddrPortPattern};
 pub use portpolicy::PortPolicy;
 
+use crate::NormalItemArgument;
+
 /// Error from an unparsable or invalid policy.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -162,7 +164,9 @@ impl FromStr for PortRange {
 
 /// A kind of policy rule: either accepts or rejects addresses
 /// matching a pattern.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, derive_more::Display, derive_more::FromStr)]
+#[display(rename_all = "lowercase")]
+#[from_str(rename_all = "lowercase")]
 #[allow(clippy::exhaustive_enums)]
 pub enum RuleKind {
     /// A rule that accepts matching address:port combinations.
@@ -170,6 +174,8 @@ pub enum RuleKind {
     /// A rule that rejects matching address:port combinations.
     Reject,
 }
+
+impl NormalItemArgument for RuleKind {}
 
 #[cfg(test)]
 mod test {
