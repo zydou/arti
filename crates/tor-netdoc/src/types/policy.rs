@@ -19,14 +19,16 @@
 mod addrpolicy;
 mod portpolicy;
 
-use std::fmt::Display;
 use std::str::FromStr;
+use std::{collections::BTreeSet, fmt::Display};
 use thiserror::Error;
 
 pub use addrpolicy::{AddrPolicy, AddrPortPattern};
 pub use portpolicy::PortPolicy;
 
 use crate::NormalItemArgument;
+#[cfg(feature = "parse2")]
+use crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable};
 
 /// Error from an unparsable or invalid policy.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -159,6 +161,146 @@ impl FromStr for PortRange {
             (v, v)
         };
         PortRange::new(lo, hi).ok_or(PolicyError::InvalidRange)
+    }
+}
+
+impl NormalItemArgument for PortRange {}
+
+/// A collection of port ranges as an interval tree like structure.
+///
+/// Please use this when storing multiple port ranges because it optimizies
+/// them storage wise.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+struct PortRanges(Vec<PortRange>);
+
+impl PortRanges {
+    /// Creates a new [`PortRanges`] collection with no elements in it.
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Checks whether there are no ranges in this instance.
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Adds a new range into this [`PortRanges`].
+    fn push(&mut self, item: PortRange) -> Result<(), PolicyError> {
+        if let Some(prev) = self.0.last() {
+            // TODO SPEC: We don't enforce this in Tor, but we probably
+            // should.  See torspec#60.
+            if prev.hi >= item.lo {
+                return Err(PolicyError::InvalidPolicy);
+            } else if prev.hi == item.lo - 1 {
+                // We compress a-b,(b+1)-c into a-c.
+                let r = PortRange::new_unchecked(prev.lo, item.hi);
+                self.0.pop();
+                self.0.push(r);
+                return Ok(());
+            }
+        }
+
+        self.0.push(item);
+        Ok(())
+    }
+
+    /// Checks whether `port` is contained in a range.
+    ///
+    /// Whether this means if `port` is allowed or rejected depends on the
+    /// wrapping semantic.
+    fn contains(&self, port: u16) -> bool {
+        debug_assert!(self.0.is_sorted_by(|a, b| a.lo < b.lo));
+        self.0
+            .binary_search_by(|range| range.compare_to_port(port))
+            .is_ok()
+    }
+
+    /// Inverts a [`PortRanges`].
+    ///
+    /// For example, a [`PortRanges`] of `80-443` would become `1-79,444-65535`.
+    fn invert(&mut self) {
+        let mut prev_hi = 0;
+        let mut new_allowed = Vec::new();
+        for entry in &self.0 {
+            // ports prev_hi+1 through entry.lo-1 were rejected.  We should
+            // make them allowed.
+            if entry.lo > prev_hi + 1 {
+                new_allowed.push(PortRange::new_unchecked(prev_hi + 1, entry.lo - 1));
+            }
+            prev_hi = entry.hi;
+        }
+        if prev_hi < 65535 {
+            new_allowed.push(PortRange::new_unchecked(prev_hi + 1, 65535));
+        }
+        self.0 = new_allowed;
+    }
+
+    /// Returns an iterator for [`PortRanges`].
+    fn iter(&self) -> impl Iterator<Item = &PortRange> {
+        self.0.iter()
+    }
+}
+
+impl FromIterator<u16> for PortRanges {
+    fn from_iter<T: IntoIterator<Item = u16>>(iter: T) -> Self {
+        // Collect all ports into a BTreeSet to have them sorted and deduped.
+        let ports = iter.into_iter().collect::<BTreeSet<_>>();
+        let mut ports = ports.into_iter().peekable();
+
+        let mut out = Self::new();
+        let mut current_min = None;
+        while let Some(port) = ports.next() {
+            if current_min.is_none() {
+                current_min = Some(port);
+            }
+            if let Some(next_port) = ports.peek().copied() {
+                if next_port != port + 1 {
+                    let _ = out.push(PortRange::new_unchecked(
+                        current_min.expect("Don't have min port number"),
+                        port,
+                    ));
+                    current_min = None;
+                }
+            } else {
+                let _ = out.push(PortRange::new_unchecked(
+                    current_min.expect("Don't have min port number"),
+                    port,
+                ));
+            }
+        }
+
+        out
+    }
+}
+
+// There is deliberately no Display implementation for PortRanges because this
+// highly depends on the semantic wrapper around it.  For example, an empty
+// PortRanges may either be represented as `reject 1-65535` or `accept 1-65535`
+// depending on the context.
+
+impl FromStr for PortRanges {
+    type Err = PolicyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Pitfall: Do not use a clever iterator here because we need the result
+        // of .push() in order to avoid things such as `30-19`.
+        let mut ranges = Self::new();
+        for range in s.split(',') {
+            ranges.push(range.parse()?)?;
+        }
+        Ok(ranges)
+    }
+}
+
+#[cfg(feature = "parse2")]
+impl ItemArgumentParseable for PortRanges {
+    /// [`PortRanges`] argument parser which is odd because port ranges are
+    /// syntactically a single argument although semantically multiple ones.
+    fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError> {
+        args.next()
+            .map(Self::from_str)
+            .unwrap_or(Ok(Self::new()))
+            .map_err(|_| ArgumentError::Invalid)
     }
 }
 
