@@ -1,2 +1,0 @@
-REMOVED: BinaryHeapExt
-REMOVED: IoErrorExt
