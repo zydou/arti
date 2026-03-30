@@ -113,6 +113,8 @@ all listed below.
 - Fixed a bug in our chutney benchmark tests where we would use the wrong
   binary. ([!3758])
 - Revised testing infrastructure for `keymgr` code. ([!3761])
+- Clarifications, cleanups, and renamings in the sub-command
+  integration test suite. ([!3827])
 
 ### Documentation
 
@@ -171,7 +173,7 @@ all listed below.
 ### Acknowledgments
 
 Thanks to everybody who's contributed to this release, including
-HydroxideUnlaced, Nihal, and Tobias Stoeckmann.
+hjrgrn, HydroxideUnlaced, Nihal, and Tobias Stoeckmann.
 Also, our deep thanks to
 the [Bureau of Democracy, Human Rights, and Labor],
 and our [other sponsors]
