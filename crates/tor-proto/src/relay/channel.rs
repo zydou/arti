@@ -239,8 +239,7 @@ impl ChannelAuthenticationData {
     /// message we received with what we expect.
     pub(crate) fn as_body_no_rand<C: CertifiedConn>(&self, tls: &C) -> Result<Vec<u8>> {
         // The body without the rand and sig is exactly 264 bytes so optimize a bit memory.
-        const BODY_LEN: usize = 264;
-        let mut body = Vec::with_capacity(BODY_LEN);
+        let mut body = Vec::with_capacity(msg::Authenticate::BODY_LEN);
 
         // Obviously, ordering matteres. See tor-spec section Ed25519-SHA256-RFC5705
         body.extend_from_slice(Self::auth_type_bytes(self.link_auth)?);
