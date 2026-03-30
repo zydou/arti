@@ -19,3 +19,10 @@ tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.40" }
 tor-hsservice = { path = "../../crates/tor-hsservice", version = "0.40" }
 tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.40", features = ["rng-compat"] }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
+
+[features]
+full = [
+    "safelog/full",
+    "tor-basic-utils/full",
+    "tor-hsservice/full",
+    "tor-llcrypto/full"]
