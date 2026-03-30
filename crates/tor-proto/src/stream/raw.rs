@@ -66,9 +66,13 @@ impl StreamReceiver {
                 // The channel is indicating that it has terminated, likely from a dropped sender.
                 // But if we're here, it means we never received an END cell.
                 //
-                // This generally (exclusively?) means that the circuit was destroyed before the
-                // peer sent an END message.
-                return Err(Error::CircuitClosed);
+                // We don't know here if the sender was dropped because either:
+                // - The stream map dropped its open entry (see `StreamMap::terminate()`).
+                //   For example if `DataStream::close()` was called.
+                // - The circuit closed and the entire stream map was dropped.
+                //
+                // We only know conclusively that the stream is closed.
+                return Err(Error::NotConnected);
             }
             Poll::Pending => return Ok(Poll::Pending),
         };
