@@ -16,6 +16,8 @@ impl DirAuthKeyCertUnverified {
     /// # Security considerations
     ///
     /// The caller must check that the KP_auth_id is correct/relevant.
+    //
+    // TODO DIRAUTH move this to doc/authcert.rs and deduplicate the code.
     pub fn verify_selfcert(self, now: SystemTime) -> Result<DirAuthKeyCert, VF> {
         // verify main document signature (and timestamp)
         let hash = self

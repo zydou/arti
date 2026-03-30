@@ -593,7 +593,7 @@ impl StaticEngine {
                     return None;
                 }
 
-                let verified = unverified.verify_self_signed(
+                let verified = unverified.verify(
                     self.authorities.v3idents(),
                     self.tolerance.pre_valid_tolerance(),
                     self.tolerance.post_valid_tolerance(),
