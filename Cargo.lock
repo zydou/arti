@@ -2233,7 +2233,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "equix"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "arrayvec",
  "hashx",
@@ -2473,7 +2473,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "assert_matches",
  "derive_builder_fork_arti",
@@ -2572,7 +2572,7 @@ dependencies = [
 
 [[package]]
 name = "futures-copy"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "futures",
  "libc",
@@ -2848,7 +2848,7 @@ dependencies = [
 
 [[package]]
 name = "hashx"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "arrayvec",
  "blake2",
