@@ -67,8 +67,8 @@ const CTOR_HOSTNAME: &str = " Unrecognized entry
 /// An unrecognized entry in a `CTorServiceKeystore`
 const CTOR_UNRECOGNIZED_ENTRY: &str = " Unrecognized entry
  Keystore ID: ctor
- Location: unrecognized-entry
- Error: Key unrecognized-entry is malformed
+ Location: hs_unrecognized_entry
+ Error: Key hs_unrecognized_entry is malformed
 ";
 
 /// The output relative to all the keys present in the test `ArtiNativeKeystore`.

@@ -14,7 +14,7 @@
 //! │   ├── hostname
 //! │   ├── hs_ed25519_public_key
 //! │   ├── hs_ed25519_secret_key
-//! │   └── unrecognized-entry
+//! │   └── hs_unrecognized_entry
 //! └── state-dir
 //!     └── keystore
 //!         ├── client
