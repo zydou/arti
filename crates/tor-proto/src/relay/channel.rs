@@ -259,6 +259,10 @@ impl ChannelAuthenticationData {
         )?;
         body.extend_from_slice(tls_secrets.as_slice());
 
+        // Make sure our Authenticate cell is filled.
+        debug_assert_eq!(body.len(), msg::Authenticate::BODY_LEN);
+        debug_assert_eq!(body.capacity(), msg::Authenticate::BODY_LEN);
+
         Ok(body)
     }
 
