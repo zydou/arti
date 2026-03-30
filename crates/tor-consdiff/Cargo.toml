@@ -13,7 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-full = ["tor-llcrypto/full","tor-error/full","tor-netdoc/full"]
+full = ["tor-llcrypto/full", "tor-error/full", "tor-netdoc/full"]
 
 experimental = ["slow-diff-apply"]
 slow-diff-apply = ["__is_experimental"]

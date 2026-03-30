@@ -25,4 +25,5 @@ full = [
     "safelog/full",
     "tor-basic-utils/full",
     "tor-hsservice/full",
-    "tor-llcrypto/full"]
+    "tor-llcrypto/full",
+]
