@@ -23,7 +23,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 use thiserror::Error;
 
-pub use addrpolicy::{AddrPolicy, AddrPortPattern, RuleKind};
+pub use addrpolicy::{AddrPolicy, AddrPortPattern};
 pub use portpolicy::PortPolicy;
 
 /// Error from an unparsable or invalid policy.
@@ -158,6 +158,17 @@ impl FromStr for PortRange {
         };
         PortRange::new(lo, hi).ok_or(PolicyError::InvalidRange)
     }
+}
+
+/// A kind of policy rule: either accepts or rejects addresses
+/// matching a pattern.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[allow(clippy::exhaustive_enums)]
+pub enum RuleKind {
+    /// A rule that accepts matching address:port combinations.
+    Accept,
+    /// A rule that rejects matching address:port combinations.
+    Reject,
 }
 
 #[cfg(test)]
