@@ -407,4 +407,58 @@ mod test {
         chk(10, 20, "10-20");
         chk(20, 20, "20");
     }
+
+    #[test]
+    fn port_ranges() {
+        const INPUT: &str = "22,80,443,8000-9000,9002";
+        let ranges = PortRanges::from_str(INPUT).unwrap();
+        assert_eq!(
+            ranges.0,
+            [
+                PortRange::new(22, 22).unwrap(),
+                PortRange::new(80, 80).unwrap(),
+                PortRange::new(443, 443).unwrap(),
+                PortRange::new(8000, 9000).unwrap(),
+                PortRange::new(9002, 9002).unwrap(),
+            ]
+        );
+        assert!(ranges.contains(22));
+        assert!(ranges.contains(80));
+        assert!(ranges.contains(443));
+        assert!(ranges.contains(8000));
+        assert!(ranges.contains(8500));
+        assert!(ranges.contains(9000));
+        assert!(!ranges.contains(9001));
+        assert!(ranges.contains(9002));
+
+        let mut ranges_inverse = ranges.clone();
+        ranges_inverse.invert();
+        assert_eq!(
+            ranges_inverse.0,
+            [
+                PortRange::new(1, 21).unwrap(),
+                PortRange::new(23, 79).unwrap(),
+                PortRange::new(81, 442).unwrap(),
+                PortRange::new(444, 7999).unwrap(),
+                PortRange::new(9001, 9001).unwrap(),
+                PortRange::new(9003, 65535).unwrap(),
+            ]
+        );
+
+        #[cfg(feature = "parse2")]
+        {
+            use crate::parse2::{self, ParseInput};
+
+            #[derive(derive_deftly::Deftly)]
+            #[derive_deftly(NetdocParseable)]
+            struct Dummy {
+                #[deftly(netdoc(single_arg))]
+                dummy: PortRanges,
+            }
+            let ranges2 =
+                parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {INPUT}\n"), ""))
+                    .unwrap();
+            assert_eq!(ranges, ranges2.dummy);
+        }
+    }
 }

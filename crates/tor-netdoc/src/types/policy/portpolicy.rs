@@ -183,7 +183,16 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use itertools::Itertools;
 
+    use crate::parse2::{self, ParseInput};
+
     use super::*;
+
+    #[cfg(feature = "parse2")]
+    #[derive(derive_deftly::Deftly)]
+    #[derive_deftly(NetdocParseable)]
+    struct Dummy {
+        dummy: PortPolicy,
+    }
 
     #[test]
     fn test_roundtrip() {
@@ -195,6 +204,19 @@ mod test {
             }
             for p in deny {
                 assert!(!policy.allows_port(*p));
+            }
+            #[cfg(feature = "parse2")]
+            {
+                let policy2 =
+                    parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {inp}"), ""))
+                        .unwrap()
+                        .dummy;
+                for p in allow {
+                    assert!(policy2.allows_port(*p));
+                }
+                for p in deny {
+                    assert!(!policy2.allows_port(*p));
+                }
             }
         }
 
@@ -234,6 +256,9 @@ mod test {
             "accept",
             "reject",
             "accept x-y",
+            "accept ",
+            "reject ",
+            "ignore ",
             "accept 1-20,19-30",
             "accept 1-20,20-30",
             "reject 1,1,1,1",
@@ -241,6 +266,13 @@ mod test {
             "reject 5,4,3,2",
         ] {
             assert!(s.parse::<PortPolicy>().is_err());
+            #[cfg(feature = "parse2")]
+            {
+                assert!(
+                    parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {s}"), ""))
+                        .is_err()
+                );
+            }
         }
     }
 
