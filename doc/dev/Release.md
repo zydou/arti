@@ -65,6 +65,10 @@ to make sure we aren't going to break our users.
    cargo run -p fixup-features -- --exclude examples/ --exclude maint/ Cargo.toml
    ```
 
+   If `fixup-features` makes changes, it tends to leave the `Cargo.toml`s
+   improperly formatted and/or sorted.
+   You'll probably need to run `cargo sort` too; see `maint/cargo-sort`.
+
 5. [ ] Does `maint/semver-checks "arti-v$LAST_VERSION" | tee ../semver.log` find any issues
    not noted in our semver.md files?
    If so, add them.
