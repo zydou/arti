@@ -78,7 +78,7 @@ all listed below.
   ([#2410], [!3794])
 - Improved the ergonomics for various relay-visible logs. ([!3776], [!3803],
   [!3806], [!3807])
-- Enable the creation of relay circuits upon receiving CREATE2 or CREATE_FAST
+- API preparation for handling CREATE2 and CREATE_FAST
   cells. ([!3809])
 - Backend logic for consensus diff generation, based on the [`imara-diff`]
   crate. ([!3712], [!3815])
