@@ -22,7 +22,7 @@ use crate::{Error, HopNum, Result};
 
 use postage::watch;
 use safelog::sensitive as sv;
-use tracing::{trace, warn};
+use tracing::{debug, trace};
 
 use tor_cell::chancell::BoxedCellBody;
 use tor_cell::relaycell::extend::{CcRequest, CircRequestExt};
@@ -562,15 +562,21 @@ impl CircHopOutbound {
     ) -> Result<()> {
         let mut hop_map = self.map.lock().expect("lock poisoned");
         let Some(StreamEntMut::Open(ent)) = hop_map.get_mut(stream_id) else {
-            warn!(
+            // This can happen when we have outgoing data queued when we received an END.
+            // We shouldn't return an error here since it would close the circuit along with all
+            // other streams, and instead we just let the caller send this message anyways.
+            // Also the caller only calls `about_to_send()` for DATA cells,
+            // which means that other non-DATA cells don't hit this code path and are always sent,
+            // and so we should handle all cell types consistently.
+            // TODO: We should drop the message and not send it,
+            // but the caller of `about_to_send()` isn't designed to handle fallible sends
+            // so it would need some refactoring to handle this.
+            debug!(
                 circ_id = %circ_id,
                 stream_id = %stream_id,
                 "sending a relay cell for non-existent or non-open stream!",
             );
-            return Err(Error::CircProto(format!(
-                "tried to send a relay cell on non-open stream {}",
-                sv(stream_id),
-            )));
+            return Ok(());
         };
 
         ent.about_to_send(msg)
