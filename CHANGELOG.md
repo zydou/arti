@@ -3,9 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 2.2.0 — 31 March 2026
-
-DONE up through 7a7401b0ddb159bcbc949b2d873ad5c931edd12d
+# Arti 2.2.0 — 30 March 2026
 
 Arti 2.2.0 continues our work on relay development,
 and brings us even closer to a working middle relay.
