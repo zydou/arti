@@ -299,6 +299,8 @@ before you continue!
 
 ## Post-release
 
+### ASAP
+
 1. [ ] Remove all of the semver.md files:
    `git rm crates/*/semver.md`.
 
@@ -310,7 +312,14 @@ before you continue!
 2. [ ] Tell `network-team` (via email and IRC) that the tree is open
    for new MRs to be merged!
 
-3. [ ] Write and publish a blog post.
+3. [ ] Run `cargo update`, to obtain non-breaking changes in our dependencies
+
+   Check for non-breaking changes to our dependencies with
+   `cargo update`.
+   This will replace each of our dependencies in Cargo.lock
+   with the latest version.
+
+### Soon
 
 4. [ ] If new crates published, add appropriate owners.
 
@@ -321,12 +330,9 @@ before you continue!
    You can then use `cargo owner --add <username> <crate-name>`
    to add them as owners for the new crates.
 
-5. [ ] Run `cargo update`, to obtain non-breaking changes in our dependencies
+5. [ ] Write and publish a blog post.
 
-   Check for non-breaking changes to our dependencies with
-   `cargo update`.
-   This will replace each of our dependencies in Cargo.lock
-   with the latest version.
+### In due course
 
 6. [ ] Consider dependency updates for breaking changes in our dependencies.
 
