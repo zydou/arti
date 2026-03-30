@@ -618,6 +618,7 @@ fn report_proxy_error(e: anyhow::Error) {
     // to discard or restrict our anyhow usage.
     match extract_proto_err(e.as_ref()) {
         Some(PE::CircuitClosed) => debug!("Connection exited with circuit close"),
+        Some(PE::NotConnected) => debug!("Connection exited with stream not connected"),
         // TODO: warn_report doesn't work on anyhow::Error.
         _ => warn!("connection exited with error: {}", tor_error::Report(e)),
     }
