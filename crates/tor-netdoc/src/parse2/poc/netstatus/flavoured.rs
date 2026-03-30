@@ -326,7 +326,7 @@ ns_choose! { (
         /// # Security considerations
         ///
         /// The caller should use `NetworkStatus::h_kp_auth_id_rsa`
-        /// to find out which voters vote this is.
+        /// to find out which voter's vote this is.
         pub fn verify_selfcert(
             self,
             now: SystemTime,
