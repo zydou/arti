@@ -1389,8 +1389,7 @@ impl State {
     #[allow(clippy::redundant_closure_call)] // We have IEFEs for good reasons
     fn prepare_parent_aid(&mut self, parent: &Account) -> crate::Result<AId> {
         let Enabled(parent, _enabled) = &parent.0 else {
-            // XXX this error is now inaccurate
-            return Err(internal!("used no-op Account as parent for enabled new_account").into());
+            return Err(internal!("used no-op Account as parent for enabled account").into());
         };
 
         let parent_aid = *parent.aid;
