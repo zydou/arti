@@ -13,7 +13,14 @@ categories = ["rust-patterns"]
 
 [features]
 default = ["backtrace", "futures"]
-full = ["backtrace", "futures", "tracing", "http", "retry-error/full"]
+full = [
+    "backtrace",
+    "futures",
+    "tracing",
+    "http",
+    "retry-error/full",
+    "web-time-compat/full",
+]
 
 experimental = ["experimental-api", "rpc"]
 experimental-api = ["rpc", "__is_experimental"]

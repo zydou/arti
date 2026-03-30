@@ -69,6 +69,7 @@ full = [
     "futures-copy/full",
     "tor-general-addr/full",
     "tor-log-ratelim/full",
+    "web-time-compat/full",
 ]
 
 async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "async-signal"]

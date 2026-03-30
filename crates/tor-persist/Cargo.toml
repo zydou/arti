@@ -25,6 +25,7 @@ full = [
     "tor-basic-utils/full",
     "tor-async-utils/full",
     "oneshot-fused-workaround/full",
+    "web-time-compat/full",
 ]
 
 experimental = ["state-dir", "testing"]

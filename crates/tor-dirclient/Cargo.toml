@@ -38,6 +38,7 @@ full = [
     "tor-netdoc/full",
     "tor-proto/full",
     "tor-rtcompat/full",
+    "web-time-compat/full",
 ]
 experimental = []
 

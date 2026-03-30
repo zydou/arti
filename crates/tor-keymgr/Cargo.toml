@@ -28,6 +28,7 @@ full = [
     "tor-config-path/full",
     "tor-bytes/full",
     "safelog/full",
+    "web-time-compat/full",
 ]
 
 # Enable experimental APIs that are not yet officially supported.

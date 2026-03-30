@@ -30,6 +30,7 @@ full = [
     "oneshot-fused-workaround/full",
     "tor-config-path/full",
     "tor-proto/full",
+    "web-time-compat/full",
 ]
 
 experimental = ["experimental-api"]

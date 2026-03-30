@@ -34,6 +34,7 @@ full = [
     "oneshot-fused-workaround/full",
     "tor-memquota/full",
     "caret/full",
+    "web-time-compat/full",
 ]
 
 pt-client = ["tor-linkspec/pt-client", "tor-proto/pt-client"]

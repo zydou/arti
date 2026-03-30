@@ -32,6 +32,7 @@ full = [
     "tor-protover/full",
     "tor-units?/full",
     "tor-cell/full",
+    "web-time-compat/full",
 ]
 experimental = [
     "build_docs",

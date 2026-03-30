@@ -35,6 +35,7 @@ full = [
     "equix?/full",
     "tor-memquota?/full",
     "tor-key-forge/full",
+    "web-time-compat/full",
 ]
 
 experimental = ["hs-pow-full"]

@@ -44,6 +44,7 @@ full = [
     "caret/full",
     "tor-protover/full",
     "tor-relay-crypto/full",
+    "web-time-compat/full",
 ]
 
 experimental = [

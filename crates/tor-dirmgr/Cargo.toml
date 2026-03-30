@@ -41,6 +41,7 @@ full = [
     "oneshot-fused-workaround/full",
     "tor-protover/full",
     "tor-dircommon/full",
+    "web-time-compat/full",
 ]
 experimental = ["experimental-api", "dirfilter", "geoip"]
 bridge-client = ["tor-circmgr/specific-relay", "tor-guardmgr/bridge-client", "routerdesc"]

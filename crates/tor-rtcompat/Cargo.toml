@@ -25,6 +25,7 @@ full = [
     "tor-error/full",
     "tor-general-addr/full",
     "tor-cert-x509?/full",
+    "web-time-compat/full",
 ]
 
 experimental = ["smol"]
