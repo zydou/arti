@@ -49,20 +49,12 @@ to make sure we aren't going to break our users.
    If it's failing, is is it failing for the reasons we anticipated,
    or have new failures crept in?
 
-3. [ ] Look at the current list of exceptions in our automated tooling.
-
-   Are they still relevant?
-   (There are exceptions in
-   `maint/cargo-audit`
-   and
-   `maint/check-licenses`.)
-
-4. [ ] Do we have any open [issues] or [merge requests] tagged "Blocker"?
+3. [ ] Do we have any open [issues] or [merge requests] tagged "Blocker"?
 
 [issues]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Blocker
 [merge requests]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/?label_name[]=Blocker
 
-5. [ ] Ensure `maint/fixup-features` is happy
+4. [ ] Ensure `maint/fixup-features` is happy
 
    Does `maint/fixup-features` produce any results?
    If so, fix them.
@@ -73,7 +65,7 @@ to make sure we aren't going to break our users.
    cargo run -p fixup-features -- --exclude examples/ --exclude maint/ Cargo.toml
    ```
 
-6. [ ] Does `maint/semver-checks "arti-v$LAST_VERSION" | tee ../semver.log` find any issues
+5. [ ] Does `maint/semver-checks "arti-v$LAST_VERSION" | tee ../semver.log` find any issues
    not noted in our semver.md files?
    If so, add them.
 
@@ -369,6 +361,14 @@ before you continue!
 
    Note that some images may intentionally specify older versions,
    such as our `minimal-versions` test which is currently used to test our MSRV as well.
+
+8. [ ] Look at the current list of exceptions in our automated tooling.
+
+   Are they still relevant?
+   (There are exceptions in
+   `maint/cargo-audit`
+   and
+   `maint/check-licenses`.)
 
 8. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
 
