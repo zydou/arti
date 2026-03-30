@@ -26,7 +26,7 @@ use arti_client::TorClient;
 #[cfg(feature = "rpc")]
 use arti_rpcserver::RpcMgr;
 use tor_config::Listen;
-use tor_error::warn_report;
+use tor_error::{debug_report, warn_report};
 use tor_rtcompat::{NetStreamListener, Runtime};
 use tor_socksproto::SocksAuth;
 
@@ -617,9 +617,10 @@ fn report_proxy_error(e: anyhow::Error) {
     // TODO: Maybe we should look at io::ErrorKind as well, if it's there.  That's another reason
     // to discard or restrict our anyhow usage.
     match extract_proto_err(e.as_ref()) {
-        Some(PE::CircuitClosed) => debug!("Connection exited with circuit close"),
-        Some(PE::NotConnected) => debug!("Connection exited with stream not connected"),
-        // TODO: warn_report doesn't work on anyhow::Error.
-        _ => warn!("connection exited with error: {}", tor_error::Report(e)),
+        Some(e @ PE::CircuitClosed) => debug_report!(e, "Connection exited"),
+        // We can't use `debug_report!` here because `NotConnected`s error kind is `BadApiUsage`,
+        // which upgrades this to a warning.
+        Some(e @ PE::NotConnected) => debug!(error = (e as &dyn std::error::Error), "Connection exited"),
+        _ => warn_report!(e, "Connection exited"),
     }
 }
