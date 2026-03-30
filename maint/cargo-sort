@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #
 # Run "cargo sort" to check that the Cargo.tomls are sorted
+#
+# To fix failures from this script,
+#   * run `cargo sort` (not this script)
+#   * restore `Cargo.toml` (toplevel) and `crates/arti/Cargo.toml` from git
+#   * commit the rest
 
 set -euo pipefail
 
