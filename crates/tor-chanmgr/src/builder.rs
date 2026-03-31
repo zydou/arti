@@ -341,10 +341,9 @@ where
             event_sender.lock().expect("Lock poisoned").record_attempt();
         }
 
-        // Before actually doing the connect, we need to validate the channel target for the relay
-        // case. There are restrictions we need to apply.
-        #[cfg(feature = "relay")]
-        self.validate_relay_target(target)?;
+        // Before actually doing the connect, we need to validate the channel target based on this
+        // build outbound channel type. There are restrictions we need to apply.
+        self.validate_target(target)?;
 
         // 1a. Negotiate the TCP connection or other stream.
 
@@ -444,12 +443,13 @@ where
         Ok(chan)
     }
 
-    /// Validate the given target as in if it is fine to connect to it.
-    ///
-    /// We avoid building channels to ourselves as a relay.
+    /// Validate the given `target` as we (a relay) are attempting to connect to another relay.
     #[cfg(feature = "relay")]
-    fn validate_relay_target(&self, target: &OwnedChanTarget) -> crate::Result<()> {
-        use tor_linkspec::{HasAddrs, HasRelayIds};
+    fn validate_target_as_relay<CT>(&self, target: &CT) -> crate::Result<()>
+    where
+        CT: ChanTarget,
+    {
+        use tor_linkspec::HasRelayIds;
 
         // Make sure we don't attempt to use a PT method for this relay channel.
         if !target.chan_method().is_direct() {
@@ -460,57 +460,80 @@ where
             )));
         }
 
-        // Make sure no target address is ourself.
-        for addr in target.addrs() {
-            if self.my_addrs.contains(&addr.ip()) {
-                return Err(Error::Proto {
-                    source: tor_proto::Error::ChanProto("Target address is ours".into()),
-                    peer: target.clone().into(),
-                    clock_skew: None,
-                });
-            }
-        }
-
-        // Make sure that each address has a valid port.
-        if !target.has_all_nonzero_port() {
-            return Err(Error::Proto {
-                source: tor_proto::Error::ChanProto("Target address port is invalid".into()),
-                peer: target.clone().into(),
-                clock_skew: None,
-            });
-        }
-
-        // Make sure that all addresses are globally reachable. We need to avoid a relay attempting
-        // to connect to a local/private network for security reasons as a it could lead to network
+        // Make sure that all addresses are allowed for an EXTEND. For instance, connecting to a
+        // local/private network for security reasons as a it could lead to network
         // scanning by measuring latency between successful connect() and failures.
         //
         // If no addresses, it returns true and thus no error.
         if !target.all_addrs_allowed_for_extend() {
             return Err(Error::Proto {
                 source: tor_proto::Error::ChanProto("Target address is invalid".into()),
-                peer: target.clone().into(),
+                peer: target.to_owned().into(),
                 clock_skew: None,
             });
         }
 
-        // Client with the relay feature won't have auth material. A relay without it is not
-        // possible but even if it was, it won't be able to build a channel to itself as a relay
-        // channel. Hence, returning Ok(()) here is fine as without auth material ourself, we can
-        // connect wherever.
+        // Connecting to a relay as a relay without key material will fail. This should never
+        // happen hence the internal error.
         let Some(auth_material) = &self.auth_material else {
-            return Ok(());
+            return Err(Error::Internal(tor_error::bad_api_usage!(
+                "Relay initiating a channel without key auth material"
+            )));
         };
+
         // Any of our identities match the given target, we are connecting to ourselves, refuse.
         if auth_material.has_any_relay_id_from(target) {
             Err(Error::Proto {
-                source: tor_proto::Error::ChanProto(
-                    "Refusing to build channel to ourselves".into(),
-                ),
-                peer: target.clone().into(),
+                source: tor_proto::Error::ChanProto("Refusing to build channel to ourself".into()),
+                peer: target.to_owned().into(),
                 clock_skew: None,
             })
         } else {
             Ok(())
+        }
+    }
+
+    /// Validate the given target as in if it is fine to connect to it.
+    ///
+    ///There are several rules to follow based on the channel outbound type.
+    fn validate_target<CT>(&self, target: &CT) -> crate::Result<()>
+    where
+        CT: ChanTarget,
+    {
+        // Make sure that each address has a valid port.
+        if !target.has_all_nonzero_port() {
+            return Err(Error::Proto {
+                source: tor_proto::Error::ChanProto("Target address port is invalid".into()),
+                peer: target.to_owned().into(),
+                clock_skew: None,
+            });
+        }
+
+        // Make sure no target address is ourself including the port. A relay is allowed to connect
+        // to its IP address but on a different port. We also want to avoid a client bridge to
+        // connect back to itself.
+        #[cfg(feature = "relay")]
+        for addr in target.addrs() {
+            if self.my_addrs.contains(&addr.ip()) {
+                return Err(Error::Proto {
+                    source: tor_proto::Error::ChanProto("Target address is ours".into()),
+                    peer: target.to_owned().into(),
+                    clock_skew: None,
+                });
+            }
+        }
+
+        let chan_type = self.outbound_chan_type();
+        match chan_type {
+            // This is a client connecting to a relay.
+            ChannelType::ClientInitiator => Ok(()),
+            // This is a relay connecting to a relay.
+            #[cfg(feature = "relay")]
+            ChannelType::RelayInitiator => self.validate_target_as_relay(target),
+            // ChannelType is non_exhaustive but also we only cover outbound channels.
+            _ => Err(Error::UnusableTarget(tor_error::bad_api_usage!(
+                "Channel type can't be used as a target: {chan_type}"
+            ))),
         }
     }
 
