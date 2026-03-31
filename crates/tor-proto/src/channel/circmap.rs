@@ -47,6 +47,14 @@ impl CircIdRange {
             Self::High => MIDPOINT..=u32::MAX,
         }
     }
+
+    /// Is this circuit ID allowed to be allocated by the channel's peer?
+    pub(crate) fn is_allowed_by_peer(&self, id: CircId) -> bool {
+        // If our range does not contain it, then it is allowed.
+        // Note that a `CircId` never contains a value of zero,
+        // so no need to consider it here.
+        !self.integer_range().contains(&id.into())
+    }
 }
 
 impl rand::distr::Distribution<CircId> for CircIdRange {
