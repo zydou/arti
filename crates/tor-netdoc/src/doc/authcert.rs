@@ -447,7 +447,7 @@ impl AuthCert {
 /// As `CrossCert` does not sign a full document, it implements only
 /// `ItemValueParseable`, instead.
 ///
-/// Verification of this signature is done in `AuthCertUnverified::verify_self_signed`,
+/// Verification of this signature is done in `AuthCertUnverified::verify`,
 /// and during parsing by the old parser.
 /// So a `CrossCert` in [`AuthCert::dir_key_crosscert`] in a bare `AuthCert` has been validated.
 //
@@ -579,7 +579,7 @@ impl AuthCertUnverified {
     ///
     /// TODO: Consider whether to try to deduplicate this signature checking
     /// somehow, wrt to [`UncheckedAuthCert`].
-    pub fn verify_self_signed(
+    pub fn verify(
         self,
         v3idents: &[RsaIdentity],
         pre_tolerance: Duration,
@@ -899,7 +899,7 @@ mod test {
 
             // Test a valid signature.
             res.clone()
-                .verify_self_signed(
+                .verify(
                     &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
                     Duration::ZERO,
                     Duration::ZERO,
@@ -912,7 +912,7 @@ mod test {
             // Test with an invalid authority.
             assert_eq!(
                 res.clone()
-                    .verify_self_signed(
+                    .verify(
                         &[],
                         Duration::ZERO,
                         Duration::ZERO,
@@ -927,7 +927,7 @@ mod test {
             // Test a key too far in the future.
             assert_eq!(
                 res.clone()
-                    .verify_self_signed(
+                    .verify(
                         &[
                             RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
                                 .unwrap()
@@ -942,7 +942,7 @@ mod test {
 
             // Test an almost too new.
             res.clone()
-                .verify_self_signed(
+                .verify(
                     &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
                     Duration::ZERO,
                     Duration::ZERO,
@@ -955,7 +955,7 @@ mod test {
             // Now fail when we are 1s below ...
             assert_eq!(
                 res.clone()
-                    .verify_self_signed(
+                    .verify(
                         &[
                             RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
                                 .unwrap()
@@ -972,7 +972,7 @@ mod test {
 
             // ... but succeed again with a clock skew tolerance.
             res.clone()
-                .verify_self_signed(
+                .verify(
                     &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
                     Duration::from_secs(1),
                     Duration::ZERO,
@@ -985,7 +985,7 @@ mod test {
             // Test a key too old.
             assert_eq!(
                 res.clone()
-                    .verify_self_signed(
+                    .verify(
                         &[
                             RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
                                 .unwrap()
@@ -1002,7 +1002,7 @@ mod test {
 
             // Test an almost too old.
             res.clone()
-                .verify_self_signed(
+                .verify(
                     &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
                     Duration::ZERO,
                     Duration::ZERO,
@@ -1015,7 +1015,7 @@ mod test {
             // Now fail when we are 1s above ...
             assert_eq!(
                 res.clone()
-                    .verify_self_signed(
+                    .verify(
                         &[
                             RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
                                 .unwrap()
@@ -1032,7 +1032,7 @@ mod test {
 
             // ... but succeed again with a clock skew tolerance.
             res.clone()
-                .verify_self_signed(
+                .verify(
                     &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
                     Duration::ZERO,
                     Duration::from_secs(1),
@@ -1049,7 +1049,7 @@ mod test {
             ))
             .unwrap();
             assert_eq!(
-                res.verify_self_signed(
+                res.verify(
                     &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
                     Duration::ZERO,
                     Duration::ZERO,
@@ -1068,7 +1068,7 @@ mod test {
             ))
             .unwrap();
             assert_eq!(
-                res.verify_self_signed(
+                res.verify(
                     &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
                     Duration::ZERO,
                     Duration::ZERO,
@@ -1087,7 +1087,7 @@ mod test {
             ))
             .unwrap();
             assert_eq!(
-                res.verify_self_signed(
+                res.verify(
                     &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
                     Duration::ZERO,
                     Duration::ZERO,

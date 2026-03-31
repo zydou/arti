@@ -62,11 +62,11 @@ impl<'a> NetdocBuilder for HsDescOuter<'a> {
 
         encoder
             .item(DESCRIPTOR_SIGNING_KEY_CERT)
-            .object("ED25519 CERT", hs_desc_sign_cert.as_ref());
+            .object_bytes("ED25519 CERT", hs_desc_sign_cert.as_ref());
         encoder.item(REVISION_COUNTER).arg(&*revision_counter);
         encoder
             .item(SUPERENCRYPTED)
-            .object("MESSAGE", superencrypted);
+            .object_bytes("MESSAGE", superencrypted);
         let end = encoder.cursor();
 
         let mut text = HS_DESC_SIGNATURE_PREFIX.to_vec();
