@@ -334,6 +334,10 @@ before you continue!
 
 ### In due course
 
+   `cargo update` is *supposed* to always work, but sometimes our
+   dependencies get things wrong.  In that case, adding a dependency
+   to `maint/dependencies-bodge/` can help.
+
 6. [ ] Consider dependency updates for breaking changes in our dependencies.
 
    Check for breaking changes to our dependencies with
@@ -374,11 +378,10 @@ before you continue!
 
 8. [ ] Look at the current list of exceptions in our automated tooling.
 
-   Are they still relevant?
-   (There are exceptions in
-   `maint/cargo-audit`
-   and
-   `maint/check-licenses`.)
+   Are they still relevant? There are exceptions in:
+    * `maint/cargo-audit`
+    * `maint/check-licenses`
+    * `maint/dependencies-bodge/Cargo.toml`
 
 8. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
 

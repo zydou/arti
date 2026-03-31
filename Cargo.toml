@@ -82,6 +82,7 @@ members = [
     "maint/fixup-features",
     "maint/keygen-client-auth-test",
     "maint/keygen-openssh-test",
+    "maint/dependencies-bodge",
 
     "examples/gsoc2023/connection-checker",
     "examples/gsoc2023/dns-resolver",
