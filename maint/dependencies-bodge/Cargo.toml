@@ -17,3 +17,5 @@ description = "Fake crate to influence cargo dependency selection"
 # This tends to work because cargo likes to use a single version where it can.
 
 [dependencies]
+# TODO #2387 encourage cargo to select a version of security-framework which builds for us
+security-framework = "~3.6.0"
