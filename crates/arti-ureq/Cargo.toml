@@ -25,7 +25,7 @@ tor-rtcompat = { path = "../tor-rtcompat", default-features = false, version = "
 # we will only get patchlevel updates.
 #
 # See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2724#note_3162496
-ureq = { version = "~3.2.0", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
+ureq = { version = "~3.3.0", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
 
 [dev-dependencies]
 serde_json = "1.0.104"
