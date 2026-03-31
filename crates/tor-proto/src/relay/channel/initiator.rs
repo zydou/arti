@@ -24,7 +24,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, St
 use crate::{
     ClockSkew, RelayChannelAuthMaterial, Result,
     channel::{
-        AuthLogDigest, Channel, ChannelMode, Reactor,
+        Channel, ChannelMode, Reactor, SlogDigest,
         circmap::CircIdRange,
         handshake::{UnverifiedInitiatorChannel, VerifiedChannel},
     },
@@ -46,7 +46,7 @@ pub struct UnverifiedInitiatorRelayChannel<
     /// AUTH_CHALLENGE cell received from the responder.
     pub(crate) auth_challenge_cell: msg::AuthChallenge,
     /// The SLOG digest.
-    pub(crate) slog_digest: AuthLogDigest,
+    pub(crate) slog_digest: SlogDigest,
     /// The netinfo cell received from the responder.
     pub(crate) netinfo_cell: msg::Netinfo,
     /// Our channel key material needed for authentication.
@@ -131,7 +131,7 @@ pub struct VerifiedInitiatorRelayChannel<
     /// The peer TLS certificate digest.
     peer_tls_cert_digest: [u8; 32],
     /// The SLOG digest.
-    slog_digest: AuthLogDigest,
+    slog_digest: SlogDigest,
     /// Our advertised IP addresses.
     my_addrs: Vec<IpAddr>,
     /// Provided to each new channel so that they can handle CREATE* requests.

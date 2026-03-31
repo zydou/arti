@@ -19,7 +19,7 @@ use crate::channel::handshake::{
     AuthLogAction, ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel,
     UnverifiedInitiatorChannel, read_msg, unauthenticated_clock_skew,
 };
-use crate::channel::{AuthLogDigest, ChannelFrame, ChannelType, UniqId, new_frame};
+use crate::channel::{ChannelFrame, ChannelType, ClogDigest, SlogDigest, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::peer::PeerAddr;
 use crate::relay::CreateRequestHandler;
@@ -328,7 +328,7 @@ impl<
     async fn recv_cells_from_initiator(
         &mut self,
     ) -> Result<(
-        Option<(msg::Certs, msg::Authenticate, AuthLogDigest /* CLOG */)>,
+        Option<(msg::Certs, msg::Authenticate, ClogDigest)>,
         (msg::Netinfo, coarsetime::Instant),
     )> {
         // IMPORTANT: Protocol wise, we MUST only allow one single cell of each type for a valid
@@ -364,7 +364,11 @@ impl<
             };
 
             // We're the responder, which means that the recv log is the CLOG.
-            let clog_digest = self.framed_tls().codec_mut().take_recv_log_digest()?;
+            let clog_digest = self
+                .framed_tls()
+                .codec_mut()
+                .take_recv_log_digest()?
+                .into_responder();
 
             // AUTHENTICATE cell.
             let auth = loop {
@@ -408,7 +412,7 @@ impl<
     ///
     /// Return the SLOG (send log) digest to be later used when verifying the initiator's
     /// AUTHENTICATE cell.
-    async fn send_cells_to_initiator(&mut self) -> Result<AuthLogDigest> {
+    async fn send_cells_to_initiator(&mut self) -> Result<SlogDigest> {
         // Send the CERTS message.
         let certs = build_certs_cell(&self.auth_material, /* is_responder */ true);
         trace!(channel_id = %self.unique_id, "Sending CERTS as responder cell.");
@@ -421,7 +425,11 @@ impl<
         self.framed_tls.send(auth_challenge.into()).await?;
 
         // We're the responder, which means that the send log is the SLOG.
-        let slog_digest = self.framed_tls.codec_mut().take_send_log_digest()?;
+        let slog_digest = self
+            .framed_tls
+            .codec_mut()
+            .take_send_log_digest()?
+            .into_responder();
 
         // Send the NETINFO message.
         let peer_ip = self.peer_addr.netinfo_addr();

@@ -17,8 +17,37 @@ use crate::{channel::msg::LinkVersion, util::err::Error as ChanError};
 
 use super::{ChannelType, msg::MessageFilter};
 
-/// An authentication rolling digest value.
-pub(crate) type AuthLogDigest = [u8; 32];
+/// The rolling digest for the bytes sent on a channel. (Received by the responder).
+#[derive(Debug, PartialEq)]
+pub(crate) struct ClogDigest([u8; 32]);
+/// The rolling digest for the bytes received on a channel. (Sent by the responder).
+#[derive(Debug, PartialEq)]
+pub(crate) struct SlogDigest([u8; 32]);
+
+impl ClogDigest {
+    /// A CLOG digest, as a relay responder, is the SLOG in the handshake.
+    pub(crate) fn into_responder(self) -> SlogDigest {
+        SlogDigest(self.0)
+    }
+}
+
+impl SlogDigest {
+    /// A SLOG digest, as a relay responder, is the CLOG in the handshake.
+    pub(crate) fn into_responder(self) -> ClogDigest {
+        ClogDigest(self.0)
+    }
+}
+
+impl AsRef<[u8]> for ClogDigest {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+impl AsRef<[u8]> for SlogDigest {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
 
 /// Channel cell handler which is always in three state.
 ///
@@ -106,7 +135,7 @@ impl ChannelCellHandler {
     /// - The channel is not recording the send log.
     /// - The send log digest has already been taken.
     /// - This cell handler is not using a handshake handler.
-    pub(crate) fn take_send_log_digest(&mut self) -> Result<AuthLogDigest, ChanError> {
+    pub(crate) fn take_send_log_digest(&mut self) -> Result<ClogDigest, ChanError> {
         if let Self::Handshake(handler) = self {
             handler
                 .take_send_log_digest()
@@ -128,7 +157,7 @@ impl ChannelCellHandler {
     /// - The channel is not recording the receive log.
     /// - The receive log digest has already been taken.
     /// - This cell handler is not using a handshake handler.
-    pub(crate) fn take_recv_log_digest(&mut self) -> Result<AuthLogDigest, ChanError> {
+    pub(crate) fn take_recv_log_digest(&mut self) -> Result<SlogDigest, ChanError> {
         if let Self::Handshake(handler) = self {
             handler
                 .take_recv_log_digest()
@@ -376,7 +405,7 @@ impl HandshakeChannelHandler {
 
     /// Internal helper: Take a SHA256 digest and finalize it if any. None is returned if no log
     /// digest is given.
-    fn finalize_log(log: Option<ll::d::Sha256>) -> Option<AuthLogDigest> {
+    fn finalize_log(log: Option<ll::d::Sha256>) -> Option<[u8; 32]> {
         log.map(|sha256| sha256.finalize().into())
     }
 
@@ -398,8 +427,8 @@ impl HandshakeChannelHandler {
     /// This will return `None` if one of:
     /// - The channel is not recording the send log.
     /// - The send log digest has already been taken.
-    pub(crate) fn take_send_log_digest(&mut self) -> Option<AuthLogDigest> {
-        Self::finalize_log(self.send_log.take())
+    pub(crate) fn take_send_log_digest(&mut self) -> Option<ClogDigest> {
+        Some(ClogDigest(Self::finalize_log(self.send_log.take())?))
     }
 
     /// The digest of bytes received on this channel.
@@ -409,8 +438,8 @@ impl HandshakeChannelHandler {
     /// This will return `None` if one of:
     /// - The channel is not recording the receive log.
     /// - The receive log digest has already been taken.
-    pub(crate) fn take_recv_log_digest(&mut self) -> Option<AuthLogDigest> {
-        Self::finalize_log(self.recv_log.take())
+    pub(crate) fn take_recv_log_digest(&mut self) -> Option<SlogDigest> {
+        Some(SlogDigest(Self::finalize_log(self.recv_log.take())?))
     }
 
     /// Return the [`ChannelType`] of this handler.
@@ -520,7 +549,7 @@ pub(crate) mod test {
     use tor_llcrypto as ll;
     use tor_rtcompat::StreamOps;
 
-    use crate::channel::handler::AuthLogDigest;
+    use crate::channel::handler::{ClogDigest, SlogDigest};
     use crate::channel::msg::LinkVersion;
     use crate::channel::{ChannelType, new_frame};
 
@@ -676,8 +705,11 @@ pub(crate) mod test {
                 .unwrap();
 
             // Final CLOG should match.
-            let clog_hash: AuthLogDigest = our_clog.finalize().into();
-            assert_eq!(frame.codec_mut().take_send_log_digest().unwrap(), clog_hash);
+            let clog_hash: [u8; 32] = our_clog.finalize().into();
+            assert_eq!(
+                frame.codec_mut().take_send_log_digest().unwrap(),
+                ClogDigest(clog_hash)
+            );
         });
     }
 
@@ -726,8 +758,11 @@ pub(crate) mod test {
             let _ = frame.next().await.transpose().expect("Fail to get cell");
 
             // Final SLOG should match.
-            let slog_hash: AuthLogDigest = our_slog.finalize().into();
-            assert_eq!(frame.codec_mut().take_recv_log_digest().unwrap(), slog_hash);
+            let slog_hash: [u8; 32] = our_slog.finalize().into();
+            assert_eq!(
+                frame.codec_mut().take_recv_log_digest().unwrap(),
+                SlogDigest(slog_hash)
+            );
         });
     }
 }
