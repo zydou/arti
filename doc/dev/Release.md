@@ -378,11 +378,9 @@ before you continue!
 
 8. [ ] Look at the current list of exceptions in our automated tooling.
 
-   Are they still relevant?
-   (There are exceptions in
-   `maint/cargo-audit`
-   and
-   `maint/check-licenses`.)
+   Are they still relevant? There are exceptions in:
+    * `maint/cargo-audit`
+    * `maint/check-licenses`
 
 8. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
 
