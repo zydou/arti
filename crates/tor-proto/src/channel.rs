@@ -87,7 +87,7 @@ use tor_cell::chancell::{AnyChanCell, CircId, msg::Netinfo, msg::PaddingNegotiat
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
-use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, Runtime, SleepProvider};
 
 #[cfg(feature = "circ-padding")]
 use tor_async_utils::counting_streams::{self, CountingSink, CountingStream};
@@ -537,7 +537,7 @@ impl Channel {
     /// Quick note on the allow clippy. This is has one call site so for now, it is fine that we
     /// bust the mighty 7 arguments.
     #[allow(clippy::too_many_arguments)] // TODO consider if we want a builder
-    fn new<S>(
+    fn new<R>(
         channel_type: ChannelType,
         link_protocol: u16,
         sink: BoxedChannelSink,
@@ -547,12 +547,12 @@ impl Channel {
         peer_id: OwnedChanTarget,
         peer: MaybeSensitive<PeerInfo>,
         clock_skew: ClockSkew,
-        sleep_prov: S,
+        runtime: R,
         memquota: ChannelAccount,
         canonicity: Canonicity,
-    ) -> Result<(Arc<Self>, reactor::Reactor<S>)>
+    ) -> Result<(Arc<Self>, reactor::Reactor<R>)>
     where
-        S: CoarseTimeProvider + SleepProvider,
+        R: Runtime,
     {
         use circmap::{CircIdRange, CircMap};
         let circid_range = match channel_type {
@@ -560,7 +560,7 @@ impl Channel {
             ChannelType::ClientInitiator | ChannelType::RelayInitiator => CircIdRange::High,
         };
         let circmap = CircMap::new(circid_range);
-        let dyn_time = DynTimeProvider::new(sleep_prov.clone());
+        let dyn_time = DynTimeProvider::new(runtime.clone());
 
         let (control_tx, control_rx) = mpsc::unbounded();
         let (cell_tx, cell_rx) = mq_queue::MpscSpec::new(CHANNEL_BUFFER_SIZE)
@@ -585,7 +585,7 @@ impl Channel {
         // so it might allocate a bit more than necessary to account for multiple hops.
         // We should tune it when we deploy padding in production.
         let (padding_ctrl, padding_event_stream) =
-            client::circuit::padding::new_padding(DynTimeProvider::new(sleep_prov.clone()));
+            client::circuit::padding::new_padding(DynTimeProvider::new(runtime.clone()));
 
         let channel = Arc::new(Channel {
             channel_type,
@@ -604,7 +604,7 @@ impl Channel {
         });
 
         // We start disabled; the channel manager will `reconfigure` us soon after creation.
-        let padding_timer = Box::pin(padding::Timer::new_disabled(sleep_prov.clone(), None)?);
+        let padding_timer = Box::pin(padding::Timer::new_disabled(runtime.clone(), None)?);
 
         cfg_if! {
             if #[cfg(feature = "circ-padding")] {
@@ -614,7 +614,7 @@ impl Channel {
         }
 
         let reactor = Reactor {
-            runtime: sleep_prov,
+            runtime,
             control: control_rx,
             cells: cell_rx,
             reactor_closed_tx,

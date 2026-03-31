@@ -15,7 +15,7 @@ use tracing::instrument;
 use tor_cell::chancell::msg;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
-use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, StreamOps};
 use web_time_compat::{SystemTime, SystemTimeExt};
 
 use crate::{
@@ -267,7 +267,10 @@ where
     /// The resulting channel is considered, by Tor protocol standard, an authenticated relay
     /// channel on which circuits can be opened.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
+    pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)>
+    where
+        S: Runtime,
+    {
         // Relay<->Relay channels are NOT sensitive as we need their info in the log.
         let peer_info = MaybeSensitive::not_sensitive(PeerInfo::new(
             self.peer_addr,
@@ -289,7 +292,10 @@ where
     /// The resulting channel is considered, by Tor protocol standard, a client/bridge relay
     /// channel meaning not authenticated. Circuit can be opened on it.
     #[instrument(skip_all, level = "trace")]
-    pub fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
+    pub fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)>
+    where
+        S: Runtime,
+    {
         // This is either a client or a bridge so very sensitive.
         let peer_info = MaybeSensitive::sensitive(PeerInfo::new(
             self.peer_addr.into_inner(),

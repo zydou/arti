@@ -20,7 +20,7 @@ use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::msg::{Destroy, DestroyReason, Padding, PaddingNegotiate};
 use tor_cell::chancell::{AnyChanCell, CircId, msg::AnyChanMsg};
 use tor_error::debug_report;
-use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
+use tor_rtcompat::{DynTimeProvider, Runtime};
 
 #[cfg_attr(not(target_os = "linux"), allow(unused))]
 use tor_error::error_report;
@@ -122,9 +122,9 @@ pub enum CtrlMsg {
 /// This type is returned when you finish a channel; you need to spawn a
 /// new task that calls `run()` on it.
 #[must_use = "If you don't call run() on a reactor, the channel won't work."]
-pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
+pub struct Reactor<R: Runtime> {
     /// Underlying runtime we use for generating sleep futures and telling time.
-    pub(super) runtime: S,
+    pub(super) runtime: R,
     /// A receiver for control messages from `Channel` objects.
     pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
     /// A oneshot sender that is used to alert other tasks when this reactor is
@@ -151,7 +151,7 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     /// implemented with padding_ctrl and padding_stream.
     /// This is the existing per-channel padding
     /// in the tor protocol used to resist netflow attacks.
-    pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,
+    pub(super) padding_timer: Pin<Box<padding::Timer<R>>>,
     /// Outgoing cells introduced at the channel reactor
     pub(super) special_outgoing: SpecialOutgoing,
     /// A map from circuit ID to Sinks on which we can deliver cells.
@@ -219,13 +219,13 @@ impl SpecialOutgoing {
 ///
 /// There is no risk of confusion because no-one would try to print a
 /// Reactor for some other reason.
-impl<S: SleepProvider + CoarseTimeProvider> fmt::Display for Reactor<S> {
+impl<R: Runtime> fmt::Display for Reactor<R> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.unique_id, f)
     }
 }
 
-impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
+impl<R: Runtime> Reactor<R> {
     /// Launch the reactor, and run until the channel closes or we
     /// encounter an error.
     ///

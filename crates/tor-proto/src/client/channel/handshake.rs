@@ -10,7 +10,7 @@ use tracing::{debug, instrument, trace};
 use safelog::MaybeSensitive;
 use tor_cell::chancell::msg;
 use tor_linkspec::{ChannelMethod, OwnedChanTarget};
-use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{CoarseTimeProvider, Runtime, SleepProvider, StreamOps};
 
 use crate::ClockSkew;
 use crate::Result;
@@ -240,7 +240,10 @@ impl<
     pub async fn finish(
         mut self,
         peer_addr: MaybeSensitive<PeerAddr>,
-    ) -> Result<(Arc<Channel>, Reactor<S>)> {
+    ) -> Result<(Arc<Channel>, Reactor<S>)>
+    where
+        S: Runtime,
+    {
         // Send the NETINFO message.
         let netinfo = msg::Netinfo::from_client(peer_addr.netinfo_addr());
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");

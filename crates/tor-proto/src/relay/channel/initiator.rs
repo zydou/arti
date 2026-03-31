@@ -19,7 +19,7 @@ use tracing::trace;
 
 use tor_cell::chancell::msg;
 use tor_linkspec::OwnedChanTarget;
-use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, StreamOps};
 
 use crate::{
     ClockSkew, RelayChannelAuthMaterial, Result,
@@ -141,7 +141,10 @@ where
     ///
     /// The resulting channel is considered, by Tor protocol standard, an authenticated relay
     /// channel on which circuits can be opened.
-    pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
+    pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)>
+    where
+        S: Runtime,
+    {
         // Send the CERTS cell.
         let certs = super::build_certs_cell(&self.auth_material, /* is_responder */ false);
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
