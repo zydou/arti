@@ -37,7 +37,17 @@ define_derive_deftly! {
 pub(crate) use derive_deftly_template_RestrictedChanMsgSet;
 
 restricted_msg! {
-    /// A subset of [`ChanMsg`] that can arrive in response to a CREATE* cell.
+    /// A subset of [`ChanMsg`] that can be used to create a circuit.
+    #[derive(Debug)]
+    #[allow(clippy::exhaustive_enums)]
+    pub(crate) enum CreateRequest : ChanMsg {
+        CreateFast,
+        Create2,
+    }
+}
+
+restricted_msg! {
+    /// A subset of [`ChanMsg`] that can arrive in response to a [`CreateRequest`] cell.
     #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
     #[derive(Debug)]
     #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
