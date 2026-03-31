@@ -381,6 +381,7 @@ before you continue!
    Are they still relevant? There are exceptions in:
     * `maint/cargo-audit`
     * `maint/check-licenses`
+    * `maint/dependencies-bodge/Cargo.toml`
 
 8. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
 
