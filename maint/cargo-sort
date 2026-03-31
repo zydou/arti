@@ -6,6 +6,9 @@
 #   * run `cargo sort` (not this script)
 #   * restore `Cargo.toml` (toplevel) and `crates/arti/Cargo.toml` from git
 #   * commit the rest
+#
+# Note that you must use the same version of `cargo sort` as CI does!
+# See .gitlab-ci.yml.
 
 set -euo pipefail
 
