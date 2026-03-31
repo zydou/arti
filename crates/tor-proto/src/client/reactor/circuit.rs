@@ -1073,12 +1073,7 @@ impl Circuit {
         // function consumes the PendingClientCirc and only returns
         // a ClientCirc on success.
 
-        let (state, msg) = {
-            // done like this because holding the RNG across an await boundary makes the future
-            // non-Send
-            let mut rng = rand::rng();
-            H::client1(&mut rng, key, msg)?
-        };
+        let (state, msg) = H::client1(&mut rand::rng(), key, msg)?;
         let create_cell = wrap.to_chanmsg(msg);
         trace!(
             circ_id = %self.unique_id,
