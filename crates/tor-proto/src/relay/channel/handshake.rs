@@ -4,7 +4,7 @@ use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
 use rand::Rng;
 use safelog::Sensitive;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::{sync::Arc, time::SystemTime};
 use tracing::trace;
 
@@ -91,7 +91,7 @@ impl<
         tls: T,
         sleep_prov: S,
         auth_material: Arc<RelayChannelAuthMaterial>,
-        my_addrs: Vec<IpAddr>,
+        my_addrs: Vec<SocketAddr>,
         peer_target: &OwnedChanTarget,
         memquota: ChannelAccount,
         create_request_handler: Arc<CreateRequestHandler>,
@@ -102,7 +102,7 @@ impl<
             sleep_prov,
             auth_material,
             memquota,
-            my_addrs,
+            my_addrs: my_addrs.into_iter().map(|a| a.ip()).collect(),
             target_method: peer_target.chan_method(),
             create_request_handler,
         }
@@ -217,7 +217,7 @@ impl<
     /// Constructor.
     pub(crate) fn new(
         peer_addr: Sensitive<PeerAddr>,
-        my_addrs: Vec<IpAddr>,
+        my_addrs: Vec<SocketAddr>,
         tls: T,
         sleep_prov: S,
         auth_material: Arc<RelayChannelAuthMaterial>,
@@ -226,7 +226,7 @@ impl<
     ) -> Self {
         Self {
             peer_addr,
-            my_addrs,
+            my_addrs: my_addrs.into_iter().map(|a| a.ip()).collect(),
             framed_tls: new_frame(
                 tls,
                 ChannelType::RelayResponder {

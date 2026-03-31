@@ -25,7 +25,7 @@ use tor_rtcompat::{CertifiedConn, Runtime, StreamOps, TlsProvider, tls::TlsConne
 
 #[cfg(feature = "relay")]
 use {
-    safelog::Sensitive, std::net::IpAddr, tor_error::bad_api_usage,
+    safelog::Sensitive, std::net::SocketAddr, tor_error::bad_api_usage,
     tor_proto::RelayChannelAuthMaterial, tor_proto::relay::CreateRequestHandler,
 };
 
@@ -61,7 +61,7 @@ where
     // TODO: We might want one day to support updating the addresses here in the same way we
     // support updating the auth_material. One use case for this is the relay config reload.
     #[cfg(feature = "relay")]
-    my_addrs: Vec<IpAddr>,
+    my_addrs: Vec<SocketAddr>,
     /// Provided to each new channel so that they can handle CREATE* requests.
     #[cfg(feature = "relay")]
     create_request_handler: Option<Arc<CreateRequestHandler>>,
@@ -95,7 +95,7 @@ where
         runtime: R,
         transport: H,
         auth_material: Arc<RelayChannelAuthMaterial>,
-        my_addrs: Vec<IpAddr>,
+        my_addrs: Vec<SocketAddr>,
         create_request_handler: Option<Arc<CreateRequestHandler>>,
     ) -> crate::Result<Self> {
         use tor_error::into_internal;
@@ -514,7 +514,7 @@ where
         // connect back to itself.
         #[cfg(feature = "relay")]
         for addr in target.addrs() {
-            if self.my_addrs.contains(&addr.ip()) {
+            if self.my_addrs.contains(&addr) {
                 return Err(Error::Proto {
                     source: tor_proto::Error::ChanProto("Target address is ours".into()),
                     peer: target.to_owned().into(),
