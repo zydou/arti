@@ -13,11 +13,19 @@ set -euo pipefail
 # If you add anything to this section, make sure to add a comment
 # explaining why it's safe to do so.
 IGNORE=(
-    # As of 28 Nov 2023, all versions of the rsa crate have a variable
-    # timing attack that can leak private keys.
+    # As of 31 March 2026, all stable versions of the rsa crate have a variable
+    # timing attack that can leak private keys.  This has been the case for 3 years.
+    # Version 0.10 (currently at 0.10.0-rc.17) will solve this problem by switching 
+    # to crypto-bigint.
     #
-    # We do not use (yet) do any private-key rsa operations in arti:
-    # we only use it to verify signatures.
+    # Clients do not do any private-key rsa operations in arti:
+    # they only use it to verify signatures.
+    #
+    # Relays will have to use rsa to sign documents and certificates.
+    # (They also sometimes perform rsa signatures as part of a TLS
+    # handshake, but they don't use the rsa crate for that.)
+    #
+    # TODO DIRAUTH #2447 Marvin attack due to non-constant time implementation in `rsa`
     --ignore RUSTSEC-2023-0071
 
     # paste is unmaintained.
