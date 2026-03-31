@@ -13,12 +13,21 @@ set -euo pipefail
 # If you add anything to this section, make sure to add a comment
 # explaining why it's safe to do so.
 IGNORE=(
-    # As of 28 Nov 2023, all versions of the rsa crate have a variable
-    # timing attack that can leak private keys.
+    # As of 31 March 2026, all stable versions of the rsa crate have a variable
+    # timing attack that can leak private keys.  This has been the case for 3 years.
+    # Version 0.10 (currently at 0.10.0-rc.17) will solve this problem by switching 
+    # to crypto-bigint.
     #
-    # We do not use (yet) do any private-key rsa operations in arti:
-    # we only use it to verify signatures.
+    # Clients do not do any private-key rsa operations in arti:
+    # they only use it to verify signatures.
+    #
+    # Relays will have to use rsa to sign documents and certificates.
+    # (They also sometimes perform rsa signatures as part of a TLS
+    # handshake, but they don't use the rsa crate for that.)
+    #
+    # TODO DIRAUTH #2447 Marvin attack due to non-constant time implementation in `rsa`
     --ignore RUSTSEC-2023-0071
+
     # paste is unmaintained.
     #
     # We depend on it directly in crates like tor-error, tor-persist, tor-config,
@@ -29,10 +38,12 @@ IGNORE=(
     # In the long run, we should consider replacing it with another crate
     # (concat-idents?).
     --ignore RUSTSEC-2024-0436
+
     # async-std has been discontinued.
     # Deprecation/removal plan:
     # <https://gitlab.torproject.org/tpo/core/arti/-/issues/2130>
     --ignore RUSTSEC-2025-0052
+
     # Bincode is unmaintained.
     #
     # Right now, we do not depend on it directly, but rather transitively
@@ -62,6 +73,7 @@ OBSOLETE_IGNORE=(
     # Issue: https://gitlab.torproject.org/tpo/core/arti/-/issues/1867
     # MR: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2960
     --ignore RUSTSEC-2024-0384
+
     # This is a real but theoretical unaligned read.  It might happen only on
     # Windows and only with a custom global allocator, which we don't do in our
     # arti binary.  The bad crate is depended on by env-logger.
@@ -72,19 +84,23 @@ OBSOLETE_IGNORE=(
     # Fixed upstream in env_logger by replacing atty with is_terminal:
     #     https://github.com/rust-cli/env_logger/pull/248
     --ignore RUSTSEC-2021-0145
+
     # This is not a vulnerability but an unmaintained warning for `ansi_term`.
     # The upstream issue does not offer good alternatives, and anyway we get
     # this crate via clap and tracing-*.
     # It does not seem at all likely that this is really a problem for us.
     --ignore RUSTSEC-2021-0139
+
     # This is not a vulnerability but an unmaintained warn for the
     # `net2` crate. It was pulled indirectly by `notify` 4.0.
     # It's fixed in `notify` 5.0.
     --ignore RUSTSEC-2020-0016
+
     # This is not a vulnerability but an unmaintained warn for the
     # `tempdir` crate. It was pulled by `tls-api` 0.7.0. `tls-api`
     # 0.8.0 switched to tempfile instead.
     --ignore RUSTSEC-2018-0017
+
     # This is a vulnerability in the `nix` crate caused by an
     # out-of-bounds write in `getgrouplist`.  We got our `nix`
     # dependency via `async-ctrlc`, which uses `ctrlc`, which uses
@@ -99,6 +115,7 @@ OBSOLETE_IGNORE=(
     # How it was fixed:
     #  * ctrlc version 3.2.1 upgraded its `nix` dependency to 0.23.
     --ignore RUSTSEC-2021-0119
+
     # This is a vulnerability in the `time` crate.  We don't import
     # `time` directly, but inherit it through the `oldtime` feature
     # in `chrono`.  The vulnerability occurs when somebody messes
@@ -126,6 +143,7 @@ OBSOLETE_IGNORE=(
     #
     # Eventual resolution: we migrated to use time 0.3 instead of chrono.
     --ignore RUSTSEC-2020-0071
+
     # This vulnerability affects the `chrono` crate: it uses
     # `localtime_r()`, which is not thread-safe if anybody calls
     # `setenv()`.
