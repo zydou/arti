@@ -35,15 +35,24 @@ pub(super) enum CircIdRange {
     // protocol version 4.
 }
 
+impl CircIdRange {
+    /// The range of integer circuit IDs that we are allowed to allocate.
+    /// Prefer using other more specific methods over this one.
+    const fn integer_range(&self) -> std::ops::RangeInclusive<u32> {
+        const MIDPOINT: u32 = 0x8000_0000;
+
+        match self {
+            // 0 is an invalid value
+            Self::Low => 1..=(MIDPOINT - 1),
+            Self::High => MIDPOINT..=u32::MAX,
+        }
+    }
+}
+
 impl rand::distr::Distribution<CircId> for CircIdRange {
     /// Return a random circuit ID in the appropriate range.
     fn sample<R: Rng + ?Sized>(&self, mut rng: &mut R) -> CircId {
-        let midpoint = 0x8000_0000_u32;
-        let v = match self {
-            // 0 is an invalid value
-            CircIdRange::Low => rng.gen_range_checked(1..midpoint),
-            CircIdRange::High => rng.gen_range_checked(midpoint..=u32::MAX),
-        };
+        let v = rng.gen_range_checked(self.integer_range());
         let v = v.expect("Unexpected empty range passed to gen_range_checked");
         CircId::new(v).expect("Unexpected zero value")
     }
