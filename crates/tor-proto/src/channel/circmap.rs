@@ -71,7 +71,7 @@ impl rand::distr::Distribution<CircId> for CircIdRange {
 /// change.
 #[derive(Debug)]
 pub(super) enum CircEnt {
-    /// A circuit that has not yet received a CREATED cell.
+    /// An origin circuit that has not yet received a CREATED cell.
     ///
     /// For this circuit, the CREATED* cell or DESTROY cell gets sent
     /// to the oneshot sender to tell the corresponding
@@ -89,8 +89,9 @@ pub(super) enum CircEnt {
         padding_ctrl: PaddingController,
     },
 
-    /// A circuit that is open and can be given relay cells.
-    Open {
+    /// An origin circuit (a circuit which originated here)
+    /// that is open and can be given relay cells.
+    OpenOrigin {
         /// A sink which should receive all the relay cells for this circuit
         /// from this channel
         cell_sender: CircuitRxSender,
@@ -162,11 +163,12 @@ impl CircMap {
         }
     }
 
-    /// Add a new set of elements (corresponding to a PendingClientCirc)
-    /// to this map.
+    /// Add a new set of elements (corresponding to a
+    /// [`PendingClientTunnel`](crate::client::circuit::PendingClientTunnel))
+    /// as an entry to this map.
     ///
     /// On success return the allocated circuit ID.
-    pub(super) fn add_ent<R: Rng>(
+    pub(super) fn add_origin_ent<R: Rng>(
         &mut self,
         rng: &mut R,
         createdsink: oneshot::Sender<CreateResponse>,
@@ -216,7 +218,7 @@ impl CircMap {
     pub(super) fn note_cell_flushed(&mut self, id: CircId, info: QueuedCellPaddingInfo) {
         let padding_ctrl = match self.m.get(&id) {
             Some(CircEnt::Opening { padding_ctrl, .. }) => padding_ctrl,
-            Some(CircEnt::Open { padding_ctrl, .. }) => padding_ctrl,
+            Some(CircEnt::OpenOrigin { padding_ctrl, .. }) => padding_ctrl,
             Some(CircEnt::DestroySent(..)) | None => return,
         };
         padding_ctrl.flushed_relay_cell(info);
@@ -242,7 +244,7 @@ impl CircMap {
             {
                 self.m.insert(
                     id,
-                    CircEnt::Open {
+                    CircEnt::OpenOrigin {
                         cell_sender: sink,
                         padding_ctrl,
                     },
@@ -325,7 +327,7 @@ mod test {
                 let (csnd, _) = oneshot::channel();
                 let (snd, _) = fake_mpsc(8);
                 let id_low = map_low
-                    .add_ent(&mut rng, csnd, snd, padding_ctrl.clone())
+                    .add_origin_ent(&mut rng, csnd, snd, padding_ctrl.clone())
                     .unwrap();
                 assert!(u32::from(id_low) > 0);
                 assert!(u32::from(id_low) < 0x80000000);
@@ -340,7 +342,7 @@ mod test {
                 let (csnd, _) = oneshot::channel();
                 let (snd, _) = fake_mpsc(8);
                 let id_high = map_high
-                    .add_ent(&mut rng, csnd, snd, padding_ctrl.clone())
+                    .add_origin_ent(&mut rng, csnd, snd, padding_ctrl.clone())
                     .unwrap();
                 assert!(u32::from(id_high) >= 0x80000000);
                 assert!(!ids_high.contains(&id_high));
@@ -373,7 +375,7 @@ mod test {
             assert!(adv.is_ok());
             assert!(matches!(
                 *map_high.get_mut(ids_high[0]).unwrap(),
-                CircEnt::Open { .. }
+                CircEnt::OpenOrigin { .. }
             ));
 
             // Can't double-advance.

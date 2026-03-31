@@ -379,7 +379,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 );
                 let ret: Result<_> = self
                     .circs
-                    .add_ent(&mut rng, created_sender, sender, padding_ctrl.clone())
+                    .add_origin_ent(&mut rng, created_sender, sender, padding_ctrl.clone())
                     .map(|id| (id, circ_unique_id, padding_ctrl, padding_stream));
                 let _ = tx.send(ret); // don't care about other side going away
                 self.update_disused_since();
@@ -600,7 +600,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
             .ok_or_else(|| Error::ChanProto("Relay cell on nonexistent circuit".into()))?;
 
         match &mut *ent {
-            CircEnt::Open { cell_sender: s, .. } => {
+            CircEnt::OpenOrigin { cell_sender: s, .. } => {
                 // There's an open circuit; we can give it the RELAY cell.
                 if s.send(msg).await.is_err() {
                     drop(ent);
@@ -660,11 +660,11 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                         internal!("pending circuit wasn't interested in destroy cell?").into()
                     })
             }
-            // It's an open circuit: tell it that it got a DESTROY cell.
-            Some(CircEnt::Open {
+            // It's an open origin circuit: tell it that it got a DESTROY cell.
+            Some(CircEnt::OpenOrigin {
                 mut cell_sender, ..
             }) => {
-                trace!(channel_id = %self, "Passing destroy to open circuit {}", circid);
+                trace!(channel_id = %self, "Passing destroy to open origin circuit {}", circid);
                 cell_sender
                     .send(msg)
                     .await
@@ -1003,7 +1003,7 @@ pub(crate) mod test {
                 let (snd3, rcv3) = fake_mpsc(64);
                 reactor.circs.put_unchecked(
                     CircId::new(13).unwrap(),
-                    CircEnt::Open {
+                    CircEnt::OpenOrigin {
                         cell_sender: snd3,
                         padding_ctrl,
                     },
@@ -1099,7 +1099,7 @@ pub(crate) mod test {
                 let (snd3, rcv3) = fake_mpsc(64);
                 reactor.circs.put_unchecked(
                     CircId::new(13).unwrap(),
-                    CircEnt::Open {
+                    CircEnt::OpenOrigin {
                         cell_sender: snd3,
                         padding_ctrl: padding_ctrl.clone(),
                     },
