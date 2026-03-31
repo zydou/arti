@@ -40,7 +40,7 @@ full = ["serde", "web-time-compat/full"]
 all-features = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom = { version = "0.4", features = ["wasm_js"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
