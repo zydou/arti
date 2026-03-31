@@ -4,9 +4,9 @@
 //! request, or when received in particular circumstances.  They're used
 //! so that Rust's typesafety can help enforce protocol properties.
 
-use derive_deftly::{Deftly, define_derive_deftly};
+use derive_deftly::define_derive_deftly;
 use std::fmt::{self, Display};
-use tor_cell::chancell::msg::{self as chanmsg};
+use tor_cell::restrict::restricted_msg;
 
 define_derive_deftly! {
     /// Derives a `TryFrom<AnyChanMsg>` implementation for enums
@@ -36,21 +36,20 @@ define_derive_deftly! {
 
 pub(crate) use derive_deftly_template_RestrictedChanMsgSet;
 
-/// A subclass of ChanMsg that can arrive in response to a CREATE* cell
-/// that we send.
-#[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
-#[derive(Debug, Deftly)]
-#[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
-#[allow(clippy::exhaustive_enums)]
-#[derive_deftly(RestrictedChanMsgSet)]
-#[deftly(usage = "in response to circuit creation")]
-pub enum CreateResponse {
-    /// Destroy cell: the CREATE failed.
-    Destroy(chanmsg::Destroy),
-    /// CreatedFast: good response to a CREATE cell.
-    CreatedFast(chanmsg::CreatedFast),
-    /// Created2: good response to a CREATE2 cell.
-    Created2(chanmsg::Created2),
+restricted_msg! {
+    /// A subset of [`ChanMsg`] that can arrive in response to a CREATE* cell.
+    #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
+    #[derive(Debug)]
+    #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
+    #[allow(clippy::exhaustive_enums)]
+    pub enum CreateResponse : ChanMsg {
+        /// The CREATE failed.
+        Destroy,
+        /// Good response to a CREATE cell.
+        CreatedFast,
+        /// Good response to a CREATE2 cell.
+        Created2,
+    }
 }
 
 impl Display for CreateResponse {
