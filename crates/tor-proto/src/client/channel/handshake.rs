@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, instrument, trace};
 
-use safelog::{MaybeSensitive, Sensitive};
+use safelog::MaybeSensitive;
 use tor_cell::chancell::msg;
 use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
@@ -15,8 +15,8 @@ use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::ClockSkew;
 use crate::Result;
 use crate::channel::handshake::{
-    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, UnverifiedInitiatorChannel,
-    VerifiedChannel, unauthenticated_clock_skew,
+    AuthLogAction, ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel,
+    UnverifiedInitiatorChannel, VerifiedChannel, unauthenticated_clock_skew,
 };
 use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
@@ -119,9 +119,8 @@ impl<
 
         // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell and SLOG; we don't need
         // them as we are not authenticating with our responder because we are a client.
-        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at), _) = self
-            .recv_cells_from_responder(/* take_slog= */ false)
-            .await?;
+        let (_auth_chal_cell, certs_cell, (netinfo_cell, netinfo_rcvd_at), _slog) =
+            self.recv_cells_from_responder(AuthLogAction::Leave).await?;
 
         // Get the clock skew.
         let clock_skew = unauthenticated_clock_skew(
@@ -171,9 +170,9 @@ impl<
     /// Validate the certificates and keys in the relay's handshake. As a client, we always verify
     /// but we don't authenticate.
     ///
-    /// 'peer' is the peer that we want to make sure we're connecting to.
+    /// 'peer_target' is the peer that we want to make sure we're connecting to.
     ///
-    /// 'peer_cert' is the x.509 certificate that the peer presented during
+    /// 'peer_tls_cert' is the x.509 certificate that the peer presented during
     /// its TLS handshake (ServerHello).
     ///
     /// 'now' is the time at which to check that certificates are
@@ -185,12 +184,12 @@ impl<
     #[instrument(skip_all, level = "trace")]
     pub fn verify(
         self,
-        peer: &OwnedChanTarget,
-        peer_cert: &[u8],
+        peer_target: &OwnedChanTarget,
+        peer_tls_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedClientChannel<T, S>> {
-        let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_cert).into();
-        let inner = self.inner.verify(peer, peer_cert_digest, now)?;
+        let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_tls_cert).into();
+        let inner = self.inner.verify(peer_target, peer_cert_digest, now)?;
 
         Ok(VerifiedClientChannel {
             inner,
@@ -240,7 +239,7 @@ impl<
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(
         mut self,
-        peer_addr: Sensitive<PeerAddr>,
+        peer_addr: MaybeSensitive<PeerAddr>,
     ) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Send the NETINFO message.
         let netinfo = msg::Netinfo::from_client(peer_addr.netinfo_addr());
@@ -249,7 +248,7 @@ impl<
 
         // This could be a client Guard so it is sensitive.
         let peer_info = MaybeSensitive::sensitive(PeerInfo::new(
-            peer_addr.into_inner(),
+            peer_addr.inner(),
             self.inner.relay_ids().clone(),
         ));
 

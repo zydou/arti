@@ -14,7 +14,7 @@ use tor_keymgr::{
     CertSpecifierPattern, KeyCertificateSpecifier, KeyMgr, KeyPath, KeySpecifier,
     KeySpecifierPattern, Keygen, KeystoreSelector, ToEncodableKey,
 };
-use tor_proto::RelayIdentities;
+use tor_proto::RelayChannelAuthMaterial;
 use tor_relay_crypto::{
     RelaySigningKeyCert, gen_link_cert, gen_signing_cert, gen_tls_cert,
     pk::{
@@ -42,12 +42,15 @@ const KEY_DURATION_30DAYS: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 /// Key lifefime duration of 6 months
 const KEY_DURATION_6MONTHS: Duration = Duration::from_secs(6 * 30 * 24 * 60 * 60);
 
-/// Build a fresh [`RelayIdentities`] object using a [`KeyMgr`].
+/// Build a fresh [`RelayChannelAuthMaterial`] object using a [`KeyMgr`].
 ///
 /// Every single certificate is generated in this function.
 ///
 /// This function assumes that all required keys are in the keymgr.
-fn build_proto_identities(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<RelayIdentities> {
+fn build_proto_relay_auth_material(
+    now: SystemTime,
+    keymgr: &KeyMgr,
+) -> anyhow::Result<RelayChannelAuthMaterial> {
     let mut rng = tor_llcrypto::rng::CautiousRng;
 
     // Get the identity keypairs.
@@ -119,7 +122,7 @@ fn build_proto_identities(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<Re
         now + KEY_DURATION_2DAYS,
     )?;
 
-    Ok(RelayIdentities::new(
+    Ok(RelayChannelAuthMaterial::new(
         &rsa_id_kp.public().into(),
         ed_id_kp.to_ed25519_id(),
         link_sign_kp,
@@ -379,7 +382,7 @@ fn try_rotate_keys(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<(bool, Sy
 pub(crate) fn try_generate_keys<R: Runtime>(
     runtime: &R,
     keymgr: &KeyMgr,
-) -> anyhow::Result<RelayIdentities> {
+) -> anyhow::Result<RelayChannelAuthMaterial> {
     let now = runtime.wallclock();
     // Attempt to generate our identity keys (ed and RSA). Those keys DO NOT rotate. It won't be
     // replaced if they already exists.
@@ -389,8 +392,8 @@ pub(crate) fn try_generate_keys<R: Runtime>(
     // Attempt to rotate the keys. Any missing keys (and cert) will be generated.
     let _ = try_rotate_keys(now, keymgr)?;
 
-    // Now that we have our up-to-date keys, build the RelayIdentities object.
-    build_proto_identities(now, keymgr)
+    // Now that we have our up-to-date keys, build the relay channel auth material object.
+    build_proto_relay_auth_material(now, keymgr)
 }
 /// Task to rotate keys when they need to be rotated.
 pub(crate) async fn rotate_keys_task<R: Runtime>(
@@ -403,10 +406,10 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
         // Attempt a rotation of all keys.
         let (have_rotated, next_expiry) = try_rotate_keys(now, &keymgr)?;
         if have_rotated {
-            let ids = build_proto_identities(now, &keymgr)?;
+            let auth_material = build_proto_relay_auth_material(now, &keymgr)?;
             chanmgr
-                .set_relay_identities(Arc::new(ids))
-                .context("Failed to set relay identities on ChanMgr")?;
+                .set_relay_auth_material(Arc::new(auth_material))
+                .context("Failed to set relay auth material on ChanMgr")?;
         }
 
         // Sleep until the earliest key expiry minus buffer so we rotate before it expires.
@@ -505,16 +508,16 @@ mod test {
     }
 
     /// Test the actual bootstrap function, `try_generate_keys()` which is in charge of
-    /// initializing the identities.
+    /// initializing the auth material.
     #[test]
     fn test_bootstrap() {
         MockRuntime::test_with_various(|runtime| async move {
             let keymgr = new_keymgr();
 
-            let _identities = match try_generate_keys(&runtime, &keymgr) {
-                Ok(ident) => ident,
+            let _auth_material = match try_generate_keys(&runtime, &keymgr) {
+                Ok(a) => a,
                 Err(e) => {
-                    panic!("Unable to bootstrap keys and generate RelayIdentities: {e}");
+                    panic!("Unable to bootstrap keys and generate RelayChannelAuthMaterial: {e}");
                 }
             };
         });

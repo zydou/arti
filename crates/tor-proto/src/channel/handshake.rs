@@ -1,17 +1,13 @@
 //! Implementations for the channel handshake
 
+use digest::Digest;
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::SinkExt;
 use futures::stream::{Stream, StreamExt};
 use std::net::IpAddr;
 use std::sync::Arc;
-use tor_llcrypto::pk::ValidatableSignature;
+use tracing::{debug, instrument, trace};
 
-use crate::channel::{Canonicity, ChannelFrame, UniqId};
-use crate::memquota::ChannelAccount;
-use crate::peer::PeerInfo;
-use crate::util::skew::ClockSkew;
-use crate::{Error, Result};
 use safelog::{MaybeSensitive, Redacted};
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
@@ -23,13 +19,16 @@ use tor_linkspec::{
     ChanTarget, ChannelMethod, OwnedChanTarget, OwnedChanTargetBuilder, RelayIds, RelayIdsBuilder,
 };
 use tor_llcrypto as ll;
-use tor_llcrypto::pk::ed25519::Ed25519Identity;
+use tor_llcrypto::pk::{ValidatableSignature, ed25519::Ed25519Identity};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 use web_time_compat::{SystemTime, SystemTimeExt};
 
-use digest::Digest;
-
-use tracing::{debug, instrument, trace};
+use crate::channel::handler::AuthLogDigest;
+use crate::channel::{Canonicity, ChannelFrame, UniqId};
+use crate::memquota::ChannelAccount;
+use crate::peer::PeerInfo;
+use crate::util::skew::ClockSkew;
+use crate::{Error, Result};
 
 /// A list of the link protocols that we support.
 pub(crate) static LINK_PROTOCOLS: &[u16] = &[4, 5];
@@ -119,6 +118,24 @@ where
     }
 }
 
+/// Helper: This enum is for adding semantic to the function receiving cells indicating it to
+/// either take the auth log out or leave it in place.
+///
+/// With this, we avoid using a flat bool which is confusing at the call site.
+pub(crate) enum AuthLogAction {
+    /// Leave it in place.
+    Leave,
+    /// Take it out.
+    Take,
+}
+
+impl AuthLogAction {
+    /// Return true iff this value is [`AuthLogAction::Take`]
+    fn is_take(&self) -> bool {
+        matches!(self, Self::Take)
+    }
+}
+
 /// Handshake initiator base trait. All initiator handshake should implement this trait in order to
 /// enjoy the helper functions.
 ///
@@ -139,58 +156,20 @@ where
     /// - [msg::Certs] cell
     /// - [msg::Netinfo] cell
     /// - the instant when the netinfo cell was received (needed for the clock skew calculation)
-    /// - the SLOG digest if `take_slog` is true (needed if we send an [msg::Authenticate] cell in the future)
+    /// - the SLOG digest if `auth_log_action` is [`AuthLogAction::Take`] (needed if we send an
+    ///   [msg::Authenticate] cell in the future)
     async fn recv_cells_from_responder(
         &mut self,
-        take_slog: bool,
+        auth_log_action: AuthLogAction,
     ) -> Result<(
         msg::AuthChallenge,
         msg::Certs,
         (msg::Netinfo, coarsetime::Instant),
-        // TODO: We should typedef this somewhere.
-        /* the SLOG digest */
-        Option<[u8; 32]>,
+        Option<AuthLogDigest>,
     )> {
         // IMPORTANT: Protocol wise, we MUST only allow one single cell of each type for a valid
         // handshake. Any duplicates lead to a failure.
         // They must arrive in a specific order in order for the SLOG calculation to be valid.
-
-        /// Read a message from the stream.
-        ///
-        /// The `expecting` parameter is used for logging purposes, not filtering.
-        async fn read_msg<T>(
-            stream_id: UniqId,
-            mut stream: impl Stream<Item = Result<AnyChanCell>> + Unpin,
-        ) -> Result<T>
-        where
-            T: RestrictedMsg + TryFrom<AnyChanMsg, Error = AnyChanMsg>,
-        {
-            let Some(cell) = stream.next().await.transpose()? else {
-                // The entire channel has ended, so nothing else to be done.
-                return Err(Error::HandshakeProto("Stream ended unexpectedly".into()));
-            };
-
-            let (id, m) = cell.into_circid_and_msg();
-            trace!(%stream_id, "received a {} cell", m.cmd());
-
-            // TODO: Maybe also check this in the channel handshake codec?
-            if let Some(id) = id {
-                return Err(Error::HandshakeProto(format!(
-                    "Expected no circ ID for {} cell, but received circ ID of {id} instead",
-                    m.cmd(),
-                )));
-            }
-
-            let m = m.try_into().map_err(|m: AnyChanMsg| {
-                Error::HandshakeProto(format!(
-                    "Expected [{}] cell, but received {} cell instead",
-                    tor_basic_utils::iter_join(", ", T::cmds_for_logging().iter()),
-                    m.cmd(),
-                ))
-            })?;
-
-            Ok(m)
-        }
 
         // Note that the `ChannelFrame` already restricts the messages due to its handshake cell
         // handler.
@@ -227,7 +206,7 @@ where
             };
         };
 
-        let slog_digest = if take_slog {
+        let slog_digest = if auth_log_action.is_take() {
             // We're the initiator, which means that the recv log is the SLOG.
             Some(self.framed_tls().codec_mut().take_recv_log_digest()?)
         } else {
@@ -329,12 +308,13 @@ pub(crate) struct VerifiedChannel<
     pub(crate) target_method: Option<ChannelMethod>,
     /// Logging identifier for this stream.  (Used for logging only.)
     pub(crate) unique_id: UniqId,
-    /// Verified peer identities
-    pub(crate) relay_ids: RelayIds,
-    /// Validated RSA identity digest of the DER format for this peer.
-    pub(crate) rsa_id_digest: [u8; 32],
     /// Authenticated clock skew for this peer.
     pub(crate) clock_skew: ClockSkew,
+
+    /// Verified peer identities
+    pub(crate) peer_relay_ids: RelayIds,
+    /// Validated RSA identity digest of the DER format for this peer.
+    pub(crate) peer_rsa_id_digest: [u8; 32],
 }
 
 impl<
@@ -345,61 +325,66 @@ impl<
     /// Return a newly constructed [`VerifiedChannel`].
     pub(crate) fn into_verified(
         self,
-        relay_ids: RelayIds,
-        rsa_id_digest: [u8; 32],
+        peer_relay_ids: RelayIds,
+        peer_rsa_id_digest: [u8; 32],
     ) -> VerifiedChannel<T, S> {
         VerifiedChannel {
             link_protocol: self.link_protocol,
             framed_tls: self.framed_tls,
             unique_id: self.unique_id,
             target_method: self.target_method,
-            relay_ids,
-            rsa_id_digest,
+            peer_relay_ids,
+            peer_rsa_id_digest,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
         }
     }
 
-    /// This validates the relay identities (Ed25519 and RSA) and signing key cert (Ed25519).
-    /// Successful validation returns the relay ed25519 identitiy key, the ed25519 signing key and
-    /// the RSA public key.
+    /// This validates the relay identities (Ed25519 and RSA) and signing key cert (Ed25519) found
+    /// in the received [`msg::Certs`] cell. It also enforces that the peer claimed IDs are the one
+    /// we expected (`peer_target`).
     ///
-    /// Reason for the RSA public key is because the caller needs to the SHA256 digest for the
+    /// Successful validation returns the relay ed25519 identitiy key, the ed25519 signing key and
+    /// the RSA public key of the peer. This means that we consider the peer verified as in we've
+    /// established that we are talking to the right target.
+    ///
+    /// Reason for the RSA public key is because the caller needs the SHA256 digest for the
     /// [`msg::Authenticate`] cell.
     pub(crate) fn check_relay_identities<U: ChanTarget + ?Sized>(
         &self,
-        peer: &U,
-        certs: &msg::Certs,
+        peer_target: &U,
+        peer_certs: &msg::Certs,
         now: SystemTime,
     ) -> Result<(RelayIds, Ed25519Identity, [u8; 32])> {
         use tor_checkable::*;
 
-        // Get the identity signing cert (CertType 4).
-        let id_sk = get_cert(certs, CertType::IDENTITY_V_SIGNING)?;
+        // Get the identity signing cert IDENTITY_V_SIGNING.
+        let cert_signing = get_cert(peer_certs, CertType::IDENTITY_V_SIGNING)?;
 
         // Check the identity->signing cert
-        let (id_sk, id_sk_sig) = id_sk
+        let (cert_signing, cert_signing_sig) = cert_signing
             .should_have_signing_key()
             .map_err(Error::HandshakeCertErr)?
             .dangerously_split()
             .map_err(Error::HandshakeCertErr)?;
-        let (id_sk_timeliness, id_sk) = check_cert_timeliness(id_sk, now, self.clock_skew);
+        let (cert_signing_timeliness, cert_signing) =
+            check_cert_timeliness(cert_signing, now, self.clock_skew);
 
         // Make sure the ed25519 identity cert is well signed before parsing more data.
-        if !id_sk_sig.is_valid() {
+        if !cert_signing_sig.is_valid() {
             return Err(Error::HandshakeProto(
                 "Invalid ed25519 identity cert signature in handshake".into(),
             ));
         }
 
         // Take the identity key from the identity->signing cert
-        let identity_key = id_sk.signing_key().ok_or_else(|| {
+        let kp_relayid_ed = cert_signing.signing_key().ok_or_else(|| {
             Error::HandshakeProto("Missing identity key in identity->signing cert".into())
         })?;
 
         // Take the signing key from the identity->signing cert
-        let signing_key = id_sk.subject_key().as_ed25519().ok_or_else(|| {
+        let kp_relaysign_ed = cert_signing.subject_key().as_ed25519().ok_or_else(|| {
             Error::HandshakeProto("Bad key type in identity->signing cert".into())
         })?;
 
@@ -408,11 +393,11 @@ impl<
         //
         // (We don't actually check this self-signed certificate, and we use
         // a kludge to extract the RSA key)
-        let rsa_id_cert_bytes = certs
+        let rsa_id_cert_bytes = peer_certs
             .cert_body(CertType::RSA_ID_X509)
             .ok_or_else(|| Error::HandshakeProto("Couldn't find RSA identity cert".into()))?;
-        let pkrsa =
-            ll::util::x509_extract_rsa_subject_kludge(rsa_id_cert_bytes).ok_or_else(|| {
+        let kp_relayid_rsa = ll::util::x509_extract_rsa_subject_kludge(rsa_id_cert_bytes)
+            .ok_or_else(|| {
                 Error::HandshakeProto(
                     "Couldn't find RSA SubjectPublicKey from RSA identity cert".into(),
                 )
@@ -423,16 +408,16 @@ impl<
         // This proves that the RSA key vouches for the Ed key.  Note that
         // the Ed key does not vouch for the RSA key: The RSA key is too
         // weak.
-        let rsa_cert = certs
+        let rsa_cert = peer_certs
             .cert_body(CertType::RSA_ID_V_IDENTITY)
             .ok_or_else(|| Error::HandshakeProto("No RSA->Ed crosscert".into()))?;
         let rsa_cert = tor_cert::rsa::RsaCrosscert::decode(rsa_cert)
             .map_err(|e| Error::from_bytes_err(e, "RSA identity cross-certificate"))?
-            .check_signature(&pkrsa)
+            .check_signature(&kp_relayid_rsa)
             .map_err(|_| Error::HandshakeProto("Bad RSA->Ed crosscert signature".into()))?;
         let (rsa_cert_timeliness, rsa_cert) = check_cert_timeliness(rsa_cert, now, self.clock_skew);
 
-        if !rsa_cert.subject_key_matches(identity_key) {
+        if !rsa_cert.subject_key_matches(kp_relayid_ed) {
             return Err(Error::HandshakeProto(
                 "RSA->Ed crosscert certifies incorrect key".into(),
             ));
@@ -448,7 +433,7 @@ impl<
         //
         // We note expired certs last, since we only want to return
         // `HandshakeCertsExpired` when there are no other errors.
-        id_sk_timeliness?;
+        cert_signing_timeliness?;
         rsa_cert_timeliness?;
 
         // Now that we've done all the verification steps on the
@@ -460,21 +445,21 @@ impl<
         // usually a different situation than "this peer couldn't even
         // identify itself right."
         let actual_identity = RelayIds::builder()
-            .ed_identity(*identity_key)
-            .rsa_identity(pkrsa.to_rsa_identity())
+            .ed_identity(*kp_relayid_ed)
+            .rsa_identity(kp_relayid_rsa.to_rsa_identity())
             .build()
             .expect("Unable to build RelayIds");
 
-        // We enforce that the relay proved that it has every ID that we wanted:
+        // We enforce that the relay claimed to have every ID that we wanted:
         // it may also have additional IDs that we didn't ask for.
-        match super::check_id_match_helper(&actual_identity, peer) {
+        match super::check_id_match_helper(&actual_identity, peer_target) {
             Err(Error::ChanMismatch(msg)) => Err(Error::HandshakeProto(msg)),
             other => other,
         }?;
 
-        let rsa_id_digest: [u8; 32] = ll::d::Sha256::digest(pkrsa.to_der()).into();
+        let rsa_id_digest: [u8; 32] = ll::d::Sha256::digest(kp_relayid_rsa.to_der()).into();
 
-        Ok((actual_identity, *signing_key, rsa_id_digest))
+        Ok((actual_identity, *kp_relaysign_ed, rsa_id_digest))
     }
 
     /// Finalize this channel into an actual channel and its reactor.
@@ -486,12 +471,18 @@ impl<
     ///     - Client <-> Relay channel
     ///     - Bridge <-> Relay channel
     ///
+    /// `peer_netinfo` is the received [`msg::Netinfo`] cell from the peer.
+    ///
+    /// `my_addrs` are our advertised addresses as a relay.
+    ///
+    /// `peer_info` is the verified peer information (identities and addresses).
+    ///
     // NOTE: Unfortunately, this function has duplicated code with the VerifiedChannel::finish()
     // so make sure any changes here is reflected there. A proper refactoring is welcome!
     #[instrument(skip_all, level = "trace")]
     pub(crate) fn finish(
         mut self,
-        netinfo: &msg::Netinfo,
+        peer_netinfo: &msg::Netinfo,
         my_addrs: &[IpAddr],
         peer_info: MaybeSensitive<PeerInfo>,
     ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
@@ -522,13 +513,15 @@ impl<
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
         let canonicity =
-            Canonicity::from_netinfo(netinfo, my_addrs, peer_info.addr().netinfo_addr());
+            Canonicity::from_netinfo(peer_netinfo, my_addrs, peer_info.addr().netinfo_addr());
 
-        let peer_id = build_filtered_chan_target(self.target_method.take(), &peer_info);
+        // We need this because the Channel still uses a `OwnedChanTarget` in a lot of places but
+        // the real verified truth about our connected peer is in `PeerInfo`.
+        let peer_target = build_filtered_chan_target(self.target_method.take(), &peer_info);
 
         debug!(
             stream_id = %self.unique_id,
-            "Completed handshake without authentication to {}", Redacted::new(&peer_id)
+            "Completed handshake without authentication to {}", Redacted::new(&peer_target)
         );
 
         super::Channel::new(
@@ -538,7 +531,7 @@ impl<
             Box::new(tls_stream),
             stream_ops,
             self.unique_id,
-            peer_id,
+            peer_target,
             peer_info,
             self.clock_skew,
             self.sleep_prov,
@@ -561,16 +554,23 @@ impl<
 
     /// Return our [`RelayIds`] corresponding to this channel identities.
     pub(crate) fn relay_ids(&self) -> &RelayIds {
-        &self.relay_ids
+        &self.peer_relay_ids
     }
 
-    /// The channel is used to send cells, and to create outgoing circuits.
-    /// The reactor is used to route incoming messages to their appropriate
-    /// circuit.
+    /// Finalize this channel into an actual channel and its reactor.
+    ///
+    /// `peer_netinfo` is the received [`msg::Netinfo`] cell from the peer.
+    ///
+    /// `my_addrs` are our advertised addresses as a relay.
+    ///
+    /// `peer_info` is the verified peer information (identities and addresses).
+    ///
+    // NOTE: Unfortunately, this function has duplicated code with the VerifiedChannel::finish()
+    // so make sure any changes here is reflected there. A proper refactoring is welcome!
     #[instrument(skip_all, level = "trace")]
     pub(crate) async fn finish(
         mut self,
-        netinfo: &msg::Netinfo,
+        peer_netinfo: &msg::Netinfo,
         my_addrs: &[IpAddr],
         peer_info: MaybeSensitive<PeerInfo>,
     ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
@@ -607,9 +607,9 @@ impl<
         let (tls_sink, tls_stream) = self.framed_tls.split();
 
         let canonicity =
-            Canonicity::from_netinfo(netinfo, my_addrs, peer_info.addr().netinfo_addr());
+            Canonicity::from_netinfo(peer_netinfo, my_addrs, peer_info.addr().netinfo_addr());
 
-        let peer_id = build_filtered_chan_target(self.target_method.take(), &peer_info);
+        let peer_target = build_filtered_chan_target(self.target_method.take(), &peer_info);
 
         super::Channel::new(
             channel_type,
@@ -618,7 +618,7 @@ impl<
             Box::new(tls_stream),
             stream_ops,
             self.unique_id,
-            peer_id,
+            peer_target,
             peer_info,
             self.clock_skew,
             self.sleep_prov,
@@ -633,23 +633,19 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > UnverifiedInitiatorChannel<T, S>
 {
-    /// Validate the TLS cert (CertType 5) located in our `certs_cell`.
+    /// Validate all relay identities and TLS cert SIGNING_V_TLS_CERT located in the received
+    /// `certs_cell`.
     ///
-    /// `peer` is the relay we want to connect to.
+    /// `peer_target` is the relay we want to connect to.
     ///
     /// 'peer_cert_digest' is the digest of the x.509 certificate that the peer presented during
     /// its TLS handshake (ServerHello).
     ///
-    /// `kp_relaysign_ed` is the relay signing key taken from the signing cert (CertType 4). It is used
-    /// to sign the TLS cert and so we use it to validate.
-    ///
     /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
     /// current time. It can be used for testing to override the current view of the time.
-    ///
-    /// The `clock_skew` is the time skew detected during the handshake.
     pub(crate) fn verify<U: ChanTarget + ?Sized>(
         self,
-        peer: &U,
+        peer_target: &U,
         peer_cert_digest: [u8; 32],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedChannel<T, S>> {
@@ -673,40 +669,55 @@ impl<
         // (peer) we wanted. Then, check the TLS cert validity.
         //
         // The end result is a verified channel (not authenticated yet) which guarantee that we are
-        // talking to the right relay that we wanted.
+        // talking to the right relay that we wanted. We validate so we can prove these:
+        //
+        // - IDENTITY_V_SIGNING proves that KP_relaysign_ed speaks on behalf of KP_relayid_ed
+        // - SIGNING_V_TLS_CERT proves that the peer's TLS cert public key speaks on behalf of
+        //   KP_relaysign_ed.
+        // - The TLS handshake proved that the channel is authenticated by the peer's TLS public key.
+        // - Therefore, we have a chain from:
+        //   KS_relayid_ed → KP_relaysign_ed → subject key in TLS cert → the channel itself.
+        //
+        // As for legacy certs, they prove nothing but we can extract keys:
+        //
+        // - RSA_ID_X509 proves nothing; we just extract its subject key as KP_relayid_rsa.
+        // - RSA_ID_V_IDENTITY proves that KP_relayid_ed speaks on behalf of KP_relayid_rsa.
+        // - Therefore we have a chain from:
+        //   KP_relayid_rsa → KS_relayid_ed → KP_relaysign_ed → subject key in TLS cert → channel.
 
         // Check the relay identities in the CERTS cell.
-        let (relay_ids, kp_relaysign_ed, rsa_id_digest) =
-            self.inner
-                .check_relay_identities(peer, &self.certs_cell, now)?;
+        let (peer_relay_ids, peer_kp_relaysign_ed, peer_rsa_id_digest) = self
+            .inner
+            .check_relay_identities(peer_target, &self.certs_cell, now)?;
 
         // Now look at the signing->TLS cert and check it against the
         // peer certificate.
-        let sk_tls = get_cert(&self.certs_cell, CertType::SIGNING_V_TLS_CERT)?;
-        let (sk_tls, sk_tls_sig) = sk_tls
-            .should_be_signed_with(&kp_relaysign_ed)
+        let cert_tls = get_cert(&self.certs_cell, CertType::SIGNING_V_TLS_CERT)?;
+        let (cert_tls, cert_tls_sig) = cert_tls
+            .should_be_signed_with(&peer_kp_relaysign_ed)
             .map_err(Error::HandshakeCertErr)?
             .dangerously_split()
             .map_err(Error::HandshakeCertErr)?;
-        let (sk_tls_timeliness, sk_tls) = check_cert_timeliness(sk_tls, now, self.inner.clock_skew);
+        let (cert_tls_timeliness, cert_tls) =
+            check_cert_timeliness(cert_tls, now, self.inner.clock_skew);
 
-        if peer_cert_digest != sk_tls.subject_key().as_bytes() {
+        if peer_cert_digest != cert_tls.subject_key().as_bytes() {
             return Err(Error::HandshakeProto(
                 "Peer cert did not authenticate TLS cert".into(),
             ));
         }
 
         // Make sure the TLS cert is well signed.
-        if !sk_tls_sig.is_valid() {
+        if !cert_tls_sig.is_valid() {
             return Err(Error::HandshakeProto(
                 "Invalid ed25519 TLS cert signature in handshake".into(),
             ));
         }
 
         // Check TLS cert timeliness.
-        sk_tls_timeliness?;
+        cert_tls_timeliness?;
 
-        Ok(self.inner.into_verified(relay_ids, rsa_id_digest))
+        Ok(self.inner.into_verified(peer_relay_ids, peer_rsa_id_digest))
     }
 }
 
@@ -714,8 +725,8 @@ impl<
 ///
 /// `certs` is the [`msg::Certs`] cell received during the handshake.
 ///
-/// `kp_relaysign_ed` is the relay signing ed25519 key taken from the signing cert (CertType 4). It
-/// is used to sign the LINK_AUTH cert.
+/// `kp_relaysign_ed` is the relay signing ed25519 key taken from the signing cert
+/// IDENTITY_V_SIGNING. It is used to sign the LINK_AUTH cert.
 ///
 /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
 /// current time. It can be used for testing to override the current view of the time.
@@ -850,6 +861,43 @@ fn build_filtered_chan_target(
     peer_builder
         .build()
         .expect("OwnedChanTarget builder failed")
+}
+
+/// Read a message from the stream.
+///
+/// The `expecting` parameter is used for logging purposes, not filtering.
+pub(crate) async fn read_msg<T>(
+    stream_id: UniqId,
+    mut stream: impl Stream<Item = Result<AnyChanCell>> + Unpin,
+) -> Result<T>
+where
+    T: RestrictedMsg + TryFrom<AnyChanMsg, Error = AnyChanMsg>,
+{
+    let Some(cell) = stream.next().await.transpose()? else {
+        // The entire channel has ended, so nothing else to be done.
+        return Err(Error::HandshakeProto("Stream ended unexpectedly".into()));
+    };
+
+    let (id, m) = cell.into_circid_and_msg();
+    trace!(%stream_id, "received a {} cell", m.cmd());
+
+    // TODO: Maybe also check this in the channel handshake codec?
+    if let Some(id) = id {
+        return Err(Error::HandshakeProto(format!(
+            "Expected no circ ID for {} cell, but received circ ID of {id} instead",
+            m.cmd(),
+        )));
+    }
+
+    let m = m.try_into().map_err(|m: AnyChanMsg| {
+        Error::HandshakeProto(format!(
+            "Expected [{}] cell, but received {} cell instead",
+            tor_basic_utils::iter_join(", ", T::cmds_for_logging().iter()),
+            m.cmd(),
+        ))
+    })?;
+
+    Ok(m)
 }
 
 #[cfg(test)]
@@ -1352,8 +1400,8 @@ pub(super) mod test {
                 framed_tls,
                 unique_id: UniqId::new(),
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
-                relay_ids: RelayIds::empty(),
-                rsa_id_digest: [0; 32],
+                peer_relay_ids: RelayIds::empty(),
+                peer_rsa_id_digest: [0; 32],
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,
                 memquota: fake_mq(),

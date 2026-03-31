@@ -22,9 +22,9 @@ use tor_linkspec::OwnedChanTarget;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::{
-    ClockSkew, RelayIdentities, Result,
+    ClockSkew, RelayChannelAuthMaterial, Result,
     channel::{
-        Channel, Reactor,
+        AuthLogDigest, Channel, Reactor,
         handshake::{UnverifiedInitiatorChannel, VerifiedChannel},
     },
     peer::{PeerAddr, PeerInfo},
@@ -44,11 +44,11 @@ pub struct UnverifiedInitiatorRelayChannel<
     /// AUTH_CHALLENGE cell received from the responder.
     pub(crate) auth_challenge_cell: msg::AuthChallenge,
     /// The SLOG digest.
-    pub(crate) slog_digest: [u8; 32],
+    pub(crate) slog_digest: AuthLogDigest,
     /// The netinfo cell received from the responder.
     pub(crate) netinfo_cell: msg::Netinfo,
-    /// Our identity keys needed for authentication.
-    pub(crate) identities: Arc<RelayIdentities>,
+    /// Our channel key material needed for authentication.
+    pub(crate) auth_material: Arc<RelayChannelAuthMaterial>,
     /// Our advertised IP addresses for the final NETINFO
     pub(crate) my_addrs: Vec<IpAddr>,
 }
@@ -61,9 +61,9 @@ where
     /// Validate the certificates and keys in the relay's handshake. As an initiator, we always
     /// authenticate no matter what.
     ///
-    /// 'peer' is the peer that we want to make sure we're connecting to.
+    /// 'peer_target' is the peer that we want to make sure we're connecting to.
     ///
-    /// 'peer_cert' is the x.509 certificate that the peer presented during its TLS handshake
+    /// 'peer_tls_cert' is the x.509 certificate that the peer presented during its TLS handshake
     /// (ServerHello).
     ///
     /// 'now' is the time at which to check that certificates are valid.  `None` means to use the
@@ -72,38 +72,27 @@ where
     /// This is a separate function because it's likely to be somewhat CPU-intensive.
     pub fn verify(
         self,
-        peer: &OwnedChanTarget,
-        peer_cert: &[u8],
+        peer_target: &OwnedChanTarget,
+        peer_tls_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedInitiatorRelayChannel<T, S>> {
         // Get these object out as we consume "self" in the inner check().
         let auth_challenge_cell = self.auth_challenge_cell;
-        let identities = self.identities;
+        let identities = self.auth_material;
         let my_addrs = self.my_addrs;
         let netinfo_cell = self.netinfo_cell;
 
-        let peer_cert_digest = tor_llcrypto::d::Sha256::digest(peer_cert).into();
+        let peer_tls_cert_digest = tor_llcrypto::d::Sha256::digest(peer_tls_cert).into();
 
         // Verify our inner channel and then proceed to handle the authentication challenge if any.
-        let mut verified = self.inner.verify(peer, peer_cert_digest, now)?;
-
-        // This part is very important as we now flag that we are authenticated. The responder
-        // checks the received AUTHENTICATE and the initiator just needs to verify the channel.
-        //
-        // At this point, the underlying cell handler is in the Handshake state. Setting the
-        // channel type here as authenticated means that once the handler transition to the Open
-        // state, it will carry this authenticated flag leading to the message filter of the
-        // channel codec to adapt its restricted message sets (meaning R2R only).
-        //
-        // After this call, it is considered a R2R channel.
-        verified.set_authenticated()?;
+        let verified = self.inner.verify(peer_target, peer_tls_cert_digest, now)?;
 
         Ok(VerifiedInitiatorRelayChannel {
             inner: verified,
-            identities,
+            auth_material: identities,
             netinfo_cell,
             auth_challenge_cell,
-            peer_cert_digest,
+            peer_tls_cert_digest,
             slog_digest: self.slog_digest,
             my_addrs,
         })
@@ -128,16 +117,16 @@ pub struct VerifiedInitiatorRelayChannel<
 > {
     /// The common unverified channel that both client and relays use.
     inner: VerifiedChannel<T, S>,
-    /// Relay identities.
-    identities: Arc<RelayIdentities>,
+    /// Relay channel authentication material.
+    auth_material: Arc<RelayChannelAuthMaterial>,
     /// The netinfo cell that we got from the relay.
     netinfo_cell: msg::Netinfo,
     /// The AUTH_CHALLENGE cell that we got from the relay.
     auth_challenge_cell: msg::AuthChallenge,
     /// The peer TLS certificate digest.
-    peer_cert_digest: [u8; 32],
+    peer_tls_cert_digest: [u8; 32],
     /// The SLOG digest.
-    slog_digest: [u8; 32],
+    slog_digest: AuthLogDigest,
     /// Our advertised IP addresses.
     my_addrs: Vec<IpAddr>,
 }
@@ -154,7 +143,7 @@ where
     /// channel on which circuits can be opened.
     pub async fn finish(mut self, peer_addr: PeerAddr) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Send the CERTS cell.
-        let certs = super::build_certs_cell(&self.identities, /* is_responder */ false);
+        let certs = super::build_certs_cell(&self.auth_material, /* is_responder */ false);
         trace!(channel_id = %self.inner.unique_id, "Sending CERTS as initiator cell.");
         self.inner.framed_tls.send(certs.into()).await?;
 
@@ -172,13 +161,16 @@ where
         // type requested by the responder is supported by us.
         let auth_cell = ChannelAuthenticationData::build_initiator(
             &self.auth_challenge_cell,
-            &self.identities,
+            &self.auth_material,
             clog_digest,
             self.slog_digest,
             &mut self.inner,
-            self.peer_cert_digest,
+            self.peer_tls_cert_digest,
         )?
-        .into_authenticate(self.inner.framed_tls.deref(), &self.identities.link_sign_kp)?;
+        .into_authenticate(
+            self.inner.framed_tls.deref(),
+            &self.auth_material.link_sign_kp,
+        )?;
 
         // Send the AUTHENTICATE cell.
         trace!(channel_id = %self.inner.unique_id, "Sending AUTHENTICATE as initiator cell.");

@@ -32,6 +32,7 @@ use tor_llcrypto::pk::{
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
+use crate::channel::AuthLogDigest;
 use crate::channel::handshake::VerifiedChannel;
 use crate::peer::PeerAddr;
 use crate::relay::channel::handshake::{AUTHTYPE_ED25519_SHA256_RFC5705, RelayResponderHandshake};
@@ -42,12 +43,11 @@ use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAc
 /// A list of link authentication that we support (LinkAuth).
 pub(crate) static LINK_AUTH: &[u16] = &[AUTHTYPE_ED25519_SHA256_RFC5705];
 
-/// Object containing the key and certificate that basically identifies us as a relay. They are
-/// used for channel authentication.
+/// Object containing the keys and certificates for channel authentication.
 ///
 /// We use this intermediary object in order to not have tor-proto crate have access to the KeyMgr
 /// meaning access to all keys. This restricts the view to what is needed.
-pub struct RelayIdentities {
+pub struct RelayChannelAuthMaterial {
     /// The SHA256(DER(KP_relayid_rsa)) digest for the AUTHENTICATE cell CID.
     pub(crate) rsa_id_der_digest: [u8; 32],
     /// Our RSA identity `KP_relayid_rsa` (SHA1). Needed for HasRelayIds which is required to
@@ -75,7 +75,7 @@ pub struct RelayIdentities {
     pub(crate) tls_key_and_cert: TlsKeyAndCert,
 }
 
-impl RelayIdentities {
+impl RelayChannelAuthMaterial {
     /// Constructor.
     #[allow(clippy::too_many_arguments)] // Yes, plethora of keys...
     pub fn new(
@@ -116,7 +116,7 @@ impl RelayIdentities {
     }
 }
 
-impl HasRelayIds for RelayIdentities {
+impl HasRelayIds for RelayChannelAuthMaterial {
     fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
         match key_type {
             RelayIdType::Ed25519 => Some(RelayIdRef::from(&self.ed_id)),
@@ -148,16 +148,23 @@ impl RelayChannelBuilder {
         self,
         tls: T,
         sleep_prov: S,
-        identities: Arc<RelayIdentities>,
+        auth_material: Arc<RelayChannelAuthMaterial>,
         my_addrs: Vec<IpAddr>,
-        peer: &OwnedChanTarget,
+        peer_target: &OwnedChanTarget,
         memquota: ChannelAccount,
     ) -> RelayInitiatorHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        RelayInitiatorHandshake::new(tls, sleep_prov, identities, my_addrs, peer, memquota)
+        RelayInitiatorHandshake::new(
+            tls,
+            sleep_prov,
+            auth_material,
+            my_addrs,
+            peer_target,
+            memquota,
+        )
     }
 
     /// Accept a new handshake over a TLS stream.
@@ -167,14 +174,21 @@ impl RelayChannelBuilder {
         my_addrs: Vec<IpAddr>,
         tls: T,
         sleep_prov: S,
-        identities: Arc<RelayIdentities>,
+        auth_material: Arc<RelayChannelAuthMaterial>,
         memquota: ChannelAccount,
     ) -> RelayResponderHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        RelayResponderHandshake::new(peer_addr, my_addrs, tls, sleep_prov, identities, memquota)
+        RelayResponderHandshake::new(
+            peer_addr,
+            my_addrs,
+            tls,
+            sleep_prov,
+            auth_material,
+            memquota,
+        )
     }
 }
 
@@ -193,9 +207,9 @@ pub(crate) struct ChannelAuthenticationData {
     /// The responder KP_relayid_ed.
     pub(crate) sid_ed: [u8; 32],
     /// Initiator log SHA256 digest.
-    pub(crate) clog: [u8; 32],
+    pub(crate) clog: AuthLogDigest,
     /// Responder log SHA256 digest.
-    pub(crate) slog: [u8; 32],
+    pub(crate) slog: AuthLogDigest,
     /// SHA256 of responder's TLS certificate.
     pub(crate) scert: [u8; 32],
 }
@@ -224,8 +238,8 @@ impl ChannelAuthenticationData {
     /// can only verify the signature and so we can't compare the full [`msg::Authenticate`]
     /// message we received with what we expect.
     pub(crate) fn as_body_no_rand<C: CertifiedConn>(&self, tls: &C) -> Result<Vec<u8>> {
-        // The body is exactly 352 bytes so optimize a bit memory.
-        let mut body = Vec::with_capacity(352);
+        // The body without the rand and sig is exactly 264 bytes so optimize a bit memory.
+        let mut body = Vec::with_capacity(msg::Authenticate::BODY_LEN);
 
         // Obviously, ordering matteres. See tor-spec section Ed25519-SHA256-RFC5705
         body.extend_from_slice(Self::auth_type_bytes(self.link_auth)?);
@@ -244,6 +258,10 @@ impl ChannelAuthenticationData {
             Some(&self.cid[..]),
         )?;
         body.extend_from_slice(tls_secrets.as_slice());
+
+        // Make sure our Authenticate cell is filled.
+        debug_assert_eq!(body.len(), msg::Authenticate::BODY_LEN);
+        debug_assert_eq!(body.capacity(), msg::Authenticate::BODY_LEN);
 
         Ok(body)
     }
@@ -274,16 +292,16 @@ impl ChannelAuthenticationData {
     ///
     /// `auth_challenge_cell` is the [`msg::AuthChallenge`] we recevied during the handshake.
     ///
-    /// `identities` are our [`RelayIdentities`]
+    /// `identities` are our [`RelayChannelAuthMaterial`]
     ///
     /// `verified` is a [`VerifiedChannel`] which we need to consume the CLOG/SLOG
     ///
     /// `peer_cert_digest` is the TLS certificate presented by the peer.
     pub(crate) fn build_initiator<T, S>(
         auth_challenge_cell: &msg::AuthChallenge,
-        identities: &Arc<RelayIdentities>,
-        clog: [u8; 32],
-        slog: [u8; 32],
+        auth_material: &Arc<RelayChannelAuthMaterial>,
+        clog: AuthLogDigest,
+        slog: AuthLogDigest,
         verified: &mut VerifiedChannel<T, S>,
         peer_cert_digest: [u8; 32],
     ) -> Result<ChannelAuthenticationData>
@@ -298,9 +316,9 @@ impl ChannelAuthenticationData {
             .max()
             .ok_or(Error::BadCellAuth)?;
         // The ordering matter as this is an initiator.
-        let cid = identities.rsa_id_der_digest;
-        let sid = verified.rsa_id_digest;
-        let cid_ed = identities.ed_id_bytes();
+        let cid = auth_material.rsa_id_der_digest;
+        let sid = verified.peer_rsa_id_digest;
+        let cid_ed = auth_material.ed_id_bytes();
         let sid_ed = (*verified
             .relay_ids()
             .ed_identity()
@@ -319,12 +337,12 @@ impl ChannelAuthenticationData {
         })
     }
 
-    /// Build a [`ChannelAuthenticationData`] for an initiator channel handshake.
+    /// Build a [`ChannelAuthenticationData`] for a responder channel handshake.
     ///
     /// `initiator_auth_type` is the authentication type from the [`msg::Authenticate`] received
     /// from the initiator.
     ///
-    /// `identities` are our [`RelayIdentities`]
+    /// `auth_material` are our [`RelayChannelAuthMaterial`]
     ///
     /// `verified` is a [`VerifiedChannel`] which we need to consume the CLOG/SLOG
     ///
@@ -332,18 +350,15 @@ impl ChannelAuthenticationData {
     ///
     /// IMPORTANT: The CLOG and SLOG from the framed_tls codec is consumed here so calling twice
     /// build_auth_data() will result in different AUTHENTICATE cells.
-    pub(crate) fn build_responder<T, S>(
+    pub(crate) fn build_responder(
         initiator_auth_type: u16,
-        identities: &Arc<RelayIdentities>,
-        clog: [u8; 32],
-        slog: [u8; 32],
-        verified: &mut VerifiedChannel<T, S>,
+        auth_material: &Arc<RelayChannelAuthMaterial>,
+        clog: AuthLogDigest,
+        slog: AuthLogDigest,
+        peer_rsa_id_digest: [u8; 32],
+        peer_relayid_ed: Ed25519Identity,
         our_cert_digest: [u8; 32],
-    ) -> Result<ChannelAuthenticationData>
-    where
-        T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
-        S: CoarseTimeProvider + SleepProvider,
-    {
+    ) -> Result<ChannelAuthenticationData> {
         // Max on what we know.
         let link_auth = if LINK_AUTH.contains(&initiator_auth_type) {
             initiator_auth_type
@@ -351,14 +366,10 @@ impl ChannelAuthenticationData {
             return Err(Error::UnsupportedAuth(initiator_auth_type));
         };
         // The ordering matter as this is a respodner. It is inversed from the initiator.
-        let cid = identities.rsa_id_der_digest;
-        let sid = verified.rsa_id_digest;
-        let cid_ed = identities.ed_id_bytes();
-        let sid_ed = (*verified
-            .relay_ids()
-            .ed_identity()
-            .expect("Verified channel without Ed25519 identity"))
-        .into();
+        let cid = auth_material.rsa_id_der_digest;
+        let sid = peer_rsa_id_digest;
+        let cid_ed = auth_material.ed_id_bytes();
+        let sid_ed = peer_relayid_ed.into();
 
         Ok(Self {
             link_auth,
@@ -378,28 +389,28 @@ impl ChannelAuthenticationData {
 ///
 /// Both relay initiator and responder handshake use this.
 pub(crate) fn build_certs_cell(
-    identities: &Arc<RelayIdentities>,
+    auth_material: &Arc<RelayChannelAuthMaterial>,
     is_responder: bool,
 ) -> msg::Certs {
     let mut certs = msg::Certs::new_empty();
     // Push into the cell the CertType 2 RSA (RSA_ID_X509)
     certs.push_cert_body(
         tor_cert::CertType::RSA_ID_X509,
-        identities.cert_id_x509_rsa.clone(),
+        auth_material.cert_id_x509_rsa.clone(),
     );
 
     // Push into the cell the CertType 7 RSA (RSA_ID_V_IDENTITY)
-    certs.push_cert(&identities.cert_id_rsa);
+    certs.push_cert(&auth_material.cert_id_rsa);
 
     // Push into the cell the CertType 4 Ed25519 (IDENTITY_V_SIGNING)
-    certs.push_cert(&identities.cert_id_sign_ed);
+    certs.push_cert(&auth_material.cert_id_sign_ed);
     // Push into the cell the CertType 5/6 Ed25519
     if is_responder {
         // Responder has CertType 5 (SIGNING_V_TLS)
-        certs.push_cert(&identities.cert_sign_tls_ed);
+        certs.push_cert(&auth_material.cert_sign_tls_ed);
     } else {
         // Initiator has CertType 6 (SIGINING_V_LINK_AUTH)
-        certs.push_cert(&identities.cert_sign_link_auth_ed);
+        certs.push_cert(&auth_material.cert_sign_link_auth_ed);
     }
     certs
 }

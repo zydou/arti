@@ -1097,6 +1097,8 @@ pub struct Authenticate {
 impl Authenticate {
     /// The signature field length.
     const SIG_LEN: usize = 64;
+    /// The body length that is all fields except the rand and signature.
+    pub const BODY_LEN: usize = 264;
 
     /// Create a new Authenticate message from a given type and body.
     pub fn new<B>(authtype: u16, body: B) -> Self
