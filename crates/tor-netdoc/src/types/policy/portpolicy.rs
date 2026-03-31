@@ -183,6 +183,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use itertools::Itertools;
 
+    #[cfg(feature = "parse2")]
     use crate::parse2::{self, ParseInput};
 
     use super::*;
