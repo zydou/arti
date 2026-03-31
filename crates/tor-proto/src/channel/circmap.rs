@@ -8,6 +8,7 @@ use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::{Error, Result};
 use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
+use tor_cell::chancell::msg::DestroyReason;
 
 use crate::circuit::celltypes::CreateResponse;
 use crate::client::circuit::halfcirc::HalfCirc;
@@ -18,6 +19,11 @@ use rand::Rng;
 use rand::distr::Distribution;
 use std::collections::{HashMap, hash_map::Entry};
 use std::ops::{Deref, DerefMut};
+use std::result::Result as StdResult;
+use std::sync::Arc;
+
+#[cfg(feature = "relay")]
+use crate::relay::RelayCirc;
 
 /// Which group of circuit IDs are we allowed to allocate in this map?
 ///
@@ -92,6 +98,23 @@ pub(super) enum CircEnt {
     /// An origin circuit (a circuit which originated here)
     /// that is open and can be given relay cells.
     OpenOrigin {
+        /// A sink which should receive all the relay cells for this circuit
+        /// from this channel
+        cell_sender: CircuitRxSender,
+        /// A padding controller we should use when reporting flushed cells.
+        padding_ctrl: PaddingController,
+    },
+
+    /// A relay circuit (a circuit in which we are a hop on the path)
+    /// that is open and can be given relay cells.
+    #[cfg(feature = "relay")]
+    OpenRelay {
+        /// A handle to the circuit.
+        /// TODO(relay): We need to store the `Arc<RelayCirc>` somewhere
+        /// and currently this seems like the best place to store it.
+        /// As we implement more functionality maybe we'll find a better place to store it,
+        /// in which case we should consider combining the `OpenOrigin` and `OpenRelay` variants.
+        _circ: Arc<RelayCirc>,
         /// A sink which should receive all the relay cells for this circuit
         /// from this channel
         cell_sender: CircuitRxSender,
@@ -197,6 +220,38 @@ impl CircMap {
         Err(Error::IdRangeFull)
     }
 
+    /// Add a new set of elements (corresponding to a [`RelayCirc`]) as an entry to this map.
+    ///
+    /// We use [`DestroyReason`] as the return type since we very likely want to destroy the circuit
+    /// if this fails, and not return an error and destroy the entire channel.
+    #[cfg(feature = "relay")]
+    pub(super) fn add_relay_ent(
+        &mut self,
+        circ_id: CircId,
+        circ: Arc<RelayCirc>,
+        sink: CircuitRxSender,
+        padding_ctrl: PaddingController,
+    ) -> StdResult<(), DestroyReason> {
+        // The peer is only allowed to use a subset of the ID range.
+        if !self.range.is_allowed_by_peer(circ_id) {
+            return Err(DestroyReason::PROTOCOL);
+        }
+
+        let circ_ent = CircEnt::OpenRelay {
+            _circ: circ,
+            cell_sender: sink,
+            padding_ctrl,
+        };
+
+        if let Entry::Vacant(ent) = self.m.entry(circ_id) {
+            ent.insert(circ_ent);
+            self.open_count += 1;
+            Ok(())
+        } else {
+            Err(DestroyReason::PROTOCOL)
+        }
+    }
+
     /// Testing only: install an entry in this circuit map without regard
     /// for consistency.
     #[cfg(test)]
@@ -219,6 +274,8 @@ impl CircMap {
         let padding_ctrl = match self.m.get(&id) {
             Some(CircEnt::Opening { padding_ctrl, .. }) => padding_ctrl,
             Some(CircEnt::OpenOrigin { padding_ctrl, .. }) => padding_ctrl,
+            #[cfg(feature = "relay")]
+            Some(CircEnt::OpenRelay { padding_ctrl, .. }) => padding_ctrl,
             Some(CircEnt::DestroySent(..)) | None => return,
         };
         padding_ctrl.flushed_relay_cell(info);

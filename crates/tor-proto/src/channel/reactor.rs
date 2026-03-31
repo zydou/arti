@@ -609,6 +609,18 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 }
                 Ok(())
             }
+            #[cfg(feature = "relay")]
+            CircEnt::OpenRelay { cell_sender: s, .. } => {
+                // There's an open circuit; we can give it the RELAY cell.
+                if s.send(msg).await.is_err() {
+                    drop(ent);
+                    // The circuit's receiver went away, so we should destroy the circuit.
+                    // We send a DESTROY on our own channel, and the circuit reactor should have
+                    // taken care of sending a DESTROY on the other channel.
+                    self.outbound_destroy_circ(circid).await?;
+                }
+                Ok(())
+            }
             CircEnt::Opening { .. } => Err(Error::ChanProto(
                 "Relay cell on pending circuit before CREATED* received".into(),
             )),
@@ -641,6 +653,16 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
             return Err(Error::ChanProto("'Destroy' cell without circuit ID".into()));
         };
 
+        /// Helper to send DESTROY cell.
+        async fn send_destroy(mut sender: CircuitRxSender, msg: AnyChanMsg) -> Result<()> {
+            sender
+                .send(msg)
+                .await
+                // TODO(nickm) I think that this one actually means the other side
+                // is closed. See arti#269.
+                .map_err(|_| internal!("open circuit wasn't interested in destroy cell?").into())
+        }
+
         // Remove the circuit from the map: nothing more can be done with it.
         let entry = self.circs.remove(circid);
         self.update_disused_since();
@@ -661,18 +683,15 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                     })
             }
             // It's an open origin circuit: tell it that it got a DESTROY cell.
-            Some(CircEnt::OpenOrigin {
-                mut cell_sender, ..
-            }) => {
+            Some(CircEnt::OpenOrigin { cell_sender, .. }) => {
                 trace!(channel_id = %self, "Passing destroy to open origin circuit {}", circid);
-                cell_sender
-                    .send(msg)
-                    .await
-                    // TODO(nickm) I think that this one actually means the other side
-                    // is closed. See arti#269.
-                    .map_err(|_| {
-                        internal!("open circuit wasn't interested in destroy cell?").into()
-                    })
+                send_destroy(cell_sender, msg).await
+            }
+            // It's an open relay circuit: tell it that it got a DESTROY cell.
+            #[cfg(feature = "relay")]
+            Some(CircEnt::OpenRelay { cell_sender, .. }) => {
+                trace!(channel_id = %self, "Passing destroy to open relay circuit {}", circid);
+                send_destroy(cell_sender, msg).await
             }
             // We've sent a destroy; we can leave this circuit removed.
             Some(CircEnt::DestroySent(_)) => Ok(()),
