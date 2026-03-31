@@ -466,7 +466,7 @@ define_derive_deftly! {
 
                             out.object_bytes(label, data);
 
-                        } // if let Some(field)
+                        } // if let Some(object)
               }}
 
                         Ok(())
