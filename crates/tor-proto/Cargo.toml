@@ -21,7 +21,9 @@ full = [
     "hs-service",
     "pt-client",
     "tokio",
+    "rpc",
     "send-control-msg",
+    "stream-ctrl",
     "safelog/full",
     "tor-async-utils/full",
     "tor-basic-utils/full",
@@ -51,7 +53,6 @@ experimental = [
     "experimental-api",
     "conflux",
     "flowctl-cc",
-    "stream-ctrl",
     "testing",
     "bench",
     "counter-galois-onion",
@@ -69,7 +70,7 @@ hs-common = ["tor-hscrypto"]
 experimental-api = ["__is_experimental"]
 # start_conversation etc.; TODO HS should be renamed
 send-control-msg = []
-stream-ctrl = ["__is_experimental"]
+stream-ctrl = []
 counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval", "flowctl-cc"]
 circ-padding = ["__is_experimental", "maybenot"]
 circ-padding-manual = ["__is_experimental", "circ-padding"]
@@ -80,6 +81,7 @@ relay = [
     "__is_experimental",
     "flowctl-cc",
 ]
+rpc = ["stream-ctrl", "dep:tor-rpcbase", "dep:serde"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
@@ -120,6 +122,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.9.1"
 rand_core = "0.9.3"
 safelog = { path = "../safelog", version = "0.8.1" }
+serde = { version = "1.0.103", features = ["derive"], optional = true }
 slotmap-careful = { path = "../slotmap-careful", version = "0.7.0" }
 smallvec = { version = "1.10", features = ["const_generics"] }
 static_assertions = "1"
@@ -144,6 +147,7 @@ tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.41.0" }
 tor-memquota = { version = "0.41.0", path = "../tor-memquota", default-features = false }
 tor-protover = { version = "0.41.0", path = "../tor-protover" }
 tor-relay-crypto = { version = "0.41.0", path = "../tor-relay-crypto", optional = true }
+tor-rpcbase = { version = "0.41.0", path = "../tor-rpcbase", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.41.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.41.0" }
 tor-units = { path = "../tor-units", version = "0.41.0", features = ["memquota-memcost"] }
