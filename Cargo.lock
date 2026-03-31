@@ -6662,7 +6662,7 @@ version = "0.41.0"
 dependencies = [
  "derive_more",
  "educe",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "hex",
  "itertools 0.14.0",
  "libc",
