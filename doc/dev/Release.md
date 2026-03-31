@@ -334,6 +334,10 @@ before you continue!
 
 ### In due course
 
+   `cargo update` is *supposed* to always work, but sometimes our
+   dependencies get things wrong.  In that case, adding a dependency
+   to `maint/dependencies-bodge/` can help.
+
 6. [ ] Consider dependency updates for breaking changes in our dependencies.
 
    Check for breaking changes to our dependencies with
