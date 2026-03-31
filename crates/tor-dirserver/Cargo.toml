@@ -38,11 +38,11 @@ hyper-util = { version = "0.1.16", features = ["full"] }
 lzma-rs = "0.3.0"
 r2d2 = "0.8.10"
 # NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
-r2d2_sqlite = ">=0.29.0, <0.33.0"
+r2d2_sqlite = ">=0.29.0, <0.34.0"
 rand = "0.9.2"
 retry-error = { version = "0.12.0", path = "../retry-error" }
 # NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
-rusqlite = ">=0.36.0, <0.39.0"
+rusqlite = ">=0.36.0, <0.40.0"
 saturating-time = "0.3.0"
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2.0.16"
