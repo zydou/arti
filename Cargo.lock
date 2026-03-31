@@ -7766,6 +7766,7 @@ dependencies = [
  "smallvec",
  "static_assertions",
  "statrs",
+ "strum",
  "subtle",
  "sync_wrapper",
  "thiserror 2.0.18",

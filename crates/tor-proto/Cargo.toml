@@ -117,6 +117,7 @@ safelog = { path = "../safelog", version = "0.8.1" }
 slotmap-careful = { path = "../slotmap-careful", version = "0.7.0" }
 smallvec = { version = "1.10", features = ["const_generics"] }
 static_assertions = "1"
+strum = { version = "0.28.0", features = ["derive"] }
 subtle = "2"
 sync_wrapper = "1.0.2"
 thiserror = "2"
