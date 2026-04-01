@@ -138,6 +138,37 @@ impl RelaySigningPublicKeySpecifier {
     }
 }
 
+/// The key specifier of the relay medium-term ntor circuit extension key.
+#[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "relay")]
+#[deftly(role = "KS_ntor")]
+#[deftly(summary = "Relay medium-term ntor keypair")]
+pub struct RelayNtorKeypairSpecifier {
+    /// The expiration time of this key.
+    #[deftly(denotator)]
+    pub(crate) valid_until: Timestamp,
+}
+
+/// The key specifier of the public part of the relay medium-term ntor circuit extension key.
+#[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "relay")]
+#[deftly(role = "KP_ntor")]
+#[deftly(summary = "Public part of the relay medium-term ntor keypair")]
+#[deftly(keypair_specifier = "RelayNtorKeypairSpecifier")]
+pub struct RelayNtorPublicKeySpecifier {
+    /// The expiration time of this key.
+    #[deftly(denotator)]
+    pub(crate) valid_until: Timestamp,
+}
+
+impl From<&RelayNtorPublicKeySpecifier> for RelayNtorKeypairSpecifier {
+    fn from(public_key_specifier: &RelayNtorPublicKeySpecifier) -> RelayNtorKeypairSpecifier {
+        RelayNtorKeypairSpecifier::new(public_key_specifier.valid_until)
+    }
+}
+
 /// Certificate specifier for the [`RelaySigningPublicKeySpecifier`] certificate.
 ///
 /// Represents `KP_relaysign_ed` signed by the `KS_relayid_ed` identity key.
