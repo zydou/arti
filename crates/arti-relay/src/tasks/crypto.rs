@@ -263,15 +263,16 @@ fn try_generate_all(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<Option<S
         RelayLinkSigningKeypairSpecifierPattern,
     >(keymgr, &link_spec)?;
 
+    let cert_expiry = now + SIGNING_KEY_CERT_LIFETIME;
+
     // The make certificate function needed for the get_or_generate_key_and_cert(). It is a closure
     // so we can capture the runtime wallclock.
     let make_signing_cert = |subject_key: &RelaySigningKeypair,
                              signing_key: &RelayIdentityKeypair| {
-        gen_signing_cert(signing_key, subject_key, now + SIGNING_KEY_CERT_LIFETIME)
+        gen_signing_cert(signing_key, subject_key, cert_expiry)
             .expect("failed to generate relay signing cert")
     };
 
-    let cert_expiry = now + SIGNING_KEY_CERT_LIFETIME;
     // We either get the existing one or generate this new one.
     let cert_spec = RelaySigningKeyCertSpecifier::new(RelaySigningPublicKeySpecifier::new(
         Timestamp::from(cert_expiry),
