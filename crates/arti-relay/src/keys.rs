@@ -22,7 +22,7 @@ use web_time_compat::SystemTime;
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relayid_ed")]
 #[deftly(summary = "Relay long-term identity keypair")]
-pub struct RelayIdentityKeypairSpecifier;
+pub(crate) struct RelayIdentityKeypairSpecifier;
 
 /// The public part of the long-term identity key of the relay.
 #[non_exhaustive]
@@ -31,7 +31,7 @@ pub struct RelayIdentityKeypairSpecifier;
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relayid_ed")]
 #[deftly(summary = "Public part of the relay long-term identity keypair")]
-pub struct RelayIdentityPublicKeySpecifier;
+pub(crate) struct RelayIdentityPublicKeySpecifier;
 
 /// The key specifier of the legacy RSA relay long-term identity key (RelayIdentityRsaKeypair)
 #[non_exhaustive]
@@ -40,7 +40,7 @@ pub struct RelayIdentityPublicKeySpecifier;
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relayid_rsa")]
 #[deftly(summary = "Legacy RSA long-term relay identity keypair")]
-pub struct RelayIdentityRsaKeypairSpecifier;
+pub(crate) struct RelayIdentityRsaKeypairSpecifier;
 
 /// The public part of the long-term identity key of the relay.
 #[non_exhaustive]
@@ -49,7 +49,7 @@ pub struct RelayIdentityRsaKeypairSpecifier;
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relayid_rsa")]
 #[deftly(summary = "Public part of the relay long-term identity keypair")]
-pub struct RelayIdentityRsaPublicKeySpecifier;
+pub(crate) struct RelayIdentityRsaPublicKeySpecifier;
 
 /// The key specifier of the relay medium-term signing key.
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
@@ -57,7 +57,7 @@ pub struct RelayIdentityRsaPublicKeySpecifier;
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relaysign_ed")]
 #[deftly(summary = "Relay medium-term signing keypair")]
-pub struct RelaySigningKeypairSpecifier {
+pub(crate) struct RelaySigningKeypairSpecifier {
     /// The expiration time of this key.
     ///
     /// This **must** be the same as the expiration timestamp from the
@@ -78,7 +78,7 @@ pub struct RelaySigningKeypairSpecifier {
 
 impl RelaySigningKeypairSpecifier {
     /// Returns the time at which this key becomes invalid.
-    pub fn valid_until(&self) -> Timestamp {
+    pub(crate) fn valid_until(&self) -> Timestamp {
         self.valid_until
     }
 }
@@ -90,7 +90,7 @@ impl RelaySigningKeypairSpecifier {
 #[deftly(role = "KP_relaysign_ed")]
 #[deftly(summary = "Public part of the relay medium-term signing keypair")]
 #[deftly(keypair_specifier = "RelaySigningKeypairSpecifier")]
-pub struct RelaySigningPublicKeySpecifier {
+pub(crate) struct RelaySigningPublicKeySpecifier {
     /// The expiration time of this key.
     ///
     /// This **must** be the same as the expiration timestamp from the
@@ -117,7 +117,7 @@ impl From<&RelaySigningPublicKeySpecifier> for RelaySigningKeypairSpecifier {
 
 impl RelaySigningPublicKeySpecifier {
     /// Returns the time at which this key becomes invalid.
-    pub fn valid_until(&self) -> Timestamp {
+    pub(crate) fn valid_until(&self) -> Timestamp {
         self.valid_until
     }
 }
@@ -128,7 +128,7 @@ impl RelaySigningPublicKeySpecifier {
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_ntor")]
 #[deftly(summary = "Relay medium-term ntor keypair")]
-pub struct RelayNtorKeypairSpecifier {
+pub(crate) struct RelayNtorKeypairSpecifier {
     /// The expiration time of this key.
     #[deftly(denotator)]
     pub(crate) valid_until: Timestamp,
@@ -141,7 +141,7 @@ pub struct RelayNtorKeypairSpecifier {
 #[deftly(role = "KP_ntor")]
 #[deftly(summary = "Public part of the relay medium-term ntor keypair")]
 #[deftly(keypair_specifier = "RelayNtorKeypairSpecifier")]
-pub struct RelayNtorPublicKeySpecifier {
+pub(crate) struct RelayNtorPublicKeySpecifier {
     /// The expiration time of this key.
     #[deftly(denotator)]
     pub(crate) valid_until: Timestamp,
@@ -158,7 +158,7 @@ impl From<&RelayNtorPublicKeySpecifier> for RelayNtorKeypairSpecifier {
 /// Represents `KP_relaysign_ed` signed by the `KS_relayid_ed` identity key.
 #[derive(Deftly, Constructor)]
 #[derive_deftly(CertSpecifier)]
-pub struct RelaySigningKeyCertSpecifier {
+pub(crate) struct RelaySigningKeyCertSpecifier {
     /// The subject key of this certificate.
     #[deftly(subject)]
     subject: RelaySigningPublicKeySpecifier,
@@ -170,7 +170,7 @@ pub struct RelaySigningKeyCertSpecifier {
 /// that might be stored in the keystore.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)] //
 #[derive(Into, From)]
-pub struct Timestamp(Iso8601TimeSlug);
+pub(crate) struct Timestamp(Iso8601TimeSlug);
 
 impl From<SystemTime> for Timestamp {
     fn from(t: SystemTime) -> Self {
@@ -212,7 +212,7 @@ impl KeySpecifierComponent for Timestamp {
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_link_ed")]
 #[deftly(summary = "Relay short-term link authentication keypair")]
-pub struct RelayLinkSigningKeypairSpecifier {
+pub(crate) struct RelayLinkSigningKeypairSpecifier {
     /// The expiration time of this key.
     ///
     /// This **must** be the same as the expiration timestamp from the
@@ -233,7 +233,7 @@ pub struct RelayLinkSigningKeypairSpecifier {
 
 impl RelayLinkSigningKeypairSpecifier {
     /// Returns the time at which this key becomes invalid.
-    pub fn valid_until(&self) -> Timestamp {
+    pub(crate) fn valid_until(&self) -> Timestamp {
         self.valid_until
     }
 }
