@@ -9,12 +9,12 @@ necessary.
 
 Every line should begin with one of the following:
   * BREAKING
-  * MODIFIED
+  * ADDED
 
 A "BREAKING" change is one that may break other crates that depend on
 this crate directly.
 
-A "MODIFIED" change is one the introduces a new API, such that crates
+An "ADDED" change is one the introduces a new API, such that crates
 using the new API will not work with older versions of the crate.
 
 When we release a new version, we use these files to determine which
@@ -27,9 +27,9 @@ Here is an example `semver.md` file:
 >```
 >BREAKING: Removed the obsolete `detect_thylacine()` function.
 >
->MODIFIED: New `Wombat::feed()` method.
+>ADDED: New `Wombat::feed()` method.
 >
->MODIFIED: `Numbat` now implements `Display`.
+>ADDED: `Numbat` now implements `Display`.
 >
 >BREAKING: The `Quokka` trait now inherits from Debug.
 >```
