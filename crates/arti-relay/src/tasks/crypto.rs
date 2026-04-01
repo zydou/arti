@@ -47,9 +47,12 @@ const RSA_CROSSCERT_LIFETIME: Duration = Duration::from_secs(6 * 30 * 24 * 60 * 
 
 /// Build a fresh [`RelayChannelAuthMaterial`] object using a [`KeyMgr`].
 ///
-/// Every single certificate is generated in this function.
+/// The link cert and TLS certs are created in this function.
+/// The signing key certificate is retrieved from the keymgr.
 ///
-/// This function assumes that all required keys are in the keymgr.
+/// This function assumes that all required keys,
+/// as well as the signing key certificate,
+/// are already in the keystore.
 fn build_proto_relay_auth_material(
     now: SystemTime,
     keymgr: &KeyMgr,
@@ -85,6 +88,16 @@ fn build_proto_relay_auth_material(
         )
         .context("Failed to get signing key from key manager")?
         .context("Missing signing key")?;
+    let cert_id_sign_ed: RelaySigningKeyCert = keymgr
+        .get_cert_entry::<RelaySigningKeyCertSpecifier, _, _>(
+            keymgr
+                .list_matching(&RelaySigningKeyCertSpecifierPattern::new_any().arti_pattern()?)?
+                .first()
+                .context("No store entry for signing key cert")?,
+            &RelayIdentityKeypairSpecifier::new(),
+        )
+        .context("Failed to get signing key cert from key manager")?
+        .context("Missing signing key cert")?;
 
     // TLS key and cert. Random hostname like C-tor. We re-use the issuer_hostname for the RSA
     // legacy cert.
@@ -109,12 +122,7 @@ fn build_proto_relay_auth_material(
         now + RSA_CROSSCERT_LIFETIME,
     )?;
 
-    // Create the signing key cert, link cert and tls cert.
-    //
-    // TODO(relay): We need to check the KeyMgr for the signing cert but for now the KeyMgr API
-    // doesn't allow us to get it out. We will do a re-design of the cert API there. This is fine
-    // as long as we don't support offline keys.
-    let cert_id_sign_ed = gen_signing_cert(&ed_id_kp, &kp_relaysign_id, now + SIGNING_KEY_CERT_LIFETIME)?;
+    // Create the link cert and tls cert.
     let cert_sign_link_auth_ed =
         gen_link_cert(&kp_relaysign_id, &link_sign_kp, now + LINK_CERT_LIFETIME)?;
     let cert_sign_tls_ed = gen_tls_cert(
