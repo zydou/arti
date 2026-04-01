@@ -62,6 +62,7 @@ use crate::types::misc::Iso8601TimeSp;
 // Exports used by macros, which treat this module as a prelude
 #[doc(hidden)]
 pub use {
+    crate::netdoc_ordering_check,
     derive::{DisplayHelper, RestMustComeLastMarker},
     multiplicity::{
         MultiplicityMethods, MultiplicitySelector, OptionalityMethods,
