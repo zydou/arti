@@ -129,11 +129,6 @@ impl Microdesc {
         MicrodescBuilder::new()
     }
 
-    /// Return the optional onion key of this microdesc.
-    pub fn onion_key(&self) -> Option<&rsa::PublicKey> {
-        self.onion_key.0.as_ref()
-    }
-
     /// Return the sha256 digest of this microdesc.
     pub fn digest(&self) -> &MdDigest {
         &self.sha256
