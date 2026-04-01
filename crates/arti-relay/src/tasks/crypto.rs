@@ -36,6 +36,8 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 /// it should be plenty to make it happen even if hiccups happen.
 const KEY_ROTATION_EXPIRE_BUFFER: Duration = Duration::from_secs(3 * 60 * 60);
 
+// The following expiry durations have been taken from C-tor.
+
 /// Lifetime of the link authentication key (KP_link_ed) certificate.
 const LINK_CERT_LIFETIME: Duration = Duration::from_secs(2 * 24 * 60 * 60);
 /// Lifetime of the relay signing key (KP_relaysign_ed) certificate.
@@ -100,8 +102,6 @@ fn build_proto_relay_auth_material(
         rsa_id_kp.keypair(),
     )
     .context("Failed to create legacy RSA identity certificate")?;
-
-    // The following expiry duration have been taken from C-tor.
 
     let cert_id_rsa = tor_cert::rsa::EncodedRsaCrosscert::encode_and_sign(
         rsa_id_kp.keypair(),
