@@ -73,7 +73,13 @@ stream-ctrl = ["__is_experimental"]
 counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval", "flowctl-cc"]
 circ-padding = ["__is_experimental", "maybenot"]
 circ-padding-manual = ["__is_experimental", "circ-padding"]
-relay = ["tor-cert/x509", "tor-linkspec/decode", "__is_experimental", "flowctl-cc"]
+relay = [
+    "tor-cert/x509",
+    "tor-linkspec/decode",
+    "tor-relay-crypto",
+    "__is_experimental",
+    "flowctl-cc",
+]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
@@ -136,7 +142,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.41.0", features = ["memq
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.41.0" }
 tor-memquota = { version = "0.41.0", path = "../tor-memquota", default-features = false }
 tor-protover = { version = "0.41.0", path = "../tor-protover" }
-tor-relay-crypto = { version = "0.41.0", path = "../tor-relay-crypto" }
+tor-relay-crypto = { version = "0.41.0", path = "../tor-relay-crypto", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.41.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.41.0" }
 tor-units = { path = "../tor-units", version = "0.41.0", features = ["memquota-memcost"] }
@@ -146,9 +152,6 @@ visibility = { version = "0.1.0" }
 void = "1"
 web-time-compat = { path = "../web-time-compat", version = "0.1.0" }
 zeroize = "1"
-
-[target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dev-dependencies]
-criterion-cycles-per-byte = "0.8.0"
 
 [dev-dependencies]
 assert_matches = "1.5.0"
@@ -162,6 +165,9 @@ statrs = "0.18.0"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.41.0", features = ["tokio", "native-tls"] }
 tracing-test = "0.2.4"
+
+[target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dev-dependencies]
+criterion-cycles-per-byte = "0.8.0"
 
 [[bench]]
 name = "client_decrypt"
