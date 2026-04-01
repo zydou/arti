@@ -134,9 +134,12 @@ impl CircuitPadderConfig {
     ///
     /// That [`CircuitPadder`] can then be installed on a circuit using [`ClientCirc::start_padding_at_hop`](crate::client::circuit::ClientCirc::start_padding_at_hop).
     #[cfg_attr(feature = "circ-padding-manual", visibility::make(pub))]
-    pub(crate) fn create_padder(&self) -> Result<CircuitPadder, CircuitPadderConfigError> {
+    pub(crate) fn create_padder(
+        &self,
+        now: Instant,
+    ) -> Result<CircuitPadder, CircuitPadderConfigError> {
         let rules = self.build()?;
-        let backend = rules.create_padding_backend()?;
+        let backend = rules.create_padding_backend(now)?;
         let initial_stats = rules.initialize_stats();
         Ok(CircuitPadder {
             initial_stats,
@@ -148,13 +151,16 @@ impl CircuitPadderConfig {
 impl PaddingRules {
     /// Create a [`PaddingBackend`] for this [`PaddingRules`], so we can install it in a
     /// [`PaddingShared`].
-    fn create_padding_backend(&self) -> Result<Box<dyn PaddingBackend>, maybenot::Error> {
+    fn create_padding_backend(
+        &self,
+        now: Instant,
+    ) -> Result<Box<dyn PaddingBackend>, maybenot::Error> {
         // TODO circpad: specialize this for particular values of n_machines,
         // when we finally go to implement padding.
         const OPTIMIZE_FOR_N_MACHINES: usize = 4;
 
         let backend =
-            backend::MaybenotPadder::<OPTIMIZE_FOR_N_MACHINES>::from_framework_rules(self)?;
+            backend::MaybenotPadder::<OPTIMIZE_FOR_N_MACHINES>::from_framework_rules(self, now)?;
         Ok(Box::new(backend))
     }
 

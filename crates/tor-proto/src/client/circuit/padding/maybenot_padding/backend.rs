@@ -24,7 +24,6 @@ use std::{sync::Arc, task::Waker};
 
 use maybenot::{MachineId, TriggerEvent};
 use smallvec::SmallVec;
-use web_time_compat::InstantExt;
 
 use super::{Bypass, Duration, Instant, PerHopPaddingEvent, PerHopPaddingEventVec, Replace};
 
@@ -337,13 +336,13 @@ impl<const N: usize> MaybenotPadder<N> {
     /// Construct a new MaybyenotPadder from a provided `FrameworkRules`.
     pub(super) fn from_framework_rules(
         rules: &super::PaddingRules,
+        now: Instant,
     ) -> Result<Self, maybenot::Error> {
         let framework = maybenot::Framework::new(
             rules.machines.clone(),
             rules.max_outbound_padding_frac,
             rules.max_outbound_blocking_frac,
-            // TODO #2428 PADDING: We should be taking this from a SleepProvider!
-            Instant::get(),
+            now,
             ThisThreadRng,
         )?;
         Ok(Self::from_framework(framework))
