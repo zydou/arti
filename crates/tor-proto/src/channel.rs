@@ -93,7 +93,9 @@ use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, Runtime, SleepProvider};
 use tor_async_utils::counting_streams::{self, CountingSink, CountingStream};
 
 #[cfg(feature = "relay")]
-use crate::circuit::CircuitRxReceiver;
+use {
+    crate::circuit::CircuitRxReceiver, crate::relay::channel::create_handler::CreateRequestHandler,
+};
 
 /// Imports that are re-exported pub if feature `testing` is enabled
 ///
@@ -275,7 +277,6 @@ impl Canonicity {
 /// with an error.
 pub struct Channel {
     /// The channel type.
-    #[expect(unused)] // TODO: Remove once used.
     channel_type: ChannelType,
     /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
@@ -979,6 +980,44 @@ impl Channel {
             .unbounded_send(msg)
             .map_err(|_| Error::ChannelClosed(ChannelClosed))?;
         rx.await.map_err(|_| Error::ChannelClosed(ChannelClosed))?
+    }
+
+    /// Set a [`CreateRequestHandler`] for this channel to handle circuit CREATE* requests.
+    ///
+    /// Typically you should only ever call this once after constructing the channel.
+    #[cfg(feature = "relay")]
+    pub async fn set_create_request_handler(
+        self: &Arc<Self>,
+        handler: Arc<CreateRequestHandler>,
+    ) -> Result<()> {
+        // Sanity check that a `CreateRequestHandler` is valid for this channel.
+        match self.channel_type {
+            // Relay initiators and responders may have a CREATE* request handler.
+            ChannelType::RelayInitiator | ChannelType::RelayResponder { .. } => {}
+            // Client initiators should never have a CREATE* request handler.
+            // This should include regular clients,
+            // as well as bridges making unauthenticated outgoing channels.
+            // TODO(bridge): Bridge channels should not have a CREATE* request handler if the peer
+            // is authenticated. Once we support bridges we should check this logic holds up here.
+            ChannelType::ClientInitiator => {
+                const MSG: &str = "Client initiator channel has a CREATE* request handler";
+                return Err(internal!("{MSG}").into());
+            }
+        }
+
+        let (tx, rx) = oneshot::channel();
+        let msg = CtrlMsg::SetCreateRequestHandler {
+            handler,
+            channel: Arc::downgrade(self),
+            sender: tx,
+        };
+        self.control
+            .unbounded_send(msg)
+            .map_err(|_| Error::ChannelClosed(ChannelClosed))?;
+
+        let () = rx.await.map_err(|_| Error::ChannelClosed(ChannelClosed))?;
+
+        Ok(())
     }
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
