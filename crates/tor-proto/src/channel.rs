@@ -626,6 +626,8 @@ impl Channel {
             link_protocol,
             unique_id,
             details,
+            #[cfg(feature = "relay")]
+            create_request_handler: None,
             padding_timer,
             padding_ctrl,
             padding_event_stream,
