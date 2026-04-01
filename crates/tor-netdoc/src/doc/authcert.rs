@@ -41,7 +41,8 @@ use crate::parse2::{
 
 #[cfg(feature = "encode")]
 use {
-    crate::encode::{Bug, ItemObjectEncodable},
+    crate::encode::{Bug, ItemObjectEncodable, NetdocEncodable, NetdocEncoder},
+    tor_error::into_internal,
 };
 
 // TODO DIRAUTH untangle these feature(s)
@@ -681,6 +682,30 @@ impl AuthCert {
         .construct();
 
         Ok(base)
+    }
+
+    /// Encode this `AuthCert` and sign it with `k_auth_id_rsa`
+    ///
+    /// Yields the string representation of the signed, encoded, document,
+    /// as an [`EncodedAuthCert`].
+    pub fn encode_sign(&self, k_auth_id_rsa: &rsa::KeyPair) -> StdResult<EncodedAuthCert, Bug> {
+        let mut encoder = NetdocEncoder::new();
+        self.encode_unsigned(&mut encoder)?;
+
+        let signature =
+            RsaSha1Signature::new_sign_netdoc(k_auth_id_rsa, &encoder, "dir-key-certification")?;
+        let sigs = AuthCertSignatures {
+            dir_key_certification: signature,
+        };
+        sigs.encode_unsigned(&mut encoder)?;
+
+        let encoded = encoder.finish()?;
+        // This rechecks the invariants which ought to be true by construction.
+        // That is convenient for the code here, and the perf implications are irrelevant.
+        let encoded = encoded
+            .try_into()
+            .map_err(into_internal!("generated broken authcert"))?;
+        Ok(encoded)
     }
 }
 
