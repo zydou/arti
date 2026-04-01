@@ -700,6 +700,9 @@ impl AuthCert {
     ///
     /// Yields the string representation of the signed, encoded, document,
     /// as an [`EncodedAuthCert`].
+    // TODO these features are quite tangled
+    // `EncodedAuthCert` is only available with `parse2` and `plain-consensus`
+    #[cfg(all(feature = "parse2", feature = "plain-consensus"))]
     pub fn encode_sign(&self, k_auth_id_rsa: &rsa::KeyPair) -> StdResult<EncodedAuthCert, Bug> {
         let mut encoder = NetdocEncoder::new();
         self.encode_unsigned(&mut encoder)?;
@@ -1204,7 +1207,7 @@ mod test {
         }
     }
 
-    #[cfg(all(feature = "encode", feature = "parse2"))]
+    #[cfg(all(feature = "encode", feature = "parse2", feature = "plain-consensus"))]
     mod encode_test {
         use super::*;
         use crate::parse2::{ParseInput, parse_netdoc};
