@@ -22,6 +22,8 @@ use crate::Result;
 //use zeroize::Zeroizing;
 use rand_core::{CryptoRng, RngCore};
 use tor_bytes::SecretBuf;
+use tor_cell::chancell::msg::DestroyReason;
+use tor_error::{ErrorKind, HasKind};
 
 /// A ClientHandshake is used to generate a client onionskin and
 /// handle a relay onionskin.
@@ -169,7 +171,7 @@ impl KeyGenerator for ShakeKeyGenerator {
 /// An error produced by a Relay's attempt to handle a client's onion handshake.
 #[derive(Clone, Debug, thiserror::Error)]
 pub(crate) enum RelayHandshakeError {
-    /// An error in parsing  a handshake message.
+    /// An error in parsing a handshake message.
     #[error("Problem decoding onion handshake")]
     Fmt(#[from] tor_bytes::Error),
     /// The client asked for a key we didn't have.
@@ -181,6 +183,30 @@ pub(crate) enum RelayHandshakeError {
     /// An internal error.
     #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
+}
+
+impl RelayHandshakeError {
+    /// The reason to use in a DESTROY message for this failure.
+    pub(crate) fn destroy_reason(&self) -> DestroyReason {
+        match self {
+            Self::Fmt(_) => DestroyReason::PROTOCOL,
+            // TODO(relay): Is this right?
+            Self::MissingKey => DestroyReason::OR_IDENTITY,
+            Self::BadClientHandshake => DestroyReason::PROTOCOL,
+            Self::Internal(_) => DestroyReason::INTERNAL,
+        }
+    }
+}
+
+impl HasKind for RelayHandshakeError {
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Self::Fmt(_) => ErrorKind::RemoteProtocolViolation,
+            Self::MissingKey => ErrorKind::RemoteProtocolViolation,
+            Self::BadClientHandshake => ErrorKind::RemoteProtocolViolation,
+            Self::Internal(_) => ErrorKind::Internal,
+        }
+    }
 }
 
 /// Type alias for results from a relay's attempt to handle a client's onion
