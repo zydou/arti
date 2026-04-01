@@ -998,12 +998,12 @@ define_derive_deftly! {
     ${define SIGS_DATA_TYPE { $P::SignaturesData<$<$ttype Unverified>> }}
     ${define SIGS_HASHES_ACCU_TYPE { <$SIGS_TYPE as $P::NetdocParseableSignatures>::HashesAccu }}
 
-    #[doc = ${concat "Signed (unverified) form of [`" $tname "`]"}]
+   $///Signed (unverified) form of [`$tname`]
     ///
     /// Embodies:
     ///
-    #[doc = ${concat "  * **[`" $tname "`]**: document body"}]
-    #[doc = ${concat "  * **[`" $SIGS_TYPE "`]**: signatures"}]
+   $///  * **[`$tname`]**: document body
+   $///  * **[`$SIGS_TYPE`]**: signatures
     ///
     /// If this type was parsed from a document text,
     /// the signatures have *not* yet been verified.
@@ -1023,7 +1023,7 @@ define_derive_deftly! {
 
     /// The parsed but unverified body part of a signed network document (working type)
     ///
-    #[doc = ${concat "Contains a " $tname " which has been parsed"}]
+   $/// Contains a $tname which has been parsed
     /// as part of a signed document,
     /// but the signatures aren't embodied here, and have not been verified.
     ///
