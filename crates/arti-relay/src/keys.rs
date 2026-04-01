@@ -76,13 +76,6 @@ pub(crate) struct RelaySigningKeypairSpecifier {
     pub(crate) valid_until: Timestamp,
 }
 
-impl RelaySigningKeypairSpecifier {
-    /// Returns the time at which this key becomes invalid.
-    pub(crate) fn valid_until(&self) -> Timestamp {
-        self.valid_until
-    }
-}
-
 /// The key specifier of the public part of the relay medium-term signing key.
 #[derive(Deftly, PartialEq, Debug, Constructor, Copy, Clone)]
 #[derive_deftly(KeySpecifier)]
@@ -112,13 +105,6 @@ pub(crate) struct RelaySigningPublicKeySpecifier {
 impl From<&RelaySigningPublicKeySpecifier> for RelaySigningKeypairSpecifier {
     fn from(public_key_specifier: &RelaySigningPublicKeySpecifier) -> RelaySigningKeypairSpecifier {
         RelaySigningKeypairSpecifier::new(public_key_specifier.valid_until)
-    }
-}
-
-impl RelaySigningPublicKeySpecifier {
-    /// Returns the time at which this key becomes invalid.
-    pub(crate) fn valid_until(&self) -> Timestamp {
-        self.valid_until
     }
 }
 
@@ -229,13 +215,6 @@ pub(crate) struct RelayLinkSigningKeypairSpecifier {
     /// or for checking its timeliness.
     #[deftly(denotator)]
     pub(crate) valid_until: Timestamp,
-}
-
-impl RelayLinkSigningKeypairSpecifier {
-    /// Returns the time at which this key becomes invalid.
-    pub(crate) fn valid_until(&self) -> Timestamp {
-        self.valid_until
-    }
 }
 
 #[cfg(test)]

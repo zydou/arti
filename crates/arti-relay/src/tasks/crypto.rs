@@ -310,14 +310,14 @@ fn remove_expired_keys(
         keymgr,
         &RelaySigningKeypairSpecifierPattern::new_any().arti_pattern()?,
         "key KP_relaysign_ed",
-        |key_path| Ok(RelaySigningKeypairSpecifier::try_from(key_path)?.valid_until()),
+        |key_path| Ok(RelaySigningKeypairSpecifier::try_from(key_path)?.valid_until),
     )?;
     let (link_removed, link_expiry) = remove_expired(
         now,
         keymgr,
         &RelayLinkSigningKeypairSpecifierPattern::new_any().arti_pattern()?,
         "key KP_link_ed",
-        |key_path| Ok(RelayLinkSigningKeypairSpecifier::try_from(key_path)?.valid_until()),
+        |key_path| Ok(RelayLinkSigningKeypairSpecifier::try_from(key_path)?.valid_until),
     )?;
 
     // This should always be removed if the signing key above has been removed. However, we still
@@ -333,7 +333,7 @@ fn remove_expired_keys(
             let subject_key_path = KeyPath::Arti(spec.subject_key_specifier().arti_path()?);
             let subject_key_spec: RelaySigningPublicKeySpecifier =
                 (&subject_key_path).try_into()?;
-            Ok(subject_key_spec.valid_until())
+            Ok(subject_key_spec.valid_until)
         },
     )?;
 
@@ -636,7 +636,7 @@ mod test {
 
             let spec = get_key_spec();
             assert_eq!(
-                spec.valid_until(),
+                spec.valid_until,
                 to_timestamp_in_secs(
                     runtime.wallclock() + KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1)
                 ),
@@ -656,7 +656,7 @@ mod test {
 
             let spec = get_key_spec();
             assert_eq!(
-                spec.valid_until(),
+                spec.valid_until,
                 to_timestamp_in_secs(runtime.wallclock() + KEY_DURATION_30DAYS),
                 "RelaySigningKeypairSpecifier should have rotated"
             );
