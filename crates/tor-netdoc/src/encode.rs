@@ -229,57 +229,9 @@ impl Default for NetdocEncoder {
     }
 }
 
-impl ItemArgument for str {
-    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        // Implements this
-        // https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/106
-        if self.is_empty() || self.chars().any(|c| !c.is_ascii_graphic()) {
-            return Err(internal!(
-                "invalid netdoc keyword line argument syntax {:?}",
-                self
-            ));
-        }
-        out.args_raw_nonempty(&self);
-        Ok(())
-    }
-}
-
-impl ItemArgument for &str {
-    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        <str as ItemArgument>::write_arg_onto(self, out)
-    }
-}
-
 impl<T: crate::NormalItemArgument> ItemArgument for T {
     fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         (*self.to_string()).write_arg_onto(out)
-    }
-}
-
-impl ItemArgument for Iso8601TimeSp {
-    // Unlike the macro'd formats, contains a space while still being one argument
-    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        let arg = self.to_string();
-        out.args_raw_nonempty(&arg.as_str());
-        Ok(())
-    }
-}
-
-#[cfg(feature = "hs-pow-full")]
-impl ItemArgument for tor_hscrypto::pow::v1::Seed {
-    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        let mut seed_bytes = vec![];
-        tor_bytes::Writer::write(&mut seed_bytes, &self)?;
-        out.add_arg(&Base64Unpadded::encode_string(&seed_bytes));
-        Ok(())
-    }
-}
-
-#[cfg(feature = "hs-pow-full")]
-impl ItemArgument for tor_hscrypto::pow::v1::Effort {
-    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        out.add_arg(&<Self as Into<u32>>::into(*self));
-        Ok(())
     }
 }
 
@@ -464,21 +416,6 @@ pub trait ItemObjectEncodable {
 pub trait NetdocBuilder {
     /// Build the document into textual form.
     fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError>;
-}
-
-impl ItemValueEncodable for Void {
-    fn write_item_value_onto(&self, _out: ItemEncoder) -> Result<(), Bug> {
-        void::unreachable(*self)
-    }
-}
-
-impl ItemObjectEncodable for Void {
-    fn label(&self) -> &str {
-        void::unreachable(*self)
-    }
-    fn write_object_onto(&self, _: &mut Vec<u8>) -> Result<(), Bug> {
-        void::unreachable(*self)
-    }
 }
 
 /// implement [`ItemValueEncodable`] for a particular tuple size
