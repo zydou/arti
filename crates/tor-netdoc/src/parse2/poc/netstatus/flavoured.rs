@@ -197,7 +197,7 @@ ns_choose! { (
             }
             fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
                 NddAuthorityEntry::is_structural_keyword(kw)
-                    .or_else(|| authcert::DirAuthKeyCertUnverified::is_structural_keyword(kw))
+                    .or_else(|| authcert::AuthCertUnverified::is_structural_keyword(kw))
             }
             fn from_items<'s>(
                 input: &mut ItemStream<'s>,
