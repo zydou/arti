@@ -46,7 +46,7 @@
 #![deny(clippy::unused_async)]
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-pub mod certs;
+mod certs;
 pub mod pk;
 
 // Pleasant re-export.
