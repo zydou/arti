@@ -197,7 +197,7 @@ ns_choose! { (
             }
             fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
                 NddAuthorityEntry::is_structural_keyword(kw)
-                    .or_else(|| authcert::DirAuthKeyCertUnverified::is_structural_keyword(kw))
+                    .or_else(|| authcert::AuthCertUnverified::is_structural_keyword(kw))
             }
             fn from_items<'s>(
                 input: &mut ItemStream<'s>,
@@ -326,7 +326,7 @@ ns_choose! { (
         /// # Security considerations
         ///
         /// The caller should use `NetworkStatus::h_kp_auth_id_rsa`
-        /// to find out which voters vote this is.
+        /// to find out which voter's vote this is.
         pub fn verify_selfcert(
             self,
             now: SystemTime,

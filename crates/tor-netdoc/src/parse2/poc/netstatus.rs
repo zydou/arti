@@ -2,8 +2,9 @@
 
 use super::*;
 
+use crate::doc::authcert;
 use crate::types;
-use authcert::DirAuthKeyCert;
+use authcert::AuthCert as DirAuthKeyCert;
 
 mod ns_per_flavour_macros;
 pub use ns_per_flavour_macros::*;

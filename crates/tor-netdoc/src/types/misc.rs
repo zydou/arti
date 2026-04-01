@@ -12,7 +12,7 @@ pub(crate) use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
-pub(crate) use rsa::*;
+pub use rsa::*;
 pub use timeimpl::*;
 
 #[cfg(feature = "encode")]
@@ -24,8 +24,12 @@ use {
         ItemValueEncodable,
         // `E` for "encode`; different from `parse2::MultiplicitySelector`
         MultiplicitySelector as EMultiplicitySelector,
+        NetdocEncoder,
     },
+    digest::Digest as _,
     std::iter,
+    std::result::Result as StdResult,
+    tor_error::into_internal,
 };
 #[cfg(feature = "parse2")]
 use {
@@ -35,7 +39,11 @@ use {
         MultiplicitySelector as P2MultiplicitySelector,
         ObjectSetMethods,
     },
-    crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable}, //
+    crate::parse2::sig_hashes::Sha1WholeKeywordLine,
+    crate::parse2::{
+        ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable,
+        SignatureHashInputs,
+    },
 };
 
 pub use nickname::Nickname;
@@ -658,9 +666,12 @@ mod timeimpl {
 
 /// Types for decoding RSA keys
 mod rsa {
+    use super::*;
     use crate::{NetdocErrorKind as EK, Pos, Result};
     use std::ops::RangeBounds;
     use tor_llcrypto::pk::rsa::PublicKey;
+    #[cfg(feature = "encode")]
+    use tor_llcrypto::{d::Sha1, pk::rsa::KeyPair};
 
     /// The fixed exponent which we require when parsing any RSA key in a netdoc
     //
@@ -679,6 +690,38 @@ mod rsa {
     #[allow(non_camel_case_types)]
     #[derive(Clone, Debug)]
     pub(crate) struct RsaPublicParse1Helper(PublicKey, Pos);
+
+    /// RSA signature using SHA-1 as per "Signing documents" in dir-spec
+    ///
+    /// <https://spec.torproject.org/dir-spec/netdoc.html#signing>
+    ///
+    /// Used for
+    /// [`AuthCert::dir-key-certification`](crate::doc::authcert::AuthCert::dir-key-certification),
+    /// for example.
+    ///
+    /// # Caveats
+    ///
+    /// This type MUST NOT be used for anomalous signatures
+    /// such as
+    /// [`AuthCert::dir_key_crosscert`](crate::doc::authcert::AuthCert::dir_key_crosscert);
+    /// in that case because `dir_key_crosscert`'s
+    /// set of allowed object labels includes `ID SIGNATURE` whereas this type
+    /// is always `SIGNATURE`
+    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[cfg_attr(
+        feature = "parse2",
+        derive_deftly(ItemValueParseable),
+        deftly(netdoc(no_extra_args, signature(hash_accu = "Sha1WholeKeywordLine")))
+    )]
+    #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+    // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
+    #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+    #[non_exhaustive]
+    pub struct RsaSha1Signature {
+        /// The bytes of the signature (base64-decoded).
+        #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::types::raw_data_object"))]
+        pub signature: Vec<u8>,
+    }
 
     impl From<RsaPublicParse1Helper> for PublicKey {
         fn from(k: RsaPublicParse1Helper) -> PublicKey {
@@ -718,6 +761,82 @@ mod rsa {
         /// bits, is not exactly `n`.
         pub(crate) fn check_len_eq(self, n: usize) -> Result<Self> {
             self.check_len(n..=n)
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl RsaSha1Signature {
+        /// Make a signature according to "Signing documents" in the netdoc spec
+        ///
+        /// <https://spec.torproject.org/dir-spec/netdoc.html#signing>
+        ///
+        /// `NetdocEncoder` should have had the body of the document
+        /// (everything except the signatures) already encoded.
+        ///
+        /// `item_keyword` is the keyword for the signature item.
+        /// This is needed because different documents use different keywords,
+        /// and the keyword is covered by the signature (an annoying is a layering violation).
+        /// See <https://gitlab.torproject.org/tpo/core/torspec/-/issues/322>.
+        ///
+        /// # Example
+        ///
+        /// ```
+        /// use derive_deftly::Deftly;
+        /// use tor_error::Bug;
+        /// use tor_llcrypto::pk::rsa;
+        /// use tor_netdoc::derive_deftly_template_NetdocEncodable;
+        /// use tor_netdoc::encode::{NetdocEncodable, NetdocEncoder};
+        /// use tor_netdoc::types::RsaSha1Signature;
+        ///
+        /// #[derive(Deftly, Default)]
+        /// #[derive_deftly(NetdocEncodable)]
+        /// pub struct Document {
+        ///     pub document_intro_keyword: (),
+        /// }
+        /// #[derive(Deftly)]
+        /// #[derive_deftly(NetdocEncodable)]
+        /// pub struct DocumentSignatures {
+        ///     pub document_signature: RsaSha1Signature,
+        /// }
+        /// impl Document {
+        ///     pub fn encode_sign(&self, k: &rsa::KeyPair) -> Result<String, Bug> {
+        ///         let mut encoder = NetdocEncoder::new();
+        ///         self.encode_unsigned(&mut encoder)?;
+        ///         let document_signature =
+        ///             RsaSha1Signature::new_sign_netdoc(k, &encoder, "document-signature")?;
+        ///         let sigs = DocumentSignatures { document_signature };
+        ///         sigs.encode_unsigned(&mut encoder)?;
+        ///         let encoded = encoder.finish()?;
+        ///         Ok(encoded)
+        ///     }
+        /// }
+        ///
+        /// # fn main() -> Result<(), anyhow::Error> {
+        /// let k = rsa::KeyPair::generate(&mut tor_basic_utils::test_rng::testing_rng())?;
+        /// let doc = Document::default();
+        /// let encoded = doc.encode_sign(&k)?;
+        /// assert!(encoded.starts_with(concat!(
+        ///     "document-intro-keyword\n",
+        ///     "document-signature\n",
+        ///     "-----BEGIN SIGNATURE-----\n",
+        /// )));
+        /// # Ok(())
+        /// # }
+        /// ```
+        pub fn new_sign_netdoc(
+            private_key: &KeyPair,
+            encoder: &NetdocEncoder,
+            item_keyword: &str,
+        ) -> StdResult<Self, Bug> {
+            let mut h = Sha1::new();
+            h.update(encoder.text_sofar()?);
+            h.update(item_keyword);
+            h.update("\n");
+            let h = h.finalize();
+            let signature = private_key
+                .sign(&h)
+                .map_err(into_internal!("RSA signing failed"))?;
+            Ok(RsaSha1Signature { signature })
         }
     }
 }
@@ -921,28 +1040,32 @@ mod fingerprint {
     /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
+    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct SpFingerprint(pub RsaIdentity);
 
     /// A hex-encoded fingerprint with no spaces.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
+    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Fingerprint(pub RsaIdentity);
 
     /// A base64-encoded fingerprint (unpadded)
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
+    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Base64Fingerprint(pub RsaIdentity);
 
     /// A "long identity" in the format used for Family members.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
+    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct LongIdent(pub RsaIdentity);
 

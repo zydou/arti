@@ -49,7 +49,7 @@ experimental = [
 # Enable code to build the objects that represent different network documents.
 build_docs = ["rand", "__is_experimental"]
 
-encode = []
+encode = ["rand"]
 
 # Enable the "router descriptor" document type, which is needed by relays and
 # bridge clients.

@@ -10,10 +10,11 @@ use crate::batching_split_before::IteratorExt as _;
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublicParse1Helper};
+use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublicParse1Helper, RsaSha1Signature};
 use crate::util::str::Extent;
 use crate::{NetdocErrorKind as EK, NormalItemArgument, Result};
 
+use tor_basic_utils::impl_debug_hex;
 use tor_checkable::{signed, timed};
 use tor_llcrypto::pk::rsa;
 use tor_llcrypto::{d, pk, pk::rsa::RsaIdentity};
@@ -35,7 +36,13 @@ pub use build::AuthCertBuilder;
 
 #[cfg(feature = "parse2")]
 use crate::parse2::{
-    self, ItemObjectParseable, SignatureHashInputs, sig_hashes::Sha1WholeKeywordLine,
+    self, ItemObjectParseable, NetdocUnverified as _, sig_hashes::Sha1WholeKeywordLine,
+};
+
+#[cfg(feature = "encode")]
+use {
+    crate::encode::{Bug, ItemObjectEncodable, NetdocEncodable, NetdocEncoder},
+    tor_error::into_internal,
 };
 
 // TODO DIRAUTH untangle these feature(s)
@@ -93,10 +100,11 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Constructor)]
 #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableUnverified))]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-#[allow(clippy::manual_non_exhaustive)]
+#[allow(clippy::exhaustive_structs)]
 pub struct AuthCert {
     /// Intro line
     ///
@@ -156,7 +164,7 @@ pub struct AuthCert {
 
     #[doc(hidden)]
     #[deftly(netdoc(skip))]
-    __non_exhaustive: (),
+    pub __non_exhaustive: (),
 }
 
 /// Represents the version of an [`AuthCert`].
@@ -459,8 +467,9 @@ impl AuthCert {
     derive_deftly(ItemValueParseable),
     deftly(netdoc(no_extra_args))
 )]
+#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
 #[non_exhaustive]
 pub struct CrossCert {
     /// The bytes of the signature (base64-decoded).
@@ -486,9 +495,26 @@ pub struct CrossCert {
 /// # Specifications
 ///
 /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-crosscert>
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Deref)]
+#[derive(Clone, PartialEq, Eq, derive_more::Deref)]
 #[non_exhaustive]
 pub struct CrossCertObject(pub Vec<u8>);
+impl_debug_hex! { CrossCertObject . 0 }
+
+#[cfg(feature = "encode")]
+impl CrossCert {
+    /// Make a `CrossCert`
+    pub fn new(
+        k_auth_sign_rsa: &rsa::KeyPair,
+        h_kp_auth_id_rsa: &RsaIdentity,
+    ) -> StdResult<Self, Bug> {
+        let signature = k_auth_sign_rsa
+            .sign(h_kp_auth_id_rsa.as_bytes())
+            .map_err(into_internal!("failed to sign cross-cert"))?;
+        Ok(CrossCert {
+            signature: CrossCertObject(signature),
+        })
+    }
+}
 
 /// Signatures for [`AuthCert`]
 ///
@@ -505,35 +531,20 @@ pub struct CrossCertObject(pub Vec<u8>);
     derive_deftly(NetdocParseableSignatures),
     deftly(netdoc(signatures(hashes_accu = "Sha1WholeKeywordLine")))
 )]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
 #[non_exhaustive]
 pub struct AuthCertSignatures {
     /// Contains the actual signature, see [`AuthCertSignatures`].
-    pub dir_key_certification: AuthCertSignature,
+    pub dir_key_certification: RsaSha1Signature,
 }
 
-/// RSA signature for data in [`AuthCert`] and related structures
+/// RSA signature for data in [`AuthCert`]
 ///
 /// <https://spec.torproject.org/dir-spec/netdoc.html#signing>
 ///
-/// # Caveats
-///
-/// This type **MUST NOT** be used for [`AuthCert::dir_key_crosscert`]
-/// because its set of object labels is a strict superset of the object
-/// labels used by this type.
-#[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-#[cfg_attr(
-    feature = "parse2",
-    derive_deftly(ItemValueParseable),
-    deftly(netdoc(no_extra_args, signature(hash_accu = "Sha1WholeKeywordLine")))
-)]
-// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(feature = "parse2"), derive_deftly_adhoc)]
-#[non_exhaustive]
-pub struct AuthCertSignature {
-    /// The bytes of the signature (base64-decoded).
-    #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::parse2::raw_data_object"))]
-    pub signature: Vec<u8>,
-}
+/// Compatibility type alias for [`RsaSha1Signature`].
+#[deprecated = "use RsaSha1Signature"]
+pub type AuthCertSignature = RsaSha1Signature;
 
 #[cfg(feature = "parse2")]
 impl ItemObjectParseable for CrossCertObject {
@@ -546,6 +557,18 @@ impl ItemObjectParseable for CrossCertObject {
 
     fn from_bytes(input: &[u8]) -> StdResult<Self, parse2::EP> {
         Ok(Self(input.to_vec()))
+    }
+}
+
+#[cfg(feature = "encode")]
+impl ItemObjectEncodable for CrossCertObject {
+    fn label(&self) -> &str {
+        "ID SIGNATURE"
+    }
+
+    fn write_object_onto(&self, b: &mut Vec<u8>) -> StdResult<(), Bug> {
+        b.extend(&self.0);
+        Ok(())
     }
 }
 
@@ -615,6 +638,89 @@ impl AuthCertUnverified {
         )?;
 
         Ok(body)
+    }
+
+    /// Verify the signatures (and check validity times)
+    ///
+    /// The pre and post tolerance (time check allowances) used are both zero.
+    ///
+    /// # Security considerations
+    ///
+    /// The caller must check that the KP_auth_id is correct/relevant.
+    pub fn verify_selfcert(self, now: SystemTime) -> StdResult<AuthCert, parse2::VerifyFailed> {
+        let h_kp_auth_id_rsa = self.inspect_unverified().0.fingerprint.0;
+        self.verify(&[h_kp_auth_id_rsa], Duration::ZERO, Duration::ZERO, now)
+    }
+}
+
+#[cfg(feature = "encode")]
+impl AuthCert {
+    /// Make the base for a new `AuthCert`
+    ///
+    /// This contains only the mandatory fields (the ones in `AuthCertConstructor`).
+    /// This method is an alternative to providing a `AuthCertConstructor` value display,
+    /// and is convenient because an authcert contains much recapitulated information.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # fn main() -> Result<(), anyhow::Error> {
+    /// use tor_netdoc::doc::authcert::AuthCert;
+    /// let (k_auth_id_rsa, k_auth_sign_rsa, published, expires) = todo!();
+    /// let authcert = AuthCert {
+    ///     dir_address: Some("192.0.2.17:7000".parse()?),
+    ///     ..AuthCert::new_base(&k_auth_id_rsa, &k_auth_sign_rsa, published, expires)?
+    /// };
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn new_base(
+        k_auth_id_rsa: &rsa::KeyPair,
+        k_auth_sign_rsa: &rsa::KeyPair,
+        published: SystemTime,
+        expires: SystemTime,
+    ) -> StdResult<Self, Bug> {
+        let fingerprint = k_auth_id_rsa.to_public_key().to_rsa_identity();
+        let dir_key_crosscert = CrossCert::new(k_auth_sign_rsa, &fingerprint)?;
+
+        let base = AuthCertConstructor {
+            fingerprint: fingerprint.into(),
+            dir_key_published: published.into(),
+            dir_key_expires: expires.into(),
+            dir_identity_key: k_auth_id_rsa.to_public_key(),
+            dir_signing_key: k_auth_sign_rsa.to_public_key(),
+            dir_key_crosscert,
+        }
+        .construct();
+
+        Ok(base)
+    }
+
+    /// Encode this `AuthCert` and sign it with `k_auth_id_rsa`
+    ///
+    /// Yields the string representation of the signed, encoded, document,
+    /// as an [`EncodedAuthCert`].
+    // TODO these features are quite tangled
+    // `EncodedAuthCert` is only available with `parse2` and `plain-consensus`
+    #[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+    pub fn encode_sign(&self, k_auth_id_rsa: &rsa::KeyPair) -> StdResult<EncodedAuthCert, Bug> {
+        let mut encoder = NetdocEncoder::new();
+        self.encode_unsigned(&mut encoder)?;
+
+        let signature =
+            RsaSha1Signature::new_sign_netdoc(k_auth_id_rsa, &encoder, "dir-key-certification")?;
+        let sigs = AuthCertSignatures {
+            dir_key_certification: signature,
+        };
+        sigs.encode_unsigned(&mut encoder)?;
+
+        let encoded = encoder.finish()?;
+        // This rechecks the invariants which ought to be true by construction.
+        // That is convenient for the code here, and the perf implications are irrelevant.
+        let encoded = encoded
+            .try_into()
+            .map_err(into_internal!("generated broken authcert"))?;
+        Ok(encoded)
     }
 }
 
@@ -1098,6 +1204,49 @@ mod test {
                 .unwrap_err(),
                 VerifyFailed::VerifyFailed
             );
+        }
+    }
+
+    #[cfg(all(feature = "encode", feature = "parse2", feature = "plain-consensus"))]
+    mod encode_test {
+        use super::*;
+        use crate::parse2::{ParseInput, parse_netdoc};
+        use humantime::parse_rfc3339;
+        use std::result::Result;
+        use tor_basic_utils::test_rng;
+
+        #[test]
+        fn roundtrip() -> Result<(), anyhow::Error> {
+            let mut rng = test_rng::testing_rng();
+            let k_auth_id_rsa = rsa::KeyPair::generate(&mut rng)?;
+            let k_auth_sign_rsa = rsa::KeyPair::generate(&mut rng)?;
+
+            let secs = |s| Duration::from_secs(s);
+            let now = parse_rfc3339("1993-01-01T00:00:00Z")?;
+            let published = now - secs(1000);
+            let expires = published + secs(86400);
+            let tolerance = secs(10);
+
+            let input_value = AuthCert {
+                dir_address: Some("192.0.2.17:7000".parse()?),
+                ..AuthCert::new_base(&k_auth_id_rsa, &k_auth_sign_rsa, published, expires)?
+            };
+            dbg!(&input_value);
+
+            let encoded = input_value.encode_sign(&k_auth_id_rsa)?;
+
+            let reparsed_uv: AuthCertUnverified =
+                parse_netdoc(&ParseInput::new(encoded.as_ref(), "<encoded>"))?;
+            let reparsed_value = reparsed_uv.verify(
+                &[k_auth_id_rsa.to_public_key().to_rsa_identity()],
+                tolerance,
+                tolerance,
+                now,
+            )?;
+            dbg!(&reparsed_value);
+
+            assert_eq!(input_value, reparsed_value);
+            Ok(())
         }
     }
 }

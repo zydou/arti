@@ -14,7 +14,9 @@
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
 use super::*;
-use authcert::DirAuthKeyCert;
+use crate::doc::authcert;
+use authcert::AuthCert as DirAuthKeyCert;
+use authcert::AuthCertUnverified as DirAuthKeyCertUnverified;
 
 use std::fs;
 
@@ -32,7 +34,7 @@ fn parse_consensus_ns() -> anyhow::Result<()> {
     let file = "testdata2/cached-certs";
     let text = fs::read_to_string(&file)?;
     let input = ParseInput::new(&text, file);
-    let certs: Vec<authcert::DirAuthKeyCertUnverified> = parse_netdoc_multiple(&input)?;
+    let certs: Vec<DirAuthKeyCertUnverified> = parse_netdoc_multiple(&input)?;
     let certs = certs
         .into_iter()
         .map(|cert| cert.verify_selfcert(now))
@@ -68,7 +70,7 @@ fn parse_authcert() -> anyhow::Result<()> {
     let now = parse_rfc3339("2000-06-01T00:00:05Z")?;
     let text = fs::read_to_string(file)?;
     let input = ParseInput::new(&text, file);
-    let doc: authcert::DirAuthKeyCertUnverified = parse_netdoc(&input)?;
+    let doc: DirAuthKeyCertUnverified = parse_netdoc(&input)?;
     let doc = doc.verify_selfcert(now)?;
     println!("{doc:?}");
     assert_eq!(
