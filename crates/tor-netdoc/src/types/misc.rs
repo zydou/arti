@@ -773,7 +773,7 @@ mod rsa {
         /// `NetdocEncoder` should have had the body of the document
         /// (everything except the signatures) already encoded.
         ///
-        /// `item_keyword_line` is the keyword line for the signature item.
+        /// `item_keyword` is the keyword for the signature item.
         /// This is needed because different documents use different keywords,
         /// and the keyword is covered by the signature (an annoying is a layering violation).
         /// See <https://gitlab.torproject.org/tpo/core/torspec/-/issues/322>.
@@ -826,11 +826,11 @@ mod rsa {
         pub fn new_sign_netdoc(
             private_key: &KeyPair,
             encoder: &NetdocEncoder,
-            item_keyword_line: &str,
+            item_keyword: &str,
         ) -> StdResult<Self, Bug> {
             let mut h = Sha1::new();
             h.update(encoder.text_sofar()?);
-            h.update(item_keyword_line);
+            h.update(item_keyword);
             h.update("\n");
             let h = h.finalize();
             let signature = private_key
