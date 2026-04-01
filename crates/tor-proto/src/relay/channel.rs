@@ -443,3 +443,159 @@ where
         .map_err(|e| internal!("Wallclock secs fail to convert to 32bit: {e}"))?;
     Ok(msg::Netinfo::from_relay(timestamp, peer_ip, my_addrs))
 }
+
+#[cfg(test)]
+pub(crate) mod test {
+    #![allow(clippy::unwrap_used)]
+    use futures::task::{Context, Poll};
+    use futures::{AsyncRead, AsyncWrite};
+    use std::borrow::Cow;
+    use std::io::Result as IoResult;
+    use std::pin::Pin;
+    use std::sync::{Arc, OnceLock};
+    use std::time::{Duration, SystemTime};
+
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_cert::x509::TlsKeyAndCert;
+    use tor_key_forge::{Keygen, ToEncodableCert};
+    use tor_relay_crypto::pk::{
+        RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayLinkSigningKeypair, RelaySigningKeypair,
+    };
+    use tor_relay_crypto::{gen_link_cert, gen_signing_cert, gen_tls_cert};
+    use tor_rtcompat::{CertifiedConn, StreamOps};
+    use web_time_compat::SystemTimeExt;
+
+    use crate::channel::test::MsgBuf;
+    use crate::relay::channel::RelayChannelAuthMaterial;
+
+    /// Wrapper around [`MsgBuf`] that implements [`CertifiedConn`] which is needed by the relay
+    /// handshake.
+    pub(crate) struct RelayMsgBuf(pub(crate) MsgBuf);
+
+    impl AsyncRead for RelayMsgBuf {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<IoResult<usize>> {
+            Pin::new(&mut self.0).poll_read(cx, buf)
+        }
+    }
+
+    impl AsyncWrite for RelayMsgBuf {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<IoResult<usize>> {
+            Pin::new(&mut self.0).poll_write(cx, buf)
+        }
+        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+            Pin::new(&mut self.0).poll_flush(cx)
+        }
+        fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+            Pin::new(&mut self.0).poll_close(cx)
+        }
+    }
+
+    impl StreamOps for RelayMsgBuf {}
+
+    impl CertifiedConn for RelayMsgBuf {
+        fn export_keying_material(
+            &self,
+            len: usize,
+            _label: &[u8],
+            _context: Option<&[u8]>,
+        ) -> IoResult<Vec<u8>> {
+            Ok(vec![42_u8; len])
+        }
+        fn peer_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
+            const ISSUER: &str = "issuer.peer_tls.test.nowar.net";
+            const SUBJECT: &str = "subject.peer_tls.test.nowar.net";
+            Ok(Some(fake_tls_cert(ISSUER, SUBJECT)))
+        }
+        fn own_certificate(&self) -> IoResult<Option<Cow<'_, [u8]>>> {
+            const ISSUER: &str = "issuer.own_tls.test.nowar.net";
+            const SUBJECT: &str = "subject.own_tls.test.nowar.net";
+            Ok(Some(fake_tls_cert(ISSUER, SUBJECT)))
+        }
+    }
+
+    fn fake_tls_cert<'a>(issuer: &'a str, subject: &'a str) -> Cow<'a, [u8]> {
+        let mut rng = testing_rng();
+        let tls_cert = TlsKeyAndCert::create(&mut rng, SystemTime::get(), issuer, subject).unwrap();
+        Cow::Owned(tls_cert.certificates_der()[0].to_vec())
+    }
+
+    /// Returns a fake [`RelayChannelAuthMaterial`]. The keys are generated once and reused across
+    /// tests to avoid repeated expensive key generation using a strong RNG.
+    pub(crate) fn fake_auth_material() -> Arc<RelayChannelAuthMaterial> {
+        const KEY_DURATION_2DAYS: Duration = Duration::from_secs(2 * 24 * 60 * 60);
+        const KEY_DURATION_30DAYS: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+
+        static AUTH: OnceLock<Arc<RelayChannelAuthMaterial>> = OnceLock::new();
+        AUTH.get_or_init(|| {
+            let now = SystemTime::get();
+            // Need this RNG because KeygenRng trait is required.
+            let mut rng = tor_llcrypto::rng::CautiousRng;
+
+            let issuer_hostname = "issuer.test.nowar.net";
+            let subject_hostname = "subject.test.nowar.net";
+
+            // RSA keypair.
+            let kp_relayid_rsa = RelayIdentityRsaKeypair::generate(&mut rng).unwrap();
+
+            // Ed25519 keypairs
+            let kp_relayid_ed = RelayIdentityKeypair::generate(&mut rng).unwrap();
+            let kp_relaysign_ed = RelaySigningKeypair::generate(&mut rng).unwrap();
+            let kp_link_ed = RelayLinkSigningKeypair::generate(&mut rng).unwrap();
+
+            // TLS key and certificate.
+            let tls_key_and_cert =
+                TlsKeyAndCert::create(&mut rng, now, issuer_hostname, subject_hostname).unwrap();
+
+            // Certificate for the CERTS cell.
+            let cert_id_sign_ed =
+                gen_signing_cert(&kp_relayid_ed, &kp_relaysign_ed, now + KEY_DURATION_30DAYS)
+                    .unwrap();
+            let cert_sign_link_auth_ed =
+                gen_link_cert(&kp_relaysign_ed, &kp_link_ed, now + KEY_DURATION_2DAYS).unwrap();
+            let cert_sign_tls_ed = gen_tls_cert(
+                &kp_relaysign_ed,
+                *tls_key_and_cert.link_cert_sha256(),
+                now + KEY_DURATION_2DAYS,
+            )
+            .unwrap();
+
+            // Cross-certifying cert RSA->Ed
+            let cert_id_rsa = tor_cert::rsa::EncodedRsaCrosscert::encode_and_sign(
+                kp_relayid_rsa.keypair(),
+                &kp_relayid_ed.to_ed25519_id(),
+                now + KEY_DURATION_2DAYS,
+            )
+            .unwrap();
+
+            // Legacy X509 RSA cert.
+            let cert_id_x509_rsa = tor_cert::x509::create_legacy_rsa_id_cert(
+                &mut rng,
+                now,
+                issuer_hostname,
+                kp_relayid_rsa.keypair(),
+            )
+            .unwrap();
+
+            Arc::new(RelayChannelAuthMaterial::new(
+                &kp_relayid_rsa.public().into(),
+                kp_relayid_ed.to_ed25519_id(),
+                kp_link_ed,
+                cert_id_sign_ed.to_encodable_cert(),
+                cert_sign_tls_ed,
+                cert_sign_link_auth_ed.to_encodable_cert(),
+                cert_id_x509_rsa,
+                cert_id_rsa,
+                tls_key_and_cert,
+            ))
+        })
+        .clone()
+    }
+}

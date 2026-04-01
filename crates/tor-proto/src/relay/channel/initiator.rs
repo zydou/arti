@@ -107,6 +107,12 @@ where
     pub fn clock_skew(&self) -> ClockSkew {
         self.inner.inner.clock_skew
     }
+
+    /// Return the link protocol version of this channel.
+    #[cfg(test)]
+    pub(crate) fn link_protocol(&self) -> u16 {
+        self.inner.inner.link_protocol
+    }
 }
 
 /// A verified relay initiator channel.

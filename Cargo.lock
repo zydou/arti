@@ -7824,6 +7824,7 @@ dependencies = [
  "tor-config",
  "tor-error",
  "tor-hscrypto",
+ "tor-key-forge",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-log-ratelim",
