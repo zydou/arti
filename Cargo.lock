@@ -416,6 +416,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "void",
+ "web-time-compat",
 ]
 
 [[package]]

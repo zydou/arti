@@ -59,22 +59,21 @@
 mod cli;
 mod client;
 mod config;
+mod keys;
 mod relay;
 mod tasks;
 mod util;
 
 use std::io::IsTerminal as _;
 
+use crate::keys::{RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypairSpecifier};
 use anyhow::Context;
 use clap::Parser;
 use futures::FutureExt;
 use safelog::with_safe_logging_suppressed;
 use tor_basic_utils::iter_join;
 use tor_error::warn_report;
-use tor_relay_crypto::pk::{
-    RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
-    RelayIdentityRsaKeypairSpecifier,
-};
+use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityRsaKeypair};
 use tor_rtcompat::SpawnExt;
 use tor_rtcompat::tokio::TokioRustlsRuntime;
 use tor_rtcompat::{Runtime, ToplevelRuntime};
