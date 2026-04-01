@@ -36,7 +36,7 @@ pub use build::AuthCertBuilder;
 
 #[cfg(feature = "parse2")]
 use crate::parse2::{
-    self, ItemObjectParseable, sig_hashes::Sha1WholeKeywordLine,
+    self, ItemObjectParseable, NetdocUnverified as _, sig_hashes::Sha1WholeKeywordLine,
 };
 
 #[cfg(feature = "encode")]
@@ -638,6 +638,18 @@ impl AuthCertUnverified {
         )?;
 
         Ok(body)
+    }
+
+    /// Verify the signatures (and check validity times)
+    ///
+    /// The pre and post tolerance (time check allowances) used are both zero.
+    ///
+    /// # Security considerations
+    ///
+    /// The caller must check that the KP_auth_id is correct/relevant.
+    pub fn verify_selfcert(self, now: SystemTime) -> StdResult<AuthCert, parse2::VerifyFailed> {
+        let h_kp_auth_id_rsa = self.inspect_unverified().0.fingerprint.0;
+        self.verify(&[h_kp_auth_id_rsa], Duration::ZERO, Duration::ZERO, now)
     }
 }
 
