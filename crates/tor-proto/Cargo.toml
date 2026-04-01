@@ -153,9 +153,6 @@ void = "1"
 web-time-compat = { path = "../web-time-compat", version = "0.1.0" }
 zeroize = "1"
 
-[target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dev-dependencies]
-criterion-cycles-per-byte = "0.8.0"
-
 [dev-dependencies]
 assert_matches = "1.5.0"
 criterion = "0.8.0"
@@ -168,6 +165,9 @@ statrs = "0.18.0"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.41.0", features = ["tokio", "native-tls"] }
 tracing-test = "0.2.4"
+
+[target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dev-dependencies]
+criterion-cycles-per-byte = "0.8.0"
 
 [[bench]]
 name = "client_decrypt"
