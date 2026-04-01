@@ -103,7 +103,7 @@ define_derive_deftly! {
     ${defcond F_DEFAULT_TRAIT not(fmeta(constructor))}
     ${defcond F_REQUIRED not(any(F_DEFAULT_EXPR, F_DEFAULT_TRAIT))}
 
-    $/// Constructor (required fields) for $tname
+    $/// Constructor (required fields) for `$tname`
     $///
     $/// See [`$tname`].
     $///
@@ -115,15 +115,15 @@ define_derive_deftly! {
     $/// # Example
     $///
     $/// ```rust,ignore
-    $/// let ${snake_case $tname} = $tname{
+    $/// let ${snake_case $tname} = $tname {
   ${for fields { ${when any(fmeta(constructor(default)), not(fmeta(constructor)))}
-    $///    $fname: /* optional field value */,
+    $///     $fname: /* optional field value */,
   }}
-    $///    ..$CONSTRUCTOR_NAME {
+    $///     ..$CONSTRUCTOR_NAME {
   ${for fields { ${when not(any(fmeta(constructor(default)), not(fmeta(constructor))))}
-    $///        $fname: /* required field value */,
+    $///         $fname: /* required field value */,
   }}
-    $///    }.construct()
+    $///     }.construct()
     $/// };
     $/// ```
     #[allow(clippy::exhaustive_structs)]
@@ -135,9 +135,9 @@ define_derive_deftly! {
     ) }
 
     impl<$tgens> $CONSTRUCTOR where $twheres {
-        $/// Construct a minimal [`$tname`]
+        $/// Construct a minimal `$tname`
         $///
-        $/// In the returned $tname,
+        $/// In the returned [`$tname`],
         $/// optional fields all get the default values.
         $tvis fn construct(self) -> $ttype {
             $tname { $(
