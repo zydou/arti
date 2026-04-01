@@ -413,6 +413,7 @@ dependencies = [
  "tor-relay-crypto",
  "tor-rtcompat",
  "tor-rtmock",
+ "tor-units",
  "tracing",
  "tracing-subscriber",
  "void",

@@ -127,4 +127,9 @@ impl<R: Runtime> RelayClient<R> {
 
         Ok(())
     }
+
+    /// Get the client's [`DirProvider`].
+    pub(crate) fn dirmgr(&self) -> &Arc<dyn DirProvider> {
+        &self.dirmgr
+    }
 }
