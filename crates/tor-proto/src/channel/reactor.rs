@@ -615,6 +615,14 @@ impl<R: Runtime> Reactor<R> {
             // These are allowed, and need to be handled.
             Relay(_) => self.deliver_relay(circid, msg).await,
 
+            // The 'if' guard is important as we should not consider this branch if we're not
+            // supposed to handle CREATE* cells (and therefore RELAY_EARLY),
+            // regardless of whether the "relay" feature is set.
+            #[cfg(feature = "relay")]
+            RelayEarly(_) if self.create_request_handler.is_some() => {
+                self.deliver_relay(circid, msg).await
+            }
+
             Destroy(_) => self.deliver_destroy(circid, msg).await,
 
             // The 'if' guard is important as we should not consider this branch if we're not
@@ -642,7 +650,7 @@ impl<R: Runtime> Reactor<R> {
         }
     }
 
-    /// Give the RELAY cell `msg` to the appropriate circuit.
+    /// Give the RELAY (or possibly RELAY_EARLY) cell `msg` to the appropriate circuit.
     async fn deliver_relay(&mut self, circid: Option<CircId>, msg: AnyChanMsg) -> Result<()> {
         let Some(circid) = circid else {
             return Err(Error::ChanProto("Relay cell without circuit ID".into()));
@@ -748,7 +756,7 @@ impl<R: Runtime> Reactor<R> {
         self.send_cell(response).await
     }
 
-    /// Handle a CREATED{,_FAST,2} cell by passing it on to the appropriate
+    /// Handle a CREATED{_FAST,2} cell by passing it on to the appropriate
     /// circuit, if that circuit is waiting for one.
     fn deliver_created(&mut self, circid: Option<CircId>, msg: AnyChanMsg) -> Result<()> {
         let Some(circid) = circid else {
