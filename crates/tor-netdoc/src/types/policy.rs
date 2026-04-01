@@ -189,7 +189,7 @@ impl PortRanges {
     /// The ranges must be pushed in a strictly monotonically increasing order,
     /// meaning that inserting `400-500,450-600` or `400-500,500-600` are
     /// invalid, whereas `400-500,501-600` and `400-500,501-600` are.
-    fn push(&mut self, item: PortRange) -> Result<(), PolicyError> {
+    fn push_ordered(&mut self, item: PortRange) -> Result<(), PolicyError> {
         if let Some(prev) = self.0.last() {
             // TODO SPEC: We don't enforce this in Tor, but we probably
             // should.  See torspec#60.
@@ -259,14 +259,14 @@ impl FromIterator<u16> for PortRanges {
             }
             if let Some(next_port) = ports.peek().copied() {
                 if next_port != port + 1 {
-                    let _ = out.push(PortRange::new_unchecked(
+                    let _ = out.push_ordered(PortRange::new_unchecked(
                         current_min.expect("Don't have min port number"),
                         port,
                     ));
                     current_min = None;
                 }
             } else {
-                let _ = out.push(PortRange::new_unchecked(
+                let _ = out.push_ordered(PortRange::new_unchecked(
                     current_min.expect("Don't have min port number"),
                     port,
                 ));
@@ -290,7 +290,7 @@ impl FromStr for PortRanges {
         // of .push() in order to avoid things such as `30-19`.
         let mut ranges = Self::new();
         for range in s.split(',') {
-            ranges.push(range.parse()?)?;
+            ranges.push_ordered(range.parse()?)?;
         }
         Ok(ranges)
     }

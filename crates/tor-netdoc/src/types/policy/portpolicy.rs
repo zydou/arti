@@ -120,7 +120,7 @@ impl FromStr for PortPolicy {
         let mut allowed = PortRanges::new();
         let s = &s[7..];
         for item in s.split(',') {
-            allowed.push(item.parse()?)?;
+            allowed.push_ordered(item.parse()?)?;
         }
         if kind == RuleKind::Reject {
             allowed.invert();
