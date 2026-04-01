@@ -185,6 +185,10 @@ impl PortRanges {
     }
 
     /// Adds a new range into this [`PortRanges`].
+    ///
+    /// The ranges must be pushed in a strictly monotonically increasing order,
+    /// meaning that inserting `400-500,450-600` or `400-500,500-600` are
+    /// invalid, whereas `400-500,501-600` and `400-500,501-600` are.
     fn push(&mut self, item: PortRange) -> Result<(), PolicyError> {
         if let Some(prev) = self.0.last() {
             // TODO SPEC: We don't enforce this in Tor, but we probably
