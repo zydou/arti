@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+set -o xtrace
 
-echo '+cargo fmt --all -- --check'
 cargo fmt --all -- --check
-
-echo '+cargo clippy --all-features --all-targets -- -D warnings'
 cargo clippy --all-features --all-targets -- -D warnings
-
-echo '+cargo test --all'
 cargo test --all
-
-echo '+./maint/common/shellcheck-all'
 ./maint/common/shellcheck-all
