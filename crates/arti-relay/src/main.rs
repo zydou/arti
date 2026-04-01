@@ -59,6 +59,7 @@
 mod cli;
 mod client;
 mod config;
+mod keys;
 mod relay;
 mod tasks;
 mod util;
@@ -71,10 +72,8 @@ use futures::FutureExt;
 use safelog::with_safe_logging_suppressed;
 use tor_basic_utils::iter_join;
 use tor_error::warn_report;
-use tor_relay_crypto::pk::{
-    RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
-    RelayIdentityRsaKeypairSpecifier,
-};
+use crate::keys::{RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypairSpecifier};
+use tor_relay_crypto::pk::{RelayIdentityRsaKeypair, RelayIdentityKeypair};
 use tor_rtcompat::SpawnExt;
 use tor_rtcompat::tokio::TokioRustlsRuntime;
 use tor_rtcompat::{Runtime, ToplevelRuntime};

@@ -17,15 +17,17 @@ use tor_keymgr::{
 use tor_proto::RelayChannelAuthMaterial;
 use tor_relay_crypto::{
     RelaySigningKeyCert, gen_link_cert, gen_signing_cert, gen_tls_cert,
-    pk::{
-        RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
-        RelayIdentityRsaKeypairSpecifier, RelayLinkSigningKeypair,
+};
+
+use crate::keys::{
+        RelayIdentityKeypairSpecifier,
+        RelayIdentityRsaKeypairSpecifier,
         RelayLinkSigningKeypairSpecifier, RelayLinkSigningKeypairSpecifierPattern,
-        RelaySigningKeyCertSpecifier, RelaySigningKeyCertSpecifierPattern, RelaySigningKeypair,
+        RelaySigningKeyCertSpecifier, RelaySigningKeyCertSpecifierPattern,
         RelaySigningKeypairSpecifier, RelaySigningKeypairSpecifierPattern,
         RelaySigningPublicKeySpecifier, Timestamp,
-    },
 };
+use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayLinkSigningKeypair, RelaySigningKeypair};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 /// Buffer time before key expiry to trigger rotation. This ensures we rotate slightly before the
@@ -440,7 +442,7 @@ mod test {
     use super::*;
 
     use tor_keymgr::{ArtiEphemeralKeystore, KeyMgrBuilder};
-    use tor_relay_crypto::pk::{
+    use crate::keys::{
         RelayLinkSigningKeypairSpecifierPattern, RelaySigningKeypairSpecifierPattern,
     };
     use tor_rtcompat::SleepProvider;
@@ -448,10 +450,11 @@ mod test {
 
     /// Generate the non-rotating identity keys so the rest of the key machinery can run.
     fn setup_identity_keys(keymgr: &KeyMgr) {
-        use tor_relay_crypto::pk::{
-            RelayIdentityKeypair, RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypair,
+        use crate::keys::{
+            RelayIdentityKeypairSpecifier,
             RelayIdentityRsaKeypairSpecifier,
         };
+        use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityRsaKeypair};
         generate_key::<RelayIdentityKeypair>(keymgr, &RelayIdentityKeypairSpecifier::new())
             .unwrap();
         generate_key::<RelayIdentityRsaKeypair>(keymgr, &RelayIdentityRsaKeypairSpecifier::new())
