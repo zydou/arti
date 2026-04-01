@@ -570,6 +570,9 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     ///   - dormancy
     ///
     /// For `new_config` and `new_dormancy`, `None` means "no change to previous info".
+    ///
+    /// **Note:** As described in `ChanMgr::set_create_request_handler()`,
+    /// this doesn't update the parameters for any `CreateRequestHandler` if one exists.
     pub(super) fn reconfigure_general(
         &self,
         new_config: Option<&ChannelConfig>,
