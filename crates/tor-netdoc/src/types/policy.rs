@@ -72,9 +72,9 @@ pub enum PolicyError {
 #[allow(clippy::exhaustive_structs)]
 pub struct PortRange {
     /// The first port in this range.
-    pub lo: u16,
+    lo: u16,
     /// The last port in this range.
-    pub hi: u16,
+    hi: u16,
 }
 
 impl PortRange {
