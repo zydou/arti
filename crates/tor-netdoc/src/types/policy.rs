@@ -173,6 +173,9 @@ impl NormalItemArgument for PortRange {}
 // TODO: We should rewrite most of this, the implementation has lots of
 // potential for off-by-one errors and such.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+// Invariant:
+//
+// The `PortRange`s are valid, nonoverlapping, non-abutting, and sorted.
 struct PortRanges(Vec<PortRange>);
 
 impl PortRanges {
@@ -188,7 +191,7 @@ impl PortRanges {
 
     /// Adds a new range into this [`PortRanges`].
     ///
-    /// The ranges must be pushed in a strictly monotonically increasing order,
+    /// The ranges must be valid, nonoverlapping, and pushed in a monotonically increasing order,
     /// meaning that inserting `400-500,450-600` or `400-500,500-600` are
     /// invalid, whereas `400-500,501-600` and `400-500,501-600` are.
     fn push_ordered(&mut self, item: PortRange) -> Result<(), PolicyError> {
@@ -213,7 +216,8 @@ impl PortRanges {
     /// Checks whether `port` is contained in a range.
     ///
     /// Whether this means if `port` is allowed or rejected depends on the
-    /// wrapping semantic.
+    /// surroundings (such as which field this `PortRage` is in,
+    /// or an associated [`RuleKind`]).
     fn contains(&self, port: u16) -> bool {
         debug_assert!(self.0.is_sorted_by(|a, b| a.lo < b.lo));
         self.0
@@ -248,7 +252,7 @@ impl PortRanges {
 }
 
 impl FromIterator<u16> for PortRanges {
-    fn from_iter<T: IntoIterator<Item = u16>>(iter: T) -> Self {
+    fn from_iter<I: IntoIterator<Item = u16>>(iter: I) -> Self {
         // Collect all ports into a BTreeSet to have them sorted and deduped.
         let ports = iter.into_iter().collect::<BTreeSet<_>>();
         let mut ports = ports.into_iter().peekable();
