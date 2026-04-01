@@ -15,19 +15,18 @@ use tor_keymgr::{
     KeySpecifierPattern, Keygen, KeystoreSelector, ToEncodableKey,
 };
 use tor_proto::RelayChannelAuthMaterial;
-use tor_relay_crypto::{
-    RelaySigningKeyCert, gen_link_cert, gen_signing_cert, gen_tls_cert,
-};
+use tor_relay_crypto::{RelaySigningKeyCert, gen_link_cert, gen_signing_cert, gen_tls_cert};
 
 use crate::keys::{
-        RelayIdentityKeypairSpecifier,
-        RelayIdentityRsaKeypairSpecifier,
-        RelayLinkSigningKeypairSpecifier, RelayLinkSigningKeypairSpecifierPattern,
-        RelaySigningKeyCertSpecifier, RelaySigningKeyCertSpecifierPattern,
-        RelaySigningKeypairSpecifier, RelaySigningKeypairSpecifierPattern,
-        RelaySigningPublicKeySpecifier, Timestamp,
+    RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypairSpecifier,
+    RelayLinkSigningKeypairSpecifier, RelayLinkSigningKeypairSpecifierPattern,
+    RelaySigningKeyCertSpecifier, RelaySigningKeyCertSpecifierPattern,
+    RelaySigningKeypairSpecifier, RelaySigningKeypairSpecifierPattern,
+    RelaySigningPublicKeySpecifier, Timestamp,
 };
-use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayLinkSigningKeypair, RelaySigningKeypair};
+use tor_relay_crypto::pk::{
+    RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayLinkSigningKeypair, RelaySigningKeypair,
+};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 /// Buffer time before key expiry to trigger rotation. This ensures we rotate slightly before the
@@ -441,19 +440,16 @@ mod test {
 
     use super::*;
 
-    use tor_keymgr::{ArtiEphemeralKeystore, KeyMgrBuilder};
     use crate::keys::{
         RelayLinkSigningKeypairSpecifierPattern, RelaySigningKeypairSpecifierPattern,
     };
+    use tor_keymgr::{ArtiEphemeralKeystore, KeyMgrBuilder};
     use tor_rtcompat::SleepProvider;
     use tor_rtmock::MockRuntime;
 
     /// Generate the non-rotating identity keys so the rest of the key machinery can run.
     fn setup_identity_keys(keymgr: &KeyMgr) {
-        use crate::keys::{
-            RelayIdentityKeypairSpecifier,
-            RelayIdentityRsaKeypairSpecifier,
-        };
+        use crate::keys::{RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypairSpecifier};
         use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityRsaKeypair};
         generate_key::<RelayIdentityKeypair>(keymgr, &RelayIdentityKeypairSpecifier::new())
             .unwrap();
