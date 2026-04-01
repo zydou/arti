@@ -170,6 +170,8 @@ impl NormalItemArgument for PortRange {}
 ///
 /// Please use this when storing multiple port ranges because it optimizies
 /// them storage wise.
+// TODO: We should rewrite most of this, the implementation has lots of
+// potential for off-by-one errors and such.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 struct PortRanges(Vec<PortRange>);
 
