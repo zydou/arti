@@ -719,8 +719,8 @@ impl<R: Runtime> Reactor<R> {
         };
 
         // Allocate an internal circuit ID, regardless of if the create fails or not.
-        // TODO: UniqId can only hold 2^32 values on 32-bit machines.
-        // This is probably enough, but should double check.
+        // We expect that this will not overflow since it would require an attacker to send
+        // 500*2^32 bytes (~2 TiB) worth of cells.
         let circ_uniq_id = self.circ_unique_id_ctx.next(self.unique_id);
 
         // Build the relay circuit.
