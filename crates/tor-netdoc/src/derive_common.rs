@@ -116,17 +116,13 @@ define_derive_deftly! {
     $///
     $/// ```rust,ignore
     $/// let ${snake_case $tname} = $tname{
-    ${for fields {
-        ${if any(fmeta(constructor(default)), not(fmeta(constructor))) {
-            $///    $fname: /* optional field value */,
-        }}
-    }}
+  ${for fields { ${when any(fmeta(constructor(default)), not(fmeta(constructor)))}
+    $///    $fname: /* optional field value */,
+  }}
     $///    ..$CONSTRUCTOR_NAME {
-    ${for fields {
-        ${if not(any(fmeta(constructor(default)), not(fmeta(constructor)))) {
-            $///        $fname: /* required field value */,
-        }}
-    }}
+  ${for fields { ${when not(any(fmeta(constructor(default)), not(fmeta(constructor))))}
+    $///        $fname: /* required field value */,
+  }}
     $///    }.construct()
     $/// };
     $/// ```
