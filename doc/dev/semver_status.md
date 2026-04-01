@@ -24,6 +24,9 @@ particularly the "breaking changes" section.
 They aren't user-facing, and will be reworked by the changelog author,
 so they don't go into much detail,
 
+If a single API changes in multiple ways that are both BREAKING and ADDED,
+it is sufficient to write just a BREAKING entry.
+
 Here is an example `semver.md` file:
 
 >```
