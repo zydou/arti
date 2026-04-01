@@ -22,7 +22,7 @@ define_derive_deftly! {
     ///
     ///  * Each field must impl `Default` or be annotated `#[deftly(constructor)]`
     ///
-    ///  * `Thing` should contain `#[doc(hidden)] __non_exhaustive: ()`
+    ///  * `Thing` should contain `#[doc(hidden)] pub __non_exhaustive: ()`
     ///    rather than being `#[non_exhaustive]`.
     ///    (Because struct literal syntax is not available otherwise.)
     ///
@@ -58,7 +58,7 @@ define_derive_deftly! {
     ///
     /// #[derive(Deftly, PartialEq, Debug)]
     /// #[derive_deftly(Constructor)]
-    /// #[allow(clippy::manual_non_exhaustive)]
+    /// #[allow(clippy::exhaustive_structs)]
     /// pub struct Thing {
     ///     /// Required field
     ///     #[deftly(constructor)]
@@ -72,7 +72,7 @@ define_derive_deftly! {
     ///     pub defaulted: i32,
     ///
     ///     #[doc(hidden)]
-    ///     __non_exhaustive: (),
+    ///     pub __non_exhaustive: (),
     /// }
     ///
     /// let thing = Thing {
