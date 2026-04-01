@@ -19,8 +19,10 @@ using the new API will not work with older versions of the crate.
 
 When we release a new version, we use these files to determine which
 crates need major-version, minor-version, or patch-level version bumps.
-We also use them to help write the "breaking changes" section of the
-changelog. They aren't user-facing, so they don't go into much detail.
+We also use them to help write the the changelog,
+particularly the "breaking changes" section.
+They aren't user-facing, and will be reworked by the changelog author,
+so they don't go into much detail,
 
 Here is an example `semver.md` file:
 
