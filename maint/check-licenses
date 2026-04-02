@@ -36,6 +36,7 @@ RECOGNIZED_LICENSES=(
     "Apache-2.0 AND ISC"
     # Used by aws-lc-rs
     "ISC AND (Apache-2.0 OR ISC)"
+    "(Apache-2.0 OR ISC) AND ISC"
     "(Apache-2.0 OR MIT) AND BSD-3-Clause"
 )
 
@@ -87,13 +88,6 @@ LGPL_30_OK=(
 # If you expect that a specific license will be allowed for _several_ crates,
 # make a new thing like LGPL_30_OK above.
 declare -A PERMIT_LICENSE
-
-# awc-ls-sys hasn't updated their license from OpenSSL to Apache;
-# their ticket is https://github.com/aws/aws-lc/issues/2203.
-#
-# The OpenSSL license is GPL-incompatible, but we tolerate it,
-# since never use aws-lc-sys by default.
-PERMIT_LICENSE["aws-lc-sys"]="ISC AND (Apache-2.0 OR ISC) AND OpenSSL"
 
 # priority-queue is MPL-2.0 with exhibit A text
 #
