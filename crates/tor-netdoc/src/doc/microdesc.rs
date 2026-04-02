@@ -657,6 +657,11 @@ mod test {
         Ok(())
     }
 
+    /// Checks whether parse2 works on [`Microdesc`].
+    ///
+    /// Certain values such as public keys are hardcoded and can be simply
+    /// replaced by a copy and paste in the case one replaces the testdata2
+    /// vector's in the future.
     #[test]
     #[cfg(feature = "parse2")]
     fn parse2() {
