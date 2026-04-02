@@ -199,7 +199,7 @@ define_derive_deftly! {
     ///   instead of `ItemValueEncodable`,
     ///   and is encoded as if `(FIELD_TYPE,)` had been written.
     ///
-    /// * **`#[deftly(netdoc(with = "MODULE"))]`**:
+    /// * **`#[deftly(netdoc(with = MODULE))]`**:
     ///
     ///   Instead of `ItemValueEncodable`, the item is parsed with
     ///   `MODULE::write_item_value_onto`,
@@ -342,7 +342,7 @@ define_derive_deftly! {
     ///    Sets the expected label for an Object.
     ///    If not supplied, uses [`ItemObjectEncodable::label`].
     ///
-    ///  * **`#[deftly(netdoc(with = "MODULE")]**:
+    ///  * **`#[deftly(netdoc(with = MODULE)]**:
     ///
     ///    Instead of `ItemArgument`, the argument is encoded with `MODULE::write_arg_onto`,
     ///    which must have the same signature as [`ItemArgument::write_arg_onto`].
@@ -353,7 +353,7 @@ define_derive_deftly! {
     ///    instead of `tor_netdoc::Writeable::write_onto`.
     ///    LABEL must also be specified unless the object also implements `ItemObjectEncodable`.
     ///
-    ///  * **`#[deftly(netdoc(sig_hash = "HASH_METHOD"))]**:
+    ///  * **`#[deftly(netdoc(sig_hash = HASH_METHOD))]**:
     ///
     ///    TODO NETDOC ENCODE.  Encoding of signed documents is not yet implemented.
     export ItemValueEncodable beta_deftly, for struct, meta_quoted rigorous, expect items:

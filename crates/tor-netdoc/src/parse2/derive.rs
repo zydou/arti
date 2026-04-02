@@ -531,7 +531,7 @@ define_derive_deftly! {
     ///   instead of `ItemValueParseable`,
     ///   and is parsed as if `(FIELD_TYPE,)` had been written.
     ///
-    /// * **`#[deftly(netdoc(with = "MODULE"))]`**:
+    /// * **`#[deftly(netdoc(with = MODULE))]`**:
     ///
     ///   Instead of `ItemValueParseable`, the item is parsed with `MODULE::from_unparsed`,
     ///   which must have the same signature as [`ItemValueParseable::from_unparsed`].
@@ -595,14 +595,14 @@ define_derive_deftly! {
     ///
     /// #[derive(Deftly, Debug, Clone)]
     /// #[derive_deftly(NetdocParseableSignatures)]
-    /// #[deftly(netdoc(signatures(hashes_accu = "UseLengthAsFoolishHash")))]
+    /// #[deftly(netdoc(signatures(hashes_accu = UseLengthAsFoolishHash)))]
     /// pub struct NdThingSignatures {
     ///     pub signature: FoolishSignature,
     /// }
     ///
     /// #[derive(Deftly, Debug, Clone)]
     /// #[derive_deftly(ItemValueParseable)]
-    /// #[deftly(netdoc(signature(hash_accu = "UseLengthAsFoolishHash")))]
+    /// #[deftly(netdoc(signature(hash_accu = UseLengthAsFoolishHash)))]
     /// pub struct FoolishSignature {
     ///     pub doc_len: usize,
     /// }
@@ -696,7 +696,7 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(keyword = STR))]`
     ///    `#[deftly(netdoc(default))]`
     ///    `#[deftly(netdoc(single_arg))]`
-    ///    `#[deftly(netdoc(with = "MODULE"))]`
+    ///    `#[deftly(netdoc(with = MODULE))]`
     ///    `#[deftly(netdoc(flatten))]`
     ///    `#[deftly(netdoc(skip))]`
     ///
@@ -967,7 +967,7 @@ define_derive_deftly! {
     ///
     /// ### Required top-level attributes:
     ///
-    /// * **`#[deftly(netdoc(signature = "TYPE"))]`**:
+    /// * **`#[deftly(netdoc(signature = TYPE))]`**:
     ///   Type of the signature(s) section.
     ///
     ///   TYPE must implement `NetdocParseable`,
@@ -1146,7 +1146,7 @@ define_derive_deftly! {
     ///    Reject, rather than ignore, additional arguments found in the document
     ///    which aren't described by the struct.
     ///
-    ///  * **`#[deftly(netdoc(signature(hash_accu = "HASH_ACCU"))]**:
+    ///  * **`#[deftly(netdoc(signature(hash_accu = HASH_ACCU))]**:
     ///
     ///    This item is a signature item.
     ///    [`SignatureItemParseable`] will be implemented instead of [`ItemValueParseable`].
@@ -1190,7 +1190,7 @@ define_derive_deftly! {
     ///    Sets the expected label for an Object.
     ///    If not supplied, uses [`ItemObjectParseable::check_label`].
     ///
-    ///  * **`#[deftly(netdoc(with = "MODULE")]**:
+    ///  * **`#[deftly(netdoc(with = MODULE)]**:
     ///
     ///    Instead of `ItemArgumentParseable`, the argument is parsed with `MODULE::from_args`,
     ///    which must have the same signature as [`ItemArgumentParseable::from_args`].
