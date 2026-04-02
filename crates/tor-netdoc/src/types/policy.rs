@@ -166,7 +166,7 @@ impl FromStr for PortRange {
 
 impl NormalItemArgument for PortRange {}
 
-/// A collection of port ranges as an interval tree like structure.
+/// A collection of port ranges in a sorted order.
 ///
 /// Please use this when storing multiple port ranges because it optimizies
 /// them storage wise.
