@@ -332,7 +332,7 @@ define_derive_deftly_module! {
         ///    `#[deftly(netdoc(keyword = STR))]`
         ///    `#[deftly(netdoc(default))]`
         ///    `#[deftly(netdoc(single_arg))]`
-        ///    `#[deftly(netdoc(with = "MODULE"))]`
+        ///    `#[deftly(netdoc(with = MODULE))]`
         ///    `#[deftly(netdoc(flatten))]`
         ///    `#[deftly(netdoc(skip))]`
     }}

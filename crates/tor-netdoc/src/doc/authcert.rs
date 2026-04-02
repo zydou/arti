@@ -529,7 +529,7 @@ impl CrossCert {
 #[cfg_attr(
     feature = "parse2",
     derive_deftly(NetdocParseableSignatures),
-    deftly(netdoc(signatures(hashes_accu = "Sha1WholeKeywordLine")))
+    deftly(netdoc(signatures(hashes_accu = Sha1WholeKeywordLine)))
 )]
 #[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
 #[non_exhaustive]

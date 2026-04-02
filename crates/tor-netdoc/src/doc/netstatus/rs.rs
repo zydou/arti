@@ -75,7 +75,7 @@ pub struct RouterStatusMdDigestsVote {
     /// The methods for which this document is applicable.
     #[cfg_attr(
         feature = "parse2",
-        deftly(netdoc(with = "consensus_methods_comma_separated"))
+        deftly(netdoc(with = consensus_methods_comma_separated))
     )]
     pub consensus_methods: ConsensusMethods,
 

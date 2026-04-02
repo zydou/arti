@@ -795,7 +795,7 @@ mod rsa {
     #[cfg_attr(
         feature = "parse2",
         derive_deftly(ItemValueParseable),
-        deftly(netdoc(no_extra_args, signature(hash_accu = "Sha1WholeKeywordLine")))
+        deftly(netdoc(no_extra_args, signature(hash_accu = Sha1WholeKeywordLine)))
     )]
     #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
     // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
@@ -803,7 +803,7 @@ mod rsa {
     #[non_exhaustive]
     pub struct RsaSha1Signature {
         /// The bytes of the signature (base64-decoded).
-        #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::types::raw_data_object"))]
+        #[deftly(netdoc(object(label = "SIGNATURE"), with = crate::types::raw_data_object))]
         pub signature: Vec<u8>,
     }
 
