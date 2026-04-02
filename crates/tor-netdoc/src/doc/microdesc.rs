@@ -663,6 +663,7 @@ mod test {
     /// replaced by a copy and paste in the case one replaces the testdata2
     /// vector's in the future.
     #[test]
+    // TODO DIRMIRROR: We want to not ignore this.
     #[ignore]
     #[cfg(feature = "parse2")]
     fn parse2() {
