@@ -117,11 +117,8 @@ impl FromStr for PortPolicy {
             return Err(PolicyError::InvalidPort);
         }
         let kind = RuleKind::from_str(&s[..6]).map_err(|_| PolicyError::InvalidPort)?;
-        let mut allowed = PortRanges::new();
         let s = &s[7..];
-        for item in s.split(',') {
-            allowed.push_ordered(item.parse()?)?;
-        }
+        let mut allowed = PortRanges::from_str(s)?;
         if kind == RuleKind::Reject {
             allowed.invert();
         }
