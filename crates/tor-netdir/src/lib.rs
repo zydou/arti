@@ -1663,7 +1663,12 @@ impl NetDir {
                 }
             }
             Err(e) => {
-                warn_report!(e, "Unexpected error while sampling a relay");
+                warn_report!(
+                    e,
+                    "Unexpected error while choosing from {} relays for role {:?}",
+                    relays.len(),
+                    role
+                );
                 None
             }
         }
