@@ -161,8 +161,10 @@ where
 
 /// Try to install a default crypto provider if none has been installed, so that Rustls can operate.
 ///
-/// (Warns if we have to do this: the application should be responsible for choosing a provider.)
-fn ensure_provider_installed() {
+/// We only use this for testing: It is the application's responsibility to install a CryptoProvider.
+///
+#[cfg(any(test, feature = "testing"))]
+fn ensure_testing_provider_installed() {
     if CryptoProvider::get_default().is_none() {
         // If we haven't installed a CryptoProvider at this point, we warn and install
         // the `ring` provider.  That isn't great, but the alternative would be to
@@ -172,7 +174,7 @@ fn ensure_provider_installed() {
                         should call CryptoProvider::install_default()"
         );
         let _idempotent_ignore = CryptoProvider::install_default(
-            futures_rustls::rustls::crypto::ring::default_provider(),
+            futures_rustls::rustls::crypto::aws_lc_rs::default_provider(),
         );
     }
 }
@@ -180,7 +182,8 @@ fn ensure_provider_installed() {
 impl RustlsProvider {
     /// Construct a new [`RustlsProvider`].
     pub(crate) fn new() -> Self {
-        ensure_provider_installed();
+        #[cfg(any(test, feature = "testing"))]
+        ensure_testing_provider_installed();
 
         // Be afraid: we are overriding the default certificate verification and
         // TLS signature checking code! See notes on `Verifier` below for
@@ -319,7 +322,7 @@ mod test {
 
     #[test]
     fn basic_tor_cert() {
-        ensure_provider_installed();
+        ensure_testing_provider_installed();
         let der = CertificateDer::from_slice(TOR_CERTIFICATE);
         let _cert = EndEntityCert::try_from(&der).unwrap();
     }
