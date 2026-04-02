@@ -264,6 +264,10 @@ impl FromIterator<u16> for PortRanges {
                 current_min = Some(port);
             }
             if let Some(next_port) = ports.peek().copied() {
+                // We do not have to worry about port == 65535, because then
+                // ports.peek() will be None, as each item in the BTreeSet is
+                // ordered a unique, implying that there won't be a successor
+                // to a port == 65535.
                 if next_port != port + 1 {
                     let _ = out.push_ordered(PortRange::new_unchecked(
                         current_min.expect("Don't have min port number"),
