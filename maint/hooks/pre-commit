@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-set -o xtrace
+set -xeuo pipefail
 
 cargo fmt --all -- --check
 cargo clippy --all-features --all-targets -- -D warnings
