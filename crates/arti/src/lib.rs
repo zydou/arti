@@ -162,27 +162,43 @@ use clap::Subcommand as _;
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 pub use subcommands::proxy::run_proxy;
 
+/// Return an appropriate CryptoProvider for use with rustls.
+#[allow(dead_code)]
+#[cfg(feature = "rustls-base")]
+fn rustls_crypto_provider() -> rustls_crate::crypto::CryptoProvider {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "rustls-aws-lc-rs")] {
+            rustls_crate::crypto::aws_lc_rs::default_provider()
+        } else if #[cfg(feature = "rustls-ring")]{
+            rustls_crate::crypto::ring::default_provider()
+        } else {
+            compile_error!(r#"When building with rustls, you must select "rustls-aws-lc-rs" or "rustls-ring". \
+                              "rustls" is an alias for one of these."#);
+            // The rustls feature is just an alias for "rustls-aws-lc-rs".
+        }
+    }
+}
+
 /// Create a runtime for Arti to use.
 fn create_runtime() -> std::io::Result<impl ToplevelRuntime> {
     cfg_if::cfg_if! {
         if #[cfg(all(feature="tokio", feature="native-tls"))] {
             use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
-        } else if #[cfg(all(feature="tokio", feature="rustls"))] {
+        } else if #[cfg(all(feature="tokio", feature="rustls-base"))] {
             use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
-            // Note: See comments in tor_rtcompate::impls::rustls::RustlsProvider
+            // Note: See comments in tor_rtcompat::impls::rustls::RustlsProvider
             // about choice of default crypto provider.
             let _idempotent_ignore = rustls_crate::crypto::CryptoProvider::install_default(
-                rustls_crate::crypto::ring::default_provider(),
-
+                rustls_crypto_provider()
             );
         } else if #[cfg(all(feature="async-std", feature="native-tls"))] {
             use tor_rtcompat::async_std::AsyncStdNativeTlsRuntime as ChosenRuntime;
-        } else if #[cfg(all(feature="async-std", feature="rustls"))] {
+        } else if #[cfg(all(feature="async-std", feature="rustls-base"))] {
             use tor_rtcompat::async_std::AsyncStdRustlsRuntime as ChosenRuntime;
-            // Note: See comments in tor_rtcompate::impls::rustls::RustlsProvider
+            // Note: See comments in tor_rtcompat::impls::rustls::RustlsProvider
             // about choice of default crypto provider.
             let _idempotent_ignore = rustls_crate::crypto::CryptoProvider::install_default(
-                rustls_crate::crypto::ring::default_provider(),
+                rustls_crypto_provider()
             );
         } else {
             compile_error!("You must configure both an async runtime and a TLS stack. See doc/TROUBLESHOOTING.md for more.");

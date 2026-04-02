@@ -104,10 +104,12 @@ counter-galois-onion = ["arti-client/counter-galois-onion", "flowctl-cc", "__is_
 
 rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "arti-client/rpc", "derive-deftly"]
 
-# This is not nonadditive from a software POV, but we mark it as such because it
-# includes code licensed under the old OpenSSL license (which was 4-clause BSD),
-# which in turn introduces a GPL-incompatibility.
-rustls = ["arti-client/rustls", "tor-rtcompat/rustls", "rustls-crate", "__is_nonadditive"]
+# These are not nonadditive from a software POV, but we mark them as such because
+# they introduce a different backend, and only one backend can actually be used.
+rustls = ["rustls-aws-lc-rs", "__is_nonadditive"]
+rustls-aws-lc-rs = ["rustls-base", "rustls-crate/aws-lc-rs", "__is_nonadditive"]
+rustls-ring = ["rustls-base", "rustls-crate/ring", "__is_nonadditive"]
+rustls-base = ["arti-client/rustls", "tor-rtcompat/rustls", "__is_nonadditive"]
 
 # depends directly on arti-client/static so native-tls doesn't get automatically included
 static = ["arti-client/static", "__is_nonadditive"]
@@ -193,7 +195,6 @@ pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rustls-crate = { package = "rustls", version = "0.23.5", optional = true, default-features = false, features = [
     "logging",
-    "ring",
 ] }
 safelog = { path = "../safelog", version = "0.8.1" }
 secmem-proc = { version = "0.3.4", optional = true }

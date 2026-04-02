@@ -142,7 +142,11 @@ work.
   flag.)
 
 * `rustls` -- build with the [rustls](https://github.com/rustls/rustls)
-  TLS backend.  This is not currently included in `full`.
+  TLS backend, and a default crypto provider.
+  This is not currently included in `full`.
+  - `rustls-aws-lc-rs` -- Build with rustls, using the [`aws-lc-rs`]
+     crypto provider.  The `rustls` feature is an alias for this feature.
+  - `rustls-ring` -- Build with rustls, using the [`ring`] crypto provider.
 
 ### Build-flag related features
 
@@ -225,8 +229,10 @@ feature flag, and should not be considered stable.
 
 If you find yourself using this code in practice, please consider opening a ticket,
 so we know what APIs you find useful, and so we can consider moving them to a place
-where they can stabilize. 
+where they can stabilize.
 
 License: MIT OR Apache-2.0
 
 [restricted discovery]: https://spec.torproject.org/rend-spec/restricted-discovery.html
+[`aws-lc-rs`]: https://crates.io/crates/aws-lc-rs
+[`ring`]: https://crates.io/crates/ring
