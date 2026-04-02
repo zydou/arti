@@ -19,12 +19,16 @@
 mod addrpolicy;
 mod portpolicy;
 
-use std::fmt::Display;
 use std::str::FromStr;
+use std::{collections::BTreeSet, fmt::Display};
 use thiserror::Error;
 
-pub use addrpolicy::{AddrPolicy, AddrPortPattern, RuleKind};
+pub use addrpolicy::{AddrPolicy, AddrPortPattern};
 pub use portpolicy::PortPolicy;
+
+use crate::NormalItemArgument;
+#[cfg(feature = "parse2")]
+use crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable};
 
 /// Error from an unparsable or invalid policy.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -68,9 +72,9 @@ pub enum PolicyError {
 #[allow(clippy::exhaustive_structs)]
 pub struct PortRange {
     /// The first port in this range.
-    pub lo: u16,
+    lo: u16,
     /// The last port in this range.
-    pub hi: u16,
+    hi: u16,
 }
 
 impl PortRange {
@@ -160,6 +164,175 @@ impl FromStr for PortRange {
     }
 }
 
+impl NormalItemArgument for PortRange {}
+
+/// A collection of port ranges in a sorted order.
+///
+/// Please use this when storing multiple port ranges because it optimizies
+/// them storage wise.
+// TODO: We should rewrite most of this, the implementation has lots of
+// potential for off-by-one errors and such.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+// Invariant:
+//
+// The `PortRange`s are valid, nonoverlapping, non-abutting, and sorted.
+struct PortRanges(Vec<PortRange>);
+
+impl PortRanges {
+    /// Creates a new [`PortRanges`] collection with no elements in it.
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Checks whether there are no ranges in this instance.
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Adds a new range into this [`PortRanges`].
+    ///
+    /// The ranges must be valid, nonoverlapping, and pushed in a monotonically increasing order,
+    /// meaning that inserting `400-500,450-600` or `400-500,500-600` are
+    /// invalid, whereas `400-500,501-600` and `400-500,501-600` are.
+    fn push_ordered(&mut self, item: PortRange) -> Result<(), PolicyError> {
+        if let Some(prev) = self.0.last() {
+            // TODO SPEC: We don't enforce this in Tor, but we probably
+            // should.  See torspec#60.
+            if prev.hi >= item.lo {
+                return Err(PolicyError::InvalidPolicy);
+            } else if prev.hi == item.lo - 1 {
+                // We compress a-b,(b+1)-c into a-c.
+                let r = PortRange::new_unchecked(prev.lo, item.hi);
+                self.0.pop();
+                self.0.push(r);
+                return Ok(());
+            }
+        }
+
+        self.0.push(item);
+        Ok(())
+    }
+
+    /// Checks whether `port` is contained in a range.
+    ///
+    /// Whether this means if `port` is allowed or rejected depends on the
+    /// surroundings (such as which field this `PortRage` is in,
+    /// or an associated [`RuleKind`]).
+    fn contains(&self, port: u16) -> bool {
+        debug_assert!(self.0.is_sorted_by(|a, b| a.lo < b.lo));
+        self.0
+            .binary_search_by(|range| range.compare_to_port(port))
+            .is_ok()
+    }
+
+    /// Inverts a [`PortRanges`].
+    ///
+    /// For example, a [`PortRanges`] of `80-443` would become `1-79,444-65535`.
+    fn invert(&mut self) {
+        let mut prev_hi = 0;
+        let mut new_allowed = Vec::new();
+        for entry in &self.0 {
+            // ports prev_hi+1 through entry.lo-1 were rejected.  We should
+            // make them allowed.
+            if entry.lo > prev_hi + 1 {
+                new_allowed.push(PortRange::new_unchecked(prev_hi + 1, entry.lo - 1));
+            }
+            prev_hi = entry.hi;
+        }
+        if prev_hi < 65535 {
+            new_allowed.push(PortRange::new_unchecked(prev_hi + 1, 65535));
+        }
+        self.0 = new_allowed;
+    }
+
+    /// Returns an iterator for [`PortRanges`].
+    fn iter(&self) -> impl Iterator<Item = &PortRange> {
+        self.0.iter()
+    }
+}
+
+impl FromIterator<u16> for PortRanges {
+    fn from_iter<I: IntoIterator<Item = u16>>(iter: I) -> Self {
+        // Collect all ports into a BTreeSet to have them sorted and deduped.
+        let ports = iter.into_iter().collect::<BTreeSet<_>>();
+        let mut ports = ports.into_iter().peekable();
+
+        let mut out = Self::new();
+        let mut current_min = None;
+        while let Some(port) = ports.next() {
+            if current_min.is_none() {
+                current_min = Some(port);
+            }
+            if let Some(next_port) = ports.peek().copied() {
+                // We do not have to worry about port == 65535, because then
+                // ports.peek() will be None, as each item in the BTreeSet is
+                // ordered and unique, implying that there won't be a successor
+                // to a port == 65535.
+                if next_port != port + 1 {
+                    let _ = out.push_ordered(PortRange::new_unchecked(
+                        current_min.expect("Don't have min port number"),
+                        port,
+                    ));
+                    current_min = None;
+                }
+            } else {
+                let _ = out.push_ordered(PortRange::new_unchecked(
+                    current_min.expect("Don't have min port number"),
+                    port,
+                ));
+            }
+        }
+
+        out
+    }
+}
+
+// There is deliberately no Display implementation for PortRanges because this
+// highly depends on the semantic wrapper around it.  For example, an empty
+// PortRanges may either be represented as `reject 1-65535` or `accept 1-65535`
+// depending on the context.
+
+impl FromStr for PortRanges {
+    type Err = PolicyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Pitfall: Do not use a clever iterator here because we need the result
+        // of .push() in order to avoid things such as `30-19`.
+        let mut ranges = Self::new();
+        for range in s.split(',') {
+            ranges.push_ordered(range.parse()?)?;
+        }
+        Ok(ranges)
+    }
+}
+
+#[cfg(feature = "parse2")]
+impl ItemArgumentParseable for PortRanges {
+    /// [`PortRanges`] argument parser which is odd because port ranges are
+    /// syntactically a single argument although semantically multiple ones.
+    fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError> {
+        args.next()
+            .map(Self::from_str)
+            .unwrap_or(Ok(Self::new()))
+            .map_err(|_| ArgumentError::Invalid)
+    }
+}
+
+/// A kind of policy rule: either accepts or rejects addresses
+/// matching a pattern.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, derive_more::Display, derive_more::FromStr)]
+#[display(rename_all = "lowercase")]
+#[from_str(rename_all = "lowercase")]
+#[allow(clippy::exhaustive_enums)]
+pub enum RuleKind {
+    /// A rule that accepts matching address:port combinations.
+    Accept,
+    /// A rule that rejects matching address:port combinations.
+    Reject,
+}
+
+impl NormalItemArgument for RuleKind {}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -247,5 +420,59 @@ mod test {
         chk(1, 65535, "1-65535");
         chk(10, 20, "10-20");
         chk(20, 20, "20");
+    }
+
+    #[test]
+    fn port_ranges() {
+        const INPUT: &str = "22,80,443,8000-9000,9002";
+        let ranges = PortRanges::from_str(INPUT).unwrap();
+        assert_eq!(
+            ranges.0,
+            [
+                PortRange::new(22, 22).unwrap(),
+                PortRange::new(80, 80).unwrap(),
+                PortRange::new(443, 443).unwrap(),
+                PortRange::new(8000, 9000).unwrap(),
+                PortRange::new(9002, 9002).unwrap(),
+            ]
+        );
+        assert!(ranges.contains(22));
+        assert!(ranges.contains(80));
+        assert!(ranges.contains(443));
+        assert!(ranges.contains(8000));
+        assert!(ranges.contains(8500));
+        assert!(ranges.contains(9000));
+        assert!(!ranges.contains(9001));
+        assert!(ranges.contains(9002));
+
+        let mut ranges_inverse = ranges.clone();
+        ranges_inverse.invert();
+        assert_eq!(
+            ranges_inverse.0,
+            [
+                PortRange::new(1, 21).unwrap(),
+                PortRange::new(23, 79).unwrap(),
+                PortRange::new(81, 442).unwrap(),
+                PortRange::new(444, 7999).unwrap(),
+                PortRange::new(9001, 9001).unwrap(),
+                PortRange::new(9003, 65535).unwrap(),
+            ]
+        );
+
+        #[cfg(feature = "parse2")]
+        {
+            use crate::parse2::{self, ParseInput};
+
+            #[derive(derive_deftly::Deftly)]
+            #[derive_deftly(NetdocParseable)]
+            struct Dummy {
+                #[deftly(netdoc(single_arg))]
+                dummy: PortRanges,
+            }
+            let ranges2 =
+                parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {INPUT}\n"), ""))
+                    .unwrap();
+            assert_eq!(ranges, ranges2.dummy);
+        }
     }
 }

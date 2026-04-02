@@ -6,8 +6,14 @@ use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use super::{PolicyError, PortRange};
+#[cfg(feature = "parse2")]
+use crate::parse2::{ErrorProblem as EP, ItemValueParseable, UnparsedItem};
+
+use super::{PolicyError, PortRanges, RuleKind};
 use tor_basic_utils::intern::InternCache;
+
+#[cfg(feature = "parse2")]
+use derive_deftly::Deftly;
 
 /// A policy to match zero or more TCP/UDP ports.
 ///
@@ -31,12 +37,13 @@ use tor_basic_utils::intern::InternCache;
 /// assert!(! policy.allows_port(1024));
 /// assert!(! policy.allows_port(9000));
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct PortPolicy {
     /// A list of port ranges that this policy allows.
     ///
-    /// These ranges sorted, disjoint, and compact.
-    allowed: Vec<PortRange>,
+    /// In case we see a reject, we simply invert the policy by the assumption
+    /// that allows policies take less space than reject ones.
+    allowed: PortRanges,
 }
 
 impl Display for PortPolicy {
@@ -46,7 +53,7 @@ impl Display for PortPolicy {
         } else {
             write!(f, "accept ")?;
             let mut comma = "";
-            for range in &self.allowed {
+            for range in self.allowed.iter() {
                 write!(f, "{}{}", comma, range)?;
                 comma = ",";
             }
@@ -58,92 +65,27 @@ impl Display for PortPolicy {
 impl PortPolicy {
     /// Return a new PortPolicy that rejects all ports.
     pub fn new_reject_all() -> Self {
-        PortPolicy {
-            allowed: Vec::new(),
-        }
+        Self::default()
     }
 
     /// Create a PortPolicy from a list of allowed ports. All other ports will be rejected. The
     /// ports in the list may be in any order.
     pub fn from_allowed_port_list(ports: Vec<u16>) -> Self {
-        let mut ports = ports;
-        ports.sort();
-        let mut ports = ports.iter().peekable();
-
-        let mut out = PortPolicy::new_reject_all();
-
-        let mut current_min = None;
-        while let Some(port) = ports.next() {
-            if current_min.is_none() {
-                current_min = Some(port);
-            }
-            if let Some(next_port) = ports.peek() {
-                if **next_port != port + 1 {
-                    let _ = out.push_policy(PortRange::new_unchecked(
-                        *current_min.expect("Don't have min port number"),
-                        *port,
-                    ));
-                    current_min = None;
-                }
-            } else {
-                let _ = out.push_policy(PortRange::new_unchecked(
-                    *current_min.expect("Don't have min port number"),
-                    *port,
-                ));
-            }
+        Self {
+            allowed: PortRanges::from_iter(ports),
         }
-
-        out
     }
 
-    /// Helper: replace this policy with its inverse.
-    fn invert(&mut self) {
-        let mut prev_hi = 0;
-        let mut new_allowed = Vec::new();
-        for entry in &self.allowed {
-            // ports prev_hi+1 through entry.lo-1 were rejected.  We should
-            // make them allowed.
-            if entry.lo > prev_hi + 1 {
-                new_allowed.push(PortRange::new_unchecked(prev_hi + 1, entry.lo - 1));
-            }
-            prev_hi = entry.hi;
-        }
-        if prev_hi < 65535 {
-            new_allowed.push(PortRange::new_unchecked(prev_hi + 1, 65535));
-        }
-        self.allowed = new_allowed;
-    }
-    /// Helper: add a new range to the end of this portpolicy.
-    ///
-    /// gives an error if this range cannot appear next in sequence.
-    fn push_policy(&mut self, item: PortRange) -> Result<(), PolicyError> {
-        if let Some(prev) = self.allowed.last() {
-            // TODO SPEC: We don't enforce this in Tor, but we probably
-            // should.  See torspec#60.
-            if prev.hi >= item.lo {
-                return Err(PolicyError::InvalidPolicy);
-            } else if prev.hi == item.lo - 1 {
-                // We compress a-b,(b+1)-c into a-c.
-                let r = PortRange::new_unchecked(prev.lo, item.hi);
-                self.allowed.pop();
-                self.allowed.push(r);
-                return Ok(());
-            }
-        }
-
-        self.allowed.push(item);
-        Ok(())
-    }
     /// Return true iff `port` is allowed by this policy.
     pub fn allows_port(&self, port: u16) -> bool {
-        self.allowed
-            .binary_search_by(|range| range.compare_to_port(port))
-            .is_ok()
+        self.allowed.contains(port)
     }
+
     /// Replace this PortPolicy with an interned copy, to save memory.
     pub fn intern(self) -> Arc<Self> {
         POLICY_CACHE.intern(self)
     }
+
     /// Return true if this policy allows any ports at all.
     ///
     /// # Example
@@ -162,26 +104,60 @@ impl PortPolicy {
 
 impl FromStr for PortPolicy {
     type Err = PolicyError;
-    fn from_str(mut s: &str) -> Result<Self, PolicyError> {
-        let invert = if s.starts_with("accept ") {
-            false
-        } else if s.starts_with("reject ") {
-            true
-        } else {
-            return Err(PolicyError::InvalidPolicy);
-        };
-        let mut result = PortPolicy {
-            allowed: Vec::new(),
-        };
-        s = &s[7..];
-        for item in s.split(',') {
-            let r: PortRange = item.parse()?;
-            result.push_policy(r)?;
+
+    /// Very bad parser for [`PortPolicy`], please use `parse2`!
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // TODO: The error is bad but kept for backwards compatibility.
+        // Also, we should do split_whitespace but I feel doing this is not
+        // worth it anymore; introduces an unnecessary risk of adding
+        // bugs.
+        if s.len() < 7 {
+            // We need to do this because RuleKind::from_str does not check for
+            // the space between "accept/reject" and the arguments.
+            return Err(PolicyError::InvalidPort);
         }
-        if invert {
-            result.invert();
+        let kind = RuleKind::from_str(&s[..6]).map_err(|_| PolicyError::InvalidPort)?;
+        let s = &s[7..];
+        let mut allowed = PortRanges::from_str(s)?;
+        if kind == RuleKind::Reject {
+            allowed.invert();
         }
-        Ok(result)
+        Ok(Self { allowed })
+    }
+}
+
+#[cfg(feature = "parse2")]
+impl ItemValueParseable for PortPolicy {
+    // Manual implementation incorporating the `accept`/`reject`,
+    // using `.invert()` if necessary to yield simply a `PortPolicy`,
+    // rather than the `RuleKind` (`accept`/`reject`) plus port list.
+    fn from_unparsed(item: UnparsedItem<'_>) -> Result<Self, EP> {
+        /// Helper type just has the raw [`RuleKind`] and port list
+        #[derive(Deftly)]
+        #[derive_deftly(ItemValueParseable)]
+        struct RawPortPolicy {
+            /// Whether to [`RuleKind::Accept`] or [`RuleKind::Reject`].
+            kind: RuleKind,
+            /// The actual ranges before inversion.
+            ranges: PortRanges,
+        }
+
+        item.check_no_object()?;
+
+        // Obtain the kind and ranges and possibly invert them.
+        let RawPortPolicy { kind, mut ranges } = RawPortPolicy::from_unparsed(item)?;
+        if ranges.is_empty() {
+            // This is one or more.
+            return Err(EP::MissingArgument {
+                field: "port-policy",
+            });
+        }
+        // Potential post-processing depending on the rule kind.
+        match kind {
+            RuleKind::Accept => {}
+            RuleKind::Reject => ranges.invert(),
+        }
+        Ok(Self { allowed: ranges })
     }
 }
 
@@ -208,7 +184,17 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use itertools::Itertools;
 
+    #[cfg(feature = "parse2")]
+    use crate::parse2::{self, ParseInput};
+
     use super::*;
+
+    #[cfg(feature = "parse2")]
+    #[derive(derive_deftly::Deftly)]
+    #[derive_deftly(NetdocParseable)]
+    struct Dummy {
+        dummy: PortPolicy,
+    }
 
     #[test]
     fn test_roundtrip() {
@@ -220,6 +206,19 @@ mod test {
             }
             for p in deny {
                 assert!(!policy.allows_port(*p));
+            }
+            #[cfg(feature = "parse2")]
+            {
+                let policy2 =
+                    parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {inp}"), ""))
+                        .unwrap()
+                        .dummy;
+                for p in allow {
+                    assert!(policy2.allows_port(*p));
+                }
+                for p in deny {
+                    assert!(!policy2.allows_port(*p));
+                }
             }
         }
 
@@ -259,6 +258,9 @@ mod test {
             "accept",
             "reject",
             "accept x-y",
+            "accept ",
+            "reject ",
+            "ignore ",
             "accept 1-20,19-30",
             "accept 1-20,20-30",
             "reject 1,1,1,1",
@@ -266,6 +268,13 @@ mod test {
             "reject 5,4,3,2",
         ] {
             assert!(s.parse::<PortPolicy>().is_err());
+            #[cfg(feature = "parse2")]
+            {
+                assert!(
+                    parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {s}"), ""))
+                        .is_err()
+                );
+            }
         }
     }
 

@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use tor_dirmgr::filter::DirFilter;
 use tor_netdoc::{
     doc::{microdesc::Microdesc, netstatus::UncheckedMdConsensus},
-    types::{family::RelayFamily, policy::PortPolicy},
+    types::{Curve25519Public, family::RelayFamily, policy::PortPolicy},
 };
 
 /// Return a new directory filter as configured by a specified string.
@@ -52,7 +52,7 @@ struct ReplaceOnionKeysFilter;
 impl DirFilter for ReplaceOnionKeysFilter {
     fn filter_md(&self, mut md: Microdesc) -> tor_dirmgr::Result<Microdesc> {
         let junk_key: [u8; 32] = rand::rng().random();
-        md.ntor_onion_key = junk_key.into();
+        md.ntor_onion_key = Curve25519Public(junk_key.into());
         Ok(md)
     }
 }

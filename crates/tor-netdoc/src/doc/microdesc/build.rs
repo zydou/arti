@@ -5,7 +5,7 @@
 
 use super::Microdesc;
 
-use crate::types::family::{RelayFamily, RelayFamilyId};
+use crate::types::family::{RelayFamily, RelayFamilyId, RelayFamilyIds};
 use crate::types::policy::PortPolicy;
 use crate::{BuildError as Error, BuildResult as Result, Error as ParseError};
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -30,7 +30,7 @@ pub struct MicrodescBuilder {
     /// See [`Microdesc::family`].
     family: RelayFamily,
     /// See [`Microdesc::family_ids`]
-    family_ids: Vec<RelayFamilyId>,
+    family_ids: RelayFamilyIds,
     /// See [`Microdesc::ipv4_policy`]
     ipv4_policy: PortPolicy,
     /// See [`Microdesc::ipv6_policy`]
@@ -45,7 +45,7 @@ impl MicrodescBuilder {
         MicrodescBuilder {
             ntor_onion_key: None,
             family: RelayFamily::new(),
-            family_ids: Vec::new(),
+            family_ids: RelayFamilyIds::new(),
             ipv4_policy: PortPolicy::new_reject_all(),
             ipv6_policy: PortPolicy::new_reject_all(),
             ed25519_id: None,
@@ -134,16 +134,20 @@ impl MicrodescBuilder {
     pub fn testing_md(&self) -> Result<Microdesc> {
         let ntor_onion_key = self
             .ntor_onion_key
-            .ok_or(Error::CannotBuild("Missing ntor_key"))?;
+            .ok_or(Error::CannotBuild("Missing ntor_key"))?
+            .into();
         let ed25519_id = self
             .ed25519_id
-            .ok_or(Error::CannotBuild("Missing ed25519_id"))?;
+            .ok_or(Error::CannotBuild("Missing ed25519_id"))?
+            .into();
 
         // We generate a random sha256 value here, since this is only
         // for testing.
         let sha256 = rand::rng().random();
 
         Ok(Microdesc {
+            // Including an empty onion_key is totally fine and valid.
+            onion_key: Default::default(),
             sha256,
             ntor_onion_key,
             family: self.family.clone().intern(),

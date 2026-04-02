@@ -2,3 +2,8 @@ All files in this directory are automatically maintained.
 
 Downloaded and massaged by crates/tor-netdoc/testdata2-download
 From CI data at "https://gitlab.torproject.org/tpo/core/arti/-/jobs/1060037/artifacts/download"
+
+Changing the files in this directory may lead tests to fail.
+This is because they hardcode certain values expected to appear in certain
+netdocs.  The way to solve this should be a simple copy-and-paste of the
+relevant data into the failing tests.

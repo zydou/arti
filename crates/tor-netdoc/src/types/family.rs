@@ -6,8 +6,9 @@
 use std::sync::Arc;
 
 use crate::types::misc::LongIdent;
-use crate::{Error, NetdocErrorKind, Pos, Result};
+use crate::{Error, NetdocErrorKind, NormalItemArgument, Pos, Result};
 use base64ct::Encoding;
+use derive_deftly::Deftly;
 use tor_basic_utils::intern::InternCache;
 use tor_llcrypto::pk::ed25519::{ED25519_ID_LEN, Ed25519Identity};
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -24,8 +25,9 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 /// entries, including entries that are only nicknames.
 ///
 /// TODO: This type probably belongs in a different crate.
-#[derive(Clone, Debug, Default, Hash, Eq, PartialEq)]
-pub struct RelayFamily(Vec<RsaIdentity>);
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Deftly)]
+#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+pub struct RelayFamily(Vec<LongIdent>);
 
 /// Cache of RelayFamily objects, for saving memory.
 //
@@ -41,12 +43,12 @@ impl RelayFamily {
 
     /// Add `rsa_id` to this family.
     pub fn push(&mut self, rsa_id: RsaIdentity) {
-        self.0.push(rsa_id);
+        self.0.push(rsa_id.into());
     }
 
     /// Convert this family to a standard format (with all IDs sorted and de-duplicated).
     fn normalize(&mut self) {
-        self.0.sort();
+        self.0.sort_by(|a, b| a.0.cmp(&b.0));
         self.0.dedup();
     }
 
@@ -59,13 +61,13 @@ impl RelayFamily {
 
     /// Does this family include the given relay?
     pub fn contains(&self, rsa_id: &RsaIdentity) -> bool {
-        self.0.contains(rsa_id)
+        self.0.contains(&LongIdent(*rsa_id))
     }
 
     /// Return an iterator over the RSA identity keys listed in this
     /// family.
     pub fn members(&self) -> impl Iterator<Item = &RsaIdentity> {
-        self.0.iter()
+        self.0.iter().map(|id| &id.0)
     }
 
     /// Return true if this family has no members.
@@ -77,9 +79,9 @@ impl RelayFamily {
 impl std::str::FromStr for RelayFamily {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
-        let v: Result<Vec<RsaIdentity>> = s
+        let v: Result<Vec<LongIdent>> = s
             .split(crate::parse::tokenize::is_sp)
-            .map(|e| e.parse::<LongIdent>().map(|v| v.into()))
+            .map(|e| e.parse::<LongIdent>())
             .filter(Result::is_ok)
             .collect();
         Ok(RelayFamily(v?))
@@ -146,6 +148,31 @@ impl Ord for RelayFamilyId {
     }
 }
 
+impl NormalItemArgument for RelayFamilyId {}
+
+/// A list of multiple [`RelayFamilyId`] entries as found in microdescs.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Deftly, derive_more::AsRef)]
+#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+pub struct RelayFamilyIds(Vec<RelayFamilyId>);
+
+impl RelayFamilyIds {
+    /// Return a new empty [`RelayFamilyIds`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Push `family_id` onto this instance.
+    pub fn push(&mut self, family_id: RelayFamilyId) {
+        self.0.push(family_id);
+    }
+}
+
+impl FromIterator<RelayFamilyId> for RelayFamilyIds {
+    fn from_iter<T: IntoIterator<Item = RelayFamilyId>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -182,7 +209,7 @@ mod test {
             )
             .unwrap(),
         ];
-        assert_eq!(f.0, v);
+        assert_eq!(f.members().cloned().collect::<Vec<_>>(), v);
         Ok(())
     }
 
@@ -230,5 +257,33 @@ mod test {
 
         assert_eq!(ed_id, ed_id);
         assert_ne!(ed_id, other_id);
+    }
+
+    #[test]
+    #[cfg(feature = "parse2")]
+    fn parse2() {
+        #[derive(Debug, PartialEq, Eq, derive_deftly::Deftly)]
+        #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
+        struct Wrapper {
+            family: RelayFamily,
+        }
+
+        const LINE: &str = "family $0000000000000000000000000000000000000000 $FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
+        let parsed =
+            crate::parse2::parse_netdoc::<Wrapper>(&crate::parse2::ParseInput::new(LINE, ""))
+                .unwrap();
+        assert_eq!(
+            parsed,
+            Wrapper {
+                family: RelayFamily(vec![
+                    RsaIdentity::from_hex("0000000000000000000000000000000000000000")
+                        .unwrap()
+                        .into(),
+                    RsaIdentity::from_hex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+                        .unwrap()
+                        .into()
+                ])
+            }
+        );
     }
 }

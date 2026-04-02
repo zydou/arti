@@ -5,6 +5,8 @@ use std::fmt::Display;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 
+use crate::types::policy::RuleKind;
+
 use super::{PolicyError, PortRange};
 
 /// A sequence of rules that are applied to an address:port until one
@@ -40,17 +42,6 @@ pub struct AddrPolicy {
     /// The rules apply in order; the first one to match determines
     /// whether the address is accepted or rejected.
     rules: Vec<AddrPolicyRule>,
-}
-
-/// A kind of policy rule: either accepts or rejects addresses
-/// matching a pattern.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[allow(clippy::exhaustive_enums)]
-pub enum RuleKind {
-    /// A rule that accepts matching address:port combinations.
-    Accept,
-    /// A rule that rejects matching address:port combinations.
-    Reject,
 }
 
 impl AddrPolicy {

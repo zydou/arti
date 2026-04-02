@@ -7,8 +7,8 @@
 
 pub(crate) use b16impl::*;
 pub use b64impl::*;
-pub(crate) use curve25519impl::*;
-pub(crate) use ed25519impl::*;
+pub use curve25519impl::*;
+pub use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
@@ -78,7 +78,7 @@ pub(crate) trait FromBytes: Sized {
 
 /// Types for decoding base64-encoded values.
 mod b64impl {
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
+    use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
     use base64ct::{Base64, Base64Unpadded, Encoding};
     use std::fmt::{self, Display};
     use std::ops::RangeBounds;
@@ -152,6 +152,46 @@ mod b64impl {
                 .map_err(|_| EK::BadObjectVal.with_msg("Invalid length on base64 data"))
         }
     }
+
+    impl FromIterator<u8> for B64 {
+        fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
+            Self(iter.into_iter().collect())
+        }
+    }
+
+    impl NormalItemArgument for B64 {}
+
+    /// A byte array encoded in a hexadecimal with a fixed length.
+    #[derive(Clone)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(Hash, Eq, derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[debug(r#"FixedB64::<{N}>("{self}")"#)]
+    pub(crate) struct FixedB64<const N: usize>([u8; N]);
+
+    impl<const N: usize> Display for FixedB64<N> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            Display::fmt(&B64(self.0.to_vec()), f)
+        }
+    }
+
+    impl<const N: usize> std::str::FromStr for FixedB64<N> {
+        type Err = Error;
+        fn from_str(s: &str) -> Result<Self> {
+            Ok(Self(B64::from_str(s)?.0.try_into().map_err(|_| {
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("invalid length")
+            })?))
+        }
+    }
+
+    impl<const N: usize> PartialEq for FixedB64<N> {
+        fn eq(&self, other: &Self) -> bool {
+            B64(self.0.to_vec()).eq(&B64(other.0.to_vec()))
+        }
+    }
+
+    impl<const N: usize> NormalItemArgument for FixedB64<N> {}
 }
 
 // ============================================================
@@ -194,66 +234,110 @@ mod b16impl {
 
 /// Types for decoding curve25519 keys
 mod curve25519impl {
-    use super::B64;
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
+    use std::fmt::Display;
+
+    use crate::{Error, NormalItemArgument, Result, types::misc::FixedB64};
     use tor_llcrypto::pk::curve25519::PublicKey;
 
     /// A Curve25519 public key, encoded in base64 with optional padding
-    pub(crate) struct Curve25519Public(PublicKey);
+    #[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::Into)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct Curve25519Public(pub PublicKey);
 
     impl std::str::FromStr for Curve25519Public {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
-            let b64: B64 = s.parse()?;
-            let array: [u8; 32] = b64.as_bytes().try_into().map_err(|_| {
-                EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("bad length for curve25519 key.")
-            })?;
-            Ok(Curve25519Public(array.into()))
+            let pk: FixedB64<32> = s.parse()?;
+            let pk: [u8; 32] = pk.into();
+            Ok(Curve25519Public(pk.into()))
         }
     }
 
-    impl From<Curve25519Public> for PublicKey {
-        fn from(w: Curve25519Public) -> PublicKey {
-            w.0
+    impl Display for Curve25519Public {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            FixedB64::from(self.0.to_bytes()).fmt(f)
         }
     }
+
+    impl NormalItemArgument for Curve25519Public {}
 }
 
 // ============================================================
 
 /// Types for decoding ed25519 keys
 mod ed25519impl {
-    use super::B64;
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
+    use std::fmt::Display;
+
+    use crate::{Error, NormalItemArgument, Result, types::misc::FixedB64};
+    use derive_deftly::Deftly;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     /// An alleged ed25519 public key, encoded in base64 with optional
     /// padding.
-    pub(crate) struct Ed25519Public(Ed25519Identity);
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct Ed25519Public(pub Ed25519Identity);
 
     impl std::str::FromStr for Ed25519Public {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
-            let b64: B64 = s.parse()?;
-            if b64.as_bytes().len() != 32 {
-                return Err(EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("bad length for ed25519 key."));
-            }
-            let key = Ed25519Identity::from_bytes(b64.as_bytes()).ok_or_else(|| {
-                EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("bad value for ed25519 key.")
-            })?;
-            Ok(Ed25519Public(key))
+            let pk: FixedB64<32> = s.parse()?;
+            Ok(Ed25519Public(Ed25519Identity::new(pk.into())))
         }
     }
+
+    impl Display for Ed25519Public {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let pk: [u8; 32] = self.0.into();
+            let pk = FixedB64::from(pk);
+            pk.fmt(f)
+        }
+    }
+
+    impl NormalItemArgument for Ed25519Public {}
 
     impl From<Ed25519Public> for Ed25519Identity {
         fn from(pk: Ed25519Public) -> Ed25519Identity {
             pk.0
+        }
+    }
+
+    /// Helper that checks for the presence of `ed25519`.
+    #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::FromStr)]
+    #[display(rename_all = "lowercase")]
+    #[from_str(rename_all = "lowercase")]
+    #[allow(clippy::exhaustive_enums)]
+    pub enum Ed25519AlgorithmString {
+        /// Ed25519 encoded as `ed25519`.
+        Ed25519,
+    }
+
+    impl NormalItemArgument for Ed25519AlgorithmString {}
+
+    /// An Ed25519 public key found in a micro descriptor `id` line.
+    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[non_exhaustive]
+    pub struct Ed25519IdentityLine {
+        /// Fixed magic identifier (`ed25519`) for this line.
+        pub alg: Ed25519AlgorithmString,
+
+        /// The actual Ed25519 identity.
+        pub pk: Ed25519Public,
+    }
+
+    impl From<Ed25519Public> for Ed25519IdentityLine {
+        fn from(pk: Ed25519Public) -> Self {
+            Self {
+                alg: Ed25519AlgorithmString::Ed25519,
+                pk,
+            }
+        }
+    }
+
+    impl From<Ed25519Identity> for Ed25519IdentityLine {
+        fn from(pk: Ed25519Identity) -> Self {
+            Ed25519Public(pk).into()
         }
     }
 }
@@ -901,6 +985,7 @@ mod edcert {
 /// Digest identifiers, and digests in the form `ALGORITHM=BASE64U`
 ///
 /// As found in a vote's `m` line.
+// TODO Use FixedB64 here.
 mod identified_digest {
     use super::*;
 
@@ -1064,7 +1149,7 @@ mod fingerprint {
     /// A "long identity" in the format used for Family members.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq)] //
+    #[derive(Debug, Clone, Eq, PartialEq, Hash)] //
     #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct LongIdent(pub RsaIdentity);
@@ -1133,8 +1218,15 @@ mod fingerprint {
         }
     }
 
+    impl Display for LongIdent {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "${}", self.0.as_hex_upper())
+        }
+    }
+
     impl crate::NormalItemArgument for Fingerprint {}
     impl crate::NormalItemArgument for Base64Fingerprint {}
+    impl crate::NormalItemArgument for LongIdent {}
 }
 
 /// A type for relay nicknames
