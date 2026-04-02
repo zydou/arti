@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -xeuo pipefail
 
-echo '+cargo fmt --all -- --check'
 cargo fmt --all -- --check
-
-echo '+cargo clippy --all-features --all-targets -- -D warnings'
 cargo clippy --all-features --all-targets -- -D warnings
-
-echo '+cargo test --all'
 cargo test --all
 
