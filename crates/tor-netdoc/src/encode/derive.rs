@@ -179,7 +179,7 @@ define_derive_deftly! {
     ///
     $DOC_DEBUG_PLACEHOLDER
     ///
-    /// # **`#[deftly(netdoc(doctype_for_error = "EXPRESSION"))]`**:
+    /// # **`#[deftly(netdoc(doctype_for_error = EXPRESSION))]`**:
     ///
     ///   Ignored.  (The encoder does not report errors this way.)
     ///
@@ -238,7 +238,7 @@ define_derive_deftly! {
     /// # Example
     ///
     /// TODO NETDOC ENCODE provide an example when signatures are implemented.
-    export NetdocEncodable beta_deftly, for struct, expect items:
+    export NetdocEncodable beta_deftly, for struct, meta_quoted rigorous, expect items:
 
     impl<$tgens> $P::NetdocEncodable for $ttype {
         fn encode_unsigned(&self, out: &mut $P::NetdocEncoder) -> $P::Result<(), $P::Bug> {
@@ -265,7 +265,7 @@ define_derive_deftly! {
     ///  * Derives [`NetdocEncodableFields`]
     $DOC_NETDOC_FIELDS_DERIVE_SUPPORTED
     ///
-    export NetdocEncodableFields beta_deftly, for struct, expect items:
+    export NetdocEncodableFields beta_deftly, for struct, meta_quoted rigorous, expect items:
 
     impl<$tgens> $P::NetdocEncodableFields for $ttype {
         fn encode_fields(&self, out: &mut $P::NetdocEncoder) -> Result<(), $P::Bug> {
@@ -356,7 +356,7 @@ define_derive_deftly! {
     ///  * **`#[deftly(netdoc(sig_hash = "HASH_METHOD"))]**:
     ///
     ///    TODO NETDOC ENCODE.  Encoding of signed documents is not yet implemented.
-    export ItemValueEncodable beta_deftly, for struct, expect items:
+    export ItemValueEncodable beta_deftly, for struct, meta_quoted rigorous, expect items:
 
     ${define P { $crate::encode }}
 

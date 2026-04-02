@@ -504,7 +504,7 @@ define_derive_deftly! {
     ///
     /// ### Top-level attributes:
     ///
-    /// * **`#[deftly(netdoc(doctype_for_error = "EXPRESSION"))]`**:
+    /// * **`#[deftly(netdoc(doctype_for_error = EXPRESSION))]`**:
     ///
     ///   Specifies the value to be returned from
     ///   [`NetdocParseable::doctype_for_error`].
@@ -647,7 +647,7 @@ define_derive_deftly! {
     /// let doc = doc.verify_foolish_timeless().unwrap();
     /// assert_eq!(doc.value.0, "something");
     /// ```
-    export NetdocParseable for struct, expect items, beta_deftly:
+    export NetdocParseable for struct, meta_quoted rigorous, expect items, beta_deftly:
 
     ${define NETDOC_PARSEABLE_TTYPE { $ttype }}
     ${define FINISH_RESOLVE_PARSEABLE $FINISH_RESOLVE}
@@ -749,7 +749,7 @@ define_derive_deftly! {
     /// relying parties *verify* the signatures but do not treat them as trusted data.
     /// So there is no engineered safeguard against failing to implement
     /// signature item ordering checks.
-    export NetdocParseableSignatures for struct, expect items, beta_deftly:
+    export NetdocParseableSignatures for struct, meta_quoted rigorous, expect items, beta_deftly:
 
     ${defcond F_INTRO false}
     ${defcond F_SUBDOC false}
@@ -839,7 +839,7 @@ define_derive_deftly! {
     ///  * Derives [`NetdocParseableFields`]
     $DOC_NETDOC_FIELDS_DERIVE_SUPPORTED
     ///
-    export NetdocParseableFields for struct , expect items, beta_deftly:
+    export NetdocParseableFields for struct , meta_quoted rigorous, expect items, beta_deftly:
 
     ${define THIS_ITEM item}
     ${define F_ACCUMULATE_VAR { (&mut acc.$fname) }}
@@ -983,7 +983,7 @@ define_derive_deftly! {
     //  - the defining module (crate) will want to add verification methods,
     //    which means they must define the struct
     //  - that lets the actual `body` field be private to the defining module.
-    export NetdocParseableUnverified for struct, expect items, beta_deftly:
+    export NetdocParseableUnverified for struct, meta_quoted rigorous, expect items, beta_deftly:
 
     ${define NETDOC_PARSEABLE_TTYPE { $<$ttype UnverifiedParsedBody> }}
     ${define FINISH_RESOLVE_PARSEABLE {
@@ -1207,7 +1207,7 @@ define_derive_deftly! {
     ///    unless the object also implements `ItemObjectParseable`.
     ///    Errors from parsing will all be collapsed into
     ///    [`ErrorProblem::ObjectInvalidData`].
-    export ItemValueParseable for struct, expect items, beta_deftly:
+    export ItemValueParseable for struct, meta_quoted rigorous, expect items, beta_deftly:
 
     ${define P { $crate::parse2::internal_prelude }}
 
