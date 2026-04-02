@@ -150,8 +150,10 @@ impl ItemValueParseable for PortPolicy {
                 field: "port-policy",
             });
         }
-        if kind == RuleKind::Reject {
-            ranges.invert();
+        // Potential post-processing depending on the rule kind.
+        match kind {
+            RuleKind::Accept => {}
+            RuleKind::Reject => ranges.invert(),
         }
         Ok(Self { allowed: ranges })
     }
