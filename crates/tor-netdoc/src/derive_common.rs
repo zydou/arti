@@ -103,36 +103,29 @@ define_derive_deftly! {
     ${defcond F_DEFAULT_TRAIT not(fmeta(constructor))}
     ${defcond F_REQUIRED not(any(F_DEFAULT_EXPR, F_DEFAULT_TRAIT))}
 
-    #[doc = ${concat "Constructor (required fields) for " $tname}]
-    ///
-    #[doc = ${concat "See [`" $tname "`]."}]
-    ///
-    /// This constructor struct contains precisely the required fields.
-    #[doc = ${concat "You can make a `" $tname
-              "` out of it with [`.construct()`](" $CONSTRUCTOR_NAME "::construct),"}]
-    /// or the `From` impl,
-    /// and use the result as a basis for further modifications.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    #[doc = ${concat "let " ${snake_case $tname} " = " $tname "{"}]
-    #[doc = ${concat ${for fields {
-        ${if any(fmeta(constructor(default)), not(fmeta(constructor))) {
-            "    " $fname ": /* optional field value */,\n"
-        } else {
-        }}
-    }}}]
-    #[doc = ${concat "    .." $CONSTRUCTOR_NAME " {"}]
-    #[doc = ${concat ${for fields {
-        ${if not(any(fmeta(constructor(default)), not(fmeta(constructor)))) {
-            "        " $fname ": /* required field value */,\n"
-        } else {
-        }}
-    }}}]
-    #[doc = ${concat "    }.construct()"}]
-    #[doc = ${concat "};"}]
-    /// ```
+    $/// Constructor (required fields) for `$tname`
+    $///
+    $/// See [`$tname`].
+    $///
+    $/// This constructor struct contains precisely the required fields.
+    $/// You can make a `$tname` out of it with [`.construct()`]($CONSTRUCTOR_NAME::construct),
+    $/// or the `From` impl,
+    $/// and use the result as a basis for further modifications.
+    $///
+    $/// # Example
+    $///
+    $/// ```rust,ignore
+    $/// let ${snake_case $tname} = $tname {
+  ${for fields { ${when any(fmeta(constructor(default)), not(fmeta(constructor)))}
+    $///     $fname: /* optional field value */,
+  }}
+    $///     ..$CONSTRUCTOR_NAME {
+  ${for fields { ${when not(any(fmeta(constructor(default)), not(fmeta(constructor))))}
+    $///         $fname: /* required field value */,
+  }}
+    $///     }.construct()
+    $/// };
+    $/// ```
     #[allow(clippy::exhaustive_structs)]
     $tvis struct $CONSTRUCTOR_NAME<$tdefgens> where $twheres { $(
         ${when F_REQUIRED}
@@ -142,10 +135,10 @@ define_derive_deftly! {
     ) }
 
     impl<$tgens> $CONSTRUCTOR where $twheres {
-        #[doc = ${concat "Construct a minimal [`" $tname "`]"}]
-        ///
-        #[doc = ${concat "In the returned " $tname ","}]
-        /// optional fields all get the default values.
+        $/// Construct a minimal `$tname`
+        $///
+        $/// In the returned [`$tname`],
+        $/// optional fields all get the default values.
         $tvis fn construct(self) -> $ttype {
             $tname { $(
                 $fname: ${select1
