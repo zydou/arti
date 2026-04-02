@@ -32,22 +32,24 @@ use std::{
 /// # Cryptographic providers
 ///
 /// The application is responsible for calling [`CryptoProvider::install_default()`]
-/// before constructing [`TlsProvider`].  If they do not, we will issue a warning,
-/// and install a default ([ring]) provider.
+/// before constructing [`TlsProvider`].  If they do not, rustls will fail,
+/// and arti will not run.
 ///
-/// We choose ring because, of the two builtin providers that ship with rustls,
-/// it has the best license.
-/// We _could_ instead use [aws-lc-rs] (for its early MLKEM768 support),
-/// but it is [still under the old OpenSSL license][aws-lc-license], which is GPL-incompatible.
-/// (Although Arti isn't under the GPL itself, we are trying to stay compatible with it.)
+/// We currently recommend the [aws-lc-rs] provider because,
+/// of the two builtin providers that ship with rustls,
+/// it appears to have better performance,
+/// and it supports hybrid post-quantum handshakes.
+/// It used to have a [problematic license][aws-lc-old-license],
+/// but [this has been fixed][aws-lc-relicense] since March 2026.
 ///
 /// See the [rustls documentation][all-providers] for a list of other rustls
-/// cryptography providcers.
+/// cryptography providers.
 ///
 /// [ring]: https://crates.io/crates/ring
 /// [aws-lc-rs]: https://github.com/aws/aws-lc-rs
-/// [aws-lc-license]: https://github.com/aws/aws-lc/issues/2203
+/// [aws-lc-old-license]: https://github.com/aws/aws-lc/issues/2203
 /// [all-providers]: https://docs.rs/rustls/latest/rustls/#cryptography-providers
+/// [aws-lc-relicense]: https://github.com/aws/aws-lc/pull/3091
 #[cfg_attr(
     docsrs,
     doc(cfg(all(
