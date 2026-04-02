@@ -1876,9 +1876,9 @@ dependencies = [
 
 [[package]]
 name = "derive-deftly"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19d58941910ab2a3c37d104db454733de67ebc23d56fc1ac32f8eaf851c5d0ed"
+checksum = "0798e47e69cc4e23b3d506c1070cebd2eaa8e51cbac1c688887e481397988681"
 dependencies = [
  "derive-deftly-macros",
  "heck",
@@ -1886,9 +1886,9 @@ dependencies = [
 
 [[package]]
 name = "derive-deftly-macros"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbcc364debee2951fd1a8763fab27b9347311c9f6b48c9919e9e6abcae65c996"
+checksum = "f268b637848f736f5a86be4e40cabf5ca788f9af6399feef348ac8b942734b90"
 dependencies = [
  "heck",
  "indexmap 2.13.0",

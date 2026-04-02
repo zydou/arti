@@ -17,7 +17,7 @@ default = []
 memquota = []
 
 [dependencies]
-derive-deftly = { version = "~1.10.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.11.0", features = ["full", "beta"] }
 itertools = "0.14.0"
 paste = "1.0.3"
 void = "1"
