@@ -128,9 +128,11 @@ impl FromStr for PortPolicy {
 
 #[cfg(feature = "parse2")]
 impl ItemValueParseable for PortPolicy {
-    // Manual implementation because we may want to invert this.
+    // Manual implementation incorporating the `accept`/`reject`,
+    // using `.invert()` if necessary to yield simply a `PortPolicy`,
+    // rather than the `RuleKind` (`accept`/`reject`) plus port list.
     fn from_unparsed(item: UnparsedItem<'_>) -> Result<Self, EP> {
-        /// Wrapper type that also parses [`RuleKind`].
+        /// Helper type just has the raw [`RuleKind`] and port list
         #[derive(Deftly)]
         #[derive_deftly(ItemValueParseable)]
         struct RawPortPolicy {
