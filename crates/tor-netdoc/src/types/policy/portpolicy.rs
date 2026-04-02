@@ -133,7 +133,7 @@ impl ItemValueParseable for PortPolicy {
         /// Wrapper type that also parses [`RuleKind`].
         #[derive(Deftly)]
         #[derive_deftly(ItemValueParseable)]
-        struct Wrapper {
+        struct RawPortPolicy {
             /// Whether to [`RuleKind::Accept`] or [`RuleKind::Reject`].
             kind: RuleKind,
             /// The actual ranges before inversion.
@@ -143,7 +143,7 @@ impl ItemValueParseable for PortPolicy {
         item.check_no_object()?;
 
         // Obtain the kind and ranges and possibly invert them.
-        let Wrapper { kind, mut ranges } = Wrapper::from_unparsed(item)?;
+        let RawPortPolicy { kind, mut ranges } = RawPortPolicy::from_unparsed(item)?;
         if ranges.is_empty() {
             // This is one or more.
             return Err(EP::MissingArgument {
