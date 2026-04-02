@@ -42,7 +42,7 @@ full = [
 [dependencies]
 anyhow = "1.0.23"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
-derive-deftly = { version = "~1.10.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.11.0", features = ["full", "beta"] }
 derive_more = { version = "2.0.1", features = ["full"] }
 directories = "6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.14.0", features = ["serde"] }
