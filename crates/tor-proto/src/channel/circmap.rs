@@ -55,7 +55,7 @@ impl CircIdRange {
     }
 
     /// Is this circuit ID allowed to be allocated by the channel's peer?
-    pub(crate) fn is_allowed_by_peer(&self, id: CircId) -> bool {
+    pub(crate) fn is_allowed_for_peer(&self, id: CircId) -> bool {
         // If our range does not contain it, then it is allowed.
         // Note that a `CircId` never contains a value of zero,
         // so no need to consider it here.
@@ -233,7 +233,7 @@ impl CircMap {
         padding_ctrl: PaddingController,
     ) -> StdResult<(), DestroyReason> {
         // The peer is only allowed to use a subset of the ID range.
-        if !self.range.is_allowed_by_peer(circ_id) {
+        if !self.range.is_allowed_for_peer(circ_id) {
             return Err(DestroyReason::PROTOCOL);
         }
 
