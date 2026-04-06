@@ -1110,7 +1110,7 @@ impl Reactor {
                 return Err(ReactorError::Shutdown);
             }
             RunOnceCmdInner::RemoveLeg { leg, reason } => {
-                warn!(tunnel_id = %self.tunnel_id, reason = %reason, "removing circuit leg");
+                debug!(tunnel_id = %self.tunnel_id, reason = %reason, "removing circuit leg");
 
                 let circ = self.circuits.remove(leg)?;
                 let is_conflux_pending = circ.is_conflux_pending();
