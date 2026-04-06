@@ -15,6 +15,7 @@ use crate::client::circuit::padding::PaddingController;
 use crate::crypto::cell::CryptInit as _;
 use crate::crypto::cell::RelayLayer as _;
 use crate::crypto::cell::tor1;
+use crate::crypto::handshake::RelayHandshakeError;
 use crate::crypto::handshake::ServerHandshake as _;
 use crate::crypto::handshake::fast::CreateFastServer;
 use crate::memquota::SpecificAccount as _;
@@ -26,7 +27,7 @@ use std::sync::{Arc, RwLock, Weak};
 use tor_cell::chancell::ChanMsg as _;
 use tor_cell::chancell::CircId;
 use tor_cell::chancell::msg::{CreatedFast, Destroy, DestroyReason};
-use tor_error::{Bug, debug_report, into_internal, warn_report};
+use tor_error::{Bug, ErrorKind, HasKind, debug_report, internal, into_internal};
 use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::cipher::aes::Aes128Ctr;
 use tor_llcrypto::d::Sha1;
@@ -79,6 +80,27 @@ impl CreateRequestHandler {
         memquota: &ChannelAccount,
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), Destroy> {
+        let cmd = msg.cmd();
+
+        match self.handle_create_inner(runtime, channel, circ_id, msg, memquota, circ_unique_id) {
+            Ok(x) => Ok(x),
+            Err(e) => {
+                debug_report!(&e, %cmd, "Failed to handle circuit create request");
+                Err(Destroy::new(e.destroy_reason()))
+            }
+        }
+    }
+
+    /// See [`Self::handle_create`].
+    fn handle_create_inner<R: Runtime>(
+        &self,
+        runtime: &R,
+        channel: &Arc<Channel>,
+        circ_id: CircId,
+        msg: CreateRequest,
+        memquota: &ChannelAccount,
+        circ_unique_id: UniqId,
+    ) -> Result<(CreateResponse, RelayCircComponents), HandleCreateError> {
         // TODO(relay): The log messages throughout could be very noisy, so should have rate limiting.
         // TODO(relay): A macro could probably help clean up the error handling paths here.
 
@@ -88,42 +110,22 @@ impl CreateRequestHandler {
                 // TODO(relay): We should split this CREATE_FAST handling off into a helper.
 
                 // TODO(relay): We might want to offload this to a CPU worker in the future.
-                let server_result = CreateFastServer::server(
+                let (keygen, handshake_msg) = CreateFastServer::server(
                     &mut rand::rng(),
                     &mut |_: &()| Some(()),
                     &[()],
                     msg.handshake(),
-                );
+                )?;
 
-                let (keygen, handshake_msg) = match server_result {
-                    Ok(x) => x,
-                    Err(ref e) => {
-                        debug_report!(e, "Circuit {} handshake failed", msg.cmd());
-                        return Err(Destroy::new(e.destroy_reason()));
-                    }
-                };
-
-                let crypt = match tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen) {
-                    Ok(x) => x,
-                    Err(e) => {
-                        warn_report!(e, "Circuit {} crypt state construction failed", msg.cmd());
-                        return Err(Destroy::new(DestroyReason::INTERNAL));
-                    }
-                };
+                let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
+                    .map_err(into_internal!("Circuit crypt state construction failed"))?;
 
                 let circ_params = self
                     .circ_net_params
                     .read()
                     .expect("rwlock poisoned")
                     // CREATE_FAST always uses fixed-window flow control.
-                    .as_circ_parameters(AlgorithmDiscriminants::FixedWindow);
-                let circ_params = match circ_params {
-                    Ok(x) => x,
-                    Err(e) => {
-                        warn_report!(e, "Unable to build `CircParameters` while handling CREATE*");
-                        return Err(Destroy::new(DestroyReason::INTERNAL));
-                    }
-                };
+                    .as_circ_parameters(AlgorithmDiscriminants::FixedWindow)?;
 
                 // TODO(relay): I think we might want to get these from the consensus instead?
                 let protos = tor_protover::Protocols::default();
@@ -134,14 +136,8 @@ impl CreateRequestHandler {
                     HopNegotiationType::None,
                     &circ_params,
                     &protos,
-                );
-                let hop_settings = match hop_settings {
-                    Ok(x) => x,
-                    Err(e) => {
-                        warn_report!(e, "Unable to build `HopSettings` while handling CREATE*");
-                        return Err(Destroy::new(DestroyReason::INTERNAL));
-                    }
-                };
+                )
+                .map_err(into_internal!("Unable to build `HopSettings`"))?;
 
                 let response = CreatedFast::new(handshake_msg);
                 let response = CreateResponse::CreatedFast(response);
@@ -154,18 +150,11 @@ impl CreateRequestHandler {
             CreateRequest::Create2(_) => {
                 // TODO(relay): We might want to offload this to a CPU worker in the future.
                 // TODO(relay): Implement this.
-                warn!("Rejecting {}; not implemented", msg.cmd());
-                return Err(Destroy::new(DestroyReason::INTERNAL));
+                return Err(internal!("Not implemented").into());
             }
         };
 
-        let memquota = match CircuitAccount::new(memquota) {
-            Ok(x) => x,
-            Err(e) => {
-                warn_report!(e, "Unable to build `CircuitAccount` while handling CREATE*");
-                return Err(Destroy::new(DestroyReason::INTERNAL));
-            }
-        };
+        let memquota = CircuitAccount::new(memquota)?;
 
         // We use a large mpsc queue here since a circuit should never block the channel,
         // and we hope that memquota will help us if an attacker intentionally fills this buffer.
@@ -174,13 +163,7 @@ impl CreateRequestHandler {
         // a bounded queue.
         let time_provider = DynTimeProvider::new(runtime.clone());
         let account = memquota.as_raw_account();
-        let (sender, receiver) = match MpscSpec::new(10_000_000).new_mq(time_provider, account) {
-            Ok(x) => x,
-            Err(e) => {
-                warn_report!(e, "Unable to create new mspc queue while handling CREATE*");
-                return Err(Destroy::new(DestroyReason::INTERNAL));
-            }
-        };
+        let (sender, receiver) = MpscSpec::new(10_000_000).new_mq(time_provider, account)?;
 
         // TODO(relay): Do we really want a client padding machine here?
         let (padding_ctrl, padding_stream) =
@@ -188,12 +171,11 @@ impl CreateRequestHandler {
 
         // Upgrade the channel provider, which in practice is the `ChanMgr` so this should not fail.
         let Some(chan_provider) = self.chan_provider.upgrade() else {
-            warn!("Unable to upgrade weak `ChannelProvider` while handling CREATE*");
-            return Err(Destroy::new(DestroyReason::INTERNAL));
+            return Err(internal!("Unable to upgrade weak `ChannelProvider`").into());
         };
 
         // Build the relay circuit reactor.
-        let reactor_result = Reactor::new(
+        let (reactor, circ) = Reactor::new(
             runtime.clone(),
             channel,
             circ_id,
@@ -206,31 +188,18 @@ impl CreateRequestHandler {
             padding_ctrl.clone(),
             padding_stream,
             &memquota,
-        );
-
-        let (reactor, circ) = match reactor_result {
-            Ok(x) => x,
-            Err(e) => {
-                warn_report!(e, "Unable to build relay reactor while handling CREATE*");
-                return Err(Destroy::new(DestroyReason::INTERNAL));
-            }
-        };
+        )
+        .map_err(into_internal!("Failed to start circuit reactor"))?;
 
         // Start the reactor in a task.
-        match runtime.spawn(async {
+        let () = runtime.spawn(async {
             match reactor.run().await {
                 Ok(()) => {}
                 Err(e) => {
                     debug_report!(e, "Relay circuit reactor exited with an error");
                 }
             }
-        }) {
-            Ok(()) => {}
-            Err(e) => {
-                warn_report!(e, "Unable to spawn task while handling CREATE*");
-                return Err(Destroy::new(DestroyReason::INTERNAL));
-            }
-        }
+        })?;
 
         Ok((
             response,
@@ -240,6 +209,51 @@ impl CreateRequestHandler {
                 padding_ctrl,
             },
         ))
+    }
+}
+
+/// An error that occurred while handling a CREATE* request.
+#[derive(Debug, thiserror::Error)]
+enum HandleCreateError {
+    /// Circuit relay handshake failed.
+    #[error("Circuit relay handshake failed")]
+    Handshake(#[from] RelayHandshakeError),
+    /// A memquota error.
+    #[error("Memquota error")]
+    Memquota(#[from] tor_memquota::Error),
+    /// Error when spawning a task.
+    #[error("Runtime task spawn error")]
+    Spawn(#[from] futures::task::SpawnError),
+    /// An internal error.
+    ///
+    /// Note that other variants (such as `Handshake` containing a [`RelayHandshakeError`])
+    /// may themselves contain internal errors.
+    #[error("Internal error")]
+    Internal(#[from] tor_error::Bug),
+}
+
+impl HandleCreateError {
+    /// The reason to use in a DESTROY message for this failure.
+    fn destroy_reason(&self) -> DestroyReason {
+        // Note that this may return an INTERNAL destroy reason even when
+        // the inner error is not `ErrorKind::Internal`.
+        match self {
+            Self::Handshake(e) => e.destroy_reason(),
+            Self::Memquota(_) => DestroyReason::INTERNAL,
+            Self::Spawn(_) => DestroyReason::INTERNAL,
+            Self::Internal(_) => DestroyReason::INTERNAL,
+        }
+    }
+}
+
+impl HasKind for HandleCreateError {
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Self::Handshake(e) => e.kind(),
+            Self::Memquota(e) => e.kind(),
+            Self::Spawn(e) => e.kind(),
+            Self::Internal(_) => ErrorKind::Internal,
+        }
     }
 }
 
