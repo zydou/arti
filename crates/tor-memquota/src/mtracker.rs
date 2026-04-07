@@ -929,7 +929,7 @@ impl Account {
             .children;
 
         if children.contains(&acc.aid) {
-            return Err(tor_error::bad_api_usage!("tried to add duplicate child account?!").into());
+            return Err(Error::ChildAccountAlreadyExists);
         }
         children.push(*acc.aid);
 

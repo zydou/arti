@@ -751,7 +751,8 @@ fn multi_parent_acct() {
 
         // Adding the same parent again shouldn't work,
         // because acct is already a child of parent2
-        assert_bug(acct.add_parent(&parent2), "duplicate child account");
+        let err = acct.add_parent(&parent2).unwrap_err();
+        assert!(matches!(err, Error::ChildAccountAlreadyExists), "{err:?}");
 
         let state = trk.lock().unwrap().into_enabled().unwrap();
 
