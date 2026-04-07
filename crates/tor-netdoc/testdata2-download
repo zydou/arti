@@ -57,6 +57,11 @@ All files in this directory are automatically maintained.
 
 Downloaded and massaged by $0
 From CI data at "$url"
+
+Changing the files in this directory may lead tests to fail.
+This is because they hardcode certain values expected to appear in certain
+netdocs.  The way to solve this should be a simple copy-and-paste of the
+relevant data into the failing tests.
 END
 
 # v3-status-votes is the votes concatenated, etc.
