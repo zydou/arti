@@ -32,6 +32,14 @@ define_derive_deftly! {
             }
         }
     }
+
+    impl From<$ttype> for tor_cell::chancell::msg::AnyChanMsg {
+        fn from(m: $ttype) -> tor_cell::chancell::msg::AnyChanMsg {
+            match m {
+                $( $ttype::$vname(m) => m.into(), )
+            }
+        }
+    }
 }
 
 pub(crate) use derive_deftly_template_RestrictedChanMsgSet;
