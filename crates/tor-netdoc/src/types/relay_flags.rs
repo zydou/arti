@@ -188,6 +188,16 @@ pub enum RelayFlagsParseError {
     OutOfOrder,
 }
 
+impl DocRelayFlags {
+    /// Create a new `DocRelayFlags` with no known flags and no information about unknown flags
+    pub fn new_empty_unknown_discarded() -> Self {
+        DocRelayFlags {
+            known: RelayFlags::default(),
+            unknown: Unknown::new_discard(),
+        }
+    }
+}
+
 impl<'s, M: ReprMode> ParserEncoder<'s, M> {
     /// Start parsing relay flags
     ///
