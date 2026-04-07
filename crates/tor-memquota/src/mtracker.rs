@@ -1382,6 +1382,10 @@ impl State {
 
     /// Find and check the requested parent's account ID
     ///
+    /// This function is responsible for garbage collecting dead children
+    /// from `parent`'s `children`.  On successful return, a new child
+    /// can be added without extending `children`.
+    ///
     /// This is called in preparation for adding another account
     /// to `parent`'s list of child accounts.
     ///
