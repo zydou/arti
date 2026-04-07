@@ -257,10 +257,6 @@ where
     );
 
     let clap_app = Command::new("Arti")
-            .version(env!("CARGO_PKG_VERSION"))
-            .long_version(long_version)
-            .author("The Tor Project Developers")
-            .about("A Rust Tor implementation.")
             // HACK(eta): clap generates "arti [OPTIONS] <SUBCOMMAND>" for this usage string by
             //            default, but then fails to parse options properly if you do put them
             //            before the subcommand.
@@ -351,6 +347,12 @@ where
             let clap_app = subcommands::raw::RawSubcommands::augment_subcommands(clap_app);
         }
     }
+
+    let clap_app = clap_app
+        .version(env!("CARGO_PKG_VERSION"))
+        .long_version(long_version)
+        .author("The Tor Project Developers")
+        .about("A Rust Tor implementation.");
 
     // Tracing doesn't log anything when there is no subscriber set.  But we want to see
     // logging messages from config parsing etc.  We can't set the global default subscriber
