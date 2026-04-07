@@ -29,12 +29,10 @@ ns_use_this_variety! {
 // TODO DIRAUTH the *contents* of this struct is still wrong for votes,
 // and is missing some consensus fields that need to be manipulated by dirauths;
 // there are individual TODO comments about each such defect.
-#[cfg_attr(
-    feature = "parse2",
-    derive(Deftly),
-    derive_deftly(NetdocParseableFields),
-)]
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deftly)]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableFields))]
+// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
 #[non_exhaustive]
 pub struct Preamble {
     /// Consensus methods supported by this voter.
@@ -54,7 +52,7 @@ pub struct Preamble {
 
     /// Over what time is this consensus valid?  (For votes, this is
     /// the time over which the voted-upon consensus should be valid.)
-    #[cfg_attr(feature = "parse2", deftly(netdoc(flatten)))]
+    #[deftly(netdoc(flatten))]
     pub lifetime: Lifetime,
 
     /// How long in seconds should voters wait for votes and
@@ -62,11 +60,11 @@ pub struct Preamble {
     pub voting_delay: Option<(u32, u32)>,
 
     /// List of recommended Tor client versions.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    #[deftly(netdoc(single_arg))]
     pub client_versions: Vec<String>,
 
     /// List of recommended Tor relay versions.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    #[deftly(netdoc(single_arg))]
     pub server_versions: Vec<String>,
 
     // TODO DIRAUTH missing field: known-flags (in consensuses too, not just votes)
@@ -75,7 +73,7 @@ pub struct Preamble {
     /// Lists of recommended and required subprotocols.
     ///
     /// **`{recommended,required}-{client,relay}-protocols`**
-    #[cfg_attr(feature = "parse2", deftly(netdoc(flatten)))]
+    #[deftly(netdoc(flatten))]
     pub proto_statuses: Arc<ProtoStatuses>,
 
     /// Declared parameters for tunable settings about how to the
