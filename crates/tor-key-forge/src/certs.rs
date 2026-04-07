@@ -1,6 +1,6 @@
 //! Helpers for encoding certificate material.
 
-use crate::{CertType, ErasedKey, InvalidCertError, KeyUnknownCert, Result};
+use crate::{CertType, InvalidCertError, KeyUnknownCert};
 use tor_cert::{Ed25519Cert, EncodedEd25519Cert, SigCheckedCert, UncheckedCert};
 use tor_llcrypto::pk::ed25519::{self, Ed25519Identity};
 
@@ -15,17 +15,6 @@ pub enum CertData {
 }
 
 impl CertData {
-    /// Convert the cert material into a known cert type,
-    /// and return the type-erased value.
-    ///
-    /// The caller is expected to downcast the value returned to the correct concrete type.
-    #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn into_erased(self) -> Result<ErasedKey> {
-        match self {
-            Self::TorEd25519Cert(cert) => Ok(Box::new(cert)),
-        }
-    }
-
     /// Get the [`CertType`] of this cert.
     pub(crate) fn cert_type(&self) -> CertType {
         match self {

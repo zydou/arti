@@ -16,7 +16,7 @@ use tor_llcrypto::{
 use crate::certs::CertData;
 use crate::key_type::CertType;
 use crate::{
-    ErasedKey, KeyType, KeystoreItemType, Result,
+    KeyType, KeystoreItemType, Result,
     ssh::{ED25519_EXPANDED_ALGORITHM_NAME, SshKeyData, X25519_ALGORITHM_NAME},
 };
 
@@ -72,17 +72,6 @@ impl KeystoreItem {
         match self {
             KeystoreItem::Key(ssh_key_data) => ssh_key_data.key_type().map(KeystoreItemType::Key),
             KeystoreItem::Cert(cert) => Ok(KeystoreItemType::Cert(cert.cert_type())),
-        }
-    }
-
-    /// Convert the key/cert material into a known type,
-    /// and return the type-erased value.
-    ///
-    /// The caller is expected to downcast the value returned to the correct concrete type.
-    pub fn into_erased(self) -> Result<ErasedKey> {
-        match self {
-            KeystoreItem::Key(ssh_key_data) => ssh_key_data.into_erased(),
-            KeystoreItem::Cert(cert_data) => cert_data.into_erased(),
         }
     }
 }
