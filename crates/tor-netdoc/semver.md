@@ -47,3 +47,4 @@ ADDED: Implement `NetdocParseableFields` for `AddrPolicy`
 ADDED: `SpFingerprint` type
 ADDED: Implement `ItemArgumentParseable` for `RelayPlatform`
 ADDED: `RouterHashAccu` type
+ADDED: `RouterDescSignature` type

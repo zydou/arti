@@ -39,7 +39,7 @@ use crate::encode::{
 };
 use crate::parse2::{
     self, ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable,
-    ItemValueParseable, SignatureHashInputs, UnparsedItem,
+    ItemValueParseable, SignatureHashInputs, SignatureItemParseable, UnparsedItem,
     multiplicity::{
         ItemSetMethods,
         // `P2` for "parse2`; different from `encode::MultiplicitySelector`
@@ -1724,6 +1724,7 @@ mod boolean {
 /// Types for router descriptors.
 pub mod routerdesc {
     use super::*;
+    use parse2::ErrorProblem as EP;
 
     /// Version argument found in an `overload-general` item.
     ///
@@ -1797,6 +1798,39 @@ pub mod routerdesc {
         pub sha1: Option<[u8; 20]>,
         /// Potentially the SHA-256 for the signature.
         pub sha256: Option<[u8; 32]>,
+    }
+
+    /// SHA-1 router descriptor signature over `router-sig-ed25519`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct RouterSignature(pub Vec<u8>);
+
+    #[cfg(feature = "parse2")]
+    impl SignatureItemParseable for RouterSignature {
+        type HashAccu = RouterHashAccu;
+
+        fn from_unparsed_and_body(
+            mut item: UnparsedItem<'_>,
+            hash_inputs: &SignatureHashInputs<'_>,
+            hash: &mut Self::HashAccu,
+        ) -> Result<Self, EP> {
+            // There must be no additonal arguments.
+            let args = item.args_mut();
+            if args.next().is_some() {
+                return Err(EP::UnexpectedArgument {
+                    column: args.prev_arg_column(),
+                });
+            }
+            let obj = item.object().ok_or(EP::MissingObject)?.decode_data()?;
+
+            let mut h = tor_llcrypto::d::Sha1::new();
+            h.update(hash_inputs.document_sofar);
+            h.update(hash_inputs.signature_item_line);
+            h.update("\n");
+            hash.sha1 = Some(h.finalize().into());
+
+            Ok(Self(obj))
+        }
     }
 }
 
