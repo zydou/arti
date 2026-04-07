@@ -66,7 +66,7 @@ use {
 
 #[cfg(feature = "parse2")]
 pub use {
-    parse2_impls::ProtoStatusesNetdocParseAccumulator, //
+    proto_statuses_parse2_encode::ProtoStatusesNetdocParseAccumulator, //
 };
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
@@ -1086,16 +1086,15 @@ impl RelayWeight {
     }
 }
 
-/// `parse2` impls for types in this module
+/// `ProtoStatuses` parsing and encoding
 ///
-/// Separate module to save on repeated `cfg` and for a separate namespace.
-#[cfg(feature = "parse2")]
-mod parse2_impls {
+/// Separate module to save on repeated `cfg` to hide the helper struct
+// XXXX move this module to after encode_impls.
+#[cfg(any(feature = "encode", feature = "parse2"))]
+mod proto_statuses_parse2_encode {
+    #[cfg(feature = "parse2")]
+    use super::parse2_impls::*;
     use super::*;
-    use parse2::ArgumentError as AE;
-    use parse2::ErrorProblem as EP;
-    use parse2::{ArgumentStream, ItemArgumentParseable, ItemValueParseable};
-    use parse2::{KeywordRef, NetdocParseableFields, UnparsedItem};
     use paste::paste;
     use std::result::Result;
 
@@ -1115,6 +1114,7 @@ mod parse2_impls {
     macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
         #[derive(Deftly)]
         #[derive_deftly(NetdocParseableFields)]
+        #[cfg(feature = "parse2")]
         // Only ProtoStatusesParseNetdocParseAccumulator is exposed.
         #[allow(unreachable_pub)]
         pub struct ProtoStatusesParseHelper {
@@ -1125,9 +1125,11 @@ mod parse2_impls {
         }
 
         /// Partially parsed `ProtoStatuses`
+        #[cfg(feature = "parse2")]
         pub use ProtoStatusesParseHelperNetdocParseAccumulator
             as ProtoStatusesNetdocParseAccumulator;
 
+        #[cfg(feature = "parse2")]
         impl NetdocParseableFields for ProtoStatuses {
             type Accumulator = ProtoStatusesNetdocParseAccumulator;
             fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
@@ -1156,6 +1158,19 @@ mod parse2_impls {
         recommended client;
         recommended relay;
     }
+}
+
+/// `parse2` impls for types in this modulea
+///
+/// Separate module to save on repeated `cfg` and for a separate namespace.
+#[cfg(feature = "parse2")]
+mod parse2_impls {
+    use super::*;
+    pub(super) use parse2::{
+        ArgumentError as AE, ArgumentStream, ErrorProblem as EP, ItemArgumentParseable,
+        ItemValueParseable, KeywordRef, NetdocParseableFields, UnparsedItem,
+    };
+    use std::result::Result;
 
     impl ItemValueParseable for NetParams<i32> {
         fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
