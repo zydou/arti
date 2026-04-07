@@ -81,6 +81,19 @@ split-file () {
 split-file v3-status-votes network-status-version
 split-file cached-certs dir-key-certificate-version
 
+# cached-descriptors.new and cached-microdescs.new contain lines starting with
+# "@", which ctor uses to store meta information; we want to remove those.
+
+patch_atline () {
+    local f=$1
+
+    # use sed(1) with `-i ''` because that is a macOS compat thing.
+    sed -i '' '/^@/d' "$f"
+}
+
+patch_atline cached-descriptors.new
+patch_atline cached-microdescs.new
+
 #----- install -----
 
 chmod -R a+r,u+w .
