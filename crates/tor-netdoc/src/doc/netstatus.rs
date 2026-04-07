@@ -150,6 +150,7 @@ pub struct IgnoredPublicationTimeSp;
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Constructor)]
 #[derive_deftly(Lifetime)]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodableFields))]
 #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableFields))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
