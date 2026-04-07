@@ -19,3 +19,4 @@ ADDED: `types::SpFingerprint`, `Fingerprint`, `Base64Fingerprint`, `LongIdent`, 
 ADDED: `types::Hostname`, `types::InternetHost`
 BREAKING: `types::Nickname`, `FromStr` error type is now `InvalidNickname`
 ADDED: `#[deftly(netdoc(skip))]` supported in `ItemValueParseable` and `ItemValueEncodable` derives
+ADDED: Encoding traits implemented for `Arc<T>`

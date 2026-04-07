@@ -47,6 +47,39 @@ impl ItemObjectEncodable for Void {
     }
 }
 
+impl<T: NetdocEncodable> NetdocEncodable for Arc<T> {
+    fn encode_unsigned(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
+        <T as NetdocEncodable>::encode_unsigned(self, out)
+    }
+}
+
+impl<T: NetdocEncodableFields> NetdocEncodableFields for Arc<T> {
+    fn encode_fields(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
+        <T as NetdocEncodableFields>::encode_fields(self, out)
+    }
+}
+
+impl<T: ItemValueEncodable> ItemValueEncodable for Arc<T> {
+    fn write_item_value_onto(&self, out: ItemEncoder) -> Result<(), Bug> {
+        <T as ItemValueEncodable>::write_item_value_onto(self, out)
+    }
+}
+
+impl<T: ItemArgument> ItemArgument for Arc<T> {
+    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        <T as ItemArgument>::write_arg_onto(self, out)
+    }
+}
+
+impl<T: ItemObjectEncodable> ItemObjectEncodable for Arc<T> {
+    fn label(&self) -> &str {
+        <T as ItemObjectEncodable>::label(self)
+    }
+    fn write_object_onto(&self, b: &mut Vec<u8>) -> Result<(), Bug> {
+        <T as ItemObjectEncodable>::write_object_onto(self, b)
+    }
+}
+
 /// Types related to RSA keys
 mod rsa {
     use super::*;
