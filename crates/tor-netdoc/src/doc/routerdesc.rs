@@ -35,6 +35,8 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
+#[cfg(feature = "parse2")]
+use crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable};
 use crate::types::family::{RelayFamily, RelayFamilyId};
 use crate::types::misc::*;
 use crate::types::policy::*;
@@ -159,6 +161,7 @@ pub struct RouterDesc {
 }
 
 /// Description of the software a relay is running.
+// TODO: Move this to types/misc.rs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RelayPlatform {
@@ -181,6 +184,15 @@ impl std::str::FromStr for RelayPlatform {
         } else {
             Ok(RelayPlatform::Other(args.to_string()))
         }
+    }
+}
+
+#[cfg(feature = "parse2")]
+impl ItemArgumentParseable for RelayPlatform {
+    fn from_args<'s>(args: &mut ArgumentStream<'s>) -> std::result::Result<Self, ArgumentError> {
+        args.into_remaining()
+            .parse()
+            .map_err(|_| ArgumentError::Invalid)
     }
 }
 
