@@ -1087,94 +1087,6 @@ impl RelayWeight {
     }
 }
 
-/// `ProtoStatuses` parsing and encoding
-///
-/// Separate module to save on repeated `cfg` to hide the helper struct
-// XXXX move this module to after encode_impls.
-#[cfg(any(feature = "encode", feature = "parse2"))]
-mod proto_statuses_parse2_encode {
-    #[cfg(feature = "encode")]
-    use super::encode_impls::*;
-    #[cfg(feature = "parse2")]
-    use super::parse2_impls::*;
-    use super::*;
-    use paste::paste;
-    use std::result::Result;
-
-    /// Implements `NetdocParseableFields` for `ProtoStatuses`
-    ///
-    /// We have this macro so that it's impossible to write things like
-    /// ```text
-    ///      ProtoStatuses {
-    ///          client: ProtoStatus {
-    ///              recommended: something something recommended_relay_versions something,
-    /// ```
-    ///
-    /// (The structure of `ProtoStatuses` means the normal parse2 derive won't work for it.
-    /// Note the bug above: the recommended *relay* version info is put in the *client* field.
-    /// Preventing this bug must involve: avoiding writing twice the field name elements,
-    /// such as `relay` and `client`, during this kind of construction/conversion.)
-    macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
-        #[derive(Deftly)]
-        #[derive_deftly(NetdocParseableFields)]
-        #[cfg(feature = "parse2")]
-        // Only ProtoStatusesParseNetdocParseAccumulator is exposed.
-        #[allow(unreachable_pub)]
-        pub struct ProtoStatusesParseHelper {
-            $(
-                #[deftly(netdoc(default))]
-                [<$rr _ $cr _protocols>]: Protocols,
-            )*
-        }
-
-        /// Partially parsed `ProtoStatuses`
-        #[cfg(feature = "parse2")]
-        pub use ProtoStatusesParseHelperNetdocParseAccumulator
-            as ProtoStatusesNetdocParseAccumulator;
-
-        #[cfg(feature = "parse2")]
-        impl NetdocParseableFields for ProtoStatuses {
-            type Accumulator = ProtoStatusesNetdocParseAccumulator;
-            fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
-                ProtoStatusesParseHelper::is_item_keyword(kw)
-            }
-            fn accumulate_item(
-                acc: &mut Self::Accumulator,
-                item: UnparsedItem<'_>,
-            ) -> Result<(), EP> {
-                ProtoStatusesParseHelper::accumulate_item(acc, item)
-            }
-            fn finish(acc: Self::Accumulator) -> Result<Self, EP> {
-                let parse = ProtoStatusesParseHelper::finish(acc)?;
-                let mut out = ProtoStatuses::default();
-                $(
-                    out.$cr.$rr = parse.[< $rr _ $cr _protocols >];
-                )*
-                Ok(out)
-            }
-        }
-
-        #[cfg(feature = "encode")]
-        impl NetdocEncodableFields for ProtoStatuses {
-            fn encode_fields(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
-              $(
-                self.$cr.$rr.write_item_value_onto(
-                    out.item(stringify!([<$rr _ $cr _protocols>]))
-                )?;
-              )*
-                Ok(())
-            }
-        }
-    } } }
-
-    impl_proto_statuses! {
-        required client;
-        required relay;
-        recommended client;
-        recommended relay;
-    }
-}
-
 /// `parse2` impls for types in this modulea
 ///
 /// Separate module to save on repeated `cfg` and for a separate namespace.
@@ -1263,6 +1175,93 @@ impl Footer {
             .parse()?;
 
         Ok(Footer { weights })
+    }
+}
+
+/// `ProtoStatuses` parsing and encoding
+///
+/// Separate module to save on repeated `cfg` to hide the helper struct
+#[cfg(any(feature = "encode", feature = "parse2"))]
+mod proto_statuses_parse2_encode {
+    #[cfg(feature = "encode")]
+    use super::encode_impls::*;
+    #[cfg(feature = "parse2")]
+    use super::parse2_impls::*;
+    use super::*;
+    use paste::paste;
+    use std::result::Result;
+
+    /// Implements `NetdocParseableFields` for `ProtoStatuses`
+    ///
+    /// We have this macro so that it's impossible to write things like
+    /// ```text
+    ///      ProtoStatuses {
+    ///          client: ProtoStatus {
+    ///              recommended: something something recommended_relay_versions something,
+    /// ```
+    ///
+    /// (The structure of `ProtoStatuses` means the normal parse2 derive won't work for it.
+    /// Note the bug above: the recommended *relay* version info is put in the *client* field.
+    /// Preventing this bug must involve: avoiding writing twice the field name elements,
+    /// such as `relay` and `client`, during this kind of construction/conversion.)
+    macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocParseableFields)]
+        #[cfg(feature = "parse2")]
+        // Only ProtoStatusesParseNetdocParseAccumulator is exposed.
+        #[allow(unreachable_pub)]
+        pub struct ProtoStatusesParseHelper {
+            $(
+                #[deftly(netdoc(default))]
+                [<$rr _ $cr _protocols>]: Protocols,
+            )*
+        }
+
+        /// Partially parsed `ProtoStatuses`
+        #[cfg(feature = "parse2")]
+        pub use ProtoStatusesParseHelperNetdocParseAccumulator
+            as ProtoStatusesNetdocParseAccumulator;
+
+        #[cfg(feature = "parse2")]
+        impl NetdocParseableFields for ProtoStatuses {
+            type Accumulator = ProtoStatusesNetdocParseAccumulator;
+            fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
+                ProtoStatusesParseHelper::is_item_keyword(kw)
+            }
+            fn accumulate_item(
+                acc: &mut Self::Accumulator,
+                item: UnparsedItem<'_>,
+            ) -> Result<(), EP> {
+                ProtoStatusesParseHelper::accumulate_item(acc, item)
+            }
+            fn finish(acc: Self::Accumulator) -> Result<Self, EP> {
+                let parse = ProtoStatusesParseHelper::finish(acc)?;
+                let mut out = ProtoStatuses::default();
+                $(
+                    out.$cr.$rr = parse.[< $rr _ $cr _protocols >];
+                )*
+                Ok(out)
+            }
+        }
+
+        #[cfg(feature = "encode")]
+        impl NetdocEncodableFields for ProtoStatuses {
+            fn encode_fields(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
+              $(
+                self.$cr.$rr.write_item_value_onto(
+                    out.item(stringify!([<$rr _ $cr _protocols>]))
+                )?;
+              )*
+                Ok(())
+            }
+        }
+    } } }
+
+    impl_proto_statuses! {
+        required client;
+        required relay;
+        recommended client;
+        recommended relay;
     }
 }
 
