@@ -250,7 +250,7 @@ impl ConsensusBuilder {
             proto_statuses,
             params: self.params.clone(),
             voting_delay: self.voting_delay,
-            consensus_method,
+            consensus_method: (consensus_method,),
             consensus_methods: NotPresent,
             published: NotPresent,
             shared_rand_previous_value: self.shared_rand_previous_value.clone(),

@@ -408,7 +408,7 @@ impl Preamble {
             proto_statuses,
             params,
             voting_delay,
-            consensus_method,
+            consensus_method: (consensus_method,),
             published: NotPresent,
             consensus_methods: NotPresent,
             shared_rand_previous_value,

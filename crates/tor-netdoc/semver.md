@@ -20,3 +20,4 @@ ADDED: `types::Hostname`, `types::InternetHost`
 BREAKING: `types::Nickname`, `FromStr` error type is now `InvalidNickname`
 ADDED: `#[deftly(netdoc(skip))]` supported in `ItemValueParseable` and `ItemValueEncodable` derives
 ADDED: Encoding traits implemented for `Arc<T>`
+BREAKING: `netstatus::Preamble.consensus_method` and `.published` are now 1-element tuples.

@@ -43,12 +43,14 @@ pub struct Preamble {
     /// What "method" was used to produce this consensus?  (A
     /// consensus method is a version number used by authorities to
     /// upgrade the consensus algorithm.)
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    pub consensus_method: ns_type!( u32, u32, NotPresent ),
+    // Not #[deftly(netdoc(single_arg))] because that would mean a consensuses
+    // had an always-present singleton `published` item with no arguments.
+    pub consensus_method: ns_type!( (u32,), (u32,), NotPresent ),
 
     /// Publication time (of a vote)
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    pub published: ns_type!( NotPresent, NotPresent, Iso8601TimeSp ),
+    // Not #[deftly(netdoc(single_arg))] because that would mean a consensuses
+    // had an always-present singleton `published` item with no arguments.
+    pub published: ns_type!( NotPresent, NotPresent, (Iso8601TimeSp,) ),
 
     /// Over what time is this consensus valid?  (For votes, this is
     /// the time over which the voted-upon consensus should be valid.)
