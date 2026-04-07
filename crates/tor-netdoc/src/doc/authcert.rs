@@ -111,7 +111,7 @@ pub struct AuthCert {
     /// Currently must be version 3.
     ///
     /// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certificate-version>
-    #[deftly(constructor(default = "AuthCertVersion::V3"))]
+    #[deftly(constructor(default = AuthCertVersion::V3))]
     #[deftly(netdoc(single_arg))]
     pub dir_key_certificate_version: AuthCertVersion,
 
@@ -529,7 +529,7 @@ impl CrossCert {
 #[cfg_attr(
     feature = "parse2",
     derive_deftly(NetdocParseableSignatures),
-    deftly(netdoc(signatures(hashes_accu = "Sha1WholeKeywordLine")))
+    deftly(netdoc(signatures(hashes_accu = Sha1WholeKeywordLine)))
 )]
 #[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
 #[non_exhaustive]

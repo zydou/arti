@@ -30,7 +30,7 @@ pub type Router = ns_type!(
 /// The rest are handled as sub-documents.
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(NetdocParseableUnverified)]
-#[deftly(netdoc(doctype_for_error = "TOPLEVEL_DOCTYPE_FOR_ERROR"))]
+#[deftly(netdoc(doctype_for_error = TOPLEVEL_DOCTYPE_FOR_ERROR))]
 #[non_exhaustive]
 pub struct NetworkStatus {
     /// `network-status-version`

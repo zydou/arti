@@ -63,7 +63,7 @@ pub struct RouterStatusIntroItem {
     /// Digest of the document for this relay (except md consensuses)
     // TODO SPEC rename in the spec from `digest` to "doc_digest"
     // TODO SPEC in md consensuses the referenced document digest is in a separate `m` item
-    #[cfg_attr(feature = "parse2", deftly(netdoc(with = "doc_digest_parse2_r")))]
+    #[cfg_attr(feature = "parse2", deftly(netdoc(with = doc_digest_parse2_r)))]
     pub doc_digest: ns_type!(DocDigest, NotPresent, DocDigest),
     /// Publication time.
     pub publication: ns_type!(
@@ -106,7 +106,7 @@ pub struct RouterStatus {
     /// `r` item.
     // We call this field `m` rather than `doc_digest` because it's not always the doc digest.
     // TODO SPEC in all but md consensuses the referenced document digest is in the `r` intro item
-    #[cfg_attr(feature = "parse2", deftly(netdoc(with = "doc_digest_parse2_m")))]
+    #[cfg_attr(feature = "parse2", deftly(netdoc(with = doc_digest_parse2_m)))]
     pub m: ns_type!(NotPresent, DocDigest, Vec<RouterStatusMdDigestsVote>),
 
     /// `a` --- Further router address(es) (IPv6)
@@ -122,7 +122,7 @@ pub struct RouterStatus {
     #[cfg_attr(
         feature = "parse2",
         deftly(netdoc(keyword = "s")),
-        deftly(netdoc(with = "relay_flags::Parser::<VarietyRelayFlagsRepr>"))
+        deftly(netdoc(with = { relay_flags::Parser::<VarietyRelayFlagsRepr> }))
     )]
     pub flags: DocRelayFlags,
 

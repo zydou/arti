@@ -45,7 +45,7 @@ define_derive_deftly! {
     ///    Include this field in `ThingConstructor`.
     ///    The caller must provide a value.
     ///
-    ///  * **`#[deftly(constructor(default = "EXPR"))]`**:
+    ///  * **`#[deftly(constructor(default = EXPR))]`**:
     ///    Instead of `Default::default()`, the default value is EXPR.
     ///    EXPR cannot refer to anything in `ThingConstructor`.
     //     If we want that we would need to invent a feature for it.
@@ -68,7 +68,7 @@ define_derive_deftly! {
     ///     pub optional: Option<i32>,
     ///
     ///     /// Optional field with fixed default
-    ///     #[deftly(constructor(default = "7"))]
+    ///     #[deftly(constructor(default = 7))]
     ///     pub defaulted: i32,
     ///
     ///     #[doc(hidden)]
@@ -94,7 +94,7 @@ define_derive_deftly! {
     /// ```
     ///
     /// # Note
-    export Constructor for struct, beta_deftly:
+    export Constructor for struct, meta_quoted rigorous, beta_deftly:
 
     ${define CONSTRUCTOR_NAME $<$tname Constructor>}
     ${define CONSTRUCTOR $<$ttype Constructor>}
@@ -332,7 +332,7 @@ define_derive_deftly_module! {
         ///    `#[deftly(netdoc(keyword = STR))]`
         ///    `#[deftly(netdoc(default))]`
         ///    `#[deftly(netdoc(single_arg))]`
-        ///    `#[deftly(netdoc(with = "MODULE"))]`
+        ///    `#[deftly(netdoc(with = MODULE))]`
         ///    `#[deftly(netdoc(flatten))]`
         ///    `#[deftly(netdoc(skip))]`
     }}

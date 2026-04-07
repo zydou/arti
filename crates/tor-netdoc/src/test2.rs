@@ -80,11 +80,11 @@ struct Flat1 {
     flat_arg_several: Vec<String>,
     #[deftly(netdoc(single_arg, default))]
     flat_arg_defaulted: i32,
-    #[deftly(netdoc(with = "needs_with_parse"))]
+    #[deftly(netdoc(with = needs_with_parse))]
     flat_with_needed: NeedsWith,
-    #[deftly(netdoc(with = "needs_with_parse"))]
+    #[deftly(netdoc(with = needs_with_parse))]
     flat_with_optional: Option<NeedsWith>,
-    #[deftly(netdoc(with = "needs_with_parse"))]
+    #[deftly(netdoc(with = needs_with_parse))]
     flat_with_several: Vec<NeedsWith>,
     #[deftly(netdoc(flatten))]
     flat_flat: FlatInner,
@@ -97,7 +97,7 @@ struct FlatInner {
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Sub2 {
-    #[deftly(netdoc(with = "needs_with_intro"))]
+    #[deftly(netdoc(with = needs_with_intro))]
     sub2_intro: NeedsWith,
     sub2_field: Option<(String,)>,
     #[deftly(netdoc(single_arg))]
@@ -108,11 +108,11 @@ struct Sub2 {
     arg_several: Vec<String>,
     #[deftly(netdoc(single_arg, default))]
     arg_defaulted: i32,
-    #[deftly(netdoc(with = "needs_with_parse"))]
+    #[deftly(netdoc(with = needs_with_parse))]
     with_needed: NeedsWith,
-    #[deftly(netdoc(with = "needs_with_parse"))]
+    #[deftly(netdoc(with = needs_with_parse))]
     with_optional: Option<NeedsWith>,
-    #[deftly(netdoc(with = "needs_with_parse"))]
+    #[deftly(netdoc(with = "needs_with_parse"))] // leave one with = "..."
     with_several: Vec<NeedsWith>,
     #[deftly(netdoc(subdoc))]
     subsub: SubSub,
@@ -726,7 +726,7 @@ struct TopMinimal {
 #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 #[deftly(netdoc(no_extra_args))]
 struct TestItem0 {
-    #[deftly(netdoc(object(label = "UTF-8 STRING"), with = "string_data_object"))]
+    #[deftly(netdoc(object(label = "UTF-8 STRING"), with = string_data_object))]
     object: Option<String>,
 }
 
@@ -734,7 +734,7 @@ struct TestItem0 {
 #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItem {
     needed: String,
-    #[deftly(netdoc(with = "needs_with_arg"))]
+    #[deftly(netdoc(with = needs_with_arg))]
     optional: Option<NeedsWith>,
     rest: Vec<String>,
     #[deftly(netdoc(object))]
@@ -752,7 +752,7 @@ struct TestItemRest {
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItemRestWith {
-    #[deftly(netdoc(rest, with = "needs_with_arg"))]
+    #[deftly(netdoc(rest, with = needs_with_arg))]
     rest: NeedsWith,
 }
 

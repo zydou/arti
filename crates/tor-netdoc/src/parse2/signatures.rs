@@ -281,7 +281,7 @@ impl<'s> SignatureHashInputs<'s> {
     }
 }
 
-/// Hash types suitable for use as `#[deftly(netdoc(signature(hash_accu = "TY"))]`
+/// Hash types suitable for use as `#[deftly(netdoc(signature(hash_accu = TY))]`
 ///
 /// See
 /// [`#[derive_deftly(ItemValueParseable)]`](derive_deftly_template_ItemValueParseable).
