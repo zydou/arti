@@ -1198,6 +1198,28 @@ mod parse2_impls {
     }
 }
 
+/// `encode` impls for types in this modulea
+///
+/// Separate module to save on repeated `cfg` and for a separate namespace.
+#[cfg(feature = "encode")]
+mod encode_impls {
+    use super::*;
+    use std::result::Result;
+    pub(crate) use {
+        crate::encode::{ItemEncoder, ItemValueEncodable},
+        tor_error::Bug,
+    };
+
+    impl ItemValueEncodable for NetParams<i32> {
+        fn write_item_value_onto(&self, mut out: ItemEncoder) -> Result<(), Bug> {
+            for (k, v) in self.iter().collect::<BTreeSet<_>>() {
+                out.args_raw_string(&format_args!("{k}={v}"));
+            }
+            Ok(())
+        }
+    }
+}
+
 impl Footer {
     /// Parse a directory footer from a footer section.
     fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<Footer> {

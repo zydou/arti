@@ -24,3 +24,4 @@ BREAKING: `netstatus::Preamble.consensus_method` and `.published` are now 1-elem
 ADDED: `ItemValueEncodable` impl for `ConsensusMethods`
 ADDED: `doc::netstatus::Lifetime` fields are `pub`, and added `LifetimeConstructor`
 ADDED: `NetdocEncodableFields` impl for `doc::netstatus::Lifetime`
+ADDED: `ItemValueEncodable` impl for `NetParams<i32>`
