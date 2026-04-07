@@ -29,3 +29,4 @@ ADDED: `ItemValueEncodable` impl for `tor_protover::Protocols`
 ADDED: `NetdocEncodableFields` impl for `ProtoStatuses`
 BREAKING: `VoteRepr` relay flags handling marker type renamed to `NoImplicitRepr`
 ADDED: `doc::netstatus::PreambleConstructor`
+ADDED: `NetdocEncodableFields` impl for `doc::netstatus::Preamble`
