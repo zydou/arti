@@ -276,8 +276,6 @@ impl Canonicity {
 /// will just be unusable for most purposes.  Most operations on it will fail
 /// with an error.
 pub struct Channel {
-    /// The channel type.
-    channel_type: ChannelType,
     /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// A channel used to send cells to the Reactor.
@@ -539,7 +537,7 @@ impl Channel {
     /// bust the mighty 7 arguments.
     #[allow(clippy::too_many_arguments)] // TODO consider if we want a builder
     fn new<R>(
-        channel_type: ChannelType,
+        channel_mode: ChannelMode,
         link_protocol: u16,
         sink: BoxedChannelSink,
         stream: BoxedChannelStream,
@@ -556,9 +554,14 @@ impl Channel {
         R: Runtime,
     {
         use circmap::{CircIdRange, CircMap};
-        let circid_range = match channel_type {
-            ChannelType::RelayResponder { .. } => CircIdRange::Low,
-            ChannelType::ClientInitiator | ChannelType::RelayInitiator => CircIdRange::High,
+        let circid_range = match channel_mode {
+            ChannelMode::Client => CircIdRange::High,
+            #[cfg(feature = "relay")]
+            #[rustfmt::skip]
+            ChannelMode::Relay { direction: ChannelDirection::Outgoing, .. } => CircIdRange::High,
+            #[cfg(feature = "relay")]
+            #[rustfmt::skip]
+            ChannelMode::Relay { direction: ChannelDirection::Incoming, .. } => CircIdRange::Low,
         };
         let circmap = CircMap::new(circid_range);
         let dyn_time = DynTimeProvider::new(runtime.clone());
@@ -589,7 +592,6 @@ impl Channel {
             client::circuit::padding::new_padding(DynTimeProvider::new(runtime.clone()));
 
         let channel = Arc::new(Channel {
-            channel_type,
             control: control_tx,
             cell_tx,
             reactor_closed_rx,
@@ -614,6 +616,19 @@ impl Channel {
             }
         }
 
+        #[cfg(feature = "relay")]
+        let create_request_handler: Option<_> = match channel_mode {
+            ChannelMode::Relay {
+                create_request_handler,
+                ..
+            } => Some((create_request_handler, Arc::downgrade(&channel))),
+            ChannelMode::Client => None,
+        };
+        // clippy wants us to consume `channel_mode` (`needless_pass_by_value`)
+        #[cfg(not(feature = "relay"))]
+        #[expect(clippy::drop_non_drop)]
+        drop(channel_mode);
+
         let reactor = Reactor {
             runtime,
             control: control_rx,
@@ -628,7 +643,7 @@ impl Channel {
             unique_id,
             details,
             #[cfg(feature = "relay")]
-            create_request_handler: None,
+            create_request_handler,
             padding_timer,
             padding_ctrl,
             padding_event_stream,
@@ -982,44 +997,6 @@ impl Channel {
         rx.await.map_err(|_| Error::ChannelClosed(ChannelClosed))?
     }
 
-    /// Set a [`CreateRequestHandler`] for this channel to handle circuit CREATE* requests.
-    ///
-    /// Typically you should only ever call this once after constructing the channel.
-    #[cfg(feature = "relay")]
-    pub async fn set_create_request_handler(
-        self: &Arc<Self>,
-        handler: Arc<CreateRequestHandler>,
-    ) -> Result<()> {
-        // Sanity check that a `CreateRequestHandler` is valid for this channel.
-        match self.channel_type {
-            // Relay initiators and responders may have a CREATE* request handler.
-            ChannelType::RelayInitiator | ChannelType::RelayResponder { .. } => {}
-            // Client initiators should never have a CREATE* request handler.
-            // This should include regular clients,
-            // as well as bridges making unauthenticated outgoing channels.
-            // TODO(bridge): Bridge channels should not have a CREATE* request handler if the peer
-            // is authenticated. Once we support bridges we should check this logic holds up here.
-            ChannelType::ClientInitiator => {
-                const MSG: &str = "Client initiator channel has a CREATE* request handler";
-                return Err(internal!("{MSG}").into());
-            }
-        }
-
-        let (tx, rx) = oneshot::channel();
-        let msg = CtrlMsg::SetCreateRequestHandler {
-            handler,
-            channel: Arc::downgrade(self),
-            sender: tx,
-        };
-        self.control
-            .unbounded_send(msg)
-            .map_err(|_| Error::ChannelClosed(ChannelClosed))?;
-
-        let () = rx.await.map_err(|_| Error::ChannelClosed(ChannelClosed))?;
-
-        Ok(())
-    }
-
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     ///
     /// Returns the receiver end of the control message mpsc.
@@ -1034,7 +1011,7 @@ impl Channel {
     #[cfg(feature = "testing")]
     pub fn new_fake(
         rt: impl SleepProvider + CoarseTimeProvider,
-        channel_type: ChannelType,
+        _channel_type: ChannelType,
     ) -> (Channel, mpsc::UnboundedReceiver<CtrlMsg>) {
         let (control, control_recv) = mpsc::unbounded();
         let details = fake_channel_details();
@@ -1051,7 +1028,6 @@ impl Channel {
         let (padding_ctrl, _) = client::circuit::padding::new_padding(DynTimeProvider::new(rt));
 
         let channel = Channel {
-            channel_type,
             control,
             cell_tx: fake_mpsc().0,
             reactor_closed_rx: rx,
@@ -1132,6 +1108,54 @@ pub enum ClosedUnexpectedly {
     ReactorError(Error),
 }
 
+/// Whether the channel is operating in "client" or "relay" mode,
+/// and some mode-specific parameters.
+pub(crate) enum ChannelMode {
+    /// An incoming channel,
+    /// or an outgoing channel made by a non-bridge relay.
+    #[cfg(feature = "relay")]
+    Relay {
+        /// A handler for CREATE2/CREATE_FAST messages,
+        create_request_handler: Arc<CreateRequestHandler>,
+        /// The channel's direction.
+        direction: ChannelDirection,
+    },
+    /// An outgoing channel made by a client or bridge relay.
+    Client,
+}
+
+impl ChannelMode {
+    /// Returns an error if the mode doesn't agree with the channel type.
+    pub(crate) fn check_agrees_with_type(
+        &self,
+        channel_type: ChannelType,
+    ) -> StdResult<(), tor_error::Bug> {
+        use ChannelDirection::*;
+        use ChannelType::*;
+
+        match (channel_type, self) {
+            (ClientInitiator, Self::Client) => {}
+            #[cfg(feature = "relay")]
+            #[rustfmt::skip]
+            (RelayInitiator, Self::Relay { direction: Outgoing, .. }) => {}
+            #[cfg(feature = "relay")]
+            #[rustfmt::skip]
+            (RelayResponder { .. }, Self::Relay { direction: Incoming, .. }) => {}
+            _ => return Err(internal!("`ChannelMode` doesn't agree with `ChannelType`")),
+        }
+
+        Ok(())
+    }
+}
+
+/// The direction of a channel's connection.
+pub(crate) enum ChannelDirection {
+    /// The channel originated elsewhere (we are the responder).
+    Incoming,
+    /// The channel originated here (we are the initiator).
+    Outgoing,
+}
+
 /// Make some fake channel details (for testing only!)
 #[cfg(any(test, feature = "testing"))]
 fn fake_channel_details() -> Arc<ChannelDetails> {
@@ -1166,7 +1190,7 @@ pub(crate) mod test {
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     pub(crate) fn fake_channel(
         rt: impl SleepProvider + CoarseTimeProvider,
-        channel_type: ChannelType,
+        _channel_type: ChannelType,
     ) -> Channel {
         let unique_id = UniqId::new();
         let peer_id = OwnedChanTarget::builder()
@@ -1178,7 +1202,6 @@ pub(crate) mod test {
         let (_tx, rx) = oneshot_broadcast::channel();
         let (padding_ctrl, _) = client::circuit::padding::new_padding(DynTimeProvider::new(rt));
         Channel {
-            channel_type,
             control: mpsc::unbounded().0,
             cell_tx: fake_mpsc().0,
             reactor_closed_rx: rx,

@@ -24,10 +24,11 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, St
 use crate::{
     ClockSkew, RelayChannelAuthMaterial, Result,
     channel::{
-        AuthLogDigest, Channel, Reactor,
+        AuthLogDigest, Channel, ChannelDirection, ChannelMode, Reactor,
         handshake::{UnverifiedInitiatorChannel, VerifiedChannel},
     },
     peer::{PeerAddr, PeerInfo},
+    relay::CreateRequestHandler,
     relay::channel::ChannelAuthenticationData,
 };
 
@@ -51,6 +52,8 @@ pub struct UnverifiedInitiatorRelayChannel<
     pub(crate) auth_material: Arc<RelayChannelAuthMaterial>,
     /// Our advertised IP addresses for the final NETINFO
     pub(crate) my_addrs: Vec<IpAddr>,
+    /// Provided to each new channel so that they can handle CREATE* requests.
+    pub(crate) create_request_handler: Arc<CreateRequestHandler>,
 }
 
 impl<T, S> UnverifiedInitiatorRelayChannel<T, S>
@@ -95,6 +98,7 @@ where
             peer_tls_cert_digest,
             slog_digest: self.slog_digest,
             my_addrs,
+            create_request_handler: self.create_request_handler,
         })
     }
 
@@ -129,6 +133,8 @@ pub struct VerifiedInitiatorRelayChannel<
     slog_digest: AuthLogDigest,
     /// Our advertised IP addresses.
     my_addrs: Vec<IpAddr>,
+    /// Provided to each new channel so that they can handle CREATE* requests.
+    create_request_handler: Arc<CreateRequestHandler>,
 }
 
 impl<T, S> VerifiedInitiatorRelayChannel<T, S>
@@ -192,9 +198,14 @@ where
         let peer_info =
             MaybeSensitive::not_sensitive(PeerInfo::new(peer_addr, self.inner.relay_ids().clone()));
 
+        let channel_mode = ChannelMode::Relay {
+            direction: ChannelDirection::Outgoing,
+            create_request_handler: self.create_request_handler,
+        };
+
         // Get a Channel and a Reactor.
         self.inner
-            .finish(&self.netinfo_cell, &self.my_addrs, peer_info)
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_info, channel_mode)
             .await
     }
 }

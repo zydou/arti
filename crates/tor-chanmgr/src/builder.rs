@@ -25,8 +25,8 @@ use tor_rtcompat::{CertifiedConn, Runtime, StreamOps, TlsProvider, tls::TlsConne
 
 #[cfg(feature = "relay")]
 use {
-    safelog::Sensitive, std::net::IpAddr, tor_proto::RelayChannelAuthMaterial,
-    tor_proto::relay::CreateRequestHandler,
+    safelog::Sensitive, std::net::IpAddr, tor_error::bad_api_usage,
+    tor_proto::RelayChannelAuthMaterial, tor_proto::relay::CreateRequestHandler,
 };
 
 /// TLS-based channel builder.
@@ -273,6 +273,11 @@ where
             .map_err(|e| map_ioe(e.into(), "TLS Certs"))?
             .ok_or_else(|| Error::Internal(internal!("TLS connection without our certificate")))?
             .into_owned();
+
+        let create_request_handler = self.create_request_handler.as_ref().ok_or_else(|| {
+            bad_api_usage!("Can't create a relay channel without a CREATE* request handler")
+        })?;
+
         let builder = tor_proto::RelayChannelBuilder::new();
 
         let unverified = builder
@@ -283,6 +288,7 @@ where
                 self.runtime.clone(),
                 auth_material,
                 memquota,
+                Arc::clone(create_request_handler),
             )
             .handshake(|| self.runtime.wallclock())
             .await
@@ -309,12 +315,6 @@ where
                 let _ = reactor.run().await;
             })
             .map_err(|e| Error::from_spawn("responder channel reactor", e))?;
-
-        if let Some(handler) = self.create_request_handler.as_ref() {
-            chan.set_create_request_handler(Arc::clone(handler))
-                .await
-                .map_err(|e| map_proto(e, &target_no_ids, None))?;
-        }
 
         Ok(chan)
     }
@@ -607,6 +607,10 @@ where
             ))?
             .clone();
 
+        let create_request_handler = self.create_request_handler.as_ref().ok_or_else(|| {
+            bad_api_usage!("Can't create a relay channel without a CREATE* request handler")
+        })?;
+
         let unverified = builder
             .launch(
                 tls,
@@ -615,6 +619,7 @@ where
                 self.my_addrs.clone(),
                 target,
                 memquota,
+                Arc::clone(create_request_handler),
             )
             .connect(|| self.runtime.wallclock())
             .await
@@ -653,16 +658,6 @@ where
                 let _ = reactor.run().await;
             })
             .map_err(|e| Error::from_spawn("relay channel reactor", e))?;
-
-        if let Some(handler) = self.create_request_handler.as_ref() {
-            chan.set_create_request_handler(Arc::clone(handler))
-                .await
-                .map_err(|source| Error::Proto {
-                    source,
-                    peer: target.to_logged(),
-                    clock_skew: Some(clock_skew),
-                })?;
-        }
 
         Ok(chan)
     }

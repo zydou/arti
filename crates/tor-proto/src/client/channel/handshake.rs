@@ -18,7 +18,7 @@ use crate::channel::handshake::{
     AuthLogAction, ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel,
     UnverifiedInitiatorChannel, VerifiedChannel, unauthenticated_clock_skew,
 };
-use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
+use crate::channel::{Channel, ChannelFrame, ChannelMode, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::peer::{PeerAddr, PeerInfo};
 
@@ -256,6 +256,8 @@ impl<
         ));
 
         // Finish the channel to get a reactor.
-        self.inner.finish(&self.netinfo_cell, &[], peer_info).await
+        self.inner
+            .finish(&self.netinfo_cell, &[], peer_info, ChannelMode::Client)
+            .await
     }
 }

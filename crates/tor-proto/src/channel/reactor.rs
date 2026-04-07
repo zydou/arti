@@ -123,18 +123,6 @@ pub enum CtrlMsg {
         /// A oneshot channel to use in reporting the outcome.
         sender: oneshot::Sender<Result<()>>,
     },
-    /// Set a [`CreateRequestHandler`] for this channel to handle circuit CREATE* requests.
-    ///
-    /// Typically this should only ever be sent to the reactor once after constructing the channel.
-    #[cfg(feature = "relay")]
-    SetCreateRequestHandler {
-        /// The handler to set.
-        handler: Arc<CreateRequestHandler>,
-        /// The channel we're setting this handler for.
-        channel: Weak<Channel>,
-        /// A oneshot channel to wait for the operation to complete.
-        sender: oneshot::Sender<()>,
-    },
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -450,15 +438,6 @@ impl<R: Runtime> Reactor<R> {
                 self.padding_ctrl
                     .install_padder_padding_at_hop(HopNum::from(0), padder);
                 let _ignore = sender.send(Ok(()));
-            }
-            #[cfg(feature = "relay")]
-            CtrlMsg::SetCreateRequestHandler {
-                handler,
-                channel,
-                sender,
-            } => {
-                self.create_request_handler = Some((handler, channel));
-                let _ignore = sender.send(());
             }
         }
         Ok(())
@@ -910,7 +889,7 @@ impl<R: Runtime> Reactor<R> {
 pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::channel::{Canonicity, ChannelType, ClosedUnexpectedly, UniqId};
+    use crate::channel::{Canonicity, ChannelMode, ClosedUnexpectedly, UniqId};
     use crate::client::circuit::CircParameters;
     use crate::client::circuit::padding::new_padding;
     use crate::fake_mpsc;
@@ -951,7 +930,7 @@ pub(crate) mod test {
         });
         let stream_ops = NoOpStreamOpsHandle::default();
         let (chan, reactor) = crate::channel::Channel::new(
-            ChannelType::ClientInitiator,
+            ChannelMode::Client,
             link_protocol,
             Box::new(send1),
             Box::new(recv2),

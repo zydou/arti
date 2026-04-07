@@ -36,6 +36,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 use crate::channel::AuthLogDigest;
 use crate::channel::handshake::VerifiedChannel;
 use crate::peer::PeerAddr;
+use crate::relay::CreateRequestHandler;
 use crate::relay::channel::handshake::{AUTHTYPE_ED25519_SHA256_RFC5705, RelayResponderHandshake};
 use crate::{Error, Result, channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 
@@ -153,6 +154,7 @@ impl RelayChannelBuilder {
         my_addrs: Vec<IpAddr>,
         peer_target: &OwnedChanTarget,
         memquota: ChannelAccount,
+        create_request_handler: Arc<CreateRequestHandler>,
     ) -> RelayInitiatorHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
@@ -165,10 +167,12 @@ impl RelayChannelBuilder {
             my_addrs,
             peer_target,
             memquota,
+            create_request_handler,
         )
     }
 
     /// Accept a new handshake over a TLS stream.
+    #[expect(clippy::too_many_arguments)]
     pub fn accept<T, S>(
         self,
         peer_addr: Sensitive<PeerAddr>,
@@ -177,6 +181,7 @@ impl RelayChannelBuilder {
         sleep_prov: S,
         auth_material: Arc<RelayChannelAuthMaterial>,
         memquota: ChannelAccount,
+        create_request_handler: Arc<CreateRequestHandler>,
     ) -> RelayResponderHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + CertifiedConn + StreamOps + Send + Unpin + 'static,
@@ -189,6 +194,7 @@ impl RelayChannelBuilder {
             sleep_prov,
             auth_material,
             memquota,
+            create_request_handler,
         )
     }
 }
