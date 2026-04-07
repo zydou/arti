@@ -103,6 +103,19 @@ mod rsa {
     }
 }
 
+/// Protocol versions (from `tor-protover`)
+pub(crate) mod protovers {
+    use super::*;
+    use tor_protover::Protocols;
+
+    impl ItemValueEncodable for Protocols {
+        fn write_item_value_onto(&self, mut out: ItemEncoder) -> Result<(), Bug> {
+            out.args_raw_string(&self);
+            Ok(())
+        }
+    }
+}
+
 /// HS POW
 #[cfg(feature = "hs-pow-full")]
 mod hs_pow {
