@@ -14,6 +14,10 @@ tests
 │   └── ...                    # utils
 ├── README.md
 └── testcases
+    ├── arti                   # trycmd test run on the main command
+    │   ├── help.stderr        # expected stderr for the "help" test
+    │   ├── help.stdout        # expected stdout for the "help" test
+    │   └── help.toml          # main command "help" test
     ├── hsc                    # hsc trycmd test run when only "hsc" extra feature is provided
     │   ├── help.stderr        # expected stderr for the "help" test
     │   ├── help.stdout        # expected stdout for the "help" test
