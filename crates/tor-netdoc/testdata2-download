@@ -42,8 +42,9 @@ cd tmp
 
 wget -O ci.zip "$url"
 
-unzip -q ci.zip nodes.\*
+unzip -q ci.zip shadow.chutney.data/hosts/host/nodes.\*
 
+cd shadow.chutney.data/hosts/host
 cd nodes.* # will give "too many arguments" if there were several
 cd 000a
 
