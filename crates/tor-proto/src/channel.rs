@@ -50,7 +50,7 @@
 /// The size of the channel buffer for communication between `Channel` and its reactor.
 pub const CHANNEL_BUFFER_SIZE: usize = 128;
 
-mod circmap;
+pub(crate) mod circmap;
 mod handler;
 pub(crate) mod handshake;
 pub mod kist;
@@ -555,13 +555,10 @@ impl Channel {
     {
         use circmap::{CircIdRange, CircMap};
         let circid_range = match channel_mode {
+            // client channels always originate here
             ChannelMode::Client => CircIdRange::High,
             #[cfg(feature = "relay")]
-            #[rustfmt::skip]
-            ChannelMode::Relay { direction: ChannelDirection::Outgoing, .. } => CircIdRange::High,
-            #[cfg(feature = "relay")]
-            #[rustfmt::skip]
-            ChannelMode::Relay { direction: ChannelDirection::Incoming, .. } => CircIdRange::Low,
+            ChannelMode::Relay { circ_id_range, .. } => circ_id_range,
         };
         let circmap = CircMap::new(circid_range);
         let dyn_time = DynTimeProvider::new(runtime.clone());
@@ -1117,8 +1114,8 @@ pub(crate) enum ChannelMode {
     Relay {
         /// A handler for CREATE2/CREATE_FAST messages,
         create_request_handler: Arc<CreateRequestHandler>,
-        /// The channel's direction.
-        direction: ChannelDirection,
+        /// The range of circuit IDs that we allocate for new circuits.
+        circ_id_range: circmap::CircIdRange,
     },
     /// An outgoing channel made by a client or bridge relay.
     Client,
@@ -1130,30 +1127,22 @@ impl ChannelMode {
         &self,
         channel_type: ChannelType,
     ) -> StdResult<(), tor_error::Bug> {
-        use ChannelDirection::*;
         use ChannelType::*;
+        use circmap::CircIdRange::*;
 
         match (channel_type, self) {
             (ClientInitiator, Self::Client) => {}
             #[cfg(feature = "relay")]
             #[rustfmt::skip]
-            (RelayInitiator, Self::Relay { direction: Outgoing, .. }) => {}
+            (RelayInitiator, Self::Relay { circ_id_range: High, .. }) => {}
             #[cfg(feature = "relay")]
             #[rustfmt::skip]
-            (RelayResponder { .. }, Self::Relay { direction: Incoming, .. }) => {}
+            (RelayResponder { .. }, Self::Relay { circ_id_range: Low, .. }) => {}
             _ => return Err(internal!("`ChannelMode` doesn't agree with `ChannelType`")),
         }
 
         Ok(())
     }
-}
-
-/// The direction of a channel's connection.
-pub(crate) enum ChannelDirection {
-    /// The channel originated elsewhere (we are the responder).
-    Incoming,
-    /// The channel originated here (we are the initiator).
-    Outgoing,
 }
 
 /// Make some fake channel details (for testing only!)

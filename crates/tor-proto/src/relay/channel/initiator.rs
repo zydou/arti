@@ -24,7 +24,8 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, St
 use crate::{
     ClockSkew, RelayChannelAuthMaterial, Result,
     channel::{
-        AuthLogDigest, Channel, ChannelDirection, ChannelMode, Reactor,
+        AuthLogDigest, Channel, ChannelMode, Reactor,
+        circmap::CircIdRange,
         handshake::{UnverifiedInitiatorChannel, VerifiedChannel},
     },
     peer::{PeerAddr, PeerInfo},
@@ -199,7 +200,7 @@ where
             MaybeSensitive::not_sensitive(PeerInfo::new(peer_addr, self.inner.relay_ids().clone()));
 
         let channel_mode = ChannelMode::Relay {
-            direction: ChannelDirection::Outgoing,
+            circ_id_range: CircIdRange::High,
             create_request_handler: self.create_request_handler,
         };
 

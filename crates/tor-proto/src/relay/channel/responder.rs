@@ -21,7 +21,8 @@ use web_time_compat::{SystemTime, SystemTimeExt};
 use crate::{
     ClockSkew, Error, RelayChannelAuthMaterial, Result,
     channel::{
-        AuthLogDigest, Channel, ChannelDirection, ChannelMode, Reactor,
+        AuthLogDigest, Channel, ChannelMode, Reactor,
+        circmap::CircIdRange,
         handshake::{UnverifiedChannel, VerifiedChannel},
     },
     peer::{PeerAddr, PeerInfo},
@@ -286,7 +287,7 @@ where
         ));
 
         let channel_mode = ChannelMode::Relay {
-            direction: ChannelDirection::Incoming,
+            circ_id_range: CircIdRange::Low,
             create_request_handler: self.create_request_handler,
         };
 
@@ -317,7 +318,7 @@ where
         ));
 
         let channel_mode = ChannelMode::Relay {
-            direction: ChannelDirection::Incoming,
+            circ_id_range: CircIdRange::Low,
             create_request_handler: self.create_request_handler,
         };
 

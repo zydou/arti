@@ -30,7 +30,7 @@ use crate::relay::RelayCirc;
 /// If we initiated the channel, we use High circuit ids.  If we're the
 /// responder, we use low circuit ids.
 #[derive(Copy, Clone)]
-pub(super) enum CircIdRange {
+pub(crate) enum CircIdRange {
     /// Only use circuit IDs with the MSB cleared.
     #[allow(dead_code)] // Relays will need this.
     Low,
