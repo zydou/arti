@@ -1787,6 +1787,17 @@ pub mod routerdesc {
         /// Optional SHA-256 of the entire extra-info in base 64.
         pub sha2: Option<FixedB64<32>>,
     }
+
+    /// Accumulator for router descriptor hash signatures.
+    #[derive(Debug, Clone, Default, Deftly)]
+    #[derive_deftly(AsMutSelf)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct RouterHashAccu {
+        /// Potentially the SHA-1 for the signature.
+        pub sha1: Option<[u8; 20]>,
+        /// Potentially the SHA-256 for the signature.
+        pub sha256: Option<[u8; 32]>,
+    }
 }
 
 #[cfg(test)]
