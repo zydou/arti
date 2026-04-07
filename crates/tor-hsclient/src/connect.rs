@@ -483,8 +483,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         )?;
 
         trace!(
-            "HS desc fetch for {}, using {} hsdirs",
+            "HS desc fetch for {}, for period {}, using {} hsdirs",
             &self.hsid,
+            self.netdir.hs_time_period(),
             hs_dirs.len()
         );
 

@@ -1645,7 +1645,12 @@ impl NetDir {
         // This code will give the wrong result if the total of all weights
         // can exceed u64::MAX.  We make sure that can't happen when we
         // set up `self.weights`.
-        match relays[..].choose_weighted(rng, |r| self.weights.weight_rs_for_role(r.rs, role)) {
+        tracing::trace!("picking from {} relays for role {:?}", relays.len(), role);
+        match relays[..].choose_weighted(rng, |r| {
+            let weight = self.weights.weight_rs_for_role(r.rs, role);
+            tracing::trace!("relay:{id:?} role:{role:?} weight:{weight}", id = r.id());
+            weight
+        }) {
             Ok(relay) => Some(relay.clone()),
             Err(WeightError::InsufficientNonZero) => {
                 if relays.is_empty() {
@@ -1658,7 +1663,12 @@ impl NetDir {
                 }
             }
             Err(e) => {
-                warn_report!(e, "Unexpected error while sampling a relay");
+                warn_report!(
+                    e,
+                    "Unexpected error while choosing from {} relays for role {:?}",
+                    relays.len(),
+                    role
+                );
                 None
             }
         }

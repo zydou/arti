@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 # stdlib imports
+import logging
 import os
 import os.path
 import sys
@@ -44,7 +45,10 @@ class TestNetwork(unittest.TestCase):
 
     def test_verify(self) -> None:
         # chutney's built-in "verify" test
-        chutney.network_tests.verify.run_test(self._network)
+        config = chutney.network_tests.verify.VerifyConfig.from_envargs()
+        # Connect to each hidden service from every client
+        config.hs_multi_client = True
+        chutney.network_tests.verify.run_test(self._network, config=config)
 
     def test_curl(self) -> None:
         """Test http requests, using `curl` with the socks port"""
@@ -155,4 +159,5 @@ class TestNetwork(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     unittest.main()

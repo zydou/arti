@@ -147,8 +147,10 @@ impl HsDirParams {
                 Error::InvalidConsensus("Consensus valid-after did not fall in a time period")
             })?;
 
-        let current = find_params_for_time(&srvs[..], cur_period)?
-            .unwrap_or_else(|| disaster_params(cur_period));
+        let current = find_params_for_time(&srvs[..], cur_period)?.unwrap_or_else(|| {
+            tracing::debug!("No SRV params for {cur_period:?}; falling back to disaster params");
+            disaster_params(cur_period)
+        });
 
         // When computing secondary rings, we don't try so many fallback operations:
         // if they aren't available, they aren't available.
