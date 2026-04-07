@@ -894,11 +894,12 @@ impl Account {
         self_.tracker.new_account(Some(self))
     }
 
-    /// Make `parent` an additional parent of this account
+    /// Makes `self` an (additional) child of `parent`.
     ///
-    /// Adds `self` to `parent`'s list of children.
+    /// `self` retains all of its existing parents.
+    /// (There is not currently any method for severing a parent/child relationship.)
     ///
-    /// Returns an error is `self` is already a child of `parent`,
+    /// Returns an error if `self` is already a child of `parent`,
     /// or if `parent` is a descendant of `self`.
     pub fn add_parent(&self, parent: &Account) -> Result<(), Error> {
         let Enabled(acc, _enabled) = &self.0 else {
