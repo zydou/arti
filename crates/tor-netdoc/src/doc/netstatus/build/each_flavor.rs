@@ -253,6 +253,7 @@ impl ConsensusBuilder {
             consensus_method: (consensus_method,),
             consensus_methods: NotPresent,
             published: NotPresent,
+            known_flags: DocRelayFlags::new_empty_unknown_discarded(),
             shared_rand_previous_value: self.shared_rand_previous_value.clone(),
             shared_rand_current_value: self.shared_rand_current_value.clone(),
             __non_exhaustive: (),

@@ -74,6 +74,7 @@ use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
+use crate::types::relay_flags::{self, DocRelayFlags};
 use crate::util::PeekableIterator;
 use crate::{Error, KeywordEncodable, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
 use std::collections::{BTreeSet, HashMap, HashSet};

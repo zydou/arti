@@ -298,7 +298,6 @@ mod parse2_impl {
         #[cfg(feature = "encode")]
         #[allow(clippy::unnecessary_wraps)] // we must match trait signature
         #[allow(clippy::redundant_closure)] // rust-clippy/issues#14215 |f| <&'static str>::from(f)
-        #[allow(unused)] // XXXX
         pub(crate) fn write_item_value_onto(
             flags: &DocRelayFlags,
             mut out: ItemEncoder,

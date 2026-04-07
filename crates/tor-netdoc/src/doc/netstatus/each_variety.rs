@@ -75,7 +75,11 @@ pub struct Preamble {
     #[deftly(netdoc(single_arg))]
     pub server_versions: Vec<String>,
 
-    // TODO DIRAUTH missing field: known-flags (in consensuses too, not just votes)
+    /// Router flags which could be determined
+    #[deftly(constructor)]
+    #[deftly(netdoc(with = "relay_flags::ParserEncoder::<relay_flags::NoImplicitRepr>"))]
+    pub known_flags: DocRelayFlags,
+
     // TODO DIRAUTH missing field: flag-thresholds (in votes)
 
     /// Lists of recommended and required subprotocols.
