@@ -148,10 +148,12 @@ pub struct IgnoredPublicationTimeSp;
 ///
 /// Aggregate of three netdoc preamble fields.
 #[derive(Clone, Debug, Deftly)]
+#[derive_deftly(Constructor)]
 #[derive_deftly(Lifetime)]
 #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableFields))]
 // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
 #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[allow(clippy::exhaustive_structs)]
 pub struct Lifetime {
     /// `valid-after` --- Time at which the document becomes valid
     ///
@@ -159,8 +161,9 @@ pub struct Lifetime {
     ///
     /// (You might see a consensus a little while before this time,
     /// since voting tries to finish up before the.)
+    #[deftly(constructor)]
     #[deftly(netdoc(single_arg))]
-    valid_after: Iso8601TimeSp,
+    pub valid_after: Iso8601TimeSp,
     /// `fresh-until` --- Time after which there is expected to be a better version
     /// of this consensus
     ///
@@ -168,8 +171,9 @@ pub struct Lifetime {
     ///
     /// You can use the consensus after this time, but there is (or is
     /// supposed to be) a better one by this point.
+    #[deftly(constructor)]
     #[deftly(netdoc(single_arg))]
-    fresh_until: Iso8601TimeSp,
+    pub fresh_until: Iso8601TimeSp,
     /// `valid-until` --- Time after which this consensus is expired.
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
@@ -177,24 +181,32 @@ pub struct Lifetime {
     /// You should try to get a better consensus after this time,
     /// though it's okay to keep using this one if no more recent one
     /// can be found.
+    #[deftly(constructor)]
     #[deftly(netdoc(single_arg))]
-    valid_until: Iso8601TimeSp,
+    pub valid_until: Iso8601TimeSp,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 define_derive_deftly! {
     /// Bespoke derive for `Lifetime`, for `new` and accessors
     Lifetime:
 
+    ${defcond FIELD not(approx_equal($fname, __non_exhaustive))}
+
     impl Lifetime {
         /// Construct a new Lifetime.
         pub fn new(
-            $( $fname: time::SystemTime, )
+            $( ${when FIELD} $fname: time::SystemTime, )
         ) -> Result<Self> {
             // Make this now because otherwise literal `valid_after` here in the body
             // has the wrong span - the compiler refuses to look at the argument.
             // But we can refer to the field names.
             let self_ = Lifetime {
-                $( $fname: $fname.into(), )
+                $( ${when FIELD} $fname: $fname.into(), )
+                __non_exhaustive: (),
             };
             if self_.valid_after < self_.fresh_until && self_.fresh_until < self_.valid_until {
                 Ok(self_)
@@ -203,6 +215,8 @@ define_derive_deftly! {
             }
         }
       $(
+        ${when FIELD}
+
         ${fattrs doc}
         pub fn $fname(&self) -> time::SystemTime {
             *self.$fname

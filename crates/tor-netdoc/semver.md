@@ -22,3 +22,4 @@ ADDED: `#[deftly(netdoc(skip))]` supported in `ItemValueParseable` and `ItemValu
 ADDED: Encoding traits implemented for `Arc<T>`
 BREAKING: `netstatus::Preamble.consensus_method` and `.published` are now 1-element tuples.
 ADDED: `ItemValueEncodable` impl for `ConsensusMethods`
+ADDED: `doc::netstatus::Lifetime` fields are `pub`, and added `LifetimeConstructor`
