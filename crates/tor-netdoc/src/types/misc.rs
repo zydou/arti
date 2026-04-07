@@ -1725,6 +1725,7 @@ mod boolean {
 pub mod routerdesc {
     use super::*;
     use parse2::ErrorProblem as EP;
+    use tor_llcrypto::pk::ed25519;
 
     /// Version argument found in an `overload-general` item.
     ///
@@ -1798,6 +1799,40 @@ pub mod routerdesc {
         pub sha1: Option<[u8; 20]>,
         /// Potentially the SHA-256 for the signature.
         pub sha256: Option<[u8; 32]>,
+    }
+
+    /// SHA-256 router descriptor signature including magic and the keyword.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct RouterSigEd25519(pub ed25519::Signature);
+
+    impl RouterSigEd25519 {
+        /// The magic prefix for hashing this type of signature.
+        const HASH_PREFIX_MAGIC: &str = "Tor router descriptor signature v1";
+    }
+
+    #[cfg(feature = "parse2")]
+    impl SignatureItemParseable for RouterSigEd25519 {
+        type HashAccu = RouterHashAccu;
+
+        fn from_unparsed_and_body(
+            mut item: UnparsedItem<'_>,
+            hash_inputs: &SignatureHashInputs<'_>,
+            hash: &mut Self::HashAccu,
+        ) -> Result<Self, EP> {
+            let args = item.args_mut();
+            let sig = FixedB64::<64>::from_args(args)
+                .map_err(|e| args.handle_error("router-sig-ed25519", e))?
+                .0;
+            let sig = ed25519::Signature::from(sig);
+
+            let mut h = tor_llcrypto::d::Sha256::new();
+            h.update(Self::HASH_PREFIX_MAGIC);
+            h.update(hash_inputs.document_sofar);
+            h.update(hash_inputs.signature_item_kw_spc);
+            hash.sha256 = Some(h.finalize().into());
+            Ok(Self(sig))
+        }
     }
 
     /// SHA-1 router descriptor signature over `router-sig-ed25519`.
