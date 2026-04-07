@@ -26,7 +26,7 @@ use arti_client::TorClient;
 #[cfg(feature = "rpc")]
 use arti_rpcserver::RpcMgr;
 use tor_config::Listen;
-use tor_error::warn_report;
+use tor_error::{debug_report, warn_report};
 use tor_rtcompat::{NetStreamListener, Runtime};
 use tor_socksproto::SocksAuth;
 
@@ -515,7 +515,7 @@ pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
         };
         tor_client.runtime().spawn(async move {
             let res = handle_proxy_conn(proxy_context, stream, (sock_id, addr.ip())).await;
-            if let Err(e) = res {
+            if let Err(ref e) = res {
                 report_proxy_error(e);
             }
         })?;
@@ -606,7 +606,8 @@ fn extract_proto_err<'a>(
 }
 
 /// Report an error that occurred within a single proxy task.
-fn report_proxy_error(e: anyhow::Error) {
+#[expect(clippy::cognitive_complexity)]
+fn report_proxy_error(e: &anyhow::Error) {
     use tor_proto::Error as PE;
     // TODO: In the long run it might be a good idea to use an ErrorKind here if we can get one.
     // This is a bit of a kludge based on the fact that we're using anyhow.
@@ -617,8 +618,11 @@ fn report_proxy_error(e: anyhow::Error) {
     // TODO: Maybe we should look at io::ErrorKind as well, if it's there.  That's another reason
     // to discard or restrict our anyhow usage.
     match extract_proto_err(e.as_ref()) {
-        Some(PE::CircuitClosed) => debug!("Connection exited with circuit close"),
-        // TODO: warn_report doesn't work on anyhow::Error.
-        _ => warn!("connection exited with error: {}", tor_error::Report(e)),
+        Some(e @ PE::CircuitClosed) => debug_report!(e, "Connection exited"),
+        // We can't use `debug_report!` here because `NotConnected`s error kind is `BadApiUsage`,
+        // which upgrades this to a warning.
+        // https://gitlab.torproject.org/tpo/core/arti/-/issues/2439
+        Some(e @ PE::NotConnected) => debug!(error = (e as &dyn std::error::Error), "Connection exited"),
+        _ => warn_report!(*e, "Connection exited"),
     }
 }
