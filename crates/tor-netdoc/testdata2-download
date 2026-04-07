@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 #
 # usage:
-#   crates/tor-netdoc/testdata2/DOWNLOAD \
+#   testdata2-download \
 #       https://gitlab.torproject.org/tpo/core/arti/-/jobs/1060037/artifacts/download
 #
 # The URL is the "download artifacts archive link"
 # for an integration-chutney-shadow job.
+#
+# This has to be run inside the git repository!
 #
 # Note!  It is quite possible that this will break if the structure of
 # the shadow tests in CI changes.  If that happens, you need to adjust this
@@ -26,7 +28,11 @@ esac
 
 url="$1"; shift
 
-out=crates/tor-netdoc/testdata2
+root="$(git rev-parse --show-toplevel)"
+out="$root/crates/tor-netdoc/testdata2"
+
+# switch to the repositories' root to avoid surprises
+cd "$root"
 
 #----- download zipfile and cd into the one node we are interested in -----
 
@@ -73,11 +79,11 @@ split-file cached-certs dir-key-certificate-version
 
 chmod -R a+r,u+w .
 
-rm -rf ../../../"$out"
-mkdir ../../../"$out"
-mv -- * ../../../"$out"
+rm -rf "$out"
+mkdir "$out"
+mv -- * "$out"
 
-cd ../../..
+cd "$root"
 rm -rf tmp
 
 echo "Updated $out.  Don't forget to git add."
