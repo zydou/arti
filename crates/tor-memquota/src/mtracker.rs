@@ -899,8 +899,8 @@ impl Account {
     /// `self` retains all of its existing parents.
     /// (There is not currently any method for severing a parent/child relationship.)
     ///
-    /// Returns an error if `self` is already a child of `parent`,
-    /// or if `parent` is a descendant of `self`.
+    /// Returns [`Error::ChildAccountAlreadyExists`] if `self` is already a child of `parent`,
+    /// or [`Bug`] if `parent` is a descendant of `self`.
     pub fn add_parent(&self, parent: &Account) -> Result<(), Error> {
         let Enabled(acc, _enabled) = &self.0 else {
             return Ok(());
