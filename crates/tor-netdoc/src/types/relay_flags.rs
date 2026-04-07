@@ -64,7 +64,7 @@ pub trait ReprMode: Debug + Copy {
     const ENCODE_OMIT: RelayFlags;
 }
 
-/// How relay flags are represented in a consensus
+/// How relay flags are represented in `s` in a consensus
 #[derive(Debug, Copy, Clone)]
 #[allow(clippy::exhaustive_structs)]
 pub struct ConsensusRepr;
@@ -74,12 +74,12 @@ impl ReprMode for ConsensusRepr {
     const ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 }
 
-/// How relay flags are represented in a vote
+/// How relay flags are represented in `s` in a vote and a `known-flags` line
 #[derive(Debug, Copy, Clone)]
 #[allow(clippy::exhaustive_structs)]
-pub struct VoteRepr;
+pub struct NoImplicitRepr;
 
-impl ReprMode for VoteRepr {
+impl ReprMode for NoImplicitRepr {
     const PARSE_IMPLICIT: RelayFlags = RelayFlags::empty();
     const ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 }
