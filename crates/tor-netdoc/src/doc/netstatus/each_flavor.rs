@@ -413,6 +413,7 @@ impl Preamble {
             consensus_methods: NotPresent,
             shared_rand_previous_value,
             shared_rand_current_value,
+            __non_exhaustive: (),
         };
 
         Ok((flavor, preamble))
