@@ -46,7 +46,7 @@ pub struct DocRelayFlags {
 
 /// Additional options for the representation of relay flags in network documents
 ///
-/// This is a generic argument to `Parser`
+/// This is a generic argument to `ParserEncoder`
 /// (and will be used for the encoder too).
 pub trait ReprMode: Debug + Copy {
     /// Flags that should be treated as being present when parsing
@@ -92,7 +92,7 @@ impl ReprMode for VoteRepr {
 /// This is a newtype around a machine integer.
 ///
 /// Does not implement `ItemValueParseable`.  Parsing (and encoding) is different in
-/// different documents.  Use an appropriate parameterised [`Parser`],
+/// different documents.  Use an appropriate parameterised [`ParserEncoder`],
 /// in `#[deftly(netdoc(with))]`.
 ///
 /// To also maybe handle unknown flags, use [`DocRelayFlags`].
@@ -166,7 +166,7 @@ pub enum RelayFlag {
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
 ///
 #[derive(Debug, Clone)]
-pub struct Parser<'s, M: ReprMode> {
+pub struct ParserEncoder<'s, M: ReprMode> {
     /// Flags so far, including the implied ones
     flags: DocRelayFlags,
 
@@ -188,13 +188,13 @@ pub enum RelayFlagsParseError {
     OutOfOrder,
 }
 
-impl<'s, M: ReprMode> Parser<'s, M> {
+impl<'s, M: ReprMode> ParserEncoder<'s, M> {
     /// Start parsing relay flags
     ///
     /// If `PARSE_IMPLICIT` or `ENCODE_OMIT` contains unknown bits, compile will fail.
     pub fn new(unknown: Unknown<()>) -> Self {
         let known = M::PARSE_IMPLICIT | M::ENCODE_OMIT;
-        Parser {
+        ParserEncoder {
             flags: DocRelayFlags {
                 known,
                 unknown: unknown.map(|()| HashSet::new()),
@@ -243,7 +243,7 @@ mod parse_impl {
                         .at_pos(item.pos()),
                 );
             }
-            let mut flags = Parser::<ConsensusRepr>::new(Unknown::new_discard());
+            let mut flags = ParserEncoder::<ConsensusRepr>::new(Unknown::new_discard());
 
             for s in item.args() {
                 flags
@@ -263,7 +263,7 @@ mod parse2_impl {
     use crate::parse2;
     use parse2::ErrorProblem as EP;
 
-    impl<'s, M: ReprMode> Parser<'s, M> {
+    impl<'s, M: ReprMode> ParserEncoder<'s, M> {
         /// Parse relay flags
         #[allow(clippy::needless_pass_by_value)] // we must match trait signature
         pub(crate) fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<DocRelayFlags, EP> {
