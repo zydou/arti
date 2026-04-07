@@ -257,24 +257,25 @@ impl StreamReactor {
         } = msg;
 
         // We need to apply stream-level flow control *before* encoding the message.
-        let msg = self.handle_msg(sid, msg, cell_counts_toward_windows)?;
+        // May optionally return a message that needs to be sent back to the client.
+        let bwd_msg = self.handle_msg(sid, msg, cell_counts_toward_windows)?;
 
         // TODO(DEDUP): this contains parts of Circuit::send_relay_cell_inner()
-        if let Some(msg) = msg {
+        if let Some(bwd_msg) = bwd_msg {
             // We might be out of capacity entirely; see if we are about to hit a limit.
             //
             // TODO: If we ever add a notion of _recoverable_ errors below, we'll
             // need a way to restore this limit, and similarly for about_to_send().
             self.hop.decrement_cell_limit()?;
 
-            let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
+            let c_t_w = sendme::cmd_counts_towards_windows(bwd_msg.cmd());
 
             // We need to apply stream-level flow control *before* encoding the message
             // (the BWD handles the encoding)
             if c_t_w {
-                if let Some(stream_id) = msg.stream_id() {
+                if let Some(stream_id) = bwd_msg.stream_id() {
                     self.hop
-                        .about_to_send(self.unique_id, stream_id, msg.msg())?;
+                        .about_to_send(self.unique_id, stream_id, bwd_msg.msg())?;
                 }
             }
 
@@ -287,7 +288,7 @@ impl StreamReactor {
             // Instead, we notify the CC algorithm in the BWD,
             // right after we've finished sending the cell.
 
-            self.send_msg_to_bwd(msg).await?;
+            self.send_msg_to_bwd(bwd_msg).await?;
         }
 
         Ok(())
@@ -295,6 +296,8 @@ impl StreamReactor {
 
     /// Handle a RELAY message that has a non-zero stream ID.
     ///
+    /// A returned message is one that we need to send back to the client.
+    //
     // TODO(relay): this is very similar to the client impl from
     // Circuit::handle_in_order_relay_msg()
     fn handle_msg(
