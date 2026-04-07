@@ -268,7 +268,7 @@ define_derive_deftly! {
     export NetdocEncodableFields beta_deftly, for struct, expect items:
 
     impl<$tgens> $P::NetdocEncodableFields for $ttype {
-        fn encode_fields(&self, out: &mut $P::NetdocEncoder) -> Result<(), $P::Bug> {
+        fn encode_fields(&self, out: &mut $P::NetdocEncoder) -> $P::Result<(), $P::Bug> {
             use $P::*;
 
             $ENCODE_ITEMS_BODY
