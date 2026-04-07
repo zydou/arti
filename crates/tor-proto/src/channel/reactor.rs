@@ -743,12 +743,7 @@ impl<R: Runtime> Reactor<R> {
         };
 
         let target = self.circs.advance_from_opening(circid)?;
-        let created = CreateResponse::try_from(msg).map_err(|msg| {
-            Error::ChanProto(format!(
-                "Got a {} in response to circuit creation",
-                msg.cmd(),
-            ))
-        })?;
+        let created = msg.try_into()?;
         // TODO(nickm) I think that this one actually means the other side
         // is closed. See arti#269.
         target.send(created).map_err(|_| {
@@ -786,14 +781,8 @@ impl<R: Runtime> Reactor<R> {
                 ..
             }) => {
                 trace!(channel_id = %self, "Passing destroy to pending circuit {}", circid);
-                let msg = msg.try_into().map_err(|msg: AnyChanMsg| {
-                    Error::ChanProto(format!(
-                        "Got a {} in response to circuit creation",
-                        msg.cmd(),
-                    ))
-                })?;
                 create_response_sender
-                    .send(msg)
+                    .send(msg.try_into()?)
                     // TODO(nickm) I think that this one actually means the other side
                     // is closed. See arti#269.
                     .map_err(|_| {
