@@ -247,8 +247,9 @@ impl NormalItemArgument for ConsensusMethod {}
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-methods>
 ///
 /// There is also [`consensus_methods_comma_separated`] for `m` lines in votes.
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
-#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Deftly)]
+#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
 #[non_exhaustive]
 pub struct ConsensusMethods {
     /// Consensus methods.
