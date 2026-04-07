@@ -864,10 +864,12 @@ define_derive_deftly! {
 
           ${for fields {
             ${when not(F_FLATTEN)}
+            ${when not(F_SKIP)}
             kw == $F_KEYWORD ||
           }}
           ${for fields {
             ${when F_FLATTEN}
+            ${when not(F_SKIP)}
             <$ftype as NetdocParseableFields>::is_item_keyword(kw) ||
           }}
             false
@@ -911,7 +913,10 @@ define_derive_deftly! {
 
             $ITEM_SET_SELECTORS
 
-         $( let $fpatname = acc.$fname; )
+         $(
+            ${when not(F_SKIP)}
+            let $fpatname = acc.$fname;
+         )
             $FINISH_RESOLVE
         }
     }
