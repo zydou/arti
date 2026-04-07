@@ -1092,6 +1092,8 @@ impl RelayWeight {
 // XXXX move this module to after encode_impls.
 #[cfg(any(feature = "encode", feature = "parse2"))]
 mod proto_statuses_parse2_encode {
+    #[cfg(feature = "encode")]
+    use super::encode_impls::*;
     #[cfg(feature = "parse2")]
     use super::parse2_impls::*;
     use super::*;
@@ -1148,6 +1150,18 @@ mod proto_statuses_parse2_encode {
                     out.$cr.$rr = parse.[< $rr _ $cr _protocols >];
                 )*
                 Ok(out)
+            }
+        }
+
+        #[cfg(feature = "encode")]
+        impl NetdocEncodableFields for ProtoStatuses {
+            fn encode_fields(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
+              $(
+                self.$cr.$rr.write_item_value_onto(
+                    out.item(stringify!([<$rr _ $cr _protocols>]))
+                )?;
+              )*
+                Ok(())
             }
         }
     } } }
@@ -1221,7 +1235,7 @@ mod encode_impls {
     use super::*;
     use std::result::Result;
     pub(crate) use {
-        crate::encode::{ItemEncoder, ItemValueEncodable},
+        crate::encode::{ItemEncoder, ItemValueEncodable, NetdocEncodableFields, NetdocEncoder},
         tor_error::Bug,
     };
 
