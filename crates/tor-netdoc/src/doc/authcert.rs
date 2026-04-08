@@ -966,7 +966,18 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
                 dir_key_crosscert: CrossCert,
             }
 
-            let (encoded, decoded) = read_b64("testdata2/authcert-longclaw-crosscert-b64");
+            // "Encodes" a DIR_CROSS_CERT_OBJECT by simply removing the lines
+            // indicating the BEGIN and END, as the purpose is to test multiple
+            // labels.
+            let encoded = DIR_CROSS_CERT_OBJECT
+                .lines()
+                .filter(|line| !line.starts_with("-----"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let decoded = pem::parse(DIR_CROSS_CERT_OBJECT)
+                .unwrap()
+                .contents()
+                .to_vec();
 
             // Try with `SIGNATURE`.
             let cert = format!(
