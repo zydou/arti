@@ -1022,14 +1022,9 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         fn dir_auth_cert() {
             // This is longclaw.
 
-            let mut input = String::new();
-            File::open("testdata2/authcert-longclaw-full")
-                .unwrap()
-                .read_to_string(&mut input)
-                .unwrap();
-
             let res =
-                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(&input, "")).unwrap();
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, ""))
+                    .unwrap();
             assert_eq!(
                 *res.inspect_unverified().0,
                 AuthCert {
