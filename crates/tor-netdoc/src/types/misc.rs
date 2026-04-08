@@ -1546,10 +1546,17 @@ mod test {
     }
 
     #[test]
-    fn base16() -> Result<()> {
-        assert_eq!("332e313432".parse::<B16>()?.as_bytes(), &b"3.142"[..]);
-        assert_eq!("332E313432".parse::<B16>()?.as_bytes(), &b"3.142"[..]);
-        assert_eq!("332E3134".parse::<B16>()?.as_bytes(), &b"3.14"[..]);
+    fn base16() -> anyhow::Result<()> {
+        let chk = |s: &str, b: &[u8]| -> anyhow::Result<()> {
+            let parsed = s.parse::<B16>()?;
+            assert_eq!(parsed.as_bytes(), b, "{s:?}");
+            Ok(())
+        };
+
+        chk("332e313432", b"3.142")?;
+        chk("332E313432", b"3.142")?;
+        chk("332E3134", b"3.14")?;
+
         assert!("332E313".parse::<B16>().is_err());
         assert!("332G3134".parse::<B16>().is_err());
         Ok(())
