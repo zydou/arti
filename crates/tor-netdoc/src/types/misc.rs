@@ -284,8 +284,6 @@ mod b16impl {
     /// A byte array encoded in hexadecimal; prints in lowercase
     ///
     /// Both uppercase and lowercase are tolerated when parsing.
-    //
-    // XXXX Make another type that does uppercase
     #[derive(Clone, Hash, Deftly)]
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
@@ -293,6 +291,17 @@ mod b16impl {
     #[debug(r#"B16("{self}")"#)]
     #[allow(clippy::exhaustive_structs)]
     pub struct B16(pub Vec<u8>);
+
+    /// A byte array encoded in hexadecimal; prints in uppercase
+    ///
+    /// Both uppercase and lowercase are tolerated when parsing.
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[debug(r#"B16("{self}")"#)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct B16U(pub Vec<u8>);
 
     impl std::str::FromStr for B16 {
         type Err = Error;
@@ -306,10 +315,26 @@ mod b16impl {
         }
     }
 
+    impl std::str::FromStr for B16U {
+        type Err = Error;
+        fn from_str(s: &str) -> Result<Self> {
+            Ok(B16U(B16::from_str(s)?.0))
+        }
+    }
+
     impl Display for B16 {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             for c in self.as_bytes() {
                 write!(f, "{c:02x}")?;
+            }
+            Ok(())
+        }
+    }
+
+    impl Display for B16U {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            for c in self.as_bytes() {
+                write!(f, "{c:02X}")?;
             }
             Ok(())
         }
@@ -1557,6 +1582,10 @@ mod test {
             let parsed = s.parse::<B16>()?;
             assert_eq!(parsed.as_bytes(), b, "{s:?}");
             assert_eq!(parsed.to_string(), s.to_ascii_lowercase());
+
+            let parsed = s.parse::<B16U>()?;
+            assert_eq!(parsed.as_bytes(), b, "{s:?}");
+            assert_eq!(parsed.to_string(), s.to_ascii_uppercase());
             Ok(())
         };
 
