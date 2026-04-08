@@ -5,6 +5,7 @@ use std::fmt::Display;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 
+use crate::NormalItemArgument;
 use crate::types::policy::RuleKind;
 
 use super::{PolicyError, PortRange};
@@ -175,6 +176,8 @@ impl FromStr for AddrPortPattern {
         Ok(AddrPortPattern { pattern, ports })
     }
 }
+
+impl NormalItemArgument for AddrPortPattern {}
 
 /// A pattern that matches one or more IP addresses.
 //

@@ -42,3 +42,4 @@ ADDED: `RelayFamilyIds::sort()` method
 ADDED: `RelayFamilyIds::dedup()` method
 ADDED: Implement `PartialEq` and `Eq` for `AddrPolicy`
 ADDED: Implement `PartialEq` and `Eq` for `AddrPolicyRule`
+ADDED: Implement `NormalItemArgument` for `AddrPortPattern`
