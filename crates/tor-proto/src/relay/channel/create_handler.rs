@@ -85,6 +85,7 @@ impl CreateRequestHandler {
         match self.handle_create_inner(runtime, channel, circ_id, msg, memquota, circ_unique_id) {
             Ok(x) => Ok(x),
             Err(e) => {
+                // TODO(relay): The log messages throughout could be very noisy, so should have rate limiting.
                 debug_report!(&e, %cmd, "Failed to handle circuit create request");
                 Err(Destroy::new(e.destroy_reason()))
             }
@@ -101,8 +102,6 @@ impl CreateRequestHandler {
         memquota: &ChannelAccount,
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), HandleCreateError> {
-        // TODO(relay): The log messages throughout could be very noisy, so should have rate limiting.
-
         // Perform the handshake crypto and build the response.
         let handshake_components = match msg {
             CreateRequest::CreateFast(msg) => self.handle_create_fast(msg)?,
