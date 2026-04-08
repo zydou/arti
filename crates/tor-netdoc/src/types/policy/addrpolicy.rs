@@ -6,9 +6,12 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 
 use crate::NormalItemArgument;
-use crate::types::policy::RuleKind;
+#[cfg(feature = "parse2")]
+use crate::parse2::{
+    ErrorProblem as EP, ItemArgumentParseable, KeywordRef, NetdocParseableFields, UnparsedItem,
+};
 
-use super::{PolicyError, PortRange};
+use super::{PolicyError, PortRange, RuleKind};
 
 /// A sequence of rules that are applied to an address:port until one
 /// matches.
@@ -78,6 +81,31 @@ impl AddrPolicy {
     /// if accept is false, the rule rejects such addresses.
     pub fn push(&mut self, kind: RuleKind, pattern: AddrPortPattern) {
         self.rules.push(AddrPolicyRule { kind, pattern });
+    }
+}
+
+#[cfg(feature = "parse2")]
+impl NetdocParseableFields for AddrPolicy {
+    type Accumulator = AddrPolicy;
+
+    fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
+        matches!(kw.as_str(), "accept" | "reject")
+    }
+
+    fn accumulate_item(acc: &mut Self::Accumulator, mut item: UnparsedItem<'_>) -> Result<(), EP> {
+        // We must use `FromStr`, not argument parsing, because
+        // RuleKind is the keyword and not an argument.
+        let rule = RuleKind::from_str(item.keyword().as_str())
+            .map_err(|_| EP::Internal("accept/reject not a RuleKind?"))?;
+        let args = item.args_mut();
+        let pattern =
+            AddrPortPattern::from_args(args).map_err(args.error_handler("accept/reject"))?;
+        acc.push(rule, pattern);
+        Ok(())
+    }
+
+    fn finish(acc: Self::Accumulator) -> Result<Self, EP> {
+        Ok(acc)
     }
 }
 
