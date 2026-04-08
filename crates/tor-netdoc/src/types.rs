@@ -30,6 +30,8 @@ pub use parse2_encode::raw_data_object;
 
 use crate::NormalItemArgument;
 
+/// We do not expect `[ ]` around IPv6 addresses when parsing this type
+impl NormalItemArgument for std::net::IpAddr {}
 impl NormalItemArgument for std::net::Ipv4Addr {}
 impl NormalItemArgument for std::net::SocketAddr {}
 impl NormalItemArgument for std::net::SocketAddrV4 {}
