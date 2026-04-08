@@ -699,18 +699,7 @@ Yl0wCKpUZFHs5CHsajLSfXZKHkwfqRXFEJu9aMtmQdQFfqE9JOJHAgMBAAE=
                         .unwrap()
                 ))
                 .into(),
-                family: Arc::new({
-                    let mut rf = RelayFamily::new();
-                    rf.push(
-                        rsa::RsaIdentity::from_hex("6ACAECCF578C44EAA16059C3E6C206CFA6933D35")
-                            .unwrap(),
-                    );
-                    rf.push(
-                        rsa::RsaIdentity::from_hex("A0296DDC9EC50AA42ED9D477D51DD4607D7876D3")
-                            .unwrap(),
-                    );
-                    rf
-                }),
+                family: Default::default(),
                 ipv4_policy: Default::default(),
                 ipv6_policy: Default::default(),
                 ed25519_id: Ed25519Identity::from(<[u8; 32]>::from(
