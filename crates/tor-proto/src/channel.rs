@@ -51,7 +51,7 @@
 pub const CHANNEL_BUFFER_SIZE: usize = 128;
 
 pub(crate) mod circmap;
-mod handler;
+pub(crate) mod handler;
 pub(crate) mod handshake;
 pub mod kist;
 mod msg;
@@ -1182,8 +1182,6 @@ pub(crate) mod test {
     use tor_cell::chancell::msg::HandshakeType;
     use tor_cell::chancell::{AnyChanCell, msg};
     use tor_rtcompat::test_with_one_runtime;
-
-    pub(crate) use super::handler::test::MsgBuf;
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     pub(crate) fn fake_channel(

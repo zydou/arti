@@ -268,7 +268,7 @@ pub(crate) mod test {
     use tor_linkspec::RelayIds;
 
     use super::*;
-    use crate::channel::test::MsgBuf;
+    use crate::channel::handler::test::MsgBuf;
     use crate::channel::{ChannelType, new_frame};
     use crate::util::fake_mq;
     use tor_cell::chancell::msg::Netinfo;

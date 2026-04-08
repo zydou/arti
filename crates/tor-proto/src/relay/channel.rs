@@ -465,7 +465,7 @@ pub(crate) mod test {
     use tor_rtcompat::{CertifiedConn, StreamOps};
     use web_time_compat::SystemTimeExt;
 
-    use crate::channel::test::MsgBuf;
+    use crate::channel::handler::test::MsgBuf;
     use crate::relay::channel::RelayChannelAuthMaterial;
 
     /// Wrapper around [`MsgBuf`] that implements [`CertifiedConn`] which is needed by the relay
