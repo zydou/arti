@@ -103,25 +103,29 @@ define_derive_deftly! {
     ///  * `impl NormalItemArgument` if appropriate (ie the representation has no spaces)
     BytesTransparent for struct, beta_deftly:
 
-    // XXXX this code has been c&p from B64 and needs to have $-substitutions inserted
+    impl<$tgens> ConstantTimeEq for $ttype {
+        fn ct_eq(&self, other: &$ttype) -> Choice {
+          $(
+            ${loop_exactly_1 "BytesTransparent must be applied to a single-field struct"}
 
-    impl ConstantTimeEq for B64 {
-        fn ct_eq(&self, other: &B64) -> Choice {
-            self.0.ct_eq(&other.0)
+            self.$fname.ct_eq(&other.$fname)
+          )
         }
     }
-    /// `B64` is `Eq` via its constant-time implementation.
-    impl PartialEq for B64 {
-        fn eq(&self, other: &B64) -> bool {
+    $/// `$tname` is `Eq` via its constant-time implementation.
+    impl<$tgens> PartialEq for $ttype {
+        fn eq(&self, other: &$ttype) -> bool {
             self.ct_eq(other).into()
         }
     }
-    impl Eq for B64 {}
+    impl<$tgens> Eq for $ttype {}
 
-    impl B64 {
+    impl<$tgens> $ttype {
         /// Return the byte array from this object.
         pub fn as_bytes(&self) -> &[u8] {
-            &self.0[..]
+          $(
+            &self.$fname[..]
+          )
         }
     }
 }
