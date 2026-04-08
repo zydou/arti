@@ -593,16 +593,20 @@ pub struct SharedRandStatus {
 pub struct DirSource {
     /// human-readable nickname for this authority.
     pub nickname: String,
+
     /// Fingerprint for the _authority_ identity key of this
     /// authority.
     ///
     /// This is the same key as the one that signs the authority's
     /// certificates.
     pub identity: RsaIdentity,
+
     /// IP address for the authority
     pub ip: net::IpAddr,
+
     /// HTTP directory port for this authority
     pub dir_port: u16,
+
     /// OR port for this authority.
     pub or_port: u16,
 }
