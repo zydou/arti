@@ -201,12 +201,9 @@ impl CreateRequestHandler {
 
         // TODO(relay): I'm not sure if this is the right way to do this. It works for
         // CREATE_FAST, but we might want to rethink it for CREATE2.
-        let hop_settings = HopSettings::from_params_and_caps(
-            HopNegotiationType::None,
-            &circ_params,
-            &protos,
-        )
-        .map_err(into_internal!("Unable to build `HopSettings`"))?;
+        let hop_settings =
+            HopSettings::from_params_and_caps(HopNegotiationType::None, &circ_params, &protos)
+                .map_err(into_internal!("Unable to build `HopSettings`"))?;
 
         let response = CreatedFast::new(handshake_msg);
         let response = CreateResponse::CreatedFast(response);
