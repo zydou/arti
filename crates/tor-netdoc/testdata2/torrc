@@ -24,8 +24,7 @@ TestingMinExitFlagThreshold 0
 #Default VoteOnHidServDirectoriesV2 1
 
 ## Options that we always want to test ##
-DataDirectory /builds/tpo/core/arti/nodes.946684805/000a
-RunAsDaemon 1
+DataDirectory /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a
 ConnLimit 60
 Nickname test000a
 # Let tor close connections gracefully before exiting
@@ -33,16 +32,15 @@ ShutdownWaitLength 2
 DisableDebuggerAttachment 0
 
 AddressDisableIPv6 1
-ControlPort 8000
 # Use ControlSocket rather than ControlPort unix: to support older tors
 ControlSocket 0
 CookieAuthentication 1
-PidFile /builds/tpo/core/arti/nodes.946684805/000a/pid
+PidFile /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a/pid
 
-Log notice file /builds/tpo/core/arti/nodes.946684805/000a/notice.log
-Log info file /builds/tpo/core/arti/nodes.946684805/000a/info.log
+Log notice file /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a/notice.log
+Log info file /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a/info.log
 # Turn this off to save space
-#Log debug file /builds/tpo/core/arti/nodes.946684805/000a/debug.log
+#Log debug file /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a/debug.log
 ProtocolWarnings 1
 SafeLogging 0
 LogTimeGranularity 1
@@ -59,17 +57,18 @@ Sandbox 0
 # disabled)
 #__OwningControllerProcess 0
 
+UseMicrodescriptors 1
 SocksPort 0
 DnsPort 0
-
-UseMicrodescriptors 1
+ControlPort 127.0.0.1:8000
+RunAsDaemon 1
 Address 127.0.0.1
 OrPort 127.0.0.1:5100
-AlternateDirAuthority test000a no-v2 orport=5100 v3ident=1724402CE2D54399C61B99FD663987E74F3FBC3B 127.0.0.1:7100 434981794F07ABD6EB4A646BFD8FA0277606932F
-AlternateDirAuthority test001a no-v2 orport=5101 v3ident=CBC82F96A5000A5FE0D6FB69519B79EA0C03EBE1 127.0.0.1:7101 84206251C5B65C6272BE9D7B5516306FCC7A81EC
-AlternateDirAuthority test002a no-v2 orport=5102 v3ident=771234538D81E6291F6D0787D3B18C69FB958B3D 127.0.0.1:7102 CB72A3C70A0F5EDE59C72720C98E9B9A60609620
-AlternateDirAuthority test003a no-v2 orport=5103 v3ident=170F4FAA8EE1142794255A006560E2E8E5B759D9 127.0.0.1:7103 C19FF3872B24998FB3EE50C154E9B9C0F61BE433
-AlternateBridgeAuthority test007ba no-v2 orport=5107 bridge 127.0.0.1:7107 5042DA9D45DAB39C1991857CB377A11421458185
+AlternateDirAuthority test000a no-v2 orport=5100 v3ident=D190BF3B00E311A9AEB6D62B51980E9B2109BAD1 127.0.0.1:7100 27B266A22CF681C0BBAB6405EE5D758C55E71A0E
+AlternateDirAuthority test001a no-v2 orport=5101 v3ident=0B8997614EC647C1C6B6A044E2B5408F0B823FB0 127.0.0.1:7101 E4F20D06750C715AD9F5E2D680A2C184160F9E8A
+AlternateDirAuthority test002a no-v2 orport=5102 v3ident=5B591AD684C1AB8E0AB76C839E93FD097526A4BC 127.0.0.1:7102 257D06F0360BB2246388724F109EC0895A1D41FB
+AlternateDirAuthority test003a no-v2 orport=5103 v3ident=8A1777F0BF97344A7ABB97530EEEE38A5BDE8A4D 127.0.0.1:7103 36FAE655AF6AEC5DBF2A4C515E474BF516DACB2F
+AlternateBridgeAuthority test009ba no-v2 orport=5109 bridge 127.0.0.1:7109 C743616FB4AF4AE4430E4F36AD75E6531F5CAE45
 
 ExitRelay 0
 

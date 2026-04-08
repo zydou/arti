@@ -843,9 +843,7 @@ mod test {
         use super::{AuthCert, AuthCertUnverified, AuthCertVersion, CrossCert, CrossCertObject};
 
         use std::{
-            fs::File,
-            io::Read,
-            path::Path,
+            net::{Ipv4Addr, SocketAddrV4},
             str::FromStr,
             time::{Duration, SystemTime},
         };
@@ -855,33 +853,79 @@ mod test {
             types::{self, Iso8601TimeSp},
         };
 
-        use base64ct::{Base64, Encoding};
         use derive_deftly::Deftly;
         use tor_llcrypto::pk::rsa::{self, RsaIdentity};
 
-        /// Reads a b64 encoded file and returns its content encoded and decoded.
-        fn read_b64<P: AsRef<Path>>(path: P) -> (String, Vec<u8>) {
-            let mut encoded = String::new();
-            File::open(path)
-                .unwrap()
-                .read_to_string(&mut encoded)
-                .unwrap();
-            let mut decoded = Vec::new();
-            base64ct::Decoder::<Base64>::new_wrapped(encoded.as_bytes(), 64)
-                .unwrap()
-                .decode_to_end(&mut decoded)
-                .unwrap();
+        // === AUTHCERT D190BF3B00E311A9AEB6D62B51980E9B2109BAD1 ===
+        // These values come from testdata2/keys/authority_certificate.
+        const DIR_KEY_PUBLISHED: &str = "2000-01-01 00:00:05";
+        const DIR_KEY_EXPIRES: &str = "2001-01-01 00:00:05";
+        const FINGERPRINT: &str = "D190BF3B00E311A9AEB6D62B51980E9B2109BAD1";
+        const DIR_ADDRESS: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7100);
+        const DIR_IDENTITY_KEY: &str = "
+-----BEGIN RSA PUBLIC KEY-----
+MIIBigKCAYEAt0rXD+1gYwKFAxrO4uNHQ9dQVUOGx5FxkioYNSct5Z3JU00dTKNJ
+jt4OGkFYwixWwk6KLDOiB+I/q9YIdA1NlQ5R3Hz8jjvFPVl0JQQm2LYzdSzv7/CZ
+U1qq5rYeeoYKx8qMQg4q3WgR251GEnOG+rVqzFSs0oyC+SDfYn9iMt00/pmN3HXf
+wmasY6BescVrYoDbnpkwKATizd4lzx5K8V8aXUXtd8qnYzSyHLlhiO1eufVX07YC
++AVHV7W7qCTY/4I5Sm0dQ9jF/r04JBHnpH+aae48JOjWDCZj9AINi3rCKS8XClGb
+BB/LJidoQAZraQEEtu3Ql1mjdLreeyWfXpfZFvwKuYn44FtQsOT2TVAVNqNF8N4v
+yfwfiPN6FQWlPyMCEB81HerCn03Zi5WgQLGo7PAeO4LFrLrU16DUC5/oJENeHs0T
+27FZQyrlf0rAxiHh7TJKcjLmzeyxCQVQlr2AXXs28gKHV0AQnEcdrVOpTrquSCQQ
+hWBehR+ct4OJAgMBAAE=
+-----END RSA PUBLIC KEY-----
+    ";
+        const DIR_SIGNING_KEY: &str = "
+-----BEGIN RSA PUBLIC KEY-----
+MIIBCgKCAQEAtPF94+bThLI28kn6e+MmUECMMJ5UBlnQ+Mvwn8Zd85awPQTDz5Wu
+13sZDN3nWnhgSuP5q/WDYc5GPPtQdSWBiG1nJA2XLgEHTHf29iGZ+jAoGfIMJvBV
+1xN8baTnsha5LGx5BQ4UqzlUmoaPzwbjehnPd00FgVkpcCvKZu1HU7fGMVwn4MMh
+zuxJTqTgfcuFWTEu0H0ukOFX+51ih6WO3GWYqRiqgU0Q5/Ets8ccCTq7ND9d2u1P
+d7kQzUHbVP0KmYGK4qYntGDfP4g9SmpBoUUHyP3j9en9S6PMYv8m1YFO7M7JKu6Q
+dQZfGTxj9C/0b/jRklgn5JlKAl9eJQvCdwIDAQAB
+-----END RSA PUBLIC KEY-----
+";
+        const DIR_CROSS_CERT_OBJECT: &str = "
+-----BEGIN ID SIGNATURE-----
+NBaPdBNCNMah6cklrALzj0RdHymF/jPGOv9NmeqaXc0uTN06S/BlVM/xTjilu+dj
+sjPuT0BQL4/ZWyZR+R+gJJojKYILSId4IQ1elzRSxpFN+u2u/ZEmS6SR2SwpA05A
+btOYBKAmYkY6rLsTCbXGx3lAH2kAXfcrltCNKZXV6gqW7X379fiOnSId1OWhKPe1
+/1p3pQGZxgb8FOT1kpHxOMRBClF9Ulm3d9fQZr80Wn73gZ2Bp1RXn9c7c/71HD1c
+mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
+8HK5TzuknWlkRv3hCyRX+g==
+-----END ID SIGNATURE-----
+";
+        const AUTHCERT_RAW: &str = include_str!("../../testdata2/keys/authority_certificate");
+        /// A system time in the range of [`DIR_KEY_PUBLISHED`] and [`DIR_KEY_EXPIRES`].
+        ///
+        /// Constructed by ourselves to have a time point we can use for testing
+        /// timestamp verification.
+        const VALID_SYSTEM_TIME: &str = "2000-06-01 00:00:00";
 
-            (encoded, decoded)
+        // === AUTHCERT 0B8997614EC647C1C6B6A044E2B5408F0B823FB0 ===
+        // This values come from ../../testdata2/cached-certs--1
+        // A different authority certificate different from the one above.
+        const ALTERNATIVE_AUTHCERT_RAW: &str = include_str!("../../testdata2/cached-certs--1");
+
+        /// Converts a string in the [`Iso8601TimeSp`] format to [`SystemTime`].
+        ///
+        /// This functions panics in the case the input is malformatted.
+        fn to_system_time(s: &str) -> SystemTime {
+            Iso8601TimeSp::from_str(s).unwrap().0
         }
 
-        /// Converts PEM to DER (without BEGIN and END lines).
-        fn to_der(s: &str) -> Vec<u8> {
-            let mut r = Vec::new();
-            for line in s.lines() {
-                r.extend(Base64::decode_vec(line).unwrap());
-            }
-            r
+        /// Converts a PEM encoded RSA Public key to an [`rsa::PublicKey`].
+        ///
+        /// This function panics in the case the input is malformatted.
+        fn pem_to_rsa_pk(s: &str) -> rsa::PublicKey {
+            rsa::PublicKey::from_der(pem::parse(s).unwrap().contents()).unwrap()
+        }
+
+        /// Converts a hex-encoded RSA identity to an [`RsaIdentity`].
+        ///
+        /// This function panics in the case the input is malformatted.
+        fn to_rsa_id(s: &str) -> RsaIdentity {
+            RsaIdentity::from_hex(s).unwrap()
         }
 
         /// Tests whether a [`DirKeyCrossCert`] can be parsed properly.
@@ -893,7 +937,18 @@ mod test {
                 dir_key_crosscert: CrossCert,
             }
 
-            let (encoded, decoded) = read_b64("testdata2/authcert-longclaw-crosscert-b64");
+            // "Encodes" a DIR_CROSS_CERT_OBJECT by simply removing the lines
+            // indicating the BEGIN and END, as the purpose is to test multiple
+            // labels.
+            let encoded = DIR_CROSS_CERT_OBJECT
+                .lines()
+                .filter(|line| !line.starts_with("-----"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let decoded = pem::parse(DIR_CROSS_CERT_OBJECT)
+                .unwrap()
+                .contents()
+                .to_vec();
 
             // Try with `SIGNATURE`.
             let cert = format!(
@@ -957,37 +1012,25 @@ mod test {
 
         #[test]
         fn dir_auth_cert() {
-            // This is longclaw.
-
-            let mut input = String::new();
-            File::open("testdata2/authcert-longclaw-full")
-                .unwrap()
-                .read_to_string(&mut input)
-                .unwrap();
-
             let res =
-                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(&input, "")).unwrap();
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, ""))
+                    .unwrap();
             assert_eq!(
                 *res.inspect_unverified().0,
                 AuthCert {
                     dir_key_certificate_version: AuthCertVersion::V3,
-                    dir_address: None,
-                    fingerprint: types::Fingerprint(
-                        RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()
-                    ),
-                    dir_key_published: Iso8601TimeSp::from_str("2025-08-17 20:34:03").unwrap(),
-                    dir_key_expires: Iso8601TimeSp::from_str("2026-08-17 20:34:03").unwrap(),
-                    dir_identity_key: rsa::PublicKey::from_der(&to_der(include_str!(
-                        "../../testdata2/authcert-longclaw-id-rsa"
-                    )))
-                    .unwrap(),
-                    dir_signing_key: rsa::PublicKey::from_der(&to_der(include_str!(
-                        "../../testdata2/authcert-longclaw-sign-rsa"
-                    )))
-                    .unwrap(),
+                    dir_address: Some(DIR_ADDRESS),
+                    fingerprint: types::Fingerprint(to_rsa_id(FINGERPRINT)),
+                    dir_key_published: Iso8601TimeSp(to_system_time(DIR_KEY_PUBLISHED)),
+                    dir_key_expires: Iso8601TimeSp(to_system_time(DIR_KEY_EXPIRES)),
+                    dir_identity_key: pem_to_rsa_pk(DIR_IDENTITY_KEY),
+                    dir_signing_key: pem_to_rsa_pk(DIR_SIGNING_KEY),
                     dir_key_crosscert: CrossCert {
                         signature: CrossCertObject(
-                            read_b64("testdata2/authcert-longclaw-crosscert-b64").1
+                            pem::parse(DIR_CROSS_CERT_OBJECT)
+                                .unwrap()
+                                .contents()
+                                .to_vec()
                         )
                     },
                     __non_exhaustive: (),
@@ -997,21 +1040,17 @@ mod test {
 
         #[test]
         fn dir_auth_signature() {
-            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
-                include_str!("../../testdata2/authcert-longclaw-full"),
-                "",
-            ))
-            .unwrap();
+            let res =
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, ""))
+                    .unwrap();
 
             // Test a valid signature.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1762946693)) // Wed Nov 12 12:24:53 CET 2025
-                        .unwrap(),
+                    to_system_time(VALID_SYSTEM_TIME),
                 )
                 .unwrap();
 
@@ -1022,9 +1061,7 @@ mod test {
                         &[],
                         Duration::ZERO,
                         Duration::ZERO,
-                        SystemTime::UNIX_EPOCH
-                            .checked_add(Duration::from_secs(1762946693)) // Wed Nov 12 12:24:53 CET 2025
-                            .unwrap(),
+                        to_system_time(VALID_SYSTEM_TIME),
                     )
                     .unwrap_err(),
                 VerifyFailed::InsufficientTrustedSigners
@@ -1034,10 +1071,7 @@ mod test {
             assert_eq!(
                 res.clone()
                     .verify(
-                        &[
-                            RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
-                                .unwrap()
-                        ],
+                        &[to_rsa_id(FINGERPRINT)],
                         Duration::ZERO,
                         Duration::ZERO,
                         SystemTime::UNIX_EPOCH,
@@ -1049,12 +1083,10 @@ mod test {
             // Test an almost too new.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1755462843)) // 2025-08-17 20:34:03
-                        .unwrap(),
+                    to_system_time(DIR_KEY_PUBLISHED),
                 )
                 .unwrap();
 
@@ -1062,15 +1094,10 @@ mod test {
             assert_eq!(
                 res.clone()
                     .verify(
-                        &[
-                            RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
-                                .unwrap()
-                        ],
+                        &[to_rsa_id(FINGERPRINT)],
                         Duration::ZERO,
                         Duration::ZERO,
-                        SystemTime::UNIX_EPOCH
-                            .checked_add(Duration::from_secs(1755462842)) // 2025-08-17 20:34:02
-                            .unwrap(),
+                        to_system_time(DIR_KEY_PUBLISHED) - Duration::from_secs(1),
                     )
                     .unwrap_err(),
                 VerifyFailed::TooNew
@@ -1079,12 +1106,10 @@ mod test {
             // ... but succeed again with a clock skew tolerance.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::from_secs(1),
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1755462842)) // 2025-08-17 20:34:02
-                        .unwrap(),
+                    to_system_time(DIR_KEY_PUBLISHED) - Duration::from_secs(1),
                 )
                 .unwrap();
 
@@ -1092,10 +1117,7 @@ mod test {
             assert_eq!(
                 res.clone()
                     .verify(
-                        &[
-                            RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
-                                .unwrap()
-                        ],
+                        &[to_rsa_id(FINGERPRINT)],
                         Duration::ZERO,
                         Duration::ZERO,
                         SystemTime::UNIX_EPOCH
@@ -1109,12 +1131,10 @@ mod test {
             // Test an almost too old.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1786998843)) // 2026-08-17 20:34:03
-                        .unwrap(),
+                    to_system_time(DIR_KEY_EXPIRES),
                 )
                 .unwrap();
 
@@ -1122,15 +1142,10 @@ mod test {
             assert_eq!(
                 res.clone()
                     .verify(
-                        &[
-                            RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
-                                .unwrap()
-                        ],
+                        &[to_rsa_id(FINGERPRINT)],
                         Duration::ZERO,
                         Duration::ZERO,
-                        SystemTime::UNIX_EPOCH
-                            .checked_add(Duration::from_secs(1786998844)) // 2026-08-17 20:34:04
-                            .unwrap(),
+                        to_system_time(DIR_KEY_EXPIRES) + Duration::from_secs(1),
                     )
                     .unwrap_err(),
                 VerifyFailed::TooOld
@@ -1139,67 +1154,61 @@ mod test {
             // ... but succeed again with a clock skew tolerance.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::from_secs(1),
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1786998844)) // 2026-08-17 20:34:04
-                        .unwrap(),
+                    to_system_time(DIR_KEY_EXPIRES) + Duration::from_secs(1),
                 )
                 .unwrap();
 
             // Check with non-matching fingerprint and long-term identity key.
-            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
-                include_str!("../../testdata2/authcert-longclaw-full-invalid-id-rsa"),
+            let mut cert =
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, ""))
+                    .unwrap();
+            let alternative_cert = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
+                ALTERNATIVE_AUTHCERT_RAW,
                 "",
             ))
             .unwrap();
+            cert.body.dir_identity_key = alternative_cert.body.dir_identity_key.clone();
             assert_eq!(
-                res.verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                cert.verify(
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1762946693)) // Wed Nov 12 12:24:53 CET 2025
-                        .unwrap(),
+                    to_system_time(VALID_SYSTEM_TIME),
                 )
                 .unwrap_err(),
                 VerifyFailed::Inconsistent
             );
 
             // Check invalid cross-cert.
-            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
-                include_str!("../../testdata2/authcert-longclaw-full-invalid-cross"),
-                "",
-            ))
-            .unwrap();
+            let mut cert =
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, ""))
+                    .unwrap();
+            cert.body.dir_key_crosscert = alternative_cert.body.dir_key_crosscert.clone();
             assert_eq!(
-                res.verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                cert.verify(
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1762946693)) // Wed Nov 12 12:24:53 CET 2025
-                        .unwrap(),
+                    to_system_time(VALID_SYSTEM_TIME),
                 )
                 .unwrap_err(),
                 VerifyFailed::VerifyFailed
             );
 
             // Check outer signature.
-            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
-                include_str!("../../testdata2/authcert-longclaw-full-invalid-certification"),
-                "",
-            ))
-            .unwrap();
+            let mut cert =
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, ""))
+                    .unwrap();
+            cert.sigs = alternative_cert.sigs.clone();
             assert_eq!(
-                res.verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                cert.verify(
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1762946693)) // Wed Nov 12 12:24:53 CET 2025
-                        .unwrap(),
+                    to_system_time(VALID_SYSTEM_TIME),
                 )
                 .unwrap_err(),
                 VerifyFailed::VerifyFailed

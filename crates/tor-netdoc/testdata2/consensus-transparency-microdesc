@@ -1,9 +1,9 @@
-network-status-version 3
+network-status-version 3 microdesc
 vote-status consensus
 consensus-method 35
-valid-after 2000-01-01 00:02:40
-fresh-until 2000-01-01 00:03:00
-valid-until 2000-01-01 00:03:20
+valid-after 2000-01-01 00:02:20
+fresh-until 2000-01-01 00:02:40
+valid-until 2000-01-01 00:03:00
 voting-delay 4 4
 client-versions 
 server-versions 
@@ -15,57 +15,57 @@ required-relay-protocols Cons=2 Desc=2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4
 params AuthDirMaxServersPerAddr=0 cc_alg=2
 dir-source test001a 0B8997614EC647C1C6B6A044E2B5408F0B823FB0 127.0.0.1 127.0.0.1 7101 5101
 contact auth1@test.test
-vote-digest 5DB524FB33D78CC2F6CBB7E6E4679FAA6B792454
+vote-digest 0F969E10E0DDCD0602509D30AB80792F076E73F6
 dir-source test002a 5B591AD684C1AB8E0AB76C839E93FD097526A4BC 127.0.0.1 127.0.0.1 7102 5102
 contact auth2@test.test
-vote-digest BE25CF5B17BA5332D846072343CB5BB74BEFD510
+vote-digest 116A2832D13CB42B2B2EA3CCBF7B14AD2A64C0F2
 dir-source test003a 8A1777F0BF97344A7ABB97530EEEE38A5BDE8A4D 127.0.0.1 127.0.0.1 7103 5103
 contact auth3@test.test
-vote-digest 83550B1B78804346DCD67F9FBAB1424442BE39B5
+vote-digest 0C9BD6175CFA5C012E0174EC6AE0142BEF262819
 dir-source test000a D190BF3B00E311A9AEB6D62B51980E9B2109BAD1 127.0.0.1 127.0.0.1 7100 5100
 contact auth0@test.test
-vote-digest 1A58F2F88C8007C6F77E91E74947561B3EDC2346
-r test002a JX0G8DYLsiRjiHJPEJ7AiVodQfs qnWaY8X49fehOPZQPpk95WY/sBg 2000-01-01 00:01:33 127.0.0.1 5102 7102
+vote-digest 28D583E19C133987887FE45DB0407BB31F588447
+r test002a JX0G8DYLsiRjiHJPEJ7AiVodQfs 2038-01-01 00:00:00 127.0.0.1 5102 7102
+m vLfl33OgtMN89WPVnORZlZQj2SPFfSNvJHZ4ZNtAPec
 s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
 v Tor 0.4.9.6
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
 w Bandwidth=208 Unmeasured=1
-p reject 1-65535
-r test000a J7Jmoiz2gcC7q2QF7l11jFXnGg4 tt86iigIQJFoPkBJ8EcCVHHiX3M 2000-01-01 00:01:21 127.0.0.1 5100 7100
+r test000a J7Jmoiz2gcC7q2QF7l11jFXnGg4 2038-01-01 00:00:00 127.0.0.1 5100 7100
+m qs2npQPRC/TuQ2kRyUGSX6JvyxkiWwdLCC23tASvOQU
 s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
 v Tor 0.4.9.6
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
 w Bandwidth=72 Unmeasured=1
-p reject 1-65535
-r test005r NpsC/Qajorf0HDG53xoR8tAj68Y kXyUTUFyE86ri0Kiw8ZL3BjdhVk 2000-01-01 00:00:33 127.0.0.1 5105 0
+r test005r NpsC/Qajorf0HDG53xoR8tAj68Y 2038-01-01 00:00:00 127.0.0.1 5105 0
+m tX0nZuP+B1VRD4ZGH9ogjfFpNR5palNBVdjLzOXpMXo
 s Exit Fast Guard HSDir Running V2Dir Valid
 v Tor 0.4.9.6
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
 w Bandwidth=55 Unmeasured=1
-p accept 1-65535
-r test003a NvrmVa9q7F2/KkxRXkdL9Rbayy8 055QcwVbixtcBDAj6YIbb6JqaYc 2000-01-01 00:01:21 127.0.0.1 5103 7103
+r test003a NvrmVa9q7F2/KkxRXkdL9Rbayy8 2038-01-01 00:00:00 127.0.0.1 5103 7103
+m AR+VfzxgMuwKAdDVxrbYB6DpMV4QGuPyyF8OYUtooGA
 s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
 v Tor 0.4.9.6
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
 w Bandwidth=71 Unmeasured=1
-p reject 1-65535
-r test004r N9Rp/Aov2IkdNJ5/2bOiT70NiN4 7PYHCH/TJ2P/VrY7O4s8gCH7wXE 2000-01-01 00:01:33 127.0.0.1 5104 0
+r test004r N9Rp/Aov2IkdNJ5/2bOiT70NiN4 2038-01-01 00:00:00 127.0.0.1 5104 0
+m BJDG+1sNQ2K1Wx+RBwSeYrXy+FYLcGnpqjlZd2XzpwA
 s Exit Fast Guard HSDir Running V2Dir Valid
 v Tor 0.4.9.6
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
 w Bandwidth=176 Unmeasured=1
-p accept 1-65535
-r test009ba x0Nhb7SvSuRDDk82rXXmUx9crkU 8KxZeEHrPecbz5kRIF7r0WQMn8w 2000-01-01 00:01:21 127.0.0.1 5109 7109
+r test009ba x0Nhb7SvSuRDDk82rXXmUx9crkU 2038-01-01 00:00:00 127.0.0.1 5109 7109
+m vwkD7DCoGD1MqU7YoxxzmP/n35/78NtjmqkA3tBa834
 s Authority Exit Fast Guard HSDir Running V2Dir Valid
 v Tor 0.4.9.6
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
 w Bandwidth=58 Unmeasured=1
-p reject 1-65535
-r test001a 5PINBnUMcVrZ9eLWgKLBhBYPnoo mVUQgxeyqS80XJTkTehoi/G3L5s 2000-01-01 00:01:21 127.0.0.1 5101 7101
+r test001a 5PINBnUMcVrZ9eLWgKLBhBYPnoo 2038-01-01 00:00:00 127.0.0.1 5101 7101
+m oHwFYBlgQFBs+Pah+m7UQESASefg7mq+GblT+roGuCw
 s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
 v Tor 0.4.9.6
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
 w Bandwidth=73 Unmeasured=1
-p reject 1-65535
 directory-footer
 bandwidth-weights Wbd=3333 Wbe=0 Wbg=0 Wbm=10000 Wdb=10000 Web=10000 Wed=3333 Wee=10000 Weg=3333 Wem=10000 Wgb=10000 Wgd=3333 Wgg=10000 Wgm=10000 Wmb=10000 Wmd=3333 Wme=0 Wmg=0 Wmm=10000

@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 #
 # usage:
-#   crates/tor-netdoc/testdata2/DOWNLOAD \
+#   testdata2-download \
 #       https://gitlab.torproject.org/tpo/core/arti/-/jobs/1060037/artifacts/download
 #
 # The URL is the "download artifacts archive link"
 # for an integration-chutney-shadow job.
+#
+# This has to be run inside the git repository!
 #
 # Note!  It is quite possible that this will break if the structure of
 # the shadow tests in CI changes.  If that happens, you need to adjust this
@@ -26,7 +28,11 @@ esac
 
 url="$1"; shift
 
-out=crates/tor-netdoc/testdata2
+root="$(git rev-parse --show-toplevel)"
+out="$root/crates/tor-netdoc/testdata2"
+
+# switch to the repositories' root to avoid surprises
+cd "$root"
 
 #----- download zipfile and cd into the one node we are interested in -----
 
@@ -36,8 +42,9 @@ cd tmp
 
 wget -O ci.zip "$url"
 
-unzip -q ci.zip nodes.\*
+unzip -q ci.zip shadow.chutney.data/hosts/host/nodes.\*
 
+cd shadow.chutney.data/hosts/host
 cd nodes.* # will give "too many arguments" if there were several
 cd 000a
 
@@ -50,6 +57,11 @@ All files in this directory are automatically maintained.
 
 Downloaded and massaged by $0
 From CI data at "$url"
+
+Changing the files in this directory may lead tests to fail.
+This is because they hardcode certain values expected to appear in certain
+netdocs.  The way to solve this should be a simple copy-and-paste of the
+relevant data into the failing tests.
 END
 
 # v3-status-votes is the votes concatenated, etc.
@@ -69,15 +81,28 @@ split-file () {
 split-file v3-status-votes network-status-version
 split-file cached-certs dir-key-certificate-version
 
+# cached-descriptors.new and cached-microdescs.new contain lines starting with
+# "@", which ctor uses to store meta information; we want to remove those.
+
+patch_atline () {
+    local f=$1
+
+    # use sed(1) with `-i ''` because that is a macOS compat thing.
+    sed -i '' '/^@/d' "$f"
+}
+
+patch_atline cached-descriptors.new
+patch_atline cached-microdescs.new
+
 #----- install -----
 
 chmod -R a+r,u+w .
 
-rm -rf ../../../"$out"
-mkdir ../../../"$out"
-mv -- * ../../../"$out"
+rm -rf "$out"
+mkdir "$out"
+mv -- * "$out"
 
-cd ../../..
+cd "$root"
 rm -rf tmp
 
 echo "Updated $out.  Don't forget to git add."

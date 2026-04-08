@@ -26,7 +26,7 @@ use humantime::parse_rfc3339;
 fn parse_consensus_ns() -> anyhow::Result<()> {
     let file = "testdata2/cached-consensus";
     let text = fs::read_to_string(&file)?;
-    let now = parse_rfc3339("2000-01-01T00:02:05Z")?;
+    let now = parse_rfc3339("2000-01-01T00:02:25Z")?;
 
     let input = ParseInput::new(&text, file);
     let doc: netstatus::NetworkStatusUnverifiedNs = parse_netdoc(&input)?;
@@ -75,7 +75,7 @@ fn parse_authcert() -> anyhow::Result<()> {
     println!("{doc:?}");
     assert_eq!(
         doc.fingerprint.0.to_string(),
-        "$cbc82f96a5000a5fe0d6fb69519b79ea0c03ebe1",
+        "$0b8997614ec647c1c6b6a044e2b5408f0b823fb0",
     );
     Ok(())
 }

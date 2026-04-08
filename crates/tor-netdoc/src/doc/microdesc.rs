@@ -663,8 +663,6 @@ mod test {
     /// replaced by a copy and paste in the case one replaces the testdata2
     /// vector's in the future.
     #[test]
-    // TODO DIRMIRROR: We want to not ignore this.
-    #[ignore]
     #[cfg(feature = "parse2")]
     fn parse2() {
         use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -685,84 +683,67 @@ mod test {
                 onion_key: OnionKeyIntro(rsa::PublicKey::from_der(
                     pem::parse(
                         "
-                        -----BEGIN RSA PUBLIC KEY-----
-                        MIGJAoGBAMsWdLPyNVQnNeEIkFo180+8cYJIg9mFk3J4E5MByj6+tMRvuaP1TapM
-                        Farg0yfSG585hj3RerPOtERoqSlKoZy8NyJG5TdayfT65hHIEWxbkXypj55IKkFf
-                        O2E4+q4pOc2wV2d8p54c5jDLf7Qw+U7io9MXJsy1m8BQwDmEQBIfAgMBAAE=
-                        -----END RSA PUBLIC KEY-----
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBANF8Zgxp8amY1esYdPj2Ada1ORiVB/A4sgKLQ5ij/wsasO3yjjLcvHRB
+UJ0mAQWql/nauvjnKUeZFcGm3t7q0v3F9uUsOGTAZ/IKh31UQAm5OS/TJyf8IHky
+Yl0wCKpUZFHs5CHsajLSfXZKHkwfqRXFEJu9aMtmQdQFfqE9JOJHAgMBAAE=
+-----END RSA PUBLIC KEY-----
                         "
                     )
                     .unwrap()
                     .contents()
                 )),
                 sha256: [0; 32],
-                ntor_onion_key: curve25519::PublicKey::from([
-                    184, 138, 153, 120, 194, 74, 182, 46, 83, 41, 253, 9, 159, 245, 234, 210, 227,
-                    45, 218, 104, 244, 91, 17, 49, 200, 147, 68, 175, 8, 31, 152, 117
-                ])
+                ntor_onion_key: curve25519::PublicKey::from(<[u8; 32]>::from(
+                    FixedB64::<32>::from_str("I1S8JfcqPPHWVTxfjq/eGmGiu/OtR+fF0Z86Ge1mq3s")
+                        .unwrap()
+                ))
                 .into(),
-                family: Arc::new({
-                    let mut rf = RelayFamily::new();
-                    rf.push(
-                        rsa::RsaIdentity::from_hex("6ACAECCF578C44EAA16059C3E6C206CFA6933D35")
-                            .unwrap(),
-                    );
-                    rf.push(
-                        rsa::RsaIdentity::from_hex("A0296DDC9EC50AA42ED9D477D51DD4607D7876D3")
-                            .unwrap(),
-                    );
-                    rf
-                }),
+                family: Default::default(),
                 ipv4_policy: Default::default(),
                 ipv6_policy: Default::default(),
-                ed25519_id: Ed25519Identity::from_bytes(&[
-                    237, 209, 188, 66, 237, 200, 186, 192, 178, 198, 125, 179, 110, 108, 62, 8, 36,
-                    89, 83, 230, 181, 94, 89, 217, 95, 217, 10, 16, 117, 79, 54, 27
-                ])
-                .unwrap()
+                ed25519_id: Ed25519Identity::from(<[u8; 32]>::from(
+                    FixedB64::<32>::from_str("yhO6nETO5AUdvJbLgPnw4mFjozGXWMCqOp30nY6nM8E")
+                        .unwrap()
+                ))
                 .into(),
                 family_ids: Default::default(),
             }
         );
+    }
+
+    /// Manual test for happy families.
+    // TODO: This should be included in testdata2/ but that would require the
+    // chutney/shadow integration test to actually do families at all.
+    #[test]
+    #[cfg(feature = "parse2")]
+    fn parse2_happy_family() {
+        use tor_llcrypto::pk::ed25519::Ed25519Identity;
+
+        use crate::parse2::{self, ParseInput};
+        use std::iter;
+
+        // A microdescriptor taken from the wild containing happy families.
+        const MICRODESC: &str = "\
+onion-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAMk57F7qGHVadBJ6m4028w13I1Qk67Ee0JU88w7NObKBph3DQYjgYs4e
+eUdiW4Gdsx8w/xOuK0foCo0O8Iqq5MXtVcpUP/N+5uB7SVvGdJFsKw21KdIc6v8g
+ACZAijw5ZPOdhLbyLQyFHNV8zXUov1dlx/Fb9M3lPMVevnDbuKM5AgMBAAE=
+-----END RSA PUBLIC KEY-----
+ntor-onion-key fhhP23UKD4L2jehA5gopAo5b6NSoB+kZN5Q4ULv3Zww
+family $4CFFD403DAB89A689F3FDB80B5366E46D879E736 $4D6C1486939A42D7FFE69BCD9F3FDAA86C743433 $73955E6A69BA5E0827F48206CAD78C045BBE8873 $8DBA9ADCA5B3A3AB6D2B4F88AC2F96614D33DAB3 $B29E3E30443F897F48B86765F1BC1DB917F5DF46 $CD642E7E722979580B6D631697772C0B72BCF25C $D9E7B6A73C8278274081B77D373ECCE4552E75FB $F2515315FE0DB7456194CABC503B526B49951415
+family-ids ed25519:b54cKgML0ykRyhdIRcq1xtW19iEVsMYnGNbdY+vvcas
+id ed25519 /MU/FVKRGcZAy8XFnzLS6Dgcg6s1VpYeFjkwb6+CVhw
+";
+
+        let md = parse2::parse_netdoc::<Microdesc>(&ParseInput::new(MICRODESC, "")).unwrap();
         assert_eq!(
-            mds[6],
-            Microdesc {
-                onion_key: OnionKeyIntro(rsa::PublicKey::from_der(
-                    pem::parse(
-                        "
-                        -----BEGIN RSA PUBLIC KEY-----
-                        MIGJAoGBAMY9WgKkxsjcQ5eH6Lp6uKr4nxYfYJDl1MIfT6+5LNUxuzd2UHatrQ2T
-                        gckACk/y7iqTqm+uRC9egntXbLYbtVkhliDQDaMCmGl0EAVcqFis5oiBI/nyhuBo
-                        9JnfPbplmO7guH99y6NGnM93IVCJwgTxeGZkzbDvfj/ArzP6STnVAgMBAAE=
-                        -----END RSA PUBLIC KEY-----
-                        "
-                    )
+            md.family_ids,
+            RelayFamilyIds::from_iter(iter::once(RelayFamilyId::Ed25519(
+                Ed25519Identity::from_base64("b54cKgML0ykRyhdIRcq1xtW19iEVsMYnGNbdY+vvcas")
                     .unwrap()
-                    .contents()
-                )),
-                sha256: [0; 32],
-                ntor_onion_key: curve25519::PublicKey::from([
-                    64, 77, 233, 130, 69, 118, 107, 22, 241, 6, 252, 12, 186, 66, 75, 213, 211, 63,
-                    148, 96, 1, 160, 61, 253, 223, 78, 107, 177, 113, 179, 221, 122
-                ])
-                .into(),
-                family: Default::default(),
-                ipv4_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),
-                ipv6_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),
-                ed25519_id: Ed25519Identity::from_bytes(&[
-                    79, 23, 163, 165, 39, 202, 146, 148, 56, 73, 45, 36, 41, 112, 105, 69, 28, 23,
-                    40, 0, 221, 249, 96, 162, 54, 242, 130, 171, 144, 35, 124, 43
-                ])
-                .unwrap()
-                .into(),
-                family_ids: RelayFamilyIds::from_iter(vec![
-                    RelayFamilyId::Ed25519(
-                        Ed25519Identity::from_base64("5vHhiPVy3pZwFsR2GBudhkdKYrkdGVtAxrwpZ1weiYU")
-                            .unwrap(),
-                    );
-                    2
-                ]),
-            }
+            )))
         );
     }
 }
