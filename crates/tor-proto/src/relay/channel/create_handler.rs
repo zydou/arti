@@ -105,10 +105,7 @@ impl CreateRequestHandler {
 
         // Perform the handshake crypto and build the response.
         let handshake_components = match msg {
-            CreateRequest::CreateFast(msg) => {
-                // TODO(relay): We should split this CREATE_FAST handling off into a helper.
-                self.handle_create_fast(msg)?
-            }
+            CreateRequest::CreateFast(msg) => self.handle_create_fast(msg)?,
             CreateRequest::Create2(_) => {
                 // TODO(relay): We might want to offload this to a CPU worker in the future.
                 // TODO(relay): Implement this.
