@@ -14,7 +14,7 @@ use crate::client::circuit::CircParameters;
 use crate::client::circuit::padding::PaddingController;
 use crate::crypto::cell::CryptInit as _;
 use crate::crypto::cell::RelayLayer as _;
-use crate::crypto::cell::tor1;
+use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer, tor1};
 use crate::crypto::handshake::RelayHandshakeError;
 use crate::crypto::handshake::ServerHandshake as _;
 use crate::crypto::handshake::fast::CreateFastServer;
@@ -26,7 +26,7 @@ use crate::relay::reactor::Reactor;
 use std::sync::{Arc, RwLock, Weak};
 use tor_cell::chancell::ChanMsg as _;
 use tor_cell::chancell::CircId;
-use tor_cell::chancell::msg::{CreatedFast, Destroy, DestroyReason};
+use tor_cell::chancell::msg::{CreateFast, CreatedFast, Destroy, DestroyReason};
 use tor_error::{Bug, ErrorKind, HasKind, debug_report, internal, into_internal};
 use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::cipher::aes::Aes128Ctr;
@@ -104,7 +104,7 @@ impl CreateRequestHandler {
         // TODO(relay): The log messages throughout could be very noisy, so should have rate limiting.
 
         // Perform the handshake crypto and build the response.
-        let (response, hop_settings, crypto_out, crypto_in) = match msg {
+        let handshake_components = match msg {
             CreateRequest::CreateFast(msg) => {
                 // TODO(relay): We should split this CREATE_FAST handling off into a helper.
 
@@ -144,7 +144,12 @@ impl CreateRequestHandler {
                 let (crypto_out, crypto_in, _binding) = crypt.split_relay_layer();
                 let (crypto_out, crypto_in) = (Box::new(crypto_out), Box::new(crypto_in));
 
-                (response, hop_settings, crypto_out, crypto_in)
+                CompletedHandshakeComponents {
+                    response,
+                    hop_settings,
+                    crypto_out,
+                    crypto_in,
+                }
             }
             CreateRequest::Create2(_) => {
                 // TODO(relay): We might want to offload this to a CPU worker in the future.
@@ -180,9 +185,9 @@ impl CreateRequestHandler {
             circ_id,
             circ_unique_id,
             receiver,
-            crypto_in,
-            crypto_out,
-            &hop_settings,
+            handshake_components.crypto_in,
+            handshake_components.crypto_out,
+            &handshake_components.hop_settings,
             chan_provider,
             padding_ctrl.clone(),
             padding_stream,
@@ -201,13 +206,22 @@ impl CreateRequestHandler {
         })?;
 
         Ok((
-            response,
+            handshake_components.response,
             RelayCircComponents {
                 circ,
                 sender,
                 padding_ctrl,
             },
         ))
+    }
+
+    /// The handshake code for a CREATE_FAST request.
+    fn handle_create_fast(
+        &self,
+        msg: CreateFast,
+    ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
+        // XXXX: move code
+        todo!();
     }
 }
 
@@ -254,6 +268,18 @@ impl HasKind for HandleCreateError {
             Self::Internal(_) => ErrorKind::Internal,
         }
     }
+}
+
+/// The components of a completed CREATE* handshake.
+struct CompletedHandshakeComponents {
+    /// The message to send in response.
+    response: CreateResponse,
+    /// The negotiated hop settings.
+    hop_settings: HopSettings,
+    /// Outbound onion crypto.
+    crypto_out: Box<dyn OutboundRelayLayer + Send>,
+    /// Inbound onion crypto.
+    crypto_in: Box<dyn InboundRelayLayer + Send>,
 }
 
 /// A collection of objects built for a new relay circuit.
