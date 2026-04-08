@@ -675,7 +675,7 @@ pub struct ConsensusAuthorityEntry {
     // If more non-intro fields get added that are the same in votes and cosensuses,
     // consider using each_variety.rs or breaking those fields out into
     // `AuthorityEntryCommon` implementing `NetdocParseableFields`, or something.
-    pub contact: String,
+    pub contact: ContactInfo,
 
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
@@ -1098,7 +1098,20 @@ impl ConsensusAuthorityEntry {
         }
         let dir_source = DirSource::from_item(sec.required(DIR_SOURCE)?)?;
 
-        let contact = sec.required(CONTACT)?.args_as_str().to_string();
+        let contact = sec.required(CONTACT)?;
+        // Ideally we would parse_args_as_str but that requires us to
+        // impl From<InvalidContactInfo> for crate::Error which is wrong
+        // because many it's a footgun which lets you just write ? here
+        // resulting in lack of position information.
+        // (This is a general problem with the error handling in crate::parse.)
+        let contact = contact
+            .args_as_str()
+            .parse()
+            .map_err(|err: InvalidContactInfo| {
+                EK::BadArgument
+                    .with_msg(err.to_string())
+                    .at_pos(contact.pos())
+            })?;
 
         let vote_digest = sec.required(VOTE_DIGEST)?.parse_arg::<B16>(0)?.into();
 

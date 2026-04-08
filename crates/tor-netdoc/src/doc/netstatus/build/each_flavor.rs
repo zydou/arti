@@ -379,7 +379,8 @@ impl VoterInfoBuilder {
             .contact
             .as_ref()
             .ok_or(Error::CannotBuild("Missing contact"))?
-            .clone();
+            .parse()
+            .map_err(|_| Error::CannotBuild("Invalid contact"))?;
         if self.vote_digest.is_empty() {
             return Err(Error::CannotBuild("Missing vote digest"));
         }
