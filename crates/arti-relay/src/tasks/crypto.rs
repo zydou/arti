@@ -45,6 +45,25 @@ const SIGNING_KEY_CERT_LIFETIME: Duration = Duration::from_secs(30 * 24 * 60 * 6
 /// Lifetime of the RSA identity key certificate.
 const RSA_CROSSCERT_LIFETIME: Duration = Duration::from_secs(6 * 30 * 24 * 60 * 60);
 
+/// The result of an action that affects the relay keys in the keystore.
+#[derive(Copy, Clone, Debug)]
+struct KeyChange {
+    /// Whether the chan auth material has changed.
+    chan_auth: bool,
+    /// Whether the ntor keys have changed.
+    ntor: bool,
+}
+
+impl KeyChange {
+    /// The combined result of two [`KeyChange`]s.
+    fn or(&self, other: &KeyChange) -> KeyChange {
+        KeyChange {
+            chan_auth: self.chan_auth || other.chan_auth,
+            ntor: self.ntor || other.ntor,
+        }
+    }
+}
+
 /// Build a fresh [`RelayChannelAuthMaterial`] object using a [`KeyMgr`].
 ///
 /// The link cert and TLS certs are created in this function.
