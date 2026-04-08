@@ -368,7 +368,8 @@ impl VoterInfoBuilder {
             .nickname
             .as_ref()
             .ok_or(Error::CannotBuild("Missing nickname"))?
-            .clone();
+            .parse()
+            .map_err(|_| Error::CannotBuild("Invalid nickname"))?;
         let identity = self
             .identity
             .ok_or(Error::CannotBuild("Missing identity"))?;

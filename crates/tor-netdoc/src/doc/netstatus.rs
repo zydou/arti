@@ -593,7 +593,7 @@ pub struct SharedRandStatus {
 #[non_exhaustive]
 pub struct DirSource {
     /// human-readable nickname for this authority.
-    pub nickname: String,
+    pub nickname: Nickname,
 
     /// Fingerprint for the _authority_ identity key of this
     /// authority.
@@ -1016,7 +1016,12 @@ impl DirSource {
                     .at_pos(item.pos()),
             );
         }
-        let nickname = item.required_arg(0)?.to_string();
+        let nickname = item
+            .required_arg(0)?
+            .parse()
+            .map_err(|e: InvalidNickname| {
+                EK::BadArgument.at_pos(item.pos()).with_msg(e.to_string())
+            })?;
         let identity = item.parse_arg::<Fingerprint>(1)?.into();
         let ip = item.parse_arg(3)?;
         let dir_port = item.parse_arg(4)?;
