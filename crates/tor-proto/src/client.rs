@@ -4,6 +4,9 @@ pub mod channel;
 pub mod circuit;
 pub mod stream;
 
+#[cfg(feature = "rpc")]
+pub mod rpc;
+
 #[cfg(feature = "send-control-msg")]
 pub(crate) mod msghandler;
 pub(crate) mod reactor;
