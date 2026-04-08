@@ -364,11 +364,8 @@ impl<
             };
 
             // We're the responder, which means that the recv log is the CLOG.
-            let clog_digest = self
-                .framed_tls()
-                .codec_mut()
-                .take_recv_log_digest()?
-                .into_responder();
+            let clog_digest =
+                ClogDigest::new(self.framed_tls().codec_mut().take_recv_log_digest()?);
 
             // AUTHENTICATE cell.
             let auth = loop {
@@ -425,11 +422,7 @@ impl<
         self.framed_tls.send(auth_challenge.into()).await?;
 
         // We're the responder, which means that the send log is the SLOG.
-        let slog_digest = self
-            .framed_tls
-            .codec_mut()
-            .take_send_log_digest()?
-            .into_responder();
+        let slog_digest = SlogDigest::new(self.framed_tls.codec_mut().take_send_log_digest()?);
 
         // Send the NETINFO message.
         let peer_ip = self.peer_addr.netinfo_addr();

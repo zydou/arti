@@ -208,7 +208,9 @@ where
 
         let slog_digest = if auth_log_action.is_take() {
             // We're the initiator, which means that the recv log is the SLOG.
-            Some(self.framed_tls().codec_mut().take_recv_log_digest()?)
+            Some(SlogDigest::new(
+                self.framed_tls().codec_mut().take_recv_log_digest()?,
+            ))
         } else {
             None
         };

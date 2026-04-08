@@ -24,7 +24,7 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, St
 use crate::{
     ClockSkew, RelayChannelAuthMaterial, Result,
     channel::{
-        Channel, ChannelMode, Reactor, SlogDigest,
+        Channel, ChannelMode, ClogDigest, Reactor, SlogDigest,
         circmap::CircIdRange,
         handshake::{UnverifiedInitiatorChannel, VerifiedChannel},
     },
@@ -163,7 +163,8 @@ where
         //
         // > The CLOG field is computed as the SHA-256 digest of all bytes sent within
         // > the TLS channel up to but not including the AUTHENTICATE cell.
-        let clog_digest = self.inner.framed_tls.codec_mut().take_send_log_digest()?;
+        let clog_digest =
+            ClogDigest::new(self.inner.framed_tls.codec_mut().take_send_log_digest()?);
 
         // Build the AUTHENTICATE cell.
         //
