@@ -669,12 +669,14 @@ pub type MdAuthorityEntry = ConsensusAuthorityEntry;
 pub struct ConsensusAuthorityEntry {
     /// Contents of the `dir-source` line about an authority
     pub dir_source: DirSource,
+
     /// Human-readable contact information about the authority
     //
     // If more non-intro fields get added that are the same in votes and cosensuses,
     // consider using each_variety.rs or breaking those fields out into
     // `AuthorityEntryCommon` implementing `NetdocParseableFields`, or something.
     pub contact: String,
+
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
     pub vote_digest: Vec<u8>,
