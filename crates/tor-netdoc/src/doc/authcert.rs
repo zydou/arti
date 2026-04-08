@@ -900,6 +900,11 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
 -----END ID SIGNATURE-----
 ";
         const AUTHCERT_RAW: &str = include_str!("../../testdata2/keys/authority_certificate");
+        /// A system time in the range of [`DIR_KEY_PUBLISHED`] and [`DIR_KEY_EXPIRES`].
+        ///
+        /// Constructed by ourselves to have a time point we can use for testing
+        /// timestamp verification.
+        const VALID_SYSTEM_TIME: &str = "2000-06-01 00:00:00";
 
         /// Reads a b64 encoded file and returns its content encoded and decoded.
         fn read_b64<P: AsRef<Path>>(path: P) -> (String, Vec<u8>) {
