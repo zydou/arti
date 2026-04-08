@@ -42,8 +42,8 @@ use {
     },
     crate::parse2::sig_hashes::Sha1WholeKeywordLine,
     crate::parse2::{
-        ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable,
-        SignatureHashInputs,
+        self, ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable,
+        ItemValueParseable, SignatureHashInputs, UnparsedItem,
     },
 };
 
@@ -1297,7 +1297,6 @@ mod contact_info {
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)] //
     #[derive(derive_more::Into, derive_more::AsRef, derive_more::Deref, derive_more::Display)]
     #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
-    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
     // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr
     #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
     #[non_exhaustive]
@@ -1314,13 +1313,24 @@ mod contact_info {
 
         fn from_str(s: &str) -> Result<Self, InvalidContactInfo> {
             // TODO torspec#396 we should probably impose more restrictions
-            // NOTE! when adding extra invariants here, the ItemValueEncodable derive
-            // above becomes wrong, because it won't check them!
+            // For now we forbid `\n` and initial whitespace, which is enough to ensure
+            // that all values will roundtrip unchanged through netdoc encoding and parsing.
             if s.contains('\n') || s.starts_with(char::is_whitespace) {
                 Err(InvalidContactInfo {})
             } else {
                 Ok(ContactInfo(s.to_owned()))
             }
+        }
+    }
+
+    #[cfg(feature = "parse2")]
+    impl ItemValueParseable for ContactInfo {
+        fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<Self, parse2::ErrorProblem> {
+            item.check_no_object()?;
+            item.args_mut()
+                .into_remaining()
+                .parse()
+                .map_err(|_e| item.args().handle_error("info", ArgumentError::Invalid))
         }
     }
 }
