@@ -648,13 +648,32 @@ impl RelayWeight {
     }
 }
 
-/// All information about a single authority, as represented in a consensus
+/// Authority entry in a consensus - deprecated compatibility type alias
+// XXXX #[deprecated = "renamed to ConsensusAuthorityEntry"]
+pub type ConsensusVoterInfo = ConsensusAuthorityEntry;
+
+/// Authority entry in a plain consensus - type alias provided for consistency
+pub type PlainAuthorityEntry = ConsensusAuthorityEntry;
+/// Authority entry in an md consensus - type alias provided for consistency
+pub type MdAuthorityEntry = ConsensusAuthorityEntry;
+
+/// An authority entry as found in a consensus
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority-entry>
+//
+// We don't use the `each_variety` system for this because:
+//  1. That avoids separating the two consensus authority entry types, which are identical
+//  2. The only common fields are `dir-source` and `contact`, so there is little duplication
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct ConsensusVoterInfo {
-    /// Contents of the dirsource line about an authority
+pub struct ConsensusAuthorityEntry {
+    /// Contents of the `dir-source` line about an authority
     pub dir_source: DirSource,
     /// Human-readable contact information about the authority
+    //
+    // If more non-intro fields get added that are the same in votes and cosensuses,
+    // consider using each_variety.rs or breaking those fields out into
+    // `AuthorityEntryCommon` implementing `NetdocParseableFields`, or something.
     pub contact: String,
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
