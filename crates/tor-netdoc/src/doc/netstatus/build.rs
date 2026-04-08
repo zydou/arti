@@ -4,7 +4,7 @@
 //! support signing or encoding.)
 
 use super::{
-    ConsensusFlavor, ConsensusAuthorityEntry, DirSource, Footer, Lifetime, NetParams, ProtoStatus,
+    ConsensusAuthorityEntry, ConsensusFlavor, DirSource, Footer, Lifetime, NetParams, ProtoStatus,
     ProtoStatuses, SharedRandStatus, SharedRandVal,
 };
 
