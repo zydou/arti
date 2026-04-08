@@ -899,6 +899,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
 8HK5TzuknWlkRv3hCyRX+g==
 -----END ID SIGNATURE-----
 ";
+        const AUTHCERT_RAW: &str = include_str!("../../testdata2/keys/authority_certificate");
 
         /// Reads a b64 encoded file and returns its content encoded and decoded.
         fn read_b64<P: AsRef<Path>>(path: P) -> (String, Vec<u8>) {
