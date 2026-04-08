@@ -965,7 +965,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         for (i, result) in results.into_iter().enumerate() {
             match result {
                 Ok((_, TunnelProvenance::NewlyCreated)) => {
-                    debug!("Preeemptive circuit was created for {:?}", circs[i]);
+                    debug!("Preemptive circuit was created for {:?}", circs[i]);
                     n_created += 1;
                 }
                 Ok((_, TunnelProvenance::Preexisting)) => {
