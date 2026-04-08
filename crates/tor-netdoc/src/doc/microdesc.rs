@@ -711,4 +711,39 @@ Yl0wCKpUZFHs5CHsajLSfXZKHkwfqRXFEJu9aMtmQdQFfqE9JOJHAgMBAAE=
             }
         );
     }
+
+    /// Manual test for happy families.
+    // TODO: This should be included in testdata2/ but that would require the
+    // chutney/shadow integration test to actually do families at all.
+    #[test]
+    #[cfg(feature = "parse2")]
+    fn parse2_happy_family() {
+        use tor_llcrypto::pk::ed25519::Ed25519Identity;
+
+        use crate::parse2::{self, ParseInput};
+        use std::iter;
+
+        // A microdescriptor taken from the wild containing happy families.
+        const MICRODESC: &str = "\
+onion-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAMk57F7qGHVadBJ6m4028w13I1Qk67Ee0JU88w7NObKBph3DQYjgYs4e
+eUdiW4Gdsx8w/xOuK0foCo0O8Iqq5MXtVcpUP/N+5uB7SVvGdJFsKw21KdIc6v8g
+ACZAijw5ZPOdhLbyLQyFHNV8zXUov1dlx/Fb9M3lPMVevnDbuKM5AgMBAAE=
+-----END RSA PUBLIC KEY-----
+ntor-onion-key fhhP23UKD4L2jehA5gopAo5b6NSoB+kZN5Q4ULv3Zww
+family $4CFFD403DAB89A689F3FDB80B5366E46D879E736 $4D6C1486939A42D7FFE69BCD9F3FDAA86C743433 $73955E6A69BA5E0827F48206CAD78C045BBE8873 $8DBA9ADCA5B3A3AB6D2B4F88AC2F96614D33DAB3 $B29E3E30443F897F48B86765F1BC1DB917F5DF46 $CD642E7E722979580B6D631697772C0B72BCF25C $D9E7B6A73C8278274081B77D373ECCE4552E75FB $F2515315FE0DB7456194CABC503B526B49951415
+family-ids ed25519:b54cKgML0ykRyhdIRcq1xtW19iEVsMYnGNbdY+vvcas
+id ed25519 /MU/FVKRGcZAy8XFnzLS6Dgcg6s1VpYeFjkwb6+CVhw
+";
+
+        let md = parse2::parse_netdoc::<Microdesc>(&ParseInput::new(MICRODESC, "")).unwrap();
+        assert_eq!(
+            md.family_ids,
+            RelayFamilyIds::from_iter(iter::once(RelayFamilyId::Ed25519(
+                Ed25519Identity::from_base64("b54cKgML0ykRyhdIRcq1xtW19iEVsMYnGNbdY+vvcas")
+                    .unwrap()
+            )))
+        );
+    }
 }
