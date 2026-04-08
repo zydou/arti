@@ -1295,7 +1295,7 @@ mod contact_info {
     ///
     /// Also used for authority entries in netstatus documents.
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)] //
-    #[derive(derive_more::Into, derive_more::AsRef, derive_more::Deref)]
+    #[derive(derive_more::Into, derive_more::AsRef, derive_more::Deref, derive_more::Display)]
     #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
     #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
     // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr
