@@ -14,6 +14,8 @@ fn cli_tests() {
     t.env("HOME", dir.path().to_str().unwrap())
         .env("COLUMNS", COLUMNS.to_string());
 
+    t.case("tests/testcases/arti/*.toml");
+
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
             cfg_if::cfg_if! {
