@@ -12,3 +12,4 @@ ADDED: `types::B64` implements `Deref`, `DerefMut`, various `AsRef`/`AsMut`
 ADDED: `types::B64Fixed`
 ADDED: `types::B64`'s field is now `pub`
 BREAKING: Removed `types::B64::into_array`; use methods on `Vec` and slice instead
+ADDED: `types::B16`

@@ -286,7 +286,13 @@ mod b16impl {
     /// Both uppercase and lowercase are tolerated when parsing.
     //
     // XXXX Make another type that does uppercase
-    pub(crate) struct B16(Vec<u8>);
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[debug(r#"B16("{self}")"#)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct B16(pub Vec<u8>);
 
     impl std::str::FromStr for B16 {
         type Err = Error;
@@ -297,20 +303,6 @@ mod b16impl {
                     .with_msg("invalid hexadecimal")
             })?;
             Ok(B16(bytes))
-        }
-    }
-
-    impl B16 {
-        /// Return the underlying byte array.
-        #[allow(unused)]
-        pub(crate) fn as_bytes(&self) -> &[u8] {
-            &self.0[..]
-        }
-    }
-
-    impl From<B16> for Vec<u8> {
-        fn from(w: B16) -> Vec<u8> {
-            w.0
         }
     }
 
