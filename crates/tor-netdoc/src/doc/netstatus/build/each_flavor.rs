@@ -372,7 +372,8 @@ impl VoterInfoBuilder {
             .map_err(|_| Error::CannotBuild("Invalid nickname"))?;
         let identity = self
             .identity
-            .ok_or(Error::CannotBuild("Missing identity"))?;
+            .ok_or(Error::CannotBuild("Missing identity"))?
+            .into();
         let ip = self.ip.ok_or(Error::CannotBuild("Missing IP"))?;
         let contact = self
             .contact

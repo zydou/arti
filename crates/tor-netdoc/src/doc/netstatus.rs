@@ -600,7 +600,7 @@ pub struct DirSource {
     ///
     /// This is the same key as the one that signs the authority's
     /// certificates.
-    pub identity: RsaIdentity,
+    pub identity: Fingerprint,
 
     /// IP address for the authority
     pub ip: net::IpAddr,
@@ -1022,7 +1022,7 @@ impl DirSource {
             .map_err(|e: InvalidNickname| {
                 EK::BadArgument.at_pos(item.pos()).with_msg(e.to_string())
             })?;
-        let identity = item.parse_arg::<Fingerprint>(1)?.into();
+        let identity = item.parse_arg(1)?;
         let ip = item.parse_arg(3)?;
         let dir_port = item.parse_arg(4)?;
         let or_port = item.parse_arg(5)?;
