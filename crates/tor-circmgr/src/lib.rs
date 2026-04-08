@@ -964,12 +964,16 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         let results = futures::future::join_all(futures).await;
         for (i, result) in results.into_iter().enumerate() {
             match result {
-                Ok((_, TunnelProvenance::NewlyCreated)) => {
-                    debug!("Preemptive circuit was created for {:?}", circs[i]);
+                Ok((t, TunnelProvenance::NewlyCreated)) => {
+                    debug!(
+                        tunnel_id=%t.unique_id(),
+                        "Preemptive circuit was created for {:?}", circs[i]);
                     n_created += 1;
                 }
-                Ok((_, TunnelProvenance::Preexisting)) => {
-                    trace!("Circuit already existed created for {:?}", circs[i]);
+                Ok((t, TunnelProvenance::Preexisting)) => {
+                    trace!(
+                        tunnel_id=%t.unique_id(),
+                        "Circuit already existed created for {:?}", circs[i]);
                 }
                 Err(e) => {
                     warn_report!(e, "Failed to build preemptive circuit {:?}", sv(&circs[i]));
