@@ -891,6 +891,13 @@ mod test {
             Iso8601TimeSp::from_str(s).unwrap().0
         }
 
+        /// Converts a PEM encoded RSA Public key to an [`rsa::PublicKey`].
+        ///
+        /// This function panics in the case the input is malformatted.
+        fn pem_to_rsa_pk(s: &str) -> rsa::PublicKey {
+            rsa::PublicKey::from_der(pem::parse(s).unwrap().contents()).unwrap()
+        }
+
         /// Tests whether a [`DirKeyCrossCert`] can be parsed properly.
         #[test]
         fn dir_auth_cross_cert() {
