@@ -107,49 +107,7 @@ impl CreateRequestHandler {
         let handshake_components = match msg {
             CreateRequest::CreateFast(msg) => {
                 // TODO(relay): We should split this CREATE_FAST handling off into a helper.
-
-                // TODO(relay): We might want to offload this to a CPU worker in the future.
-                let (keygen, handshake_msg) = CreateFastServer::server(
-                    &mut rand::rng(),
-                    &mut |_: &()| Some(()),
-                    &[()],
-                    msg.handshake(),
-                )?;
-
-                let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
-                    .map_err(into_internal!("Circuit crypt state construction failed"))?;
-
-                let circ_params = self
-                    .circ_net_params
-                    .read()
-                    .expect("rwlock poisoned")
-                    // CREATE_FAST always uses fixed-window flow control.
-                    .as_circ_parameters(AlgorithmDiscriminants::FixedWindow)?;
-
-                // TODO(relay): I think we might want to get these from the consensus instead?
-                let protos = tor_protover::Protocols::default();
-
-                // TODO(relay): I'm not sure if this is the right way to do this. It works for
-                // CREATE_FAST, but we might want to rethink it for CREATE2.
-                let hop_settings = HopSettings::from_params_and_caps(
-                    HopNegotiationType::None,
-                    &circ_params,
-                    &protos,
-                )
-                .map_err(into_internal!("Unable to build `HopSettings`"))?;
-
-                let response = CreatedFast::new(handshake_msg);
-                let response = CreateResponse::CreatedFast(response);
-
-                let (crypto_out, crypto_in, _binding) = crypt.split_relay_layer();
-                let (crypto_out, crypto_in) = (Box::new(crypto_out), Box::new(crypto_in));
-
-                CompletedHandshakeComponents {
-                    response,
-                    hop_settings,
-                    crypto_out,
-                    crypto_in,
-                }
+                self.handle_create_fast(msg)?
             }
             CreateRequest::Create2(_) => {
                 // TODO(relay): We might want to offload this to a CPU worker in the future.
@@ -220,8 +178,48 @@ impl CreateRequestHandler {
         &self,
         msg: CreateFast,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
-        // XXXX: move code
-        todo!();
+        // TODO(relay): We might want to offload this to a CPU worker in the future.
+        let (keygen, handshake_msg) = CreateFastServer::server(
+            &mut rand::rng(),
+            &mut |_: &()| Some(()),
+            &[()],
+            msg.handshake(),
+        )?;
+
+        let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
+            .map_err(into_internal!("Circuit crypt state construction failed"))?;
+
+        let circ_params = self
+            .circ_net_params
+            .read()
+            .expect("rwlock poisoned")
+            // CREATE_FAST always uses fixed-window flow control.
+            .as_circ_parameters(AlgorithmDiscriminants::FixedWindow)?;
+
+        // TODO(relay): I think we might want to get these from the consensus instead?
+        let protos = tor_protover::Protocols::default();
+
+        // TODO(relay): I'm not sure if this is the right way to do this. It works for
+        // CREATE_FAST, but we might want to rethink it for CREATE2.
+        let hop_settings = HopSettings::from_params_and_caps(
+            HopNegotiationType::None,
+            &circ_params,
+            &protos,
+        )
+        .map_err(into_internal!("Unable to build `HopSettings`"))?;
+
+        let response = CreatedFast::new(handshake_msg);
+        let response = CreateResponse::CreatedFast(response);
+
+        let (crypto_out, crypto_in, _binding) = crypt.split_relay_layer();
+        let (crypto_out, crypto_in) = (Box::new(crypto_out), Box::new(crypto_in));
+
+        Ok(CompletedHandshakeComponents {
+            response,
+            hop_settings,
+            crypto_out,
+            crypto_in,
+        })
     }
 }
 
