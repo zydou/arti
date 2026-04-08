@@ -112,6 +112,11 @@ impl Conversation<'_> {
 /// is done preventing for instance multi path calls to be used on a single path. Top level types
 /// should prevent this and thus this object should never be used directly.
 #[derive(Debug)]
+#[cfg_attr(
+    feature = "rpc",
+    derive(derive_deftly::Deftly),
+    derive_deftly(tor_rpcbase::templates::Object)
+)]
 #[allow(dead_code)] // TODO(conflux)
 pub struct ClientTunnel {
     /// The underlying handle to the reactor.
