@@ -255,7 +255,7 @@ mod b64impl {
     pub struct FixedB64<const N: usize>(pub [u8; N]);
 
     impl<const N: usize> Display for FixedB64<N> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             Display::fmt(&B64(self.0.to_vec()), f)
         }
     }
@@ -365,7 +365,7 @@ mod curve25519impl {
     }
 
     impl Display for Curve25519Public {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             FixedB64::from(self.0.to_bytes()).fmt(f)
         }
     }
@@ -398,7 +398,7 @@ mod ed25519impl {
     }
 
     impl Display for Ed25519Public {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let pk: [u8; 32] = self.0.into();
             let pk = FixedB64::from(pk);
             pk.fmt(f)
@@ -804,19 +804,19 @@ mod timeimpl {
 
     /// Formats a SystemTime according to the given format description
     ///
-    /// Also converts any time::error::format to std::fmt::Error
+    /// Also converts any time::error::format to fmt::Error
     /// so that it can be unwrapped in the Display trait impl
     fn fmt_with(
         t: SystemTime,
         format_desc: &[FormatItem],
-    ) -> core::result::Result<String, std::fmt::Error> {
+    ) -> core::result::Result<String, fmt::Error> {
         OffsetDateTime::from(t)
             .format(format_desc)
-            .map_err(|_| std::fmt::Error)
+            .map_err(|_| fmt::Error)
     }
 
-    impl std::fmt::Display for Iso8601TimeSp {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    impl Display for Iso8601TimeSp {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{}", fmt_with(self.0, ISO_8601SP_FMT)?)
         }
     }
@@ -851,8 +851,8 @@ mod timeimpl {
         }
     }
 
-    impl std::fmt::Display for Iso8601TimeNoSp {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    impl Display for Iso8601TimeNoSp {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{}", fmt_with(self.0, ISO_8601NOSP_FMT)?)
         }
     }
@@ -1368,8 +1368,8 @@ mod nickname {
         }
     }
 
-    impl std::fmt::Display for Nickname {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    impl Display for Nickname {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             self.as_str().fmt(f)
         }
     }
