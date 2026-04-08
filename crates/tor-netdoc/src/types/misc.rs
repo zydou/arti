@@ -60,6 +60,7 @@ use derive_deftly::{Deftly, define_derive_deftly};
 use std::cmp::{self, PartialOrd};
 use std::fmt::{self, Display};
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use subtle::{Choice, ConstantTimeEq};
 use tor_error::{Bug, ErrorReport as _, internal};
@@ -84,12 +85,15 @@ define_derive_deftly! {
     /// # Requirements
     ///
     ///  * Self should be a single-field struct
-    ///  * Self should deref to `&[u8]`
+    ///  * Self should deref to `&[u8]` (and to `&mut [u8]`).
+    ///  * (so Self should have no runtime invariants)
     ///
     /// # Generated code
     ///
     ///  * impls of `ConstantTimeEq`, `Eq`, `PartialEq`
     ///  * `as_bytes()` method
+    ///  * impls of `Deref`, `DerefMut`,
+    ///  * impls of `AsMut<field>`, `AsRef<field>`, `AsRef<[u8]>`, `AsMut<[u9]>`
     ///
     // We could derive Debug here but then we have to deal with the Fixed's N
     // which gets quite fiddly.
@@ -125,6 +129,49 @@ define_derive_deftly! {
         pub fn as_bytes(&self) -> &[u8] {
           $(
             &self.$fname[..]
+          )
+        }
+    }
+
+  $(
+    impl<$tgens> Deref for $ttype {
+        type Target = $ftype;
+        fn deref(&self) -> &$ftype {
+            &self.$fname
+        }
+    }
+
+    impl<$tgens> DerefMut for $ttype {
+        fn deref_mut(&mut self) -> &mut $ftype {
+            &mut self.$fname
+        }
+    }
+
+    impl<$tgens> AsRef<$ftype> for $ttype {
+        fn as_ref(&self) -> &$ftype {
+            &self.$fname
+        }
+    }
+
+    impl<$tgens> AsMut<$ftype> for $ttype {
+        fn as_mut(&mut self) -> &mut $ftype {
+            &mut self.$fname
+        }
+    }
+  )
+
+    impl<$tgens> AsRef<[u8]> for $ttype {
+        fn as_ref(&self) -> &[u8] {
+          $(
+            self.$fname.as_ref()
+          )
+        }
+    }
+
+    impl<$tgens> AsMut<[u8]> for $ttype {
+        fn as_mut(&mut self) -> &mut [u8] {
+          $(
+            self.$fname.as_mut()
           )
         }
     }
