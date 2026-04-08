@@ -246,11 +246,12 @@ mod b64impl {
     impl NormalItemArgument for B64 {}
 
     /// A byte array encoded in a hexadecimal with a fixed length.
-    #[derive(Clone)]
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(Hash, Eq, derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
     #[debug(r#"FixedB64::<{N}>("{self}")"#)]
-    pub(crate) struct FixedB64<const N: usize>([u8; N]);
+    pub struct FixedB64<const N: usize>(pub [u8; N]);
 
     impl<const N: usize> Display for FixedB64<N> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -266,12 +267,6 @@ mod b64impl {
                     .at_pos(Pos::at(s))
                     .with_msg("invalid length")
             })?))
-        }
-    }
-
-    impl<const N: usize> PartialEq for FixedB64<N> {
-        fn eq(&self, other: &Self) -> bool {
-            B64(self.0.to_vec()).eq(&B64(other.0.to_vec()))
         }
     }
 
