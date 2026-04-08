@@ -589,8 +589,11 @@ pub struct SharedRandStatus {
 ///
 /// (Corresponds to a dir-source line.)
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:dir-source>
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
 #[non_exhaustive]
+#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
 pub struct DirSource {
     /// human-readable nickname for this authority.
     pub nickname: Nickname,
