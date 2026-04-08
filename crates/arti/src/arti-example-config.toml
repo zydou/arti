@@ -97,6 +97,13 @@
 # level `info` or higher.
 #log_sensitive_information = false
 
+# Whether to promote protocol-violation log messages to warning level.
+#
+# If set to `false` (the default), protocol violations are logged at their
+# original level. If set to `true`, violations of kind `TorProtocolViolation`
+# are promoted to `warn`. Intended for use in private test networks.
+#protocol_warnings = false
+
 # The granularity with which to display times in our logs.
 #
 # When logging persistently, it can be risky to record very precise timing

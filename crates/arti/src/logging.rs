@@ -83,6 +83,10 @@ pub(crate) struct LoggingConfig {
     #[deftly(tor_config(default))]
     log_sensitive_information: bool,
 
+    /// If set to true, promote Tor protocol-violation reports to warning level.
+    #[deftly(tor_config(default))]
+    protocol_warnings: bool,
+
     /// An approximate granularity with which log times should be displayed.
     ///
     /// This value controls every log time that arti outputs; it doesn't have any
@@ -596,6 +600,13 @@ pub(crate) fn setup_logging(
     } else {
         None
     };
+
+    let mode = if config.protocol_warnings {
+        tor_error::tracing::ProtocolWarningMode::Warn
+    } else {
+        tor_error::tracing::ProtocolWarningMode::Off
+    };
+    tor_error::tracing::set_protocol_warning_mode(mode);
 
     install_panic_handler();
 
