@@ -146,7 +146,7 @@ define_derive_deftly! {
                         self.$fname
                     }
                     F_DEFAULT_TRAIT {
-                        ::std::default::Default::default()
+                        <$ftype as ::std::default::Default>::default()
                     }
                     F_DEFAULT_EXPR {
                         ${fmeta(constructor(default)) as expr}
