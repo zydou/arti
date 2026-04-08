@@ -1296,8 +1296,10 @@ mod contact_info {
     /// Also used for authority entries in netstatus documents.
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
     #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr
+    #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
     #[non_exhaustive]
-    pub struct ContactInfo(#[cfg_attr(feature = "parse2", deftly(netdoc(rest)))] pub String);
+    pub struct ContactInfo(#[deftly(netdoc(rest))] pub String);
 }
 
 #[cfg(test)]
