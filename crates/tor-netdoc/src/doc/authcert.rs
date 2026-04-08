@@ -1053,21 +1053,17 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
 
         #[test]
         fn dir_auth_signature() {
-            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
-                include_str!("../../testdata2/authcert-longclaw-full"),
-                "",
-            ))
-            .unwrap();
+            let res =
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, ""))
+                    .unwrap();
 
             // Test a valid signature.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1762946693)) // Wed Nov 12 12:24:53 CET 2025
-                        .unwrap(),
+                    to_system_time(VALID_SYSTEM_TIME),
                 )
                 .unwrap();
 
@@ -1078,9 +1074,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
                         &[],
                         Duration::ZERO,
                         Duration::ZERO,
-                        SystemTime::UNIX_EPOCH
-                            .checked_add(Duration::from_secs(1762946693)) // Wed Nov 12 12:24:53 CET 2025
-                            .unwrap(),
+                        to_system_time(VALID_SYSTEM_TIME),
                     )
                     .unwrap_err(),
                 VerifyFailed::InsufficientTrustedSigners
@@ -1090,10 +1084,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             assert_eq!(
                 res.clone()
                     .verify(
-                        &[
-                            RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
-                                .unwrap()
-                        ],
+                        &[to_rsa_id(FINGERPRINT)],
                         Duration::ZERO,
                         Duration::ZERO,
                         SystemTime::UNIX_EPOCH,
@@ -1105,12 +1096,10 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             // Test an almost too new.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1755462843)) // 2025-08-17 20:34:03
-                        .unwrap(),
+                    to_system_time(DIR_KEY_PUBLISHED),
                 )
                 .unwrap();
 
@@ -1118,15 +1107,10 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             assert_eq!(
                 res.clone()
                     .verify(
-                        &[
-                            RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
-                                .unwrap()
-                        ],
+                        &[to_rsa_id(FINGERPRINT)],
                         Duration::ZERO,
                         Duration::ZERO,
-                        SystemTime::UNIX_EPOCH
-                            .checked_add(Duration::from_secs(1755462842)) // 2025-08-17 20:34:02
-                            .unwrap(),
+                        to_system_time(DIR_KEY_PUBLISHED) - Duration::from_secs(1),
                     )
                     .unwrap_err(),
                 VerifyFailed::TooNew
@@ -1135,12 +1119,10 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             // ... but succeed again with a clock skew tolerance.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::from_secs(1),
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1755462842)) // 2025-08-17 20:34:02
-                        .unwrap(),
+                    to_system_time(DIR_KEY_PUBLISHED) - Duration::from_secs(1),
                 )
                 .unwrap();
 
@@ -1148,10 +1130,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             assert_eq!(
                 res.clone()
                     .verify(
-                        &[
-                            RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
-                                .unwrap()
-                        ],
+                        &[to_rsa_id(FINGERPRINT)],
                         Duration::ZERO,
                         Duration::ZERO,
                         SystemTime::UNIX_EPOCH
@@ -1165,12 +1144,10 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             // Test an almost too old.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1786998843)) // 2026-08-17 20:34:03
-                        .unwrap(),
+                    to_system_time(DIR_KEY_EXPIRES),
                 )
                 .unwrap();
 
@@ -1178,15 +1155,10 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             assert_eq!(
                 res.clone()
                     .verify(
-                        &[
-                            RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66")
-                                .unwrap()
-                        ],
+                        &[to_rsa_id(FINGERPRINT)],
                         Duration::ZERO,
                         Duration::ZERO,
-                        SystemTime::UNIX_EPOCH
-                            .checked_add(Duration::from_secs(1786998844)) // 2026-08-17 20:34:04
-                            .unwrap(),
+                        to_system_time(DIR_KEY_EXPIRES) + Duration::from_secs(1),
                     )
                     .unwrap_err(),
                 VerifyFailed::TooOld
@@ -1195,12 +1167,10 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             // ... but succeed again with a clock skew tolerance.
             res.clone()
                 .verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::from_secs(1),
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1786998844)) // 2026-08-17 20:34:04
-                        .unwrap(),
+                    to_system_time(DIR_KEY_EXPIRES) + Duration::from_secs(1),
                 )
                 .unwrap();
 
