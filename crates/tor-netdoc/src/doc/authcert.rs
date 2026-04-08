@@ -1201,19 +1201,16 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             );
 
             // Check invalid cross-cert.
-            let res = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
-                include_str!("../../testdata2/authcert-longclaw-full-invalid-cross"),
-                "",
-            ))
-            .unwrap();
+            let mut cert =
+                parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, ""))
+                    .unwrap();
+            cert.body.dir_key_crosscert = alternative_cert.body.dir_key_crosscert.clone();
             assert_eq!(
-                res.verify(
-                    &[RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()],
+                cert.verify(
+                    &[to_rsa_id(FINGERPRINT)],
                     Duration::ZERO,
                     Duration::ZERO,
-                    SystemTime::UNIX_EPOCH
-                        .checked_add(Duration::from_secs(1762946693)) // Wed Nov 12 12:24:53 CET 2025
-                        .unwrap(),
+                    to_system_time(VALID_SYSTEM_TIME),
                 )
                 .unwrap_err(),
                 VerifyFailed::VerifyFailed
