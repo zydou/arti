@@ -12,7 +12,7 @@ use tor_error::internal;
 use tor_key_forge::ToEncodableCert;
 use tor_keymgr::{
     CertSpecifierPattern, KeyCertificateSpecifier, KeyMgr, KeyPath, KeySpecifier,
-    KeySpecifierPattern, Keygen, KeystoreSelector, ToEncodableKey,
+    KeySpecifierPattern, Keygen, KeystoreEntry, KeystoreSelector, ToEncodableKey,
 };
 use tor_proto::RelayChannelAuthMaterial;
 use tor_relay_crypto::{RelaySigningKeyCert, gen_link_cert, gen_signing_cert, gen_tls_cert};
@@ -184,20 +184,22 @@ where
     Ok(())
 }
 
-/// Go through keystore entries matching `pattern` and remove any that are within
-/// [`KEY_ROTATION_EXPIRE_BUFFER`] of expiry.
+/// Go through keystore entries matching `pattern` and remove any that are
+/// expired according to `is_expired`.
 ///
 /// Returns `(removed, min_remaining)` where `removed` indicates whether any entry was deleted and
 /// `min_remaining` is the minimum `valid_until` of the entries that were kept (if any).
-fn remove_expired<F>(
+fn remove_expired<F, E>(
     now: SystemTime,
     keymgr: &KeyMgr,
     pattern: &tor_keymgr::KeyPathPattern,
     label: &'static str,
     expiry_from_keypath: F,
+    is_expired: E,
 ) -> anyhow::Result<(bool, Option<SystemTime>)>
 where
     F: Fn(&KeyPath) -> anyhow::Result<Timestamp>,
+    E: Fn(&Timestamp, SystemTime) -> bool,
 {
     let entries = keymgr.list_matching(pattern)?;
     let mut removed = false;
@@ -205,7 +207,7 @@ where
 
     for entry in entries {
         let valid_until = expiry_from_keypath(entry.key_path())?;
-        if valid_until <= Timestamp::from(now + KEY_ROTATION_EXPIRE_BUFFER) {
+        if is_expired(&valid_until, now) {
             tracing::debug!("Expired {} in keymgr. Removing it.", label);
             keymgr.remove_entry(&entry)?;
             removed = true;
@@ -221,16 +223,21 @@ where
 /// Attempt to generate a key using the given [`KeySpecifier`].
 ///
 /// Return true if generated else false.
-fn try_generate_key<K, P>(keymgr: &KeyMgr, spec: &dyn KeySpecifier) -> anyhow::Result<bool>
+fn try_generate_key<K, P, F>(
+    keymgr: &KeyMgr,
+    spec: &dyn KeySpecifier,
+    should_generate: F,
+) -> anyhow::Result<bool>
 where
     K: ToEncodableKey,
     K::Key: Keygen,
     P: KeySpecifierPattern,
+    F: Fn(&[KeystoreEntry]) -> anyhow::Result<bool>,
 {
     let mut generated = false;
     let mut rng = tor_llcrypto::rng::CautiousRng;
     let entries = keymgr.list_matching(&P::new_any().arti_pattern()?)?;
-    if entries.is_empty() {
+    if should_generate(&entries)? {
         let _ = keymgr.get_or_generate::<K>(spec, KeystoreSelector::default(), &mut rng)?;
         generated = true;
     }
@@ -288,10 +295,12 @@ fn try_generate_all(
 ) -> anyhow::Result<(KeyChange, Option<SystemTime>)> {
     let link_expiry = now + LINK_CERT_LIFETIME;
     let link_spec = RelayLinkSigningKeypairSpecifier::new(Timestamp::from(link_expiry));
-    let link_generated = try_generate_key::<
-        RelayLinkSigningKeypair,
-        RelayLinkSigningKeypairSpecifierPattern,
-    >(keymgr, &link_spec)?;
+    let link_generated =
+        try_generate_key::<RelayLinkSigningKeypair, RelayLinkSigningKeypairSpecifierPattern, _>(
+            keymgr,
+            &link_spec,
+            |entries: &[KeystoreEntry<'_>]| Ok(entries.is_empty()),
+        )?;
 
     let cert_expiry = now + SIGNING_KEY_CERT_LIFETIME;
 
@@ -344,12 +353,16 @@ fn remove_expired_keys(
     now: SystemTime,
     keymgr: &KeyMgr,
 ) -> anyhow::Result<(KeyChange, Option<SystemTime>)> {
+    let is_expired_with_buffer = |valid_until: &Timestamp, now| {
+        *valid_until <= Timestamp::from(now + KEY_ROTATION_EXPIRE_BUFFER)
+    };
     let (relaysign_removed, relaysign_expiry) = remove_expired(
         now,
         keymgr,
         &RelaySigningKeypairSpecifierPattern::new_any().arti_pattern()?,
         "key KP_relaysign_ed",
         |key_path| Ok(RelaySigningKeypairSpecifier::try_from(key_path)?.valid_until),
+        is_expired_with_buffer,
     )?;
     let (link_removed, link_expiry) = remove_expired(
         now,
@@ -357,6 +370,7 @@ fn remove_expired_keys(
         &RelayLinkSigningKeypairSpecifierPattern::new_any().arti_pattern()?,
         "key KP_link_ed",
         |key_path| Ok(RelayLinkSigningKeypairSpecifier::try_from(key_path)?.valid_until),
+        is_expired_with_buffer,
     )?;
 
     // This should always be removed if the signing key above has been removed. However, we still
@@ -374,6 +388,7 @@ fn remove_expired_keys(
                 (&subject_key_path).try_into()?;
             Ok(subject_key_spec.valid_until)
         },
+        is_expired_with_buffer,
     )?;
 
     // Have we at least removed one?
