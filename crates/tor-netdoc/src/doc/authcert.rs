@@ -1020,8 +1020,6 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
 
         #[test]
         fn dir_auth_cert() {
-            // This is longclaw.
-
             let res =
                 parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, ""))
                     .unwrap();
