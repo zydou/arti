@@ -278,9 +278,14 @@ mod b64impl {
 
 /// Types for decoding hex-encoded values.
 mod b16impl {
+    use super::*;
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
 
-    /// A byte array encoded in hexadecimal.
+    /// A byte array encoded in hexadecimal; prints in lowercase
+    ///
+    /// Both uppercase and lowercase are tolerated when parsing.
+    //
+    // XXXX Make another type that does uppercase
     pub(crate) struct B16(Vec<u8>);
 
     impl std::str::FromStr for B16 {
@@ -306,6 +311,15 @@ mod b16impl {
     impl From<B16> for Vec<u8> {
         fn from(w: B16) -> Vec<u8> {
             w.0
+        }
+    }
+
+    impl Display for B16 {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            for c in self.as_bytes() {
+                write!(f, "{c:02x}")?;
+            }
+            Ok(())
         }
     }
 }
@@ -1550,6 +1564,7 @@ mod test {
         let chk = |s: &str, b: &[u8]| -> anyhow::Result<()> {
             let parsed = s.parse::<B16>()?;
             assert_eq!(parsed.as_bytes(), b, "{s:?}");
+            assert_eq!(parsed.to_string(), s.to_ascii_lowercase());
             Ok(())
         };
 
