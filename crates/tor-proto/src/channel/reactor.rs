@@ -707,7 +707,7 @@ impl<R: Runtime> Reactor<R> {
             &self.runtime,
             &chan,
             circid,
-            msg,
+            &msg,
             &self.details.memquota,
             circ_uniq_id,
         );

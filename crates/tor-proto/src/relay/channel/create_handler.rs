@@ -76,16 +76,15 @@ impl CreateRequestHandler {
         runtime: &R,
         channel: &Arc<Channel>,
         circ_id: CircId,
-        msg: CreateRequest,
+        msg: &CreateRequest,
         memquota: &ChannelAccount,
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), Destroy> {
-        let cmd = msg.cmd();
-
         match self.handle_create_inner(runtime, channel, circ_id, msg, memquota, circ_unique_id) {
             Ok(x) => Ok(x),
             Err(e) => {
                 // TODO(relay): The log messages throughout could be very noisy, so should have rate limiting.
+                let cmd = msg.cmd();
                 debug_report!(&e, %cmd, "Failed to handle circuit create request");
                 Err(Destroy::new(e.destroy_reason()))
             }
@@ -98,7 +97,7 @@ impl CreateRequestHandler {
         runtime: &R,
         channel: &Arc<Channel>,
         circ_id: CircId,
-        msg: CreateRequest,
+        msg: &CreateRequest,
         memquota: &ChannelAccount,
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), HandleCreateError> {
@@ -172,7 +171,7 @@ impl CreateRequestHandler {
     /// The handshake code for a CREATE_FAST request.
     fn handle_create_fast(
         &self,
-        msg: CreateFast,
+        msg: &CreateFast,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
         // TODO(relay): We might want to offload this to a CPU worker in the future.
         let (keygen, handshake_msg) = CreateFastServer::server(
