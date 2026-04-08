@@ -282,7 +282,10 @@ where
 ///
 /// Returns the minimum valid until value if a key was generated. Else, a None value indicates that
 /// no key was generated.
-fn try_generate_all(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<(KeyChange, Option<SystemTime>)> {
+fn try_generate_all(
+    now: SystemTime,
+    keymgr: &KeyMgr,
+) -> anyhow::Result<(KeyChange, Option<SystemTime>)> {
     let link_expiry = now + LINK_CERT_LIFETIME;
     let link_spec = RelayLinkSigningKeypairSpecifier::new(Timestamp::from(link_expiry));
     let link_generated = try_generate_key::<
@@ -320,13 +323,16 @@ fn try_generate_all(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<(KeyChan
         ntor: false, // XXX: generate and rotate ntor keys
     };
 
-    Ok((change, [
-        link_generated.then_some(link_expiry),
-        cert_generated.then_some(cert_expiry),
-    ]
-    .into_iter()
-    .flatten()
-    .min()))
+    Ok((
+        change,
+        [
+            link_generated.then_some(link_expiry),
+            cert_generated.then_some(cert_expiry),
+        ]
+        .into_iter()
+        .flatten()
+        .min(),
+    ))
 }
 
 /// Remove any expired keys (and certs) that are expired.
