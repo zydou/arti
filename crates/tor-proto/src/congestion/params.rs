@@ -90,7 +90,10 @@ impl_standard_builder! { VegasParams: !Deserialize + !Default }
 /// The different congestion control algorithms. Each contain their parameters taken from the
 /// consensus.
 #[non_exhaustive]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, strum::EnumDiscriminants)]
+// No need for the discriminants to be public at the moment,
+// and we might want to rename it if it does become public.
+#[strum_discriminants(vis(pub(crate)))]
 pub enum Algorithm {
     /// Fixed window algorithm.
     FixedWindow(FixedWindowParams),

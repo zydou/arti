@@ -77,7 +77,7 @@ use void::{ResultVoidErrExt, Void};
 
 #[cfg(feature = "relay")]
 use {
-    async_trait::async_trait, safelog::Sensitive,
+    async_trait::async_trait, safelog::Sensitive, tor_proto::relay::CreateRequestHandler,
     tor_proto::relay::channel_provider::ChannelProvider,
 };
 
@@ -242,7 +242,7 @@ impl<R: Runtime> ChanMgr<R> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "relay")] {
                 let builder = if let Some(auth_material) = &config.auth_material {
-                    builder::ChanBuilder::new_relay(runtime.clone(), transport, auth_material.clone(), config.my_addrs)?
+                    builder::ChanBuilder::new_relay(runtime.clone(), transport, auth_material.clone(), config.my_addrs, None)?
                 } else {
                     // Yes, clients can have the "relay" feature enabled (unit tests).
                     builder::ChanBuilder::new_client(runtime.clone(), transport)
@@ -426,6 +426,35 @@ impl<R: Runtime> ChanMgr<R> {
             match f
                 .default_factory()
                 .rebuild_with_auth_material(auth_material)
+            {
+                Ok(b) => f.replace_default_factory(Arc::new(b)),
+                Err(e) => result = Err(e),
+            }
+        });
+        result
+    }
+
+    /// This will be used to handle CREATE* requests on channels.
+    ///
+    /// This handler will only be used for new channels, not existing channels.
+    ///
+    /// This will *not* be updated in any way by the channel manager,
+    /// for example by a netdir update or when any keys change.
+    /// The caller must handle this.
+    /// The idea is that the channel manager shouldn't need to deal with circuit-specific stuff.
+    ///
+    /// It's expected to only ever call this once.
+    /// Ideally it would be an `Option` in the constructor,
+    /// but we don't want conditionally-compiled constructor arguments,
+    /// and the [`CreateRequestHandler`] requires a [`dyn ChannelProvider`]
+    /// which is typically this [`ChanMgr`] itself.
+    #[cfg(feature = "relay")]
+    pub fn set_create_request_handler(&self, handler: Arc<CreateRequestHandler>) -> Result<()> {
+        let mut result = Ok(());
+        self.mgr.with_mut_builder(|f| {
+            match f
+                .default_factory()
+                .rebuild_with_create_request_handler(handler)
             {
                 Ok(b) => f.replace_default_factory(Arc::new(b)),
                 Err(e) => result = Err(e),

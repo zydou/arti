@@ -8,6 +8,7 @@ use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::{Error, Result};
 use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
+use tor_cell::chancell::msg::DestroyReason;
 
 use crate::circuit::celltypes::CreateResponse;
 use crate::client::circuit::halfcirc::HalfCirc;
@@ -18,13 +19,18 @@ use rand::Rng;
 use rand::distr::Distribution;
 use std::collections::{HashMap, hash_map::Entry};
 use std::ops::{Deref, DerefMut};
+use std::result::Result as StdResult;
+use std::sync::Arc;
+
+#[cfg(feature = "relay")]
+use crate::relay::RelayCirc;
 
 /// Which group of circuit IDs are we allowed to allocate in this map?
 ///
 /// If we initiated the channel, we use High circuit ids.  If we're the
 /// responder, we use low circuit ids.
 #[derive(Copy, Clone)]
-pub(super) enum CircIdRange {
+pub(crate) enum CircIdRange {
     /// Only use circuit IDs with the MSB cleared.
     #[allow(dead_code)] // Relays will need this.
     Low,
@@ -35,15 +41,32 @@ pub(super) enum CircIdRange {
     // protocol version 4.
 }
 
+impl CircIdRange {
+    /// The range of integer circuit IDs that we are allowed to allocate.
+    /// Prefer using other more specific methods over this one.
+    const fn integer_range(&self) -> std::ops::RangeInclusive<u32> {
+        const MIDPOINT: u32 = 0x8000_0000;
+
+        match self {
+            // 0 is an invalid value
+            Self::Low => 1..=(MIDPOINT - 1),
+            Self::High => MIDPOINT..=u32::MAX,
+        }
+    }
+
+    /// Is this circuit ID allowed to be allocated by the channel's peer?
+    pub(crate) fn is_allowed_for_peer(&self, id: CircId) -> bool {
+        // If our range does not contain it, then it is allowed.
+        // Note that a `CircId` never contains a value of zero,
+        // so no need to consider it here.
+        !self.integer_range().contains(&id.into())
+    }
+}
+
 impl rand::distr::Distribution<CircId> for CircIdRange {
     /// Return a random circuit ID in the appropriate range.
     fn sample<R: Rng + ?Sized>(&self, mut rng: &mut R) -> CircId {
-        let midpoint = 0x8000_0000_u32;
-        let v = match self {
-            // 0 is an invalid value
-            CircIdRange::Low => rng.gen_range_checked(1..midpoint),
-            CircIdRange::High => rng.gen_range_checked(midpoint..=u32::MAX),
-        };
+        let v = rng.gen_range_checked(self.integer_range());
         let v = v.expect("Unexpected empty range passed to gen_range_checked");
         CircId::new(v).expect("Unexpected zero value")
     }
@@ -54,7 +77,7 @@ impl rand::distr::Distribution<CircId> for CircIdRange {
 /// change.
 #[derive(Debug)]
 pub(super) enum CircEnt {
-    /// A circuit that has not yet received a CREATED cell.
+    /// An origin circuit that has not yet received a CREATED cell.
     ///
     /// For this circuit, the CREATED* cell or DESTROY cell gets sent
     /// to the oneshot sender to tell the corresponding
@@ -72,8 +95,26 @@ pub(super) enum CircEnt {
         padding_ctrl: PaddingController,
     },
 
-    /// A circuit that is open and can be given relay cells.
-    Open {
+    /// An origin circuit (a circuit which originated here)
+    /// that is open and can be given relay cells.
+    OpenOrigin {
+        /// A sink which should receive all the relay cells for this circuit
+        /// from this channel
+        cell_sender: CircuitRxSender,
+        /// A padding controller we should use when reporting flushed cells.
+        padding_ctrl: PaddingController,
+    },
+
+    /// A relay circuit (a circuit in which we are a hop on the path)
+    /// that is open and can be given relay cells.
+    #[cfg(feature = "relay")]
+    OpenRelay {
+        /// A handle to the circuit.
+        /// TODO(relay): We need to store the `Arc<RelayCirc>` somewhere
+        /// and currently this seems like the best place to store it.
+        /// As we implement more functionality maybe we'll find a better place to store it,
+        /// in which case we should consider combining the `OpenOrigin` and `OpenRelay` variants.
+        _circ: Arc<RelayCirc>,
         /// A sink which should receive all the relay cells for this circuit
         /// from this channel
         cell_sender: CircuitRxSender,
@@ -145,11 +186,12 @@ impl CircMap {
         }
     }
 
-    /// Add a new set of elements (corresponding to a PendingClientCirc)
-    /// to this map.
+    /// Add a new set of elements (corresponding to a
+    /// [`PendingClientTunnel`](crate::client::circuit::PendingClientTunnel))
+    /// as an entry to this map.
     ///
     /// On success return the allocated circuit ID.
-    pub(super) fn add_ent<R: Rng>(
+    pub(super) fn add_origin_ent<R: Rng>(
         &mut self,
         rng: &mut R,
         createdsink: oneshot::Sender<CreateResponse>,
@@ -178,6 +220,38 @@ impl CircMap {
         Err(Error::IdRangeFull)
     }
 
+    /// Add a new set of elements (corresponding to a [`RelayCirc`]) as an entry to this map.
+    ///
+    /// We use [`DestroyReason`] as the return type since we very likely want to destroy the circuit
+    /// if this fails, and not return an error and destroy the entire channel.
+    #[cfg(feature = "relay")]
+    pub(super) fn add_relay_ent(
+        &mut self,
+        circ_id: CircId,
+        circ: Arc<RelayCirc>,
+        sink: CircuitRxSender,
+        padding_ctrl: PaddingController,
+    ) -> StdResult<(), DestroyReason> {
+        // The peer is only allowed to use a subset of the ID range.
+        if !self.range.is_allowed_for_peer(circ_id) {
+            return Err(DestroyReason::PROTOCOL);
+        }
+
+        let circ_ent = CircEnt::OpenRelay {
+            _circ: circ,
+            cell_sender: sink,
+            padding_ctrl,
+        };
+
+        if let Entry::Vacant(ent) = self.m.entry(circ_id) {
+            ent.insert(circ_ent);
+            self.open_count += 1;
+            Ok(())
+        } else {
+            Err(DestroyReason::PROTOCOL)
+        }
+    }
+
     /// Testing only: install an entry in this circuit map without regard
     /// for consistency.
     #[cfg(test)]
@@ -199,7 +273,9 @@ impl CircMap {
     pub(super) fn note_cell_flushed(&mut self, id: CircId, info: QueuedCellPaddingInfo) {
         let padding_ctrl = match self.m.get(&id) {
             Some(CircEnt::Opening { padding_ctrl, .. }) => padding_ctrl,
-            Some(CircEnt::Open { padding_ctrl, .. }) => padding_ctrl,
+            Some(CircEnt::OpenOrigin { padding_ctrl, .. }) => padding_ctrl,
+            #[cfg(feature = "relay")]
+            Some(CircEnt::OpenRelay { padding_ctrl, .. }) => padding_ctrl,
             Some(CircEnt::DestroySent(..)) | None => return,
         };
         padding_ctrl.flushed_relay_cell(info);
@@ -225,7 +301,7 @@ impl CircMap {
             {
                 self.m.insert(
                     id,
-                    CircEnt::Open {
+                    CircEnt::OpenOrigin {
                         cell_sender: sink,
                         padding_ctrl,
                     },
@@ -308,7 +384,7 @@ mod test {
                 let (csnd, _) = oneshot::channel();
                 let (snd, _) = fake_mpsc(8);
                 let id_low = map_low
-                    .add_ent(&mut rng, csnd, snd, padding_ctrl.clone())
+                    .add_origin_ent(&mut rng, csnd, snd, padding_ctrl.clone())
                     .unwrap();
                 assert!(u32::from(id_low) > 0);
                 assert!(u32::from(id_low) < 0x80000000);
@@ -323,7 +399,7 @@ mod test {
                 let (csnd, _) = oneshot::channel();
                 let (snd, _) = fake_mpsc(8);
                 let id_high = map_high
-                    .add_ent(&mut rng, csnd, snd, padding_ctrl.clone())
+                    .add_origin_ent(&mut rng, csnd, snd, padding_ctrl.clone())
                     .unwrap();
                 assert!(u32::from(id_high) >= 0x80000000);
                 assert!(!ids_high.contains(&id_high));
@@ -356,7 +432,7 @@ mod test {
             assert!(adv.is_ok());
             assert!(matches!(
                 *map_high.get_mut(ids_high[0]).unwrap(),
-                CircEnt::Open { .. }
+                CircEnt::OpenOrigin { .. }
             ));
 
             // Can't double-advance.

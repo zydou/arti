@@ -7,6 +7,7 @@
 use derive_deftly::{Deftly, define_derive_deftly};
 use std::fmt::{self, Display};
 use tor_cell::chancell::msg::{self as chanmsg};
+use tor_cell::restricted_msg;
 
 define_derive_deftly! {
     /// Derives a `TryFrom<AnyChanMsg>` implementation for enums
@@ -32,9 +33,27 @@ define_derive_deftly! {
             }
         }
     }
+
+    impl From<$ttype> for tor_cell::chancell::msg::AnyChanMsg {
+        fn from(m: $ttype) -> tor_cell::chancell::msg::AnyChanMsg {
+            match m {
+                $( $ttype::$vname(m) => m.into(), )
+            }
+        }
+    }
 }
 
 pub(crate) use derive_deftly_template_RestrictedChanMsgSet;
+
+restricted_msg! {
+    /// A subset of [`ChanMsg`] that can be used to create a circuit.
+    #[derive(Debug)]
+    #[allow(clippy::exhaustive_enums)]
+    pub(crate) enum CreateRequest : ChanMsg {
+        CreateFast,
+        Create2,
+    }
+}
 
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.

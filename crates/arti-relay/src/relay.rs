@@ -2,7 +2,7 @@
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use anyhow::Context;
 use tokio::task::JoinSet;
@@ -21,10 +21,12 @@ use tor_memquota::MemoryQuotaTracker;
 use tor_netdir::params::NetParameters;
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
+use tor_proto::relay::CreateRequestHandler;
 use tor_rtcompat::{NetStreamProvider, Runtime};
 
 use crate::client::RelayClient;
 use crate::config::TorRelayConfig;
+use crate::tasks::channel::build_circ_net_params;
 
 /// An initialized but unbootstrapped relay.
 ///
@@ -169,6 +171,13 @@ pub(crate) struct TorRelay<R: Runtime> {
     /// Channel manager, used by circuits etc.
     chanmgr: Arc<ChanMgr<R>>,
 
+    /// Handles CREATE* requests on channels.
+    ///
+    /// Given to the [`ChanMgr`],
+    /// which gives it to each channel.
+    /// We can access this handler directly to update consensus parameters or keys.
+    create_request_handler: Arc<CreateRequestHandler>,
+
     /// See [`InertTorRelay::keymgr`].
     keymgr: Arc<KeyMgr>,
 
@@ -191,6 +200,7 @@ impl<R: Runtime> TorRelay<R> {
         let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
             .context("Failed to initialize memquota tracker")?;
 
+        // Init the channel manager.
         let config = ChanMgrConfig::new(inert.config.channel.clone())
             .with_my_addrs(inert.config.relay.advertise.all_ips())
             .with_auth_material(Arc::new(auth_material));
@@ -199,12 +209,16 @@ impl<R: Runtime> TorRelay<R> {
                 runtime.clone(),
                 config,
                 Dormancy::Active,
+                // TODO: It seems wrong to start with the compiled-in defaults when we might have
+                // a newer network status on disk that would provide a better initial value,
+                // but `TorClient` does this too so let's not worry about it.
                 &NetParameters::default(),
                 memquota.clone(),
             )
             .context("Failed to build chan manager")?,
         );
 
+        // Init the relay's client.
         let client = RelayClient::new(
             runtime.clone(),
             Arc::clone(&chanmgr),
@@ -214,6 +228,29 @@ impl<R: Runtime> TorRelay<R> {
             inert.state_mgr,
         )
         .context("Failed to construct the relay's client")?;
+
+        // Circuit-related network status parameters.
+        let circ_net_params = build_circ_net_params(client.dirmgr().params().as_ref().as_ref())
+            .context("Failed to build circuit parameters for CREATE* request handler")?;
+
+        // A handler that will process CREATE* requests on channels.
+        let create_request_handler =
+            CreateRequestHandler::new(Arc::downgrade(&chanmgr) as Weak<_>, circ_net_params);
+        let create_request_handler = Arc::new(create_request_handler);
+
+        // Configure the channel manager to handle CREATE* requests.
+        //
+        // We do this once, and can later update its network parameters and keys using the
+        // `Arc` handle that we store.
+        // The `ChanMgr` will hold an `Arc<CreateRequestHandler>` and
+        // the `CreateRequestHandler` will hold a `Weak<ChanMgr>`.
+        //
+        // We could technically do something fancier by creating the `ChanMgr` and handler
+        // inside an `Arc::new_cyclic()` and pass the handler as part of the `ChanMgrConfig`,
+        // but the code becomes a mess.
+        chanmgr
+            .set_create_request_handler(Arc::clone(&create_request_handler))
+            .context("Failed to set the CREATE* request handler")?;
 
         // An iterator of `listen()` futures with some extra error handling.
         let or_listeners = inert.config.relay.listen.addrs().map(async |addr| {
@@ -267,6 +304,7 @@ impl<R: Runtime> TorRelay<R> {
             memquota,
             client,
             chanmgr,
+            create_request_handler,
             keymgr: inert.keymgr,
             or_listeners,
         })
@@ -286,6 +324,20 @@ impl<R: Runtime> TorRelay<R> {
                 t.start()
                     .await
                     .context("Failed to run channel house keeping task")
+            }
+        });
+
+        // Update the CREATE* request handler when there are new network parameters.
+        task_handles.spawn({
+            let create_request_handler = Arc::clone(&self.create_request_handler);
+            let dir_provider = Arc::clone(self.client.dirmgr());
+            async {
+                crate::tasks::channel::update_create_request_handler_netparams(
+                    create_request_handler,
+                    dir_provider as Arc<_>,
+                )
+                .await
+                .context("Failed to run create request handler update task")
             }
         });
 

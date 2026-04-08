@@ -15,6 +15,9 @@ pub mod channel_provider;
 pub(crate) mod reactor;
 
 pub use channel::MaybeVerifiableRelayResponderChannel;
+pub use channel::create_handler::{
+    CircNetParameters, CongestionControlNetParams, CreateRequestHandler,
+};
 
 use derive_deftly::Deftly;
 use futures::StreamExt as _;

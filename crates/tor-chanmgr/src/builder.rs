@@ -24,7 +24,10 @@ use tor_rtcompat::SpawnExt;
 use tor_rtcompat::{CertifiedConn, Runtime, StreamOps, TlsProvider, tls::TlsConnector};
 
 #[cfg(feature = "relay")]
-use {safelog::Sensitive, std::net::IpAddr, tor_proto::RelayChannelAuthMaterial};
+use {
+    safelog::Sensitive, std::net::IpAddr, tor_error::bad_api_usage,
+    tor_proto::RelayChannelAuthMaterial, tor_proto::relay::CreateRequestHandler,
+};
 
 /// TLS-based channel builder.
 ///
@@ -59,6 +62,9 @@ where
     // support updating the auth_material. One use case for this is the relay config reload.
     #[cfg(feature = "relay")]
     my_addrs: Vec<IpAddr>,
+    /// Provided to each new channel so that they can handle CREATE* requests.
+    #[cfg(feature = "relay")]
+    create_request_handler: Option<Arc<CreateRequestHandler>>,
 }
 
 impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
@@ -78,6 +84,8 @@ where
             auth_material: None,
             #[cfg(feature = "relay")]
             my_addrs: Vec::new(),
+            #[cfg(feature = "relay")]
+            create_request_handler: None,
         }
     }
 
@@ -88,6 +96,7 @@ where
         transport: H,
         auth_material: Arc<RelayChannelAuthMaterial>,
         my_addrs: Vec<IpAddr>,
+        create_request_handler: Option<Arc<CreateRequestHandler>>,
     ) -> crate::Result<Self> {
         use tor_error::into_internal;
         use tor_rtcompat::tls::TlsAcceptorSettings;
@@ -103,11 +112,13 @@ where
         builder.auth_material = Some(auth_material);
         builder.tls_acceptor = Some(tls_acceptor);
         builder.my_addrs = my_addrs;
+        builder.create_request_handler = create_request_handler;
 
         Ok(builder)
     }
 
-    /// Build a new `ChanBuilder` with the given `auth_material`, cloning our runtime and transport.
+    /// Build a new `ChanBuilder` with the given `auth_material`,
+    /// cloning everything else.
     ///
     /// This is needed because some relay keys rotate over time.
     #[cfg(feature = "relay")]
@@ -123,6 +134,33 @@ where
             self.transport.clone(),
             auth_material,
             self.my_addrs.clone(),
+            self.create_request_handler.as_ref().map(Arc::clone),
+        )
+    }
+
+    /// Build a new `ChanBuilder` with the given CREATE* request `handler`,
+    /// cloning everything else.
+    ///
+    /// This is needed so that we can set the handler,
+    /// which isn't known when the builder is initially created.
+    #[cfg(feature = "relay")]
+    pub fn rebuild_with_create_request_handler(
+        &self,
+        handler: Arc<CreateRequestHandler>,
+    ) -> crate::Result<Self>
+    where
+        H: Clone,
+    {
+        let auth_material = self.auth_material.clone().ok_or_else(|| {
+            internal!("Trying to set a CREATE* request handler for a non-relay channel builder")
+        })?;
+
+        Self::new_relay(
+            self.runtime.clone(),
+            self.transport.clone(),
+            auth_material,
+            self.my_addrs.clone(),
+            Some(handler),
         )
     }
 
@@ -235,6 +273,11 @@ where
             .map_err(|e| map_ioe(e.into(), "TLS Certs"))?
             .ok_or_else(|| Error::Internal(internal!("TLS connection without our certificate")))?
             .into_owned();
+
+        let create_request_handler = self.create_request_handler.as_ref().ok_or_else(|| {
+            bad_api_usage!("Can't create a relay channel without a CREATE* request handler")
+        })?;
+
         let builder = tor_proto::RelayChannelBuilder::new();
 
         let unverified = builder
@@ -245,6 +288,7 @@ where
                 self.runtime.clone(),
                 auth_material,
                 memquota,
+                Arc::clone(create_request_handler),
             )
             .handshake(|| self.runtime.wallclock())
             .await
@@ -563,6 +607,10 @@ where
             ))?
             .clone();
 
+        let create_request_handler = self.create_request_handler.as_ref().ok_or_else(|| {
+            bad_api_usage!("Can't create a relay channel without a CREATE* request handler")
+        })?;
+
         let unverified = builder
             .launch(
                 tls,
@@ -571,6 +619,7 @@ where
                 self.my_addrs.clone(),
                 target,
                 memquota,
+                Arc::clone(create_request_handler),
             )
             .connect(|| self.runtime.wallclock())
             .await

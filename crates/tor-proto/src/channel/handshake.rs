@@ -20,11 +20,11 @@ use tor_linkspec::{
 };
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ValidatableSignature, ed25519::Ed25519Identity};
-use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{CoarseTimeProvider, Runtime, SleepProvider, StreamOps};
 use web_time_compat::{SystemTime, SystemTimeExt};
 
 use crate::channel::handler::AuthLogDigest;
-use crate::channel::{Canonicity, ChannelFrame, UniqId};
+use crate::channel::{Canonicity, ChannelFrame, ChannelMode, UniqId};
 use crate::memquota::ChannelAccount;
 use crate::peer::PeerInfo;
 use crate::util::skew::ClockSkew;
@@ -485,7 +485,11 @@ impl<
         peer_netinfo: &msg::Netinfo,
         my_addrs: &[IpAddr],
         peer_info: MaybeSensitive<PeerInfo>,
-    ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
+        channel_mode: ChannelMode,
+    ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)>
+    where
+        S: Runtime,
+    {
         // We treat a completed channel as incoming traffic since all cells were exchanged.
         //
         // TODO: conceivably we should remember the time when we _got_ the
@@ -500,8 +504,10 @@ impl<
         self.framed_tls.codec_mut().set_open()?;
 
         // Grab the channel type from our underlying frame as we are about to consume the
-        // framed_tls and we need the channel type to be set into the resulting Channel.
+        // framed_tls.
+        // Do a sanity check that the provided channel mode agrees with the type.
         let channel_type = self.framed_tls.codec().channel_type();
+        channel_mode.check_agrees_with_type(channel_type)?;
 
         // Grab a new handle on which we can apply StreamOps (needed for KIST).
         // On Unix platforms, this handle is a wrapper over the fd of the socket.
@@ -525,7 +531,7 @@ impl<
         );
 
         super::Channel::new(
-            channel_type,
+            channel_mode,
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
@@ -573,7 +579,11 @@ impl<
         peer_netinfo: &msg::Netinfo,
         my_addrs: &[IpAddr],
         peer_info: MaybeSensitive<PeerInfo>,
-    ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
+        channel_mode: ChannelMode,
+    ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)>
+    where
+        S: Runtime,
+    {
         // We treat a completed channel -- that is to say, one where the
         // authentication is finished -- as incoming traffic.
         //
@@ -589,8 +599,10 @@ impl<
         self.framed_tls.codec_mut().set_open()?;
 
         // Grab the channel type from our underlying frame as we are about to consume the
-        // framed_tls and we need the channel type to be set into the resulting Channel.
+        // framed_tls.
+        // Do a sanity check that the provided channel mode agrees with the type.
         let channel_type = self.framed_tls.codec().channel_type();
+        channel_mode.check_agrees_with_type(channel_type)?;
 
         debug!(
             stream_id = %self.unique_id,
@@ -612,7 +624,7 @@ impl<
         let peer_target = build_filtered_chan_target(self.target_method.take(), &peer_info);
 
         super::Channel::new(
-            channel_type,
+            channel_mode,
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
@@ -914,7 +926,7 @@ pub(super) mod test {
     use crate::util::fake_mq;
     use crate::{Result, channel::ClientInitiatorHandshake};
     use tor_cell::chancell::msg::{self, Netinfo};
-    use tor_rtcompat::{PreferredRuntime, Runtime};
+    use tor_rtcompat::PreferredRuntime;
 
     const VERSIONS: &[u8] = &hex!("0000 07 0006 0003 0004 0005");
     // no certificates in this cell, but connect() doesn't care.
@@ -1415,6 +1427,7 @@ pub(super) mod test {
                     &netinfo,
                     &[],
                     MaybeSensitive::not_sensitive(PeerInfo::EMPTY),
+                    ChannelMode::Client,
                 )
                 .await
                 .unwrap();

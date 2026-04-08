@@ -22,6 +22,7 @@ use crate::channel::handshake::{
 use crate::channel::{AuthLogDigest, ChannelFrame, ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::peer::PeerAddr;
+use crate::relay::CreateRequestHandler;
 use crate::relay::channel::initiator::UnverifiedInitiatorRelayChannel;
 use crate::relay::channel::responder::{
     MaybeVerifiableRelayResponderChannel, NonVerifiableResponderRelayChannel,
@@ -54,6 +55,8 @@ pub struct RelayInitiatorHandshake<
     target_method: ChannelMethod,
     /// Our advertised addresses. Needed for the NETINFO.
     my_addrs: Vec<IpAddr>,
+    /// Provided to each new channel so that they can handle CREATE* requests.
+    create_request_handler: Arc<CreateRequestHandler>,
 }
 
 /// Implement the base channel handshake trait.
@@ -91,6 +94,7 @@ impl<
         my_addrs: Vec<IpAddr>,
         peer_target: &OwnedChanTarget,
         memquota: ChannelAccount,
+        create_request_handler: Arc<CreateRequestHandler>,
     ) -> Self {
         Self {
             framed_tls: new_frame(tls, ChannelType::RelayInitiator),
@@ -100,6 +104,7 @@ impl<
             memquota,
             my_addrs,
             target_method: peer_target.chan_method(),
+            create_request_handler,
         }
     }
 
@@ -158,6 +163,7 @@ impl<
             netinfo_cell,
             auth_material: self.auth_material,
             my_addrs: self.my_addrs,
+            create_request_handler: self.create_request_handler,
         })
     }
 }
@@ -185,6 +191,8 @@ pub struct RelayResponderHandshake<
     unique_id: UniqId,
     /// Our identity keys needed for authentication.
     auth_material: Arc<RelayChannelAuthMaterial>,
+    /// Provided to each new channel so that they can handle CREATE* requests.
+    create_request_handler: Arc<CreateRequestHandler>,
 }
 
 /// Implement the base channel handshake trait.
@@ -214,6 +222,7 @@ impl<
         sleep_prov: S,
         auth_material: Arc<RelayChannelAuthMaterial>,
         memquota: ChannelAccount,
+        create_request_handler: Arc<CreateRequestHandler>,
     ) -> Self {
         Self {
             peer_addr,
@@ -228,6 +237,7 @@ impl<
             sleep_prov,
             auth_material,
             memquota,
+            create_request_handler,
         }
     }
 
@@ -298,6 +308,7 @@ impl<
                     peer_addr: self.peer_addr.into_inner(), // Relay address.
                     clog_digest,
                     slog_digest,
+                    create_request_handler: self.create_request_handler,
                 })
             }
             None => MaybeVerifiableRelayResponderChannel::NonVerifiable(
@@ -306,6 +317,7 @@ impl<
                     netinfo_cell,
                     my_addrs: self.my_addrs,
                     peer_addr: self.peer_addr,
+                    create_request_handler: self.create_request_handler,
                 },
             ),
         })

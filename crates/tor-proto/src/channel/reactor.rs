@@ -20,7 +20,7 @@ use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::msg::{Destroy, DestroyReason, Padding, PaddingNegotiate};
 use tor_cell::chancell::{AnyChanCell, CircId, msg::AnyChanMsg};
 use tor_error::debug_report;
-use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
+use tor_rtcompat::{DynTimeProvider, Runtime};
 
 #[cfg_attr(not(target_os = "linux"), allow(unused))]
 use tor_error::error_report;
@@ -44,6 +44,14 @@ use std::sync::Arc;
 use crate::channel::{ChannelDetails, CloseInfo, kist::KistParams, padding, params::*, unique_id};
 use crate::circuit::celltypes::CreateResponse;
 use tracing::{debug, instrument, trace};
+
+#[cfg(feature = "relay")]
+use {
+    crate::channel::Channel,
+    crate::circuit::celltypes::CreateRequest,
+    crate::relay::channel::create_handler::{CreateRequestHandler, RelayCircComponents},
+    std::sync::Weak,
+};
 
 /// A boxed trait object that can provide `ChanCell`s.
 pub(super) type BoxedChannelStream =
@@ -122,9 +130,9 @@ pub enum CtrlMsg {
 /// This type is returned when you finish a channel; you need to spawn a
 /// new task that calls `run()` on it.
 #[must_use = "If you don't call run() on a reactor, the channel won't work."]
-pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
+pub struct Reactor<R: Runtime> {
     /// Underlying runtime we use for generating sleep futures and telling time.
-    pub(super) runtime: S,
+    pub(super) runtime: R,
     /// A receiver for control messages from `Channel` objects.
     pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
     /// A oneshot sender that is used to alert other tasks when this reactor is
@@ -145,13 +153,21 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     /// A handler for setting stream options on the underlying stream.
     #[cfg_attr(not(target_os = "linux"), allow(unused))]
     pub(super) streamops: BoxedChannelStreamOps,
+    /// A handler for CREATE2/CREATE_FAST messages,
+    /// if this channel should handle them.
+    /// We don't want the channel reactor to access its `Channel` directly
+    /// (should use its `ChannelDetails` instead),
+    /// but we need it to pass it to new circuit reactors,
+    /// so we store a copy here.
+    #[cfg(feature = "relay")]
+    pub(super) create_request_handler: Option<(Arc<CreateRequestHandler>, Weak<Channel>)>,
     /// Timer tracking when to generate channel padding.
     ///
     /// Note that this is _distinct_ from the experimental maybenot-based padding
     /// implemented with padding_ctrl and padding_stream.
     /// This is the existing per-channel padding
     /// in the tor protocol used to resist netflow attacks.
-    pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,
+    pub(super) padding_timer: Pin<Box<padding::Timer<R>>>,
     /// Outgoing cells introduced at the channel reactor
     pub(super) special_outgoing: SpecialOutgoing,
     /// A map from circuit ID to Sinks on which we can deliver cells.
@@ -219,13 +235,13 @@ impl SpecialOutgoing {
 ///
 /// There is no risk of confusion because no-one would try to print a
 /// Reactor for some other reason.
-impl<S: SleepProvider + CoarseTimeProvider> fmt::Display for Reactor<S> {
+impl<R: Runtime> fmt::Display for Reactor<R> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.unique_id, f)
     }
 }
 
-impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
+impl<R: Runtime> Reactor<R> {
     /// Launch the reactor, and run until the channel closes or we
     /// encounter an error.
     ///
@@ -379,7 +395,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 );
                 let ret: Result<_> = self
                     .circs
-                    .add_ent(&mut rng, created_sender, sender, padding_ctrl.clone())
+                    .add_origin_ent(&mut rng, created_sender, sender, padding_ctrl.clone())
                     .map(|id| (id, circ_unique_id, padding_ctrl, padding_stream));
                 let _ = tx.send(ret); // don't care about other side going away
                 self.update_disused_since();
@@ -578,7 +594,32 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
             // These are allowed, and need to be handled.
             Relay(_) => self.deliver_relay(circid, msg).await,
 
+            // The 'if' guard is important as we should not consider this branch if we're not
+            // supposed to handle CREATE* cells (and therefore RELAY_EARLY),
+            // regardless of whether the "relay" feature is set.
+            #[cfg(feature = "relay")]
+            RelayEarly(_) if self.create_request_handler.is_some() => {
+                self.deliver_relay(circid, msg).await
+            }
+
             Destroy(_) => self.deliver_destroy(circid, msg).await,
+
+            // The 'if' guard is important as we should not consider this branch if we're not
+            // supposed to handle CREATE* cells, regardless of whether the "relay" feature is set.
+            // We should instead fall through to the wildcard pattern.
+            //
+            // Clients that enable the "relay" feature, and outgoing channels for bridges,
+            // will not have a handler set.
+            #[cfg(feature = "relay")]
+            CreateFast(msg) if self.create_request_handler.is_some() => {
+                self.handle_create(circid, CreateRequest::CreateFast(msg))
+                    .await
+            }
+            #[cfg(feature = "relay")]
+            Create2(msg) if self.create_request_handler.is_some() => {
+                self.handle_create(circid, CreateRequest::Create2(msg))
+                    .await
+            }
 
             CreatedFast(_) | Created2(_) => self.deliver_created(circid, msg),
 
@@ -588,7 +629,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
         }
     }
 
-    /// Give the RELAY cell `msg` to the appropriate circuit.
+    /// Give the RELAY (or possibly RELAY_EARLY) cell `msg` to the appropriate circuit.
     async fn deliver_relay(&mut self, circid: Option<CircId>, msg: AnyChanMsg) -> Result<()> {
         let Some(circid) = circid else {
             return Err(Error::ChanProto("Relay cell without circuit ID".into()));
@@ -600,11 +641,23 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
             .ok_or_else(|| Error::ChanProto("Relay cell on nonexistent circuit".into()))?;
 
         match &mut *ent {
-            CircEnt::Open { cell_sender: s, .. } => {
+            CircEnt::OpenOrigin { cell_sender: s, .. } => {
                 // There's an open circuit; we can give it the RELAY cell.
                 if s.send(msg).await.is_err() {
                     drop(ent);
                     // The circuit's receiver went away, so we should destroy the circuit.
+                    self.outbound_destroy_circ(circid).await?;
+                }
+                Ok(())
+            }
+            #[cfg(feature = "relay")]
+            CircEnt::OpenRelay { cell_sender: s, .. } => {
+                // There's an open circuit; we can give it the RELAY cell.
+                if s.send(msg).await.is_err() {
+                    drop(ent);
+                    // The circuit's receiver went away, so we should destroy the circuit.
+                    // We send a DESTROY on our own channel, and the circuit reactor should have
+                    // taken care of sending a DESTROY on the other channel.
                     self.outbound_destroy_circ(circid).await?;
                 }
                 Ok(())
@@ -616,7 +669,73 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
         }
     }
 
-    /// Handle a CREATED{,_FAST,2} cell by passing it on to the appropriate
+    /// Handle a CREATE* cell `msg`.
+    #[cfg(feature = "relay")]
+    async fn handle_create(&mut self, circid: Option<CircId>, msg: CreateRequest) -> Result<()> {
+        let Some((ref handler, ref chan)) = self.create_request_handler else {
+            // We should have checked this in an 'if' guard in 'handle_cell()'.
+            return Err(internal!("Called 'deliver_relay()', but handler isn't set").into());
+        };
+
+        let Some(circid) = circid else {
+            let err = format!("Received {} cell without circuit ID", msg.cmd());
+            return Err(Error::ChanProto(err));
+        };
+
+        let Some(chan) = chan.upgrade() else {
+            // This can happen if the last `Arc<Channel>` was dropped before the reactor had a
+            // chance to notice.
+            // We'll just try to reject the new circuit request.
+            let destroy = Destroy::new(DestroyReason::CHANNEL_CLOSED);
+            let destroy = AnyChanCell::new(Some(circid), destroy.into());
+
+            debug!(
+                "Unable to upgrade weak `Channel` while handling {}; sending {}",
+                msg.cmd(),
+                destroy.msg().cmd(),
+            );
+            return self.send_cell(destroy).await;
+        };
+
+        // Allocate an internal circuit ID, regardless of if the create fails or not.
+        // We expect that this will not overflow since it would require an attacker to send
+        // 500*2^32 bytes (~2 TiB) worth of cells.
+        let circ_uniq_id = self.circ_unique_id_ctx.next(self.unique_id);
+
+        // Build the relay circuit.
+        let create_result = handler.handle_create(
+            &self.runtime,
+            &chan,
+            circid,
+            msg,
+            &self.details.memquota,
+            circ_uniq_id,
+        );
+
+        // Add the circuit to the circuit map.
+        let response = match create_result {
+            Ok((response, components)) => {
+                let RelayCircComponents {
+                    circ,
+                    sender,
+                    padding_ctrl,
+                } = components;
+
+                if let Err(reason) = self.circs.add_relay_ent(circid, circ, sender, padding_ctrl) {
+                    debug!("Unable to add circuit map entry for incoming circuit: {reason}");
+                    CreateResponse::Destroy(Destroy::new(reason))
+                } else {
+                    response
+                }
+            }
+            Err(destroy) => CreateResponse::Destroy(destroy),
+        };
+
+        let response = AnyChanCell::new(Some(circid), response.into());
+        self.send_cell(response).await
+    }
+
+    /// Handle a CREATED{_FAST,2} cell by passing it on to the appropriate
     /// circuit, if that circuit is waiting for one.
     fn deliver_created(&mut self, circid: Option<CircId>, msg: AnyChanMsg) -> Result<()> {
         let Some(circid) = circid else {
@@ -641,6 +760,16 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
             return Err(Error::ChanProto("'Destroy' cell without circuit ID".into()));
         };
 
+        /// Helper to send DESTROY cell.
+        async fn send_destroy(mut sender: CircuitRxSender, msg: AnyChanMsg) -> Result<()> {
+            sender
+                .send(msg)
+                .await
+                // TODO(nickm) I think that this one actually means the other side
+                // is closed. See arti#269.
+                .map_err(|_| internal!("open circuit wasn't interested in destroy cell?").into())
+        }
+
         // Remove the circuit from the map: nothing more can be done with it.
         let entry = self.circs.remove(circid);
         self.update_disused_since();
@@ -660,19 +789,16 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                         internal!("pending circuit wasn't interested in destroy cell?").into()
                     })
             }
-            // It's an open circuit: tell it that it got a DESTROY cell.
-            Some(CircEnt::Open {
-                mut cell_sender, ..
-            }) => {
-                trace!(channel_id = %self, "Passing destroy to open circuit {}", circid);
-                cell_sender
-                    .send(msg)
-                    .await
-                    // TODO(nickm) I think that this one actually means the other side
-                    // is closed. See arti#269.
-                    .map_err(|_| {
-                        internal!("open circuit wasn't interested in destroy cell?").into()
-                    })
+            // It's an open origin circuit: tell it that it got a DESTROY cell.
+            Some(CircEnt::OpenOrigin { cell_sender, .. }) => {
+                trace!(channel_id = %self, "Passing destroy to open origin circuit {}", circid);
+                send_destroy(cell_sender, msg).await
+            }
+            // It's an open relay circuit: tell it that it got a DESTROY cell.
+            #[cfg(feature = "relay")]
+            Some(CircEnt::OpenRelay { cell_sender, .. }) => {
+                trace!(channel_id = %self, "Passing destroy to open relay circuit {}", circid);
+                send_destroy(cell_sender, msg).await
             }
             // We've sent a destroy; we can leave this circuit removed.
             Some(CircEnt::DestroySent(_)) => Ok(()),
@@ -752,7 +878,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
 pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::channel::{Canonicity, ChannelType, ClosedUnexpectedly, UniqId};
+    use crate::channel::{Canonicity, ChannelMode, ClosedUnexpectedly, UniqId};
     use crate::client::circuit::CircParameters;
     use crate::client::circuit::padding::new_padding;
     use crate::fake_mpsc;
@@ -793,7 +919,7 @@ pub(crate) mod test {
         });
         let stream_ops = NoOpStreamOpsHandle::default();
         let (chan, reactor) = crate::channel::Channel::new(
-            ChannelType::ClientInitiator,
+            ChannelMode::Client,
             link_protocol,
             Box::new(send1),
             Box::new(recv2),
@@ -1003,7 +1129,7 @@ pub(crate) mod test {
                 let (snd3, rcv3) = fake_mpsc(64);
                 reactor.circs.put_unchecked(
                     CircId::new(13).unwrap(),
-                    CircEnt::Open {
+                    CircEnt::OpenOrigin {
                         cell_sender: snd3,
                         padding_ctrl,
                     },
@@ -1099,7 +1225,7 @@ pub(crate) mod test {
                 let (snd3, rcv3) = fake_mpsc(64);
                 reactor.circs.put_unchecked(
                     CircId::new(13).unwrap(),
-                    CircEnt::Open {
+                    CircEnt::OpenOrigin {
                         cell_sender: snd3,
                         padding_ctrl: padding_ctrl.clone(),
                     },

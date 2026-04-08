@@ -15,16 +15,18 @@ use tracing::instrument;
 use tor_cell::chancell::msg;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
-use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, StreamOps};
 use web_time_compat::{SystemTime, SystemTimeExt};
 
 use crate::{
     ClockSkew, Error, RelayChannelAuthMaterial, Result,
     channel::{
-        AuthLogDigest, Channel, Reactor,
+        AuthLogDigest, Channel, ChannelMode, Reactor,
+        circmap::CircIdRange,
         handshake::{UnverifiedChannel, VerifiedChannel},
     },
     peer::{PeerAddr, PeerInfo},
+    relay::CreateRequestHandler,
     relay::channel::ChannelAuthenticationData,
 };
 
@@ -56,6 +58,8 @@ pub struct NonVerifiableResponderRelayChannel<
     pub(crate) my_addrs: Vec<IpAddr>,
     /// The peer address which is sensitive considering it is either client or bridge.
     pub(crate) peer_addr: Sensitive<PeerAddr>,
+    /// Provided to each new channel so that they can handle CREATE* requests.
+    pub(crate) create_request_handler: Arc<CreateRequestHandler>,
 }
 
 /// A verifiable relay responder channel that is currently unverified. This can only be a relay on
@@ -84,6 +88,8 @@ pub struct UnverifiedResponderRelayChannel<
     pub(crate) clog_digest: AuthLogDigest,
     /// The SLOG digest.
     pub(crate) slog_digest: AuthLogDigest,
+    /// Provided to each new channel so that they can handle CREATE* requests.
+    pub(crate) create_request_handler: Arc<CreateRequestHandler>,
 }
 
 /// A verified relay responder channel.
@@ -102,6 +108,8 @@ pub struct VerifiedResponderRelayChannel<
     my_addrs: Vec<IpAddr>,
     /// The peer address which we know is a relay.
     peer_addr: PeerAddr,
+    /// Provided to each new channel so that they can handle CREATE* requests.
+    create_request_handler: Arc<CreateRequestHandler>,
 }
 
 impl<T, S> UnverifiedResponderRelayChannel<T, S>
@@ -248,6 +256,7 @@ where
             netinfo_cell: peer_netinfo_cell,
             my_addrs,
             peer_addr: self.peer_addr,
+            create_request_handler: self.create_request_handler,
         })
     }
 
@@ -267,14 +276,23 @@ where
     /// The resulting channel is considered, by Tor protocol standard, an authenticated relay
     /// channel on which circuits can be opened.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
+    pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)>
+    where
+        S: Runtime,
+    {
         // Relay<->Relay channels are NOT sensitive as we need their info in the log.
         let peer_info = MaybeSensitive::not_sensitive(PeerInfo::new(
             self.peer_addr,
             self.inner.relay_ids().clone(),
         ));
+
+        let channel_mode = ChannelMode::Relay {
+            circ_id_range: CircIdRange::Low,
+            create_request_handler: self.create_request_handler,
+        };
+
         self.inner
-            .finish(&self.netinfo_cell, &self.my_addrs, peer_info)
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_info, channel_mode)
             .await
     }
 }
@@ -289,15 +307,24 @@ where
     /// The resulting channel is considered, by Tor protocol standard, a client/bridge relay
     /// channel meaning not authenticated. Circuit can be opened on it.
     #[instrument(skip_all, level = "trace")]
-    pub fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
+    pub fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)>
+    where
+        S: Runtime,
+    {
         // This is either a client or a bridge so very sensitive.
         let peer_info = MaybeSensitive::sensitive(PeerInfo::new(
             self.peer_addr.into_inner(),
             RelayIds::empty(),
         ));
+
+        let channel_mode = ChannelMode::Relay {
+            circ_id_range: CircIdRange::Low,
+            create_request_handler: self.create_request_handler,
+        };
+
         // Non verifiable responder channel, we simply finalize our underlying channel and we are
         // done. We are connected to a client or bridge.
         self.inner
-            .finish(&self.netinfo_cell, &self.my_addrs, peer_info)
+            .finish(&self.netinfo_cell, &self.my_addrs, peer_info, channel_mode)
     }
 }

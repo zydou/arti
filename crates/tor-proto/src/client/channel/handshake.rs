@@ -10,7 +10,7 @@ use tracing::{debug, instrument, trace};
 use safelog::MaybeSensitive;
 use tor_cell::chancell::msg;
 use tor_linkspec::{ChannelMethod, OwnedChanTarget};
-use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{CoarseTimeProvider, Runtime, SleepProvider, StreamOps};
 
 use crate::ClockSkew;
 use crate::Result;
@@ -18,7 +18,7 @@ use crate::channel::handshake::{
     AuthLogAction, ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel,
     UnverifiedInitiatorChannel, VerifiedChannel, unauthenticated_clock_skew,
 };
-use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
+use crate::channel::{Channel, ChannelFrame, ChannelMode, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::peer::{PeerAddr, PeerInfo};
 
@@ -240,7 +240,10 @@ impl<
     pub async fn finish(
         mut self,
         peer_addr: MaybeSensitive<PeerAddr>,
-    ) -> Result<(Arc<Channel>, Reactor<S>)> {
+    ) -> Result<(Arc<Channel>, Reactor<S>)>
+    where
+        S: Runtime,
+    {
         // Send the NETINFO message.
         let netinfo = msg::Netinfo::from_client(peer_addr.netinfo_addr());
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
@@ -253,6 +256,8 @@ impl<
         ));
 
         // Finish the channel to get a reactor.
-        self.inner.finish(&self.netinfo_cell, &[], peer_info).await
+        self.inner
+            .finish(&self.netinfo_cell, &[], peer_info, ChannelMode::Client)
+            .await
     }
 }
