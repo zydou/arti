@@ -61,6 +61,7 @@ use std::cmp::{self, PartialOrd};
 use std::fmt::{self, Display};
 use std::marker::PhantomData;
 use std::str::FromStr;
+use subtle::{Choice, ConstantTimeEq};
 use tor_error::{Bug, ErrorReport as _, internal};
 use void::{ResultVoidExt as _, Void};
 
@@ -79,11 +80,10 @@ pub(crate) trait FromBytes: Sized {
 
 /// Types for decoding base64-encoded values.
 mod b64impl {
-    use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
+    use super::*;
+    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use base64ct::{Base64, Base64Unpadded, Encoding};
-    use std::fmt::{self, Display};
     use std::ops::RangeBounds;
-    use subtle::{Choice, ConstantTimeEq};
 
     /// A byte array, encoded in base64 with optional padding.
     ///
