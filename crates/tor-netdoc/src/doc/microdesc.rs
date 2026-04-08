@@ -683,11 +683,11 @@ mod test {
                 onion_key: OnionKeyIntro(rsa::PublicKey::from_der(
                     pem::parse(
                         "
-                        -----BEGIN RSA PUBLIC KEY-----
-                        MIGJAoGBAMsWdLPyNVQnNeEIkFo180+8cYJIg9mFk3J4E5MByj6+tMRvuaP1TapM
-                        Farg0yfSG585hj3RerPOtERoqSlKoZy8NyJG5TdayfT65hHIEWxbkXypj55IKkFf
-                        O2E4+q4pOc2wV2d8p54c5jDLf7Qw+U7io9MXJsy1m8BQwDmEQBIfAgMBAAE=
-                        -----END RSA PUBLIC KEY-----
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBANF8Zgxp8amY1esYdPj2Ada1ORiVB/A4sgKLQ5ij/wsasO3yjjLcvHRB
+UJ0mAQWql/nauvjnKUeZFcGm3t7q0v3F9uUsOGTAZ/IKh31UQAm5OS/TJyf8IHky
+Yl0wCKpUZFHs5CHsajLSfXZKHkwfqRXFEJu9aMtmQdQFfqE9JOJHAgMBAAE=
+-----END RSA PUBLIC KEY-----
                         "
                     )
                     .unwrap()
