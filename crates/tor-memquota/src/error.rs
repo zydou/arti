@@ -16,6 +16,13 @@ pub enum Error {
     #[error("memquota - attempted to use closed memory tracking account")]
     AccountClosed,
 
+    /// Tried to insert a duplicate child Account
+    ///
+    /// This can happen if [`Account::add_parent`] is called more than once
+    /// with the same argument.
+    #[error("memquota - attempted to insert a duplicate child account")]
+    ChildAccountAlreadyExists,
+
     /// The Participant has been torn down
     ///
     /// This can happen if the account or participant has Collapsed due to reclamation
@@ -145,6 +152,7 @@ impl HasKind for Error {
         match self {
             E::TrackerShutdown => EK::ArtiShuttingDown,
             E::AccountClosed => EK::LocalResourceExhausted,
+            E::ChildAccountAlreadyExists => EK::BadApiUsage,
             E::ParticipantShutdown => EK::LocalResourceExhausted,
             E::TrackerCorrupted => EK::Internal,
             E::Bug(e) => e.kind(),
@@ -225,6 +233,7 @@ mod test {
             Error:
             TrackerShutdown {};
             AccountClosed {};
+            ChildAccountAlreadyExists {};
             ParticipantShutdown {};
             TrackerCorrupted {};
             Bug(bug.clone());
