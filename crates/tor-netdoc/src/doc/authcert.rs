@@ -843,10 +843,7 @@ mod test {
         use super::{AuthCert, AuthCertUnverified, AuthCertVersion, CrossCert, CrossCertObject};
 
         use std::{
-            fs::File,
-            io::Read,
             net::{Ipv4Addr, SocketAddrV4},
-            path::Path,
             str::FromStr,
             time::{Duration, SystemTime},
         };
@@ -856,7 +853,6 @@ mod test {
             types::{self, Iso8601TimeSp},
         };
 
-        use base64ct::{Base64, Encoding};
         use derive_deftly::Deftly;
         use tor_llcrypto::pk::rsa::{self, RsaIdentity};
 
@@ -910,31 +906,6 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // This values come from ../../testdata2/cached-certs--1
         // A different authority certificate different from the one above.
         const ALTERNATIVE_AUTHCERT_RAW: &str = include_str!("../../testdata2/cached-certs--1");
-
-        /// Reads a b64 encoded file and returns its content encoded and decoded.
-        fn read_b64<P: AsRef<Path>>(path: P) -> (String, Vec<u8>) {
-            let mut encoded = String::new();
-            File::open(path)
-                .unwrap()
-                .read_to_string(&mut encoded)
-                .unwrap();
-            let mut decoded = Vec::new();
-            base64ct::Decoder::<Base64>::new_wrapped(encoded.as_bytes(), 64)
-                .unwrap()
-                .decode_to_end(&mut decoded)
-                .unwrap();
-
-            (encoded, decoded)
-        }
-
-        /// Converts PEM to DER (without BEGIN and END lines).
-        fn to_der(s: &str) -> Vec<u8> {
-            let mut r = Vec::new();
-            for line in s.lines() {
-                r.extend(Base64::decode_vec(line).unwrap());
-            }
-            r
-        }
 
         /// Converts a string in the [`Iso8601TimeSp`] format to [`SystemTime`].
         ///
