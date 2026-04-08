@@ -98,15 +98,12 @@ impl Keystore for ArtiEphemeralKeystore {
                         // ParsedCert type of the ToEncodableCert implementation.
                         //
                         // For TorEd25519Cert, that type is ParsedEd25519Cert.
-                        let cert = ParsedEd25519Cert::decode(c.to_vec()).map_err(
-                            into_internal!("found invalid cert in ephemeral store?!"),
-                        )?;
+                        let cert = ParsedEd25519Cert::decode(c.to_vec())
+                            .map_err(into_internal!("found invalid cert in ephemeral store?!"))?;
 
                         Ok(Some(Box::new(cert)))
                     }
-                    _ => {
-                        Err(internal!("unknown item type {key:?} in the keystore").into())
-                    }
+                    _ => Err(internal!("unknown item type {key:?} in the keystore").into()),
                 }
             }
             None => Ok(None),
