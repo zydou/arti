@@ -694,10 +694,10 @@ Yl0wCKpUZFHs5CHsajLSfXZKHkwfqRXFEJu9aMtmQdQFfqE9JOJHAgMBAAE=
                     .contents()
                 )),
                 sha256: [0; 32],
-                ntor_onion_key: curve25519::PublicKey::from([
-                    184, 138, 153, 120, 194, 74, 182, 46, 83, 41, 253, 9, 159, 245, 234, 210, 227,
-                    45, 218, 104, 244, 91, 17, 49, 200, 147, 68, 175, 8, 31, 152, 117
-                ])
+                ntor_onion_key: curve25519::PublicKey::from(<[u8; 32]>::from(
+                    FixedB64::<32>::from_str("I1S8JfcqPPHWVTxfjq/eGmGiu/OtR+fF0Z86Ge1mq3s")
+                        .unwrap()
+                ))
                 .into(),
                 family: Arc::new({
                     let mut rf = RelayFamily::new();
@@ -713,11 +713,10 @@ Yl0wCKpUZFHs5CHsajLSfXZKHkwfqRXFEJu9aMtmQdQFfqE9JOJHAgMBAAE=
                 }),
                 ipv4_policy: Default::default(),
                 ipv6_policy: Default::default(),
-                ed25519_id: Ed25519Identity::from_bytes(&[
-                    237, 209, 188, 66, 237, 200, 186, 192, 178, 198, 125, 179, 110, 108, 62, 8, 36,
-                    89, 83, 230, 181, 94, 89, 217, 95, 217, 10, 16, 117, 79, 54, 27
-                ])
-                .unwrap()
+                ed25519_id: Ed25519Identity::from(<[u8; 32]>::from(
+                    FixedB64::<32>::from_str("yhO6nETO5AUdvJbLgPnw4mFjozGXWMCqOp30nY6nM8E")
+                        .unwrap()
+                ))
                 .into(),
                 family_ids: Default::default(),
             }
