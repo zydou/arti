@@ -898,6 +898,13 @@ mod test {
             rsa::PublicKey::from_der(pem::parse(s).unwrap().contents()).unwrap()
         }
 
+        /// Converts a hex-encoded RSA identity to an [`RsaIdentity`].
+        ///
+        /// This function panics in the case the input is malformatted.
+        fn to_rsa_id(s: &str) -> RsaIdentity {
+            RsaIdentity::from_hex(s).unwrap()
+        }
+
         /// Tests whether a [`DirKeyCrossCert`] can be parsed properly.
         #[test]
         fn dir_auth_cross_cert() {
