@@ -195,7 +195,7 @@ mod b64impl {
     #[allow(clippy::exhaustive_structs)]
     pub struct B64(pub Vec<u8>);
 
-    impl std::str::FromStr for B64 {
+    impl FromStr for B64 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             let v: core::result::Result<Vec<u8>, base64ct::Error> = match s.len() % 4 {
@@ -260,7 +260,7 @@ mod b64impl {
         }
     }
 
-    impl<const N: usize> std::str::FromStr for FixedB64<N> {
+    impl<const N: usize> FromStr for FixedB64<N> {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             Ok(Self(B64::from_str(s)?.0.try_into().map_err(|_| {
@@ -303,7 +303,7 @@ mod b16impl {
     #[allow(clippy::exhaustive_structs)]
     pub struct B16U(pub Vec<u8>);
 
-    impl std::str::FromStr for B16 {
+    impl FromStr for B16 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             let bytes = hex::decode(s).map_err(|_| {
@@ -315,7 +315,7 @@ mod b16impl {
         }
     }
 
-    impl std::str::FromStr for B16U {
+    impl FromStr for B16U {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             Ok(B16U(B16::from_str(s)?.0))
@@ -345,7 +345,7 @@ mod b16impl {
 
 /// Types for decoding curve25519 keys
 mod curve25519impl {
-    use std::fmt::Display;
+    use super::*;
 
     use crate::{Error, NormalItemArgument, Result, types::misc::FixedB64};
     use tor_llcrypto::pk::curve25519::PublicKey;
@@ -355,7 +355,7 @@ mod curve25519impl {
     #[allow(clippy::exhaustive_structs)]
     pub struct Curve25519Public(pub PublicKey);
 
-    impl std::str::FromStr for Curve25519Public {
+    impl FromStr for Curve25519Public {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             let pk: FixedB64<32> = s.parse()?;
@@ -377,7 +377,7 @@ mod curve25519impl {
 
 /// Types for decoding ed25519 keys
 mod ed25519impl {
-    use std::fmt::Display;
+    use super::*;
 
     use crate::{Error, NormalItemArgument, Result, types::misc::FixedB64};
     use derive_deftly::Deftly;
@@ -389,7 +389,7 @@ mod ed25519impl {
     #[allow(clippy::exhaustive_structs)]
     pub struct Ed25519Public(pub Ed25519Identity);
 
-    impl std::str::FromStr for Ed25519Public {
+    impl FromStr for Ed25519Public {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             let pk: FixedB64<32> = s.parse()?;
@@ -769,6 +769,7 @@ impl<T: PartialOrd> PartialOrd for Unknown<T> {
 
 /// Types for decoding times and dates
 mod timeimpl {
+    use super::*;
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use std::time::SystemTime;
     use time::{
@@ -789,7 +790,7 @@ mod timeimpl {
     const ISO_8601SP_FMT: &[FormatItem] =
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
-    impl std::str::FromStr for Iso8601TimeSp {
+    impl FromStr for Iso8601TimeSp {
         type Err = Error;
         fn from_str(s: &str) -> Result<Iso8601TimeSp> {
             let d = PrimitiveDateTime::parse(s, &ISO_8601SP_FMT).map_err(|e| {
@@ -838,7 +839,7 @@ mod timeimpl {
     const ISO_8601NOSP_FMT: &[FormatItem] =
         format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
 
-    impl std::str::FromStr for Iso8601TimeNoSp {
+    impl FromStr for Iso8601TimeNoSp {
         type Err = Error;
         fn from_str(s: &str) -> Result<Iso8601TimeNoSp> {
             let d = PrimitiveDateTime::parse(s, &ISO_8601NOSP_FMT).map_err(|e| {
@@ -1228,9 +1229,9 @@ mod identified_digest {
 
 /// Types for decoding RSA fingerprints
 mod fingerprint {
+    use super::*;
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use base64ct::{Base64Unpadded, Encoding as _};
-    use std::fmt::{self, Display};
     use tor_llcrypto::pk::rsa::RsaIdentity;
 
     /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
@@ -1274,7 +1275,7 @@ mod fingerprint {
         })
     }
 
-    impl std::str::FromStr for SpFingerprint {
+    impl FromStr for SpFingerprint {
         type Err = Error;
         fn from_str(s: &str) -> Result<SpFingerprint> {
             let ident = parse_hex_ident(&s.replace(' ', "")).map_err(|e| e.at_pos(Pos::at(s)))?;
@@ -1282,7 +1283,7 @@ mod fingerprint {
         }
     }
 
-    impl std::str::FromStr for Base64Fingerprint {
+    impl FromStr for Base64Fingerprint {
         type Err = Error;
         fn from_str(s: &str) -> Result<Base64Fingerprint> {
             let b = s.parse::<super::B64>()?;
@@ -1301,7 +1302,7 @@ mod fingerprint {
         }
     }
 
-    impl std::str::FromStr for Fingerprint {
+    impl FromStr for Fingerprint {
         type Err = Error;
         fn from_str(s: &str) -> Result<Fingerprint> {
             let ident = parse_hex_ident(s).map_err(|e| e.at_pos(Pos::at(s)))?;
@@ -1315,7 +1316,7 @@ mod fingerprint {
         }
     }
 
-    impl std::str::FromStr for LongIdent {
+    impl FromStr for LongIdent {
         type Err = Error;
         fn from_str(mut s: &str) -> Result<LongIdent> {
             if s.starts_with('$') {
@@ -1342,6 +1343,7 @@ mod fingerprint {
 
 /// A type for relay nicknames
 mod nickname {
+    use super::*;
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use tinystr::TinyAsciiStr;
 
@@ -1372,7 +1374,7 @@ mod nickname {
         }
     }
 
-    impl std::str::FromStr for Nickname {
+    impl FromStr for Nickname {
         type Err = Error;
 
         fn from_str(s: &str) -> Result<Self> {
