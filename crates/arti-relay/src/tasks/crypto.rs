@@ -36,18 +36,23 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 /// it should be plenty to make it happen even if hiccups happen.
 const KEY_ROTATION_EXPIRE_BUFFER: Duration = Duration::from_secs(3 * 60 * 60);
 
-/// Key lifefime duration of 2 days
-const KEY_DURATION_2DAYS: Duration = Duration::from_secs(2 * 24 * 60 * 60);
-/// Key lifefime duration of 30 days
-const KEY_DURATION_30DAYS: Duration = Duration::from_secs(30 * 24 * 60 * 60);
-/// Key lifefime duration of 6 months
-const KEY_DURATION_6MONTHS: Duration = Duration::from_secs(6 * 30 * 24 * 60 * 60);
+// The following expiry durations have been taken from C-tor.
+
+/// Lifetime of the link authentication key (KP_link_ed) certificate.
+const LINK_CERT_LIFETIME: Duration = Duration::from_secs(2 * 24 * 60 * 60);
+/// Lifetime of the relay signing key (KP_relaysign_ed) certificate.
+const SIGNING_KEY_CERT_LIFETIME: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+/// Lifetime of the RSA identity key certificate.
+const RSA_CROSSCERT_LIFETIME: Duration = Duration::from_secs(6 * 30 * 24 * 60 * 60);
 
 /// Build a fresh [`RelayChannelAuthMaterial`] object using a [`KeyMgr`].
 ///
-/// Every single certificate is generated in this function.
+/// The link cert and TLS certs are created in this function.
+/// The signing key certificate is retrieved from the keymgr.
 ///
-/// This function assumes that all required keys are in the keymgr.
+/// This function assumes that all required keys,
+/// as well as the signing key certificate,
+/// are already in the keystore.
 fn build_proto_relay_auth_material(
     now: SystemTime,
     keymgr: &KeyMgr,
@@ -83,6 +88,16 @@ fn build_proto_relay_auth_material(
         )
         .context("Failed to get signing key from key manager")?
         .context("Missing signing key")?;
+    let cert_id_sign_ed: RelaySigningKeyCert = keymgr
+        .get_cert_entry::<RelaySigningKeyCertSpecifier, _, _>(
+            keymgr
+                .list_matching(&RelaySigningKeyCertSpecifierPattern::new_any().arti_pattern()?)?
+                .first()
+                .context("No store entry for signing key cert")?,
+            &RelayIdentityKeypairSpecifier::new(),
+        )
+        .context("Failed to get signing key cert from key manager")?
+        .context("Missing signing key cert")?;
 
     // TLS key and cert. Random hostname like C-tor. We re-use the issuer_hostname for the RSA
     // legacy cert.
@@ -101,26 +116,19 @@ fn build_proto_relay_auth_material(
     )
     .context("Failed to create legacy RSA identity certificate")?;
 
-    // The following expiry duration have been taken from C-tor.
-
     let cert_id_rsa = tor_cert::rsa::EncodedRsaCrosscert::encode_and_sign(
         rsa_id_kp.keypair(),
         &ed_id_kp.to_ed25519_id(),
-        now + KEY_DURATION_6MONTHS,
+        now + RSA_CROSSCERT_LIFETIME,
     )?;
 
-    // Create the signing key cert, link cert and tls cert.
-    //
-    // TODO(relay): We need to check the KeyMgr for the signing cert but for now the KeyMgr API
-    // doesn't allow us to get it out. We will do a re-design of the cert API there. This is fine
-    // as long as we don't support offline keys.
-    let cert_id_sign_ed = gen_signing_cert(&ed_id_kp, &kp_relaysign_id, now + KEY_DURATION_30DAYS)?;
+    // Create the link cert and tls cert.
     let cert_sign_link_auth_ed =
-        gen_link_cert(&kp_relaysign_id, &link_sign_kp, now + KEY_DURATION_2DAYS)?;
+        gen_link_cert(&kp_relaysign_id, &link_sign_kp, now + LINK_CERT_LIFETIME)?;
     let cert_sign_tls_ed = gen_tls_cert(
         &kp_relaysign_id,
         *tls_key_and_cert.link_cert_sha256(),
-        now + KEY_DURATION_2DAYS,
+        now + LINK_CERT_LIFETIME,
     )?;
 
     Ok(RelayChannelAuthMaterial::new(
@@ -256,22 +264,23 @@ where
 /// Returns the minimum valid until value if a key was generated. Else, a None value indicates that
 /// no key was generated.
 fn try_generate_all(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<Option<SystemTime>> {
-    let link_expiry = now + KEY_DURATION_2DAYS;
+    let link_expiry = now + LINK_CERT_LIFETIME;
     let link_spec = RelayLinkSigningKeypairSpecifier::new(Timestamp::from(link_expiry));
     let link_generated = try_generate_key::<
         RelayLinkSigningKeypair,
         RelayLinkSigningKeypairSpecifierPattern,
     >(keymgr, &link_spec)?;
 
+    let cert_expiry = now + SIGNING_KEY_CERT_LIFETIME;
+
     // The make certificate function needed for the get_or_generate_key_and_cert(). It is a closure
     // so we can capture the runtime wallclock.
     let make_signing_cert = |subject_key: &RelaySigningKeypair,
                              signing_key: &RelayIdentityKeypair| {
-        gen_signing_cert(signing_key, subject_key, now + KEY_DURATION_30DAYS)
+        gen_signing_cert(signing_key, subject_key, cert_expiry)
             .expect("failed to generate relay signing cert")
     };
 
-    let cert_expiry = now + KEY_DURATION_30DAYS;
     // We either get the existing one or generate this new one.
     let cert_spec = RelaySigningKeyCertSpecifier::new(RelaySigningPublicKeySpecifier::new(
         Timestamp::from(cert_expiry),
@@ -540,10 +549,10 @@ mod test {
             assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
 
             // The earliest expiry should be the link key (~2 days out).
-            let expected = runtime.wallclock() + KEY_DURATION_2DAYS;
+            let expected = runtime.wallclock() + LINK_CERT_LIFETIME;
             assert_eq!(
                 next_expiry, expected,
-                "next expiry should be ~{KEY_DURATION_2DAYS:?} from now, got {next_expiry:?}"
+                "next expiry should be ~{LINK_CERT_LIFETIME:?} from now, got {next_expiry:?}"
             );
         });
     }
@@ -578,7 +587,7 @@ mod test {
             // Advance to 1 second _before_ the rotation-buffer threshold. We should not rotate
             // with this.
             let just_before =
-                KEY_DURATION_2DAYS - KEY_ROTATION_EXPIRE_BUFFER - Duration::from_secs(1);
+                LINK_CERT_LIFETIME - KEY_ROTATION_EXPIRE_BUFFER - Duration::from_secs(1);
             runtime.advance_by(just_before).await;
 
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
@@ -592,7 +601,7 @@ mod test {
 
             // Move it just after the expiry buffer and expect a rotation.
             let just_after =
-                KEY_DURATION_2DAYS - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
+                LINK_CERT_LIFETIME - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
             runtime.advance_by(just_after).await;
 
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
@@ -628,7 +637,7 @@ mod test {
             // Advance to 1 second _before_ the rotation-buffer threshold. We should not rotate
             // with this.
             let just_before =
-                KEY_DURATION_30DAYS - KEY_ROTATION_EXPIRE_BUFFER - Duration::from_secs(1);
+                SIGNING_KEY_CERT_LIFETIME - KEY_ROTATION_EXPIRE_BUFFER - Duration::from_secs(1);
             runtime.advance_by(just_before).await;
 
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
@@ -648,7 +657,7 @@ mod test {
 
             // Move it just after the expiry buffer and expect a rotation.
             let just_after =
-                KEY_DURATION_30DAYS - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
+                SIGNING_KEY_CERT_LIFETIME - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
             runtime.advance_by(just_after).await;
 
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
@@ -657,7 +666,7 @@ mod test {
             let spec = get_key_spec();
             assert_eq!(
                 spec.valid_until,
-                to_timestamp_in_secs(runtime.wallclock() + KEY_DURATION_30DAYS),
+                to_timestamp_in_secs(runtime.wallclock() + SIGNING_KEY_CERT_LIFETIME),
                 "RelaySigningKeypairSpecifier should have rotated"
             );
         });

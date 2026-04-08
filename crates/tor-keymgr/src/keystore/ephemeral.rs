@@ -6,8 +6,10 @@ use std::collections::HashMap;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
-use tor_error::internal;
-use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItem, KeystoreItemType};
+use tor_error::{internal, into_internal};
+use tor_key_forge::{
+    CertData, EncodableItem, ErasedKey, KeystoreItem, KeystoreItemType, ParsedEd25519Cert,
+};
 
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
 use crate::raw::RawEntryId;
@@ -85,8 +87,24 @@ impl Keystore for ArtiEphemeralKeystore {
             }
             Some(key) => {
                 let key: KeystoreItem = key.clone();
-                let key: ErasedKey = key.into_erased()?;
-                Ok(Some(key))
+
+                match key {
+                    KeystoreItem::Key(key) => {
+                        let key: ErasedKey = key.into_erased()?;
+                        Ok(Some(key))
+                    }
+                    KeystoreItem::Cert(CertData::TorEd25519Cert(c)) => {
+                        // Important: The KeyMgr expects the returned certs to be of the
+                        // ParsedCert type of the ToEncodableCert implementation.
+                        //
+                        // For TorEd25519Cert, that type is ParsedEd25519Cert.
+                        let cert = ParsedEd25519Cert::decode(c.to_vec())
+                            .map_err(into_internal!("found invalid cert in ephemeral store?!"))?;
+
+                        Ok(Some(Box::new(cert)))
+                    }
+                    _ => Err(internal!("unknown item type {key:?} in the keystore").into()),
+                }
             }
             None => Ok(None),
         }
