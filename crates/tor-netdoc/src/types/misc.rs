@@ -78,21 +78,32 @@ pub(crate) trait FromBytes: Sized {
     }
 }
 
-/// Types for decoding base64-encoded values.
-mod b64impl {
-    use super::*;
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
-    use base64ct::{Base64, Base64Unpadded, Encoding};
-    use std::ops::RangeBounds;
-
-    /// A byte array, encoded in base64 with optional padding.
+define_derive_deftly! {
+    /// Implement `ConstantTimeEq`, `.as_bytes()`, etc., for a transparent newtype around bytes
     ///
-    /// On output (`Display`), output is unpadded.
-    #[derive(Clone, Hash)]
-    #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
-    #[debug(r#"B64("{self}")"#)]
-    pub struct B64(Vec<u8>);
+    /// # Requirements
+    ///
+    ///  * Self should be a single-field struct
+    ///  * Self should deref to `&[u8]`
+    ///
+    /// # Generated code
+    ///
+    ///  * impls of `ConstantTimeEq`, `Eq`, `PartialEq`
+    ///  * `as_bytes()` method
+    ///
+    // We could derive Debug here but then we have to deal with the Fixed's N
+    // which gets quite fiddly.
+    //
+    /// # Guidelines
+    ///
+    ///  * derive `Hash` and write `#[allow(clippy::derived_hash_with_manual_eq)]`
+    ///  * impl `FromStr` and `Display` (if required, which they usually will be)
+    ///  * derive `derive_more::Debug` eg with `#[debug(r#"B64("{self}")"#)]`
+    ///  * derive `derive_more::From` and `derive_more::Into` if applicable
+    ///  * `impl NormalItemArgument` if appropriate (ie the representation has no spaces)
+    BytesTransparent for struct, beta_deftly:
+
+    // XXXX this code has been c&p from B64 and needs to have $-substitutions inserted
 
     impl ConstantTimeEq for B64 {
         fn ct_eq(&self, other: &B64) -> Choice {
@@ -106,6 +117,31 @@ mod b64impl {
         }
     }
     impl Eq for B64 {}
+
+    impl B64 {
+        /// Return the byte array from this object.
+        pub fn as_bytes(&self) -> &[u8] {
+            &self.0[..]
+        }
+    }
+}
+
+/// Types for decoding base64-encoded values.
+mod b64impl {
+    use super::*;
+    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
+    use base64ct::{Base64, Base64Unpadded, Encoding};
+    use std::ops::RangeBounds;
+
+    /// A byte array, encoded in base64 with optional padding.
+    ///
+    /// On output (`Display`), output is unpadded.
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[debug(r#"B64("{self}")"#)]
+    pub struct B64(Vec<u8>);
 
     impl std::str::FromStr for B64 {
         type Err = Error;
@@ -130,10 +166,6 @@ mod b64impl {
     }
 
     impl B64 {
-        /// Return the byte array from this object.
-        pub fn as_bytes(&self) -> &[u8] {
-            &self.0[..]
-        }
         /// Return this object if its length is within the provided bounds
         /// object, or an error otherwise.
         pub(crate) fn check_len<B: RangeBounds<usize>>(self, bounds: B) -> Result<Self> {
