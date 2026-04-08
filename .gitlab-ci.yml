@@ -40,8 +40,8 @@ variables:
   # For static website deployment job
   SITE_URL: arti.torproject.org
   # Pinned chutney version.
-  # main @ 2026-04-02
-  CHUTNEY_COMMIT: "56d95dc570c206588651295ca7b2c12271292c12"
+  # main @ 2026-04-08
+  CHUTNEY_COMMIT: "9ca2446f4837c1730d31cf9be8ebb7865ebe8fc3"
 
 default:
   image:
