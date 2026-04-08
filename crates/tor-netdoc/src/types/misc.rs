@@ -88,9 +88,9 @@ mod b64impl {
     /// A byte array, encoded in base64 with optional padding.
     ///
     /// On output (`Display`), output is unpadded.
-    #[derive(Clone)]
+    #[derive(Clone, Hash)]
     #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(Hash, derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
     #[debug(r#"B64("{self}")"#)]
     pub struct B64(Vec<u8>);
 
