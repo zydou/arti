@@ -363,12 +363,12 @@ fn remove_expired_keys(
 /// `next_expiry` is the earliest expiry time across all keys.
 fn try_rotate_keys(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<(bool, SystemTime)> {
     // First do a pass to remove every expired key(s) or/and cert(s).
-    let (have_rotated, min_expiry) = remove_expired_keys(now, keymgr)?;
+    let (have_removed, min_expiry) = remove_expired_keys(now, keymgr)?;
 
     // Then attempt to generate keys. If at least one was generated, we'll get the min expiry time
     // which we need to consider "rotated" so the caller can know that a new key appeared.
     let gen_min_expiry = try_generate_all(now, keymgr)?;
-    let have_rotated = have_rotated || gen_min_expiry.is_some();
+    let have_rotated = have_removed || gen_min_expiry.is_some();
 
     // We should never get no expiry time.
     let next_expiry = [min_expiry, gen_min_expiry]
