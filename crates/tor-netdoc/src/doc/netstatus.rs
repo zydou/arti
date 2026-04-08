@@ -588,6 +588,7 @@ pub struct SharedRandStatus {
 /// Description of an authority's identity and address.
 ///
 /// (Corresponds to a dir-source line.)
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:dir-source>
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct DirSource {
