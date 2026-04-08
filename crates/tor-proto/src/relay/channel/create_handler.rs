@@ -102,7 +102,6 @@ impl CreateRequestHandler {
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), HandleCreateError> {
         // TODO(relay): The log messages throughout could be very noisy, so should have rate limiting.
-        // TODO(relay): A macro could probably help clean up the error handling paths here.
 
         // Perform the handshake crypto and build the response.
         let (response, hop_settings, crypto_out, crypto_in) = match msg {
