@@ -1027,23 +1027,18 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
                 *res.inspect_unverified().0,
                 AuthCert {
                     dir_key_certificate_version: AuthCertVersion::V3,
-                    dir_address: None,
-                    fingerprint: types::Fingerprint(
-                        RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()
-                    ),
-                    dir_key_published: Iso8601TimeSp::from_str("2025-08-17 20:34:03").unwrap(),
-                    dir_key_expires: Iso8601TimeSp::from_str("2026-08-17 20:34:03").unwrap(),
-                    dir_identity_key: rsa::PublicKey::from_der(&to_der(include_str!(
-                        "../../testdata2/authcert-longclaw-id-rsa"
-                    )))
-                    .unwrap(),
-                    dir_signing_key: rsa::PublicKey::from_der(&to_der(include_str!(
-                        "../../testdata2/authcert-longclaw-sign-rsa"
-                    )))
-                    .unwrap(),
+                    dir_address: Some(DIR_ADDRESS),
+                    fingerprint: types::Fingerprint(to_rsa_id(FINGERPRINT)),
+                    dir_key_published: Iso8601TimeSp(to_system_time(DIR_KEY_PUBLISHED)),
+                    dir_key_expires: Iso8601TimeSp(to_system_time(DIR_KEY_EXPIRES)),
+                    dir_identity_key: pem_to_rsa_pk(DIR_IDENTITY_KEY),
+                    dir_signing_key: pem_to_rsa_pk(DIR_SIGNING_KEY),
                     dir_key_crosscert: CrossCert {
                         signature: CrossCertObject(
-                            read_b64("testdata2/authcert-longclaw-crosscert-b64").1
+                            pem::parse(DIR_CROSS_CERT_OBJECT)
+                                .unwrap()
+                                .contents()
+                                .to_vec()
                         )
                     },
                     __non_exhaustive: (),
