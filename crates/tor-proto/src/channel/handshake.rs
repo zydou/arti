@@ -23,7 +23,7 @@ use tor_llcrypto::pk::{ValidatableSignature, ed25519::Ed25519Identity};
 use tor_rtcompat::{CoarseTimeProvider, Runtime, SleepProvider, StreamOps};
 use web_time_compat::{SystemTime, SystemTimeExt};
 
-use crate::channel::handler::AuthLogDigest;
+use crate::channel::handler::SlogDigest;
 use crate::channel::{Canonicity, ChannelFrame, ChannelMode, UniqId};
 use crate::memquota::ChannelAccount;
 use crate::peer::PeerInfo;
@@ -165,7 +165,7 @@ where
         msg::AuthChallenge,
         msg::Certs,
         (msg::Netinfo, coarsetime::Instant),
-        Option<AuthLogDigest>,
+        Option<SlogDigest>,
     )> {
         // IMPORTANT: Protocol wise, we MUST only allow one single cell of each type for a valid
         // handshake. Any duplicates lead to a failure.
@@ -208,7 +208,9 @@ where
 
         let slog_digest = if auth_log_action.is_take() {
             // We're the initiator, which means that the recv log is the SLOG.
-            Some(self.framed_tls().codec_mut().take_recv_log_digest()?)
+            Some(SlogDigest::new(
+                self.framed_tls().codec_mut().take_recv_log_digest()?,
+            ))
         } else {
             None
         };
