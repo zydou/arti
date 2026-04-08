@@ -884,6 +884,13 @@ mod test {
             r
         }
 
+        /// Converts a string in the [`Iso8601TimeSp`] format to [`SystemTime`].
+        ///
+        /// This functions panics in the case the input is malformatted.
+        fn to_system_time(s: &str) -> SystemTime {
+            Iso8601TimeSp::from_str(s).unwrap().0
+        }
+
         /// Tests whether a [`DirKeyCrossCert`] can be parsed properly.
         #[test]
         fn dir_auth_cross_cert() {
