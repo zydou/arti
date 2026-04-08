@@ -1289,7 +1289,11 @@ mod nickname {
 mod contact_info {
     use super::*;
 
-    /// Contact information of the relay operator.
+    /// `contact` item: contact information (eg of a relay dirauth operator)
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:contact>
+    ///
+    /// Also used for authority entries in netstatus documents.
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
     #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
     #[non_exhaustive]
