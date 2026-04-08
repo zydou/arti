@@ -282,7 +282,7 @@ where
 ///
 /// Returns the minimum valid until value if a key was generated. Else, a None value indicates that
 /// no key was generated.
-fn try_generate_all(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<Option<SystemTime>> {
+fn try_generate_all(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<(KeyChange, Option<SystemTime>)> {
     let link_expiry = now + LINK_CERT_LIFETIME;
     let link_spec = RelayLinkSigningKeypairSpecifier::new(Timestamp::from(link_expiry));
     let link_generated = try_generate_key::<
@@ -315,13 +315,18 @@ fn try_generate_all(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<Option<S
         make_signing_cert,
     )?;
 
-    Ok([
+    let change = KeyChange {
+        chan_auth: link_generated || cert_generated,
+        ntor: false, // XXX: generate and rotate ntor keys
+    };
+
+    Ok((change, [
         link_generated.then_some(link_expiry),
         cert_generated.then_some(cert_expiry),
     ]
     .into_iter()
     .flatten()
-    .min())
+    .min()))
 }
 
 /// Remove any expired keys (and certs) that are expired.
@@ -332,7 +337,7 @@ fn try_generate_all(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<Option<S
 fn remove_expired_keys(
     now: SystemTime,
     keymgr: &KeyMgr,
-) -> anyhow::Result<(bool, Option<SystemTime>)> {
+) -> anyhow::Result<(KeyChange, Option<SystemTime>)> {
     let (relaysign_removed, relaysign_expiry) = remove_expired(
         now,
         keymgr,
@@ -366,7 +371,10 @@ fn remove_expired_keys(
     )?;
 
     // Have we at least removed one?
-    let removed = relaysign_removed || link_removed || sign_cert_removed;
+    let removed = KeyChange {
+        chan_auth: relaysign_removed || link_removed || sign_cert_removed,
+        ntor: false, // XXX: generate and rotate ntor keys
+    };
 
     let next_expiry = [relaysign_expiry, link_expiry, sign_cert_expiry]
         .into_iter()
@@ -380,14 +388,14 @@ fn remove_expired_keys(
 ///
 /// Returns (rotated, next_expiry) where `rotated` indicates if any key was rotated and
 /// `next_expiry` is the earliest expiry time across all keys.
-fn try_rotate_keys(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<(bool, SystemTime)> {
+fn try_rotate_keys(now: SystemTime, keymgr: &KeyMgr) -> anyhow::Result<(KeyChange, SystemTime)> {
     // First do a pass to remove every expired key(s) or/and cert(s).
     let (have_removed, min_expiry) = remove_expired_keys(now, keymgr)?;
 
     // Then attempt to generate keys. If at least one was generated, we'll get the min expiry time
     // which we need to consider "rotated" so the caller can know that a new key appeared.
-    let gen_min_expiry = try_generate_all(now, keymgr)?;
-    let have_rotated = have_removed || gen_min_expiry.is_some();
+    let (generated, gen_min_expiry) = try_generate_all(now, keymgr)?;
+    let have_rotated = have_removed.or(&generated);
 
     // We should never get no expiry time.
     let next_expiry = [min_expiry, gen_min_expiry]
@@ -434,7 +442,7 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
         let now = runtime.wallclock();
         // Attempt a rotation of all keys.
         let (have_rotated, next_expiry) = try_rotate_keys(now, &keymgr)?;
-        if have_rotated {
+        if have_rotated.chan_auth {
             let auth_material = build_proto_relay_auth_material(now, &keymgr)?;
             chanmgr
                 .set_relay_auth_material(Arc::new(auth_material))
@@ -561,7 +569,7 @@ mod test {
             let (rotated, next_expiry) = try_rotate_keys(now, &keymgr).unwrap();
 
             assert!(
-                rotated,
+                rotated.chan_auth,
                 "keys should be reported as generated on first rotation"
             );
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
@@ -589,7 +597,7 @@ mod test {
 
             let (rotated, _) = try_rotate_keys(now, &keymgr).unwrap();
 
-            assert!(!rotated, "fresh keys must not trigger a rotation");
+            assert!(!rotated.chan_auth, "fresh keys must not trigger a rotation");
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
             assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
         });
@@ -612,7 +620,7 @@ mod test {
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
 
             assert!(
-                !rotated,
+                !rotated.chan_auth,
                 "link key MUST NOT rotate before the expiry buffer threshold"
             );
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
@@ -623,7 +631,7 @@ mod test {
 
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
             assert!(
-                rotated,
+                rotated.chan_auth,
                 "link key should rotate inside the expiry buffer threshold"
             );
         });
@@ -658,7 +666,7 @@ mod test {
             runtime.advance_by(just_before).await;
 
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
-            assert!(rotated, "Rotation must happen after 30 days");
+            assert!(rotated.chan_auth, "Rotation must happen after 30 days");
 
             let spec = get_key_spec();
             assert_eq!(
@@ -676,7 +684,7 @@ mod test {
             runtime.advance_by(Duration::from_secs(1)).await;
 
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
-            assert!(rotated, "Rotation must happen after 30 days");
+            assert!(rotated.chan_auth, "Rotation must happen after 30 days");
 
             let spec = get_key_spec();
             assert_eq!(
