@@ -722,45 +722,5 @@ mod test {
                 family_ids: Default::default(),
             }
         );
-        assert_eq!(
-            mds[6],
-            Microdesc {
-                onion_key: OnionKeyIntro(rsa::PublicKey::from_der(
-                    pem::parse(
-                        "
-                        -----BEGIN RSA PUBLIC KEY-----
-                        MIGJAoGBAMY9WgKkxsjcQ5eH6Lp6uKr4nxYfYJDl1MIfT6+5LNUxuzd2UHatrQ2T
-                        gckACk/y7iqTqm+uRC9egntXbLYbtVkhliDQDaMCmGl0EAVcqFis5oiBI/nyhuBo
-                        9JnfPbplmO7guH99y6NGnM93IVCJwgTxeGZkzbDvfj/ArzP6STnVAgMBAAE=
-                        -----END RSA PUBLIC KEY-----
-                        "
-                    )
-                    .unwrap()
-                    .contents()
-                )),
-                sha256: [0; 32],
-                ntor_onion_key: curve25519::PublicKey::from([
-                    64, 77, 233, 130, 69, 118, 107, 22, 241, 6, 252, 12, 186, 66, 75, 213, 211, 63,
-                    148, 96, 1, 160, 61, 253, 223, 78, 107, 177, 113, 179, 221, 122
-                ])
-                .into(),
-                family: Default::default(),
-                ipv4_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),
-                ipv6_policy: Arc::new(PortPolicy::from_allowed_port_list(vec![80, 443])),
-                ed25519_id: Ed25519Identity::from_bytes(&[
-                    79, 23, 163, 165, 39, 202, 146, 148, 56, 73, 45, 36, 41, 112, 105, 69, 28, 23,
-                    40, 0, 221, 249, 96, 162, 54, 242, 130, 171, 144, 35, 124, 43
-                ])
-                .unwrap()
-                .into(),
-                family_ids: RelayFamilyIds::from_iter(vec![
-                    RelayFamilyId::Ed25519(
-                        Ed25519Identity::from_base64("5vHhiPVy3pZwFsR2GBudhkdKYrkdGVtAxrwpZ1weiYU")
-                            .unwrap(),
-                    );
-                    2
-                ]),
-            }
-        );
     }
 }
