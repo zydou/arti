@@ -1294,13 +1294,35 @@ mod contact_info {
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:contact>
     ///
     /// Also used for authority entries in netstatus documents.
-    #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
+    #[derive(Clone, Debug, PartialEq, Eq, Deftly)] //
+    #[derive(derive_more::Into, derive_more::AsRef, derive_more::Deref)]
     #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
     #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
     // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr
     #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
     #[non_exhaustive]
-    pub struct ContactInfo(#[deftly(netdoc(rest))] pub String);
+    pub struct ContactInfo(#[deftly(netdoc(rest))] String);
+
+    /// Contact information (`contact` item value) has invalid syntax
+    #[derive(Clone, Debug, thiserror::Error)]
+    #[error("contact information (`contact` item value) has invalid syntax")]
+    #[non_exhaustive]
+    pub struct InvalidContactInfo {}
+
+    impl FromStr for ContactInfo {
+        type Err = InvalidContactInfo;
+
+        fn from_str(s: &str) -> Result<Self, InvalidContactInfo> {
+            // TODO torspec#396 we should probably impose more restrictions
+            // NOTE! when adding extra invariants here, the ItemValueEncodable derive
+            // above becomes wrong, because it won't check them!
+            if s.contains('\n') || s.starts_with(char::is_whitespace) {
+                Err(InvalidContactInfo {})
+            } else {
+                Ok(ContactInfo(s.to_owned()))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1687,6 +1709,23 @@ mod test {
         assert!(not_ascii.parse::<Nickname>().is_err());
         assert!(too_short.parse::<Nickname>().is_err());
         assert!(other_invalid.parse::<Nickname>().is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn contact_info() -> anyhow::Result<()> {
+        const S: &str = "some relay operator";
+        let n: ContactInfo = S.parse()?;
+        assert_eq!(n.as_str(), S);
+        assert_eq!(n.to_string(), S);
+
+        let bad = |s: &str| {
+            let _: InvalidContactInfo = s.parse::<ContactInfo>().unwrap_err();
+        };
+
+        bad(" starts with space");
+        bad("contains\nnewline");
 
         Ok(())
     }
