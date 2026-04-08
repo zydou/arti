@@ -326,8 +326,9 @@ fn init_runtime() -> std::io::Result<impl ToplevelRuntime> {
 
     // Note: See comments in `tor_rtcompat::impls::rustls::RustlsProvider`
     // about choice of default crypto provider.
-    let _idempotent_ignore =
-        rustls::crypto::CryptoProvider::install_default(rustls::crypto::ring::default_provider());
+    let _idempotent_ignore = rustls::crypto::CryptoProvider::install_default(
+        rustls::crypto::aws_lc_rs::default_provider(),
+    );
 
     TokioRustlsRuntime::create()
 }
