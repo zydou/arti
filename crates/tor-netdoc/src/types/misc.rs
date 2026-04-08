@@ -192,7 +192,8 @@ mod b64impl {
     #[allow(clippy::derived_hash_with_manual_eq)]
     #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
     #[debug(r#"B64("{self}")"#)]
-    pub struct B64(Vec<u8>);
+    #[allow(clippy::exhaustive_structs)]
+    pub struct B64(pub Vec<u8>);
 
     impl std::str::FromStr for B64 {
         type Err = Error;
@@ -230,7 +231,7 @@ mod b64impl {
         /// Try to convert this object into an array of N bytes.
         ///
         /// Return an error if the length is wrong.
-        pub fn into_array<const N: usize>(self) -> Result<[u8; N]> {
+        pub(crate) fn into_array<const N: usize>(self) -> Result<[u8; N]> {
             self.0
                 .try_into()
                 .map_err(|_| EK::BadObjectVal.with_msg("Invalid length on base64 data"))
