@@ -52,6 +52,7 @@ rand = "0.9.1"
 rustls = { version = "0.23.5", default-features = false, features = ["logging", "aws_lc_rs"] }
 safelog = { path = "../safelog", version = "0.8.1" }
 serde = { version = "1.0.103", features = ["derive"] }
+smallvec = "1.10"
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1.7", features = ["signal"] }
