@@ -1152,34 +1152,34 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             .unwrap();
 
         // Check with non-matching fingerprint and long-term identity key.
-        let mut cert =
+        let mut res =
             parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
         let alternative_cert = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
             ALTERNATIVE_AUTHCERT_RAW,
             "",
         ))
         .unwrap();
-        cert.body.dir_identity_key = alternative_cert.body.dir_identity_key.clone();
+        res.body.dir_identity_key = alternative_cert.body.dir_identity_key.clone();
         assert_eq!(
-            cert.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
+            res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
             VerifyFailed::Inconsistent
         );
 
         // Check invalid cross-cert.
-        let mut cert =
+        let mut res =
             parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
-        cert.body.dir_key_crosscert = alternative_cert.body.dir_key_crosscert.clone();
+        res.body.dir_key_crosscert = alternative_cert.body.dir_key_crosscert.clone();
         assert_eq!(
-            cert.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
+            res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
             VerifyFailed::VerifyFailed
         );
 
         // Check outer signature.
-        let mut cert =
+        let mut res =
             parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
-        cert.sigs = alternative_cert.sigs.clone();
+        res.sigs = alternative_cert.sigs.clone();
         assert_eq!(
-            cert.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
+            res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
             VerifyFailed::VerifyFailed
         );
     }
