@@ -5,7 +5,7 @@
 //!
 //! TODO RPC: Add an object diagram here once the implementation settles down.
 
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use slotmap_careful::{Key as _, KeyData, SlotMap};
 use tor_rpcbase as rpc;
@@ -17,11 +17,43 @@ slotmap_careful::new_key_type! {
 
 }
 
+/// A weak or a strong reference to an RPC object.
+//
+// Note: This type does not pack very efficiently, due to Rust's current lack
+// of alignment-based niche optimization.
+// If this ever matters, we can either use two slotmaps, or we can implement
+// some kind of kludgey hack on our own.
+#[derive(Clone, derive_more::From)]
+enum ObjectRef {
+    /// A strong reference.
+    Strong(Arc<dyn rpc::Object>),
+    /// A weak reference reference.
+    Weak(Weak<dyn rpc::Object>),
+}
+
+impl ObjectRef {
+    /// Return this reference as an Arc, if it is present.
+    fn get(&self) -> Option<Arc<dyn rpc::Object>> {
+        match self {
+            ObjectRef::Strong(s) => Some(Arc::clone(s)),
+            ObjectRef::Weak(w) => w.upgrade(),
+        }
+    }
+
+    /// Consume this reference. Return an Arc if the object is present.
+    fn into_owned(self) -> Option<Arc<dyn rpc::Object>> {
+        match self {
+            ObjectRef::Strong(s) => Some(s),
+            ObjectRef::Weak(w) => w.upgrade(),
+        }
+    }
+}
+
 /// A mechanism to look up RPC `Objects` by their `ObjectId`.
 #[derive(Default)]
 pub(crate) struct ObjMap {
     /// Generationally indexed arena of strong object references.
-    arena: SlotMap<GenIdx, Arc<dyn rpc::Object>>,
+    arena: SlotMap<GenIdx, ObjectRef>,
 }
 
 /// Encoding functions for GenIdx.
@@ -96,24 +128,22 @@ impl ObjMap {
 
     /// Unconditionally insert a strong entry for `value` in self, and return its index.
     pub(crate) fn insert_strong(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        self.arena.insert(value)
+        self.arena.insert(ObjectRef::Strong(value))
     }
 
     /// Unconditionally insert a weak entry for `value` in self, and return its index.
-    #[allow(dead_code)] // XXXX
-    pub(crate) fn insert_weak(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        // XXXX todo; make this actually weak.
-        self.arena.insert(value)
+    pub(crate) fn insert_weak(&mut self, value: &Arc<dyn rpc::Object>) -> GenIdx {
+        self.arena.insert(ObjectRef::Weak(Arc::downgrade(value)))
     }
 
     /// Return the entry from this ObjMap for `idx`.
     pub(crate) fn lookup(&self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
-        self.arena.get(idx).cloned()
+        self.arena.get(idx).and_then(ObjectRef::get)
     }
 
     /// Remove and return the entry at `idx`, if any.
     pub(crate) fn remove(&mut self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
-        self.arena.remove(idx)
+        self.arena.remove(idx).and_then(ObjectRef::into_owned)
     }
 
     /// Testing only: Assert that every invariant for this structure is met.
