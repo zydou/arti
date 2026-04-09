@@ -1495,7 +1495,10 @@ impl<R: Runtime> TorClient<R> {
                     .get_or_launch_exit_tunnel(&exit_ports, prefs)
                     .await
                     .map_err(wrap_err)?;
-                debug!("Got a circuit for {}:{}", sensitive(&addr), port);
+                debug!(
+                    tunnel_id = %tunnel.unique_id(),
+                    "Got a circuit for {}:{}", sensitive(&addr), port);
+
                 begin_stream!(tunnel, &addr, port, Some(stream_parameters))
             }
 

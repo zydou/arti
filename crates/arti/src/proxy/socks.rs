@@ -179,6 +179,7 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
         },
         _ => ProvidedIsolation::LegacySocks(auth.clone()),
     };
+    tracing::debug!("socks auth {:?} -> isolation {:?}", sensitive(&auth), sensitive(&isolation));
 
     Ok(AuthInterpretation {
         #[cfg(feature = "rpc")]
