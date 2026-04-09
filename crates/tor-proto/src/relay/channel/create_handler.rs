@@ -14,7 +14,7 @@ use crate::client::circuit::CircParameters;
 use crate::client::circuit::padding::PaddingController;
 use crate::crypto::cell::CryptInit as _;
 use crate::crypto::cell::RelayLayer as _;
-use crate::crypto::cell::tor1;
+use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer, tor1};
 use crate::crypto::handshake::RelayHandshakeError;
 use crate::crypto::handshake::ServerHandshake as _;
 use crate::crypto::handshake::fast::CreateFastServer;
@@ -26,7 +26,7 @@ use crate::relay::reactor::Reactor;
 use std::sync::{Arc, RwLock, Weak};
 use tor_cell::chancell::ChanMsg as _;
 use tor_cell::chancell::CircId;
-use tor_cell::chancell::msg::{CreatedFast, Destroy, DestroyReason};
+use tor_cell::chancell::msg::{CreateFast, CreatedFast, Destroy, DestroyReason};
 use tor_error::{Bug, ErrorKind, HasKind, debug_report, internal, into_internal};
 use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::cipher::aes::Aes128Ctr;
@@ -76,15 +76,15 @@ impl CreateRequestHandler {
         runtime: &R,
         channel: &Arc<Channel>,
         circ_id: CircId,
-        msg: CreateRequest,
+        msg: &CreateRequest,
         memquota: &ChannelAccount,
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), Destroy> {
-        let cmd = msg.cmd();
-
         match self.handle_create_inner(runtime, channel, circ_id, msg, memquota, circ_unique_id) {
             Ok(x) => Ok(x),
             Err(e) => {
+                // TODO(relay): The log messages throughout could be very noisy, so should have rate limiting.
+                let cmd = msg.cmd();
                 debug_report!(&e, %cmd, "Failed to handle circuit create request");
                 Err(Destroy::new(e.destroy_reason()))
             }
@@ -97,56 +97,13 @@ impl CreateRequestHandler {
         runtime: &R,
         channel: &Arc<Channel>,
         circ_id: CircId,
-        msg: CreateRequest,
+        msg: &CreateRequest,
         memquota: &ChannelAccount,
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), HandleCreateError> {
-        // TODO(relay): The log messages throughout could be very noisy, so should have rate limiting.
-        // TODO(relay): A macro could probably help clean up the error handling paths here.
-
         // Perform the handshake crypto and build the response.
-        let (response, hop_settings, crypto_out, crypto_in) = match msg {
-            CreateRequest::CreateFast(msg) => {
-                // TODO(relay): We should split this CREATE_FAST handling off into a helper.
-
-                // TODO(relay): We might want to offload this to a CPU worker in the future.
-                let (keygen, handshake_msg) = CreateFastServer::server(
-                    &mut rand::rng(),
-                    &mut |_: &()| Some(()),
-                    &[()],
-                    msg.handshake(),
-                )?;
-
-                let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
-                    .map_err(into_internal!("Circuit crypt state construction failed"))?;
-
-                let circ_params = self
-                    .circ_net_params
-                    .read()
-                    .expect("rwlock poisoned")
-                    // CREATE_FAST always uses fixed-window flow control.
-                    .as_circ_parameters(AlgorithmDiscriminants::FixedWindow)?;
-
-                // TODO(relay): I think we might want to get these from the consensus instead?
-                let protos = tor_protover::Protocols::default();
-
-                // TODO(relay): I'm not sure if this is the right way to do this. It works for
-                // CREATE_FAST, but we might want to rethink it for CREATE2.
-                let hop_settings = HopSettings::from_params_and_caps(
-                    HopNegotiationType::None,
-                    &circ_params,
-                    &protos,
-                )
-                .map_err(into_internal!("Unable to build `HopSettings`"))?;
-
-                let response = CreatedFast::new(handshake_msg);
-                let response = CreateResponse::CreatedFast(response);
-
-                let (crypto_out, crypto_in, _binding) = crypt.split_relay_layer();
-                let (crypto_out, crypto_in) = (Box::new(crypto_out), Box::new(crypto_in));
-
-                (response, hop_settings, crypto_out, crypto_in)
-            }
+        let handshake_components = match msg {
+            CreateRequest::CreateFast(msg) => self.handle_create_fast(msg)?,
             CreateRequest::Create2(_) => {
                 // TODO(relay): We might want to offload this to a CPU worker in the future.
                 // TODO(relay): Implement this.
@@ -181,9 +138,9 @@ impl CreateRequestHandler {
             circ_id,
             circ_unique_id,
             receiver,
-            crypto_in,
-            crypto_out,
-            &hop_settings,
+            handshake_components.crypto_in,
+            handshake_components.crypto_out,
+            &handshake_components.hop_settings,
             chan_provider,
             padding_ctrl.clone(),
             padding_stream,
@@ -202,13 +159,59 @@ impl CreateRequestHandler {
         })?;
 
         Ok((
-            response,
+            handshake_components.response,
             RelayCircComponents {
                 circ,
                 sender,
                 padding_ctrl,
             },
         ))
+    }
+
+    /// The handshake code for a CREATE_FAST request.
+    fn handle_create_fast(
+        &self,
+        msg: &CreateFast,
+    ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
+        // TODO(relay): We might want to offload this to a CPU worker in the future.
+        let (keygen, handshake_msg) = CreateFastServer::server(
+            &mut rand::rng(),
+            &mut |_: &()| Some(()),
+            &[()],
+            msg.handshake(),
+        )?;
+
+        let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
+            .map_err(into_internal!("Circuit crypt state construction failed"))?;
+
+        let circ_params = self
+            .circ_net_params
+            .read()
+            .expect("rwlock poisoned")
+            // CREATE_FAST always uses fixed-window flow control.
+            .as_circ_parameters(AlgorithmDiscriminants::FixedWindow)?;
+
+        // TODO(relay): I think we might want to get these from the consensus instead?
+        let protos = tor_protover::Protocols::default();
+
+        // TODO(relay): I'm not sure if this is the right way to do this. It works for
+        // CREATE_FAST, but we might want to rethink it for CREATE2.
+        let hop_settings =
+            HopSettings::from_params_and_caps(HopNegotiationType::None, &circ_params, &protos)
+                .map_err(into_internal!("Unable to build `HopSettings`"))?;
+
+        let response = CreatedFast::new(handshake_msg);
+        let response = CreateResponse::CreatedFast(response);
+
+        let (crypto_out, crypto_in, _binding) = crypt.split_relay_layer();
+        let (crypto_out, crypto_in) = (Box::new(crypto_out), Box::new(crypto_in));
+
+        Ok(CompletedHandshakeComponents {
+            response,
+            hop_settings,
+            crypto_out,
+            crypto_in,
+        })
     }
 }
 
@@ -255,6 +258,18 @@ impl HasKind for HandleCreateError {
             Self::Internal(_) => ErrorKind::Internal,
         }
     }
+}
+
+/// The components of a completed CREATE* handshake.
+struct CompletedHandshakeComponents {
+    /// The message to send in response.
+    response: CreateResponse,
+    /// The negotiated hop settings.
+    hop_settings: HopSettings,
+    /// Outbound onion crypto.
+    crypto_out: Box<dyn OutboundRelayLayer + Send>,
+    /// Inbound onion crypto.
+    crypto_in: Box<dyn InboundRelayLayer + Send>,
 }
 
 /// A collection of objects built for a new relay circuit.
