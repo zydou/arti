@@ -652,7 +652,7 @@ mod test {
     use crate::keys::{
         RelayLinkSigningKeypairSpecifierPattern, RelaySigningKeypairSpecifierPattern,
     };
-    use tor_keymgr::{ArtiEphemeralKeystore, KeyMgrBuilder};
+    use tor_keymgr::{ArtiEphemeralKeystore, KeyMgrBuilder, KeySpecifierPattern};
     use tor_rtcompat::SleepProvider;
     use tor_rtmock::MockRuntime;
 
@@ -691,28 +691,22 @@ mod test {
         Timestamp::from(UNIX_EPOCH + Duration::from_secs(seconds))
     }
 
-    /// Return the number of link keys in the given KeyMgr.
-    fn count_link_keys(keymgr: &KeyMgr) -> usize {
+    /// Return the number of keys matching the specified pattern
+    fn count_keys(keymgr: &KeyMgr, pat: &dyn KeySpecifierPattern) -> usize {
         keymgr
-            .list_matching(
-                &RelayLinkSigningKeypairSpecifierPattern::new_any()
-                    .arti_pattern()
-                    .unwrap(),
-            )
+            .list_matching(&pat.arti_pattern().unwrap())
             .unwrap()
             .len()
     }
 
+    /// Return the number of link keys in the given KeyMgr.
+    fn count_link_keys(keymgr: &KeyMgr) -> usize {
+        count_keys(keymgr, &RelayLinkSigningKeypairSpecifierPattern::new_any())
+    }
+
     /// Return the number of signing keys in the given KeyMgr.
     fn count_signing_keys(keymgr: &KeyMgr) -> usize {
-        keymgr
-            .list_matching(
-                &RelaySigningKeypairSpecifierPattern::new_any()
-                    .arti_pattern()
-                    .unwrap(),
-            )
-            .unwrap()
-            .len()
+        count_keys(keymgr, &RelaySigningKeypairSpecifierPattern::new_any())
     }
 
     /// Test the actual bootstrap function, `try_generate_keys()` which is in charge of
