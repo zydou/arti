@@ -1,6 +1,4 @@
 DataDirectory .
-BandwidthRate 1024000
-BandwidthBurst 1024000
 DirAuthority 4uthority v3ident=604ED7BE52100945A47EAD301D45FADF493C6371 orport=9111 100.0.0.1:9112 A52C A5B5 6C64 D864 F6AE 43E5 6F29 ACBD 5706 DDA1
 TestingTorNetwork 1
 ServerDNSResolvConfFile ../../../conf/shadowresolv.conf
@@ -16,11 +14,25 @@ HeartbeatPeriod 1
 SafeLogging 0
 ContactInfo https://github.com/shadow/shadow-plugin-tor/issues
 DisableDebuggerAttachment 0
-PathBiasUseThreshold 10000
-PathBiasCircThreshold 10000
 DoSCircuitCreationEnabled 0
 DoSConnectionEnabled 0
 DoSRefuseSingleHopClientRendezvous 0
-CircuitPriorityHalflife 30
 ControlPort 9051
 LearnCircuitBuildTimeout 0
+
+# These were originally copied from shadow's own integration test.  Unclear what
+# the original intent of these was, but given that this test has grown to have
+# more clients doing more and bigger transfers, it's possible these could cause
+# problems.
+#BandwidthRate 1024000
+#BandwidthBurst 1024000
+
+# These also appear to have been originally copied from shadow's integration
+# test. They *also* are included in tornettools-generated networks (which is
+# probably where shadow's integration test got them), but without explanation.
+#
+# Without a known motivation for them, it probably doesn't make sense to have
+# this seemingly-arbitrary tuning here.
+#PathBiasUseThreshold 10000
+#PathBiasCircThreshold 10000
+#CircuitPriorityHalflife 30
