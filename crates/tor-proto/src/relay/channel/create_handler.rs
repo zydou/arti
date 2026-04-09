@@ -36,6 +36,7 @@ use tor_memquota::mq_queue::MpscSpec;
 use tor_rtcompat::SpawnExt as _;
 use tor_rtcompat::{DynTimeProvider, Runtime};
 use tracing::warn;
+use tor_relay_crypto::pk::RelayNtorKeypair;
 
 /// Everything needed to handle CREATE* messages on channels.
 #[derive(Debug)]

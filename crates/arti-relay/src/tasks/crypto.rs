@@ -15,6 +15,7 @@ use tor_keymgr::{
     KeySpecifierPattern, Keygen, KeystoreEntry, KeystoreSelector, ToEncodableKey,
 };
 use tor_proto::RelayChannelAuthMaterial;
+use tor_proto::relay::CreateRequestHandler;
 use tor_relay_crypto::{RelaySigningKeyCert, gen_link_cert, gen_signing_cert, gen_tls_cert};
 
 use crate::keys::{
@@ -592,6 +593,7 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
     runtime: R,
     keymgr: Arc<KeyMgr>,
     chanmgr: Arc<ChanMgr<R>>,
+    create_request_handler: Arc<CreateRequestHandler>,
 ) -> anyhow::Result<void::Void> {
     loop {
         let now = runtime.wallclock();
