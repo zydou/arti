@@ -388,6 +388,7 @@ mod b16impl {
 
     impl Display for B16 {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            // `hex` has `hex::encode` but that allocates a `String`, which this approach doesn't
             for c in self.as_bytes() {
                 write!(f, "{c:02x}")?;
             }
@@ -397,6 +398,7 @@ mod b16impl {
 
     impl Display for B16U {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            // `hex` has `hex::encode_upper` but that allocates a `String`
             for c in self.as_bytes() {
                 write!(f, "{c:02X}")?;
             }
