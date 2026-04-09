@@ -175,120 +175,6 @@ mod test {
     #[derive_deftly(Object)]
     struct ExampleObject(#[allow(unused)] String);
 
-    impl ExampleObject {
-        fn wrap_arc(self: Arc<Self>) -> Arc<Wrapper> {
-            // SAFETY: Using `repr(transparent)` on Wrapper guarantees that
-            // transmuting an ExampleObject to a Wrapper will work correctly.
-            //
-            // Given this, and the fact that they have the same alignment and
-            // size, the documentation for `Arc::from_raw` says that this should
-            // be safe.
-            //
-            // Also this is only a test.
-            unsafe { Arc::from_raw(Arc::into_raw(self) as *const Wrapper) }
-        }
-    }
-
-    #[derive(Clone, Debug, Deftly)]
-    #[derive_deftly(Object)]
-    #[repr(transparent)]
-    struct Wrapper(ExampleObject);
-
-    /*
-    #[cfg(feature = "weakref")] // XXXX restore
-    #[test]
-    fn arc_to_addr() {
-        let a1 = Arc::new("Hello world");
-        let a2 = Arc::clone(&a1);
-        let a3 = Arc::new("Hello world");
-        let w1 = Arc::downgrade(&a2);
-
-        assert_eq!(raw_addr_of(&a1), raw_addr_of(&a2));
-        assert_eq!(raw_addr_of(&a1), raw_addr_of_weak(&w1));
-        assert_ne!(raw_addr_of(&a1), raw_addr_of(&a3));
-
-        let obj1: Arc<dyn rpc::Object> = Arc::new(ExampleObject("Hello world".into()));
-        let obj2 = Arc::clone(&obj1);
-        let obj3: Arc<dyn rpc::Object> = Arc::new(ExampleObject("Hello world".into()));
-        let obj4 = Arc::clone(&obj3);
-        let weak1 = Arc::downgrade(&obj1);
-        let weak2 = Arc::downgrade(&obj3);
-
-        assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj2));
-        assert_eq!(raw_addr_of(&obj1), raw_addr_of_weak(&weak1));
-        assert_eq!(raw_addr_of(&obj3), raw_addr_of(&obj4));
-        assert_eq!(raw_addr_of(&obj3), raw_addr_of_weak(&weak2));
-        assert_ne!(raw_addr_of(&obj1), raw_addr_of(&obj3));
-        assert_ne!(raw_addr_of(&obj1), raw_addr_of(&a1));
-    }
-
-    #[cfg(feature = "weakref")] // XXXX restore
-    #[test]
-    fn obj_ptr() {
-        let object = Arc::new(ExampleObject("Ten tons of flax".into()));
-        let object2: Arc<dyn rpc::Object> = Arc::new(ExampleObject("Ten tons of flax".into()));
-
-        let wrapped: Arc<Wrapper> = object.clone().wrap_arc();
-        let object_dyn = object.clone() as Arc<dyn rpc::Object>;
-        let wrapped_dyn = wrapped.clone() as Arc<dyn rpc::Object>;
-
-        let object_dyn2 = Arc::clone(&object_dyn);
-        let wrapped_dyn2 = Arc::clone(&wrapped_dyn);
-        let wrapped_weak = Arc::downgrade(&wrapped_dyn);
-
-        assert_eq!(
-            TaggedAddr::for_object(&object_dyn),
-            TaggedAddr::for_object(&object_dyn2)
-        );
-        assert_ne!(
-            TaggedAddr::for_object(&object_dyn),
-            TaggedAddr::for_object(&object2)
-        );
-
-        assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn),
-            TaggedAddr::for_object(&wrapped_dyn2)
-        );
-
-        assert_ne!(
-            TaggedAddr::for_object(&object_dyn),
-            TaggedAddr::for_object(&wrapped_dyn)
-        );
-
-        assert_eq!(
-            TaggedAddr::for_object(&object_dyn).addr,
-            TaggedAddr::for_object(&wrapped_dyn).addr
-        );
-        #[cfg(feature = "weakref")]
-        assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn).addr,
-            raw_addr_of_weak(&wrapped_weak)
-        );
-
-        assert_eq!(
-            TaggedAddr::for_object(&object_dyn).type_id,
-            any::TypeId::of::<ExampleObject>()
-        );
-        assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn).type_id,
-            any::TypeId::of::<Wrapper>()
-        );
-
-        assert_eq!(
-            TaggedAddr::for_object(&object_dyn).addr,
-            raw_addr_of(&object)
-        );
-        assert_eq!(
-            TaggedAddr::for_object(&wrapped_dyn).addr,
-            raw_addr_of(&wrapped)
-        );
-        assert_ne!(
-            TaggedAddr::for_object(&object_dyn).addr,
-            raw_addr_of(&object2)
-        );
-    }
-    */
-
     #[test]
     fn map_basics() {
         // Insert an object, make sure it gets inserted twice, and look it up.
@@ -313,8 +199,6 @@ mod test {
         map.assert_okay();
     }
 
-    /*
-    #[cfg(feature = "weakref")] // XXXX restore
     #[test]
     fn strong_and_weak() {
         // Make sure that a strong object behaves like one, and so does a weak
@@ -323,15 +207,14 @@ mod test {
         let obj2: Arc<dyn rpc::Object> = Arc::new(ExampleObject("world".to_string()));
         let mut map = ObjMap::new();
         let id1 = map.insert_strong(obj1.clone());
-        let id2 = map.insert_weak(obj2.clone());
+        let id2 = map.insert_weak(&obj2);
 
         {
-            let out1 = map.lookup(id1);
-            let out2 = map.lookup(id2);
-            assert_eq!(raw_addr_of(&obj1), raw_addr_of(&out1.unwrap()));
-            assert_eq!(raw_addr_of(&obj2), raw_addr_of(&out2.unwrap()));
+            let out1 = map.lookup(id1).unwrap();
+            let out2 = map.lookup(id2).unwrap();
+            assert!(Arc::ptr_eq(&obj1, &out1));
+            assert!(Arc::ptr_eq(&obj2, &out2));
         }
-        let addr1 = raw_addr_of(&obj1);
         map.assert_okay();
 
         // Now drop every object we've got, and see what we can still find.
@@ -343,7 +226,6 @@ mod test {
 
             // This one was strong, so it is still there.
             assert!(out1.is_some());
-            assert_eq!(raw_addr_of(&out1.unwrap()), addr1);
 
             // This one is weak so it went away.
             assert!(out2.is_none());
@@ -351,7 +233,6 @@ mod test {
         map.assert_okay();
     }
 
-    #[cfg(feature = "weakref")] // XXXX restore
     #[test]
     fn remove() {
         // Make sure that removing an object makes it go away.
@@ -359,7 +240,7 @@ mod test {
         let obj2: Arc<dyn rpc::Object> = Arc::new(ExampleObject("world".to_string()));
         let mut map = ObjMap::new();
         let id1 = map.insert_strong(obj1.clone());
-        let id2 = map.insert_weak(obj2.clone());
+        let id2 = map.insert_weak(&obj2);
         map.assert_okay();
 
         map.remove(id1);
@@ -373,94 +254,23 @@ mod test {
         assert!(map.lookup(id2).is_none());
     }
 
-    #[cfg(feature = "weakref")] // XXXX restore
     #[test]
     fn duplicates() {
-        // Make sure that inserting duplicate objects behaves right.
         let obj1: Arc<dyn rpc::Object> = Arc::new(ExampleObject("hello".to_string()));
         let obj2: Arc<dyn rpc::Object> = Arc::new(ExampleObject("world".to_string()));
         let mut map = ObjMap::new();
         let id1 = map.insert_strong(obj1.clone());
-        let id2 = map.insert_weak(obj2.clone());
+        let id2 = map.insert_weak(&obj2);
 
         {
-            assert_ne!(id2, map.insert_weak(obj1.clone()));
-            assert_eq!(id2, map.insert_weak(obj2.clone()));
+            assert_ne!(id2, map.insert_weak(&obj1));
+            assert_ne!(id2, map.insert_weak(&obj2));
         }
 
         {
             assert_ne!(id1, map.insert_strong(obj1.clone()));
             assert_ne!(id2, map.insert_strong(obj2.clone()));
         }
-    }
-
-    #[cfg(feature = "weakref")] // XXXX restore
-    #[test]
-    fn upgrade() {
-        // Make sure that inserting an object as weak and strong (in either
-        // order) makes two separate entries.
-        let obj1: Arc<dyn rpc::Object> = Arc::new(ExampleObject("hello".to_string()));
-        let obj2: Arc<dyn rpc::Object> = Arc::new(ExampleObject("world".to_string()));
-
-        let mut map = ObjMap::new();
-        let id1 = map.insert_strong(obj1.clone());
-        let id2 = map.insert_weak(obj2.clone());
-
-        assert_ne!(id2, map.insert_weak(obj1.clone()));
-        assert_ne!(id1, map.insert_strong(obj2.clone()));
-        map.assert_okay();
-
-        drop(obj1);
-        drop(obj2);
-        let out1 = map.lookup(id1).unwrap();
-        let out2 = map.lookup(id2).unwrap();
-        assert!(Arc::ptr_eq(&obj1, &out1));
-        assert!(Arc::ptr_eq(&obj2, &out2));
-    }
-
-    #[cfg(feature = "weakref")]
-    #[test]
-    fn tidy() {
-        let mut map = ObjMap::new();
-        let mut keep_these = vec![];
-        let mut s = vec![];
-        let mut w = vec![];
-        for _ in 0..100 {
-            let mut t = vec![];
-            for _ in 0..10 {
-                let o = Arc::new(ExampleObject("dump".into()));
-                w.push(map.insert_weak(o.clone()));
-                t.push(o);
-            }
-            let obj = Arc::new(ExampleObject("cafe".into()));
-            keep_these.push(obj.clone());
-            s.push(map.insert_weak(obj));
-            drop(t);
-            map.assert_okay();
-        }
-
-        assert_eq!(s.len(), 100);
-        assert_eq!(w.len(), 1000);
-        assert!(w.iter().all(|id| map.lookup(*id).is_none()));
-        assert!(s.iter().all(|id| map.lookup(*id).is_some()));
-
-        map.assert_okay();
-
-        // This number is a bit arbitrary.
-        assert!(dbg!(map.n_tidies) < 30);
-    }
-    */
-
-    #[test]
-    fn wrapper_magic() {
-        // Make sure that the wrapper transmutation trick works well.
-        let obj = Arc::new(ExampleObject("dump".into()));
-        let wrap = obj.clone().wrap_arc();
-
-        let mut map = ObjMap::new();
-        map.insert_strong(obj);
-        map.insert_strong(wrap);
-        assert_eq!(map.arena.len(), 2);
     }
 
     #[test]
