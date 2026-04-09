@@ -185,7 +185,7 @@ define_derive_deftly! {
     ///  * impls of `ConstantTimeEq`, `Eq`, `PartialEq`
     ///  * `as_bytes()` method
     ${TRANSPARENT_DOCS_IMPLS}
-    ///  * impls of `AsMut<field>`, `AsRef<field>`, `AsRef<[u8]>`, `AsMut<[u9]>`
+    ///  * impls of `AsMut<field>`, `AsRef<field>`, `AsRef<[u8]>`, `AsMut<[u8]>`
     ///
     // We could derive Debug here but then we have to deal with the Fixed's N
     // which gets quite fiddly.
