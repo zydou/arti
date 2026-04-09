@@ -9,7 +9,7 @@ BREAKING: `Microdesc::ntor_onion_key` is now stored as a `Curve25519Public`
 BREAKING: `PortRange`'s fields are private now
 ADDED: `types::ContactInfo`
 ADDED: `types::B64` implements `Deref`, `DerefMut`, various `AsRef`/`AsMut`
-ADDED: `types::B64Fixed`
+ADDED: `types::FixedB64`
 ADDED: `types::B64`'s field is now `pub`
 BREAKING: Removed `types::B64::into_array`; use methods on `Vec` and slice instead
 ADDED: `types::B16`, `types::B16U`
