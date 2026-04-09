@@ -387,6 +387,7 @@ dependencies = [
  "rustls",
  "safelog",
  "serde",
+ "smallvec",
  "strum",
  "thiserror 2.0.18",
  "tokio",

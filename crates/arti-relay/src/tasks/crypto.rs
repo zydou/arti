@@ -31,6 +31,8 @@ use tor_relay_crypto::pk::{
 };
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
+use smallvec::SmallVec;
+
 /// Buffer time before key expiry to trigger rotation. This ensures we rotate slightly before the
 /// key actually expires rather than right at or after expiry.
 ///
@@ -619,9 +621,9 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
                         .context("failed to retrieve ntor key")?
                         .context("ntor key disappeared?!")
                 })
-                .collect::<anyhow::Result<Vec<_>>>()?;
+                .collect::<anyhow::Result<SmallVec<_>>>()?;
 
-            create_request_handler.update_ntor_keys(ntor_keys.into());
+            create_request_handler.update_ntor_keys(ntor_keys);
         }
 
         // Sleep until the earliest key expiry minus buffer so we rotate before it expires.
