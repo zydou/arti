@@ -7,7 +7,7 @@ use derive_more::Display;
 
 /// The unique identifier of a tunnel.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display)]
-#[display("{}", _0)]
+#[display("Tunnel {}", _0)]
 #[cfg_attr(feature = "relay", visibility::make(pub))]
 #[allow(unreachable_pub)] // TODO(#1447): use in ChanMgr's ChannelProvider impl
 pub(crate) struct TunnelId(u64);
