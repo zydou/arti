@@ -915,9 +915,9 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
     /// timestamp verification.
     const VALID_SYSTEM_TIME: &str = "2000-06-01 00:00:00";
 
-    // === AUTHCERT 0B8997614EC647C1C6B6A044E2B5408F0B823FB0 ===
-    // This values come from ../../testdata2/cached-certs--1
-    // A different authority certificate different from the one above.
+    /// Different authcert, from `../../testdata2/cached-certs--1`
+    ///
+    /// A different authority certificate different from the one above.
     const ALTERNATIVE_AUTHCERT_RAW: &str = include_str!("../../testdata2/cached-certs--1");
 
     /// Converts a string in the [`Iso8601TimeSp`] format to [`SystemTime`].
