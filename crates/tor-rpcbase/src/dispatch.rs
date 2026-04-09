@@ -921,7 +921,11 @@ pub(crate) mod test {
             todo!()
         }
 
-        fn release_owned(&self, _object: &crate::ObjectId) -> Result<(), crate::LookupError> {
+        fn register_weak(&self, _object: &Arc<dyn crate::Object>) -> crate::ObjectId {
+            todo!()
+        }
+
+        fn release(&self, _object: &crate::ObjectId) -> Result<(), crate::LookupError> {
             todo!()
         }
 

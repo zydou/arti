@@ -538,6 +538,25 @@ impl Connection {
         // Note that we drop the read lock before we await this future!
         invoke_future.await
     }
+
+    /// Helper: Implementation for register_weak and register_strong.
+    fn register_impl(
+        &self,
+        insert_into: impl FnOnce(&mut ObjMap) -> GenIdx,
+        use_global_id: bool,
+    ) -> rpc::ObjectId {
+        let local_id = insert_into(&mut self.inner.lock().expect("Lock poisoned").objects);
+
+        // Design note: It is a deliberate decision to _always_ use GlobalId for
+        // objects whose IDs are _ever_ exported for use in SOCKS requests.  Some
+        // alternatives would be to use GlobalId conditionally, or to have a
+        // separate Method to create a new GlobalId given an existing LocalId.
+        if use_global_id {
+            GlobalId::new(self.connection_id, local_id).encode(&self.global_id_mac_key)
+        } else {
+            local_id.encode()
+        }
+    }
 }
 
 /// An error returned when an RPC request lists some feature as required,
@@ -628,26 +647,16 @@ impl rpc::Context for Connection {
     }
 
     fn register_owned(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
-        let use_global_id = object.expose_outside_of_session();
-        let local_id = self
-            .inner
-            .lock()
-            .expect("Lock poisoned")
-            .objects
-            .insert_strong(object);
-
-        // Design note: It is a deliberate decision to _always_ use GlobalId for
-        // objects whose IDs are _ever_ exported for use in SOCKS requests.  Some
-        // alternatives would be to use GlobalId conditionally, or to have a
-        // separate Method to create a new GlobalId given an existing LocalId.
-        if use_global_id {
-            GlobalId::new(self.connection_id, local_id).encode(&self.global_id_mac_key)
-        } else {
-            local_id.encode()
-        }
+        let expose = object.expose_outside_of_session();
+        self.register_impl(|map| map.insert_strong(object), expose)
     }
 
-    fn release_owned(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
+    fn register_weak(&self, object: &Arc<dyn tor_rpcbase::Object>) -> tor_rpcbase::ObjectId {
+        let expose = object.expose_outside_of_session();
+        self.register_impl(|map| map.insert_weak(object), expose)
+    }
+
+    fn release(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
         let removed_some = if id.as_ref() == Self::CONNECTION_OBJ_ID {
             self.inner
                 .lock()

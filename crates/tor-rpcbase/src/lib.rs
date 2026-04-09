@@ -119,13 +119,16 @@ pub trait Context: Send + Sync {
     /// Return an ObjectId for this object.
     fn register_owned(&self, object: Arc<dyn Object>) -> ObjectId;
 
-    // TODO: If we add weak references again, we may need a register_weak method here.
+    /// Create a non-owning weak referene to `object` within this context.
+    ///
+    /// Return an ObjectId for this object.
+    fn register_weak(&self, object: &Arc<dyn Object>) -> ObjectId;
 
     /// Drop an owning reference to the object called `object` within this context.
     ///
     /// This will return an error if `object` is not an owning reference,
     /// or does not exist.
-    fn release_owned(&self, object: &ObjectId) -> Result<(), LookupError>;
+    fn release(&self, object: &ObjectId) -> Result<(), LookupError>;
 
     /// Return a dispatch table that can be used to invoke other RPC methods.
     fn dispatch_table(&self) -> &Arc<std::sync::RwLock<DispatchTable>>;

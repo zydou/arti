@@ -39,7 +39,7 @@ impl rpc::DynMethod for RpcRelease {
         ctx: Arc<dyn rpc::Context>,
         obj_id: &rpc::ObjectId,
     ) -> Result<tor_rpcbase::dispatch::RpcResultFuture, tor_rpcbase::InvokeError> {
-        let result = match ctx.release_owned(obj_id) {
+        let result = match ctx.release(obj_id) {
             Ok(()) => Ok(Box::new(rpc::NIL) as _),
             Err(e) => Err(rpc::RpcError::from(e)),
         };
