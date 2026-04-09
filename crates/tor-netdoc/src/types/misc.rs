@@ -110,8 +110,6 @@ define_derive_deftly! {
     impl<$tgens> ConstantTimeEq for $ttype {
         fn ct_eq(&self, other: &$ttype) -> Choice {
           $(
-            ${loop_exactly_1 "BytesTransparent must be applied to a single-field struct"}
-
             self.$fname.ct_eq(&other.$fname)
           )
         }
@@ -134,6 +132,8 @@ define_derive_deftly! {
     }
 
   $(
+    ${loop_exactly_1 "must be applied to a single-field struct"}
+
     impl<$tgens> Deref for $ttype {
         type Target = $ftype;
         fn deref(&self) -> &$ftype {
