@@ -91,13 +91,26 @@ define_derive_deftly_module! {
     // which are best presented together in the docs.
   ${define TRANSPARENT_DOCS_IMPLS {
     ///  * impls of `Deref`, `DerefMut`
+    ///  * impls of `From<field>` and "`Into`" (technically, `From<Self> for field`)
   }}
 
     // Expands to the implementations
   ${define TRANSPARENT_IMPLS {
 
-  $(
+  ${for fields {
     ${loop_exactly_1 "must be applied to a single-field struct"}
+
+    impl<$tgens> From<$ftype> for $ttype {
+        fn from($fpatname: $ftype) -> $ttype {
+            $vpat
+        }
+    }
+
+    impl<$tgens> From<$ttype> for $ftype {
+        fn from(self_: $ttype) -> $ftype {
+            self_.$fname
+        }
+    }
 
     impl<$tgens> Deref for $ttype {
         type Target = $ftype;
@@ -123,7 +136,7 @@ define_derive_deftly_module! {
             &mut self.$fname
         }
     }
-  )
+  }}
   }}
 }
 
@@ -182,7 +195,6 @@ define_derive_deftly! {
     ///  * derive `Hash` and write `#[allow(clippy::derived_hash_with_manual_eq)]`
     ///  * impl `FromStr` and `Display` (if required, which they usually will be)
     ///  * derive `derive_more::Debug` eg with `#[debug(r#"B64("{self}")"#)]`
-    ///  * derive `derive_more::From` and `derive_more::Into` if applicable
     ///  * `impl NormalItemArgument` if appropriate (ie the representation has no spaces)
     BytesTransparent for struct, beta_deftly:
 
@@ -242,7 +254,7 @@ mod b64impl {
     #[derive(Clone, Hash, Deftly)]
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[derive(derive_more::Debug)]
     #[debug(r#"B64("{self}")"#)]
     #[allow(clippy::exhaustive_structs)]
     pub struct B64(pub Vec<u8>);
@@ -302,7 +314,7 @@ mod b64impl {
     #[derive(Clone, Hash, Deftly)]
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[derive(derive_more::Debug)]
     #[debug(r#"FixedB64::<{N}>("{self}")"#)]
     pub struct FixedB64<const N: usize>(pub [u8; N]);
 
@@ -339,7 +351,7 @@ mod b16impl {
     #[derive(Clone, Hash, Deftly)]
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[derive(derive_more::Debug)]
     #[debug(r#"B16("{self}")"#)]
     #[allow(clippy::exhaustive_structs)]
     pub struct B16(pub Vec<u8>);
@@ -350,7 +362,7 @@ mod b16impl {
     #[derive(Clone, Hash, Deftly)]
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[derive(derive_more::Debug)]
     #[debug(r#"B16("{self}")"#)]
     #[allow(clippy::exhaustive_structs)]
     pub struct B16U(pub Vec<u8>);
