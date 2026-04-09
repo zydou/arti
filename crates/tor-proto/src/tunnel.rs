@@ -33,7 +33,7 @@ impl TunnelId {
 /// process-unique, but in the logs it's often useful to display the
 /// owning tunnel's ID alongside the circuit identifier.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display)]
-#[display("Circ {}.{}", tunnel_id, circ_id.display_chan_circ())]
+#[display("{} ({})", circ_id, tunnel_id)]
 pub(crate) struct TunnelScopedCircId {
     /// The identifier of the owning tunnel
     tunnel_id: TunnelId,
