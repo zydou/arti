@@ -34,10 +34,10 @@ use tor_llcrypto::cipher::aes::Aes128Ctr;
 use tor_llcrypto::d::Sha1;
 use tor_memquota::mq_queue::ChannelSpec as _;
 use tor_memquota::mq_queue::MpscSpec;
+use tor_relay_crypto::pk::RelayNtorKeypair;
 use tor_rtcompat::SpawnExt as _;
 use tor_rtcompat::{DynTimeProvider, Runtime};
 use tracing::warn;
-use tor_relay_crypto::pk::RelayNtorKeypair;
 
 /// The usual number of ntor keys.
 const NTOR_KEY_COUNT: usize = 2;
