@@ -7,7 +7,7 @@
 mod listen;
 
 use std::borrow::Cow;
-use std::net::{IpAddr, SocketAddrV4, SocketAddrV6};
+use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::path::PathBuf;
 
 use derive_deftly::Deftly;
@@ -253,12 +253,12 @@ pub(crate) struct Advertise {
 }
 
 impl Advertise {
-    /// Return all IP addresses (both IPv4 and IPv6).
-    pub(crate) fn all_ips(&self) -> Vec<IpAddr> {
+    /// Return all addresses (both IPv4 and IPv6) as in IP + Port ([`SocketAddr`]).
+    pub(crate) fn all_addr(&self) -> Vec<SocketAddr> {
         self.ipv4
             .iter()
-            .map(|s| IpAddr::V4(*s.ip()))
-            .chain(self.ipv6.iter().map(|s| IpAddr::V6(*s.ip())))
+            .map(|s| (*s).into())
+            .chain(self.ipv6.iter().map(|s| (*s).into()))
             .collect()
     }
 }

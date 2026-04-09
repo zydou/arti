@@ -202,7 +202,7 @@ impl<R: Runtime> TorRelay<R> {
 
         // Init the channel manager.
         let config = ChanMgrConfig::new(inert.config.channel.clone())
-            .with_my_addrs(inert.config.relay.advertise.all_ips())
+            .with_my_addrs(inert.config.relay.advertise.all_addr())
             .with_auth_material(Arc::new(auth_material));
         let chanmgr = Arc::new(
             ChanMgr::new(

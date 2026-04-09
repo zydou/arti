@@ -14,7 +14,7 @@ use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
 use rand::Rng;
 use safelog::Sensitive;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
@@ -151,7 +151,7 @@ impl RelayChannelBuilder {
         tls: T,
         sleep_prov: S,
         auth_material: Arc<RelayChannelAuthMaterial>,
-        my_addrs: Vec<IpAddr>,
+        my_addrs: Vec<SocketAddr>,
         peer_target: &OwnedChanTarget,
         memquota: ChannelAccount,
         create_request_handler: Arc<CreateRequestHandler>,
@@ -176,7 +176,7 @@ impl RelayChannelBuilder {
     pub fn accept<T, S>(
         self,
         peer_addr: Sensitive<PeerAddr>,
-        my_addrs: Vec<IpAddr>,
+        my_addrs: Vec<SocketAddr>,
         tls: T,
         sleep_prov: S,
         auth_material: Arc<RelayChannelAuthMaterial>,

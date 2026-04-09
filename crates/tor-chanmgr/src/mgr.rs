@@ -20,7 +20,7 @@ use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount}
 use tracing::{instrument, trace};
 
 #[cfg(feature = "relay")]
-use {safelog::Sensitive, std::net::IpAddr, tor_proto::RelayChannelAuthMaterial};
+use {safelog::Sensitive, std::net::SocketAddr, tor_proto::RelayChannelAuthMaterial};
 
 mod select;
 mod state;
@@ -112,9 +112,9 @@ pub struct ChanMgrConfig {
     #[cfg(feature = "relay")]
     pub(crate) auth_material: Option<Arc<RelayChannelAuthMaterial>>,
     /// Our address(es). When building outgoing channel, we need our addresses in order to send
-    /// them in the NETINFO cell.
+    /// them in the NETINFO cell. It will also be used to validate initiator channel target.
     #[cfg(feature = "relay")]
-    pub(crate) my_addrs: Vec<IpAddr>,
+    pub(crate) my_addrs: Vec<SocketAddr>,
     // TODO: Would be good to add more things such as NetParameters and Dormancy maybe?
 }
 
@@ -139,7 +139,7 @@ impl ChanMgrConfig {
 
     /// Set our addresses that we advertise to the world.
     #[cfg(feature = "relay")]
-    pub fn with_my_addrs(mut self, my_addrs: Vec<IpAddr>) -> Self {
+    pub fn with_my_addrs(mut self, my_addrs: Vec<SocketAddr>) -> Self {
         self.my_addrs = my_addrs;
         self
     }
