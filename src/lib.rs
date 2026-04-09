@@ -1,5 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
+#![cfg_attr(
+    feature = "nightly",
+    feature(time_systemtime_limits, time_saturating_systemtime)
+)]
 
 use std::time::{Duration, Instant, SystemTime};
 
@@ -152,6 +156,32 @@ pub trait SaturatingTime: internal::SaturatingTime {
     }
 }
 
+// Use nightly implementation if compiled with the nightly feature.
+#[cfg(feature = "nightly")]
+impl SaturatingTime for SystemTime {
+    fn max_value() -> Self {
+        Self::MAX
+    }
+
+    fn min_value() -> Self {
+        Self::MIN
+    }
+
+    fn saturating_add(self, duration: Duration) -> Self {
+        Self::saturating_add(&self, duration)
+    }
+
+    fn saturating_sub(self, duration: Duration) -> Self {
+        Self::saturating_sub(&self, duration)
+    }
+
+    fn saturating_duration_since(&self, earlier: Self) -> Duration {
+        Self::saturating_duration_since(&self, earlier)
+    }
+}
+
+// Otherwise, use the default one.
+#[cfg(not(feature = "nightly"))]
 impl SaturatingTime for SystemTime {}
 
 impl SaturatingTime for Instant {

@@ -9,3 +9,6 @@ repository = "https://codeberg.org/cve/saturating-time"
 license = "MIT OR Apache-2.0"
 keywords = ["time", "system-time", "instant", "saturating"]
 categories = ["date-and-time", "os", "rust-patterns"]
+
+[features]
+nightly = []

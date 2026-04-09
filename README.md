@@ -38,6 +38,12 @@ Add the following to your `Cargo.toml`:
 saturating-time = "0.3.0"
 ```
 
+If you use Rust nightly, you may want to do:
+```toml
+[dependencies]
+saturating-time = { version = "0.3.0", features = ["nightly"] }
+```
+
 Now, you can use `saturating-time` in your code:
 ```rust
 use std::time::{Duration, SystemTime};
