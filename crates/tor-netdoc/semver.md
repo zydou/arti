@@ -13,3 +13,4 @@ ADDED: `types::B64Fixed`
 ADDED: `types::B64`'s field is now `pub`
 BREAKING: Removed `types::B64::into_array`; use methods on `Vec` and slice instead
 ADDED: `types::B16`, `types::B16U`
+ADDED: `types::Curve25519Public` impls `Deref`, `DerefMut`, `AsRef`, `AsMut`
