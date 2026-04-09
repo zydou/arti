@@ -600,9 +600,7 @@ mod test {
             assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
 
             // Move it just after the expiry buffer and expect a rotation.
-            let just_after =
-                LINK_CERT_LIFETIME - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
-            runtime.advance_by(just_after).await;
+            runtime.advance_by(Duration::from_secs(1)).await;
 
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
             assert!(
@@ -656,9 +654,7 @@ mod test {
             assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
 
             // Move it just after the expiry buffer and expect a rotation.
-            let just_after =
-                SIGNING_KEY_CERT_LIFETIME - KEY_ROTATION_EXPIRE_BUFFER + Duration::from_secs(1);
-            runtime.advance_by(just_after).await;
+            runtime.advance_by(Duration::from_secs(1)).await;
 
             let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
             assert!(rotated, "Rotation must happen after 30 days");
