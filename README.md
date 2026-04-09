@@ -35,13 +35,13 @@ However, this crate implements this trait for two structures:
 Add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
-saturating-time = "0.3.0"
+saturating-time = "0.4.0"
 ```
 
 If you use Rust nightly, you may want to do:
 ```toml
 [dependencies]
-saturating-time = { version = "0.3.0", features = ["nightly"] }
+saturating-time = { version = "0.4.0", features = ["nightly"] }
 ```
 
 Now, you can use `saturating-time` in your code:
