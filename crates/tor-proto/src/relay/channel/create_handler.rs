@@ -32,6 +32,7 @@ use tor_error::{Bug, ErrorKind, HasKind, debug_report, internal, into_internal};
 use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::cipher::aes::Aes128Ctr;
 use tor_llcrypto::d::Sha1;
+use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_memquota::mq_queue::ChannelSpec as _;
 use tor_memquota::mq_queue::MpscSpec;
 use tor_relay_crypto::pk::RelayNtorKeypair;
@@ -97,16 +98,28 @@ impl CreateRequestHandler {
     /// channel may cause us to leak information about paths of circuits travelling through this
     /// relay. This is especially important here since we're handling data that is controllable from
     /// the other end of the circuit.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn handle_create<R: Runtime>(
         &self,
         runtime: &R,
         channel: &Arc<Channel>,
+        our_ed25519_id: &Ed25519Identity,
         circ_id: CircId,
         msg: &CreateRequest,
         memquota: &ChannelAccount,
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), Destroy> {
-        match self.handle_create_inner(runtime, channel, circ_id, msg, memquota, circ_unique_id) {
+        let result = self.handle_create_inner(
+            runtime,
+            channel,
+            our_ed25519_id,
+            circ_id,
+            msg,
+            memquota,
+            circ_unique_id,
+        );
+
+        match result {
             Ok(x) => Ok(x),
             Err(e) => {
                 // TODO(relay): The log messages throughout could be very noisy, so should have rate limiting.
@@ -118,10 +131,13 @@ impl CreateRequestHandler {
     }
 
     /// See [`Self::handle_create`].
+    #[allow(clippy::too_many_arguments)]
     fn handle_create_inner<R: Runtime>(
         &self,
         runtime: &R,
         channel: &Arc<Channel>,
+        // TODO(relay): Use this for ntor handshakes.
+        _our_ed25519_id: &Ed25519Identity,
         circ_id: CircId,
         msg: &CreateRequest,
         memquota: &ChannelAccount,

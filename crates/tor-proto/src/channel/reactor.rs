@@ -51,6 +51,7 @@ use {
     crate::circuit::celltypes::CreateRequest,
     crate::relay::channel::create_handler::{CreateRequestHandler, RelayCircComponents},
     std::sync::Weak,
+    tor_llcrypto::pk::ed25519::Ed25519Identity,
 };
 
 /// A boxed trait object that can provide `ChanCell`s.
@@ -159,8 +160,11 @@ pub struct Reactor<R: Runtime> {
     /// (should use its `ChannelDetails` instead),
     /// but we need it to pass it to new circuit reactors,
     /// so we store a copy here.
+    /// The `Ed25519Identity` is our identity, which is needed for the ntor handshake.
+    // XXXX: Put these in a struct.
     #[cfg(feature = "relay")]
-    pub(super) create_request_handler: Option<(Arc<CreateRequestHandler>, Weak<Channel>)>,
+    pub(super) create_request_handler:
+        Option<(Arc<CreateRequestHandler>, Weak<Channel>, Ed25519Identity)>,
     /// Timer tracking when to generate channel padding.
     ///
     /// Note that this is _distinct_ from the experimental maybenot-based padding
@@ -672,7 +676,7 @@ impl<R: Runtime> Reactor<R> {
     /// Handle a CREATE* cell `msg`.
     #[cfg(feature = "relay")]
     async fn handle_create(&mut self, circid: Option<CircId>, msg: CreateRequest) -> Result<()> {
-        let Some((ref handler, ref chan)) = self.create_request_handler else {
+        let Some((ref handler, ref chan, ref our_ed25519_id)) = self.create_request_handler else {
             // We should have checked this in an 'if' guard in 'handle_cell()'.
             return Err(internal!("Called 'deliver_relay()', but handler isn't set").into());
         };
@@ -706,6 +710,7 @@ impl<R: Runtime> Reactor<R> {
         let create_result = handler.handle_create(
             &self.runtime,
             &chan,
+            our_ed25519_id,
             circid,
             &msg,
             &self.details.memquota,

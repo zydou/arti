@@ -15,6 +15,7 @@ use tracing::instrument;
 use tor_cell::chancell::msg;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
+use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, StreamOps};
 use web_time_compat::{SystemTime, SystemTimeExt};
 
@@ -60,6 +61,10 @@ pub struct NonVerifiableResponderRelayChannel<
     pub(crate) peer_addr: Sensitive<PeerAddr>,
     /// Provided to each new channel so that they can handle CREATE* requests.
     pub(crate) create_request_handler: Arc<CreateRequestHandler>,
+    /// Our Ed25519 identity.
+    ///
+    /// Needed for ntor handshakes.
+    pub(crate) our_ed25519_id: Ed25519Identity,
 }
 
 /// A verifiable relay responder channel that is currently unverified. This can only be a relay on
@@ -110,6 +115,10 @@ pub struct VerifiedResponderRelayChannel<
     peer_addr: PeerAddr,
     /// Provided to each new channel so that they can handle CREATE* requests.
     create_request_handler: Arc<CreateRequestHandler>,
+    /// Our Ed25519 identity.
+    ///
+    /// Needed for ntor handshakes.
+    our_ed25519_id: Ed25519Identity,
 }
 
 impl<T, S> UnverifiedResponderRelayChannel<T, S>
@@ -257,6 +266,7 @@ where
             my_addrs,
             peer_addr: self.peer_addr,
             create_request_handler: self.create_request_handler,
+            our_ed25519_id: identities.ed_id,
         })
     }
 
@@ -288,6 +298,7 @@ where
 
         let channel_mode = ChannelMode::Relay {
             circ_id_range: CircIdRange::Low,
+            our_ed25519_id: self.our_ed25519_id,
             create_request_handler: self.create_request_handler,
         };
 
@@ -319,6 +330,7 @@ where
 
         let channel_mode = ChannelMode::Relay {
             circ_id_range: CircIdRange::Low,
+            our_ed25519_id: self.our_ed25519_id,
             create_request_handler: self.create_request_handler,
         };
 

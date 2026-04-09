@@ -318,6 +318,7 @@ impl<
                     my_addrs: self.my_addrs,
                     peer_addr: self.peer_addr,
                     create_request_handler: self.create_request_handler,
+                    our_ed25519_id: self.auth_material.ed_id,
                 },
             ),
         })
