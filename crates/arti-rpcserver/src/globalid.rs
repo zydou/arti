@@ -180,12 +180,11 @@ mod test {
 
     #[test]
     fn roundtrip() {
-        use crate::objmap::StrongIdx;
         use slotmap_careful::KeyData;
         let mut rng = tor_basic_utils::test_rng::testing_rng();
 
         let conn1 = ConnectionId::from(*b"example1-------!");
-        let genidx_s1 = GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(0x43_0000_0043)));
+        let genidx_s1 = GenIdx::from(KeyData::from_ffi(0x43_0000_0043));
 
         let gid1 = GlobalId {
             connection: conn1,
@@ -213,14 +212,13 @@ mod test {
 
     #[test]
     fn mac_works() {
-        use crate::objmap::StrongIdx;
         use slotmap_careful::KeyData;
         let mut rng = tor_basic_utils::test_rng::testing_rng();
 
         let conn1 = ConnectionId::from(*b"example1-------!");
         let conn2 = ConnectionId::from(*b"example2-------!");
-        let genidx_s1 = GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(0x43_0000_0043)));
-        let genidx_s2 = GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(0x171_0000_0171)));
+        let genidx_s1 = GenIdx::from(KeyData::from_ffi(0x43_0000_0043));
+        let genidx_s2 = GenIdx::from(KeyData::from_ffi(0x171_0000_0171));
 
         let gid1 = GlobalId {
             connection: conn1,

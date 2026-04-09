@@ -13,7 +13,7 @@ use tor_rpcbase as rpc;
 pub(crate) mod methods;
 
 slotmap_careful::new_key_type! {
-    pub(crate) struct StrongIdx;
+    pub(crate) struct GenIdx;
 
 }
 
@@ -22,15 +22,7 @@ slotmap_careful::new_key_type! {
 pub(crate) struct ObjMap {
     /// Generationally indexed arena of strong object references.
     // XXXX rename.
-    strong_arena: SlotMap<StrongIdx, Arc<dyn rpc::Object>>,
-}
-
-/// A generational index for [`ObjMap`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-// XXXX: Flatten!
-pub(crate) enum GenIdx {
-    /// An index into the arena of strong references
-    Strong(StrongIdx),
+    strong_arena: SlotMap<GenIdx, Arc<dyn rpc::Object>>,
 }
 
 /// Encoding functions for GenIdx.
@@ -50,11 +42,6 @@ impl GenIdx {
     /// The length of a byte-encoded (but not base-64 encoded) GenIdx.
     pub(crate) const BYTE_LEN: usize = 16;
 
-    /// Return true if this is a strong (owning) reference.
-    pub(crate) fn is_strong(&self) -> bool {
-        matches!(self, GenIdx::Strong(_))
-    }
-
     /// Encode `self` into an rpc::ObjectId that we can give to a client.
     pub(crate) fn encode(self) -> rpc::ObjectId {
         self.encode_with_rng(&mut rand::rng())
@@ -71,9 +58,7 @@ impl GenIdx {
     pub(crate) fn to_bytes<R: rand::RngCore>(self, rng: &mut R) -> [u8; Self::BYTE_LEN] {
         use rand::Rng;
         use tor_bytes::Writer;
-        let ffi_idx = match self {
-            GenIdx::Strong(idx) => idx.data().as_ffi(),
-        };
+        let ffi_idx = self.data().as_ffi();
         let x = rng.random::<u64>();
         let mut bytes = Vec::with_capacity(Self::BYTE_LEN);
         bytes.write_u64(x);
@@ -100,7 +85,7 @@ impl GenIdx {
         r.should_be_exhausted().ok()?;
 
         let ffi_idx = ffi_idx.wrapping_sub(x);
-        Some(GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(ffi_idx))))
+        Some(GenIdx::from(KeyData::from_ffi(ffi_idx)))
     }
 }
 
@@ -112,28 +97,24 @@ impl ObjMap {
 
     /// Unconditionally insert a strong entry for `value` in self, and return its index.
     pub(crate) fn insert_strong(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        GenIdx::Strong(self.strong_arena.insert(value))
+        self.strong_arena.insert(value)
     }
 
     /// Unconditionally insert a weak entry for `value` in self, and return its index.
     #[allow(dead_code)] // XXXX
     pub(crate) fn insert_weak(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
         // XXXX todo; make this actually weak.
-        GenIdx::Strong(self.strong_arena.insert(value))
+        self.strong_arena.insert(value)
     }
 
     /// Return the entry from this ObjMap for `idx`.
     pub(crate) fn lookup(&self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
-        match idx {
-            GenIdx::Strong(idx) => self.strong_arena.get(idx).cloned(),
-        }
+        self.strong_arena.get(idx).cloned()
     }
 
     /// Remove and return the entry at `idx`, if any.
     pub(crate) fn remove(&mut self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
-        match idx {
-            GenIdx::Strong(idx) => self.strong_arena.remove(idx),
-        }
+        self.strong_arena.remove(idx)
     }
 
     /// Testing only: Assert that every invariant for this structure is met.
@@ -460,7 +441,7 @@ mod test {
             let a: u64 = a.into();
             let b: u64 = b.into();
             let data = KeyData::from_ffi((a << 33) | (1_u64 << 32) | b);
-            let idx = GenIdx::Strong(StrongIdx::from(data));
+            let idx = GenIdx::from(data);
             let s1 = idx.encode_with_rng(rng);
             let s2 = idx.encode_with_rng(rng);
             assert_ne!(s1, s2);

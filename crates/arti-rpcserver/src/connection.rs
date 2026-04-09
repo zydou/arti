@@ -658,10 +658,6 @@ impl rpc::Context for Connection {
         } else {
             let idx = self.id_into_local_idx(id)?;
 
-            if !idx.is_strong() {
-                return Err(rpc::LookupError::WrongType(id.clone()));
-            }
-
             self.inner
                 .lock()
                 .expect("Lock poisoned")
