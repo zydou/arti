@@ -180,38 +180,24 @@ mod test {
 
     #[test]
     fn roundtrip() {
-        use crate::objmap::{StrongIdx, WeakIdx};
+        use crate::objmap::StrongIdx;
         use slotmap_careful::KeyData;
         let mut rng = tor_basic_utils::test_rng::testing_rng();
 
         let conn1 = ConnectionId::from(*b"example1-------!");
-        let conn2 = ConnectionId::from(*b"example2!!!!!!!!");
         let genidx_s1 = GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(0x43_0000_0043)));
-        let genidx_w2 = GenIdx::Weak(WeakIdx::from(KeyData::from_ffi(0x171_0000_0171)));
 
         let gid1 = GlobalId {
             connection: conn1,
             local_id: genidx_s1,
         };
-        let gid2 = GlobalId {
-            connection: conn2,
-            local_id: genidx_w2,
-        };
-
         let mac_key = MacKey::new(&mut rng);
         let enc1 = gid1.encode(&mac_key);
         let gid1_decoded = GlobalId::try_decode(&mac_key, &enc1).unwrap().unwrap();
         assert_eq!(gid1, gid1_decoded);
         assert!(enc1.as_ref().starts_with(GlobalId::TAG_CHAR));
 
-        let enc2 = gid2.encode(&mac_key);
-        let gid2_decoded = GlobalId::try_decode(&mac_key, &enc2).unwrap().unwrap();
-        assert_eq!(gid2, gid2_decoded);
-        assert_ne!(gid1_decoded, gid2_decoded);
-        assert!(enc1.as_ref().starts_with(GlobalId::TAG_CHAR));
-
         assert_eq!(enc1.as_ref().len(), GLOBAL_ID_B64_ENCODED_LEN);
-        assert_eq!(enc2.as_ref().len(), GLOBAL_ID_B64_ENCODED_LEN);
     }
 
     #[test]
@@ -227,14 +213,14 @@ mod test {
 
     #[test]
     fn mac_works() {
-        use crate::objmap::{StrongIdx, WeakIdx};
+        use crate::objmap::StrongIdx;
         use slotmap_careful::KeyData;
         let mut rng = tor_basic_utils::test_rng::testing_rng();
 
         let conn1 = ConnectionId::from(*b"example1-------!");
-        let conn2 = ConnectionId::from(*b"example2!!!!!!!!");
+        let conn2 = ConnectionId::from(*b"example2-------!");
         let genidx_s1 = GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(0x43_0000_0043)));
-        let genidx_w1 = GenIdx::Weak(WeakIdx::from(KeyData::from_ffi(0x171_0000_0171)));
+        let genidx_s2 = GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(0x171_0000_0171)));
 
         let gid1 = GlobalId {
             connection: conn1,
@@ -242,7 +228,7 @@ mod test {
         };
         let gid2 = GlobalId {
             connection: conn2,
-            local_id: genidx_w1,
+            local_id: genidx_s2,
         };
         let mac_key = MacKey::new(&mut rng);
         let enc1 = gid1.encode_as_bytes(&mac_key, &mut rng);

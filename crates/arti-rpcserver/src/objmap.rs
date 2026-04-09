@@ -5,34 +5,15 @@
 //!
 //! TODO RPC: Add an object diagram here once the implementation settles down.
 
-use std::any;
 use std::sync::Arc;
 
 use slotmap_careful::{Key as _, KeyData, SlotMap};
 use tor_rpcbase as rpc;
 
 pub(crate) mod methods;
-#[cfg(feature = "weakref")]
-mod weakrefs;
-
-/// Return the [`RawAddr`] of an arbitrary `Arc<T>`.
-#[cfg(any(test, feature = "weakref"))]
-fn raw_addr_of<T: ?Sized>(arc: &Arc<T>) -> RawAddr {
-    // I assure you, each one of these 'as'es was needed in the version of
-    // Rust I wrote them in.
-    RawAddr(Arc::as_ptr(arc) as *const () as usize)
-}
-
-/// Return the [`RawAddr`] of an arbitrary `Weak<T>`.
-#[cfg(any(test, feature = "weakref"))]
-fn raw_addr_of_weak<T: ?Sized>(arc: &std::sync::Weak<T>) -> RawAddr {
-    RawAddr(std::sync::Weak::as_ptr(arc) as *const () as usize)
-}
 
 slotmap_careful::new_key_type! {
     pub(crate) struct StrongIdx;
-    // TODO: Eventually, remove this if it stays unused long-term.
-    pub(crate) struct WeakIdx;
 
 }
 
@@ -40,84 +21,14 @@ slotmap_careful::new_key_type! {
 #[derive(Default)]
 pub(crate) struct ObjMap {
     /// Generationally indexed arena of strong object references.
+    // XXXX rename.
     strong_arena: SlotMap<StrongIdx, Arc<dyn rpc::Object>>,
-    /// Generationally indexed arena of weak object references.
-    ///
-    /// Invariants:
-    /// * No object has more than one reference in this arena.
-    /// * Every `entry` in this arena at position `idx` has a corresponding
-    ///   entry in `reverse_map` entry such that
-    ///   `reverse_map[entry.tagged_addr()] == idx`.
-    #[cfg(feature = "weakref")]
-    weak_arena: SlotMap<WeakIdx, weakrefs::WeakArenaEntry>,
-    /// Backwards reference to look up weak arena references by the underlying
-    /// object identity.
-    ///
-    /// Invariants:
-    /// * For every weak `(addr,idx)` entry in this map, there is a
-    ///   corresponding ArenaEntry in `arena` such that
-    ///   `arena[idx].tagged_addr() == addr`
-    #[cfg(feature = "weakref")]
-    reverse_map: std::collections::HashMap<TaggedAddr, WeakIdx>,
-    /// Testing only: How many times have we tidied this map?
-    #[cfg(all(test, feature = "weakref"))]
-    n_tidies: usize,
-}
-
-/// The raw address of an object held in an Arc or Weak.
-///
-/// This will be the same for every clone of an Arc, and the same for every Weak
-/// derived from an Arc.
-///
-/// Note that this is not on its own sufficient to uniquely identify an object;
-/// we must also know the object's TypeId.  See [`TaggedAddr`] for more information.
-#[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
-struct RawAddr(usize);
-
-/// An address, type identity, and ownership status, used to identify a `Arc<dyn rpc::Object>`.
-///
-/// This type is necessary because of the way that Rust implements `Arc<dyn
-/// Foo>`. It's represented as a "fat pointer", containing:
-///    * A pointer to the  object itself (and the reference counts that make the
-///      `Arc<>` work.)
-///    * A vtable pointer explaining how to invoke the methods of `Foo` on this
-///      particular object.
-///
-/// The trouble here is that `Arc::ptr_eq()` can give an incorrect result, since
-/// a single type can be instantiated with multiple instances of its vtable
-/// pointer, which [breaks pointer comparison on `dyn`
-/// pointers](https://doc.rust-lang.org/std/ptr/fn.eq.html).
-///
-/// Thus, instead of comparing objects by (object pointer, vtable pointer)
-/// tuples, we have to compare them by (object pointer, type id).
-///
-/// (We _do_ have to look at type ids, and not just the pointers, since
-/// `repr(transparent)` enables people to have two `Arc<dyn Object>`s that have
-/// the same object pointer but different types.)[^1]
-///
-/// # Limitations
-///
-/// This type only uniquely identifies an Arc/Weak object for that object's
-/// lifespan. After the last (strong or weak) reference is dropped, this
-/// `TaggedAddr` may refer to a different object.
-///
-/// [^1]: TODO: Verify whether the necessary transmutation here is actually
-///     guaranteed to work.
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-struct TaggedAddr {
-    /// The address of the object.
-    addr: RawAddr,
-    /// The type of the object.
-    type_id: any::TypeId,
 }
 
 /// A generational index for [`ObjMap`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+// XXXX: Flatten!
 pub(crate) enum GenIdx {
-    /// An index into the arena of weak references.
-    //
-    // TODO: Eventually, remove this if we don't build weak references.
-    Weak(WeakIdx),
     /// An index into the arena of strong references
     Strong(StrongIdx),
 }
@@ -160,13 +71,12 @@ impl GenIdx {
     pub(crate) fn to_bytes<R: rand::RngCore>(self, rng: &mut R) -> [u8; Self::BYTE_LEN] {
         use rand::Rng;
         use tor_bytes::Writer;
-        let (weak_bit, ffi_idx) = match self {
-            GenIdx::Weak(idx) => (1, idx.data().as_ffi()),
-            GenIdx::Strong(idx) => (0, idx.data().as_ffi()),
+        let ffi_idx = match self {
+            GenIdx::Strong(idx) => idx.data().as_ffi(),
         };
-        let x = rng.random::<u64>() << 1;
+        let x = rng.random::<u64>();
         let mut bytes = Vec::with_capacity(Self::BYTE_LEN);
-        bytes.write_u64(x | weak_bit);
+        bytes.write_u64(x);
         bytes.write_u64(ffi_idx.wrapping_add(x));
 
         bytes.try_into().expect("Length was wrong!")
@@ -186,18 +96,11 @@ impl GenIdx {
         use tor_bytes::Reader;
         let mut r = Reader::from_slice(bytes);
         let x = r.take_u64().ok()?;
-        let is_weak = (x & 1) == 1;
-        let x = x & !1;
         let ffi_idx = r.take_u64().ok()?;
         r.should_be_exhausted().ok()?;
 
         let ffi_idx = ffi_idx.wrapping_sub(x);
-
-        if is_weak {
-            Some(GenIdx::Weak(WeakIdx::from(KeyData::from_ffi(ffi_idx))))
-        } else {
-            Some(GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(ffi_idx))))
-        }
+        Some(GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(ffi_idx))))
     }
 }
 
@@ -212,16 +115,16 @@ impl ObjMap {
         GenIdx::Strong(self.strong_arena.insert(value))
     }
 
+    /// Unconditionally insert a weak entry for `value` in self, and return its index.
+    #[allow(dead_code)] // XXXX
+    pub(crate) fn insert_weak(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
+        // XXXX todo; make this actually weak.
+        GenIdx::Strong(self.strong_arena.insert(value))
+    }
+
     /// Return the entry from this ObjMap for `idx`.
     pub(crate) fn lookup(&self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
         match idx {
-            #[cfg(feature = "weakref")]
-            GenIdx::Weak(idx) => self
-                .weak_arena
-                .get(idx)
-                .and_then(weakrefs::WeakArenaEntry::strong),
-            #[cfg(not(feature = "weakref"))]
-            GenIdx::Weak(_) => None,
             GenIdx::Strong(idx) => self.strong_arena.get(idx).cloned(),
         }
     }
@@ -229,43 +132,13 @@ impl ObjMap {
     /// Remove and return the entry at `idx`, if any.
     pub(crate) fn remove(&mut self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
         match idx {
-            #[cfg(feature = "weakref")]
-            GenIdx::Weak(idx) => {
-                if let Some(entry) = self.weak_arena.remove(idx) {
-                    let old_idx = self.reverse_map.remove(&entry.tagged_addr());
-                    debug_assert_eq!(old_idx, Some(idx));
-                    entry.obj.upgrade()
-                } else {
-                    None
-                }
-            }
-            #[cfg(not(feature = "weakref"))]
-            GenIdx::Weak(_) => None,
             GenIdx::Strong(idx) => self.strong_arena.remove(idx),
         }
     }
 
     /// Testing only: Assert that every invariant for this structure is met.
     #[cfg(test)]
-    fn assert_okay(&self) {
-        #[cfg(feature = "weakref")]
-        {
-            for (index, entry) in self.weak_arena.iter() {
-                let ptr = entry.tagged_addr();
-                assert_eq!(self.reverse_map.get(&ptr), Some(&index));
-                assert_eq!(ptr, entry.tagged_addr());
-            }
-
-            for (ptr, idx) in self.reverse_map.iter() {
-                let entry = self
-                    .weak_arena
-                    .get(*idx)
-                    .expect("Dangling pointer in reverse map");
-
-                assert_eq!(&entry.tagged_addr(), ptr);
-            }
-        }
-    }
+    fn assert_okay(&self) {}
 }
 
 #[cfg(test)]
@@ -311,7 +184,8 @@ mod test {
     #[repr(transparent)]
     struct Wrapper(ExampleObject);
 
-    #[cfg(feature = "weakref")]
+    /*
+    #[cfg(feature = "weakref")] // XXXX restore
     #[test]
     fn arc_to_addr() {
         let a1 = Arc::new("Hello world");
@@ -338,7 +212,7 @@ mod test {
         assert_ne!(raw_addr_of(&obj1), raw_addr_of(&a1));
     }
 
-    #[cfg(feature = "weakref")]
+    #[cfg(feature = "weakref")] // XXXX restore
     #[test]
     fn obj_ptr() {
         let object = Arc::new(ExampleObject("Ten tons of flax".into()));
@@ -403,6 +277,7 @@ mod test {
             raw_addr_of(&object2)
         );
     }
+    */
 
     #[test]
     fn map_basics() {
@@ -413,21 +288,23 @@ mod test {
         let id1 = map.insert_strong(obj1.clone());
         let id2 = map.insert_strong(obj1.clone());
         assert_ne!(id1, id2);
+        let obj1: Arc<dyn rpc::Object> = obj1;
         let obj_out1 = map.lookup(id1).unwrap();
         let obj_out2 = map.lookup(id2).unwrap();
-        assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out1));
-        assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out2));
+        assert!(Arc::ptr_eq(&obj1, &obj_out1));
+        assert!(Arc::ptr_eq(&obj1, &obj_out2));
         map.assert_okay();
 
         map.remove(id1);
         assert!(map.lookup(id1).is_none());
         let obj_out2b = map.lookup(id2).unwrap();
-        assert_eq!(raw_addr_of(&obj_out2), raw_addr_of(&obj_out2b));
+        assert!(Arc::ptr_eq(&obj_out2, &obj_out2b));
 
         map.assert_okay();
     }
 
-    #[cfg(feature = "weakref")]
+    /*
+    #[cfg(feature = "weakref")] // XXXX restore
     #[test]
     fn strong_and_weak() {
         // Make sure that a strong object behaves like one, and so does a weak
@@ -464,7 +341,7 @@ mod test {
         map.assert_okay();
     }
 
-    #[cfg(feature = "weakref")]
+    #[cfg(feature = "weakref")] // XXXX restore
     #[test]
     fn remove() {
         // Make sure that removing an object makes it go away.
@@ -486,7 +363,7 @@ mod test {
         assert!(map.lookup(id2).is_none());
     }
 
-    #[cfg(feature = "weakref")]
+    #[cfg(feature = "weakref")] // XXXX restore
     #[test]
     fn duplicates() {
         // Make sure that inserting duplicate objects behaves right.
@@ -507,15 +384,13 @@ mod test {
         }
     }
 
-    #[cfg(feature = "weakref")]
+    #[cfg(feature = "weakref")] // XXXX restore
     #[test]
     fn upgrade() {
         // Make sure that inserting an object as weak and strong (in either
         // order) makes two separate entries.
         let obj1: Arc<dyn rpc::Object> = Arc::new(ExampleObject("hello".to_string()));
         let obj2: Arc<dyn rpc::Object> = Arc::new(ExampleObject("world".to_string()));
-        let addr1 = raw_addr_of(&obj1);
-        let addr2 = raw_addr_of(&obj2);
 
         let mut map = ObjMap::new();
         let id1 = map.insert_strong(obj1.clone());
@@ -529,8 +404,8 @@ mod test {
         drop(obj2);
         let out1 = map.lookup(id1).unwrap();
         let out2 = map.lookup(id2).unwrap();
-        assert_eq!(raw_addr_of(&out1), addr1);
-        assert_eq!(raw_addr_of(&out2), addr2);
+        assert!(Arc::ptr_eq(&obj1, &out1));
+        assert!(Arc::ptr_eq(&obj2, &out2));
     }
 
     #[cfg(feature = "weakref")]
@@ -559,15 +434,12 @@ mod test {
         assert!(w.iter().all(|id| map.lookup(*id).is_none()));
         assert!(s.iter().all(|id| map.lookup(*id).is_some()));
 
-        assert_ne!(map.weak_arena.len() + map.strong_arena.len(), 1100);
         map.assert_okay();
-        map.tidy();
-        map.assert_okay();
-        assert_eq!(map.weak_arena.len() + map.strong_arena.len(), 100);
 
         // This number is a bit arbitrary.
         assert!(dbg!(map.n_tidies) < 30);
     }
+    */
 
     #[test]
     fn wrapper_magic() {
@@ -588,11 +460,7 @@ mod test {
             let a: u64 = a.into();
             let b: u64 = b.into();
             let data = KeyData::from_ffi((a << 33) | (1_u64 << 32) | b);
-            let idx = if rng.random_bool(0.5) {
-                GenIdx::Strong(StrongIdx::from(data))
-            } else {
-                GenIdx::Weak(WeakIdx::from(data))
-            };
+            let idx = GenIdx::Strong(StrongIdx::from(data));
             let s1 = idx.encode_with_rng(rng);
             let s2 = idx.encode_with_rng(rng);
             assert_ne!(s1, s2);

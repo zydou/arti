@@ -28,8 +28,7 @@ full = [
     "tor-rpc-connect/full",
 ]
 describe-methods = ["tor-rpcbase/describe-methods"]
-experimental = ["weakref"]
-weakref = ["__is_experimental"]
+experimental = []
 
 __is_experimental = []
 
