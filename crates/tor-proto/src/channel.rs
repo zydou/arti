@@ -94,7 +94,8 @@ use tor_async_utils::counting_streams::{self, CountingSink, CountingStream};
 
 #[cfg(feature = "relay")]
 use {
-    crate::circuit::CircuitRxReceiver, crate::relay::channel::create_handler::CreateRequestHandler,
+    crate::channel::reactor::CreateRequestHandlerAndData, crate::circuit::CircuitRxReceiver,
+    crate::relay::channel::create_handler::CreateRequestHandler,
     tor_llcrypto::pk::ed25519::Ed25519Identity,
 };
 
@@ -620,11 +621,11 @@ impl Channel {
                 create_request_handler,
                 our_ed25519_id,
                 ..
-            } => Some((
-                create_request_handler,
-                Arc::downgrade(&channel),
+            } => Some(CreateRequestHandlerAndData {
+                handler: create_request_handler,
+                channel: Arc::downgrade(&channel),
                 our_ed25519_id,
-            )),
+            }),
             ChannelMode::Client => None,
         };
         // clippy wants us to consume `channel_mode` (`needless_pass_by_value`)

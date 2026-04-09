@@ -154,17 +154,10 @@ pub struct Reactor<R: Runtime> {
     /// A handler for setting stream options on the underlying stream.
     #[cfg_attr(not(target_os = "linux"), allow(unused))]
     pub(super) streamops: BoxedChannelStreamOps,
-    /// A handler for CREATE2/CREATE_FAST messages,
+    /// A handler and associated data for CREATE2/CREATE_FAST messages,
     /// if this channel should handle them.
-    /// We don't want the channel reactor to access its `Channel` directly
-    /// (should use its `ChannelDetails` instead),
-    /// but we need it to pass it to new circuit reactors,
-    /// so we store a copy here.
-    /// The `Ed25519Identity` is our identity, which is needed for the ntor handshake.
-    // XXXX: Put these in a struct.
     #[cfg(feature = "relay")]
-    pub(super) create_request_handler:
-        Option<(Arc<CreateRequestHandler>, Weak<Channel>, Ed25519Identity)>,
+    pub(super) create_request_handler: Option<CreateRequestHandlerAndData>,
     /// Timer tracking when to generate channel padding.
     ///
     /// Note that this is _distinct_ from the experimental maybenot-based padding
@@ -676,7 +669,7 @@ impl<R: Runtime> Reactor<R> {
     /// Handle a CREATE* cell `msg`.
     #[cfg(feature = "relay")]
     async fn handle_create(&mut self, circid: Option<CircId>, msg: CreateRequest) -> Result<()> {
-        let Some((ref handler, ref chan, ref our_ed25519_id)) = self.create_request_handler else {
+        let Some(ref create_request_handler) = self.create_request_handler else {
             // We should have checked this in an 'if' guard in 'handle_cell()'.
             return Err(internal!("Called 'deliver_relay()', but handler isn't set").into());
         };
@@ -686,7 +679,7 @@ impl<R: Runtime> Reactor<R> {
             return Err(Error::ChanProto(err));
         };
 
-        let Some(chan) = chan.upgrade() else {
+        let Some(chan) = create_request_handler.channel.upgrade() else {
             // This can happen if the last `Arc<Channel>` was dropped before the reactor had a
             // chance to notice.
             // We'll just try to reject the new circuit request.
@@ -707,10 +700,10 @@ impl<R: Runtime> Reactor<R> {
         let circ_uniq_id = self.circ_unique_id_ctx.next(self.unique_id);
 
         // Build the relay circuit.
-        let create_result = handler.handle_create(
+        let create_result = create_request_handler.handler.handle_create(
             &self.runtime,
             &chan,
-            our_ed25519_id,
+            &create_request_handler.our_ed25519_id,
             circid,
             &msg,
             &self.details.memquota,
@@ -877,6 +870,23 @@ impl<R: Runtime> Reactor<R> {
             tracing::warn!("KIST not currently supported on non-linux platforms");
         }
     }
+}
+
+/// If the channel is configured to handle CREATE* requests,
+/// this contains anything that is needed solely for this purpose.
+#[cfg(feature = "relay")]
+pub(super) struct CreateRequestHandlerAndData {
+    /// A handler for CREATE2/CREATE_FAST messages.
+    pub(super) handler: Arc<CreateRequestHandler>,
+    /// The [`Channel`] associated with this reactor.
+    ///
+    /// We don't want the channel reactor to access its `Channel` directly
+    /// (shared data should use its [`ChannelDetails`] instead),
+    /// but we need it to pass it to new circuit reactors,
+    /// so we store a copy here.
+    pub(super) channel: Weak<Channel>,
+    /// Our Ed25519 identity for ntor handshakes.
+    pub(super) our_ed25519_id: Ed25519Identity,
 }
 
 #[cfg(test)]
