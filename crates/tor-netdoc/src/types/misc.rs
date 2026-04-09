@@ -846,8 +846,8 @@ mod timeimpl {
     /// space between the date and time.
     ///
     /// (Example: "2020-10-09 17:38:12")
-    #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)] //
-    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Deftly)]
+    #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Iso8601TimeSp(pub SystemTime);
 
@@ -895,8 +895,8 @@ mod timeimpl {
     /// The timezone is not included in the string representation; `+0000` is implicit.
     ///
     /// (Example: "2020-10-09T17:38:12")
-    #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)] //
-    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Deftly)]
+    #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Iso8601TimeNoSp(pub SystemTime);
 
