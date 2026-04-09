@@ -15,3 +15,4 @@ BREAKING: Removed `types::B64::into_array`; use methods on `Vec` and slice inste
 ADDED: `types::B16`, `types::B16U`
 ADDED: `types::Curve25519Public` impls `Deref`, `DerefMut`, `AsRef`, `AsMut`
 ADDED: `types::Iso8601TimeSp`, `Iso8601TimeSp` impl `AsRef`, `AsMut`
+ADDED: `types::SpFingerprint`, `Fingerprint`, `Base64Fingerprint`, `LongIdent`, impl `Hash`, `AsRef`, `AsMut`
