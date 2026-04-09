@@ -1151,14 +1151,16 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             .if_valid_at(&(to_system_time(DIR_KEY_EXPIRES) + Duration::from_secs(1)))
             .unwrap();
 
-        // Check with non-matching fingerprint and long-term identity key.
-        let mut res =
-            parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
+        // Alternative (different) cert we use for generating broken certs for testing
         let alternative_cert = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
             ALTERNATIVE_AUTHCERT_RAW,
             "",
         ))
         .unwrap();
+
+        // Check with non-matching fingerprint and long-term identity key.
+        let mut res =
+            parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
         res.body.dir_identity_key = alternative_cert.body.dir_identity_key.clone();
         assert_eq!(
             res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
