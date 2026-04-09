@@ -682,7 +682,8 @@ impl<R: Runtime> Reactor<R> {
         let Some(chan) = create_request_handler.channel.upgrade() else {
             // This can happen if the last `Arc<Channel>` was dropped before the reactor had a
             // chance to notice.
-            // We'll just try to reject the new circuit request.
+            // We'll just try to reject the new circuit request and let the reactor shut down
+            // normally, rather than return an error.
             let destroy = Destroy::new(DestroyReason::CHANNEL_CLOSED);
             let destroy = AnyChanCell::new(Some(circid), destroy.into());
 
