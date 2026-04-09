@@ -709,6 +709,11 @@ mod test {
         count_keys(keymgr, &RelaySigningKeypairSpecifierPattern::new_any())
     }
 
+    /// Return the number of ntor keys in the given KeyMgr.
+    fn count_ntor_keys(keymgr: &KeyMgr) -> usize {
+        count_keys(keymgr, &RelayNtorKeypairSpecifierPattern::new_any())
+    }
+
     /// Test the actual bootstrap function, `try_generate_keys()` which is in charge of
     /// initializing the auth material.
     #[test]
@@ -741,6 +746,7 @@ mod test {
             );
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
             assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
+            assert_eq!(count_ntor_keys(&keymgr), 1, "expected one ntor key");
 
             // The earliest expiry should be the link key (~2 days out).
             let expected = runtime.wallclock() + LINK_CERT_LIFETIME;
@@ -770,6 +776,7 @@ mod test {
             );
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
             assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
+            assert_eq!(count_ntor_keys(&keymgr), 1, "expected one ntor key");
         });
     }
 
