@@ -742,7 +742,7 @@ mod test {
             let (rotated, next_expiry) = try_rotate_keys(now, &keymgr).unwrap();
 
             assert!(
-                rotated.chan_auth,
+                rotated.chan_auth && rotated.ntor,
                 "keys should be reported as generated on first rotation"
             );
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
@@ -770,7 +770,7 @@ mod test {
 
             let (rotated, _) = try_rotate_keys(now, &keymgr).unwrap();
 
-            assert!(!rotated.chan_auth, "fresh keys must not trigger a rotation");
+            assert!(!rotated.chan_auth && !rotated.ntor, "fresh keys must not trigger a rotation");
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
             assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
         });
@@ -795,6 +795,10 @@ mod test {
             assert!(
                 !rotated.chan_auth,
                 "link key MUST NOT rotate before the expiry buffer threshold"
+            );
+            assert!(
+                !rotated.ntor,
+                "ntor key MUST NOT rotate before the expiry buffer threshold"
             );
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
             assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
