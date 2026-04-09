@@ -92,7 +92,7 @@ define_derive_deftly! {
     ///
     ///  * impls of `ConstantTimeEq`, `Eq`, `PartialEq`
     ///  * `as_bytes()` method
-    ///  * impls of `Deref`, `DerefMut`,
+    ///  * impls of `Deref`, `DerefMut`
     ///  * impls of `AsMut<field>`, `AsRef<field>`, `AsRef<[u8]>`, `AsMut<[u9]>`
     ///
     // We could derive Debug here but then we have to deal with the Fixed's N
