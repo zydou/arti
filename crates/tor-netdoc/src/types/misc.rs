@@ -56,7 +56,7 @@ pub use identified_digest::{DigestName, IdentifiedDigest};
 pub use ignored_impl::{Ignored, IgnoredItemOrObjectValue, NotPresent};
 
 use crate::NormalItemArgument;
-use derive_deftly::{Deftly, define_derive_deftly};
+use derive_deftly::{Deftly, define_derive_deftly, define_derive_deftly_module};
 use std::cmp::{self, PartialOrd};
 use std::fmt::{self, Display};
 use std::marker::PhantomData;
@@ -79,57 +79,22 @@ pub(crate) trait FromBytes: Sized {
     }
 }
 
-define_derive_deftly! {
-    /// Implement `ConstantTimeEq`, `.as_bytes()`, etc., for a transparent newtype around bytes
+define_derive_deftly_module! {
+    /// Implement conversion traits for a transparent newtype around bytes - shared code
     ///
-    /// # Requirements
-    ///
-    ///  * Self should be a single-field struct
-    ///  * Self should deref to `&[u8]` (and to `&mut [u8]`).
-    ///  * (so Self should have no runtime invariants)
-    ///
-    /// # Generated code
-    ///
-    ///  * impls of `ConstantTimeEq`, `Eq`, `PartialEq`
-    ///  * `as_bytes()` method
+    /// This is precisely `#[derive_deftly(Transparent)]`, but in the form of a deftly module,
+    /// so that other derives (eg `BytesTransparent`) can re-use it.
+    Transparent beta_deftly:
+
+    // Expands to bullet points for "generated code", except omitting
+    // `AsRef` & `AsMut` because some uses sites have additional impls of those,
+    // which are best presented together in the docs.
+  ${define TRANSPARENT_DOCS_IMPLS {
     ///  * impls of `Deref`, `DerefMut`
-    ///  * impls of `AsMut<field>`, `AsRef<field>`, `AsRef<[u8]>`, `AsMut<[u9]>`
-    ///
-    // We could derive Debug here but then we have to deal with the Fixed's N
-    // which gets quite fiddly.
-    //
-    /// # Guidelines
-    ///
-    ///  * derive `Hash` and write `#[allow(clippy::derived_hash_with_manual_eq)]`
-    ///  * impl `FromStr` and `Display` (if required, which they usually will be)
-    ///  * derive `derive_more::Debug` eg with `#[debug(r#"B64("{self}")"#)]`
-    ///  * derive `derive_more::From` and `derive_more::Into` if applicable
-    ///  * `impl NormalItemArgument` if appropriate (ie the representation has no spaces)
-    BytesTransparent for struct, beta_deftly:
+  }}
 
-    impl<$tgens> ConstantTimeEq for $ttype {
-        fn ct_eq(&self, other: &$ttype) -> Choice {
-          $(
-            self.$fname.ct_eq(&other.$fname)
-          )
-        }
-    }
-    $/// `$tname` is `Eq` via its constant-time implementation.
-    impl<$tgens> PartialEq for $ttype {
-        fn eq(&self, other: &$ttype) -> bool {
-            self.ct_eq(other).into()
-        }
-    }
-    impl<$tgens> Eq for $ttype {}
-
-    impl<$tgens> $ttype {
-        /// Return the byte array from this object.
-        pub fn as_bytes(&self) -> &[u8] {
-          $(
-            &self.$fname[..]
-          )
-        }
-    }
+    // Expands to the implementations
+  ${define TRANSPARENT_IMPLS {
 
   $(
     ${loop_exactly_1 "must be applied to a single-field struct"}
@@ -159,6 +124,93 @@ define_derive_deftly! {
         }
     }
   )
+  }}
+}
+
+define_derive_deftly! {
+    use Transparent;
+
+    /// Implement conversion traits for an arbitrary transparent newtype
+    ///
+    /// # Requirements
+    ///
+    ///  * Self should be a single-field struct
+    ///  * Self should have no runtime invariants
+    ///
+    /// # Generated code
+    ///
+    $TRANSPARENT_DOCS_IMPLS
+    ///  * impls of `AsMut<field>`, `AsRef<field>`
+    ///
+    /// # Guidelines
+    ///
+    ///  * the field should be `pub`, with `#[allow(clippy::exhaustive_structs)]`
+    ///  * derive `Hash`, `Debug` and (usually) `Clone`
+    ///  * consider deriving `PartialEq` and `Eq`
+    ///    but for types containing bytes, use [`ConstantTimeEq`],
+    ///    eg with [`#[derive_deftly(BytesTransparent)]`](derive_deftly_template_BytesTransparent)
+    ///    (instead of `Transparent`).
+    ///  * implement `FromStr`, `Display`, `NormalItemArgument`, as required
+    Transparent for struct, beta_deftly:
+
+    $TRANSPARENT_IMPLS
+}
+
+define_derive_deftly! {
+    use Transparent;
+
+    /// Implement `ConstantTimeEq`, `.as_bytes()`, etc., for a transparent newtype around bytes
+    ///
+    /// # Requirements
+    ///
+    ///  * Self should be a single-field struct
+    ///  * Self should deref to `&[u8]` (and to `&mut [u8]`).
+    ///  * (so Self should have no runtime invariants)
+    ///
+    /// # Generated code
+    ///
+    ///  * impls of `ConstantTimeEq`, `Eq`, `PartialEq`
+    ///  * `as_bytes()` method
+    ${TRANSPARENT_DOCS_IMPLS}
+    ///  * impls of `AsMut<field>`, `AsRef<field>`, `AsRef<[u8]>`, `AsMut<[u9]>`
+    ///
+    // We could derive Debug here but then we have to deal with the Fixed's N
+    // which gets quite fiddly.
+    //
+    /// # Guidelines
+    ///
+    ///  * derive `Hash` and write `#[allow(clippy::derived_hash_with_manual_eq)]`
+    ///  * impl `FromStr` and `Display` (if required, which they usually will be)
+    ///  * derive `derive_more::Debug` eg with `#[debug(r#"B64("{self}")"#)]`
+    ///  * derive `derive_more::From` and `derive_more::Into` if applicable
+    ///  * `impl NormalItemArgument` if appropriate (ie the representation has no spaces)
+    BytesTransparent for struct, beta_deftly:
+
+    $TRANSPARENT_IMPLS
+
+    impl<$tgens> ConstantTimeEq for $ttype {
+        fn ct_eq(&self, other: &$ttype) -> Choice {
+          $(
+            self.$fname.ct_eq(&other.$fname)
+          )
+        }
+    }
+    $/// `$tname` is `Eq` via its constant-time implementation.
+    impl<$tgens> PartialEq for $ttype {
+        fn eq(&self, other: &$ttype) -> bool {
+            self.ct_eq(other).into()
+        }
+    }
+    impl<$tgens> Eq for $ttype {}
+
+    impl<$tgens> $ttype {
+        /// Return the byte array from this object.
+        pub fn as_bytes(&self) -> &[u8] {
+          $(
+            &self.$fname[..]
+          )
+        }
+    }
 
     impl<$tgens> AsRef<[u8]> for $ttype {
         fn as_ref(&self) -> &[u8] {
