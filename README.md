@@ -86,6 +86,10 @@ None yet.
 
 [^1]: This is an effort the maintainers are actively working upon.
 [^2]: Assuming the name, signature, and behavior does not change.
+      Unfortunately, we likely have to change the signature for the parameters
+      because we currently use `self` whereas the standard library uses `&self`.
+      It should not be a big problem though, because both `Instant` and
+      `SystemTime` implement `Copy`.
 [^3]: <https://github.com/rust-lang/rust/pull/149979>
 [^4]: <https://github.com/rust-lang/rust/issues/149067>
 [^5]: <https://github.com/rust-lang/rust/pull/151200>
