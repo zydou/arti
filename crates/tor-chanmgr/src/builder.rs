@@ -465,9 +465,11 @@ where
         // scanning by measuring latency between successful connect() and failures.
         //
         // If no addresses, it returns true and thus no error.
-        if !target.all_addrs_allowed_for_extend() {
+        if !target.all_addrs_allowed_for_outgoing_channels() {
             return Err(Error::Proto {
-                source: tor_proto::Error::ChanProto("Target address is invalid".into()),
+                source: tor_proto::Error::ChanProto(
+                    "Target address is not allowed for outgoing channels".into(),
+                ),
                 peer: target.to_owned().into(),
                 clock_skew: None,
             });
