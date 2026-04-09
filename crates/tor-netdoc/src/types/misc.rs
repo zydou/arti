@@ -1297,10 +1297,8 @@ mod contact_info {
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)] //
     #[derive(derive_more::Into, derive_more::AsRef, derive_more::Deref, derive_more::Display)]
     #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
-    // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr
-    #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
     #[non_exhaustive]
-    pub struct ContactInfo(#[deftly(netdoc(rest))] String);
+    pub struct ContactInfo(#[cfg_attr(feature = "encode", deftly(netdoc(rest)))] String);
 
     /// Contact information (`contact` item value) has invalid syntax
     #[derive(Clone, Debug, thiserror::Error)]
