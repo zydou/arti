@@ -360,9 +360,14 @@ impl<R: Runtime> TorRelay<R> {
             let chanmgr = self.chanmgr.clone();
             let create_request_handler = Arc::clone(&self.create_request_handler);
             async {
-                crate::tasks::crypto::rotate_keys_task(runtime, keymgr, chanmgr, create_request_handler)
-                    .await
-                    .context("Failed to run key rotation task")
+                crate::tasks::crypto::rotate_keys_task(
+                    runtime,
+                    keymgr,
+                    chanmgr,
+                    create_request_handler,
+                )
+                .await
+                .context("Failed to run key rotation task")
             }
         });
 
