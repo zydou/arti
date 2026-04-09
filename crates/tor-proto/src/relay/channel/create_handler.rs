@@ -23,6 +23,7 @@ use crate::memquota::{ChannelAccount, CircuitAccount};
 use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
 use crate::relay::reactor::Reactor;
+use smallvec::{SmallVec, smallvec};
 use std::sync::{Arc, RwLock, Weak};
 use tor_cell::chancell::ChanMsg as _;
 use tor_cell::chancell::CircId;
@@ -38,14 +39,19 @@ use tor_rtcompat::{DynTimeProvider, Runtime};
 use tracing::warn;
 use tor_relay_crypto::pk::RelayNtorKeypair;
 
+/// The usual number of ntor keys.
+const NTOR_KEY_COUNT: usize = 2;
+
 /// Everything needed to handle CREATE* messages on channels.
-#[derive(Debug)]
+#[derive(derive_more::Debug)]
 pub struct CreateRequestHandler {
     /// Something that can launch channels. Typically the `ChanMgr`.
     chan_provider: Weak<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
     /// Circuit-related network parameters.
     circ_net_params: RwLock<CircNetParameters>,
-    // TODO(relay): We probably want the ntor key here as well.
+    /// The circuit extension keys.
+    #[debug(skip)]
+    ntor_keys: RwLock<SmallVec<[RelayNtorKeypair; NTOR_KEY_COUNT]>>,
 }
 
 impl CreateRequestHandler {
@@ -57,12 +63,31 @@ impl CreateRequestHandler {
         Self {
             chan_provider,
             circ_net_params: RwLock::new(circ_net_params),
+            // Initially there are no keys. This will be updated when the keys are read/generated
+            // by the crypto task.
+            //
+            // TODO(relay): I think it would be better to set these from the beginning,
+            // but this will involve reading the ntor keys from the keystore
+            // (or generating them, if they are missing)
+            // outside of the relay crypto task, so it will require a bit of
+            // refactoring to make sure we are not duplicating the logic from there.
+            //
+            // But I think this is worthwhile, because otherwise we could end up
+            // starting to handle incoming CREATE2 requests before we the ntor keys are set.
+            ntor_keys: RwLock::new(smallvec![]),
         }
     }
 
     /// Update the circuit parameters from a network consensus.
     pub fn update_params(&self, circ_net_params: CircNetParameters) {
         *self.circ_net_params.write().expect("rwlock poisoned") = circ_net_params;
+    }
+
+    /// Update the handler with a new set of circuit extension keys.
+    ///
+    /// This is called periodically by the relay key rotation task.
+    pub fn update_ntor_keys(&self, ntor_keys: SmallVec<[RelayNtorKeypair; NTOR_KEY_COUNT]>) {
+        *self.ntor_keys.write().expect("rwlock poisoned") = ntor_keys;
     }
 
     /// Handle a CREATE* cell.

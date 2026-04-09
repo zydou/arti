@@ -621,7 +621,7 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
                 })
                 .collect::<anyhow::Result<Vec<_>>>()?;
 
-            // XXX update create handler with new keys
+            create_request_handler.update_ntor_keys(ntor_keys.into());
         }
 
         // Sleep until the earliest key expiry minus buffer so we rotate before it expires.
