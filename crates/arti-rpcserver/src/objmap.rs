@@ -21,8 +21,7 @@ slotmap_careful::new_key_type! {
 #[derive(Default)]
 pub(crate) struct ObjMap {
     /// Generationally indexed arena of strong object references.
-    // XXXX rename.
-    strong_arena: SlotMap<GenIdx, Arc<dyn rpc::Object>>,
+    arena: SlotMap<GenIdx, Arc<dyn rpc::Object>>,
 }
 
 /// Encoding functions for GenIdx.
@@ -97,24 +96,24 @@ impl ObjMap {
 
     /// Unconditionally insert a strong entry for `value` in self, and return its index.
     pub(crate) fn insert_strong(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        self.strong_arena.insert(value)
+        self.arena.insert(value)
     }
 
     /// Unconditionally insert a weak entry for `value` in self, and return its index.
     #[allow(dead_code)] // XXXX
     pub(crate) fn insert_weak(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
         // XXXX todo; make this actually weak.
-        self.strong_arena.insert(value)
+        self.arena.insert(value)
     }
 
     /// Return the entry from this ObjMap for `idx`.
     pub(crate) fn lookup(&self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
-        self.strong_arena.get(idx).cloned()
+        self.arena.get(idx).cloned()
     }
 
     /// Remove and return the entry at `idx`, if any.
     pub(crate) fn remove(&mut self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
-        self.strong_arena.remove(idx)
+        self.arena.remove(idx)
     }
 
     /// Testing only: Assert that every invariant for this structure is met.
@@ -431,7 +430,7 @@ mod test {
         let mut map = ObjMap::new();
         map.insert_strong(obj);
         map.insert_strong(wrap);
-        assert_eq!(map.strong_arena.len(), 2);
+        assert_eq!(map.arena.len(), 2);
     }
 
     #[test]
