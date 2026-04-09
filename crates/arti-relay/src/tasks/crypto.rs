@@ -770,7 +770,10 @@ mod test {
 
             let (rotated, _) = try_rotate_keys(now, &keymgr).unwrap();
 
-            assert!(!rotated.chan_auth && !rotated.ntor, "fresh keys must not trigger a rotation");
+            assert!(
+                !rotated.chan_auth && !rotated.ntor,
+                "fresh keys must not trigger a rotation"
+            );
             assert_eq!(count_link_keys(&keymgr), 1, "expected one link key");
             assert_eq!(count_signing_keys(&keymgr), 1, "expected one signing key");
         });
