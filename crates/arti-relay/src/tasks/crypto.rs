@@ -875,4 +875,57 @@ mod test {
             );
         });
     }
+
+    /// Test rotation before and after rotation expiry buffer for the ntor key.
+    #[test]
+    fn test_rotation_ntor_key() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let keymgr = setup();
+            // First rotation creates the keys.
+            try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
+
+            // Advance to 1 second _before_ the rotation-buffer threshold. We should not rotate
+            // with this.
+            let just_before =
+                NTOR_KEY_LIFETIME - KEY_ROTATION_EXPIRE_BUFFER - Duration::from_secs(1);
+            runtime.advance_by(just_before).await;
+
+            let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
+
+            assert!(
+                !rotated.ntor,
+                "Ntor key MUST NOT rotate before the expiry buffer threshold"
+            );
+            assert_eq!(count_ntor_keys(&keymgr), 1, "expected one ntor key");
+
+            // Move it just after the expiry buffer and expect a rotation.
+            runtime.advance_by(Duration::from_secs(1)).await;
+
+            let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
+            assert!(
+                rotated.ntor,
+                "ntor key should rotate inside the expiry buffer threshold"
+            );
+
+            assert_eq!(
+                count_ntor_keys(&keymgr),
+                2,
+                "there should be 2 ntor keys in the grace period"
+            );
+
+            runtime.advance_by(NTOR_KEY_GRACE_PERIOD).await;
+
+            let (rotated, _) = try_rotate_keys(runtime.wallclock(), &keymgr).unwrap();
+            assert!(
+                rotated.ntor,
+                "ntor key should rotate after the grace period"
+            );
+
+            assert_eq!(
+                count_ntor_keys(&keymgr),
+                1,
+                "the old ntor key should have been removed after the grace period"
+            );
+        });
+    }
 }
