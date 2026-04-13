@@ -73,6 +73,7 @@ use futures::FutureExt;
 use safelog::with_safe_logging_suppressed;
 use tor_basic_utils::iter_join;
 use tor_error::warn_report;
+use tor_keymgr::KeyMgr;
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityRsaKeypair};
 use tor_rtcompat::SpawnExt;
 use tor_rtcompat::tokio::TokioRustlsRuntime;
@@ -288,6 +289,10 @@ async fn run_relay<R: Runtime>(
         .await
         .context("Failed to bootstrap")?;
 
+    // TODO: This is mostly useful for debugging.
+    // We might want to remove this in the future, or move this somewhere else.
+    log_public_keys(relay.keymgr()).context("Failed to log public keys")?;
+
     let keymgr = relay.keymgr();
     let rsa_id = keymgr
         .get::<RelayIdentityRsaKeypair>(&RelayIdentityRsaKeypairSpecifier::new())
@@ -339,4 +344,10 @@ enum MainloopStatus<T> {
     Finished(T),
     /// The future was cancelled due to a ctrl-c event.
     CtrlC,
+}
+
+/// Log the relay's identities and public ntor key.
+fn log_public_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
+    // XXXX move code here
+    Ok(())
 }
