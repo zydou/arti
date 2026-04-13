@@ -243,12 +243,15 @@ impl Connection {
             let local_id = self.id_into_local_idx(id)?;
 
             self.lookup_by_idx(local_id)
-                .ok_or(rpc::LookupError::NoObject(id.clone()))
+                .map_err(|e| e.to_rpc_lookup_error(id.clone()))
         }
     }
 
     /// As `lookup_object`, but expect a `GenIdx`.
-    pub(crate) fn lookup_by_idx(&self, idx: crate::objmap::GenIdx) -> Option<Arc<dyn rpc::Object>> {
+    pub(crate) fn lookup_by_idx(
+        &self,
+        idx: crate::objmap::GenIdx,
+    ) -> Result<Arc<dyn rpc::Object>, crate::objmap::LookupError> {
         let inner = self.inner.lock().expect("lock poisoned");
         inner.objects.lookup(idx)
     }

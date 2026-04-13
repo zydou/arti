@@ -210,7 +210,7 @@ impl RpcMgr {
             drop(inner);
             connection
         };
-        let obj = connection.lookup_by_idx(id.local_id)?;
+        let obj = connection.lookup_by_idx(id.local_id).ok()?;
         Some((connection, obj))
     }
 }

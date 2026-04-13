@@ -129,8 +129,12 @@ impl ObjMap {
     }
 
     /// Return the entry from this ObjMap for `idx`.
-    pub(crate) fn lookup(&self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
-        self.arena.get(idx).and_then(ObjectRef::get)
+    pub(crate) fn lookup(&self, idx: GenIdx) -> Result<Arc<dyn rpc::Object>, LookupError> {
+        self.arena
+            .get(idx)
+            .ok_or(LookupError::NoObject)?
+            .get()
+            .ok_or(LookupError::Expired)
     }
 
     /// Remove the entry at `idx`.
@@ -143,6 +147,30 @@ impl ObjMap {
     /// Testing only: Assert that every invariant for this structure is met.
     #[cfg(test)]
     fn assert_okay(&self) {}
+}
+
+/// A failure from ObjMap::lookup.
+///
+/// (This type is immediately returned into rpc::LookupError before we return it.)
+#[derive(Clone, Debug, thiserror::Error)]
+pub(crate) enum LookupError {
+    /// There was no object with the given ID.
+    #[error("Object not found")]
+    NoObject,
+
+    /// The object was present, but it was a weak reference that expired.
+    #[error("Object expired")]
+    Expired,
+}
+
+impl LookupError {
+    /// Convert this `LookupError` into an [`rpc::LookupError`]
+    pub(crate) fn to_rpc_lookup_error(&self, id: rpc::ObjectId) -> rpc::LookupError {
+        match self {
+            LookupError::NoObject => rpc::LookupError::NoObject(id),
+            LookupError::Expired => rpc::LookupError::Expired(id),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -186,7 +214,7 @@ mod test {
         map.assert_okay();
 
         map.remove(id1);
-        assert!(map.lookup(id1).is_none());
+        assert!(map.lookup(id1).is_err());
         let obj_out2b = map.lookup(id2).unwrap();
         assert!(Arc::ptr_eq(&obj_out2, &obj_out2b));
 
@@ -219,10 +247,10 @@ mod test {
             let out2 = map.lookup(id2);
 
             // This one was strong, so it is still there.
-            assert!(out1.is_some());
+            assert!(out1.is_ok());
 
             // This one is weak so it went away.
-            assert!(out2.is_none());
+            assert!(out2.is_err());
         }
         map.assert_okay();
     }
@@ -239,13 +267,13 @@ mod test {
 
         map.remove(id1);
         map.assert_okay();
-        assert!(map.lookup(id1).is_none());
-        assert!(map.lookup(id2).is_some());
+        assert!(map.lookup(id1).is_err());
+        assert!(map.lookup(id2).is_ok());
 
         map.remove(id2);
         map.assert_okay();
-        assert!(map.lookup(id1).is_none());
-        assert!(map.lookup(id2).is_none());
+        assert!(map.lookup(id1).is_err());
+        assert!(map.lookup(id2).is_err());
     }
 
     #[test]
