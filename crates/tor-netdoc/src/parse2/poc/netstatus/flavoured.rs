@@ -164,15 +164,6 @@ pub struct NddDirectoryFooter {
     pub directory_footer: (),
 }
 
-/// Authority Key Entry (in a network status document)
-#[derive(Deftly, Clone, Debug)]
-#[derive_deftly(NetdocParseable)]
-#[non_exhaustive]
-pub struct NddAuthorityEntry {
-    /// `dir-source`
-    pub dir_source: NdiAuthorityDirSource,
-}
-
 /// `dir-source`
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(ItemValueParseable)]
@@ -193,10 +184,10 @@ ns_choose! { (
                 "vote.authority.section"
             }
             fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
-                NddAuthorityEntry::is_intro_item_keyword(kw)
+                VoteAuthorityEntry::is_intro_item_keyword(kw)
             }
             fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
-                NddAuthorityEntry::is_structural_keyword(kw)
+                VoteAuthorityEntry::is_structural_keyword(kw)
                     .or_else(|| authcert::AuthCertUnverified::is_structural_keyword(kw))
             }
             fn from_items<'s>(
@@ -227,7 +218,7 @@ ns_choose! { (
     #[non_exhaustive]
     pub struct NddAuthoritySection {
         /// Authority entry
-        pub authority: NddAuthorityEntry,
+        pub authority: VoteAuthorityEntry,
         /// Authority key certificate
         pub cert: crate::doc::authcert::EncodedAuthCert,
     }
@@ -245,15 +236,15 @@ ns_choose! { (
         /// The authority entries.
         ///
         /// Proper entries precede superseded ones.
-        pub authorities: Vec<NddAuthorityEntryOrSuperseded>,
+        pub authorities: Vec<ConsensusAuthorityEntryOrSuperseded>,
     }
 
     /// An element of an authority section in a consensus
     #[derive(Clone, Debug)]
     #[non_exhaustive]
-    pub enum NddAuthorityEntryOrSuperseded {
+    pub enum ConsensusAuthorityEntryOrSuperseded {
         /// Proper Authority Entry
-        Entry(NddAuthorityEntry),
+        Entry(ConsensusAuthorityEntry),
         /// Superseded Key Authority
         ///
         /// `nickname` contains the value *with* `-legacy`
@@ -265,16 +256,16 @@ ns_choose! { (
             "consensus.authority.section"
         }
         fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
-            NddAuthorityEntry::is_intro_item_keyword(kw)
+            ConsensusAuthorityEntry::is_intro_item_keyword(kw)
         }
         fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
-            NddAuthorityEntry::is_structural_keyword(kw)
+            ConsensusAuthorityEntry::is_structural_keyword(kw)
         }
         fn from_items(
             input: &mut ItemStream<'_>,
             stop_outer: stop_at!(),
         ) -> Result<Self, ErrorProblem> {
-            let is_our_keyword = NddAuthorityEntry::is_intro_item_keyword;
+            let is_our_keyword = ConsensusAuthorityEntry::is_intro_item_keyword;
             let stop_inner = stop_outer | StopAt(is_our_keyword);
             let mut authorities = vec![];
             while let Some(peek) = input.peek_keyword()? {
@@ -287,8 +278,8 @@ ns_choose! { (
                 let entry = match lookahead.next().transpose()? {
                     Some(item) if !stop_inner.stop_at(item.keyword()) => {
                         // Non-structural item.  Non-superseded entry.
-                        let entry = NddAuthorityEntry::from_items(input, stop_inner)?;
-                        NddAuthorityEntryOrSuperseded::Entry(entry)
+                        let entry = ConsensusAuthorityEntry::from_items(input, stop_inner)?;
+                        ConsensusAuthorityEntryOrSuperseded::Entry(entry)
                     }
                     None | Some(_) => {
                         // EOF, or the item is another dir-source, or the item
@@ -301,13 +292,13 @@ ns_choose! { (
  "authority entry lacks mandatory fields (eg `contact`) so is not a proper (non-superseded) entry, but nickname lacks `-legacy` suffix so is not a superseded entry"
                             ))
                         }
-                        NddAuthorityEntryOrSuperseded::Superseded(entry)
+                        ConsensusAuthorityEntryOrSuperseded::Superseded(entry)
                     }
                 };
                 authorities.push(entry);
             }
             if !authorities.is_sorted_by_key(
-                |entry| matches!(entry, NddAuthorityEntryOrSuperseded::Superseded(_))
+                |entry| matches!(entry, ConsensusAuthorityEntryOrSuperseded::Superseded(_))
             ) {
                 return Err(EP::OtherBadDocument(
  "normal (non-superseded) authority entry follows superseded authority key entry"
