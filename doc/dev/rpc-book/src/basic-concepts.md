@@ -44,6 +44,35 @@ that is safe to use when the application hasn't authenticated.
 The Session object is the result of authenticating,
 and is the source of all other RPC objects.
 
+### Strong and weak object IDs
+
+> As of 2026 April,
+> the handle vs reference terminology is not finalized; see
+> [arti#849](https://gitlab.torproject.org/tpo/core/arti/-/issues/849).
+> We will revise this section and the rest of the RPC documentation
+> once the terminology settles.
+
+Some object IDs designate weak "references";
+sometimes they are called "weak IDs".
+Other object IDs designate strong "handles";
+sometimes they are also called "strong IDs".
+A strong ID prevents Arti from destroying the object it refers to
+when no other users of that object remain;
+a weak ID allows Arti to destroy the object
+when no other users remain.
+
+Note 1: The existence of a strong ID does not guarantee
+that an object will remain _usable_:
+Objects can enter a 'closed' or unusable state for other reasons,
+such as a network error, or an explicit request to close the object.
+
+Note 2: When a weak reference refers to an object that is destroyed,
+that weak reference itself still exists,
+but attempts to use it will fail.
+Applications should still ensure that weak references themselves
+are still removed,
+or they will remain in Arti's memory until the connection closes.
+
 ## Security model
 
 An application has only limited access to Arti.
