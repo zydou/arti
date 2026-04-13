@@ -1252,7 +1252,7 @@ define_derive_deftly! {
                 "item start",
                 input.keyword().as_str(),
                 input.args_copy().into_remaining(),
-                input.object().map(|o| (o.label(), o.decode_data().map(|d| d.len()))),
+                input.object().map(|o| o.label()),
             );
 
             ${if T_IS_SIGNATURE {
@@ -1286,7 +1286,11 @@ define_derive_deftly! {
               } }
               F_OBJECT { {
                   let selector = MultiplicitySelector::<$ftype>::default();
-                  dtrace!($"field $fname, object", selector.object_set_debug(), object.as_ref());
+                  dtrace!(
+                      $"field $fname, object",
+                      selector.object_set_debug(),
+                      object.as_ref().map(|o| (o.label(), o.decode_data().map(|d| d.len()))),
+                  );
                   let object = object.map(|object| {
                       let data = object.decode_data()?;
                       ${if fmeta(netdoc(object(label))) {
