@@ -18,6 +18,7 @@ from arti_rpc_tests.context import TestContext
 _TEST_MODS = [
     "basic",
     "cancel",
+    "clone",
     "connpt",
     "connect",
     "meta_features",
