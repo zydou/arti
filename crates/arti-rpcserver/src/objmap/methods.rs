@@ -11,18 +11,8 @@ use tor_rpcbase::{self as rpc, templates::*};
 
 /// Release a single ObjectID.
 ///
-/// Only works if the ObjectID is strong reference (also known as a "handle"):
-/// see RPC specification for more information on the distinction.
-/// (We intend to relax this requirement in the future.)
-///
 /// After calling this method, the provided ObjectID will no longer be usable,
 /// but other ObjectIDs for the same object may still exist.
-///
-/// TODO RPC: Releasing a weak reference is perilous and hard-to-define
-/// based on how we have implemented our object ids.  If you tell the objmap
-/// to "release" a single name for a weak reference, you are releasing every
-/// name for that weak reference, which may have surprising results.
-/// See also #838.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
 #[deftly(rpc(method_name = "rpc:release", bypass_method_dispatch))]
