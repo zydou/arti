@@ -172,6 +172,7 @@ define_derive_deftly_module! {
 
     // Accumulates `item` (which must be `ItemSetMethods::Each`) into `$F_ACCUMULATE_VAR`
     ${define ACCUMULATE_ITEM_VALUE { {
+        dtrace!($"accumulating $fname", $F_SELECTOR.item_set_debug());
         $F_SELECTOR.${paste_spanned $fname accumulate}($F_ACCUMULATE_VAR, item)?;
     } }}
 
