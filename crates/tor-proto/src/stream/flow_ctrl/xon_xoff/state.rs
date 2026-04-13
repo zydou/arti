@@ -379,8 +379,9 @@ impl SidechannelMitigation {
         //   num_advisory_xon_recvd > bytes_sent_total/peer_xon_limit_bytes
         //
         // NOTE: We use a more relaxed threshold for the XON limit than in prop324.
-        if self.num_advisory_xon_recvd.0
-            > self.bytes_sent_total.0 / Self::peer_xon_limit_bytes(params)
+        let peer_xon_limit_bytes = Self::peer_xon_limit_bytes(params);
+        if peer_xon_limit_bytes != 0
+            && self.num_advisory_xon_recvd.0 > self.bytes_sent_total.0 / peer_xon_limit_bytes
         {
             const MSG: &str = "Received advisory XON too frequently";
             return Err(Error::CircProto(MSG.into()));
@@ -439,7 +440,10 @@ impl SidechannelMitigation {
         //   num_xoff_recvd > bytes_sent_total/peer_xoff_limit_bytes
         //
         // NOTE: We use a more relaxed threshold for the XOFF limit than in prop324.
-        if self.num_xoff_recvd.0 > self.bytes_sent_total.0 / Self::peer_xoff_limit_bytes(params) {
+        let peer_xoff_limit_bytes = Self::peer_xoff_limit_bytes(params);
+        if peer_xoff_limit_bytes != 0
+            && self.num_xoff_recvd.0 > self.bytes_sent_total.0 / peer_xoff_limit_bytes
+        {
             return Err(Error::CircProto("Received XOFF too frequently".into()));
         }
 
