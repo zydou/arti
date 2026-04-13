@@ -520,6 +520,22 @@ mod test {
             // cannot receive XON after sending fewer than `xon_limit` bytes
             x.sent_stream_data(xon_limit as usize - 1);
             assert!(x.received_xon(&params).is_err());
+
+            let mut x = SidechannelMitigation::new();
+            // can receive XON after sending a large number of bytes
+            x.sent_stream_data(xon_limit as usize * 3);
+            assert!(x.received_xon(&params).is_ok());
+            // but cannot receive another XON immediately after
+            assert!(x.received_xon(&params).is_err());
+
+            let mut x = SidechannelMitigation::new();
+            // can receive XOFF after sending a large number of bytes
+            x.sent_stream_data(xoff_limit as usize * 3);
+            assert!(x.received_xoff(&params).is_ok());
+            // and can immediately receive an XON
+            assert!(x.received_xon(&params).is_ok());
+            // but cannot immediately receive an XOFF
+            assert!(x.received_xoff(&params).is_err());
         }
     }
 }
