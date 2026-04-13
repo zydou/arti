@@ -25,19 +25,8 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
 }
 
 define_derive_deftly_module! {
-    /// Common definitions for `NetdocParseable`, `NetdocParseableFields`,
-    /// and `NetdocParseableSignatures`
-    ///
-    /// The including macro is expected to define:
-    ///
-    ///  * **`THIS_ITEM`**: consumes the next item and evaluates to it as an `UnparsedItem`.
-    ///    See the definition in `NetdocParseable`.
-    ///
-    ///  * **`F_ACCUMULATE_VAR`** the variable or field into which to accumulate
-    ///    normal items for this field.  Must be of type `&mut $F_ACCUMULATE_TYPE`.
-    ///
-    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
-    NetdocSomeItemsParseableCommon beta_deftly:
+    /// Common definitions for all parsing macros.
+    NetdocParseAnyCommon beta_deftly:
 
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}
@@ -55,6 +44,22 @@ define_derive_deftly_module! {
           }}
         }}
     }}
+}
+
+define_derive_deftly_module! {
+    /// Common definitions for `NetdocParseable`, `NetdocParseableFields`,
+    /// and `NetdocParseableSignatures`
+    ///
+    /// The including macro is expected to define:
+    ///
+    ///  * **`THIS_ITEM`**: consumes the next item and evaluates to it as an `UnparsedItem`.
+    ///    See the definition in `NetdocParseable`.
+    ///
+    ///  * **`F_ACCUMULATE_VAR`** the variable or field into which to accumulate
+    ///    normal items for this field.  Must be of type `&mut $F_ACCUMULATE_TYPE`.
+    ///
+    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
+    NetdocSomeItemsParseableCommon beta_deftly:
 
     // The effective field type for parsing.
     //
@@ -281,6 +286,7 @@ define_derive_deftly_module! {
     NetdocParseable beta_deftly:
 
     use NetdocDeriveAnyCommon;
+    use NetdocParseAnyCommon;
     use NetdocEntireDeriveCommon;
     use NetdocSomeItemsDeriveCommon;
     use NetdocSomeItemsParseableCommon;
@@ -668,6 +674,7 @@ define_derive_deftly! {
 
 define_derive_deftly! {
     use NetdocDeriveAnyCommon;
+    use NetdocParseAnyCommon;
     use NetdocSomeItemsDeriveCommon;
     use NetdocSomeItemsParseableCommon;
 
@@ -824,6 +831,7 @@ define_derive_deftly! {
 
 define_derive_deftly! {
     use NetdocDeriveAnyCommon;
+    use NetdocParseAnyCommon;
     use NetdocFieldsDeriveCommon;
     use NetdocSomeItemsDeriveCommon;
     use NetdocSomeItemsParseableCommon;
