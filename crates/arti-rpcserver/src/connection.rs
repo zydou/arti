@@ -521,8 +521,6 @@ impl Connection {
         method: Box<dyn rpc::DeserMethod>,
         meta: ReqMeta,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
-        let obj = self.lookup_object(&obj_id)?;
-
         if !meta.require.is_empty() {
             // TODO RPC: Eventually, we will need a way to tell which "features" are actually
             // available.  But for now, we have no features, so if the require list is nonempty,
@@ -533,7 +531,7 @@ impl Connection {
         let context: Arc<dyn rpc::Context> = self.clone() as Arc<_>;
 
         let invoke_future =
-            rpc::invoke_rpc_method(context, &obj_id, obj, method.upcast_box(), tx_updates)?;
+            rpc::invoke_rpc_method(context, &obj_id, method.upcast_box(), tx_updates)?;
 
         // Note that we drop the read lock before we await this future!
         invoke_future.await
@@ -672,7 +670,6 @@ impl rpc::Context for Connection {
                 .expect("Lock poisoned")
                 .objects
                 .remove(idx)
-                .is_some()
         };
 
         if removed_some {

@@ -737,6 +737,13 @@ pub enum InvokeError {
     #[error("No implementation for provided object and method types.")]
     NoImpl,
 
+    /// The object could not be found.
+    //
+    // (We violate our usual rule against duplicating Display implementations here,
+    // since the RPC code will report this string verbatim.)
+    #[error("Target object did not exist: {0}")]
+    NoObject(crate::LookupError),
+
     /// Tried to call `invoke_without_dispatch` on an RPC method that _does_ support
     /// regular RPC method dispatch.
     #[error("Called invoke_without_dispatch on a regular RPC method")]
@@ -752,6 +759,7 @@ impl From<InvokeError> for RpcError {
         use crate::RpcErrorKind as EK;
         let kind = match &err {
             InvokeError::NoImpl => EK::MethodNotImpl,
+            InvokeError::NoObject(e) => e.rpc_error_kind(),
             InvokeError::NoDispatchBypass => EK::InternalError,
             InvokeError::Bug(_) => EK::InternalError,
         };
@@ -779,7 +787,10 @@ pub(crate) mod test {
     use derive_deftly::Deftly;
     use futures::SinkExt;
     use futures_await_test::async_test;
-    use std::sync::{Arc, RwLock};
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex, RwLock},
+    };
 
     use super::UpdateSink;
 
@@ -901,11 +912,15 @@ pub(crate) mod test {
 
     pub(crate) struct Ctx {
         table: Arc<RwLock<DispatchTable>>,
+        map: Arc<Mutex<HashMap<crate::ObjectId, Arc<dyn crate::Object>>>>,
+        next_id: Arc<Mutex<u32>>,
     }
     impl From<DispatchTable> for Ctx {
         fn from(table: DispatchTable) -> Self {
             Self {
                 table: Arc::new(RwLock::new(table)),
+                map: Arc::new(Mutex::new(HashMap::new())),
+                next_id: Arc::new(Mutex::new(1)),
             }
         }
     }
@@ -913,12 +928,23 @@ pub(crate) mod test {
     impl crate::Context for Ctx {
         fn lookup_object(
             &self,
-            _id: &crate::ObjectId,
+            id: &crate::ObjectId,
         ) -> Result<std::sync::Arc<dyn crate::Object>, crate::LookupError> {
-            todo!()
+            self.map
+                .lock()
+                .unwrap()
+                .get(id)
+                .cloned()
+                .ok_or_else(|| crate::LookupError::NoObject(id.clone()))
         }
-        fn register_owned(&self, _object: Arc<dyn crate::Object>) -> crate::ObjectId {
-            todo!()
+        fn register_owned(&self, object: Arc<dyn crate::Object>) -> crate::ObjectId {
+            let mut id_guard = self.next_id.lock().unwrap();
+            let id = *id_guard;
+            *id_guard += 1;
+
+            let id = crate::ObjectId::from(id.to_string());
+            self.map.lock().unwrap().insert(id.clone(), object);
+            id
         }
 
         fn register_weak(&self, _object: &Arc<dyn crate::Object>) -> crate::ObjectId {
@@ -1014,13 +1040,8 @@ pub(crate) mod test {
             let animal: Arc<dyn crate::Object> = Arc::new(obj);
             let request: Box<dyn DynMethod> = Box::new(method);
             let discard = Box::pin(futures::sink::drain().sink_err_into());
-            crate::invoke_rpc_method(
-                Arc::clone(ctx),
-                &crate::ObjectId::from("AnimalIdent"),
-                animal,
-                request,
-                discard,
-            )
+            let id = ctx.register_owned(animal);
+            crate::invoke_rpc_method(Arc::clone(ctx), &id, request, discard)
         }
         async fn invoke_ok<O: crate::Object, M: crate::Method>(
             table: &Arc<dyn Context>,

@@ -95,17 +95,30 @@ pub enum LookupError {
     /// expected type.
     #[error("Unexpected type on object with ID {0:?}")]
     WrongType(ObjectId),
+
+    /// The object once existed, but this is a weak reference,
+    /// and it has expired.
+    #[error("Weak reference {0:?} is no longer present")]
+    Expired(ObjectId),
+}
+
+impl LookupError {
+    /// Return the RpcErrorKind for this lookup error.
+    fn rpc_error_kind(&self) -> RpcErrorKind {
+        use LookupError as E;
+        use RpcErrorKind as EK;
+
+        match self {
+            E::NoObject(_) => EK::ObjectNotFound,
+            E::WrongType(_) => EK::InvalidRequest,
+            E::Expired(_) => EK::WeakReferenceExpired,
+        }
+    }
 }
 
 impl From<LookupError> for RpcError {
     fn from(err: LookupError) -> Self {
-        use LookupError as E;
-        use RpcErrorKind as EK;
-        let kind = match &err {
-            E::NoObject(_) => EK::ObjectNotFound,
-            E::WrongType(_) => EK::InvalidRequest,
-        };
-        RpcError::new(err.to_string(), kind)
+        RpcError::new(err.to_string(), err.rpc_error_kind())
     }
 }
 
@@ -124,10 +137,9 @@ pub trait Context: Send + Sync {
     /// Return an ObjectId for this object.
     fn register_weak(&self, object: &Arc<dyn Object>) -> ObjectId;
 
-    /// Drop an owning reference to the object called `object` within this context.
+    /// Drop a reference to the object called `object` within this context.
     ///
-    /// This will return an error if `object` is not an owning reference,
-    /// or does not exist.
+    /// This will return an error if `object` does not exist.
     fn release(&self, object: &ObjectId) -> Result<(), LookupError>;
 
     /// Return a dispatch table that can be used to invoke other RPC methods.
@@ -187,7 +199,7 @@ pub trait ContextExt: Context {
 impl<T: Context> ContextExt for T {}
 
 /// Try to find an appropriate function for calling a given RPC method on a
-/// given RPC-visible object.
+/// given ObjectId.
 ///
 /// On success, return a Future.
 ///
@@ -196,7 +208,6 @@ impl<T: Context> ContextExt for T {}
 pub fn invoke_rpc_method(
     ctx: Arc<dyn Context>,
     obj_id: &ObjectId,
-    obj: Arc<dyn Object>,
     method: Box<dyn DynMethod>,
     sink: dispatch::BoxedUpdateSink,
 ) -> Result<dispatch::RpcResultFuture, InvokeError> {
@@ -206,6 +217,8 @@ pub fn invoke_rpc_method(
         }
         other => return other,
     }
+
+    let obj = ctx.lookup_object(obj_id).map_err(InvokeError::NoObject)?;
 
     let (obj, invocable) = ctx
         .dispatch_table()
@@ -338,16 +351,12 @@ mod test {
     async fn invoke() {
         let ctx = Arc::new(Ctx::from(DispatchTable::from_inventory()));
         let discard = || Box::pin(futures::sink::drain().sink_err_into());
-        let r = invoke_rpc_method(
-            ctx.clone(),
-            &ObjectId::from("Odile"),
-            Arc::new(Swan),
-            Box::new(GetKids),
-            discard(),
-        )
-        .unwrap()
-        .await
-        .unwrap();
+        let id = ctx.register_owned(Arc::new(Swan));
+
+        let r = invoke_rpc_method(ctx.clone(), &id, Box::new(GetKids), discard())
+            .unwrap()
+            .await
+            .unwrap();
         assert_eq!(serde_json::to_string(&r).unwrap(), r#"{"v":"cygnets"}"#);
 
         let r = invoke_special_method(ctx, Arc::new(Swan), Box::new(GetKids))

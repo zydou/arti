@@ -39,14 +39,6 @@ impl ObjectRef {
             ObjectRef::Weak(w) => w.upgrade(),
         }
     }
-
-    /// Consume this reference. Return an Arc if the object is present.
-    fn into_owned(self) -> Option<Arc<dyn rpc::Object>> {
-        match self {
-            ObjectRef::Strong(s) => Some(s),
-            ObjectRef::Weak(w) => w.upgrade(),
-        }
-    }
 }
 
 /// A mechanism to look up RPC `Objects` by their `ObjectId`.
@@ -141,9 +133,11 @@ impl ObjMap {
         self.arena.get(idx).and_then(ObjectRef::get)
     }
 
-    /// Remove and return the entry at `idx`, if any.
-    pub(crate) fn remove(&mut self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
-        self.arena.remove(idx).and_then(ObjectRef::into_owned)
+    /// Remove the entry at `idx`.
+    ///
+    /// Return true if anything was removed.
+    pub(crate) fn remove(&mut self, idx: GenIdx) -> bool {
+        self.arena.remove(idx).is_some()
     }
 
     /// Testing only: Assert that every invariant for this structure is met.
