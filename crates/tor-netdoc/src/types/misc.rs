@@ -7,6 +7,7 @@
 
 pub(crate) use b16impl::*;
 pub use b64impl::*;
+pub use contact_info::*;
 pub use curve25519impl::*;
 pub use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
@@ -41,8 +42,8 @@ use {
     },
     crate::parse2::sig_hashes::Sha1WholeKeywordLine,
     crate::parse2::{
-        ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable,
-        SignatureHashInputs,
+        self, ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable,
+        ItemValueParseable, SignatureHashInputs, UnparsedItem,
     },
 };
 
@@ -1284,6 +1285,54 @@ mod nickname {
     impl crate::NormalItemArgument for Nickname {}
 }
 
+/// Contact information of the relay operator.
+mod contact_info {
+    use super::*;
+
+    /// `contact` item: contact information (eg of a relay dirauth operator)
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:contact>
+    ///
+    /// Also used for authority entries in netstatus documents.
+    #[derive(Clone, Debug, PartialEq, Eq, Deftly)] //
+    #[derive(derive_more::Into, derive_more::AsRef, derive_more::Deref, derive_more::Display)]
+    #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+    #[non_exhaustive]
+    pub struct ContactInfo(#[cfg_attr(feature = "encode", deftly(netdoc(rest)))] String);
+
+    /// Contact information (`contact` item value) has invalid syntax
+    #[derive(Clone, Debug, thiserror::Error)]
+    #[error("contact information (`contact` item value) has invalid syntax")]
+    #[non_exhaustive]
+    pub struct InvalidContactInfo {}
+
+    impl FromStr for ContactInfo {
+        type Err = InvalidContactInfo;
+
+        fn from_str(s: &str) -> Result<Self, InvalidContactInfo> {
+            // TODO torspec#396 we should probably impose more restrictions
+            // For now we forbid `\n` and initial whitespace, which is enough to ensure
+            // that all values will roundtrip unchanged through netdoc encoding and parsing.
+            if s.contains('\n') || s.starts_with(char::is_whitespace) {
+                Err(InvalidContactInfo {})
+            } else {
+                Ok(ContactInfo(s.to_owned()))
+            }
+        }
+    }
+
+    #[cfg(feature = "parse2")]
+    impl ItemValueParseable for ContactInfo {
+        fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<Self, parse2::ErrorProblem> {
+            item.check_no_object()?;
+            item.args_mut()
+                .into_remaining()
+                .parse()
+                .map_err(|_e| item.args().handle_error("info", ArgumentError::Invalid))
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -1668,6 +1717,53 @@ mod test {
         assert!(not_ascii.parse::<Nickname>().is_err());
         assert!(too_short.parse::<Nickname>().is_err());
         assert!(other_invalid.parse::<Nickname>().is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn contact_info() -> anyhow::Result<()> {
+        const S: &str = "some relay operator";
+        let n: ContactInfo = S.parse()?;
+        assert_eq!(n.as_str(), S);
+        assert_eq!(n.to_string(), S);
+
+        let bad = |s: &str| {
+            let _: InvalidContactInfo = s.parse::<ContactInfo>().unwrap_err();
+        };
+
+        bad(" starts with space");
+        bad("contains\nnewline");
+
+        #[cfg(all(feature = "encode", feature = "parse2"))]
+        {
+            use encode::NetdocEncodable;
+            use parse2::{ParseInput, parse_netdoc};
+
+            #[derive(PartialEq, Debug, Deftly)]
+            #[derive_deftly(NetdocParseable, NetdocEncodable)]
+            struct TestDoc {
+                pub intro: (),
+                pub contact: ContactInfo,
+            }
+
+            let roundtrip = |s: &str| -> anyhow::Result<()> {
+                let doc = TestDoc {
+                    intro: (),
+                    contact: s.parse()?,
+                };
+                let mut enc = NetdocEncoder::new();
+                doc.encode_unsigned(&mut enc)?;
+                let enc = enc.finish()?;
+                let reparsed = parse_netdoc::<TestDoc>(&ParseInput::new(&enc, "<test>"))?;
+                assert_eq!(doc, reparsed);
+                Ok(())
+            };
+
+            roundtrip("normal")?;
+            roundtrip("trailing  white space  ")?;
+            roundtrip("wtf is this allowed in \x03 netdocs\r")?; // TODO torspec#396
+        }
 
         Ok(())
     }
