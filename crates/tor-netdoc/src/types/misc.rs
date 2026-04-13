@@ -13,6 +13,7 @@ pub use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
+pub use hostname::*;
 pub use rsa::*;
 pub use timeimpl::*;
 
@@ -1465,6 +1466,85 @@ mod nickname {
     }
 
     impl crate::NormalItemArgument for Nickname {}
+}
+
+/// Hostnames etc.
+//
+// TODO maybe move all this to tor-basic-utils
+mod hostname {
+    use super::*;
+
+    /// Internet hostname
+    ///
+    /// Valid according to Internet RFC1123,
+    /// with the additional restriction that there must be at least one letter.
+    /// (That means that anything accepted as a `Hostname`
+    /// won't be accepted as an address even by very relaxed IPv4 address parsers.
+    /// We presume that no TLD will ever exist that is entirely decimal digits.)
+    ///
+    /// Preserves case.
+    ///
+    /// Reserved hostname such as `example.come`, `tor.invalid` and `localhost`
+    /// are accepted.
+    ///
+    /// # Comparisons; `PartialEq`, `Eq`
+    ///
+    /// The `PartialEq` and `Eq` implementations are case sensitive,
+    /// even though internet hostnames are not case-sensitive.
+    ///
+    /// Comparing hostnames for identical apparent meaning is complicated.
+    /// If you need to do that, you (may) need to engage with punycode (IDN),
+    /// as well as arranging for a case-insensitive comparison.
+    ///
+    /// And of course, hostnames reference to the DNS.
+    /// A single host may have multiple names and it may change its address.
+    #[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)] //
+    #[derive(derive_more::Into, derive_more::Deref, derive_more::AsRef, derive_more::Display)]
+    pub struct Hostname(String);
+
+    /// Invalid hostname
+    #[derive(Clone, Debug, thiserror::Error)]
+    #[error("invalid hostname")]
+    #[non_exhaustive]
+    pub struct InvalidHostname {}
+
+    impl Hostname {
+        /// Obtain this hostname as a `str`
+        pub fn as_str(&self) -> &str {
+            &self.0
+        }
+    }
+
+    impl AsRef<str> for Hostname {
+        fn as_ref(&self) -> &str {
+            self.as_str()
+        }
+    }
+
+    impl TryFrom<String> for Hostname {
+        type Error = InvalidHostname;
+        fn try_from(s: String) -> Result<Self, InvalidHostname> {
+            if hostname_validator::is_valid(&s) &&
+                // Reject hostnames that consist only of decimal digits and full stops.
+                // Some of those are accepted by some old IPv4 address parsers.
+                // If any fool makes a TLD that is only digits, they deserve everything they get.
+                !s.chars().all(|c| c.is_ascii_digit() || c == '.')
+            {
+                Ok(Hostname(s))
+            } else {
+                Err(InvalidHostname {})
+            }
+        }
+    }
+
+    impl FromStr for Hostname {
+        type Err = InvalidHostname;
+        fn from_str(s: &str) -> Result<Self, InvalidHostname> {
+            s.to_owned().try_into()
+        }
+    }
+
+    impl NormalItemArgument for Hostname {}
 }
 
 /// Contact information of the relay operator.
