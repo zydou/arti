@@ -405,6 +405,9 @@ mod b16impl {
             Ok(())
         }
     }
+
+    impl NormalItemArgument for B16 {}
+    impl NormalItemArgument for B16U {}
 }
 
 // ============================================================
