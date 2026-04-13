@@ -65,15 +65,19 @@ mod tasks;
 mod util;
 
 use std::io::IsTerminal as _;
+use std::time::SystemTime;
 
-use crate::keys::{RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypairSpecifier};
 use anyhow::Context;
+use base64ct::Base64Unpadded;
+use base64ct::Encoding as _;
 use clap::Parser;
 use futures::FutureExt;
 use safelog::with_safe_logging_suppressed;
 use tor_basic_utils::iter_join;
 use tor_error::warn_report;
 use tor_keymgr::KeyMgr;
+use tor_keymgr::KeySpecifierPattern as _;
+use tor_relay_crypto::pk::RelayNtorKeypair;
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityRsaKeypair};
 use tor_rtcompat::SpawnExt;
 use tor_rtcompat::tokio::TokioRustlsRuntime;
@@ -84,6 +88,10 @@ use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::config::{DEFAULT_LOG_LEVEL, TorRelayConfig, base_resolver};
+use crate::keys::{
+    RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypairSpecifier, RelayNtorKeypairSpecifier,
+    RelayNtorKeypairSpecifierPattern,
+};
 use crate::relay::InertTorRelay;
 
 fn main() {
@@ -336,6 +344,28 @@ fn log_public_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
         .context("Missing Ed25519 identity")?
         .to_ed25519_id();
 
+    let mut ntor_keys = keymgr
+        .list_matching(&RelayNtorKeypairSpecifierPattern::new_any().arti_pattern()?)?
+        .into_iter()
+        .map(|entry| {
+            let key_path = entry.key_path();
+            let valid_until =
+                SystemTime::from(RelayNtorKeypairSpecifier::try_from(key_path)?.valid_until);
+            let key = keymgr
+                .get_entry::<RelayNtorKeypair>(&entry)
+                .context("Failed to get ntor key from key manager")?
+                .context("Ntor key disappeared?!")?;
+            Ok((valid_until, key))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    // Sort ntor keys by the "valid until" time.
+    ntor_keys.sort_by_key(|x| x.0);
+
+    // Base64-encode the longest valid public ntor key.
+    let ntor = ntor_keys.into_iter().last().context("Missing ntor key")?.1;
+    let ntor = Base64Unpadded::encode_string(ntor.public().inner().as_bytes());
+
     // Log the relay's identities.
     // TODO: We should also log this after a key rotation:
     // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3773#note_3367789
@@ -343,8 +373,7 @@ fn log_public_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
     // but the level should probably be lowered in the future.
     tracing::info!("RSA identity: {rsa_id}");
     tracing::info!("Ed25519 identity: {ed_id}");
+    tracing::info!("Ntor public key: {ntor}");
 
-    // TODO: I'd like to log the ntor key here as well so that we can build ntor circuits to the
-    // relay.
     Ok(())
 }
