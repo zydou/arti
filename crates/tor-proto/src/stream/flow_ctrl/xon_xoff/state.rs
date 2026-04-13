@@ -260,11 +260,9 @@ struct SidechannelMitigation {
     last_recvd_xon_xoff: Option<XonXoff>,
     /// Number of sent stream bytes.
     ///
-    /// We only use this for bytes that are sent early on the stream,
-    /// checking if it's less than `cc_xon_rate` and/or `cc_xoff_{client,exit}`.
-    /// Once this value is sufficiently large, we don't care about the exact value.
-    /// So a saturating u32 should be more than enough bits for what we need.
-    bytes_sent_total: Saturating<u32>,
+    /// C-tor has some logic to try to fit this into a 32-bit integer,
+    /// but lets not do that unless we need to as it will make bugs more likely.
+    bytes_sent_total: Saturating<u64>,
     /// Number of sent stream bytes since the last advisory XON was received.
     bytes_sent_since_recvd_last_advisory_xon: Saturating<u32>,
     /// Number of sent stream bytes since the last XOFF was received.
@@ -309,10 +307,12 @@ impl SidechannelMitigation {
 
     /// Notify that we have sent stream data.
     fn sent_stream_data(&mut self, stream_bytes: usize) {
+        // perform a saturating conversion to u64
+        let stream_bytes: u64 = stream_bytes.try_into().unwrap_or(u64::MAX);
+        self.bytes_sent_total += stream_bytes;
+
         // perform a saturating conversion to u32
         let stream_bytes: u32 = stream_bytes.try_into().unwrap_or(u32::MAX);
-
-        self.bytes_sent_total += stream_bytes;
 
         // when we receive an XON or XOFF, we set the corresponding variable back to 0
         self.bytes_sent_since_recvd_last_advisory_xon += stream_bytes;
@@ -365,7 +365,7 @@ impl SidechannelMitigation {
             Self::peer_xoff_limit_bytes(params),
             Self::peer_xon_limit_bytes(params),
         );
-        if u64::from(self.bytes_sent_total.0) < advisory_not_expected_before {
+        if self.bytes_sent_total.0 < advisory_not_expected_before {
             const MSG: &str = "Received advisory XON too early";
             return Err(Error::CircProto(MSG.into()));
         }
@@ -421,7 +421,7 @@ impl SidechannelMitigation {
         // > onions).
         //
         // NOTE: We use a more relaxed threshold for the XOFF limit than in prop324.
-        if u64::from(self.bytes_sent_total.0) < Self::peer_xoff_limit_bytes(params) {
+        if self.bytes_sent_total.0 < Self::peer_xoff_limit_bytes(params) {
             const MSG: &str = "Received XOFF too early";
             return Err(Error::CircProto(MSG.into()));
         }
