@@ -1246,7 +1246,14 @@ define_derive_deftly! {
             #[allow(unused_imports)] // false positive when macro is used with prelude in scope
             use $P::*;
 
-            $EMIT_DEBUG_PLACEHOLDER
+            $DEFINE_DTRACE
+
+            dtrace!(
+                "item start",
+                input.keyword().as_str(),
+                input.args_copy().into_remaining(),
+                input.object().map(|o| (o.label(), o.decode_data().map(|d| d.len()))),
+            );
 
             ${if T_IS_SIGNATURE {
                 <$SIG_HASH_ACCU_TYPE as SignatureHashesAccumulator>::update_from_netdoc_body(
@@ -1262,6 +1269,11 @@ define_derive_deftly! {
             let $fpatname = ${select1
               F_NORMAL { {
                   let selector = MultiplicitySelector::<$ftype>::default();
+                  dtrace!(
+                      $"field $fname, normal",
+                      selector.argument_set_debug(),
+                      args.clone().into_remaining(),
+                  );
                 ${if not(fmeta(netdoc(with))) {
                   selector.${paste_spanned $fname check_argument_value_parseable}();
                 }}
@@ -1274,6 +1286,7 @@ define_derive_deftly! {
               } }
               F_OBJECT { {
                   let selector = MultiplicitySelector::<$ftype>::default();
+                  dtrace!($"field $fname, object", selector.object_set_debug(), object.as_ref());
                   let object = object.map(|object| {
                       let data = object.decode_data()?;
                       ${if fmeta(netdoc(object(label))) {
@@ -1295,6 +1308,7 @@ define_derive_deftly! {
                   selector.resolve_option(object)?
               } }
               F_REST { {
+                  dtrace!($"field $fname, rest", args.clone().into_remaining());
                   // consumes `args`, leading to compile error if the rest field
                   // isn't last (or is combined with no_extra_args).
                   let args_consume = args;
@@ -1317,6 +1331,7 @@ define_derive_deftly! {
           ${if tmeta(netdoc(no_extra_args)) {
             args.reject_extra_args()?;
           }}
+            dtrace!("item complete Ok");
             Ok($tname { $( $fname: $fpatname, ) })
         }
     }
