@@ -50,6 +50,20 @@ use super::*;
 #[educe(Clone, Copy, Default)]
 pub struct MultiplicitySelector<Field>(PhantomData<fn() -> Field>);
 
+/// Helper type that allows us to implement Debug
+///
+/// Returned by [`ItemSetMethods::item_set_debug`] etc.,
+/// using information from [`ItemSetMethods::debug_core`] etc.
+#[derive(derive_more::Debug)]
+#[debug("{}={}", self.0, self.1)]
+#[allow(dead_code)] // yes, they are only read by the Debug impl - that's what they're for!
+struct DebugHelper(
+    /// scope, eg `items`
+    &'static str,
+    /// multiplicity type pattern, eg `Vec<_>` or `1`
+    &'static str,
+);
+
 /// Methods for handling some multiplicity of Items, during parsing
 ///
 /// **For use by macros**.
@@ -92,6 +106,30 @@ pub trait ItemSetMethods: Copy + Sized {
 
     /// Accumulate one value into the accumulator.
     fn accumulate(self, acc: &mut Option<Self::Field>, one: Self::Each) -> Result<(), EP>;
+
+    /// Multiplicity representation for `#[deftly(netdoc(debug))]` output, core
+    ///
+    /// Should generally be in a form like `Vec<_>`.
+    ///
+    /// See also [`ItemSetMethods::item_set_debug`], which is what the derives call.
+    //
+    // This can't be a `Debug` supertrait, because that won't work
+    // with the `&'_ MultiplicitySelector<T>` impl.
+    fn debug_core(self) -> &'static str;
+
+    /// Multiplicity representation for `#[deftly(netdoc(debug))]` output
+    ///
+    /// This adds a bit framing and type-fu that allows the derive macro's
+    /// call to be as simple as possible.
+    ///
+    /// See also [`ItemSetMethods::debug_core`], which is what each multiplicity implements.
+    //
+    // dtrace!, which we use for debugging in the parser macros, doesn't print variable names,
+    // thinking things are probably obvious enough.  But for the elector here we want to
+    // include `items=`.
+    fn item_set_debug(self) -> impl Debug {
+        DebugHelper("items", self.debug_core())
+    }
 
     /// Resolve the accumulator into the output.
     fn finish(
@@ -169,6 +207,9 @@ impl<T> ItemSetMethods for MultiplicitySelector<Vec<T>> {
     fn finish(self, acc: Option<Vec<T>>, _keyword: &'static str) -> Result<Vec<T>, EP> {
         Ok(acc.unwrap_or_default())
     }
+    fn debug_core(self) -> &'static str {
+        "Vec<_>"
+    }
 }
 impl<T: Ord> ItemSetMethods for MultiplicitySelector<BTreeSet<T>> {
     type Each = T;
@@ -185,6 +226,9 @@ impl<T: Ord> ItemSetMethods for MultiplicitySelector<BTreeSet<T>> {
     }
     fn finish(self, acc: Option<BTreeSet<T>>, _keyword: &'static str) -> Result<BTreeSet<T>, EP> {
         Ok(acc.unwrap_or_default())
+    }
+    fn debug_core(self) -> &'static str {
+        "BTreeSet<_>"
     }
 }
 impl<T> ItemSetMethods for MultiplicitySelector<Option<T>> {
@@ -206,6 +250,9 @@ impl<T> ItemSetMethods for MultiplicitySelector<Option<T>> {
     fn finish(self, acc: Option<Option<T>>, _keyword: &'static str) -> Result<Option<T>, EP> {
         Ok(acc.flatten())
     }
+    fn debug_core(self) -> &'static str {
+        "Option<_>"
+    }
 }
 impl<T> ItemSetMethods for &'_ MultiplicitySelector<T> {
     type Each = T;
@@ -223,6 +270,12 @@ impl<T> ItemSetMethods for &'_ MultiplicitySelector<T> {
     }
     fn finish(self, acc: Option<T>, keyword: &'static str) -> Result<T, EP> {
         acc.ok_or(EP::MissingItem { keyword })
+    }
+    fn debug_core(self) -> &'static str {
+        // This appears in #[deftly(netdoc(debug))] output for singleton fields.
+        // We probably don't want the macros' users to have to think about our
+        // autoref-specialisation.  So we don't write anything about `&` here.
+        "1"
     }
 }
 
@@ -267,6 +320,20 @@ pub trait ArgumentSetMethods: Copy + Sized {
     where
         P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>;
 
+    /// Multiplicity representation for `#[deftly(netdoc(debug))]` output, core
+    ///
+    /// Should generally be in a form like `Vec<_>`.
+    ///
+    /// See [`ItemSetMethods::debug_core`] and [`ArgumentSetMethods::argument_set_debug`].
+    fn debug_core(self) -> &'static str;
+
+    /// Multiplicity representation for `#[deftly(netdoc(debug))]` output
+    ///
+    /// See [`ItemSetMethods::item_set_debug`] and [`ArgumentSetMethods::debug_core`].
+    fn argument_set_debug(self) -> impl Debug {
+        DebugHelper("args", self.debug_core())
+    }
+
     /// Check that the element type is an Argument
     ///
     /// For providing better error messages when struct fields don't implement the right trait.
@@ -290,6 +357,9 @@ impl<T> ArgumentSetMethods for MultiplicitySelector<Vec<T>> {
         }
         Ok(acc)
     }
+    fn debug_core(self) -> &'static str {
+        "Vec<_>"
+    }
 }
 impl<T: Ord> ArgumentSetMethods for MultiplicitySelector<BTreeSet<T>> {
     type Each = T;
@@ -306,6 +376,9 @@ impl<T: Ord> ArgumentSetMethods for MultiplicitySelector<BTreeSet<T>> {
         }
         Ok(acc)
     }
+    fn debug_core(self) -> &'static str {
+        "BTreeSet<_>"
+    }
 }
 impl<T> ArgumentSetMethods for MultiplicitySelector<Option<T>> {
     type Each = T;
@@ -319,6 +392,9 @@ impl<T> ArgumentSetMethods for MultiplicitySelector<Option<T>> {
         }
         Ok(Some(parser(args)?))
     }
+    fn debug_core(self) -> &'static str {
+        "Option<_>"
+    }
 }
 impl<T> ArgumentSetMethods for &MultiplicitySelector<T> {
     type Each = T;
@@ -328,6 +404,9 @@ impl<T> ArgumentSetMethods for &MultiplicitySelector<T> {
         P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>,
     {
         parser(args)
+    }
+    fn debug_core(self) -> &'static str {
+        "1"
     }
 }
 
@@ -368,6 +447,20 @@ pub trait ObjectSetMethods: Copy + Sized {
     /// Parse zero or more argument(s) into `Self::Field`.
     fn resolve_option(self, found: Option<Self::Each>) -> Result<Self::Field, EP>;
 
+    /// Multiplicity representation for `#[deftly(netdoc(debug))]` output, core
+    ///
+    /// Should generally be in a form like `Option<_>`.
+    ///
+    /// See [`ItemSetMethods::debug_core`] and [`ObjectSetMethods::object_set_debug`].
+    fn debug_core(self) -> &'static str;
+
+    /// Multiplicity representation for `#[deftly(netdoc(debug))]` output
+    ///
+    /// See [`ItemSetMethods::item_set_debug`] and [`ObjectSetMethods::debug_core`].
+    fn object_set_debug(self) -> impl Debug {
+        DebugHelper("object", self.debug_core())
+    }
+
     /// If the contained type is `ItemObjectParseable`, call its `check_label`
     fn check_label(self, label: &str) -> Result<(), EP>
     where
@@ -389,11 +482,17 @@ impl<T> ObjectSetMethods for MultiplicitySelector<Option<T>> {
     fn resolve_option(self, found: Option<Self::Each>) -> Result<Self::Field, EP> {
         Ok(found)
     }
+    fn debug_core(self) -> &'static str {
+        "Option<_>"
+    }
 }
 impl<T> ObjectSetMethods for &MultiplicitySelector<T> {
     type Field = T;
     type Each = T;
     fn resolve_option(self, found: Option<Self::Each>) -> Result<Self::Field, EP> {
         found.ok_or(EP::MissingObject)
+    }
+    fn debug_core(self) -> &'static str {
+        "1"
     }
 }
