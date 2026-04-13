@@ -54,6 +54,13 @@ IGNORE=(
     # * <https://github.com/zheland/typed-index-collections/issues/10>
     # * <https://github.com/maybenot-io/maybenot/issues/40>
     --ignore RUSTSEC-2025-0141
+
+    # rand 0.8.x has an unsoundness.  0.9.x and 0.10.x are fixed.
+    #
+    # We aren't currently (2026-04-13) affected by this unsoundness.
+    #
+    # See https://gitlab.torproject.org/tpo/core/arti/-/issues/2474
+    --ignore RUSTSEC-2026-0097
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
