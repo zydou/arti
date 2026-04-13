@@ -293,8 +293,6 @@ async fn run_relay<R: Runtime>(
     // We might want to remove this in the future, or move this somewhere else.
     log_public_keys(relay.keymgr()).context("Failed to log public keys")?;
 
-    let keymgr = relay.keymgr();
-
     // This blocks until end of time or an error.
     relay.run().await
 }
@@ -348,6 +346,5 @@ fn log_public_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
 
     // TODO: I'd like to log the ntor key here as well so that we can build ntor circuits to the
     // relay.
-    // XXXX move code here
     Ok(())
 }
