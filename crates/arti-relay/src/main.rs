@@ -294,27 +294,6 @@ async fn run_relay<R: Runtime>(
     log_public_keys(relay.keymgr()).context("Failed to log public keys")?;
 
     let keymgr = relay.keymgr();
-    let rsa_id = keymgr
-        .get::<RelayIdentityRsaKeypair>(&RelayIdentityRsaKeypairSpecifier::new())
-        .context("Failed to get RSA identity from key manager")?
-        .context("Missing RSA identity")?
-        .to_rsa_identity();
-    let ed_id = keymgr
-        .get::<RelayIdentityKeypair>(&RelayIdentityKeypairSpecifier::new())
-        .context("Failed to get Ed25519 identity from key manager")?
-        .context("Missing Ed25519 identity")?
-        .to_ed25519_id();
-
-    // Log the relay's identities.
-    // TODO: We should also log this after a key rotation:
-    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3773#note_3367789
-    // TODO: This is useful at info level while we're developing,
-    // but the level should probably be lowered in the future.
-    tracing::info!("RSA identity: {rsa_id}");
-    tracing::info!("Ed25519 identity: {ed_id}");
-
-    // TODO: I'd like to log the ntor key here as well so that we can build ntor circuits to the
-    // relay.
 
     // This blocks until end of time or an error.
     relay.run().await
@@ -348,6 +327,27 @@ enum MainloopStatus<T> {
 
 /// Log the relay's identities and public ntor key.
 fn log_public_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
+    let rsa_id = keymgr
+        .get::<RelayIdentityRsaKeypair>(&RelayIdentityRsaKeypairSpecifier::new())
+        .context("Failed to get RSA identity from key manager")?
+        .context("Missing RSA identity")?
+        .to_rsa_identity();
+    let ed_id = keymgr
+        .get::<RelayIdentityKeypair>(&RelayIdentityKeypairSpecifier::new())
+        .context("Failed to get Ed25519 identity from key manager")?
+        .context("Missing Ed25519 identity")?
+        .to_ed25519_id();
+
+    // Log the relay's identities.
+    // TODO: We should also log this after a key rotation:
+    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3773#note_3367789
+    // TODO: This is useful at info level while we're developing,
+    // but the level should probably be lowered in the future.
+    tracing::info!("RSA identity: {rsa_id}");
+    tracing::info!("Ed25519 identity: {ed_id}");
+
+    // TODO: I'd like to log the ntor key here as well so that we can build ntor circuits to the
+    // relay.
     // XXXX move code here
     Ok(())
 }
