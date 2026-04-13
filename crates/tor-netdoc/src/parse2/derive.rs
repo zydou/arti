@@ -1119,6 +1119,7 @@ define_derive_deftly! {
 
 define_derive_deftly! {
     use NetdocDeriveAnyCommon;
+    use NetdocParseAnyCommon;
     use NetdocItemDeriveCommon;
 
     /// Derive `ItemValueParseable` (or `SignatureItemParseable`)
@@ -1222,8 +1223,6 @@ define_derive_deftly! {
     ///    Errors from parsing will all be collapsed into
     ///    [`ErrorProblem::ObjectInvalidData`].
     export ItemValueParseable for struct, meta_quoted rigorous, expect items, beta_deftly:
-
-    ${define P { $crate::parse2::internal_prelude }}
 
     ${define TRAIT ${if T_IS_SIGNATURE { SignatureItemParseable } else { ItemValueParseable }}}
     ${define METHOD ${if T_IS_SIGNATURE { from_unparsed_and_body } else { from_unparsed }}}
