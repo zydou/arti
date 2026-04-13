@@ -170,6 +170,11 @@ impl RelayFamilyIds {
     pub fn sort(&mut self) {
         self.0.sort();
     }
+
+    /// Deduplicates entries.
+    pub fn dedup(&mut self) {
+        self.0.dedup();
+    }
 }
 
 impl FromIterator<RelayFamilyId> for RelayFamilyIds {
