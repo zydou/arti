@@ -99,6 +99,10 @@ pub struct RouterAnnotation {
 ///
 /// Before using this type to connect to a relay, you MUST check that
 /// it is valid, using is_expired_at().
+///
+/// # Specification
+///
+/// <https://spec.torproject.org/dir-spec/server-descriptor-format.html>
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct RouterDesc {
