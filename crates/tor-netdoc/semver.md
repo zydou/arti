@@ -49,3 +49,4 @@ ADDED: Implement `ItemArgumentParseable` for `RelayPlatform`
 ADDED: `RouterHashAccu` type
 ADDED: `RouterDescSignature` type
 ADDED: `RouterSigEd25519` type
+ADDED: `RouterDescSignatures` type
