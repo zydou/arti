@@ -38,3 +38,4 @@ ADDED: `OverloadGeneralVersion` type
 ADDED: Implement `Eq` for `Nickname`
 ADDED: `RouterDescIntroItem` type
 ADDED: `ExtraInfoDigests` type
+ADDED: `RelayFamilyIds::sort()` method

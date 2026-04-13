@@ -165,6 +165,11 @@ impl RelayFamilyIds {
     pub fn push(&mut self, family_id: RelayFamilyId) {
         self.0.push(family_id);
     }
+
+    /// Sort entries ascending by their [`RelayFamilyId`].
+    pub fn sort(&mut self) {
+        self.0.sort();
+    }
 }
 
 impl FromIterator<RelayFamilyId> for RelayFamilyIds {
