@@ -267,6 +267,19 @@ impl NetdocParseable for EncodedAuthCert {
         Ok(EncodedAuthCert(text.to_string()))
     }
 }
+
+#[cfg(feature = "encode")] // TODO get rid of this feature, and use imports rather than :: paths
+impl crate::encode::NetdocEncodable for EncodedAuthCert {
+    fn encode_unsigned(
+        &self,
+        out: &mut crate::encode::NetdocEncoder,
+    ) -> Result<(), tor_error::Bug> {
+        // OK because invariants include the right syntax including a trailing newline.
+        out.push_raw_string(&self.as_str());
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
