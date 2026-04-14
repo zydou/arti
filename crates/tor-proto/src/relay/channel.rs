@@ -447,26 +447,33 @@ where
 #[cfg(test)]
 pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
+    use futures::channel::mpsc::{Receiver, Sender};
     use futures::task::{Context, Poll};
     use futures::{AsyncRead, AsyncWrite};
     use std::borrow::Cow;
     use std::io::Result as IoResult;
     use std::pin::Pin;
-    use std::sync::{Arc, OnceLock};
+    use std::sync::{Arc, Mutex, OnceLock};
     use std::time::{Duration, SystemTime};
 
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_cell::chancell::AnyChanCell;
     use tor_cert::x509::TlsKeyAndCert;
     use tor_key_forge::{Keygen, ToEncodableCert};
+    use tor_linkspec::OwnedChanTarget;
     use tor_relay_crypto::pk::{
         RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayLinkSigningKeypair, RelaySigningKeypair,
     };
     use tor_relay_crypto::{gen_link_cert, gen_signing_cert, gen_tls_cert};
-    use tor_rtcompat::{CertifiedConn, StreamOps};
+    use tor_rtcompat::{CertifiedConn, Runtime, SpawnExt, StreamOps};
     use web_time_compat::SystemTimeExt;
 
+    use crate::channel::Channel;
     use crate::channel::handler::test::MsgBuf;
+    use crate::channel::test::{CodecResult, new_reactor};
+    use crate::circuit::UniqId;
     use crate::relay::channel::RelayChannelAuthMaterial;
+    use crate::relay::channel_provider::{ChannelProvider, OutboundChanSender};
 
     /// Wrapper around [`MsgBuf`] that implements [`CertifiedConn`] which is needed by the relay
     /// handshake.
@@ -525,6 +532,71 @@ pub(crate) mod test {
         let mut rng = testing_rng();
         let tls_cert = TlsKeyAndCert::create(&mut rng, SystemTime::get(), issuer, subject).unwrap();
         Cow::Owned(tls_cert.certificates_der()[0].to_vec())
+    }
+
+    pub(crate) struct DummyChanProvider<R> {
+        /// A handle to the runtime.
+        runtime: R,
+        /// The outbound channel, shared with the test controller.
+        outbound: Arc<Mutex<Option<DummyChan>>>,
+    }
+
+    impl<R: Runtime> DummyChanProvider<R> {
+        pub(crate) fn new(runtime: R, outbound: Arc<Mutex<Option<DummyChan>>>) -> Self {
+            Self { runtime, outbound }
+        }
+
+        /// Sometimes, no need for the channel.
+        pub(crate) fn new_without_chan(runtime: R) -> Self {
+            Self {
+                runtime,
+                outbound: Arc::new(Mutex::new(None)),
+            }
+        }
+    }
+
+    impl<R: Runtime> ChannelProvider for DummyChanProvider<R> {
+        type BuildSpec = OwnedChanTarget;
+
+        fn get_or_launch(
+            self: Arc<Self>,
+            _reactor_id: UniqId,
+            _target: Self::BuildSpec,
+            tx: OutboundChanSender,
+        ) -> crate::Result<()> {
+            let dummy_chan = working_dummy_channel(&self.runtime);
+            let chan = Arc::clone(&dummy_chan.channel);
+            {
+                let mut lock = self.outbound.lock().unwrap();
+                assert!(lock.is_none());
+                *lock = Some(dummy_chan);
+            }
+
+            tx.send(Ok(chan));
+
+            Ok(())
+        }
+    }
+
+    /// Dummy channel, returned by [`working_fake_channel`].
+    pub(crate) struct DummyChan {
+        /// Tor channel output
+        pub(crate) rx: Receiver<AnyChanCell>,
+        /// Tor channel input
+        pub(crate) tx: Sender<CodecResult>,
+        /// A handle to the Channel object, to prevent the channel reactor
+        /// from shutting down prematurely.
+        pub(crate) channel: Arc<Channel>,
+    }
+
+    pub(crate) fn working_dummy_channel<R: Runtime>(rt: &R) -> DummyChan {
+        let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
+        rt.spawn(async {
+            let _ignore = chan_reactor.run().await;
+        })
+        .unwrap();
+
+        DummyChan { tx, rx, channel }
     }
 
     /// Returns a fake [`RelayChannelAuthMaterial`]. The keys are generated once and reused across
