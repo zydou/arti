@@ -176,52 +176,52 @@ pub struct NdiAuthorityDirSource {
 }
 
 ns_choose! { (
-    define_derive_deftly! {
-        NddAuthoritySection:
+define_derive_deftly! {
+    NddAuthoritySection:
 
-        impl NetdocParseable for NddAuthoritySection {
-            fn doctype_for_error() -> &'static str {
-                "vote.authority.section"
-            }
-            fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
-                VoteAuthorityEntry::is_intro_item_keyword(kw)
-            }
-            fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
-                VoteAuthorityEntry::is_structural_keyword(kw)
-                    .or_else(|| authcert::AuthCertUnverified::is_structural_keyword(kw))
-            }
-            fn from_items<'s>(
-                input: &mut ItemStream<'s>,
-                stop_outer: stop_at!(),
-            ) -> Result<Self, ErrorProblem> {
-                let stop_inner = stop_outer
-                  $(
-                    | StopAt($ftype::is_intro_item_keyword)
-                  )
-                ;
-                Ok(NddAuthoritySection { $(
-                    $fname: NetdocParseable::from_items(input, stop_inner)?,
-                ) })
-            }
+    impl NetdocParseable for NddAuthoritySection {
+        fn doctype_for_error() -> &'static str {
+            "vote.authority.section"
+        }
+        fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
+            VoteAuthorityEntry::is_intro_item_keyword(kw)
+        }
+        fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
+            VoteAuthorityEntry::is_structural_keyword(kw)
+                .or_else(|| authcert::AuthCertUnverified::is_structural_keyword(kw))
+        }
+        fn from_items<'s>(
+            input: &mut ItemStream<'s>,
+            stop_outer: stop_at!(),
+        ) -> Result<Self, ErrorProblem> {
+            let stop_inner = stop_outer
+              $(
+                | StopAt($ftype::is_intro_item_keyword)
+              )
+            ;
+            Ok(NddAuthoritySection { $(
+                $fname: NetdocParseable::from_items(input, stop_inner)?,
+            ) })
         }
     }
+}
 
-    /// An authority section in a vote
-    ///
-    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority>
-    //
-    // We can't derive the parsing here with the normal macro, because it's not a document,
-    // just a kind of ad-hoc thing which we've made into its own type
-    // to avoid the NetworkStatus becoming very odd.
-    #[derive(Deftly, Clone, Debug)]
-    #[derive_deftly(NddAuthoritySection)]
-    #[non_exhaustive]
-    pub struct NddAuthoritySection {
-        /// Authority entry
-        pub authority: VoteAuthorityEntry,
-        /// Authority key certificate
-        pub cert: crate::doc::authcert::EncodedAuthCert,
-    }
+/// An authority section in a vote
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority>
+//
+// We can't derive the parsing here with the normal macro, because it's not a document,
+// just a kind of ad-hoc thing which we've made into its own type
+// to avoid the NetworkStatus becoming very odd.
+#[derive(Deftly, Clone, Debug)]
+#[derive_deftly(NddAuthoritySection)]
+#[non_exhaustive]
+pub struct NddAuthoritySection {
+    /// Authority entry
+    pub authority: VoteAuthorityEntry,
+    /// Authority key certificate
+    pub cert: crate::doc::authcert::EncodedAuthCert,
+}
 )(
     /// An authority section in a consensus
     ///
