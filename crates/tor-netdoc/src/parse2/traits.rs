@@ -155,7 +155,7 @@ impl<T: NormalItemArgument> ItemArgumentParseable for T {
             .next()
             .ok_or(AE::Missing)?
             .parse()
-            .map_err(|_e| AE::Missing)?;
+            .map_err(|_e| AE::Invalid)?;
         Ok(v)
     }
 }
