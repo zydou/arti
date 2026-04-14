@@ -1288,14 +1288,26 @@ pub(crate) mod test {
         move |input, now| {
             let rt = rt.clone();
             Box::pin(async move {
+                use crate::{
+                    circuit::test::new_circ_net_params,
+                    relay::{CreateRequestHandler, channel::test::DummyChanProvider},
+                };
+                use std::{net::SocketAddr, sync::Weak};
+
+                let chan_provider = Arc::new(DummyChanProvider::new_without_chan(rt.clone()));
+                let create_handler = Arc::new(CreateRequestHandler::new(
+                    Arc::downgrade(&chan_provider) as Weak<_>,
+                    new_circ_net_params(),
+                ));
                 let peer_target = OwnedChanTargetBuilder::default().build().unwrap();
                 let unverified = RelayInitiatorHandshake::new(
                     RelayMsgBuf(MsgBuf::new(input)),
                     rt,
                     fake_auth_material(),
-                    vec![IpAddr::from([127, 0, 0, 1])],
+                    vec![SocketAddr::new(IpAddr::from([127, 0, 0, 1]), 6666)],
                     &peer_target,
                     fake_mq(),
+                    create_handler,
                 )
                 .connect(move || now)
                 .await?;
