@@ -12,9 +12,32 @@ def connect_simple(context):
 
     # Try a simple connection.
     # TODO: Pick another address?
-    stream, ident = connection.open_stream("www.torproject.org", 80)
-    assert ident is None
+    stream, stream_obj = connection.open_stream(
+        "www.torproject.org", 80, want_stream_id=True
+    )
+    assert stream_obj is not None
     assert isinstance(stream, socket.socket)
+
+    # Inspect the path we got.
+    path_via_stream = stream_obj.invoke("arti:describe_path")
+    tunnel = stream_obj.invoke("arti:get_tunnel")
+    tunnel = connection.make_object(tunnel["id"])
+    path_via_tunnel = tunnel.invoke("arti:describe_path")
+    assert path_via_stream == path_via_tunnel
+    assert len(path_via_stream["path"]) > 0
+    p = path_via_stream["path"][0]
+    # TODO: Assumption about path length holds true for now...
+    assert len(p) == 3
+
+    for hop in p:
+        assert hop["ids"].get("ed25519") is not None
+        # We didn't ask for rsa, so we won't get it.
+        assert hop["ids"].get("rsa") is None
+        assert not hop["is_virtual"]
+        assert len(hop["addrs"]) > 0
+
+    del stream_obj
+    del tunnel
     # TODO: Once we have another address, try doing something with this socket.
     stream.close()
 
