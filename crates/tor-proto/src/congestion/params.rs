@@ -26,6 +26,18 @@ pub struct FixedWindowParams {
 }
 impl_standard_builder! { FixedWindowParams: !Deserialize + !Default }
 
+impl FixedWindowParams {
+    #[cfg(test)]
+    // These have been copied from C-tor.
+    pub(crate) fn defaults_for_tests() -> Self {
+        Self {
+            circ_window_start: 1000,
+            circ_window_min: 100,
+            circ_window_max: 1000,
+        }
+    }
+}
+
 /// Vegas queuing parameters taken from the consensus only which are different depending if the
 /// circuit is an onion service one, an exit or used for SBWS.
 #[non_exhaustive]
@@ -86,6 +98,22 @@ pub struct VegasParams {
     cwnd_full_per_cwnd: u32,
 }
 impl_standard_builder! { VegasParams: !Deserialize + !Default }
+
+impl VegasParams {
+    #[cfg(test)]
+    // These have been copied from spec (prop324).
+    pub(crate) fn defaults_for_tests() -> Self {
+        // The OUTBUF_CELLS size from prop324.
+        const OC: u32 = 62;
+        Self {
+            cell_in_queue_params: (3 * OC, 4 * OC, 5 * OC, 3 * OC, 600).into(),
+            ss_cwnd_max: 5000,
+            cwnd_full_gap: 4,
+            cwnd_full_min_pct: Percentage::new(25),
+            cwnd_full_per_cwnd: 1,
+        }
+    }
+}
 
 /// The different congestion control algorithms. Each contain their parameters taken from the
 /// consensus.
@@ -155,6 +183,19 @@ pub struct RoundTripEstimatorParams {
 }
 impl_standard_builder! { RoundTripEstimatorParams: !Deserialize + !Default }
 
+impl RoundTripEstimatorParams {
+    #[cfg(test)]
+    // These have been copied from spec (prop324).
+    pub(crate) fn defaults_for_tests() -> Self {
+        Self {
+            ewma_cwnd_pct: Percentage::new(50),
+            ewma_max: 10,
+            ewma_ss_max: 2,
+            rtt_reset_pct: Percentage::new(100),
+        }
+    }
+}
+
 /// The parameters of what constitute a congestion window. This is used by all congestion control
 /// algorithms as in it is not specific to an algorithm.
 #[non_exhaustive]
@@ -193,6 +234,20 @@ impl CongestionWindowParams {
     /// Typically the default when built should be from the network parameters from the consensus.
     pub(crate) fn set_sendme_inc(&mut self, inc: u8) {
         self.sendme_inc = u32::from(inc);
+    }
+
+    #[cfg(test)]
+    // These have been copied from spec (prop324).
+    pub(crate) fn defaults_for_tests() -> Self {
+        Self {
+            cwnd_init: 4 * 31,
+            cwnd_inc_pct_ss: Percentage::new(50),
+            cwnd_inc: 31,
+            cwnd_inc_rate: 1,
+            cwnd_min: 31,
+            cwnd_max: u32::MAX,
+            sendme_inc: 31,
+        }
     }
 }
 

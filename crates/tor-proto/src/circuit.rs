@@ -100,3 +100,20 @@ pub struct CircParameters {
     /// then a limit of `u32::MAX - 1` is enforced.
     pub n_outgoing_cells_permitted: Option<u32>,
 }
+
+#[cfg(test)]
+pub(crate) mod test {
+    #[cfg(feature = "relay")]
+    use crate::relay::{CircNetParameters, CongestionControlNetParams};
+
+    /// Return a new [`CircNetParameters`] using default values for unit tests. They are based on
+    /// consensus defaults but should not be considered to be accurate from the one used on the
+    /// production network.
+    #[cfg(feature = "relay")]
+    pub(crate) fn new_circ_net_params() -> CircNetParameters {
+        CircNetParameters {
+            extend_by_ed25519_id: true,
+            cc: CongestionControlNetParams::defaults_for_tests(),
+        }
+    }
+}
