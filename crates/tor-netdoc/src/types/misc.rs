@@ -2046,6 +2046,71 @@ mod test {
         Ok(())
     }
 
+    /// Test for both `Hostname` and `InternetHost`
+    #[test]
+    fn hostname() {
+        use std::net::IpAddr;
+
+        // Test a string that we should treat as a valid hostname.
+        let chk_name = |s: &str| {
+            let n: Hostname = s.parse().expect(s);
+            assert_eq!(n.as_str(), s);
+            assert_eq!(n.to_string(), s);
+            assert_eq!(s.parse::<InternetHost>().expect(s), InternetHost::Name(n));
+        };
+
+        // Test a string that looks like it could be an address or a hostname.
+        // We parse those as addresses.
+        let chk_either = |s: &str| {
+            let h: InternetHost = s.parse().expect(s);
+            let a: IpAddr = s.parse().expect(s);
+            assert_eq!(h, InternetHost::IpAddr(a), "{s:?}");
+            assert_eq!(h.to_string(), a.to_string(), "{s:?}");
+        };
+
+        // Test a string that's an address, and isn't a valid hostname.
+        let chk_addr = |s: &str| {
+            let _: InvalidHostname = s.parse::<Hostname>().expect_err(s);
+            chk_either(s);
+        };
+
+        // Test a string that we should reject.
+        let chk_bad = |s: &str| {
+            let _: InvalidHostname = s.parse::<Hostname>().expect_err(s);
+            let _: InvalidInternetHost = s.parse::<InternetHost>().expect_err(s);
+        };
+
+        chk_name("foo.bar");
+        chk_name("localhost");
+        chk_name("tor.invalid");
+        chk_name("example.com");
+
+        // Unarguably invalid.
+        chk_bad("");
+        chk_bad("foo bar");
+        chk_bad("foo..bar");
+        chk_bad("foo.-bar");
+        chk_bad(" foo.bar ");
+        chk_bad("[::1]");
+
+        // Strings that some IP address parsers accept as addresses,
+        // but which are also valid hostnames according to RFC1123.
+        //
+        // We reject them rather than processing of them as hostnames,
+        // exposing downstream software to possible strangeness.
+        chk_bad("1");
+        chk_bad("127.0.0.023");
+
+        // No-one thinks this is a valid IP address but we reject it as a hostname too,
+        // even though it's syntactically legal per RFC1123, because it's quite bad.
+        chk_bad("1.2.3.4.5");
+
+        chk_either("0.0.0.0");
+        chk_either("127.0.0.1");
+        chk_addr("::1");
+        chk_addr("2001:0db8:85a3:0000:0000:8a2e:0370:7334");
+    }
+
     #[test]
     fn contact_info() -> anyhow::Result<()> {
         const S: &str = "some relay operator";
