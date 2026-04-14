@@ -931,7 +931,7 @@ pub(crate) mod test {
     use crate::channel::{ChannelType, new_frame};
     use crate::util::fake_mq;
     use crate::{Error, Result};
-    use tor_cell::chancell::msg::{self, Netinfo};
+    use tor_cell::chancell::msg;
     use tor_linkspec::OwnedChanTargetBuilder;
     use tor_rtcompat::{PreferredRuntime, Runtime};
 
