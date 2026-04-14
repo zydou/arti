@@ -679,7 +679,7 @@ pub struct ConsensusAuthorityEntry {
 
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
-    pub vote_digest: Vec<u8>,
+    pub vote_digest: B16U,
 }
 
 /// The signed footer of a consensus netstatus.
@@ -1113,7 +1113,7 @@ impl ConsensusAuthorityEntry {
                     .at_pos(contact.pos())
             })?;
 
-        let vote_digest = sec.required(VOTE_DIGEST)?.parse_arg::<B16>(0)?.into();
+        let vote_digest = sec.required(VOTE_DIGEST)?.parse_arg::<B16U>(0)?;
 
         Ok(ConsensusAuthorityEntry {
             dir_source,

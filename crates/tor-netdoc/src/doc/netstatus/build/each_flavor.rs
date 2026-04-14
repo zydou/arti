@@ -397,7 +397,7 @@ impl VoterInfoBuilder {
         let info = ConsensusAuthorityEntry {
             dir_source,
             contact,
-            vote_digest: self.vote_digest.clone(),
+            vote_digest: self.vote_digest.clone().into(),
         };
         builder.voters.push(info);
         Ok(())
