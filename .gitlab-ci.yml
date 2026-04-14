@@ -333,11 +333,9 @@ rust-recent-integration:
   script: &rust-recent-arti-extra-features-script
     - ./maint/common/apt-install jq
     - rustup show
-    # Disable:
-    # * flowctl-cc pending arti#2400
-    # * arti-client/experimental pending arti#2400 (because it enables flowctl-cc)
-    # * counter-galois-onion pending arti#2400 (because it enables flowctl-cc)
-    - disabled_features='["flowctl-cc", "arti-client/experimental", "counter-galois-onion"]'
+    # If there are experimental features that currently break arti,
+    # we can temporarily disable them here.
+    - disabled_features='[]'
     # Include all features in `full` and `experimental`, except for those
     # explicitly listed in `disabled_features`.
     - included_features=$(
