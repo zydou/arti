@@ -205,7 +205,6 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::channel::test::{CodecResult, new_reactor};
     use crate::circuit::reactor::test::{AllowAllStreamsFilter, rmsg_to_ccmsg};
     use crate::circuit::{CircParameters, CircuitRxSender};
     use crate::client::circuit::padding::new_padding;
@@ -214,15 +213,14 @@ pub(crate) mod test {
     use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
     use crate::fake_mpsc;
     use crate::memquota::SpecificAccount as _;
-    use crate::relay::channel_provider::{ChannelProvider, OutboundChanSender};
+    use crate::relay::channel::test::{DummyChan, DummyChanProvider, working_dummy_channel};
     use crate::stream::flow_ctrl::params::FlowCtrlParameters;
     use crate::stream::incoming::{IncomingStream, IncomingStreamRequestFilter};
 
-    use futures::channel::mpsc::{Receiver, Sender};
     use futures::{AsyncReadExt as _, SinkExt as _, StreamExt as _};
     use tracing_test::traced_test;
 
-    use tor_cell::chancell::{AnyChanCell, ChanCell, ChanCmd, msg as chanmsg};
+    use tor_cell::chancell::{ChanCell, ChanCmd, msg as chanmsg};
     use tor_cell::relaycell::{
         AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId, msg as relaymsg,
     };
@@ -276,53 +274,6 @@ pub(crate) mod test {
         }
     }
 
-    struct DummyChanProvider<R> {
-        /// A handle to the runtime.
-        runtime: R,
-        /// The outbound channel, shared with the test controller.
-        outbound: Arc<Mutex<Option<DummyChan>>>,
-    }
-
-    impl<R: Runtime> DummyChanProvider<R> {
-        fn new(runtime: R, outbound: Arc<Mutex<Option<DummyChan>>>) -> Self {
-            Self { runtime, outbound }
-        }
-    }
-
-    impl<R: Runtime> ChannelProvider for DummyChanProvider<R> {
-        type BuildSpec = OwnedChanTarget;
-
-        fn get_or_launch(
-            self: Arc<Self>,
-            _reactor_id: UniqId,
-            _target: Self::BuildSpec,
-            tx: OutboundChanSender,
-        ) -> crate::Result<()> {
-            let dummy_chan = working_fake_channel(&self.runtime);
-            let chan = Arc::clone(&dummy_chan.channel);
-            {
-                let mut lock = self.outbound.lock().unwrap();
-                assert!(lock.is_none());
-                *lock = Some(dummy_chan);
-            }
-
-            tx.send(Ok(chan));
-
-            Ok(())
-        }
-    }
-
-    /// Dummy channel, returned by [`working_fake_channel`].
-    struct DummyChan {
-        /// Tor channel output
-        rx: Receiver<AnyChanCell>,
-        /// Tor channel input
-        tx: Sender<CodecResult>,
-        /// A handle to the Channel object, to prevent the channel reactor
-        /// from shutting down prematurely.
-        channel: Arc<Channel>,
-    }
-
     struct ReactorTestCtrl {
         /// The relay circuit handle.
         relay_circ: Arc<RelayCirc>,
@@ -354,7 +305,7 @@ pub(crate) mod test {
         /// Spawn a relay circuit reactor, returning a `ReactorTestCtrl` for
         /// controlling it.
         fn spawn_reactor<R: Runtime>(rt: &R) -> Self {
-            let inbound_chan = working_fake_channel(rt);
+            let inbound_chan = working_dummy_channel(rt);
             let circid = CircId::new(1337).unwrap();
             let unique_id = UniqId::new(8, 17);
             let (padding_ctrl, padding_stream) = new_padding(DynTimeProvider::new(rt.clone()));
@@ -511,16 +462,6 @@ pub(crate) mod test {
 
             chan.tx.try_send(Ok(cell)).unwrap();
         }
-    }
-
-    fn working_fake_channel<R: Runtime>(rt: &R) -> DummyChan {
-        let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
-        rt.spawn(async {
-            let _ignore = chan_reactor.run().await;
-        })
-        .unwrap();
-
-        DummyChan { tx, rx, channel }
     }
 
     fn dummy_linkspecs() -> Vec<EncodedLinkSpec> {

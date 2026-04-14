@@ -347,6 +347,20 @@ pub struct CongestionControlNetParams {
     pub flow_ctrl: FlowCtrlParameters,
 }
 
+impl CongestionControlNetParams {
+    #[cfg(test)]
+    // These have been copied from C-tor.
+    pub(crate) fn defaults_for_tests() -> Self {
+        Self {
+            fixed_window: FixedWindowParams::defaults_for_tests(),
+            vegas_exit: VegasParams::defaults_for_tests(),
+            cwnd: CongestionWindowParams::defaults_for_tests(),
+            rtt: RoundTripEstimatorParams::defaults_for_tests(),
+            flow_ctrl: FlowCtrlParameters::defaults_for_tests(),
+        }
+    }
+}
+
 /// Network consensus parameters for handling incoming circuits.
 ///
 /// Unlike `CircParameters`,

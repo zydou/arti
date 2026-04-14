@@ -261,3 +261,50 @@ impl<
             .await
     }
 }
+
+#[cfg(test)]
+pub(crate) mod test {
+    #![allow(clippy::unwrap_used)]
+    use tor_linkspec::RelayIds;
+
+    use super::*;
+    use crate::channel::handler::test::MsgBuf;
+    use crate::channel::{ChannelType, new_frame};
+    use crate::util::fake_mq;
+    use tor_cell::chancell::msg::Netinfo;
+
+    #[test]
+    fn test_finish() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let peer_addr = "127.1.1.2:443".parse().unwrap();
+            let mut framed_tls = new_frame(MsgBuf::new(&b""[..]), ChannelType::ClientInitiator);
+            let _ = framed_tls.codec_mut().set_link_version(4);
+            let ver = VerifiedChannel {
+                link_protocol: 4,
+                framed_tls,
+                unique_id: UniqId::new(),
+                target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
+                peer_relay_ids: RelayIds::empty(),
+                peer_rsa_id_digest: [0; 32],
+                clock_skew: ClockSkew::None,
+                sleep_prov: rt,
+                memquota: fake_mq(),
+            };
+
+            let peer_ip = peer_addr.ip();
+            let netinfo = Netinfo::from_client(Some(peer_ip));
+
+            let (_chan, _reactor) = ver
+                .finish(
+                    &netinfo,
+                    &[],
+                    MaybeSensitive::not_sensitive(PeerInfo::EMPTY),
+                    ChannelMode::Client,
+                )
+                .await
+                .unwrap();
+
+            // TODO: check contents of netinfo cell
+        });
+    }
+}
