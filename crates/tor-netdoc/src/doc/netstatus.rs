@@ -73,7 +73,7 @@ pub use {
 #[cfg(all(feature = "parse2", feature = "plain-consensus"))]
 use crate::doc::authcert::EncodedAuthCert;
 
-use crate::doc::authcert::{AuthCert, AuthCertUnverified, AuthCertKeyIds};
+use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
@@ -757,8 +757,12 @@ define_derive_deftly! {
             VoteAuthorityEntry::is_intro_item_keyword(kw)
         }
         fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
-            VoteAuthorityEntry::is_structural_keyword(kw)
-                .or_else(|| AuthCertUnverified::is_structural_keyword(kw))
+          $(
+            if let y @ Some(_) = $ftype::is_structural_keyword(kw) {
+                return y;
+            }
+          )
+            None
         }
         fn from_items<'s>(
             input: &mut ItemStream<'s>,
