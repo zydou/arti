@@ -735,6 +735,17 @@ pub struct VoteAuthorityEntry {
 }
 
 define_derive_deftly! {
+    /// Ad-hoc derive, `impl NetdocParseable for VoteAuthoritySection`
+    ///
+    /// We can't derive from `VoteAuthoritySection` with the normal macros, because
+    /// it's not a document, with its own intro item.  It's just a collection of sub-documents.
+    /// The netdoc derive macros don't have support for that - and it would be a fairly
+    /// confusing thing to support because you'd end up with nested multiplicities and a whole
+    /// variety of "intro item keywords" that were keywords for arbitrary sub-documents.
+    ///
+    /// Instead, we do that ad-hoc here.  It's less confusing because we don't need to
+    /// worry about multiplicity, and because we know what only the outer document is
+    /// that will contain this.
     VoteAuthoritySection:
 
     #[cfg(feature = "parse2")]
@@ -769,9 +780,8 @@ define_derive_deftly! {
 ///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority>
 //
-// We can't derive the parsing here with the normal macro, because it's not a document,
-// just a kind of ad-hoc thing which we've made into its own type
-// to avoid the NetworkStatus becoming very odd.
+// We have split this out to help encapsulate vote/consensus-specific
+// information in a forthcoming overall network status document type.
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(VoteAuthoritySection)]
 #[non_exhaustive]
