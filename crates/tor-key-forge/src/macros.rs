@@ -272,6 +272,16 @@ define_derive_deftly! {
         }
     }
 
+    impl $PK_NAME {
+        /// Get the inner [`PublicKey`]($crate::macro_deps::curve25519::PublicKey).
+        // This can be nicer to use than
+        // `<FooPublicKey as Borrow<curve25519::PublicKey>>::borrow(&foo)`.
+        #[inline]
+        $tvis fn inner(&self) -> &$crate::macro_deps::curve25519::PublicKey {
+            &self.0
+        }
+    }
+
     impl $ttype {
         /// Build the raw inner public key into the wrapper public key object.
         $tvis fn public(&self) -> $PK_NAME {

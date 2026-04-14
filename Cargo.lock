@@ -376,6 +376,7 @@ name = "arti-relay"
 version = "0.41.0"
 dependencies = [
  "anyhow",
+ "base64ct",
  "clap",
  "derive-deftly",
  "derive_more",
