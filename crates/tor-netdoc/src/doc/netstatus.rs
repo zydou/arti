@@ -59,6 +59,11 @@ pub mod vote;
 #[cfg(feature = "build_docs")]
 mod build;
 
+#[cfg(feature = "encode")]
+use {
+    crate::encode::{NetdocEncodable, NetdocEncoder}, //
+    tor_error::Bug,
+};
 #[cfg(feature = "parse2")]
 use {
     crate::parse2::{self, ArgumentStream}, //
@@ -776,6 +781,16 @@ define_derive_deftly! {
             Ok(VoteAuthoritySection { $(
                 $fname: NetdocParseable::from_items(input, stop_inner)?,
             ) })
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl NetdocEncodable for VoteAuthoritySection {
+        fn encode_unsigned(&self, out: &mut NetdocEncoder) -> StdResult<(), Bug> {
+          $(
+            self.$fname.encode_unsigned(out)?;
+          )
+          Ok(())
         }
     }
 }
