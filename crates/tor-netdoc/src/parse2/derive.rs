@@ -298,6 +298,7 @@ define_derive_deftly_module! {
 
             ${for fields {
                 ${when F_INTRO}
+                ${loop_exactly_1 "internal error, somehow not exactly one intro item!"}
                 kw == $F_KEYWORD
             }}
         }
