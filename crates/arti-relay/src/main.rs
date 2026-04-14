@@ -344,7 +344,7 @@ fn log_public_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
         .context("Missing Ed25519 identity")?
         .to_ed25519_id();
 
-    let mut ntor_keys = keymgr
+    let ntor_keys = keymgr
         .list_matching(&RelayNtorKeypairSpecifierPattern::new_any().arti_pattern()?)?
         .into_iter()
         .map(|entry| {
@@ -359,11 +359,14 @@ fn log_public_keys(keymgr: &KeyMgr) -> anyhow::Result<()> {
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
 
-    // Sort ntor keys by the "valid until" time.
-    ntor_keys.sort_by_key(|x| x.0);
+    // Find the longest valid ntor key (max as ordered by the "valid until" time).
+    let ntor = ntor_keys
+        .into_iter()
+        .max_by_key(|x| x.0)
+        .map(|x| x.1)
+        .context("Missing ntor key")?;
 
-    // Base64-encode the longest valid public ntor key.
-    let ntor = ntor_keys.into_iter().last().context("Missing ntor key")?.1;
+    // Base64-encode the public ntor key.
     let ntor = Base64Unpadded::encode_string(ntor.public().inner().as_bytes());
 
     // Log the relay's identities.
