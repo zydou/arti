@@ -31,7 +31,11 @@ use crate::RpcSession;
 /// The ObjectID for this object can be used as the target of a SOCKS request.
 #[derive(Deftly)]
 #[derive_deftly(Object)]
-#[deftly(rpc(expose_outside_of_session))]
+#[deftly(rpc(
+    delegate_with = "|this: &Self| this.get_ctrl()",
+    delegate_type = "tor_proto::client::stream::ClientDataStreamCtrl",
+    expose_outside_of_session
+))]
 pub(crate) struct OneshotClient {
     /// The inner state of this object.
     inner: Mutex<Inner>,
@@ -121,7 +125,6 @@ impl OneshotClient {
     }
 
     /// Return the `ClientDataStreamCtrl` for this stream, if it has one.
-    #[allow(dead_code)]
     fn get_ctrl(&self) -> Option<Arc<ClientDataStreamCtrl>> {
         let inner = self.inner.lock().expect("poisoned lock");
         if let Inner::Stream(s) = &*inner {
