@@ -1473,6 +1473,7 @@ mod nickname {
 // TODO maybe move all this to tor-basic-utils
 mod hostname {
     use super::*;
+    use std::net::IpAddr;
 
     /// Internet hostname
     ///
@@ -1502,11 +1503,44 @@ mod hostname {
     #[derive(derive_more::Into, derive_more::Deref, derive_more::AsRef, derive_more::Display)]
     pub struct Hostname(String);
 
+    /// Hostname, or IP address (v4 or v6)
+    ///
+    /// Preserves hostname case.  See [`Hostname`].
+    ///
+    /// Reserved hostnames and addresses (eg `0.0.0.0` or `tor.invalid`) are accepted.
+    ///
+    /// IPv6 addresses are represented *without* surrounding `[ ]`.
+    ///
+    /// Therefore, you cannot make this into a host-and-port by appending `:port`.
+    /// To process name-and-port is complex.  `SRV` (or `MX`) records might be involved.
+    //
+    // This type is called `InternetHost` to emphasise that it is primarily for
+    // hosts on the public internet and, unlike arti-client's `Host`,
+    // has special handling of `.onion` addresses.
+    #[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)] //
+    #[derive(derive_more::Display)]
+    #[allow(clippy::exhaustive_enums)]
+    // TODO derive .as_hostname(), .as_ip_addr(), From<Hostname>, From<IpAddr>
+    pub enum InternetHost {
+        /// Hostname
+        #[display("{_0}")]
+        Name(Hostname),
+        /// IP address (v4 or v6)
+        #[display("{_0}")]
+        IpAddr(IpAddr),
+    }
+
     /// Invalid hostname
     #[derive(Clone, Debug, thiserror::Error)]
     #[error("invalid hostname")]
     #[non_exhaustive]
     pub struct InvalidHostname {}
+
+    /// Invalid Internet hostname/address
+    #[derive(Clone, Debug, thiserror::Error)]
+    #[error("invalid: not a valid hostname, nor a valid IPv4 or IPv6 address")]
+    #[non_exhaustive]
+    pub struct InvalidInternetHost {}
 
     impl Hostname {
         /// Obtain this hostname as a `str`
@@ -1544,7 +1578,24 @@ mod hostname {
         }
     }
 
+    impl FromStr for InternetHost {
+        type Err = InvalidInternetHost;
+        fn from_str(s: &str) -> Result<Self, InvalidInternetHost> {
+            if let Ok(y) = s.parse() {
+                Ok(InternetHost::IpAddr(y))
+            } else if let Ok(y) = s.parse() {
+                Ok(InternetHost::Name(y))
+            } else {
+                // For simplicity, we  discard the errors from parsing the options
+                // rather than trying to reproduce them.  Why something isn't a valid
+                // address or hostname ought to be fairly obvious.
+                Err(InvalidInternetHost {})
+            }
+        }
+    }
+
     impl NormalItemArgument for Hostname {}
+    impl NormalItemArgument for InternetHost {}
 }
 
 /// Contact information of the relay operator.
