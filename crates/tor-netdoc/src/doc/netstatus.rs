@@ -660,6 +660,8 @@ pub type MdAuthorityEntry = ConsensusAuthorityEntry;
 /// An authority entry as found in a consensus
 ///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority-entry>
+///
+/// See also [`VoteAuthorityEntry`]
 //
 // We don't use the `each_variety` system for this because:
 //  1. That avoids separating the two consensus authority entry types, which are identical
@@ -689,6 +691,40 @@ pub struct ConsensusAuthorityEntry {
     #[deftly(constructor)]
     pub vote_digest: B16U,
 
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
+}
+
+/// An authority entry as found in a vote
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority-entry>
+///
+/// See also [`ConsensusAuthorityEntry`]
+///
+/// TODO DIRAUTH not all fields are here yet.
+// They have individual comments, below.
+#[derive(Debug, Clone, Deftly)]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[derive_deftly(Constructor)]
+#[allow(clippy::exhaustive_structs)]
+pub struct VoteAuthorityEntry {
+    /// Contents of the `dir-source` line about an authority
+    #[deftly(constructor)]
+    pub dir_source: DirSource,
+
+    /// Human-readable contact information about the authority
+    #[deftly(constructor)]
+    pub contact: ContactInfo,
+
+    // TODO DIRAUTH missing field legacy-dir-key
+    // TODO DIRAUTH missing field shared-rand-participate
+    // TODO DIRAUTH missing field shared-rand-commit
+    // TODO DIRAUTH missing field shared-rand-previous-value
+    // TODO DIRAUTH missing field shared-rand-current-value
+    //
     #[doc(hidden)]
     #[deftly(netdoc(skip))]
     pub __non_exhaustive: (),
