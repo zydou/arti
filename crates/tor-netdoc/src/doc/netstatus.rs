@@ -603,6 +603,9 @@ pub struct DirSource {
     pub identity: Fingerprint,
 
     /// IP address for the authority
+    pub hostname: InternetHost,
+
+    /// IP address for the authority
     pub ip: net::IpAddr,
 
     /// HTTP directory port for this authority
@@ -1023,6 +1026,12 @@ impl DirSource {
                 EK::BadArgument.at_pos(item.pos()).with_msg(e.to_string())
             })?;
         let identity = item.parse_arg(1)?;
+        let hostname = item
+            .required_arg(2)?
+            .parse()
+            .map_err(|e: InvalidInternetHost| {
+                EK::BadArgument.at_pos(item.pos()).with_msg(e.to_string())
+            })?;
         let ip = item.parse_arg(3)?;
         let dir_port = item.parse_arg(4)?;
         let or_port = item.parse_arg(5)?;
@@ -1030,6 +1039,7 @@ impl DirSource {
         Ok(DirSource {
             nickname,
             identity,
+            hostname,
             ip,
             dir_port,
             or_port,

@@ -386,6 +386,7 @@ impl VoterInfoBuilder {
         let dir_source = DirSource {
             nickname,
             identity,
+            hostname: "deprecated-builder.invalid".parse().expect("statically valid"),
             ip,
             dir_port: self.dir_port,
             or_port: self.or_port,
