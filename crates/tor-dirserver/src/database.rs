@@ -430,6 +430,7 @@ impl ConsensusMeta {
               LEFT JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
             WHERE
               cr.consensus_docid = :docid
+              AND cr.unsigned_sha1 IS NOT NULL
               AND server.unsigned_sha1 IS NULL
             "
         ))?;
@@ -516,6 +517,7 @@ impl ConsensusMeta {
               LEFT JOIN router_descriptor AS micro ON cr.unsigned_sha2 = micro.unsigned_sha2
             WHERE
               cr.consensus_docid = :docid
+              AND cr.unsigned_sha2 IS NOT NULL
               AND micro.unsigned_sha2 IS NULL
             "
         ))?;
