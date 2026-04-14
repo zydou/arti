@@ -260,15 +260,15 @@ struct SidechannelMitigation {
     last_recvd_xon_xoff: Option<XonXoff>,
     /// Number of sent stream bytes.
     ///
-    /// We only use this for bytes that are sent early on the stream,
-    /// checking if it's less than `cc_xon_rate` and/or `cc_xoff_{client,exit}`.
-    /// Once this value is sufficiently large, we don't care about the exact value.
-    /// So a saturating u32 should be more than enough bits for what we need.
-    bytes_sent_total: Saturating<u32>,
-    /// Number of sent stream bytes since the last advisory XON was received.
-    bytes_sent_since_recvd_last_advisory_xon: Saturating<u32>,
-    /// Number of sent stream bytes since the last XOFF was received.
-    bytes_sent_since_recvd_last_xoff: Saturating<u32>,
+    /// C-tor has some logic to try to fit this into a 32-bit integer,
+    /// but lets not do that unless we need to as it will make bugs more likely.
+    bytes_sent_total: Saturating<u64>,
+    /// The number of advisory XON messages we've received.
+    ///
+    /// Note: Advisory XONs are XON->XON messages, and not XOFF->XON messages.
+    num_advisory_xon_recvd: Saturating<u64>,
+    /// The number of XOFF messages we've received.
+    num_xoff_recvd: Saturating<u64>,
 }
 
 impl SidechannelMitigation {
@@ -277,11 +277,8 @@ impl SidechannelMitigation {
         Self {
             last_recvd_xon_xoff: None,
             bytes_sent_total: Saturating(0),
-            // We set these to 0 even though we haven't yet received an XON or XOFF. We could use an
-            // `Option` instead, but it makes the code more complicated and increases their size
-            // from 32 bits to 64 bits.
-            bytes_sent_since_recvd_last_advisory_xon: Saturating(0),
-            bytes_sent_since_recvd_last_xoff: Saturating(0),
+            num_advisory_xon_recvd: Saturating(0),
+            num_xoff_recvd: Saturating(0),
         }
     }
 
@@ -309,14 +306,9 @@ impl SidechannelMitigation {
 
     /// Notify that we have sent stream data.
     fn sent_stream_data(&mut self, stream_bytes: usize) {
-        // perform a saturating conversion to u32
-        let stream_bytes: u32 = stream_bytes.try_into().unwrap_or(u32::MAX);
-
+        // perform a saturating conversion to u64
+        let stream_bytes: u64 = stream_bytes.try_into().unwrap_or(u64::MAX);
         self.bytes_sent_total += stream_bytes;
-
-        // when we receive an XON or XOFF, we set the corresponding variable back to 0
-        self.bytes_sent_since_recvd_last_advisory_xon += stream_bytes;
-        self.bytes_sent_since_recvd_last_xoff += stream_bytes;
     }
 
     /// Notify that we have received an XON message.
@@ -357,6 +349,8 @@ impl SidechannelMitigation {
             return Ok(());
         }
 
+        self.num_advisory_xon_recvd += 1;
+
         // > Clients also SHOULD ensure that advisory XONs do not arrive before the minimum of the
         // > XOFF limit and 'cc_xon_rate' full cells worth of bytes have been transmitted.
         //
@@ -365,7 +359,7 @@ impl SidechannelMitigation {
             Self::peer_xoff_limit_bytes(params),
             Self::peer_xon_limit_bytes(params),
         );
-        if u64::from(self.bytes_sent_total.0) < advisory_not_expected_before {
+        if self.bytes_sent_total.0 < advisory_not_expected_before {
             const MSG: &str = "Received advisory XON too early";
             return Err(Error::CircProto(MSG.into()));
         }
@@ -373,22 +367,25 @@ impl SidechannelMitigation {
         // > Clients SHOULD ensure that advisory XONs do not arrive more frequently than every
         // > 'cc_xon_rate' cells worth of sent data.
         //
-        // NOTE: We implement this a bit different than C-tor. In C-tor it checks that:
-        //   conn->total_bytes_xmit < MIN(xoff_{client/exit}, xon_rate_bytes)*conn->num_xon_recv
-        // which effectively checks that the average XON frequency over the lifetime of the stream
-        // does not exceed a frequency of `MIN(xoff_{client/exit}, xon_rate_bytes)`. Instead here we
-        // check that two XON messages never arrive at an interval that would exceed a frequency of
-        // `cc_xon_rate`.
+        // It should be an error if
+        //   XON frequency > 1/peer_xon_limit_bytes
+        // where
+        //   XON frequency = num_advisory_xon_recvd/bytes_sent_total
+        //
+        // so
+        //   num_advisory_xon_recvd/bytes_sent_total > 1/peer_xon_limit_bytes
+        //
+        // or to better work with integers
+        //   num_advisory_xon_recvd > bytes_sent_total/peer_xon_limit_bytes
         //
         // NOTE: We use a more relaxed threshold for the XON limit than in prop324.
-        if u64::from(self.bytes_sent_since_recvd_last_advisory_xon.0)
-            < Self::peer_xon_limit_bytes(params)
+        let peer_xon_limit_bytes = Self::peer_xon_limit_bytes(params);
+        if peer_xon_limit_bytes != 0
+            && self.num_advisory_xon_recvd.0 > self.bytes_sent_total.0 / peer_xon_limit_bytes
         {
             const MSG: &str = "Received advisory XON too frequently";
             return Err(Error::CircProto(MSG.into()));
         }
-
-        self.bytes_sent_since_recvd_last_advisory_xon = Saturating(0);
 
         Ok(())
     }
@@ -402,6 +399,8 @@ impl SidechannelMitigation {
         // The ordering is important here. For example we first want to disallow consecutive XOFFs,
         // then check if we received an XOFF that was too early, and finally check if we received
         // the XOFF too frequently.
+
+        self.num_xoff_recvd += 1;
 
         // Ensure that we have sent some bytes. This might be covered by other checks below, but this
         // is the most important check so we do it explicitly here first.
@@ -421,7 +420,7 @@ impl SidechannelMitigation {
         // > onions).
         //
         // NOTE: We use a more relaxed threshold for the XOFF limit than in prop324.
-        if u64::from(self.bytes_sent_total.0) < Self::peer_xoff_limit_bytes(params) {
+        if self.bytes_sent_total.0 < Self::peer_xoff_limit_bytes(params) {
             const MSG: &str = "Received XOFF too early";
             return Err(Error::CircProto(MSG.into()));
         }
@@ -429,20 +428,25 @@ impl SidechannelMitigation {
         // > Clients also SHOULD ensure than XOFFs do not arrive more frequently than every XOFF
         // > limit worth of sent data.
         //
-        // NOTE: We implement this a bit different than C-tor. In C-tor it checks that:
-        //   conn->total_bytes_xmit < xoff_{client/exit}*conn->num_xoff_recv
-        // which effectively checks that the average XOFF frequency over the lifetime of the stream
-        // does not exceed a frequency of `xoff_{client/exit}`. Instead here we check that two XOFF
-        // messages never arrive at an interval that would exceed a frequency of
-        // `xoff_{client/exit}`.
+        // It should be an error if
+        //   XOFF frequency > 1/peer_xoff_limit_bytes
+        // where
+        //   XOFF frequency = num_xoff_recvd/bytes_sent_total
+        //
+        // so
+        //   num_xoff_recvd/bytes_sent_total > 1/peer_xoff_limit_bytes
+        //
+        // or to better work with integers
+        //   num_xoff_recvd > bytes_sent_total/peer_xoff_limit_bytes
         //
         // NOTE: We use a more relaxed threshold for the XOFF limit than in prop324.
-        if u64::from(self.bytes_sent_since_recvd_last_xoff.0) < Self::peer_xoff_limit_bytes(params)
+        let peer_xoff_limit_bytes = Self::peer_xoff_limit_bytes(params);
+        if peer_xoff_limit_bytes != 0
+            && self.num_xoff_recvd.0 > self.bytes_sent_total.0 / peer_xoff_limit_bytes
         {
             return Err(Error::CircProto("Received XOFF too frequently".into()));
         }
 
-        self.bytes_sent_since_recvd_last_xoff = Saturating(0);
         self.last_recvd_xon_xoff = Some(XonXoff::Xoff);
 
         Ok(())
@@ -520,6 +524,34 @@ mod test {
             // cannot receive XON after sending fewer than `xon_limit` bytes
             x.sent_stream_data(xon_limit as usize - 1);
             assert!(x.received_xon(&params).is_err());
+
+            let mut x = SidechannelMitigation::new();
+            // can receive XON after sending a large number of bytes
+            x.sent_stream_data(xon_limit as usize * 3);
+            assert!(x.received_xon(&params).is_ok());
+            // and can immediately receive another XON
+            assert!(x.received_xon(&params).is_ok());
+            // and can immediately receive another XON
+            assert!(x.received_xon(&params).is_ok());
+            // but cannot receive another XON immediately after
+            assert!(x.received_xon(&params).is_err());
+
+            let mut x = SidechannelMitigation::new();
+            // can receive XOFF after sending a large number of bytes
+            x.sent_stream_data(xoff_limit as usize * 3);
+            assert!(x.received_xoff(&params).is_ok());
+            // and can immediately receive an XON
+            assert!(x.received_xon(&params).is_ok());
+            // and can immediately receive an XOFF
+            assert!(x.received_xoff(&params).is_ok());
+            // and can immediately receive an XON
+            assert!(x.received_xon(&params).is_ok());
+            // and can immediately receive an XOFF
+            assert!(x.received_xoff(&params).is_ok());
+            // and can immediately receive an XON
+            assert!(x.received_xon(&params).is_ok());
+            // but cannot immediately receive an XOFF
+            assert!(x.received_xoff(&params).is_err());
         }
     }
 }
