@@ -56,11 +56,13 @@ pub use identified_digest::{DigestName, IdentifiedDigest};
 pub use ignored_impl::{Ignored, IgnoredItemOrObjectValue, NotPresent};
 
 use crate::NormalItemArgument;
-use derive_deftly::{Deftly, define_derive_deftly};
+use derive_deftly::{Deftly, define_derive_deftly, define_derive_deftly_module};
 use std::cmp::{self, PartialOrd};
 use std::fmt::{self, Display};
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
+use subtle::{Choice, ConstantTimeEq};
 use tor_error::{Bug, ErrorReport as _, internal};
 use void::{ResultVoidExt as _, Void};
 
@@ -77,37 +79,187 @@ pub(crate) trait FromBytes: Sized {
     }
 }
 
+define_derive_deftly_module! {
+    /// Implement conversion traits for a transparent newtype around bytes - shared code
+    ///
+    /// This is precisely `#[derive_deftly(Transparent)]`, but in the form of a deftly module,
+    /// so that other derives (eg `BytesTransparent`) can re-use it.
+    Transparent beta_deftly:
+
+    // Expands to bullet points for "generated code", except omitting
+    // `AsRef` & `AsMut` because some uses sites have additional impls of those,
+    // which are best presented together in the docs.
+  ${define TRANSPARENT_DOCS_IMPLS {
+    ///  * impls of `Deref`, `DerefMut`
+    ///  * impls of `From<field>` and "`Into`" (technically, `From<Self> for field`)
+  }}
+
+    // Expands to the implementations
+  ${define TRANSPARENT_IMPLS {
+
+  ${for fields {
+    ${loop_exactly_1 "must be applied to a single-field struct"}
+
+    impl<$tgens> From<$ftype> for $ttype {
+        fn from($fpatname: $ftype) -> $ttype {
+            $vpat
+        }
+    }
+
+    impl<$tgens> From<$ttype> for $ftype {
+        fn from(self_: $ttype) -> $ftype {
+            self_.$fname
+        }
+    }
+
+    impl<$tgens> Deref for $ttype {
+        type Target = $ftype;
+        fn deref(&self) -> &$ftype {
+            &self.$fname
+        }
+    }
+
+    impl<$tgens> DerefMut for $ttype {
+        fn deref_mut(&mut self) -> &mut $ftype {
+            &mut self.$fname
+        }
+    }
+
+    impl<$tgens> AsRef<$ftype> for $ttype {
+        fn as_ref(&self) -> &$ftype {
+            &self.$fname
+        }
+    }
+
+    impl<$tgens> AsMut<$ftype> for $ttype {
+        fn as_mut(&mut self) -> &mut $ftype {
+            &mut self.$fname
+        }
+    }
+  }}
+  }}
+}
+
+define_derive_deftly! {
+    use Transparent;
+
+    /// Implement conversion traits for an arbitrary transparent newtype
+    ///
+    /// # Requirements
+    ///
+    ///  * Self should be a single-field struct
+    ///  * Self should have no runtime invariants
+    ///
+    /// # Generated code
+    ///
+    $TRANSPARENT_DOCS_IMPLS
+    ///  * impls of `AsMut<field>`, `AsRef<field>`
+    ///
+    /// # Guidelines
+    ///
+    ///  * the field should be `pub`, with `#[allow(clippy::exhaustive_structs)]`
+    ///  * derive `Hash`, `Debug` and (usually) `Clone`
+    ///  * consider deriving `PartialEq` and `Eq`
+    ///    but for types containing bytes, use [`ConstantTimeEq`],
+    ///    eg with [`#[derive_deftly(BytesTransparent)]`](derive_deftly_template_BytesTransparent)
+    ///    (instead of `Transparent`).
+    ///  * implement `FromStr`, `Display`, `NormalItemArgument`, as required
+    Transparent for struct, beta_deftly:
+
+    $TRANSPARENT_IMPLS
+}
+
+define_derive_deftly! {
+    use Transparent;
+
+    /// Implement `ConstantTimeEq`, `.as_bytes()`, etc., for a transparent newtype around bytes
+    ///
+    /// # Requirements
+    ///
+    ///  * Self should be a single-field struct
+    ///  * Self should deref to `&[u8]` (and to `&mut [u8]`).
+    ///  * (so Self should have no runtime invariants)
+    ///
+    /// # Generated code
+    ///
+    ///  * impls of `ConstantTimeEq`, `Eq`, `PartialEq`
+    ///  * `as_bytes()` method
+    ${TRANSPARENT_DOCS_IMPLS}
+    ///  * impls of `AsMut<field>`, `AsRef<field>`, `AsRef<[u8]>`, `AsMut<[u8]>`
+    ///
+    // We could derive Debug here but then we have to deal with the Fixed's N
+    // which gets quite fiddly.
+    //
+    /// # Guidelines
+    ///
+    ///  * derive `Hash` and write `#[allow(clippy::derived_hash_with_manual_eq)]`
+    ///  * impl `FromStr` and `Display` (if required, which they usually will be)
+    ///  * derive `derive_more::Debug` eg with `#[debug(r#"B64("{self}")"#)]`
+    ///  * `impl NormalItemArgument` if appropriate (ie the representation has no spaces)
+    BytesTransparent for struct, beta_deftly:
+
+    $TRANSPARENT_IMPLS
+
+    impl<$tgens> ConstantTimeEq for $ttype {
+        fn ct_eq(&self, other: &$ttype) -> Choice {
+          $(
+            self.$fname.ct_eq(&other.$fname)
+          )
+        }
+    }
+    $/// `$tname` is `Eq` via its constant-time implementation.
+    impl<$tgens> PartialEq for $ttype {
+        fn eq(&self, other: &$ttype) -> bool {
+            self.ct_eq(other).into()
+        }
+    }
+    impl<$tgens> Eq for $ttype {}
+
+    impl<$tgens> $ttype {
+        /// Return the byte array from this object.
+        pub fn as_bytes(&self) -> &[u8] {
+          $(
+            &self.$fname[..]
+          )
+        }
+    }
+
+    impl<$tgens> AsRef<[u8]> for $ttype {
+        fn as_ref(&self) -> &[u8] {
+          $(
+            self.$fname.as_ref()
+          )
+        }
+    }
+
+    impl<$tgens> AsMut<[u8]> for $ttype {
+        fn as_mut(&mut self) -> &mut [u8] {
+          $(
+            self.$fname.as_mut()
+          )
+        }
+    }
+}
+
 /// Types for decoding base64-encoded values.
 mod b64impl {
-    use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
+    use super::*;
+    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use base64ct::{Base64, Base64Unpadded, Encoding};
-    use std::fmt::{self, Display};
     use std::ops::RangeBounds;
-    use subtle::{Choice, ConstantTimeEq};
 
     /// A byte array, encoded in base64 with optional padding.
     ///
     /// On output (`Display`), output is unpadded.
-    #[derive(Clone)]
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(Hash, derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[derive(derive_more::Debug)]
     #[debug(r#"B64("{self}")"#)]
-    pub struct B64(Vec<u8>);
+    #[allow(clippy::exhaustive_structs)]
+    pub struct B64(pub Vec<u8>);
 
-    impl ConstantTimeEq for B64 {
-        fn ct_eq(&self, other: &B64) -> Choice {
-            self.0.ct_eq(&other.0)
-        }
-    }
-    /// `B64` is `Eq` via its constant-time implementation.
-    impl PartialEq for B64 {
-        fn eq(&self, other: &B64) -> bool {
-            self.ct_eq(other).into()
-        }
-    }
-    impl Eq for B64 {}
-
-    impl std::str::FromStr for B64 {
+    impl FromStr for B64 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             let v: core::result::Result<Vec<u8>, base64ct::Error> = match s.len() % 4 {
@@ -130,10 +282,6 @@ mod b64impl {
     }
 
     impl B64 {
-        /// Return the byte array from this object.
-        pub fn as_bytes(&self) -> &[u8] {
-            &self.0[..]
-        }
         /// Return this object if its length is within the provided bounds
         /// object, or an error otherwise.
         pub(crate) fn check_len<B: RangeBounds<usize>>(self, bounds: B) -> Result<Self> {
@@ -147,7 +295,7 @@ mod b64impl {
         /// Try to convert this object into an array of N bytes.
         ///
         /// Return an error if the length is wrong.
-        pub fn into_array<const N: usize>(self) -> Result<[u8; N]> {
+        pub(crate) fn into_array<const N: usize>(self) -> Result<[u8; N]> {
             self.0
                 .try_into()
                 .map_err(|_| EK::BadObjectVal.with_msg("Invalid length on base64 data"))
@@ -163,19 +311,20 @@ mod b64impl {
     impl NormalItemArgument for B64 {}
 
     /// A byte array encoded in a hexadecimal with a fixed length.
-    #[derive(Clone)]
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(Hash, Eq, derive_more::Debug, derive_more::From, derive_more::Into)]
+    #[derive(derive_more::Debug)]
     #[debug(r#"FixedB64::<{N}>("{self}")"#)]
-    pub(crate) struct FixedB64<const N: usize>([u8; N]);
+    pub struct FixedB64<const N: usize>(pub [u8; N]);
 
     impl<const N: usize> Display for FixedB64<N> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             Display::fmt(&B64(self.0.to_vec()), f)
         }
     }
 
-    impl<const N: usize> std::str::FromStr for FixedB64<N> {
+    impl<const N: usize> FromStr for FixedB64<N> {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             Ok(Self(B64::from_str(s)?.0.try_into().map_err(|_| {
@@ -186,12 +335,6 @@ mod b64impl {
         }
     }
 
-    impl<const N: usize> PartialEq for FixedB64<N> {
-        fn eq(&self, other: &Self) -> bool {
-            B64(self.0.to_vec()).eq(&B64(other.0.to_vec()))
-        }
-    }
-
     impl<const N: usize> NormalItemArgument for FixedB64<N> {}
 }
 
@@ -199,12 +342,32 @@ mod b64impl {
 
 /// Types for decoding hex-encoded values.
 mod b16impl {
+    use super::*;
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
 
-    /// A byte array encoded in hexadecimal.
-    pub(crate) struct B16(Vec<u8>);
+    /// A byte array encoded in hexadecimal; prints in lowercase
+    ///
+    /// Both uppercase and lowercase are tolerated when parsing.
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(derive_more::Debug)]
+    #[debug(r#"B16("{self}")"#)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct B16(pub Vec<u8>);
 
-    impl std::str::FromStr for B16 {
+    /// A byte array encoded in hexadecimal; prints in uppercase
+    ///
+    /// Both uppercase and lowercase are tolerated when parsing.
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(derive_more::Debug)]
+    #[debug(r#"B16("{self}")"#)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct B16U(pub Vec<u8>);
+
+    impl FromStr for B16 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             let bytes = hex::decode(s).map_err(|_| {
@@ -216,36 +379,53 @@ mod b16impl {
         }
     }
 
-    impl B16 {
-        /// Return the underlying byte array.
-        #[allow(unused)]
-        pub(crate) fn as_bytes(&self) -> &[u8] {
-            &self.0[..]
+    impl FromStr for B16U {
+        type Err = Error;
+        fn from_str(s: &str) -> Result<Self> {
+            Ok(B16U(B16::from_str(s)?.0))
         }
     }
 
-    impl From<B16> for Vec<u8> {
-        fn from(w: B16) -> Vec<u8> {
-            w.0
+    impl Display for B16 {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            // `hex` has `hex::encode` but that allocates a `String`, which this approach doesn't
+            for c in self.as_bytes() {
+                write!(f, "{c:02x}")?;
+            }
+            Ok(())
         }
     }
+
+    impl Display for B16U {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            // `hex` has `hex::encode_upper` but that allocates a `String`
+            for c in self.as_bytes() {
+                write!(f, "{c:02X}")?;
+            }
+            Ok(())
+        }
+    }
+
+    impl NormalItemArgument for B16 {}
+    impl NormalItemArgument for B16U {}
 }
 
 // ============================================================
 
 /// Types for decoding curve25519 keys
 mod curve25519impl {
-    use std::fmt::Display;
+    use super::*;
 
     use crate::{Error, NormalItemArgument, Result, types::misc::FixedB64};
     use tor_llcrypto::pk::curve25519::PublicKey;
 
     /// A Curve25519 public key, encoded in base64 with optional padding
-    #[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::Into)]
+    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Curve25519Public(pub PublicKey);
 
-    impl std::str::FromStr for Curve25519Public {
+    impl FromStr for Curve25519Public {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             let pk: FixedB64<32> = s.parse()?;
@@ -255,7 +435,7 @@ mod curve25519impl {
     }
 
     impl Display for Curve25519Public {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             FixedB64::from(self.0.to_bytes()).fmt(f)
         }
     }
@@ -267,7 +447,7 @@ mod curve25519impl {
 
 /// Types for decoding ed25519 keys
 mod ed25519impl {
-    use std::fmt::Display;
+    use super::*;
 
     use crate::{Error, NormalItemArgument, Result, types::misc::FixedB64};
     use derive_deftly::Deftly;
@@ -279,7 +459,7 @@ mod ed25519impl {
     #[allow(clippy::exhaustive_structs)]
     pub struct Ed25519Public(pub Ed25519Identity);
 
-    impl std::str::FromStr for Ed25519Public {
+    impl FromStr for Ed25519Public {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             let pk: FixedB64<32> = s.parse()?;
@@ -288,7 +468,7 @@ mod ed25519impl {
     }
 
     impl Display for Ed25519Public {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let pk: [u8; 32] = self.0.into();
             let pk = FixedB64::from(pk);
             pk.fmt(f)
@@ -659,6 +839,7 @@ impl<T: PartialOrd> PartialOrd for Unknown<T> {
 
 /// Types for decoding times and dates
 mod timeimpl {
+    use super::*;
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use std::time::SystemTime;
     use time::{
@@ -670,8 +851,8 @@ mod timeimpl {
     /// space between the date and time.
     ///
     /// (Example: "2020-10-09 17:38:12")
-    #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)] //
-    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Deftly)]
+    #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Iso8601TimeSp(pub SystemTime);
 
@@ -679,7 +860,7 @@ mod timeimpl {
     const ISO_8601SP_FMT: &[FormatItem] =
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
-    impl std::str::FromStr for Iso8601TimeSp {
+    impl FromStr for Iso8601TimeSp {
         type Err = Error;
         fn from_str(s: &str) -> Result<Iso8601TimeSp> {
             let d = PrimitiveDateTime::parse(s, &ISO_8601SP_FMT).map_err(|e| {
@@ -693,19 +874,19 @@ mod timeimpl {
 
     /// Formats a SystemTime according to the given format description
     ///
-    /// Also converts any time::error::format to std::fmt::Error
+    /// Also converts any time::error::format to fmt::Error
     /// so that it can be unwrapped in the Display trait impl
     fn fmt_with(
         t: SystemTime,
         format_desc: &[FormatItem],
-    ) -> core::result::Result<String, std::fmt::Error> {
+    ) -> core::result::Result<String, fmt::Error> {
         OffsetDateTime::from(t)
             .format(format_desc)
-            .map_err(|_| std::fmt::Error)
+            .map_err(|_| fmt::Error)
     }
 
-    impl std::fmt::Display for Iso8601TimeSp {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    impl Display for Iso8601TimeSp {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{}", fmt_with(self.0, ISO_8601SP_FMT)?)
         }
     }
@@ -719,8 +900,8 @@ mod timeimpl {
     /// The timezone is not included in the string representation; `+0000` is implicit.
     ///
     /// (Example: "2020-10-09T17:38:12")
-    #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)] //
-    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Deftly)]
+    #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Iso8601TimeNoSp(pub SystemTime);
 
@@ -728,7 +909,7 @@ mod timeimpl {
     const ISO_8601NOSP_FMT: &[FormatItem] =
         format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
 
-    impl std::str::FromStr for Iso8601TimeNoSp {
+    impl FromStr for Iso8601TimeNoSp {
         type Err = Error;
         fn from_str(s: &str) -> Result<Iso8601TimeNoSp> {
             let d = PrimitiveDateTime::parse(s, &ISO_8601NOSP_FMT).map_err(|e| {
@@ -740,8 +921,8 @@ mod timeimpl {
         }
     }
 
-    impl std::fmt::Display for Iso8601TimeNoSp {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    impl Display for Iso8601TimeNoSp {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{}", fmt_with(self.0, ISO_8601NOSP_FMT)?)
         }
     }
@@ -1118,40 +1299,40 @@ mod identified_digest {
 
 /// Types for decoding RSA fingerprints
 mod fingerprint {
+    use super::*;
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use base64ct::{Base64Unpadded, Encoding as _};
-    use std::fmt::{self, Display};
     use tor_llcrypto::pk::rsa::RsaIdentity;
 
     /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq)] //
-    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[derive(Debug, Clone, Eq, PartialEq, Hash, Deftly)]
+    #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct SpFingerprint(pub RsaIdentity);
 
     /// A hex-encoded fingerprint with no spaces.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq)] //
-    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[derive(Debug, Clone, Eq, PartialEq, Hash, Deftly)]
+    #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Fingerprint(pub RsaIdentity);
 
     /// A base64-encoded fingerprint (unpadded)
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq)] //
-    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[derive(Debug, Clone, Eq, PartialEq, Hash, Deftly)]
+    #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Base64Fingerprint(pub RsaIdentity);
 
     /// A "long identity" in the format used for Family members.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, Hash)] //
-    #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[derive(Debug, Clone, Eq, PartialEq, Hash, Deftly)]
+    #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct LongIdent(pub RsaIdentity);
 
@@ -1164,7 +1345,7 @@ mod fingerprint {
         })
     }
 
-    impl std::str::FromStr for SpFingerprint {
+    impl FromStr for SpFingerprint {
         type Err = Error;
         fn from_str(s: &str) -> Result<SpFingerprint> {
             let ident = parse_hex_ident(&s.replace(' ', "")).map_err(|e| e.at_pos(Pos::at(s)))?;
@@ -1172,7 +1353,7 @@ mod fingerprint {
         }
     }
 
-    impl std::str::FromStr for Base64Fingerprint {
+    impl FromStr for Base64Fingerprint {
         type Err = Error;
         fn from_str(s: &str) -> Result<Base64Fingerprint> {
             let b = s.parse::<super::B64>()?;
@@ -1191,7 +1372,7 @@ mod fingerprint {
         }
     }
 
-    impl std::str::FromStr for Fingerprint {
+    impl FromStr for Fingerprint {
         type Err = Error;
         fn from_str(s: &str) -> Result<Fingerprint> {
             let ident = parse_hex_ident(s).map_err(|e| e.at_pos(Pos::at(s)))?;
@@ -1205,7 +1386,7 @@ mod fingerprint {
         }
     }
 
-    impl std::str::FromStr for LongIdent {
+    impl FromStr for LongIdent {
         type Err = Error;
         fn from_str(mut s: &str) -> Result<LongIdent> {
             if s.starts_with('$') {
@@ -1232,6 +1413,7 @@ mod fingerprint {
 
 /// A type for relay nicknames
 mod nickname {
+    use super::*;
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use tinystr::TinyAsciiStr;
 
@@ -1256,13 +1438,13 @@ mod nickname {
         }
     }
 
-    impl std::fmt::Display for Nickname {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    impl Display for Nickname {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             self.as_str().fmt(f)
         }
     }
 
-    impl std::str::FromStr for Nickname {
+    impl FromStr for Nickname {
         type Err = Error;
 
         fn from_str(s: &str) -> Result<Self> {
@@ -1467,10 +1649,22 @@ mod test {
     }
 
     #[test]
-    fn base16() -> Result<()> {
-        assert_eq!("332e313432".parse::<B16>()?.as_bytes(), &b"3.142"[..]);
-        assert_eq!("332E313432".parse::<B16>()?.as_bytes(), &b"3.142"[..]);
-        assert_eq!("332E3134".parse::<B16>()?.as_bytes(), &b"3.14"[..]);
+    fn base16() -> anyhow::Result<()> {
+        let chk = |s: &str, b: &[u8]| -> anyhow::Result<()> {
+            let parsed = s.parse::<B16>()?;
+            assert_eq!(parsed.as_bytes(), b, "{s:?}");
+            assert_eq!(parsed.to_string(), s.to_ascii_lowercase());
+
+            let parsed = s.parse::<B16U>()?;
+            assert_eq!(parsed.as_bytes(), b, "{s:?}");
+            assert_eq!(parsed.to_string(), s.to_ascii_uppercase());
+            Ok(())
+        };
+
+        chk("332e313432", b"3.142")?;
+        chk("332E313432", b"3.142")?;
+        chk("332E3134", b"3.14")?;
+
         assert!("332E313".parse::<B16>().is_err());
         assert!("332G3134".parse::<B16>().is_err());
         Ok(())

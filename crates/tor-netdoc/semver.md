@@ -8,3 +8,11 @@ BREAKING: `Microdesc::family_ids` is now stored as a `RelayFamilyIds`
 BREAKING: `Microdesc::ntor_onion_key` is now stored as a `Curve25519Public`
 BREAKING: `PortRange`'s fields are private now
 ADDED: `types::ContactInfo`
+ADDED: `types::B64` implements `Deref`, `DerefMut`, various `AsRef`/`AsMut`
+ADDED: `types::FixedB64`
+ADDED: `types::B64`'s field is now `pub`
+BREAKING: Removed `types::B64::into_array`; use methods on `Vec` and slice instead
+ADDED: `types::B16`, `types::B16U`
+ADDED: `types::Curve25519Public` impls `Deref`, `DerefMut`, `AsRef`, `AsMut`
+ADDED: `types::Iso8601TimeSp`, `Iso8601TimeSp` impl `AsRef`, `AsMut`
+ADDED: `types::SpFingerprint`, `Fingerprint`, `Base64Fingerprint`, `LongIdent`, impl `Hash`, `AsRef`, `AsMut`
