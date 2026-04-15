@@ -176,10 +176,12 @@ pub struct NdiAuthorityDirSource {
 }
 
 ns_choose! { (
-define_derive_deftly! {
-    NddAuthoritySection:
+    use VoteAuthoritySection as NddAuthoritySection;
 
-    impl NetdocParseable for NddAuthoritySection {
+define_derive_deftly! {
+    VoteAuthoritySection:
+
+    impl NetdocParseable for VoteAuthoritySection {
         fn doctype_for_error() -> &'static str {
             "vote.authority.section"
         }
@@ -199,7 +201,7 @@ define_derive_deftly! {
                 | StopAt($ftype::is_intro_item_keyword)
               )
             ;
-            Ok(NddAuthoritySection { $(
+            Ok(VoteAuthoritySection { $(
                 $fname: NetdocParseable::from_items(input, stop_inner)?,
             ) })
         }
@@ -214,9 +216,9 @@ define_derive_deftly! {
 // just a kind of ad-hoc thing which we've made into its own type
 // to avoid the NetworkStatus becoming very odd.
 #[derive(Deftly, Clone, Debug)]
-#[derive_deftly(NddAuthoritySection)]
+#[derive_deftly(VoteAuthoritySection)]
 #[non_exhaustive]
-pub struct NddAuthoritySection {
+pub struct VoteAuthoritySection {
     /// Authority entry
     pub authority: VoteAuthorityEntry,
     /// Authority key certificate
