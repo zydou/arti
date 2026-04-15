@@ -82,7 +82,7 @@ pub(crate) struct RelaySigningKeypairSpecifier {
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_relaysign_ed")]
 #[deftly(summary = "Public part of the relay medium-term signing keypair")]
-#[deftly(keypair_specifier = "RelaySigningKeypairSpecifier")]
+#[deftly(keypair_specifier = RelaySigningKeypairSpecifier)]
 pub(crate) struct RelaySigningPublicKeySpecifier {
     /// The expiration time of this key.
     ///
@@ -126,7 +126,7 @@ pub(crate) struct RelayNtorKeypairSpecifier {
 #[deftly(prefix = "relay")]
 #[deftly(role = "KP_ntor")]
 #[deftly(summary = "Public part of the relay medium-term ntor keypair")]
-#[deftly(keypair_specifier = "RelayNtorKeypairSpecifier")]
+#[deftly(keypair_specifier = RelayNtorKeypairSpecifier)]
 pub(crate) struct RelayNtorPublicKeySpecifier {
     /// The expiration time of this key.
     #[deftly(denotator)]
