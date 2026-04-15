@@ -134,7 +134,7 @@ pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 #[cfg(feature = "ns-vote")]
 pub use rs::{RouterStatusMdDigestsVote, SoftwareVersion};
 
-pub use dir_source::DirSource;
+pub use dir_source::{DirSource, SupersededAuthorityKey};
 
 /// `publiscation` field in routerstatus entry intro item other than in votes
 ///
