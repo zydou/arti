@@ -60,3 +60,4 @@ BREAKING: `ConsensusVoterInfo` renamed to `ConsensusAuthorityEntry`
 BREAKING: `ConsensusVoterInfo`; several field types changed 
 ADDED: `ConsensusVoterInfo`: `ItemValueParseable`, `ItemValueEncodable`, `Constructor`
 ADDED: `VoteAuthorityEntry`, `VoteAuthoritySection`
+ADDED: `SupersededAuthorityKey`, `ConsensusAuthoritySection`
