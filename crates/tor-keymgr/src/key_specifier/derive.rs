@@ -431,7 +431,7 @@ define_derive_deftly! {
     ///    (Can be even used before a denotator component,
     ///    to add a final fixed path component.)
     ///
-    ///  * **`#[deftly(key_specifier = "type")]`** (field):
+    ///  * **`#[deftly(keypair_specifier = "type")]`** (field):
     ///    If this is the specifier for a public key, the specifier for
     ///    the corresponding keypair type.
     ///
