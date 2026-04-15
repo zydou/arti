@@ -664,8 +664,11 @@ pub type MdAuthorityEntry = ConsensusAuthorityEntry;
 // We don't use the `each_variety` system for this because:
 //  1. That avoids separating the two consensus authority entry types, which are identical
 //  2. The only common fields are `dir-source` and `contact`, so there is little duplication
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
 #[non_exhaustive]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
 pub struct ConsensusAuthorityEntry {
     /// Contents of the `dir-source` line about an authority
     pub dir_source: DirSource,
@@ -679,6 +682,7 @@ pub struct ConsensusAuthorityEntry {
 
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
+    #[deftly(netdoc(single_arg))]
     pub vote_digest: B16U,
 }
 
