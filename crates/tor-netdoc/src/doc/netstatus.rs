@@ -665,12 +665,14 @@ pub type MdAuthorityEntry = ConsensusAuthorityEntry;
 //  1. That avoids separating the two consensus authority entry types, which are identical
 //  2. The only common fields are `dir-source` and `contact`, so there is little duplication
 #[derive(Debug, Clone, Deftly)]
-#[non_exhaustive]
 #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
 #[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
 #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[derive_deftly(Constructor)]
+#[allow(clippy::exhaustive_structs)]
 pub struct ConsensusAuthorityEntry {
     /// Contents of the `dir-source` line about an authority
+    #[deftly(constructor)]
     pub dir_source: DirSource,
 
     /// Human-readable contact information about the authority
@@ -678,12 +680,18 @@ pub struct ConsensusAuthorityEntry {
     // If more non-intro fields get added that are the same in votes and cosensuses,
     // consider using each_variety.rs or breaking those fields out into
     // `AuthorityEntryCommon` implementing `NetdocParseableFields`, or something.
+    #[deftly(constructor)]
     pub contact: ContactInfo,
 
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
     #[deftly(netdoc(single_arg))]
+    #[deftly(constructor)]
     pub vote_digest: B16U,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// The signed footer of a consensus netstatus.
@@ -1123,6 +1131,7 @@ impl ConsensusAuthorityEntry {
             dir_source,
             contact,
             vote_digest,
+            __non_exhaustive: (),
         })
     }
 }

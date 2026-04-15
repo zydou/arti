@@ -398,6 +398,7 @@ impl VoterInfoBuilder {
             dir_source,
             contact,
             vote_digest: self.vote_digest.clone().into(),
+            __non_exhaustive: (),
         };
         builder.voters.push(info);
         Ok(())
