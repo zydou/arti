@@ -177,6 +177,7 @@ pub struct NdiAuthorityDirSource {
 
 ns_choose! { (
     use VoteAuthoritySection as NddAuthoritySection;
+    use crate::doc::authcert::{AuthCertUnverified, EncodedAuthCert};
 
 define_derive_deftly! {
     VoteAuthoritySection:
@@ -190,12 +191,12 @@ define_derive_deftly! {
         }
         fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
             VoteAuthorityEntry::is_structural_keyword(kw)
-                .or_else(|| authcert::AuthCertUnverified::is_structural_keyword(kw))
+                .or_else(|| AuthCertUnverified::is_structural_keyword(kw))
         }
         fn from_items<'s>(
             input: &mut ItemStream<'s>,
             stop_outer: stop_at!(),
-        ) -> Result<Self, ErrorProblem> {
+        ) -> StdResult<Self, ErrorProblem> {
             let stop_inner = stop_outer
               $(
                 | StopAt($ftype::is_intro_item_keyword)
@@ -222,7 +223,7 @@ pub struct VoteAuthoritySection {
     /// Authority entry
     pub authority: VoteAuthorityEntry,
     /// Authority key certificate
-    pub cert: crate::doc::authcert::EncodedAuthCert,
+    pub cert: EncodedAuthCert,
 }
 )(
     /// An authority section in a consensus

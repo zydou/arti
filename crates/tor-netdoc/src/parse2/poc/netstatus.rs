@@ -6,6 +6,7 @@ use crate::doc::{self, authcert};
 use crate::types;
 use authcert::AuthCert as DirAuthKeyCert;
 use doc::netstatus::{ConsensusAuthorityEntry, VoteAuthorityEntry};
+use std::result::Result as StdResult;
 
 mod ns_per_flavour_macros;
 pub use ns_per_flavour_macros::*;
