@@ -98,7 +98,6 @@ define_derive_deftly! {
     #[derive(Debug, Clone, Deftly)]
     #[cfg(feature = "parse2")]
     #[derive_deftly(ItemValueParseable)]
-    #[allow(dead_code)] // XXXX
     #[derive_deftly_adhoc] // ignore deftly attrs directed at Constructor
     struct RawDirSource {
         /// Raw nickname, as parsed
@@ -108,7 +107,6 @@ define_derive_deftly! {
     }
 
     #[cfg(feature = "parse2")]
-    #[allow(dead_code)] // XXXX
     impl RawDirSource {
         /// Convert into the public representation.
         fn into_superseded(self) -> Result<SupersededAuthorityKey, ErrorProblem> {
@@ -171,4 +169,110 @@ pub struct DirSource {
     #[doc(hidden)]
     #[deftly(netdoc(skip))]
     pub __non_exhaustive: (),
+}
+
+/// Authority section as found in a consensus
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority>
+///
+/// Note that though you can construct one with an empty `authorities` field,
+/// that will generate a `Bug` when you encode it.
+///
+/// For votes, see [`VoteAuthoritySection`]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(Constructor)]
+#[allow(clippy::exhaustive_structs)]
+pub struct ConsensusAuthoritySection {
+    /// Authority entries
+    ///
+    /// Always nonempty when parsed; must be nonempty or encoding will fail with `Bug`.
+    //
+    // If the user wants to provide an empty vec, at least force them to write it out.
+    #[deftly(constructor)]
+    pub authorities: Vec<ConsensusAuthorityEntry>,
+
+    /// Superseded authority key entries
+    pub superseded_keys: Vec<SupersededAuthorityKey>,
+
+    #[doc(hidden)]
+    pub __non_exhaustive: (),
+}
+
+#[cfg(feature = "encode")]
+impl NetdocEncodable for ConsensusAuthoritySection {
+    fn encode_unsigned(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
+        // bind all fields so that if any are added we remember to encode them
+        let ConsensusAuthoritySection {
+            authorities,
+            superseded_keys,
+            __non_exhaustive,
+        } = self;
+
+        if authorities.is_empty() {
+            return Err(internal!("tried to encode a consensus with 0 authorities"));
+        }
+        for a in authorities {
+            a.encode_unsigned(out)?;
+        }
+        for s in superseded_keys {
+            let out = out.item(DIR_SOURCE_KEYWORD);
+            s.write_item_value_onto(out)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "parse2")]
+impl NetdocParseable for ConsensusAuthoritySection {
+    fn doctype_for_error() -> &'static str {
+        "consensus.authorities"
+    }
+
+    fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
+        ConsensusAuthorityEntry::is_intro_item_keyword(kw)
+    }
+
+    fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
+        ConsensusAuthorityEntry::is_structural_keyword(kw)
+    }
+
+    fn from_items(input: &mut ItemStream<'_>, stop_at: stop_at!()) -> Result<Self, ErrorProblem> {
+        let mut accum = ConsensusAuthoritySection {
+            authorities: vec![],
+            superseded_keys: vec![],
+            __non_exhaustive: (),
+        };
+
+        while let Some(peeked) = input.peek_keyword()? {
+            if !Self::is_intro_item_keyword(peeked) {
+                break;
+            }
+
+            // Well, this is pretty terrible
+            let rest = &input.whole_input()[input.byte_position()..];
+            let line = rest.split_once('\n').map(|(l, _)| l).unwrap_or(rest);
+            let mut line = line.split_ascii_whitespace();
+            assert_eq!(line.next(), Some(DIR_SOURCE_KEYWORD));
+            let raw_nickname = line
+                .next()
+                .ok_or(ErrorProblem::MissingArgument { field: "nickname" })?;
+
+            if raw_nickname.ends_with(SUPERSEDED_SUFFIX) {
+                let item = input.next().expect("peeked")?;
+                let s = RawDirSource::from_unparsed(item)?.into_superseded()?;
+                accum.superseded_keys.push(s);
+            } else {
+                let a = ConsensusAuthorityEntry::from_items(input, stop_at)?;
+                accum.authorities.push(a);
+            }
+        }
+
+        if accum.authorities.is_empty() {
+            return Err(ErrorProblem::MissingItem {
+                keyword: DIR_SOURCE_KEYWORD,
+            });
+        }
+
+        Ok(accum)
+    }
 }

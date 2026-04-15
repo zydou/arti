@@ -62,12 +62,12 @@ mod build;
 
 #[cfg(feature = "encode")]
 use {
-    crate::encode::{NetdocEncodable, NetdocEncoder}, //
+    crate::encode::{ItemValueEncodable, NetdocEncodable, NetdocEncoder}, //
     tor_error::Bug,
 };
 #[cfg(feature = "parse2")]
 use {
-    crate::parse2::{self, ArgumentStream}, //
+    crate::parse2::{self, ArgumentStream, ItemValueParseable}, //
 };
 
 #[cfg(feature = "parse2")]
@@ -134,7 +134,7 @@ pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 #[cfg(feature = "ns-vote")]
 pub use rs::{RouterStatusMdDigestsVote, SoftwareVersion};
 
-pub use dir_source::{DirSource, SupersededAuthorityKey};
+pub use dir_source::{ConsensusAuthoritySection, DirSource, SupersededAuthorityKey};
 
 /// `publiscation` field in routerstatus entry intro item other than in votes
 ///
@@ -699,6 +699,8 @@ pub struct VoteAuthorityEntry {
     #[deftly(netdoc(skip))]
     pub __non_exhaustive: (),
 }
+
+// For `ConsensusAuthoritySection`, see `dir_source.rs`.
 
 define_derive_deftly! {
     /// Ad-hoc derive, `impl NetdocParseable for VoteAuthoritySection`
