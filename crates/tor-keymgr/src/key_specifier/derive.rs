@@ -412,7 +412,7 @@ define_derive_deftly! {
     ///    Designates a field that should be represented
     ///    in the key file leafname, after the role.
     ///
-    ///  * **`#[deftly(ctor_path = "<variant>")]`** (toplevel):
+    ///  * **`#[deftly(ctor_path = <variant>)]`** (toplevel):
     ///    Specifies that this kind of key has a representation in C Tor keystores,
     ///    and provides the appropriate [`CTorPath`] variant in `<variant>`.
     ///
