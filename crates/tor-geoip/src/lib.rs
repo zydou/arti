@@ -49,8 +49,8 @@
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full")), allow(unused))]
 
+use crate::dense_range_map::DenseRangeMap;
 pub use crate::err::Error;
-use rangemap::RangeInclusiveMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{IpAddr, Ipv6Addr};
 use std::num::{NonZeroU8, NonZeroU32, TryFromIntError};
@@ -254,9 +254,9 @@ impl NetDefn {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct GeoipDb {
     /// The IPv4 subset of the database, with v4 addresses stored as 32-bit integers.
-    map_v4: RangeInclusiveMap<u32, NetDefn>,
+    map_v4: DenseRangeMap<u32, NetDefn>,
     /// The IPv6 subset of the database, with v6 addresses stored as 128-bit integers.
-    map_v6: RangeInclusiveMap<u128, NetDefn>,
+    map_v6: DenseRangeMap<u128, NetDefn>,
 }
 
 impl GeoipDb {
@@ -277,26 +277,19 @@ impl GeoipDb {
 
     /// Make a new `GeoipDb` using provided copies of the v4 and v6 database, in Tor legacy format.
     pub fn new_from_legacy_format(db_v4: &str, db_v6: &str) -> Result<Self, Error> {
-        let mut ret = GeoipDb {
-            map_v4: Default::default(),
-            map_v6: Default::default(),
-        };
+        let map_v4 = DenseRangeMap::try_from_sorted_inclusive_ranges(
+            db_v4
+                .lines()
+                .filter_map(|line| parse_line::<u32>(line).transpose()),
+        )?;
 
-        for line in db_v4.lines() {
-            let Some((range, defn)) = parse_line::<u32>(line)? else {
-                continue;
-            };
-            ret.map_v4.insert(range, defn);
-        }
+        let map_v6 = DenseRangeMap::try_from_sorted_inclusive_ranges(
+            db_v6
+                .lines()
+                .filter_map(|line| parse_line::<Ipv6Addr>(line).transpose()),
+        )?;
 
-        for line in db_v6.lines() {
-            let Some((range, defn)) = parse_line::<Ipv6Addr>(line)? else {
-                continue;
-            };
-            ret.map_v6.insert(range, defn);
-        }
-
-        Ok(ret)
+        Ok(Self { map_v4, map_v6 })
     }
 
     /// Get the `NetDefn` for an IP address.
@@ -390,17 +383,17 @@ where
     let mut split = line.split(',');
     let from = split
         .next()
-        .ok_or(Error::BadFormat("empty line somehow?"))?
+        .ok_or(Error::BadFormat("empty line somehow?".into()))?
         .parse::<T>()?
         .to_int();
     let to = split
         .next()
-        .ok_or(Error::BadFormat("line with insufficient commas"))?
+        .ok_or(Error::BadFormat("line with insufficient commas".into()))?
         .parse::<T>()?
         .to_int();
     let cc = split
         .next()
-        .ok_or(Error::BadFormat("line with insufficient commas"))?;
+        .ok_or(Error::BadFormat("line with insufficient commas".into()))?;
     let asn = split.next().map(|x| x.parse::<u32>()).transpose()?;
 
     let defn = NetDefn::new(cc, asn)?;
@@ -467,8 +460,8 @@ mod test {
         16909056,16909311,GB
         "#;
         let src_v6 = r#"
-        fe80::,fe81::,US
         dead:beef::,dead:ffff::,??
+        fe80::,fe81::,US
         "#;
         let db = GeoipDb::new_from_legacy_format(src_v4, src_v6).unwrap();
 

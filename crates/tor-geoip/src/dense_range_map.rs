@@ -5,7 +5,6 @@
 //!
 //! This trick lets us save about 40%-50% of the total database size, for
 //! a savings of around 6 MiB.  (Data checked as of April 2026)
-#![allow(dead_code)] //XXXX
 
 use std::ops::RangeInclusive;
 
@@ -224,12 +223,25 @@ impl<K: Eq + Ord + Successor, V> DenseRangeMap<K, V> {
     /// Construct a [`DenseRangeMap`] from an iterator of `(range,value)` pairs.
     ///
     /// The ranges must be disjoint and sorted in ascending order by their start.
+    #[cfg(test)]
     pub(crate) fn from_sorted_inclusive_ranges<S>(iter: S) -> Result<Self, Error>
     where
         S: Iterator<Item = (RangeInclusive<K>, V)>,
     {
+        Self::try_from_sorted_inclusive_ranges(iter.map(Ok))
+    }
+
+    /// Construct a [`DenseRangeMap`] from an iterator of `Result<(range,value>`` pairs.
+    ///
+    /// The ranges must be disjoint and sorted in ascending order by their start.
+    pub(crate) fn try_from_sorted_inclusive_ranges<S, E>(iter: S) -> Result<Self, E>
+    where
+        S: Iterator<Item = Result<(RangeInclusive<K>, V), E>>,
+        E: From<Error>,
+    {
         let mut b = DenseRangeMapBuilder::new();
-        for (range, value) in iter {
+        for entry in iter {
+            let (range, value) = entry?;
             b.push(range, value)?;
         }
 
