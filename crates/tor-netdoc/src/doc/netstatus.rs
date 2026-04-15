@@ -649,7 +649,7 @@ impl RelayWeight {
 }
 
 /// Authority entry in a consensus - deprecated compatibility type alias
-// XXXX #[deprecated = "renamed to ConsensusAuthorityEntry"]
+#[deprecated = "renamed to ConsensusAuthorityEntry"]
 pub type ConsensusVoterInfo = ConsensusAuthorityEntry;
 
 /// Authority entry in a plain consensus - type alias provided for consistency
@@ -1079,9 +1079,9 @@ impl DirSource {
     }
 }
 
-impl ConsensusVoterInfo {
-    /// Parse a single ConsensusVoterInfo from a voter info section.
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusVoterInfo> {
+impl ConsensusAuthorityEntry {
+    /// Parse a single ConsensusAuthorityEntry from a voter info section.
+    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusAuthorityEntry> {
         use NetstatusKwd::*;
         // this unwrap should be safe because if there is not at least one
         // token in the section, the section is unparsable.
@@ -1100,7 +1100,7 @@ impl ConsensusVoterInfo {
 
         let vote_digest = sec.required(VOTE_DIGEST)?.parse_arg::<B16>(0)?.into();
 
-        Ok(ConsensusVoterInfo {
+        Ok(ConsensusAuthorityEntry {
             dir_source,
             contact,
             vote_digest,

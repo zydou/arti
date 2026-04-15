@@ -56,7 +56,7 @@ pub struct ConsensusBuilder {
     /// See [`Preamble::shared_rand_current_value`]
     shared_rand_current_value: Option<SharedRandStatus>,
     /// See [`Consensus::voters`]
-    voters: Vec<ConsensusVoterInfo>,
+    voters: Vec<ConsensusAuthorityEntry>,
     /// See [`Consensus::relays`]
     relays: Vec<RouterStatus>,
     /// See [`Footer::weights`]
@@ -277,7 +277,7 @@ impl ConsensusBuilder {
     }
 }
 
-/// Builder object for constructing a [`ConsensusVoterInfo`]
+/// Builder object for constructing a [`ConsensusAuthorityEntry`]
 pub struct VoterInfoBuilder {
     /// See [`DirSource::nickname`]
     nickname: Option<String>,
@@ -285,9 +285,9 @@ pub struct VoterInfoBuilder {
     identity: Option<RsaIdentity>,
     /// See [`DirSource::ip`]
     ip: Option<IpAddr>,
-    /// See [`ConsensusVoterInfo::contact`]
+    /// See [`ConsensusAuthorityEntry::contact`]
     contact: Option<String>,
-    /// See [`ConsensusVoterInfo::vote_digest`]
+    /// See [`ConsensusAuthorityEntry::vote_digest`]
     vote_digest: Vec<u8>,
     /// See [`DirSource::or_port`]
     or_port: u16,
@@ -393,7 +393,7 @@ impl VoterInfoBuilder {
             __non_exhaustive: (),
         };
 
-        let info = ConsensusVoterInfo {
+        let info = ConsensusAuthorityEntry {
             dir_source,
             contact,
             vote_digest: self.vote_digest.clone(),
