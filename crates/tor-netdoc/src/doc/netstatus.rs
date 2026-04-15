@@ -753,6 +753,8 @@ define_derive_deftly! {
     /// that will contain this.
     VoteAuthoritySection:
 
+    ${defcond F_NORMAL not(fmeta(netdoc(skip)))}
+
     #[cfg(feature = "parse2")]
     impl NetdocParseable for VoteAuthoritySection {
         fn doctype_for_error() -> &'static str {
@@ -763,6 +765,7 @@ define_derive_deftly! {
         }
         fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
           $(
+            ${when F_NORMAL}
             if let y @ Some(_) = $ftype::is_structural_keyword(kw) {
                 return y;
             }
@@ -775,12 +778,16 @@ define_derive_deftly! {
         ) -> StdResult<Self, ErrorProblem> {
             let stop_inner = stop_outer
               $(
+                ${when F_NORMAL}
                 | StopAt($ftype::is_intro_item_keyword)
               )
             ;
             Ok(VoteAuthoritySection { $(
+                ${when F_NORMAL}
                 $fname: NetdocParseable::from_items(input, stop_inner)?,
-            ) })
+            )
+                __non_exhaustive: (),
+            })
         }
     }
 
@@ -788,6 +795,7 @@ define_derive_deftly! {
     impl NetdocEncodable for VoteAuthoritySection {
         fn encode_unsigned(&self, out: &mut NetdocEncoder) -> StdResult<(), Bug> {
           $(
+            ${when F_NORMAL}
             self.$fname.encode_unsigned(out)?;
           )
           Ok(())
@@ -802,15 +810,21 @@ define_derive_deftly! {
 // We have split this out to help encapsulate vote/consensus-specific
 // information in a forthcoming overall network status document type.
 #[derive(Deftly, Clone, Debug)]
-#[derive_deftly(VoteAuthoritySection)]
-#[non_exhaustive]
+#[derive_deftly(VoteAuthoritySection, Constructor)]
+#[allow(clippy::exhaustive_structs)]
 #[cfg(all(feature = "parse2", feature = "plain-consensus"))]
 pub struct VoteAuthoritySection {
     /// Authority entry
+    #[deftly(constructor)]
     pub authority: VoteAuthorityEntry,
 
     /// Authority key certificate
+    #[deftly(constructor)]
     pub cert: EncodedAuthCert,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// The signed footer of a consensus netstatus.
