@@ -44,7 +44,7 @@ define_derive_deftly! {
 #[deftly(role = "KP_hs_id")]
 #[deftly(summary = "Public part of the identity key")]
 #[deftly(keypair_specifier = HsIdKeypairSpecifier)]
-#[deftly(ctor_path = "HsIdPublicKey")]
+#[deftly(ctor_path = HsIdPublicKey)]
 /// The public part of the identity key of the service.
 pub struct HsIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
@@ -56,7 +56,7 @@ pub struct HsIdPublicKeySpecifier {
 #[deftly(prefix = "hss")]
 #[deftly(role = "KS_hs_id")]
 #[deftly(summary = "Long-term identity keypair")]
-#[deftly(ctor_path = "HsIdKeypair")]
+#[deftly(ctor_path = HsIdKeypair)]
 /// The long-term identity keypair of the service.
 pub struct HsIdKeypairSpecifier {
     /// The nickname of the  hidden service.
