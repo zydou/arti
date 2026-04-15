@@ -57,6 +57,7 @@ use std::num::{NonZeroU8, NonZeroU32, TryFromIntError};
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 
+mod dense_range_map;
 mod err;
 
 /// An embedded copy of the latest geoip v4 database at the time of compilation.
