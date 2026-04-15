@@ -43,7 +43,7 @@ define_derive_deftly! {
 #[deftly(prefix = "hss")]
 #[deftly(role = "KP_hs_id")]
 #[deftly(summary = "Public part of the identity key")]
-#[deftly(keypair_specifier = "HsIdKeypairSpecifier")]
+#[deftly(keypair_specifier = HsIdKeypairSpecifier)]
 #[deftly(ctor_path = "HsIdPublicKey")]
 /// The public part of the identity key of the service.
 pub struct HsIdPublicKeySpecifier {
@@ -87,7 +87,7 @@ pub struct BlindIdKeypairSpecifier {
 #[derive_deftly(KeySpecifier, HsTimePeriodKeySpecifier)]
 #[deftly(prefix = "hss")]
 #[deftly(role = "KP_hs_blind_id")]
-#[deftly(keypair_specifier = "BlindIdKeypairSpecifier")]
+#[deftly(keypair_specifier = BlindIdKeypairSpecifier)]
 #[deftly(summary = "Blinded public key")]
 /// The blinded public key.
 pub struct BlindIdPublicKeySpecifier {
