@@ -18,3 +18,4 @@ ADDED: `types::Iso8601TimeSp`, `Iso8601TimeSp` impl `AsRef`, `AsMut`
 ADDED: `types::SpFingerprint`, `Fingerprint`, `Base64Fingerprint`, `LongIdent`, impl `Hash`, `AsRef`, `AsMut`
 ADDED: `types::Hostname`, `types::InternetHost`
 BREAKING: `types::Nickname`, `FromStr` error type is now `InvalidNickname`
+ADDED: `#[deftly(netdoc(skip))]` supported in `ItemValueParseable` and `ItemValueEncodable` derives
