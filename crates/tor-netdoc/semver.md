@@ -56,3 +56,6 @@ ADDED: Implement conversions from `tor_checkable` errors to `VerifyFailed`
 ADDED: `RetainedOrderVec`
 ADDED: `EmbeddedCert`
 ADDED: `DirSource` implements `ItemValueParseable` and `ItemValueEncodable` and has a `Constructor`
+BREAKING: `ConsensusVoterInfo` renamed to `ConsensusAuthorityEntry`
+BREAKING: `ConsensusVoterInfo`; several field types changed 
+ADDED: `ConsensusVoterInfo`: `ItemValueParseable`, `ItemValueEncodable`, `Constructor`
