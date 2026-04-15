@@ -390,6 +390,7 @@ impl VoterInfoBuilder {
             ip,
             dir_port: self.dir_port,
             or_port: self.or_port,
+            __non_exhaustive: (),
         };
 
         let info = ConsensusVoterInfo {

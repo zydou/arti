@@ -590,12 +590,14 @@ pub struct SharedRandStatus {
 /// (Corresponds to a dir-source line.)
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:dir-source>
 #[derive(Debug, Clone, Deftly)]
-#[non_exhaustive]
 #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
 #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
 #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[derive_deftly(Constructor)]
+#[allow(clippy::exhaustive_structs)]
 pub struct DirSource {
     /// human-readable nickname for this authority.
+    #[deftly(constructor)]
     pub nickname: Nickname,
 
     /// Fingerprint for the _authority_ identity key of this
@@ -603,12 +605,15 @@ pub struct DirSource {
     ///
     /// This is the same key as the one that signs the authority's
     /// certificates.
+    #[deftly(constructor)]
     pub identity: Fingerprint,
 
     /// IP address for the authority
+    #[deftly(constructor)]
     pub hostname: InternetHost,
 
     /// IP address for the authority
+    #[deftly(constructor(default = { net::Ipv6Addr::UNSPECIFIED.into() }))]
     pub ip: net::IpAddr,
 
     /// HTTP directory port for this authority
@@ -616,6 +621,10 @@ pub struct DirSource {
 
     /// OR port for this authority.
     pub or_port: u16,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// Recognized weight fields on a single relay in a consensus
@@ -1046,6 +1055,7 @@ impl DirSource {
             ip,
             dir_port,
             or_port,
+            __non_exhaustive: (),
         })
     }
 }
