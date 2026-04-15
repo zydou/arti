@@ -99,7 +99,9 @@ impl RouterStatus {
         use NetstatusKwd::*;
         // R line
         let r_item = sec.required(RS_R)?;
-        let nickname = r_item.required_arg(0)?.parse()?;
+        let nickname = r_item.required_arg(0)?.parse().map_err(|e: InvalidNickname| {
+            EK::BadArgument.with_msg(e.to_string()).at_pos(r_item.pos())
+        })?;
         let ident = r_item.required_arg(1)?;
         let identity = ident.parse::<Base64Fingerprint>()?;
         // Fields to skip in the "r" line.

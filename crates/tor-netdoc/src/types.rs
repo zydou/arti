@@ -14,7 +14,7 @@ pub mod policy;
 pub mod relay_flags;
 pub mod version;
 
-pub use misc::{ContactInfo, Nickname, NotPresent, Unknown};
+pub use misc::{ContactInfo, InvalidNickname, Nickname, NotPresent, Unknown};
 pub use misc::{Hostname, InternetHost, InvalidHostname, InvalidInternetHost};
 
 pub use misc::B64;

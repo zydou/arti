@@ -48,7 +48,7 @@ use {
     },
 };
 
-pub use nickname::Nickname;
+pub use nickname::{InvalidNickname, Nickname};
 
 pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
@@ -1415,7 +1415,6 @@ mod fingerprint {
 /// A type for relay nicknames
 mod nickname {
     use super::*;
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use tinystr::TinyAsciiStr;
 
     /// This is a strange limit, but it comes from Tor.
@@ -1432,6 +1431,12 @@ mod nickname {
     #[derive(Clone, Debug)]
     pub struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
 
+    /// Invalid nickname
+    #[derive(Clone, Debug, thiserror::Error)]
+    #[error("invalid nickname")]
+    #[non_exhaustive]
+    pub struct InvalidNickname {}
+
     impl Nickname {
         /// Return a view of this nickname as a string slice.
         pub(crate) fn as_str(&self) -> &str {
@@ -1446,21 +1451,15 @@ mod nickname {
     }
 
     impl FromStr for Nickname {
-        type Err = Error;
+        type Err = InvalidNickname;
 
-        fn from_str(s: &str) -> Result<Self> {
-            let tiny = TinyAsciiStr::from_str(s).map_err(|_| {
-                EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("Invalid nickname")
-            })?;
+        fn from_str(s: &str) -> Result<Self, InvalidNickname> {
+            let tiny = TinyAsciiStr::from_str(s).map_err(|_| InvalidNickname {})?;
 
             if tiny.is_ascii_alphanumeric() && !tiny.is_empty() {
                 Ok(Nickname(tiny))
             } else {
-                Err(EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("Invalid nickname"))
+                Err(InvalidNickname {})
             }
         }
     }
@@ -2023,7 +2022,7 @@ mod test {
     }
 
     #[test]
-    fn nickname() -> Result<()> {
+    fn nickname() -> anyhow::Result<()> {
         let n: Nickname = "Foo".parse()?;
         assert_eq!(n.as_str(), "Foo");
         assert_eq!(n.to_string(), "Foo");
