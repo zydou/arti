@@ -54,6 +54,7 @@ use rangemap::RangeInclusiveMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{IpAddr, Ipv6Addr};
 use std::num::{NonZeroU8, NonZeroU32, TryFromIntError};
+use std::ops::RangeInclusive;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 
@@ -282,58 +283,17 @@ impl GeoipDb {
         };
 
         for line in db_v4.lines() {
-            if line.starts_with('#') {
+            let Some((range, defn)) = parse_line::<u32>(line)? else {
                 continue;
-            }
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let mut split = line.split(',');
-            let from = split
-                .next()
-                .ok_or(Error::BadFormat("empty line somehow?"))?
-                .parse::<u32>()?;
-            let to = split
-                .next()
-                .ok_or(Error::BadFormat("line with insufficient commas"))?
-                .parse::<u32>()?;
-            let cc = split
-                .next()
-                .ok_or(Error::BadFormat("line with insufficient commas"))?;
-            let asn = split.next().map(|x| x.parse::<u32>()).transpose()?;
-
-            let defn = NetDefn::new(cc, asn)?;
-
-            ret.map_v4.insert(from..=to, defn);
+            };
+            ret.map_v4.insert(range, defn);
         }
 
-        // This is slightly copypasta, but probably less readable to merge into one thing.
         for line in db_v6.lines() {
-            if line.starts_with('#') {
+            let Some((range, defn)) = parse_line::<Ipv6Addr>(line)? else {
                 continue;
-            }
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let mut split = line.split(',');
-            let from = split
-                .next()
-                .ok_or(Error::BadFormat("empty line somehow?"))?
-                .parse::<Ipv6Addr>()?;
-            let to = split
-                .next()
-                .ok_or(Error::BadFormat("line with insufficient commas"))?
-                .parse::<Ipv6Addr>()?;
-            let cc = split
-                .next()
-                .ok_or(Error::BadFormat("line with insufficient commas"))?;
-            let asn = split.next().map(|x| x.parse::<u32>()).transpose()?;
-
-            let defn = NetDefn::new(cc, asn)?;
-
-            ret.map_v6.insert(from.into()..=to.into(), defn);
+            };
+            ret.map_v6.insert(range, defn);
         }
 
         Ok(ret)
@@ -382,6 +342,70 @@ impl GeoipDb {
     pub fn lookup_asn(&self, ip: IpAddr) -> Option<u32> {
         self.lookup_defn(ip)?.asn()
     }
+}
+
+/// A type that can be an address entry in one of our databases.
+trait DbAddress: FromStr {
+    /// The integer that we use to represent this kind of address.
+    type Int;
+
+    /// Convert this address to an integer.
+    fn to_int(&self) -> Self::Int;
+}
+
+impl DbAddress for u32 {
+    type Int = u32;
+
+    fn to_int(&self) -> Self::Int {
+        *self
+    }
+}
+
+impl DbAddress for Ipv6Addr {
+    type Int = u128;
+
+    fn to_int(&self) -> Self::Int {
+        (*self).into()
+    }
+}
+
+/// A line as returned by [`parse_line`].
+type ParsedLine<T> = (RangeInclusive<T>, NetDefn);
+
+/// Parse a single line from a database, expecting addresses of type T.
+///
+/// Return Ok(None) if the line is empty.
+fn parse_line<T: DbAddress>(line: &str) -> Result<Option<ParsedLine<T::Int>>, Error>
+where
+    Error: From<<T as FromStr>::Err>,
+{
+    if line.starts_with('#') {
+        return Ok(None);
+    }
+    let line = line.trim();
+    if line.is_empty() {
+        return Ok(None);
+    }
+
+    let mut split = line.split(',');
+    let from = split
+        .next()
+        .ok_or(Error::BadFormat("empty line somehow?"))?
+        .parse::<T>()?
+        .to_int();
+    let to = split
+        .next()
+        .ok_or(Error::BadFormat("line with insufficient commas"))?
+        .parse::<T>()?
+        .to_int();
+    let cc = split
+        .next()
+        .ok_or(Error::BadFormat("line with insufficient commas"))?;
+    let asn = split.next().map(|x| x.parse::<u32>()).transpose()?;
+
+    let defn = NetDefn::new(cc, asn)?;
+
+    Ok(Some((from..=to, defn)))
 }
 
 /// A (representation of a) host on the network which may have a known country code.
