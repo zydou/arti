@@ -53,7 +53,7 @@ use crate::dense_range_map::DenseRangeMap;
 pub use crate::err::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{IpAddr, Ipv6Addr};
-use std::num::{NonZeroU8, NonZeroU32, TryFromIntError};
+use std::num::{NonZeroU16, NonZeroU32};
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
@@ -97,19 +97,26 @@ pub struct CountryCode {
     /// The special value `??` is excluded, since it is not a country; use
     /// `OptionCc` instead if you need to represent that.
     ///
-    /// We store these as `NonZeroU8` so that an `Option<CountryCode>` only has to
+    /// We store these as `NonZeroU16` so that an `Option<CountryCode>` only has to
     /// take 2 bytes. This helps with alignment and storage.
-    inner: [NonZeroU8; 2],
+    ///
+    /// (We use a `NonZeroU16` rather than `[NonZeroU8; 2]` to ensure that every
+    /// bit representation is a valid `Option<CountryCode>`.)
+    inner: NonZeroU16,
 }
 
 impl CountryCode {
     /// Make a new `CountryCode`.
     fn new(cc_orig: &str) -> Result<Self, Error> {
-        /// Try to convert an array of 2 bytes into an array of 2 nonzero bytes.
+        /// Try to convert an array of 2 bytes into a NonZeroU16.
         #[inline]
-        fn try_cvt_to_nz(inp: [u8; 2]) -> Result<[NonZeroU8; 2], TryFromIntError> {
-            // I have confirmed that the asm here is reasonably efficient.
-            Ok([inp[0].try_into()?, inp[1].try_into()?])
+        fn try_cvt_to_nz(inp: [u8; 2]) -> Result<NonZeroU16, Error> {
+            if inp[0] == 0 || inp[1] == 0 {
+                return Err(Error::BadCountryCode("Country code contained NULs".into()));
+            }
+            Ok(u16::from_ne_bytes(inp)
+                .try_into()
+                .expect("zero arrived surprisingly"))
         }
 
         let cc = cc_orig.to_ascii_uppercase();
@@ -154,17 +161,17 @@ impl Debug for CountryCode {
 
 impl AsRef<str> for CountryCode {
     fn as_ref(&self) -> &str {
-        /// Convert a reference to an array of 2 nonzero bytes to a reference to
+        /// Convert a reference to a NonZeroU16 to a reference to
         /// an array of 2 bytes.
         #[inline]
-        fn cvt_ref(inp: &[NonZeroU8; 2]) -> &[u8; 2] {
-            // SAFETY: Every NonZeroU8 has a layout and bit validity that is
-            // also a valid u8.  The layout of arrays is also guaranteed.
+        fn cvt_ref(inp: &NonZeroU16) -> &[u8; 2] {
+            // SAFETY: Every NonZeroU16 has a layout, alignment, and bit validity that is
+            // also a valid [u8; 2].  The layout of arrays is also guaranteed.
             //
             // (We don't use try_into here because we need to return a str that
             // points to a reference to self.)
-            let ptr = inp.as_ptr() as *const u8;
-            let slice = unsafe { std::slice::from_raw_parts(ptr, inp.len()) };
+            let slice: &[NonZeroU16] = std::slice::from_ref(inp);
+            let (_, slice, _) = unsafe { slice.align_to::<u8>() };
             slice
                 .try_into()
                 .expect("the resulting slice should have the correct length!")
