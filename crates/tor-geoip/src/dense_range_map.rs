@@ -6,6 +6,7 @@
 //! This trick lets us save about 40%-50% of the total database size, for
 //! a savings of around 6 MiB.  (Data checked as of April 2026)
 
+use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
 /// An object that has a single next element.
@@ -80,21 +81,31 @@ impl Successor for u128 {
 /// If `values2` is present, then keys map to the same indices in `values2`
 /// as they do in `values1`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct DenseRangeMap<K, V1, V2> {
+pub(crate) struct DenseRangeMap<K, V1, V2>
+where
+    K: Clone + 'static,
+    V1: Clone + 'static,
+    V2: Clone + 'static,
+{
     /// A list of the starting points of each range or gap.
-    starts: Box<[K]>,
+    starts: Cow<'static, [K]>,
     /// A list of values.
     ///
     /// If `starts[i]` is the start of a range, then `values[i]` is Some(v)
     /// where v is the value of that range for every
-    values1: Box<[Option<V1>]>,
+    values1: Cow<'static, [Option<V1>]>,
 
     /// An optional list of secondary values.
     ///
-    values2: Option<Box<[Option<V2>]>>,
+    values2: Option<Cow<'static, [Option<V2>]>>,
 }
 
-impl<K, V1, V2> Default for DenseRangeMap<K, V1, V2> {
+impl<K, V1, V2> Default for DenseRangeMap<K, V1, V2>
+where
+    K: Clone + 'static,
+    V1: Clone + 'static,
+    V2: Clone + 'static,
+{
     fn default() -> Self {
         Self {
             starts: Default::default(),
@@ -151,7 +162,12 @@ pub(crate) enum Error {
     Unsorted,
 }
 
-impl<K: Eq + Ord + Successor, V1, V2> DenseRangeMapBuilder<K, V1, V2> {
+impl<K: Eq + Ord + Successor, V1, V2> DenseRangeMapBuilder<K, V1, V2>
+where
+    K: Clone + 'static,
+    V1: Clone + 'static,
+    V2: Clone + 'static,
+{
     /// Construct a new empty builder.
     fn new() -> Self {
         Self {
@@ -256,7 +272,12 @@ impl<K: Eq + Ord + Successor, V1, V2> DenseRangeMapBuilder<K, V1, V2> {
     }
 }
 
-impl<K: Eq + Ord + Successor, V1, V2> DenseRangeMap<K, V1, V2> {
+impl<K: Eq + Ord + Successor, V1, V2> DenseRangeMap<K, V1, V2>
+where
+    K: Clone + 'static,
+    V1: Clone + 'static,
+    V2: Clone + 'static,
+{
     /// Construct a [`DenseRangeMap`] from an iterator of `(range,v1)` tuples.
     ///
     /// The ranges must be disjoint and sorted in ascending order by their start.
@@ -348,8 +369,8 @@ impl<K: Eq + Ord + Successor, V1, V2> DenseRangeMap<K, V1, V2> {
     #[cfg(test)]
     fn rep(&self) -> Vec<(K, Option<V1>)>
     where
-        K: Clone,
-        V1: Clone,
+        K: Clone + 'static,
+        V1: Clone + 'static,
     {
         self.starts
             .iter()
