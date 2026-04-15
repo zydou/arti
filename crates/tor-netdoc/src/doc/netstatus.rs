@@ -808,6 +808,7 @@ define_derive_deftly! {
 pub struct VoteAuthoritySection {
     /// Authority entry
     pub authority: VoteAuthorityEntry,
+
     /// Authority key certificate
     pub cert: EncodedAuthCert,
 }
