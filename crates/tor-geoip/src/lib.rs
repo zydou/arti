@@ -91,6 +91,7 @@ static EMBEDDED_DB_PARSED: OnceLock<Arc<GeoipDb>> = OnceLock::new();
 /// "anonymous proxies", since doing so would mean putting nearly all Tor relays
 /// into one of those countries.
 #[derive(Copy, Clone, Eq, PartialEq)]
+#[repr(transparent)]
 pub struct CountryCode {
     /// The underlying value (two printable ASCII characters, stored uppercase).
     ///
