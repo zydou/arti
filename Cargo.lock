@@ -1940,7 +1940,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f268b637848f736f5a86be4e40cabf5ca788f9af6399feef348ac8b942734b90"
 dependencies = [
  "heck",
- "indexmap 1.9.3",
+ "indexmap 2.13.0",
  "itertools 0.14.0",
  "proc-macro-crate",
  "proc-macro2",
@@ -7243,7 +7243,14 @@ dependencies = [
  "proptest",
  "rangemap",
  "thiserror 2.0.18",
+ "tor-geoip-db",
 ]
+
+[[package]]
+name = "tor-geoip-db"
+version = "0.1.0-pre2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5baacfe724d837c0da5558fe5e544b0c99181001606b9eb066e4fd98a9b77952"
 
 [[package]]
 name = "tor-guardmgr"

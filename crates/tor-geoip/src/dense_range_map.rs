@@ -278,6 +278,26 @@ where
     V1: Clone + 'static,
     V2: Clone + 'static,
 {
+    /// Create a new map from its raw parts.
+    ///
+    /// Requires that the slices are actually the results of calling
+    /// `export()` on a map of this type.
+    pub(crate) fn from_static_parts(
+        starts: &'static [K],
+        values1: &'static [Option<V1>],
+        values2: Option<&'static [Option<V2>]>,
+    ) -> Self {
+        let map = Self {
+            starts: starts.into(),
+            values1: values1.into(),
+            values2: values2.map(Into::into),
+        };
+        #[cfg(test)]
+        map.assert_valid();
+
+        map
+    }
+
     /// Construct a [`DenseRangeMap`] from an iterator of `(range,v1)` tuples.
     ///
     /// The ranges must be disjoint and sorted in ascending order by their start.

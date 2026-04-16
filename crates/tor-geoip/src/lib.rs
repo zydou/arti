@@ -61,17 +61,6 @@ use std::sync::{Arc, OnceLock};
 mod dense_range_map;
 mod err;
 
-/// An embedded copy of the latest geoip v4 database at the time of compilation.
-///
-/// FIXME(eta): This does use a few megabytes of binary size, which is less than ideal.
-///             It would be better to parse it at compile time or something.
-#[cfg(feature = "embedded-db")]
-static EMBEDDED_DB_V4: &str = include_str!("../data/geoip");
-
-/// An embedded copy of the latest geoip v6 database at the time of compilation.
-#[cfg(feature = "embedded-db")]
-static EMBEDDED_DB_V6: &str = include_str!("../data/geoip6");
-
 /// A parsed copy of the embedded database.
 #[cfg(feature = "embedded-db")]
 static EMBEDDED_DB_PARSED: OnceLock<Arc<GeoipDb>> = OnceLock::new();
@@ -245,10 +234,22 @@ impl GeoipDb {
     #[cfg(feature = "embedded-db")]
     pub fn new_embedded() -> Arc<Self> {
         Arc::clone(EMBEDDED_DB_PARSED.get_or_init(|| {
+            use tor_geoip_db as db;
+            fn cvt_ccs(ccs: &'static [Option<NonZeroU16>]) -> &'static [Option<CountryCode>] {
+                // SAFETY: CountryCode is a repr(transparent) for NonZeroU16.
+                let (pre, data, post) = unsafe { ccs.align_to::<Option<CountryCode>>() };
+                assert!(pre.is_empty());
+                assert!(post.is_empty());
+                data
+            }
+
+            let map_v4 = DenseRangeMap::from_static_parts(db::ipv4s(), cvt_ccs(db::ipv4c()), None);
+            let map_v6 = DenseRangeMap::from_static_parts(db::ipv6s(), cvt_ccs(db::ipv6c()), None);
+
             Arc::new(
-                // It's reasonable to assume the one we embedded is fine -- we'll test it in CI, etc.
-                Self::new_from_legacy_format(EMBEDDED_DB_V4, EMBEDDED_DB_V6, true)
-                    .expect("failed to parse embedded geoip database"),
+                // It's reasonable to assume the one we embedded is fine --
+                // we'll test it in CI, etc.
+                GeoipDb { map_v4, map_v6 },
             )
         }))
     }
@@ -500,6 +501,12 @@ mod test {
                 .map(|x| x.as_ref()),
             Some("US")
         );
+    }
+
+    #[test]
+    fn cc_rep() {
+        let italy = CountryCode::new("IT").unwrap();
+        assert_eq!(italy.as_ref(), "IT");
     }
 
     #[test]
