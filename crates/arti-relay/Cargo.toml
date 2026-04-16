@@ -76,7 +76,7 @@ tor-memquota = { version = "0.41.0", path = "../tor-memquota" }
 tor-netdir = { path = "../tor-netdir", version = "0.41.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.41.0" }
 tor-persist = { path = "../tor-persist", version = "0.41.0", features = ["state-dir"] }
-tor-proto = { path = "../tor-proto", version = "0.41.0", features = ["tokio", "flowctl-cc"] }
+tor-proto = { path = "../tor-proto", version = "0.41.0", features = ["counter-galois-onion", "tokio", "flowctl-cc"] }
 tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.41.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.41.0", features = ["rustls", "tokio", "tls-server"] }
 tor-units = { path = "../tor-units", version = "0.41.0" }
