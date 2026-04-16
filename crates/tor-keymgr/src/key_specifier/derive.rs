@@ -1,11 +1,11 @@
-//! [`KeySpecifier`] derive-adhoc macro and its support code
+//! [`KeySpecifier`] derive-deftly macro and its support code
 //!
 //! # STABILITY - NOTHING IN THIS MODULE IS PART OF THE STABLE PUBLIC API
 //!
 //! The `pub` items in this module are accessible as `$crate::key_specifier_derive`,
 //! but `#[doc(hidden)]` is applied at the top level.
 //!
-//! (Recall that the actual derive-adhoc macro
+//! (Recall that the actual derive-deftly macro
 //! `KeySpecifier` ends up in the crate toplevel,
 //! so that *does* form part of our public API.)
 
@@ -399,7 +399,7 @@ define_derive_deftly! {
     ///    Must be a literal string.
     ///    This or the field-level `#[deftly(role)]` must be specified.
     ///
-    ///  * **`[adhoc(role)]` (field):
+    ///  * **`[deftly(role)]` (field):
     ///    Specifies that the role is determined at runtime.
     ///    The field type must implement [`KeyDenotator`].
     ///
