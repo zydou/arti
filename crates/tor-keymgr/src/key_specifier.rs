@@ -995,7 +995,7 @@ KeyPathInfo {
         #[derive_deftly(KeySpecifier)]
         #[deftly(prefix = "p")]
         #[deftly(role = "r")]
-        #[deftly(ctor_path = "HsIdPublicKey")]
+        #[deftly(ctor_path = HsIdPublicKey)]
         #[deftly(summary = "test key")]
         struct TestSpecifier {
             nickname: HsNickname,

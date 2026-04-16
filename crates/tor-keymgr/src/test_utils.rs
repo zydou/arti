@@ -262,7 +262,7 @@ mod specifier {
     #[deftly(prefix = "test")]
     #[deftly(role = "simple_key")]
     #[deftly(summary = "A test key specifier")]
-    #[deftly(keypair_specifier = "TestDerivedKeypairSpecifier")]
+    #[deftly(keypair_specifier = TestDerivedKeypairSpecifier)]
     pub(crate) struct TestDerivedKeySpecifier;
 
     /// A test certificate specifier.
