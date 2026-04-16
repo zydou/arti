@@ -52,6 +52,7 @@ use {
     crate::relay::channel::create_handler::{CreateRequestHandler, RelayCircComponents},
     std::sync::Weak,
     tor_llcrypto::pk::ed25519::Ed25519Identity,
+    tor_llcrypto::pk::rsa::RsaIdentity,
 };
 
 /// A boxed trait object that can provide `ChanCell`s.
@@ -705,6 +706,7 @@ impl<R: Runtime> Reactor<R> {
             &self.runtime,
             &chan,
             &create_request_handler.our_ed25519_id,
+            &create_request_handler.our_rsa_id,
             circid,
             &msg,
             &self.details.memquota,
@@ -886,8 +888,10 @@ pub(super) struct CreateRequestHandlerAndData {
     /// but we need it to pass it to new circuit reactors,
     /// so we store a copy here.
     pub(super) channel: Weak<Channel>,
-    /// Our Ed25519 identity for ntor handshakes.
+    /// Our Ed25519 identity for ntor-v3 handshakes.
     pub(super) our_ed25519_id: Ed25519Identity,
+    /// Our RSA identity for ntor handshakes.
+    pub(super) our_rsa_id: RsaIdentity,
 }
 
 #[cfg(test)]

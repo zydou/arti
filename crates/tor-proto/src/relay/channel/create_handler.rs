@@ -33,6 +33,7 @@ use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::cipher::aes::Aes128Ctr;
 use tor_llcrypto::d::Sha1;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
+use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_memquota::mq_queue::ChannelSpec as _;
 use tor_memquota::mq_queue::MpscSpec;
 use tor_relay_crypto::pk::RelayNtorKeypair;
@@ -104,6 +105,7 @@ impl CreateRequestHandler {
         runtime: &R,
         channel: &Arc<Channel>,
         our_ed25519_id: &Ed25519Identity,
+        our_rsa_id: &RsaIdentity,
         circ_id: CircId,
         msg: &CreateRequest,
         memquota: &ChannelAccount,
@@ -113,6 +115,7 @@ impl CreateRequestHandler {
             runtime,
             channel,
             our_ed25519_id,
+            our_rsa_id,
             circ_id,
             msg,
             memquota,
@@ -136,8 +139,9 @@ impl CreateRequestHandler {
         &self,
         runtime: &R,
         channel: &Arc<Channel>,
-        // TODO(relay): Use this for ntor handshakes.
+        // TODO(relay): Use these for ntor handshakes.
         _our_ed25519_id: &Ed25519Identity,
+        _our_rsa_id: &RsaIdentity,
         circ_id: CircId,
         msg: &CreateRequest,
         memquota: &ChannelAccount,
