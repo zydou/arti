@@ -217,46 +217,16 @@ impl Display for OptionCc {
     }
 }
 
-/// A country code / ASN definition.
-///
-/// Type lifted from `geoip-db-tool` in the C-tor source.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-struct NetDefn {
-    /// The country code.
-    ///
-    /// We translate the value "??" into None.
-    cc: Option<CountryCode>,
-    /// The ASN, if we have one. We translate the value "0" into None.
-    asn: Option<NonZeroU32>,
-}
-
-impl NetDefn {
-    /// Make a new `NetDefn`.
-    fn new(cc: &str, asn: Option<u32>) -> Result<Self, Error> {
-        let asn = NonZeroU32::new(asn.unwrap_or(0));
-        let cc = cc.parse::<OptionCc>()?.into();
-
-        Ok(Self { cc, asn })
-    }
-
-    /// Return the country code.
-    fn country_code(&self) -> Option<&CountryCode> {
-        self.cc.as_ref()
-    }
-
-    /// Return the ASN, if there is one.
-    fn asn(&self) -> Option<u32> {
-        self.asn.as_ref().map(|x| x.get())
-    }
-}
+/// The type of an ASN.
+type Asn = NonZeroU32;
 
 /// A database of IP addresses to country codes.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct GeoipDb {
     /// The IPv4 subset of the database, with v4 addresses stored as 32-bit integers.
-    map_v4: DenseRangeMap<u32, NetDefn>,
+    map_v4: DenseRangeMap<u32, CountryCode, Asn>,
     /// The IPv6 subset of the database, with v6 addresses stored as 128-bit integers.
-    map_v6: DenseRangeMap<u128, NetDefn>,
+    map_v6: DenseRangeMap<u128, CountryCode, Asn>,
 }
 
 impl GeoipDb {
@@ -269,40 +239,42 @@ impl GeoipDb {
         Arc::clone(EMBEDDED_DB_PARSED.get_or_init(|| {
             Arc::new(
                 // It's reasonable to assume the one we embedded is fine -- we'll test it in CI, etc.
-                Self::new_from_legacy_format(EMBEDDED_DB_V4, EMBEDDED_DB_V6)
+                Self::new_from_legacy_format(EMBEDDED_DB_V4, EMBEDDED_DB_V6, true)
                     .expect("failed to parse embedded geoip database"),
             )
         }))
     }
 
     /// Make a new `GeoipDb` using provided copies of the v4 and v6 database, in Tor legacy format.
-    pub fn new_from_legacy_format(db_v4: &str, db_v6: &str) -> Result<Self, Error> {
+    pub fn new_from_legacy_format(
+        db_v4: &str,
+        db_v6: &str,
+        include_asn: bool,
+    ) -> Result<Self, Error> {
+        let discard_asn = !include_asn;
         let map_v4 = DenseRangeMap::try_from_sorted_inclusive_ranges(
             db_v4
                 .lines()
                 .filter_map(|line| parse_line::<u32>(line).transpose()),
+            discard_asn,
         )?;
 
         let map_v6 = DenseRangeMap::try_from_sorted_inclusive_ranges(
             db_v6
                 .lines()
                 .filter_map(|line| parse_line::<Ipv6Addr>(line).transpose()),
+            discard_asn,
         )?;
 
         Ok(Self { map_v4, map_v6 })
     }
 
-    /// Get the `NetDefn` for an IP address.
-    fn lookup_defn(&self, ip: IpAddr) -> Option<&NetDefn> {
+    /// Get a 2-letter country code for the given IP address, if this data is available.
+    pub fn lookup_country_code(&self, ip: IpAddr) -> Option<&CountryCode> {
         match ip {
             IpAddr::V4(v4) => self.map_v4.get(&v4.into()),
             IpAddr::V6(v6) => self.map_v6.get(&v6.into()),
         }
-    }
-
-    /// Get a 2-letter country code for the given IP address, if this data is available.
-    pub fn lookup_country_code(&self, ip: IpAddr) -> Option<&CountryCode> {
-        self.lookup_defn(ip).and_then(|x| x.country_code())
     }
 
     /// Determine a 2-letter country code for a host with multiple IP addresses.
@@ -333,7 +305,11 @@ impl GeoipDb {
 
     /// Return the ASN the IP address is in, if this data is available.
     pub fn lookup_asn(&self, ip: IpAddr) -> Option<u32> {
-        self.lookup_defn(ip)?.asn()
+        let cc = match ip {
+            IpAddr::V4(v4) => self.map_v4.get2(&v4.into()),
+            IpAddr::V6(v6) => self.map_v6.get2(&v6.into()),
+        };
+        cc.map(|nz| nz.get())
     }
 }
 
@@ -363,7 +339,7 @@ impl DbAddress for Ipv6Addr {
 }
 
 /// A line as returned by [`parse_line`].
-type ParsedLine<T> = (RangeInclusive<T>, NetDefn);
+type ParsedLine<T> = (RangeInclusive<T>, Option<CountryCode>, Option<Asn>);
 
 /// Parse a single line from a database, expecting addresses of type T.
 ///
@@ -394,11 +370,15 @@ where
     let cc = split
         .next()
         .ok_or(Error::BadFormat("line with insufficient commas".into()))?;
+    let cc = match cc {
+        "" => None,
+        cc => OptionCc::from_str(cc)?.0,
+    };
     let asn = split.next().map(|x| x.parse::<u32>()).transpose()?;
+    // Treat "0" as "no asn".
+    let asn = asn.map(NonZeroU32::try_from).transpose().ok().flatten();
 
-    let defn = NetDefn::new(cc, asn)?;
-
-    Ok(Some((from..=to, defn)))
+    Ok(Some((from..=to, cc, asn)))
 }
 
 /// A (representation of a) host on the network which may have a known country code.
@@ -463,7 +443,7 @@ mod test {
         dead:beef::,dead:ffff::,??
         fe80::,fe81::,US
         "#;
-        let db = GeoipDb::new_from_legacy_format(src_v4, src_v6).unwrap();
+        let db = GeoipDb::new_from_legacy_format(src_v4, src_v6, true).unwrap();
 
         assert_eq!(
             db.lookup_country_code(Ipv4Addr::new(1, 2, 3, 4).into())

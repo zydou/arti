@@ -28,12 +28,14 @@ impl Successor for u128 {
     }
 }
 
-/// An immutable map from ranges to values.
+/// An immutable map from ranges to `Option<V1>`, `Option<V2>`-pairs.
 ///
 /// This type is optimized for reasonable O(lg N) performance,
 /// and for space efficiency in the case where:
 /// - `Option<V>` is the same size as V, or at least not much larger.
 /// - most or all ranges have no gaps between them.
+/// - we might not want to record any values for V2 at all.
+/// - we are willing to treat "no entry" and "maps to None" as equivalent.
 ///
 /// That is to say, we get our space efficiency wins in the case where,
 /// if some range (K..=V) in the map,
@@ -48,18 +50,19 @@ impl Successor for u128 {
 /// ## Overview
 ///
 /// We consider a map of disjoint ranges `(S..=E) => V`
-/// as a _dense_ map from `(S'..=E') => Option<V>`,
+/// as a _dense_ map from `(S'..=E') => Option<V1, V2>`,
 /// such that there is is exactly one `(S'..E')` range covering every value from
 /// `min(S)` through `K::MAX` inclusive.
 ///
 /// Because this map is dense, we can encode these ranges as a sorted list of S',
-/// and then use a binary search to find which `Option<V>` corresponds
+/// and then use a binary search to find which `Option<V1, V2>` corresponds
 /// to any given value.
 ///
 /// ## Invariants
 ///
 /// - `starts` is sorted and contains no duplicates.
-/// - `values.len() == starts.len()``
+/// - `values1.len() == starts.len()`
+/// - If `values2` is present, `values2.len() == starts.len()`
 ///
 /// ## Semantics:
 ///
@@ -73,22 +76,30 @@ impl Successor for u128 {
 ///      `values[idx]`, which may be Some or None.
 ///    - Every key such that `key >= starts.last()` maps to values.last(),
 ///      which may be Some or None.
+///
+/// If `values2` is present, then keys map to the same indices in `values2`
+/// as they do in `values1`.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct DenseRangeMap<K, V> {
+pub(crate) struct DenseRangeMap<K, V1, V2> {
     /// A list of the starting points of each range or gap.
     starts: Box<[K]>,
     /// A list of values.
     ///
     /// If `starts[i]` is the start of a range, then `values[i]` is Some(v)
     /// where v is the value of that range for every
-    values: Box<[Option<V>]>,
+    values1: Box<[Option<V1>]>,
+
+    /// An optional list of secondary values.
+    ///
+    values2: Option<Box<[Option<V2>]>>,
 }
 
-impl<K, V> Default for DenseRangeMap<K, V> {
+impl<K, V1, V2> Default for DenseRangeMap<K, V1, V2> {
     fn default() -> Self {
         Self {
             starts: Default::default(),
-            values: Default::default(),
+            values1: Default::default(),
+            values2: None,
         }
     }
 }
@@ -113,11 +124,17 @@ impl<K, V> Default for DenseRangeMap<K, V> {
 ///      `values.last()`.
 ///    - No mappings have been added for any range S..=E such that
 ///      'S > prev_end`.
-struct DenseRangeMapBuilder<K, V> {
+struct DenseRangeMapBuilder<K, V1, V2> {
     /// A list of range starts so far.
     starts: Vec<K>,
     /// A list of values so far.
-    values: Vec<Option<V>>,
+    values1: Vec<Option<V1>>,
+
+    /// A list of secondary values so far.
+    ///
+    /// None if we're ignoring secondary values.
+    values2: Option<Vec<Option<V2>>>,
+
     /// The last element of the most recently added range.
     prev_end: Option<K>,
 }
@@ -134,33 +151,46 @@ pub(crate) enum Error {
     Unsorted,
 }
 
-impl<K: Eq + Ord + Successor, V> DenseRangeMapBuilder<K, V> {
+impl<K: Eq + Ord + Successor, V1, V2> DenseRangeMapBuilder<K, V1, V2> {
     /// Construct a new empty builder.
     fn new() -> Self {
         Self {
             starts: Vec::new(),
-            values: Vec::new(),
+            values1: Vec::new(),
+            values2: Some(Vec::new()),
             prev_end: None,
         }
     }
 
+    /// Add a single entry to this builder.
+    fn push(&mut self, start: K, v1: Option<V1>, v2: Option<V2>) {
+        self.starts.push(start);
+        self.values1.push(v1);
+        if let Some(values2) = self.values2.as_mut() {
+            values2.push(v2);
+        }
+    }
+
     /// Consume this builder and return a DenseRangeMap with the same values.
-    fn build(mut self) -> DenseRangeMap<K, V> {
+    fn build(mut self) -> DenseRangeMap<K, V1, V2> {
         if let Some(prev_end) = self.prev_end.take()
             && let Some(next_range_start) = prev_end.next()
         {
             // There is empty space after the last range, so we need to
             // represent that with a gap entry.
-            self.starts.push(next_range_start);
-            self.values.push(None);
+            self.push(next_range_start, None, None);
         }
         // See if we can reclaim any space.
         self.starts.shrink_to_fit();
-        self.values.shrink_to_fit();
+        self.values1.shrink_to_fit();
+        if let Some(values2) = self.values2.as_mut() {
+            values2.shrink_to_fit();
+        }
 
         let map = DenseRangeMap {
             starts: self.starts.into(),
-            values: self.values.into(),
+            values1: self.values1.into(),
+            values2: self.values2.map(Into::into),
         };
 
         #[cfg(test)]
@@ -173,7 +203,16 @@ impl<K: Eq + Ord + Successor, V> DenseRangeMapBuilder<K, V> {
     ///
     /// Returns an error if `range` is not in strictly ascending order with respect
     /// to all previous ranges.
-    fn push(&mut self, range: RangeInclusive<K>, value: V) -> Result<(), Error> {
+    fn add_entry(
+        &mut self,
+        range: RangeInclusive<K>,
+        value1: Option<V1>,
+        value2: Option<V2>,
+    ) -> Result<(), Error> {
+        if value1.is_none() && value2.is_none() {
+            return Ok(());
+        }
+
         // NOTE: We _could_ coalesce our ranges if two abutting ranges have the
         // same value.  But our geoip data processing tools already do that.
         use std::cmp::Ordering::*;
@@ -198,8 +237,7 @@ impl<K: Eq + Ord + Successor, V> DenseRangeMapBuilder<K, V> {
                 Less => {
                     // There is a gap between the end of the last entry and the
                     // start of this one.  Add a representation of that gap.
-                    self.starts.push(gap_start);
-                    self.values.push(None);
+                    self.push(gap_start, None, None);
                 }
                 Equal => {
                     // There is no gap, so we don't have to represent it. Cool!
@@ -211,52 +249,81 @@ impl<K: Eq + Ord + Successor, V> DenseRangeMapBuilder<K, V> {
             }
         }
         // Add this entry.
-        self.starts.push(start);
-        self.values.push(Some(value));
+        self.push(start, value1, value2);
         self.prev_end = Some(end);
 
         Ok(())
     }
 }
 
-impl<K: Eq + Ord + Successor, V> DenseRangeMap<K, V> {
-    /// Construct a [`DenseRangeMap`] from an iterator of `(range,value)` pairs.
+impl<K: Eq + Ord + Successor, V1, V2> DenseRangeMap<K, V1, V2> {
+    /// Construct a [`DenseRangeMap`] from an iterator of `(range,v1)` tuples.
     ///
     /// The ranges must be disjoint and sorted in ascending order by their start.
     #[cfg(test)]
     pub(crate) fn from_sorted_inclusive_ranges<S>(iter: S) -> Result<Self, Error>
     where
-        S: Iterator<Item = (RangeInclusive<K>, V)>,
+        S: Iterator<Item = (RangeInclusive<K>, V1)>,
     {
-        Self::try_from_sorted_inclusive_ranges(iter.map(Ok))
+        let discard_v2 = true;
+        Self::try_from_sorted_inclusive_ranges(
+            iter.map(|(r, v1)| Ok((r, Some(v1), None))),
+            discard_v2,
+        )
     }
 
-    /// Construct a [`DenseRangeMap`] from an iterator of `Result<(range,value>`` pairs.
+    /// Construct a [`DenseRangeMap`] from an iterator of
+    /// `Result<(range,optvalue1,optvalue2)>` tuples.
     ///
-    /// The ranges must be disjoint and sorted in ascending order by their start.
-    pub(crate) fn try_from_sorted_inclusive_ranges<S, E>(iter: S) -> Result<Self, E>
+    /// The ranges must be disjoint and sorted in ascending order by their
+    /// start.
+    pub(crate) fn try_from_sorted_inclusive_ranges<S, E>(
+        iter: S,
+        discard_v2: bool,
+    ) -> Result<Self, E>
     where
-        S: Iterator<Item = Result<(RangeInclusive<K>, V), E>>,
+        S: Iterator<Item = Result<(RangeInclusive<K>, Option<V1>, Option<V2>), E>>,
         E: From<Error>,
     {
         let mut b = DenseRangeMapBuilder::new();
+        if discard_v2 {
+            b.values2 = None;
+        }
         for entry in iter {
-            let (range, value) = entry?;
-            b.push(range, value)?;
+            let (range, value1, mut value2) = entry?;
+            if discard_v2 {
+                value2 = None;
+            }
+            b.add_entry(range, value1, value2)?;
         }
 
         Ok(b.build())
     }
 
-    /// Return the value, if any, associated with the given `key`.
-    pub(crate) fn get(&self, key: &K) -> Option<&V> {
-        let index = match self.starts.binary_search(key) {
-            Ok(v) => v,
-            Err(0) => return None,
-            Err(v) => v - 1,
-        };
+    /// Return the index for the values corresponding to `key`.
+    pub(crate) fn index_for_key(&self, key: &K) -> Option<usize> {
+        match self.starts.binary_search(key) {
+            Ok(v) => Some(v),
+            Err(0) => None,
+            Err(v) => Some(v - 1),
+        }
+    }
 
-        self.values[index].as_ref()
+    /// Return the value, if any, associated with the given `key`.
+    // XXXX rename to get1
+    pub(crate) fn get(&self, key: &K) -> Option<&V1> {
+        self.index_for_key(key)
+            .and_then(|index| self.values1[index].as_ref())
+    }
+
+    /// Return the secondary value, if any, associated with the given `key`.
+    pub(crate) fn get2(&self, key: &K) -> Option<&V2> {
+        if let Some(values2) = self.values2.as_ref() {
+            self.index_for_key(key)
+                .and_then(|index| values2[index].as_ref())
+        } else {
+            None
+        }
     }
 
     /// Testing only: Assert that this object obeys its invariants.
@@ -266,10 +333,13 @@ impl<K: Eq + Ord + Successor, V> DenseRangeMap<K, V> {
         for pair in self.starts.windows(2) {
             assert!(pair[0] < pair[1]);
         }
-        assert_eq!(self.values.len(), self.starts.len());
+        assert_eq!(self.values1.len(), self.starts.len());
+        if let Some(values2) = &self.values2 {
+            assert_eq!(values2.len(), self.starts.len());
+        }
     }
 
-    /// Testing only: return a `Vec` of `(start, Option<V>)` to represent
+    /// Testing only: return a `Vec` of `(start, Option<V1, V2>)` to represent
     /// this entries table.
     ///
     /// This is more convenient to inspect than looking at `starts` and `values`
@@ -277,15 +347,15 @@ impl<K: Eq + Ord + Successor, V> DenseRangeMap<K, V> {
     ///
     /// (We store `starts` and `values` in separate lists to avoid padding issues.)
     #[cfg(test)]
-    fn rep(&self) -> Vec<(K, Option<V>)>
+    fn rep(&self) -> Vec<(K, Option<V1>)>
     where
         K: Clone,
-        V: Clone,
+        V1: Clone,
     {
         self.starts
             .iter()
             .cloned()
-            .zip(self.values.iter().cloned())
+            .zip(self.values1.iter().cloned())
             .collect()
     }
 }
@@ -309,7 +379,7 @@ mod test {
     use super::*;
     use proptest::prelude::*;
 
-    type M = DenseRangeMap<u32, &'static str>;
+    type M = DenseRangeMap<u32, &'static str, ()>;
 
     #[test]
     fn empty() {
@@ -414,7 +484,7 @@ mod test {
             for (n, range) in ranges.into_iter().enumerate() {
                 rangemap.insert(range, n);
             }
-            let dense_map = DenseRangeMap::<u32, usize>::from_sorted_inclusive_ranges(
+            let dense_map = DenseRangeMap::<u32, usize, ()>::from_sorted_inclusive_ranges(
                 rangemap.iter().map(|(k,v)| (k.clone(), *v))
             ).unwrap();
 
@@ -446,7 +516,7 @@ mod test {
                 rangemap.insert(range.clone(), n);
             }
 
-            let dense_map = DenseRangeMap::<u32, usize>::from_sorted_inclusive_ranges(
+            let dense_map = DenseRangeMap::<u32, usize, ()>::from_sorted_inclusive_ranges(
                 ranges.into_iter().enumerate().map(|(n, r)| (r, n))
             ).unwrap();
 

@@ -2909,7 +2909,7 @@ mod test {
         fe80:feed:eeee::1,fe80:feed:eeee::1,AT
         fe80:feed:eeee::2,fe80:feed:ffff::,DE
         "#;
-        let db = GeoipDb::new_from_legacy_format("", src_v6).unwrap();
+        let db = GeoipDb::new_from_legacy_format("", src_v6, true).unwrap();
 
         let netdir = construct_custom_netdir_with_geoip(
             |pos, n, _| {
