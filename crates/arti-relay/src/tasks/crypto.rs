@@ -612,10 +612,24 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
             // Any keys left in the keystore at this point are considered to be usable
             // (either because they are newly generated, or because they are still
             // within the grace period).
-            let ntor_keys = keymgr
+
+            // Pair each entry with its valid_until so we can sort them.
+            let mut entries = keymgr
                 .list_matching(&RelayNtorKeypairSpecifierPattern::new_any().arti_pattern()?)?
                 .into_iter()
                 .map(|entry| {
+                    Ok((
+                        RelayNtorKeypairSpecifier::try_from(entry.key_path())?.valid_until,
+                        entry,
+                    ))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            // Sort ascending by valid_until so the oldest key comes first and the
+            // newest last. The newest is the one used in the descriptor.
+            entries.sort_by_key(|(valid_until, _)| *valid_until);
+            let ntor_keys = entries
+                .into_iter()
+                .map(|(_, entry)| {
                     keymgr
                         .get_entry::<RelayNtorKeypair>(&entry)
                         .context("failed to retrieve ntor key")?
