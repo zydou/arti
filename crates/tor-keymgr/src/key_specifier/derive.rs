@@ -412,26 +412,26 @@ define_derive_deftly! {
     ///    Designates a field that should be represented
     ///    in the key file leafname, after the role.
     ///
-    ///  * **`#[deftly(ctor_path = <variant>)]`** (toplevel):
+    ///  * **`#[deftly(ctor_path = VARIANT)]`** (toplevel):
     ///    Specifies that this kind of key has a representation in C Tor keystores,
-    ///    and provides the appropriate [`CTorPath`] variant in `<variant>`.
+    ///    and provides the appropriate [`CTorPath`] variant in `VARIANT`.
     ///
     ///    Used for implementing [`CTorKeySpecifier`].
     ///
     ///    If specified, the generated [`KeySpecifier::ctor_path`] implementation
-    ///    will return [`CTorPath`]::`<variant>` populated with the fields extracted
+    ///    will return [`CTorPath`]::`VARIANT` populated with the fields extracted
     ///    from this type. Therefore, your type **must** have exactly the same fields
     ///    as the specified `CTorPath` variant.
     ///
     ///    If not specified, the generated [`KeySpecifier::ctor_path`]
     ///    implementation will always return `None`.
     ///
-    ///  * **`#[deftly(fixed_path_component = "component")]`** (field):
-    ///    Before this field insert a fixed path component `component`.
+    ///  * **`#[deftly(fixed_path_component = STR)]`** (field):
+    ///    Before this field insert a fixed path component `STR`.
     ///    (Can be even used before a denotator component,
     ///    to add a final fixed path component.)
     ///
-    ///  * **`#[deftly(keypair_specifier = type)]`** (field):
+    ///  * **`#[deftly(keypair_specifier = TYPE)]`** (field):
     ///    If this is the specifier for a public key, the specifier for
     ///    the corresponding keypair type.
     ///
