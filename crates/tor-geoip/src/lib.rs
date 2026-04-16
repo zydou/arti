@@ -272,8 +272,8 @@ impl GeoipDb {
     /// Get a 2-letter country code for the given IP address, if this data is available.
     pub fn lookup_country_code(&self, ip: IpAddr) -> Option<&CountryCode> {
         match ip {
-            IpAddr::V4(v4) => self.map_v4.get(&v4.into()),
-            IpAddr::V6(v6) => self.map_v6.get(&v6.into()),
+            IpAddr::V4(v4) => self.map_v4.get1(&v4.into()),
+            IpAddr::V6(v6) => self.map_v6.get1(&v6.into()),
         }
     }
 

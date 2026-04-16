@@ -310,8 +310,7 @@ impl<K: Eq + Ord + Successor, V1, V2> DenseRangeMap<K, V1, V2> {
     }
 
     /// Return the value, if any, associated with the given `key`.
-    // XXXX rename to get1
-    pub(crate) fn get(&self, key: &K) -> Option<&V1> {
+    pub(crate) fn get1(&self, key: &K) -> Option<&V1> {
         self.index_for_key(key)
             .and_then(|index| self.values1[index].as_ref())
     }
@@ -384,11 +383,11 @@ mod test {
     #[test]
     fn empty() {
         let map = M::from_sorted_inclusive_ranges(std::iter::empty()).unwrap();
-        assert_eq!(map.get(&0), None);
-        assert_eq!(map.get(&1), None);
-        assert_eq!(map.get(&50), None);
-        assert_eq!(map.get(&(u32::MAX - 1)), None);
-        assert_eq!(map.get(&(u32::MAX)), None);
+        assert_eq!(map.get1(&0), None);
+        assert_eq!(map.get1(&1), None);
+        assert_eq!(map.get1(&50), None);
+        assert_eq!(map.get1(&(u32::MAX - 1)), None);
+        assert_eq!(map.get1(&(u32::MAX)), None);
     }
 
     #[test]
@@ -417,21 +416,21 @@ mod test {
             ]
         );
 
-        assert_eq!(map.get(&0), None);
-        assert_eq!(map.get(&1), None);
-        assert_eq!(map.get(&5), Some(&"small"));
-        assert_eq!(map.get(&10), Some(&"small"));
-        assert_eq!(map.get(&11), Some(&"medium"));
-        assert_eq!(map.get(&85), Some(&"medium"));
-        assert_eq!(map.get(&90), Some(&"medium"));
-        assert_eq!(map.get(&91), None);
-        assert_eq!(map.get(&99), None);
-        assert_eq!(map.get(&100), Some(&"big"));
-        assert_eq!(map.get(&500), Some(&"big"));
-        assert_eq!(map.get(&1000), Some(&"big"));
-        assert_eq!(map.get(&1001), None);
-        assert_eq!(map.get(&(u32::MAX - 1)), None);
-        assert_eq!(map.get(&u32::MAX), None);
+        assert_eq!(map.get1(&0), None);
+        assert_eq!(map.get1(&1), None);
+        assert_eq!(map.get1(&5), Some(&"small"));
+        assert_eq!(map.get1(&10), Some(&"small"));
+        assert_eq!(map.get1(&11), Some(&"medium"));
+        assert_eq!(map.get1(&85), Some(&"medium"));
+        assert_eq!(map.get1(&90), Some(&"medium"));
+        assert_eq!(map.get1(&91), None);
+        assert_eq!(map.get1(&99), None);
+        assert_eq!(map.get1(&100), Some(&"big"));
+        assert_eq!(map.get1(&500), Some(&"big"));
+        assert_eq!(map.get1(&1000), Some(&"big"));
+        assert_eq!(map.get1(&1001), None);
+        assert_eq!(map.get1(&(u32::MAX - 1)), None);
+        assert_eq!(map.get1(&u32::MAX), None);
     }
 
     #[test]
@@ -458,21 +457,21 @@ mod test {
             ]
         );
 
-        assert_eq!(map.get(&0), Some(&"small"));
-        assert_eq!(map.get(&1), Some(&"small"));
-        assert_eq!(map.get(&5), Some(&"small"));
-        assert_eq!(map.get(&10), Some(&"small"));
-        assert_eq!(map.get(&11), Some(&"medium"));
-        assert_eq!(map.get(&85), Some(&"medium"));
-        assert_eq!(map.get(&90), Some(&"medium"));
-        assert_eq!(map.get(&91), None);
-        assert_eq!(map.get(&99), None);
-        assert_eq!(map.get(&100), Some(&"big"));
-        assert_eq!(map.get(&500), Some(&"big"));
-        assert_eq!(map.get(&1000), Some(&"big"));
-        assert_eq!(map.get(&1001), Some(&"big"));
-        assert_eq!(map.get(&(u32::MAX - 1)), Some(&"big"));
-        assert_eq!(map.get(&u32::MAX), Some(&"big"));
+        assert_eq!(map.get1(&0), Some(&"small"));
+        assert_eq!(map.get1(&1), Some(&"small"));
+        assert_eq!(map.get1(&5), Some(&"small"));
+        assert_eq!(map.get1(&10), Some(&"small"));
+        assert_eq!(map.get1(&11), Some(&"medium"));
+        assert_eq!(map.get1(&85), Some(&"medium"));
+        assert_eq!(map.get1(&90), Some(&"medium"));
+        assert_eq!(map.get1(&91), None);
+        assert_eq!(map.get1(&99), None);
+        assert_eq!(map.get1(&100), Some(&"big"));
+        assert_eq!(map.get1(&500), Some(&"big"));
+        assert_eq!(map.get1(&1000), Some(&"big"));
+        assert_eq!(map.get1(&1001), Some(&"big"));
+        assert_eq!(map.get1(&(u32::MAX - 1)), Some(&"big"));
+        assert_eq!(map.get1(&u32::MAX), Some(&"big"));
     }
 
     proptest! {
@@ -489,7 +488,7 @@ mod test {
             ).unwrap();
 
             for probe in probes.iter() {
-                assert_eq!(rangemap.get(probe), dense_map.get(probe));
+                assert_eq!(rangemap.get(probe), dense_map.get1(probe));
             }
         }
 
@@ -521,7 +520,7 @@ mod test {
             ).unwrap();
 
             for probe in probes.iter() {
-                assert_eq!(rangemap.get(probe), dense_map.get(probe));
+                assert_eq!(rangemap.get(probe), dense_map.get1(probe));
             }
         }
     }
