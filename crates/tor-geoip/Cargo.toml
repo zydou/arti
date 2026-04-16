@@ -22,6 +22,10 @@ embedded-db = []
 default = ["embedded-db"]
 full = ["embedded-db"]
 
+experimental = ["export"]
+export = ["__is_experimental"]
+__is_experimental = []
+
 [dev-dependencies]
 proptest = "1.0.0"
 

@@ -277,6 +277,26 @@ impl GeoipDb {
         Ok(Self { map_v4, map_v6 })
     }
 
+    /// Return the database in a raw format suitable for embedding.
+    ///
+    /// This method and the format it returns are unstable.
+    /// This method should only be used for maintaining the database.
+    #[cfg(feature = "export")]
+    #[allow(clippy::type_complexity)]
+    pub fn export_raw(&self) -> RawGeoipDbExport {
+        let (ipv4_starts, ipv4_ccs, ipv4_asns) = self.map_v4.export();
+        let (ipv6_starts, ipv6_ccs, ipv6_asns) = self.map_v6.export();
+
+        RawGeoipDbExport {
+            ipv4_starts,
+            ipv4_ccs,
+            ipv4_asns,
+            ipv6_starts,
+            ipv6_ccs,
+            ipv6_asns,
+        }
+    }
+
     /// Get a 2-letter country code for the given IP address, if this data is available.
     pub fn lookup_country_code(&self, ip: IpAddr) -> Option<&CountryCode> {
         match ip {
@@ -402,6 +422,46 @@ pub trait HasCountryCode {
     /// Returning `None` signifies that no country code information is available. (Conflicting
     /// GeoIP lookup results might also cause `None` to be returned.)
     fn country_code(&self) -> Option<CountryCode>;
+}
+
+/// An export of a GeoIp database in a raw format suitable for embedding.
+///
+/// This format is deliberately undocumented, and not for other uses.
+#[cfg(feature = "export")]
+#[allow(clippy::exhaustive_structs, missing_docs)]
+pub struct RawGeoipDbExport<'a> {
+    pub ipv4_starts: &'a [u32],
+    pub ipv4_ccs: &'a [Option<CountryCode>],
+    pub ipv4_asns: Option<&'a [Option<NonZeroU32>]>,
+    pub ipv6_starts: &'a [u128],
+    pub ipv6_ccs: &'a [Option<CountryCode>],
+    pub ipv6_asns: Option<&'a [Option<NonZeroU32>]>,
+}
+
+#[cfg(feature = "export")]
+impl<'a> RawGeoipDbExport<'a> {
+    /// Save the contents of this export into a set of data files in "Path".
+    pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
+        use std::fs::write;
+        fn into_bytes<'a, T>(data: &'a [T]) -> &'a [u8] {
+            // SAFETY: Every possible bit sequence is a valid u8.
+            let (pre, data, post) = unsafe { data.align_to::<u8>() };
+            assert!(pre.is_empty());
+            assert!(post.is_empty());
+            data
+        }
+        write(path.join("geoip_data_v4s"), into_bytes(self.ipv4_starts))?;
+        write(path.join("geoip_data_v4c"), into_bytes(self.ipv4_ccs))?;
+        if let Some(asns) = self.ipv4_asns {
+            write(path.join("geoip_data_v4a"), into_bytes(asns))?;
+        }
+        write(path.join("geoip_data_v6s"), into_bytes(self.ipv6_starts))?;
+        write(path.join("geoip_data_v6c"), into_bytes(self.ipv6_ccs))?;
+        if let Some(asns) = self.ipv6_asns {
+            write(path.join("geoip_data_v6a"), into_bytes(asns))?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

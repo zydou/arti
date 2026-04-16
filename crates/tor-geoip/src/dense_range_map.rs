@@ -378,6 +378,17 @@ where
             .zip(self.values1.iter().cloned())
             .collect()
     }
+
+    /// Return a triple of slices that encode this map.
+    #[cfg(feature = "export")]
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn export(&self) -> (&[K], &[Option<V1>], Option<&[Option<V2>]>) {
+        (
+            self.starts.as_ref(),
+            self.values1.as_ref(),
+            self.values2.as_ref().map(|v2| v2.as_ref()),
+        )
+    }
 }
 
 #[cfg(test)]
