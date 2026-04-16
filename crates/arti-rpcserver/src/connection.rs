@@ -243,12 +243,15 @@ impl Connection {
             let local_id = self.id_into_local_idx(id)?;
 
             self.lookup_by_idx(local_id)
-                .ok_or(rpc::LookupError::NoObject(id.clone()))
+                .map_err(|e| e.to_rpc_lookup_error(id.clone()))
         }
     }
 
     /// As `lookup_object`, but expect a `GenIdx`.
-    pub(crate) fn lookup_by_idx(&self, idx: crate::objmap::GenIdx) -> Option<Arc<dyn rpc::Object>> {
+    pub(crate) fn lookup_by_idx(
+        &self,
+        idx: crate::objmap::GenIdx,
+    ) -> Result<Arc<dyn rpc::Object>, crate::objmap::LookupError> {
         let inner = self.inner.lock().expect("lock poisoned");
         inner.objects.lookup(idx)
     }
@@ -521,8 +524,6 @@ impl Connection {
         method: Box<dyn rpc::DeserMethod>,
         meta: ReqMeta,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
-        let obj = self.lookup_object(&obj_id)?;
-
         if !meta.require.is_empty() {
             // TODO RPC: Eventually, we will need a way to tell which "features" are actually
             // available.  But for now, we have no features, so if the require list is nonempty,
@@ -533,10 +534,29 @@ impl Connection {
         let context: Arc<dyn rpc::Context> = self.clone() as Arc<_>;
 
         let invoke_future =
-            rpc::invoke_rpc_method(context, &obj_id, obj, method.upcast_box(), tx_updates)?;
+            rpc::invoke_rpc_method(context, &obj_id, method.upcast_box(), tx_updates)?;
 
         // Note that we drop the read lock before we await this future!
         invoke_future.await
+    }
+
+    /// Helper: Implementation for register_weak and register_strong.
+    fn register_impl(
+        &self,
+        insert_into: impl FnOnce(&mut ObjMap) -> GenIdx,
+        use_global_id: bool,
+    ) -> rpc::ObjectId {
+        let local_id = insert_into(&mut self.inner.lock().expect("Lock poisoned").objects);
+
+        // Design note: It is a deliberate decision to _always_ use GlobalId for
+        // objects whose IDs are _ever_ exported for use in SOCKS requests.  Some
+        // alternatives would be to use GlobalId conditionally, or to have a
+        // separate Method to create a new GlobalId given an existing LocalId.
+        if use_global_id {
+            GlobalId::new(self.connection_id, local_id).encode(&self.global_id_mac_key)
+        } else {
+            local_id.encode()
+        }
     }
 }
 
@@ -628,26 +648,16 @@ impl rpc::Context for Connection {
     }
 
     fn register_owned(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
-        let use_global_id = object.expose_outside_of_session();
-        let local_id = self
-            .inner
-            .lock()
-            .expect("Lock poisoned")
-            .objects
-            .insert_strong(object);
-
-        // Design note: It is a deliberate decision to _always_ use GlobalId for
-        // objects whose IDs are _ever_ exported for use in SOCKS requests.  Some
-        // alternatives would be to use GlobalId conditionally, or to have a
-        // separate Method to create a new GlobalId given an existing LocalId.
-        if use_global_id {
-            GlobalId::new(self.connection_id, local_id).encode(&self.global_id_mac_key)
-        } else {
-            local_id.encode()
-        }
+        let expose = object.expose_outside_of_session();
+        self.register_impl(|map| map.insert_strong(object), expose)
     }
 
-    fn release_owned(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
+    fn register_weak(&self, object: &Arc<dyn tor_rpcbase::Object>) -> tor_rpcbase::ObjectId {
+        let expose = object.expose_outside_of_session();
+        self.register_impl(|map| map.insert_weak(object), expose)
+    }
+
+    fn release(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
         let removed_some = if id.as_ref() == Self::CONNECTION_OBJ_ID {
             self.inner
                 .lock()
@@ -658,16 +668,11 @@ impl rpc::Context for Connection {
         } else {
             let idx = self.id_into_local_idx(id)?;
 
-            if !idx.is_strong() {
-                return Err(rpc::LookupError::WrongType(id.clone()));
-            }
-
             self.inner
                 .lock()
                 .expect("Lock poisoned")
                 .objects
                 .remove(idx)
-                .is_some()
         };
 
         if removed_some {

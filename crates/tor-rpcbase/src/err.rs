@@ -144,6 +144,8 @@ pub enum RpcErrorKind {
     RequestCancelled = 4,
     /// This request listed a required feature that doesn't exist.
     FeatureNotPresent = 5,
+    /// A weak reference has expired.
+    WeakReferenceExpired = 6,
 }
 
 /// Helper: Return an error code (for backward compat with json-rpc) for an
