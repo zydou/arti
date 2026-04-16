@@ -16,6 +16,7 @@ use tor_cell::chancell::msg;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
+use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, StreamOps};
 use web_time_compat::{SystemTime, SystemTimeExt};
 
@@ -63,8 +64,12 @@ pub struct NonVerifiableResponderRelayChannel<
     pub(crate) create_request_handler: Arc<CreateRequestHandler>,
     /// Our Ed25519 identity.
     ///
-    /// Needed for ntor handshakes.
+    /// Needed for ntor-v3 handshakes.
     pub(crate) our_ed25519_id: Ed25519Identity,
+    /// Our RSA identity.
+    ///
+    /// Needed for ntor handshakes.
+    pub(crate) our_rsa_id: RsaIdentity,
 }
 
 /// A verifiable relay responder channel that is currently unverified. This can only be a relay on
@@ -117,8 +122,12 @@ pub struct VerifiedResponderRelayChannel<
     create_request_handler: Arc<CreateRequestHandler>,
     /// Our Ed25519 identity.
     ///
-    /// Needed for ntor handshakes.
+    /// Needed for ntor-v3 handshakes.
     our_ed25519_id: Ed25519Identity,
+    /// Our RSA identity.
+    ///
+    /// Needed for ntor handshakes.
+    our_rsa_id: RsaIdentity,
 }
 
 impl<T, S> UnverifiedResponderRelayChannel<T, S>
@@ -267,6 +276,7 @@ where
             peer_addr: self.peer_addr,
             create_request_handler: self.create_request_handler,
             our_ed25519_id: identities.ed_id,
+            our_rsa_id: identities.rsa_id,
         })
     }
 
@@ -299,6 +309,7 @@ where
         let channel_mode = ChannelMode::Relay {
             circ_id_range: CircIdRange::Low,
             our_ed25519_id: self.our_ed25519_id,
+            our_rsa_id: self.our_rsa_id,
             create_request_handler: self.create_request_handler,
         };
 
@@ -331,6 +342,7 @@ where
         let channel_mode = ChannelMode::Relay {
             circ_id_range: CircIdRange::Low,
             our_ed25519_id: self.our_ed25519_id,
+            our_rsa_id: self.our_rsa_id,
             create_request_handler: self.create_request_handler,
         };
 

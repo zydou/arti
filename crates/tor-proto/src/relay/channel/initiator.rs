@@ -209,6 +209,7 @@ where
         let channel_mode = ChannelMode::Relay {
             circ_id_range: CircIdRange::High,
             our_ed25519_id: self.auth_material.ed_id,
+            our_rsa_id: self.auth_material.rsa_id,
             create_request_handler: self.create_request_handler,
         };
 

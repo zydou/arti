@@ -96,7 +96,7 @@ use tor_async_utils::counting_streams::{self, CountingSink, CountingStream};
 use {
     crate::channel::reactor::CreateRequestHandlerAndData, crate::circuit::CircuitRxReceiver,
     crate::relay::channel::create_handler::CreateRequestHandler,
-    tor_llcrypto::pk::ed25519::Ed25519Identity,
+    tor_llcrypto::pk::ed25519::Ed25519Identity, tor_llcrypto::pk::rsa::RsaIdentity,
 };
 
 /// Imports that are re-exported pub if feature `testing` is enabled
@@ -620,11 +620,13 @@ impl Channel {
             ChannelMode::Relay {
                 create_request_handler,
                 our_ed25519_id,
+                our_rsa_id,
                 ..
             } => Some(CreateRequestHandlerAndData {
                 handler: create_request_handler,
                 channel: Arc::downgrade(&channel),
                 our_ed25519_id,
+                our_rsa_id,
             }),
             ChannelMode::Client => None,
         };
@@ -1121,6 +1123,8 @@ pub(crate) enum ChannelMode {
         create_request_handler: Arc<CreateRequestHandler>,
         /// Our Ed25519 identity.
         our_ed25519_id: Ed25519Identity,
+        /// Our RSA identity.
+        our_rsa_id: RsaIdentity,
         /// The range of circuit IDs that we allocate for new circuits.
         circ_id_range: circmap::CircIdRange,
     },
