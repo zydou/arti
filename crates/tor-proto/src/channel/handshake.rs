@@ -1295,9 +1295,25 @@ pub(crate) mod test {
                 use std::{net::SocketAddr, sync::Weak};
 
                 let chan_provider = Arc::new(DummyChanProvider::new_without_chan(rt.clone()));
+                // TODO(relay): Might worth having a helper function to create the request handler
+                // which could also generate this dummy ntor keys.
+                let ntor_keys = {
+                    use tor_key_forge::Keygen;
+                    use tor_relay_crypto::pk::{RelayNtorKeypair, RelayNtorKeys};
+                    let ntor = RelayNtorKeypair::from(
+                        tor_llcrypto::pk::curve25519::StaticKeypair::generate(
+                            &mut tor_llcrypto::rng::CautiousRng,
+                        )
+                        .unwrap(),
+                    );
+                    std::iter::once(ntor)
+                        .collect::<std::result::Result<RelayNtorKeys, _>>()
+                        .unwrap()
+                };
                 let create_handler = Arc::new(CreateRequestHandler::new(
                     Arc::downgrade(&chan_provider) as Weak<_>,
                     new_circ_net_params(),
+                    ntor_keys,
                 ));
                 let peer_target = OwnedChanTargetBuilder::default().build().unwrap();
                 let unverified = RelayInitiatorHandshake::new(

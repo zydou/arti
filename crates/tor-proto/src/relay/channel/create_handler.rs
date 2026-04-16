@@ -49,7 +49,7 @@ pub struct CreateRequestHandler {
     circ_net_params: RwLock<CircNetParameters>,
     /// The circuit extension keys.
     #[debug(skip)]
-    ntor_keys: RwLock<Option<RelayNtorKeys>>,
+    ntor_keys: RwLock<RelayNtorKeys>,
 }
 
 impl CreateRequestHandler {
@@ -57,22 +57,12 @@ impl CreateRequestHandler {
     pub fn new(
         chan_provider: Weak<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
         circ_net_params: CircNetParameters,
+        ntor_keys: RelayNtorKeys,
     ) -> Self {
         Self {
             chan_provider,
             circ_net_params: RwLock::new(circ_net_params),
-            // Initially there are no keys. This will be updated when the keys are read/generated
-            // by the crypto task.
-            //
-            // TODO(relay): I think it would be better to set these from the beginning,
-            // but this will involve reading the ntor keys from the keystore
-            // (or generating them, if they are missing)
-            // outside of the relay crypto task, so it will require a bit of
-            // refactoring to make sure we are not duplicating the logic from there.
-            //
-            // But I think this is worthwhile, because otherwise we could end up
-            // starting to handle incoming CREATE2 requests before we the ntor keys are set.
-            ntor_keys: RwLock::new(None),
+            ntor_keys: RwLock::new(ntor_keys),
         }
     }
 
@@ -85,7 +75,7 @@ impl CreateRequestHandler {
     ///
     /// This is called periodically by the relay key rotation task.
     pub fn update_ntor_keys(&self, ntor_keys: RelayNtorKeys) {
-        *self.ntor_keys.write().expect("rwlock poisoned") = Some(ntor_keys);
+        *self.ntor_keys.write().expect("rwlock poisoned") = ntor_keys;
     }
 
     /// Handle a CREATE* cell.
