@@ -92,39 +92,78 @@ if [ -n "$macos" ]; then
 	apk add bash cmake patch clang libc-dev libxml2-dev openssl-dev musl-fts-dev build-base python3 bsd-compat-headers xz
 	rustup target add x86_64-apple-darwin
 
+	# Architecture note: the "o64" tool prefix here chooses the right
+	# defaults for x86_64-apple-darwin.
+	#
+	# At some point, we should switch all the "o64" prefixes to to
+	# "o64a" for aarch64.
+
+	# This is the version of OSX that we try to build against.
+	# This one (10.12) is the oldest supported by Rust.
+	export MACOSX_DEPLOYMENT_TARGET="10.12"
+
 	mkdir -p .cargo
 	# (note: "ar" seems to be unused here. We could probably remove it?)
 	cat > .cargo/config << EOF
 [target.x86_64-apple-darwin]
-linker = "x86_64-apple-darwin16-clang++-stdc++"
-ar = "x86_64-apple-darwin16-ar"
+linker = "o64-clang++"
 EOF
-	OSX_SDK_URL=https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.12.sdk.tar.xz
-	OSX_SDK_VERSION=10.12
-	OSX_SDK_SHA256=b314704d85934481c9927a0450db1768baf9af9efe649562fcb1a503bb44512f
+
+	# (The TB team maintains this cache.  I chose 15.5 more or less arbitrarily.
+	# It should be okay to use an SDK that is newer than our
+	# MACOSX_DEPLOYMENT_TARGET.)
+	OSX_SDK_URL=https://build-sources.tbb.torproject.org/CLTools_macOSNMOS_SDK-15.5.pkg
+	OSX_SDK_VERSION=15.5
+	OSX_PKG="CLTools_macOSNMOS_SDK-${OSX_SDK_VERSION}.pkg"
+	OSX_PKG_SHA256=ba3453d62b3d2babf67f3a4a44e8073d6555c85f114856f4390a1f53bd76e24a
 	OSX_SDK="MacOSX${OSX_SDK_VERSION}.sdk.tar.xz"
 
 	## don't compile clang if it's already here (CI cache?)
-	if [ ! -x "/arti/osxcross/target/bin/o64-clang" ]; then
+	## Make sure that it was built from the right SDK too.
+	if [ ! -x "/arti/osxcross/target/bin/o64-clang" ] ||
+	   [ ! -e "/arti/osxcross/tarballs/${OSX_SDK}" ] ; then
+		# Step 1: Fetch locally cached OSX Command-line tools pkg file.
+		wget -nc "${OSX_SDK_URL}"
+		echo "${OSX_PKG_SHA256} ${OSX_PKG}" > ./sdk-checksum
+		sha256sum -c ./sdk-checksum
+
+		# Step 2: Extract he CommandLineTools directory from that package file,
+		# using a tool from the tor-browser-build repo.
+		git clone --depth 1 --sparse --filter=blob:none \
+		    https://gitlab.torproject.org/tpo/applications/tor-browser-build.git
+		cd ./tor-browser-build
+		git sparse-checkout set projects/macosx-toolchain
+		cd ./projects/macosx-toolchain
+		patch < tools.diff
+		python3 unpack-sdk.py \
+			"../../../${OSX_PKG}" \
+			"Library/Developer/" \
+			"../../.."
+		cd ../../..
+		# (Kludge: Remove the link from e.g. MacOSX15.sdk to MacOSX15.5.sdk,
+		# so we don't get duplicate package files in step 3 below.)
+		rm CommandLineTools/SDKs/MacOSX[0-9][0-9].sdk
+
+		# Step 3: Clone osxcross and build a package from the CommandLineTools
 		git clone https://github.com/tpoechtrager/osxcross
 		cd osxcross
-		wget -nc "${OSX_SDK_URL}" -O tarballs/${OSX_SDK}
-		echo "${OSX_SDK_SHA256}  tarballs/${OSX_SDK}" > ./sdk-checksum
-		sha256sum -c ./sdk-checksum
-		# Lingering mystery: If I change this 10.7
-		# (and the occurrence of 10.7 below) to 10.12, the build fails with
-		# "cannot find libc++ headers" again.
-		UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
-		# copy it to gitlab build-dir so it may get cached
+		XCODE_TOOLS_DIR=../CommandLineTools ./tools/gen_sdk_package_tools.sh
+		mv "${OSX_SDK}" ./tarballs
+
+		# Step 4: Build the osxcross toolchain using that package.
+		# (Todo: We could save time by building only the arch we want.)
+		UNATTENDED=yes OSX_VERSION_MIN="$MACOSX_DEPLOYMENT_TARGET" ./build.sh
+
+		# Step 5: copy it to gitlab build-dir so it may get cached
 		cp -R /arti/osxcross "$here"
 		cd ..
 	fi
 
 	PATH="/arti/osxcross/target/bin:$PATH" \
-		MACOSX_DEPLOYMENT_TARGET="10.7" \
 		CC=o64-clang \
 		CXX=o64-clang++ \
 		cargo_build_arti --target x86_64-apple-darwin
+
 	mv /arti/target/x86_64-apple-darwin/release/arti "$here"/arti-macos
 fi
 
