@@ -245,8 +245,8 @@ pub(crate) fn make_requests_for_documents<R: Runtime>(
 ) -> Result<Vec<ClientRequest>> {
     let mut res = Vec::new();
     for q in docid::partition_by_type(docs.iter().copied())
-        .into_iter()
-        .flat_map(|(_, x)| x.split_for_download().into_iter())
+        .into_values()
+        .flat_map(|x| x.split_for_download().into_iter())
     {
         match q {
             DocQuery::LatestConsensus { flavor, .. } => {
