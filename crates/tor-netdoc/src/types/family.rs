@@ -48,7 +48,7 @@ impl RelayFamily {
 
     /// Convert this family to a standard format (with all IDs sorted and de-duplicated).
     fn normalize(&mut self) {
-        self.0.sort_by(|a, b| a.0.cmp(&b.0));
+        self.0.sort_by_key(|v| v.0);
         self.0.dedup();
     }
 
