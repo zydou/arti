@@ -765,7 +765,7 @@ impl ConfluxSet {
     /// Returns `None` if no suitable leg was found.
     #[cfg(feature = "conflux")]
     fn select_primary_leg_min_rtt(&self, check_can_send: bool) -> Result<Option<UniqId>, Bug> {
-        let mut best = None;
+        let mut best: Option<(UniqId, u32)> = None;
 
         for circ in self.legs.iter() {
             let leg_id = circ.unique_id();
@@ -788,18 +788,10 @@ impl ConfluxSet {
                 ));
             };
 
-            match best.take() {
-                None => {
-                    best = Some((leg_id, ewma_rtt));
-                }
-                Some(best_so_far) => {
-                    if best_so_far.1 <= ewma_rtt {
-                        best = Some(best_so_far);
-                    } else {
-                        best = Some((leg_id, ewma_rtt));
-                    }
-                }
-            }
+            best = Some(match best.take() {
+                Some(best_so_far) if best_so_far.1 <= ewma_rtt => best_so_far,
+                None | Some(_) => (leg_id, ewma_rtt),
+            });
         }
 
         Ok(best.map(|(leg_id, _)| leg_id))
