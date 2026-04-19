@@ -263,6 +263,7 @@ impl Sub<Timestamp> for Timestamp {
 
     /// Performs a saturating duration_since wrapping to [`Duration::ZERO`].
     fn sub(self, rhs: Timestamp) -> Self::Output {
+        #[allow(unstable_name_collisions)]
         self.0.saturating_duration_since(rhs.0)
     }
 }
@@ -277,6 +278,7 @@ impl FromSql for Timestamp {
 
 impl ToSql for Timestamp {
     fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        #[allow(unstable_name_collisions)]
         Ok(ToSqlOutput::from(
             self.0
                 .saturating_duration_since(SystemTime::UNIX_EPOCH)
