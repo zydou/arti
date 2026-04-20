@@ -46,7 +46,7 @@ pub struct Preamble {
     /// upgrade the consensus algorithm.)
     #[deftly(constructor)]
     // Not #[deftly(netdoc(single_arg))] because that would mean a consensuses
-    // had an always-present singleton `published` item with no arguments.
+    // had an always-present singleton `consensus_method` item with no arguments.
     pub consensus_method: ns_type!( (u32,), (u32,), NotPresent ),
 
     /// Publication time (of a vote)
