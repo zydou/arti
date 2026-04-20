@@ -2206,4 +2206,17 @@ mod test {
 
         Ok(())
     }
+
+    /// Round trip test for [`NumericBoolean`] ensuring that `0` is false,
+    /// `1` is true, and other things fail.
+    #[test]
+    fn numeric_boolean() {
+        let chk = |s: &str| {
+            assert_eq!(NumericBoolean::from_str(s).expect(s).to_string(), s);
+        };
+        chk("0");
+        chk("1");
+        // Testing this because it is not a u8.
+        assert!(NumericBoolean::from_str("10000").is_err());
+    }
 }
