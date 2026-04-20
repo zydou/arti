@@ -298,6 +298,7 @@ define_derive_deftly_module! {
 
             ${for fields {
                 ${when F_INTRO}
+                ${loop_exactly_1 "internal error, somehow not exactly one intro item!"}
                 kw == $F_KEYWORD
             }}
         }
@@ -1065,8 +1066,10 @@ define_derive_deftly! {
         }
 
         fn is_structural_keyword(kw: $P::KeywordRef<'_>) -> Option<$P::IsStructural> {
-            $NETDOC_PARSEABLE_TTYPE::is_structural_keyword(kw)
-                .or_else(|| <$SIGS_TYPE as $P::NetdocParseableSignatures>::is_item_keyword(kw).then_some($P::IsStructural))
+            $NETDOC_PARSEABLE_TTYPE::is_structural_keyword(kw).or_else(
+                || <$SIGS_TYPE as $P::NetdocParseableSignatures>
+                    ::is_item_keyword(kw).then_some($P::IsStructural)
+            )
         }
 
         fn from_items<'s>(
