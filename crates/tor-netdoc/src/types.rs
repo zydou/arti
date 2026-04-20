@@ -25,7 +25,7 @@ pub use misc::{DigestName, IdentifiedDigest};
 pub use misc::{Iso8601TimeNoSp, Iso8601TimeSp};
 
 #[cfg(feature = "routerdesc")]
-pub use misc::{ExtraInfoDigests, OverloadGeneral, OverloadGeneralVersion, RouterDescIntroItem};
+pub use misc::routerdesc;
 
 #[cfg(any(feature = "parse2", feature = "encode"))]
 mod parse2_encode;

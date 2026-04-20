@@ -14,8 +14,6 @@ pub use ed25519impl::*;
 pub(crate) use edcert::*;
 pub use fingerprint::*;
 pub use hostname::*;
-#[cfg(feature = "routerdesc")]
-pub use routerdesc::*;
 pub use rsa::*;
 pub use timeimpl::*;
 
@@ -1762,7 +1760,7 @@ mod boolean {
 
 /// Types for router descriptors.
 #[cfg(feature = "routerdesc")]
-mod routerdesc {
+pub mod routerdesc {
     use crate::{
         NormalItemArgument,
         types::{
