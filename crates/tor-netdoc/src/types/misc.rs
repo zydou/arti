@@ -2284,4 +2284,64 @@ mod test {
         // Testing this because it is not a u8.
         assert!(NumericBoolean::from_str("10000").is_err());
     }
+
+    /// Test that ensures SpFingerprint matches the 10x4 requirement.
+    #[test]
+    #[cfg(feature = "parse2")]
+    fn sp_fingerprint() {
+        use derive_deftly::Deftly;
+        use tor_llcrypto::pk::rsa::RsaIdentity;
+
+        use crate::parse2::ErrorProblem;
+
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocParseable)]
+        struct Wrapper {
+            #[deftly(netdoc(single_arg))]
+            fingerprint: SpFingerprint,
+        }
+
+        /// Small helper to parse an [`SpFingerprint`].
+        fn parse2(s: &str) -> std::result::Result<SpFingerprint, ErrorProblem> {
+            use crate::parse2::{self, ParseInput};
+
+            let s = format!("fingerprint {s}\n");
+            parse2::parse_netdoc::<Wrapper>(&ParseInput::new(&s, ""))
+                .map(|x| x.fingerprint)
+                .map_err(|x| x.problem)
+        }
+
+        // Test a valid one.
+        assert_eq!(
+            parse2(&vec!["ABAB"; 10].join(" ")).unwrap(),
+            SpFingerprint(RsaIdentity::from_bytes(&[0xAB; 20]).unwrap())
+        );
+
+        // Test a valid one with tail.
+        assert_eq!(
+            parse2(&vec!["ABAB"; 11].join(" ")).unwrap(),
+            SpFingerprint(RsaIdentity::from_bytes(&[0xAB; 20]).unwrap())
+        );
+
+        // Missing argument
+        assert!(matches!(
+            parse2(&vec!["ABAB"; 9].join(" ")).unwrap_err(),
+            ErrorProblem::MissingArgument { .. }
+        ));
+
+        // Invalid argument.
+        // In this case, we have string with a total length of 40 but with
+        // one pair having 6 characters and another one having 2 as a proof
+        // of that.
+        assert!(matches!(
+            parse2("0000 000000 00 0000 0000 0000 0000 0000 0000 0000").unwrap_err(),
+            ErrorProblem::InvalidArgument { .. }
+        ));
+
+        // And of course invalid hex should fail too.
+        assert!(matches!(
+            parse2(&vec!["ZZZZ"; 10].join(" ")).unwrap_err(),
+            ErrorProblem::InvalidArgument { .. }
+        ));
+    }
 }
