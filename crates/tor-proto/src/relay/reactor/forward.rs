@@ -275,8 +275,6 @@ impl Forward {
     ///
     /// Note: this gets spawned in a background task from
     /// [`Self::handle_extend2`] so as not to block the reactor main loop.
-    ///
-    #[allow(unused_variables)] // will become used once we implement CREATED2 timeouts
     async fn extend_circuit<R: Runtime>(
         _runtime: R,
         unique_id: UniqId,
