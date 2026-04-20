@@ -2106,6 +2106,7 @@ mod test {
 
         chk_either("0.0.0.0");
         chk_either("127.0.0.1");
+        chk_addr("::");
         chk_addr("::1");
         chk_addr("2001:0db8:85a3:0000:0000:8a2e:0370:7334");
     }
