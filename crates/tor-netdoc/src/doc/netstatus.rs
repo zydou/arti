@@ -83,7 +83,7 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{net, result, time};
-use tor_error::{HasKind, internal};
+use tor_error::{HasKind, bad_api_usage, internal};
 use tor_protover::Protocols;
 
 use derive_deftly::{Deftly, define_derive_deftly};
@@ -312,6 +312,16 @@ pub mod consensus_methods_comma_separated {
 /// The same syntax is also used, and this type used for parsing, in various other places,
 /// for example routerstatus entry `w` items (bandwidth weights):
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
+//
+// TODO DIRAUTH torspec#401 Replace `String` with a suitable newtype
+// Currently:
+//  - Our parser allows any keyword that makes it into a netdoc argument,
+//    but it splits on the *first* `=` so a `NetParams<i32>` cannot parse a keyword with a `=`.
+//  - We provide constructors that allow any `String`, even ones containing space, `=`,
+//    newline, etc.
+//  - Encoding throws `Bug` if the resulting document will be clearly garbage,
+//    forbidding `=`, whitespace, and controls.  If the supplied keywords are bizarre,
+//    it may generate surprising documents (eg, containing exciting Unicode).
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct NetParams<T> {
     /// Map from keys to values.
@@ -1155,6 +1165,15 @@ mod encode_impls {
     impl ItemValueEncodable for NetParams<i32> {
         fn write_item_value_onto(&self, mut out: ItemEncoder) -> Result<(), Bug> {
             for (k, v) in self.iter().collect::<BTreeSet<_>>() {
+                if k.is_empty()
+                    || k.chars()
+                        .any(|c| c.is_whitespace() || c.is_control() || c == '=')
+                {
+                    // TODO torspec#401 see TODO in NetParams<T> definition
+                    return Err(bad_api_usage!(
+                        "tried to encode NetParms with unreasonable keyword {k:?}"
+                    ));
+                }
                 out.args_raw_string(&format_args!("{k}={v}"));
             }
             Ok(())
@@ -1684,6 +1703,22 @@ mod test {
 
         let p = "Hello=Goodbye Fred=7".parse::<NetParams<u32>>();
         assert!(p.is_err());
+
+        #[cfg(feature = "encode")]
+        {
+            use crate::encode::{ItemValueEncodable, NetdocEncoder};
+
+            for bad_kw in ["What=The", "", "\n", "\0"] {
+                let p = [(bad_kw, 42)].into_iter().collect::<NetParams<i32>>();
+                let mut d = NetdocEncoder::new();
+                let d = (|| {
+                    let i = d.item("bad-psrams");
+                    p.write_item_value_onto(i)?;
+                    d.finish()
+                })();
+                let _: tor_error::Bug = d.expect_err(bad_kw);
+            }
+        }
     }
 
     #[test]
