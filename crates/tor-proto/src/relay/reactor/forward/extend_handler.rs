@@ -13,7 +13,7 @@ use tor_cell::relaycell::UnparsedRelayMsg;
 use tor_cell::relaycell::msg::{Extend2, Extended2};
 use tor_error::{internal, into_internal, warn_report};
 use tor_linkspec::decode::Strictness;
-use tor_linkspec::{OwnedChanTarget, OwnedChanTargetBuilder};
+use tor_linkspec::{HasRelayIds, OwnedChanTarget, OwnedChanTargetBuilder, RelayIdSet};
 use tor_rtcompat::{Runtime, SpawnExt as _};
 
 use futures::channel::mpsc;
@@ -112,6 +112,18 @@ impl ExtendRequestHandler {
             // TODO: should we include the error in the circ proto error context?
             Error::CircProto("Invalid channel target".into())
         })?;
+
+        let target_ids =
+            RelayIdSet::from_iter(chan_target.identities().map(|id_ref| id_ref.to_owned()));
+        let inbound_ids = RelayIdSet::from_iter(
+            self.inbound_peer
+                .identities()
+                .map(|id_ref| id_ref.to_owned()),
+        );
+
+        if target_ids.iter().any(|id| inbound_ids.contains(id)) {
+            return Err(Error::CircProto("Cannot extend circuit to previous hop".into()).into());
+        }
 
         // Note: we don't do any further validation on the EXTEND2 here,
         // under the assumption it will be handled by the ChannelProvider.
