@@ -348,7 +348,8 @@ define_derive_deftly_module! {
 
     ${defcond F_REST fmeta(netdoc(rest))}
     ${defcond F_OBJECT fmeta(netdoc(object))}
-    ${defcond F_NORMAL not(any(F_REST, F_OBJECT))}
+    ${defcond F_SKIP fmeta(netdoc(skip))}
+    ${defcond F_NORMAL not(any(F_REST, F_OBJECT, F_SKIP))}
 
     ${defcond T_IS_SIGNATURE tmeta(netdoc(signature))}
 }

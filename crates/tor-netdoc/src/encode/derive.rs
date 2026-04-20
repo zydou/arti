@@ -356,6 +356,10 @@ define_derive_deftly! {
     ///  * **`#[deftly(netdoc(sig_hash = HASH_METHOD))]**:
     ///
     ///    TODO NETDOC ENCODE.  Encoding of signed documents is not yet implemented.
+    ///
+    ///  * **`#[deftly(netdoc(skip))]**:
+    ///
+    ///    Do not encode this field.
     export ItemValueEncodable beta_deftly, for struct, meta_quoted rigorous, expect items:
 
     ${define P { $crate::encode }}
@@ -422,6 +426,8 @@ define_derive_deftly! {
                   F_OBJECT {
                             // We do this one later, in case it's not last in the struct.
                             // It consumes `out`.
+                  }
+                  F_SKIP {
                   }
                 }
                         } // per-field local variables scope

@@ -733,6 +733,8 @@ struct TestItem0 {
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItem {
+    #[deftly(netdoc(skip))]
+    skip: u32,
     needed: String,
     #[deftly(netdoc(with = needs_with_arg))]
     optional: Option<NeedsWith>,

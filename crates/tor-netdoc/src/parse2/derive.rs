@@ -1215,6 +1215,10 @@ define_derive_deftly! {
     ///    unless the object also implements `ItemObjectParseable`.
     ///    Errors from parsing will all be collapsed into
     ///    [`ErrorProblem::ObjectInvalidData`].
+    ///
+    ///  * **`#[deftly(netdoc(skip))]**:
+    ///
+    ///    Do not parse this field; fill it in with `Default::default()` instead.
     export ItemValueParseable for struct, meta_quoted rigorous, expect items, beta_deftly:
 
     ${define P { $crate::parse2::internal_prelude }}
@@ -1301,6 +1305,9 @@ define_derive_deftly! {
                       (args_consume.into_remaining())
                       .map_err(|_| AE::Invalid)
                       .map_err(args_consume.error_handler(stringify!($fname)))?
+              } }
+              F_SKIP { {
+                  <$ftype as Default>::default()
               } }
             };
           )
