@@ -1349,6 +1349,8 @@ mod fingerprint {
 
     /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
     ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html?highlight=fingerprint#item:fingerprint>
+    ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
     #[derive(Debug, Clone, Eq, PartialEq, Hash, Deftly)]
     #[derive_deftly(Transparent)]
