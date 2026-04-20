@@ -148,6 +148,7 @@ impl<R: Runtime> Reactor<R> {
         #[allow(clippy::disallowed_methods)]
         let (fwd_ev_tx, fwd_ev_rx) = mpsc::channel(0);
         let forward = Forward::new(
+            channel,
             unique_id,
             crypto_out,
             chan_provider,

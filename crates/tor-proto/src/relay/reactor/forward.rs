@@ -110,14 +110,16 @@ enum CellDecodeResult {
 impl Forward {
     /// Create a new [`Forward`].
     pub(crate) fn new(
+        inbound_chan: &Arc<Channel>,
         unique_id: UniqId,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
         event_tx: mpsc::Sender<CircEvent>,
         memquota: CircuitAccount,
     ) -> Self {
+        let inbound_peer = inbound_chan.target().clone();
         let extend_handler =
-            ExtendRequestHandler::new(unique_id, chan_provider, event_tx, memquota);
+            ExtendRequestHandler::new(unique_id, chan_provider, inbound_peer, event_tx, memquota);
 
         Self {
             unique_id,

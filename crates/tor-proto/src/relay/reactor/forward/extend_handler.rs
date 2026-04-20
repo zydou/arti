@@ -41,6 +41,8 @@ pub(super) struct ExtendRequestHandler {
     /// with the *same* underlying Tor channel provider (`ChanMgr`),
     /// to enable the reuse of existing Tor channels where possible.
     chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
+    /// The identity of the inbound relay (the previous hop).
+    inbound_peer: OwnedChanTarget,
     /// A stream of events to be read from the main loop of the reactor.
     event_tx: mpsc::Sender<CircEvent>,
     /// Memory quota account
@@ -52,6 +54,7 @@ impl ExtendRequestHandler {
     pub(super) fn new(
         unique_id: UniqId,
         chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
+        inbound_peer: OwnedChanTarget,
         event_tx: mpsc::Sender<CircEvent>,
         memquota: CircuitAccount,
     ) -> Self {
@@ -59,6 +62,7 @@ impl ExtendRequestHandler {
             unique_id,
             have_seen_extend2: false,
             chan_provider,
+            inbound_peer,
             event_tx,
             memquota,
         }
