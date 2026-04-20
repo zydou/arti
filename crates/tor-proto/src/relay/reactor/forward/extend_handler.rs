@@ -69,7 +69,9 @@ impl ExtendRequestHandler {
     /// This spawns a background task for dealing with the circuit extension,
     /// which then reports back the result via the [`Self::event_tx`] MPSC stream.
     /// Note that this MPSC stream is polled from the `ForwardReactor` main loop,
-    /// and each `CircEvent` is passed back to [`Self::handle_event()`[ for handling.
+    /// and each `CircEvent` is passed back to [`Forward`](super::Forward)'s
+    /// [`ForwardHandler::handle_event`](crate::circuit::reactor::forward::ForwardHandler::handle_event)
+    /// implementation for handling.
     pub(super) fn handle_extend2<R: Runtime>(
         &mut self,
         runtime: &R,
