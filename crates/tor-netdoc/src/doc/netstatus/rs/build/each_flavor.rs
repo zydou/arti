@@ -127,7 +127,8 @@ impl RouterStatusBuilder {
     /// Try to build a GenericRouterStatus from this builder.
     // TODO this function is identical to `build`; decide which one to keep
     pub(super) fn finish(&self) -> Result<RouterStatus> {
-        let nickname = self.nickname.as_deref().unwrap_or("Unnamed").parse()?;
+        let nickname = self.nickname.as_deref().unwrap_or("Unnamed").parse()
+            .map_err(|_| Error::CannotBuild("Invalid nickname"))?;
         let identity = self
             .identity
             .ok_or(Error::CannotBuild("Missing RSA identity"))?;

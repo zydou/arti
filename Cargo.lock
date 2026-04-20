@@ -7694,6 +7694,7 @@ dependencies = [
  "enumset",
  "hex",
  "hex-literal",
+ "hostname-validator",
  "humantime",
  "itertools 0.14.0",
  "memchr",

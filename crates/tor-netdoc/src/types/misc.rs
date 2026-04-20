@@ -13,6 +13,7 @@ pub use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
+pub use hostname::*;
 pub use rsa::*;
 pub use timeimpl::*;
 
@@ -47,7 +48,7 @@ use {
     },
 };
 
-pub use nickname::Nickname;
+pub use nickname::{InvalidNickname, Nickname};
 
 pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
@@ -1414,7 +1415,6 @@ mod fingerprint {
 /// A type for relay nicknames
 mod nickname {
     use super::*;
-    use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use tinystr::TinyAsciiStr;
 
     /// This is a strange limit, but it comes from Tor.
@@ -1431,6 +1431,12 @@ mod nickname {
     #[derive(Clone, Debug)]
     pub struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
 
+    /// Invalid nickname
+    #[derive(Clone, Debug, thiserror::Error)]
+    #[error("invalid nickname")]
+    #[non_exhaustive]
+    pub struct InvalidNickname {}
+
     impl Nickname {
         /// Return a view of this nickname as a string slice.
         pub(crate) fn as_str(&self) -> &str {
@@ -1445,26 +1451,150 @@ mod nickname {
     }
 
     impl FromStr for Nickname {
-        type Err = Error;
+        type Err = InvalidNickname;
 
-        fn from_str(s: &str) -> Result<Self> {
-            let tiny = TinyAsciiStr::from_str(s).map_err(|_| {
-                EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("Invalid nickname")
-            })?;
+        fn from_str(s: &str) -> Result<Self, InvalidNickname> {
+            let tiny = TinyAsciiStr::from_str(s).map_err(|_| InvalidNickname {})?;
 
             if tiny.is_ascii_alphanumeric() && !tiny.is_empty() {
                 Ok(Nickname(tiny))
             } else {
-                Err(EK::BadArgument
-                    .at_pos(Pos::at(s))
-                    .with_msg("Invalid nickname"))
+                Err(InvalidNickname {})
             }
         }
     }
 
     impl crate::NormalItemArgument for Nickname {}
+}
+
+/// Hostnames etc.
+//
+// TODO maybe move all this to tor-basic-utils
+mod hostname {
+    use super::*;
+    use std::net::IpAddr;
+
+    /// Internet hostname
+    ///
+    /// Valid according to Internet RFC1123,
+    /// with the additional restriction that there must be at least one letter.
+    /// (That means that anything accepted as a `Hostname`
+    /// won't be accepted as an address even by very relaxed IPv4 address parsers.
+    /// We presume that no TLD will ever exist that is entirely decimal digits.)
+    ///
+    /// Preserves case.
+    ///
+    /// Reserved hostname such as `example.come`, `tor.invalid` and `localhost`
+    /// are accepted.
+    ///
+    /// # Comparisons; `PartialEq`, `Eq`
+    ///
+    /// The `PartialEq` and `Eq` implementations are case sensitive,
+    /// even though internet hostnames are not case-sensitive.
+    ///
+    /// Comparing hostnames for identical apparent meaning is complicated.
+    /// If you need to do that, you (may) need to engage with punycode (IDN),
+    /// as well as arranging for a case-insensitive comparison.
+    ///
+    /// And of course, hostnames reference to the DNS.
+    /// A single host may have multiple names and it may change its address.
+    #[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)] //
+    #[derive(derive_more::Into, derive_more::Deref, derive_more::AsRef, derive_more::Display)]
+    pub struct Hostname(String);
+
+    /// Hostname, or IP address (v4 or v6)
+    ///
+    /// Preserves hostname case.  See [`Hostname`].
+    ///
+    /// Reserved hostnames and addresses (eg `0.0.0.0` or `tor.invalid`) are accepted.
+    ///
+    /// IPv6 addresses are represented *without* surrounding `[ ]`.
+    ///
+    /// Therefore, you cannot make this into a host-and-port by appending `:port`.
+    /// To process name-and-port is complex.  `SRV` (or `MX`) records might be involved.
+    //
+    // This type is called `InternetHost` to emphasise that it is primarily for
+    // hosts on the public internet and, unlike arti-client's `Host`,
+    // has special handling of `.onion` addresses.
+    #[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)] //
+    #[derive(derive_more::Display)]
+    #[allow(clippy::exhaustive_enums)]
+    // TODO derive .as_hostname(), .as_ip_addr(), From<Hostname>, From<IpAddr>
+    pub enum InternetHost {
+        /// Hostname
+        #[display("{_0}")]
+        Name(Hostname),
+        /// IP address (v4 or v6)
+        #[display("{_0}")]
+        IpAddr(IpAddr),
+    }
+
+    /// Invalid hostname
+    #[derive(Clone, Debug, thiserror::Error)]
+    #[error("invalid hostname")]
+    #[non_exhaustive]
+    pub struct InvalidHostname {}
+
+    /// Invalid Internet hostname/address
+    #[derive(Clone, Debug, thiserror::Error)]
+    #[error("invalid: not a valid hostname, nor a valid IPv4 or IPv6 address")]
+    #[non_exhaustive]
+    pub struct InvalidInternetHost {}
+
+    impl Hostname {
+        /// Obtain this hostname as a `str`
+        pub fn as_str(&self) -> &str {
+            &self.0
+        }
+    }
+
+    impl AsRef<str> for Hostname {
+        fn as_ref(&self) -> &str {
+            self.as_str()
+        }
+    }
+
+    impl TryFrom<String> for Hostname {
+        type Error = InvalidHostname;
+        fn try_from(s: String) -> Result<Self, InvalidHostname> {
+            if hostname_validator::is_valid(&s) &&
+                // Reject hostnames that consist only of decimal digits and full stops.
+                // Some of those are accepted by some old IPv4 address parsers.
+                // If any fool makes a TLD that is only digits, they deserve everything they get.
+                !s.chars().all(|c| c.is_ascii_digit() || c == '.')
+            {
+                Ok(Hostname(s))
+            } else {
+                Err(InvalidHostname {})
+            }
+        }
+    }
+
+    impl FromStr for Hostname {
+        type Err = InvalidHostname;
+        fn from_str(s: &str) -> Result<Self, InvalidHostname> {
+            s.to_owned().try_into()
+        }
+    }
+
+    impl FromStr for InternetHost {
+        type Err = InvalidInternetHost;
+        fn from_str(s: &str) -> Result<Self, InvalidInternetHost> {
+            if let Ok(y) = s.parse() {
+                Ok(InternetHost::IpAddr(y))
+            } else if let Ok(y) = s.parse() {
+                Ok(InternetHost::Name(y))
+            } else {
+                // For simplicity, we  discard the errors from parsing the options
+                // rather than trying to reproduce them.  Why something isn't a valid
+                // address or hostname ought to be fairly obvious.
+                Err(InvalidInternetHost {})
+            }
+        }
+    }
+
+    impl NormalItemArgument for Hostname {}
+    impl NormalItemArgument for InternetHost {}
 }
 
 /// Contact information of the relay operator.
@@ -1892,7 +2022,7 @@ mod test {
     }
 
     #[test]
-    fn nickname() -> Result<()> {
+    fn nickname() -> anyhow::Result<()> {
         let n: Nickname = "Foo".parse()?;
         assert_eq!(n.as_str(), "Foo");
         assert_eq!(n.to_string(), "Foo");
@@ -1913,6 +2043,73 @@ mod test {
         assert!(other_invalid.parse::<Nickname>().is_err());
 
         Ok(())
+    }
+
+    /// Test for both `Hostname` and `InternetHost`
+    #[test]
+    fn hostname() {
+        use std::net::IpAddr;
+
+        // Test a string that we should treat as a valid hostname.
+        let chk_name = |s: &str| {
+            let n: Hostname = s.parse().expect(s);
+            assert_eq!(n.as_str(), s);
+            assert_eq!(n.to_string(), s);
+            assert_eq!(s.parse::<InternetHost>().expect(s), InternetHost::Name(n));
+        };
+
+        // Test a string that looks like it could be an address or a hostname.
+        // We parse those as addresses.
+        let chk_either = |s: &str| {
+            let h: InternetHost = s.parse().expect(s);
+            let a: IpAddr = s.parse().expect(s);
+            assert_eq!(h, InternetHost::IpAddr(a), "{s:?}");
+            assert_eq!(h.to_string(), a.to_string(), "{s:?}");
+        };
+
+        // Test a string that's an address, and isn't a valid hostname.
+        let chk_addr = |s: &str| {
+            let _: InvalidHostname = s.parse::<Hostname>().expect_err(s);
+            chk_either(s);
+        };
+
+        // Test a string that we should reject.
+        let chk_bad = |s: &str| {
+            let _: InvalidHostname = s.parse::<Hostname>().expect_err(s);
+            let _: InvalidInternetHost = s.parse::<InternetHost>().expect_err(s);
+        };
+
+        chk_name("foo.bar");
+        chk_name("localhost");
+        chk_name("tor.invalid");
+        chk_name("example.com");
+
+        // Unarguably invalid.
+        chk_bad("");
+        chk_bad("foo bar");
+        chk_bad("foo..bar");
+        chk_bad("foo.-bar");
+        chk_bad(" foo.bar ");
+        chk_bad("[::1]");
+
+        // Strings that some IP address parsers accept as addresses,
+        // but which are also valid hostnames according to RFC1123.
+        //
+        // We reject them rather than processing of them as hostnames,
+        // exposing downstream software to possible strangeness.
+        chk_bad("1");
+        chk_bad("127.0.0.023");
+
+        // No-one thinks this is a valid IP address but we reject it as a hostname too,
+        // even though it's syntactically legal per RFC1123, because it's quite bad.
+        chk_bad("1.2.3.4.5");
+
+        chk_either("0.0.0.0");
+        chk_either("127.0.0.1");
+        chk_addr("::");
+        chk_addr("::1");
+        chk_addr("2001:0db8:85a3:0000:0000:8a2e:0370:7334");
+        chk_addr("::ffff:192.0.2.3"); // IPv6-mapped IPv4 address
     }
 
     #[test]

@@ -558,7 +558,11 @@ impl RouterDesc {
         let (nickname, ipv4addr, orport, dirport) = {
             let rtrline = header.required(ROUTER)?;
             (
-                rtrline.parse_arg::<Nickname>(0)?,
+                rtrline.required_arg(0)?.parse::<Nickname>().map_err(|e| {
+                    EK::BadArgument
+                        .with_msg(e.to_string())
+                        .at_pos(rtrline.pos())
+                })?,
                 Some(rtrline.parse_arg::<net::Ipv4Addr>(1)?),
                 rtrline.parse_arg(2)?,
                 // Skipping socksport.
