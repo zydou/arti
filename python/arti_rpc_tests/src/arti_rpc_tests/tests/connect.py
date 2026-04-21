@@ -30,10 +30,12 @@ def connect_simple(context):
     assert len(p) == 3
 
     for hop in p:
+        # make sure it isn't virtual, and get the fields.
+        hop = hop["known_relay"]
+
         assert hop["ids"].get("ed25519") is not None
         # We didn't ask for rsa, so we won't get it.
         assert hop["ids"].get("rsa") is None
-        assert not hop["is_virtual"]
         assert len(hop["addrs"]) > 0
 
     del stream_obj

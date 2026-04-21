@@ -75,37 +75,47 @@ impl rpc::RpcMethod for DescribePath {
 
 /// A RPC-level description for a single entry in a tunnel or circuit path.
 #[derive(serde::Serialize, Clone, Debug)]
-pub struct PathEntry {
-    /// A set of IDs for this Tor relay.
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum PathEntry {
+    /// A hop not corresponding to a known relay.
     ///
-    /// Each ID represents a long-term public key used to identify the relay.
-    /// Deprecated ID types are not included, unless they were specifically requested.
-    ///
-    /// This is absent for a virtual hop.
-    ids: Option<RelayIds>,
+    /// Typically, this is the join point for a rendezvous circuit for
+    /// communicating with or as an onion service.
+    VirtualHop {},
 
-    /// A list of the relay's addresses.
-    ///
-    /// This is absent for a virtual hop.
-    addrs: Vec<SocketAddr>,
+    /// Return
+    KnownRelay {
+        /// A set of IDs for this Tor relay.
+        ///
+        /// Each ID represents a long-term public key used to identify the relay.
+        /// Deprecated ID types are not included, unless they were specifically requested.
+        ids: RelayIds,
 
-    /// If true, this is a "virtual" hop, not corresponding to a relay.
-    ///
-    /// It typically represents the other party of a rendezvous circuit.
-    is_virtual: bool,
+        /// A list of the relay's addresses.
+        addrs: Vec<SocketAddr>,
+    },
 }
 
 /// Serializable container of relay identities.
 ///
 /// Differs from [`tor_linkspec::RelayIds`] in is serialize behavior;
 /// See <https://gitlab.torproject.org/tpo/core/arti/-/issues/2477>.
+///
+/// Every relay will have at least one ID.  On the current Tor network
+/// as of April 2026, every relay has an Ed25519 ID.
+/// (This may not always be the case in the future;
+/// for example, if we migrate to ML-DSA keys,
+/// we may eventually retire Ed25519 IDs.)
 #[derive(Clone, Debug, serde::Serialize)]
-struct RelayIds {
+pub struct RelayIds {
     /// Copy of the ed25519 id from the underlying ChanTarget.
     #[serde(rename = "ed25519", skip_serializing_if = "Option::is_none")]
     ed_identity: Option<pk::ed25519::Ed25519Identity>,
 
     /// Copy of the rsa id from the underlying ChanTarget.
+    ///
+    /// This is a deprecated ID type.
     #[serde(rename = "rsa", skip_serializing_if = "Option::is_none")]
     rsa_identity: Option<pk::rsa::RsaIdentity>,
 }
@@ -135,11 +145,7 @@ impl PathEntry {
         command: &DescribePath,
     ) -> Self {
         let Some(owned_chan_target) = detail.as_chan_target() else {
-            return PathEntry {
-                ids: None,
-                addrs: vec![],
-                is_virtual: true,
-            };
+            return PathEntry::VirtualHop {};
         };
 
         let ids = tor_linkspec::RelayIds::from_relay_ids(owned_chan_target);
@@ -152,11 +158,7 @@ impl PathEntry {
             },
         };
         let addrs = owned_chan_target.addrs().collect();
-        PathEntry {
-            ids: Some(ids),
-            addrs,
-            is_virtual: false,
-        }
+        PathEntry::KnownRelay { ids, addrs }
     }
 }
 
