@@ -38,6 +38,7 @@ experimental = [
     "build_docs",
     "dangerous-expose-struct-fields",
     "experimental-api",
+    "incomplete",
     "hsdesc-inner-docs",
     "hs-dir",
     "hs-pow-full",
@@ -51,6 +52,8 @@ build_docs = ["rand", "__is_experimental"]
 
 encode = ["rand"]
 
+incomplete = ["encode", "ns-vote", "parse2", "__is_experimental"]
+
 # Enable the "router descriptor" document type, which is needed by relays and
 # bridge clients.
 routerdesc = ["plain-consensus", "encode"]
@@ -62,10 +65,10 @@ testing = ["hex-literal", "hsdesc-inner-docs", "visibility"]
 plain-consensus = ["routerdesc", "encode"]
 ns_consensus = ["plain-consensus"] # deprecated
 # Enable support for votes.  Very very experimental!
-ns-vote = ["__is_experimental"]
+ns-vote = ["incomplete", "__is_experimental"]
 
 # Enable the `parse` derive-based netdoc parser
-parse2 = ["__is_experimental"]
+parse2 = ["incomplete", "__is_experimental"]
 
 # Client-side, directory-side, and service-side support for onion services.
 # Experimental: not covered by semver guarantees.

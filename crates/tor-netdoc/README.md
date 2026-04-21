@@ -83,6 +83,11 @@ some relays cache and serve.
 There are also other features includijng experimental ones
 which aren't documented here and shouldn't be relied on.
 
+#### Experimental features
+
+`incompleete`: Facilities which are incomplete or broken, and should
+not be used.  Use of such features is (even more) at your own risk.
+
 #### Deprecated features
 
 `build_docs`: enable code to construct the objects representing different
