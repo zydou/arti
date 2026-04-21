@@ -66,7 +66,7 @@ use {
 
 #[cfg(feature = "parse2")]
 pub use {
-    parse2_impls::ProtoStatusesNetdocParseAccumulator, //
+    proto_statuses_parse2_encode::ProtoStatusesNetdocParseAccumulator, //
 };
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
@@ -74,6 +74,7 @@ use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
+use crate::types::relay_flags::{self, DocRelayFlags};
 use crate::util::PeekableIterator;
 use crate::{Error, KeywordEncodable, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -82,7 +83,7 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{net, result, time};
-use tor_error::{HasKind, internal};
+use tor_error::{HasKind, bad_api_usage, internal};
 use tor_protover::Protocols;
 
 use derive_deftly::{Deftly, define_derive_deftly};
@@ -148,8 +149,13 @@ pub struct IgnoredPublicationTimeSp;
 ///
 /// Aggregate of three netdoc preamble fields.
 #[derive(Clone, Debug, Deftly)]
+#[derive_deftly(Constructor)]
 #[derive_deftly(Lifetime)]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodableFields))]
 #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableFields))]
+// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[allow(clippy::exhaustive_structs)]
 pub struct Lifetime {
     /// `valid-after` --- Time at which the document becomes valid
     ///
@@ -157,8 +163,9 @@ pub struct Lifetime {
     ///
     /// (You might see a consensus a little while before this time,
     /// since voting tries to finish up before the.)
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    valid_after: Iso8601TimeSp,
+    #[deftly(constructor)]
+    #[deftly(netdoc(single_arg))]
+    pub valid_after: Iso8601TimeSp,
     /// `fresh-until` --- Time after which there is expected to be a better version
     /// of this consensus
     ///
@@ -166,8 +173,9 @@ pub struct Lifetime {
     ///
     /// You can use the consensus after this time, but there is (or is
     /// supposed to be) a better one by this point.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    fresh_until: Iso8601TimeSp,
+    #[deftly(constructor)]
+    #[deftly(netdoc(single_arg))]
+    pub fresh_until: Iso8601TimeSp,
     /// `valid-until` --- Time after which this consensus is expired.
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
@@ -175,24 +183,32 @@ pub struct Lifetime {
     /// You should try to get a better consensus after this time,
     /// though it's okay to keep using this one if no more recent one
     /// can be found.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    valid_until: Iso8601TimeSp,
+    #[deftly(constructor)]
+    #[deftly(netdoc(single_arg))]
+    pub valid_until: Iso8601TimeSp,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 define_derive_deftly! {
     /// Bespoke derive for `Lifetime`, for `new` and accessors
     Lifetime:
 
+    ${defcond FIELD not(approx_equal($fname, __non_exhaustive))}
+
     impl Lifetime {
         /// Construct a new Lifetime.
         pub fn new(
-            $( $fname: time::SystemTime, )
+            $( ${when FIELD} $fname: time::SystemTime, )
         ) -> Result<Self> {
             // Make this now because otherwise literal `valid_after` here in the body
             // has the wrong span - the compiler refuses to look at the argument.
             // But we can refer to the field names.
             let self_ = Lifetime {
-                $( $fname: $fname.into(), )
+                $( ${when FIELD} $fname: $fname.into(), )
+                __non_exhaustive: (),
             };
             if self_.valid_after < self_.fresh_until && self_.fresh_until < self_.valid_until {
                 Ok(self_)
@@ -201,6 +217,8 @@ define_derive_deftly! {
             }
         }
       $(
+        ${when FIELD}
+
         ${fattrs doc}
         pub fn $fname(&self) -> time::SystemTime {
             *self.$fname
@@ -247,8 +265,9 @@ impl NormalItemArgument for ConsensusMethod {}
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-methods>
 ///
 /// There is also [`consensus_methods_comma_separated`] for `m` lines in votes.
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
-#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Deftly)]
+#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
 #[non_exhaustive]
 pub struct ConsensusMethods {
     /// Consensus methods.
@@ -293,6 +312,16 @@ pub mod consensus_methods_comma_separated {
 /// The same syntax is also used, and this type used for parsing, in various other places,
 /// for example routerstatus entry `w` items (bandwidth weights):
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
+//
+// TODO DIRAUTH torspec#401 Replace `String` with a suitable newtype
+// Currently:
+//  - Our parser allows any keyword that makes it into a netdoc argument,
+//    but it splits on the *first* `=` so a `NetParams<i32>` cannot parse a keyword with a `=`.
+//  - We provide constructors that allow any `String`, even ones containing space, `=`,
+//    newline, etc.
+//  - Encoding throws `Bug` if the resulting document will be clearly garbage,
+//    forbidding `=`, whitespace, and controls.  If the supplied keywords are bizarre,
+//    it may generate surprising documents (eg, containing exciting Unicode).
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct NetParams<T> {
     /// Map from keys to values.
@@ -1068,76 +1097,17 @@ impl RelayWeight {
     }
 }
 
-/// `parse2` impls for types in this module
+/// `parse2` impls for types in this modulea
 ///
 /// Separate module to save on repeated `cfg` and for a separate namespace.
 #[cfg(feature = "parse2")]
 mod parse2_impls {
     use super::*;
-    use parse2::ArgumentError as AE;
-    use parse2::ErrorProblem as EP;
-    use parse2::{ArgumentStream, ItemArgumentParseable, ItemValueParseable};
-    use parse2::{KeywordRef, NetdocParseableFields, UnparsedItem};
-    use paste::paste;
+    pub(super) use parse2::{
+        ArgumentError as AE, ArgumentStream, ErrorProblem as EP, ItemArgumentParseable,
+        ItemValueParseable, KeywordRef, NetdocParseableFields, UnparsedItem,
+    };
     use std::result::Result;
-
-    /// Implements `NetdocParseableFields` for `ProtoStatuses`
-    ///
-    /// We have this macro so that it's impossible to write things like
-    /// ```text
-    ///      ProtoStatuses {
-    ///          client: ProtoStatus {
-    ///              recommended: something something recommended_relay_versions something,
-    /// ```
-    ///
-    /// (The structure of `ProtoStatuses` means the normal parse2 derive won't work for it.
-    /// Note the bug above: the recommended *relay* version info is put in the *client* field.
-    /// Preventing this bug must involve: avoiding writing twice the field name elements,
-    /// such as `relay` and `client`, during this kind of construction/conversion.)
-    macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
-        #[derive(Deftly)]
-        #[derive_deftly(NetdocParseableFields)]
-        // Only ProtoStatusesParseNetdocParseAccumulator is exposed.
-        #[allow(unreachable_pub)]
-        pub struct ProtoStatusesParseHelper {
-            $(
-                #[deftly(netdoc(default))]
-                [<$rr _ $cr _protocols>]: Protocols,
-            )*
-        }
-
-        /// Partially parsed `ProtoStatuses`
-        pub use ProtoStatusesParseHelperNetdocParseAccumulator
-            as ProtoStatusesNetdocParseAccumulator;
-
-        impl NetdocParseableFields for ProtoStatuses {
-            type Accumulator = ProtoStatusesNetdocParseAccumulator;
-            fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
-                ProtoStatusesParseHelper::is_item_keyword(kw)
-            }
-            fn accumulate_item(
-                acc: &mut Self::Accumulator,
-                item: UnparsedItem<'_>,
-            ) -> Result<(), EP> {
-                ProtoStatusesParseHelper::accumulate_item(acc, item)
-            }
-            fn finish(acc: Self::Accumulator) -> Result<Self, EP> {
-                let parse = ProtoStatusesParseHelper::finish(acc)?;
-                let mut out = ProtoStatuses::default();
-                $(
-                    out.$cr.$rr = parse.[< $rr _ $cr _protocols >];
-                )*
-                Ok(out)
-            }
-        }
-    } } }
-
-    impl_proto_statuses! {
-        required client;
-        required relay;
-        recommended client;
-        recommended relay;
-    }
 
     impl ItemValueParseable for NetParams<i32> {
         fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
@@ -1180,6 +1150,37 @@ mod parse2_impls {
     }
 }
 
+/// `encode` impls for types in this modulea
+///
+/// Separate module to save on repeated `cfg` and for a separate namespace.
+#[cfg(feature = "encode")]
+mod encode_impls {
+    use super::*;
+    use std::result::Result;
+    pub(crate) use {
+        crate::encode::{ItemEncoder, ItemValueEncodable, NetdocEncodableFields, NetdocEncoder},
+        tor_error::Bug,
+    };
+
+    impl ItemValueEncodable for NetParams<i32> {
+        fn write_item_value_onto(&self, mut out: ItemEncoder) -> Result<(), Bug> {
+            for (k, v) in self.iter().collect::<BTreeSet<_>>() {
+                if k.is_empty()
+                    || k.chars()
+                        .any(|c| c.is_whitespace() || c.is_control() || c == '=')
+                {
+                    // TODO torspec#401 see TODO in NetParams<T> definition
+                    return Err(bad_api_usage!(
+                        "tried to encode NetParms with unreasonable keyword {k:?}"
+                    ));
+                }
+                out.args_raw_string(&format_args!("{k}={v}"));
+            }
+            Ok(())
+        }
+    }
+}
+
 impl Footer {
     /// Parse a directory footer from a footer section.
     fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<Footer> {
@@ -1193,6 +1194,93 @@ impl Footer {
             .parse()?;
 
         Ok(Footer { weights })
+    }
+}
+
+/// `ProtoStatuses` parsing and encoding
+///
+/// Separate module to save on repeated `cfg` to hide the helper struct
+#[cfg(any(feature = "encode", feature = "parse2"))]
+mod proto_statuses_parse2_encode {
+    #[cfg(feature = "encode")]
+    use super::encode_impls::*;
+    #[cfg(feature = "parse2")]
+    use super::parse2_impls::*;
+    use super::*;
+    use paste::paste;
+    use std::result::Result;
+
+    /// Implements `NetdocParseableFields` for `ProtoStatuses`
+    ///
+    /// We have this macro so that it's impossible to write things like
+    /// ```text
+    ///      ProtoStatuses {
+    ///          client: ProtoStatus {
+    ///              recommended: something something recommended_relay_versions something,
+    /// ```
+    ///
+    /// (The structure of `ProtoStatuses` means the normal parse2 derive won't work for it.
+    /// Note the bug above: the recommended *relay* version info is put in the *client* field.
+    /// Preventing this bug must involve: avoiding writing twice the field name elements,
+    /// such as `relay` and `client`, during this kind of construction/conversion.)
+    macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocParseableFields)]
+        #[cfg(feature = "parse2")]
+        // Only ProtoStatusesParseNetdocParseAccumulator is exposed.
+        #[allow(unreachable_pub)]
+        pub struct ProtoStatusesParseHelper {
+            $(
+                #[deftly(netdoc(default))]
+                [<$rr _ $cr _protocols>]: Protocols,
+            )*
+        }
+
+        /// Partially parsed `ProtoStatuses`
+        #[cfg(feature = "parse2")]
+        pub use ProtoStatusesParseHelperNetdocParseAccumulator
+            as ProtoStatusesNetdocParseAccumulator;
+
+        #[cfg(feature = "parse2")]
+        impl NetdocParseableFields for ProtoStatuses {
+            type Accumulator = ProtoStatusesNetdocParseAccumulator;
+            fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
+                ProtoStatusesParseHelper::is_item_keyword(kw)
+            }
+            fn accumulate_item(
+                acc: &mut Self::Accumulator,
+                item: UnparsedItem<'_>,
+            ) -> Result<(), EP> {
+                ProtoStatusesParseHelper::accumulate_item(acc, item)
+            }
+            fn finish(acc: Self::Accumulator) -> Result<Self, EP> {
+                let parse = ProtoStatusesParseHelper::finish(acc)?;
+                let mut out = ProtoStatuses::default();
+                $(
+                    out.$cr.$rr = parse.[< $rr _ $cr _protocols >];
+                )*
+                Ok(out)
+            }
+        }
+
+        #[cfg(feature = "encode")]
+        impl NetdocEncodableFields for ProtoStatuses {
+            fn encode_fields(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
+              $(
+                self.$cr.$rr.write_item_value_onto(
+                    out.item(stringify!([<$rr _ $cr _protocols>]))
+                )?;
+              )*
+                Ok(())
+            }
+        }
+    } } }
+
+    impl_proto_statuses! {
+        required client;
+        required relay;
+        recommended client;
+        recommended relay;
     }
 }
 
@@ -1615,6 +1703,22 @@ mod test {
 
         let p = "Hello=Goodbye Fred=7".parse::<NetParams<u32>>();
         assert!(p.is_err());
+
+        #[cfg(feature = "encode")]
+        {
+            use crate::encode::{ItemValueEncodable, NetdocEncoder};
+
+            for bad_kw in ["What=The", "", "\n", "\0"] {
+                let p = [(bad_kw, 42)].into_iter().collect::<NetParams<i32>>();
+                let mut d = NetdocEncoder::new();
+                let d = (|| {
+                    let i = d.item("bad-psrams");
+                    p.write_item_value_onto(i)?;
+                    d.finish()
+                })();
+                let _: tor_error::Bug = d.expect_err(bad_kw);
+            }
+        }
     }
 
     #[test]

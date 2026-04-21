@@ -40,7 +40,7 @@ ns_choose! { (
 ) (
     use doc_digest_parse2_real as doc_digest_parse2_r; // implemented here in rs/each_variety.rs
     use RouterStatusMdDigestsVote as doc_digest_parse2_m;
-    use relay_flags::VoteRepr as VarietyRelayFlagsRepr;
+    use relay_flags::NoImplicitRepr as VarietyRelayFlagsRepr;
 ) }
 
 /// Intro item for a router status entry
@@ -122,7 +122,7 @@ pub struct RouterStatus {
     #[cfg_attr(
         feature = "parse2",
         deftly(netdoc(keyword = "s")),
-        deftly(netdoc(with = { relay_flags::Parser::<VarietyRelayFlagsRepr> }))
+        deftly(netdoc(with = { relay_flags::ParserEncoder::<VarietyRelayFlagsRepr> }))
     )]
     pub flags: DocRelayFlags,
 

@@ -408,11 +408,13 @@ impl Preamble {
             proto_statuses,
             params,
             voting_delay,
-            consensus_method,
+            consensus_method: (consensus_method,),
             published: NotPresent,
             consensus_methods: NotPresent,
+            known_flags: DocRelayFlags::new_empty_unknown_discarded(),
             shared_rand_previous_value,
             shared_rand_current_value,
+            __non_exhaustive: (),
         };
 
         Ok((flavor, preamble))

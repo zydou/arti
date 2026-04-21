@@ -19,3 +19,16 @@ ADDED: `types::SpFingerprint`, `Fingerprint`, `Base64Fingerprint`, `LongIdent`, 
 ADDED: `types::Hostname`, `types::InternetHost`
 BREAKING: `types::Nickname`, `FromStr` error type is now `InvalidNickname`
 ADDED: `#[deftly(netdoc(skip))]` supported in `ItemValueParseable` and `ItemValueEncodable` derives
+ADDED: Encoding traits implemented for `Arc<T>`
+BREAKING: `netstatus::Preamble.consensus_method` and `.published` are now 1-element tuples.
+ADDED: `ItemValueEncodable` impl for `ConsensusMethods`
+ADDED: `doc::netstatus::Lifetime` fields are `pub`, and added `LifetimeConstructor`
+ADDED: `NetdocEncodableFields` impl for `doc::netstatus::Lifetime`
+ADDED: `ItemValueEncodable` impl for `NetParams<i32>`
+ADDED: `ItemValueEncodable` impl for `tor_protover::Protocols`
+ADDED: `NetdocEncodableFields` impl for `ProtoStatuses`
+BREAKING: `VoteRepr` relay flags handling marker type renamed to `NoImplicitRepr`
+ADDED: `doc::netstatus::PreambleConstructor`
+ADDED: `NetdocEncodableFields` impl for `doc::netstatus::Preamble`
+ADDED: `DocRelayFlags::new_empty_unknown_discarded()` convenience constructor
+BREAKING: `doc::netstatus::Preamble`, added `known_flags`

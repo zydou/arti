@@ -46,7 +46,7 @@ pub struct DocRelayFlags {
 
 /// Additional options for the representation of relay flags in network documents
 ///
-/// This is a generic argument to `Parser`
+/// This is a generic argument to `ParserEncoder`
 /// (and will be used for the encoder too).
 pub trait ReprMode: Debug + Copy {
     /// Flags that should be treated as being present when parsing
@@ -64,7 +64,7 @@ pub trait ReprMode: Debug + Copy {
     const ENCODE_OMIT: RelayFlags;
 }
 
-/// How relay flags are represented in a consensus
+/// How relay flags are represented in `s` in a consensus
 #[derive(Debug, Copy, Clone)]
 #[allow(clippy::exhaustive_structs)]
 pub struct ConsensusRepr;
@@ -74,12 +74,12 @@ impl ReprMode for ConsensusRepr {
     const ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 }
 
-/// How relay flags are represented in a vote
+/// How relay flags are represented in `s` in a vote and a `known-flags` line
 #[derive(Debug, Copy, Clone)]
 #[allow(clippy::exhaustive_structs)]
-pub struct VoteRepr;
+pub struct NoImplicitRepr;
 
-impl ReprMode for VoteRepr {
+impl ReprMode for NoImplicitRepr {
     const PARSE_IMPLICIT: RelayFlags = RelayFlags::empty();
     const ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 }
@@ -92,7 +92,7 @@ impl ReprMode for VoteRepr {
 /// This is a newtype around a machine integer.
 ///
 /// Does not implement `ItemValueParseable`.  Parsing (and encoding) is different in
-/// different documents.  Use an appropriate parameterised [`Parser`],
+/// different documents.  Use an appropriate parameterised [`ParserEncoder`],
 /// in `#[deftly(netdoc(with))]`.
 ///
 /// To also maybe handle unknown flags, use [`DocRelayFlags`].
@@ -166,7 +166,7 @@ pub enum RelayFlag {
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
 ///
 #[derive(Debug, Clone)]
-pub struct Parser<'s, M: ReprMode> {
+pub struct ParserEncoder<'s, M: ReprMode> {
     /// Flags so far, including the implied ones
     flags: DocRelayFlags,
 
@@ -188,13 +188,23 @@ pub enum RelayFlagsParseError {
     OutOfOrder,
 }
 
-impl<'s, M: ReprMode> Parser<'s, M> {
+impl DocRelayFlags {
+    /// Create a new `DocRelayFlags` with no known flags and no information about unknown flags
+    pub fn new_empty_unknown_discarded() -> Self {
+        DocRelayFlags {
+            known: RelayFlags::default(),
+            unknown: Unknown::new_discard(),
+        }
+    }
+}
+
+impl<'s, M: ReprMode> ParserEncoder<'s, M> {
     /// Start parsing relay flags
     ///
     /// If `PARSE_IMPLICIT` or `ENCODE_OMIT` contains unknown bits, compile will fail.
     pub fn new(unknown: Unknown<()>) -> Self {
         let known = M::PARSE_IMPLICIT | M::ENCODE_OMIT;
-        Parser {
+        ParserEncoder {
             flags: DocRelayFlags {
                 known,
                 unknown: unknown.map(|()| HashSet::new()),
@@ -243,7 +253,7 @@ mod parse_impl {
                         .at_pos(item.pos()),
                 );
             }
-            let mut flags = Parser::<ConsensusRepr>::new(Unknown::new_discard());
+            let mut flags = ParserEncoder::<ConsensusRepr>::new(Unknown::new_discard());
 
             for s in item.args() {
                 flags
@@ -257,14 +267,21 @@ mod parse_impl {
 }
 
 /// New parser impl
-#[cfg(feature = "parse2")]
+#[cfg(any(feature = "parse2", feature = "encode"))]
 mod parse2_impl {
     use super::*;
-    use crate::parse2;
-    use parse2::ErrorProblem as EP;
 
-    impl<'s, M: ReprMode> Parser<'s, M> {
+    #[cfg(feature = "parse2")]
+    use crate::parse2::{self, ErrorProblem as EP};
+
+    #[cfg(feature = "encode")]
+    use {
+        crate::encode::ItemEncoder, itertools::chain, std::collections::BTreeSet, tor_error::Bug,
+    };
+
+    impl<'s, M: ReprMode> ParserEncoder<'s, M> {
         /// Parse relay flags
+        #[cfg(feature = "parse2")]
         #[allow(clippy::needless_pass_by_value)] // we must match trait signature
         pub(crate) fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<DocRelayFlags, EP> {
             item.check_no_object()?;
@@ -275,6 +292,32 @@ mod parse2_impl {
                     .map_err(item.invalid_argument_handler("flags"))?;
             }
             Ok(flags.finish())
+        }
+
+        /// Encode relay flags
+        #[cfg(feature = "encode")]
+        #[allow(clippy::unnecessary_wraps)] // we must match trait signature
+        #[allow(clippy::redundant_closure)] // rust-clippy/issues#14215 |f| <&'static str>::from(f)
+        pub(crate) fn write_item_value_onto(
+            flags: &DocRelayFlags,
+            mut out: ItemEncoder,
+        ) -> Result<(), Bug> {
+            let set = chain!(
+                flags.known.iter().map(|f| <&'static str>::from(f)),
+                flags
+                    .unknown
+                    .as_ref()
+                    .map(|u| u.iter())
+                    .into_iter()
+                    .flatten()
+                    .map(|s: &String| &**s),
+            )
+            .collect::<BTreeSet<&'_ str>>();
+
+            for f in set {
+                out = out.arg(&f);
+            }
+            Ok(())
         }
     }
 }
