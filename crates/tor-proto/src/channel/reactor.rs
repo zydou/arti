@@ -902,7 +902,7 @@ pub(crate) mod test {
     use crate::client::circuit::CircParameters;
     use crate::client::circuit::padding::new_padding;
     use crate::fake_mpsc;
-    use crate::peer::{PeerInfo, PeerAddr};
+    use crate::peer::{PeerAddr, PeerInfo};
     use crate::util::{DummyTimeoutEstimator, fake_mq};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
@@ -935,10 +935,7 @@ pub(crate) mod test {
         let mut peer_ids = RelayIdsBuilder::default();
         peer_ids.ed_identity(ed);
         peer_ids.rsa_identity(rsa);
-        let peer_info = PeerInfo::new(
-            PeerAddr::UNSPECIFIED,
-            peer_ids.build().unwrap(),
-        );
+        let peer_info = PeerInfo::new(PeerAddr::UNSPECIFIED, peer_ids.build().unwrap());
         let send1 = send1.sink_map_err(|e| {
             trace!("got sink error: {:?}", e);
             Error::CellDecodeErr {
