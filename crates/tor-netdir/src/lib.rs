@@ -2906,10 +2906,10 @@ mod test {
     fn relay_has_country_code() {
         let src_v6 = r#"
         fe80:dead:beef::,fe80:dead:ffff::,US
-        fe80:feed:eeee::1,fe80:feed:eeee::2,AT
+        fe80:feed:eeee::1,fe80:feed:eeee::1,AT
         fe80:feed:eeee::2,fe80:feed:ffff::,DE
         "#;
-        let db = GeoipDb::new_from_legacy_format("", src_v6).unwrap();
+        let db = GeoipDb::new_from_legacy_format("", src_v6, true).unwrap();
 
         let netdir = construct_custom_netdir_with_geoip(
             |pos, n, _| {

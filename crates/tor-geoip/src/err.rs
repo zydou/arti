@@ -1,5 +1,6 @@
 //! Error types for GeoIP parsing.
 
+use std::borrow::Cow;
 use std::net::AddrParseError;
 use std::num::ParseIntError;
 use thiserror::Error;
@@ -10,7 +11,8 @@ use thiserror::Error;
 pub enum Error {
     /// The GeoIP file is formatted wrong.
     #[error("Invalid GeoIP data file: {0}")]
-    BadFormat(&'static str),
+    BadFormat(Cow<'static, str>),
+
     /// We got a country code that isn't 2 ASCII letters.
     #[error("Unsupported country code in file: {0}")]
     BadCountryCode(String),
@@ -22,12 +24,18 @@ pub enum Error {
 
 impl From<ParseIntError> for Error {
     fn from(_e: ParseIntError) -> Error {
-        Error::BadFormat("can't parse number")
+        Error::BadFormat("can't parse number".into())
     }
 }
 
 impl From<AddrParseError> for Error {
     fn from(_e: AddrParseError) -> Error {
-        Error::BadFormat("can't parse IPv6 address")
+        Error::BadFormat("can't parse IPv6 address".into())
+    }
+}
+
+impl From<crate::dense_range_map::Error> for Error {
+    fn from(value: crate::dense_range_map::Error) -> Self {
+        Error::BadFormat(value.to_string().into())
     }
 }

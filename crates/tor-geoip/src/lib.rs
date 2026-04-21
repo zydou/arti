@@ -49,26 +49,17 @@
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full")), allow(unused))]
 
+use crate::dense_range_map::DenseRangeMap;
 pub use crate::err::Error;
-use rangemap::RangeInclusiveMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{IpAddr, Ipv6Addr};
-use std::num::{NonZeroU8, NonZeroU32, TryFromIntError};
+use std::num::{NonZeroU16, NonZeroU32};
+use std::ops::RangeInclusive;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 
+mod dense_range_map;
 mod err;
-
-/// An embedded copy of the latest geoip v4 database at the time of compilation.
-///
-/// FIXME(eta): This does use a few megabytes of binary size, which is less than ideal.
-///             It would be better to parse it at compile time or something.
-#[cfg(feature = "embedded-db")]
-static EMBEDDED_DB_V4: &str = include_str!("../data/geoip");
-
-/// An embedded copy of the latest geoip v6 database at the time of compilation.
-#[cfg(feature = "embedded-db")]
-static EMBEDDED_DB_V6: &str = include_str!("../data/geoip6");
 
 /// A parsed copy of the embedded database.
 #[cfg(feature = "embedded-db")]
@@ -89,25 +80,33 @@ static EMBEDDED_DB_PARSED: OnceLock<Arc<GeoipDb>> = OnceLock::new();
 /// "anonymous proxies", since doing so would mean putting nearly all Tor relays
 /// into one of those countries.
 #[derive(Copy, Clone, Eq, PartialEq)]
+#[repr(transparent)]
 pub struct CountryCode {
     /// The underlying value (two printable ASCII characters, stored uppercase).
     ///
     /// The special value `??` is excluded, since it is not a country; use
     /// `OptionCc` instead if you need to represent that.
     ///
-    /// We store these as `NonZeroU8` so that an `Option<CountryCode>` only has to
+    /// We store these as `NonZeroU16` so that an `Option<CountryCode>` only has to
     /// take 2 bytes. This helps with alignment and storage.
-    inner: [NonZeroU8; 2],
+    ///
+    /// (We use a `NonZeroU16` rather than `[NonZeroU8; 2]` to ensure that every
+    /// bit representation is a valid `Option<CountryCode>`.)
+    inner: NonZeroU16,
 }
 
 impl CountryCode {
     /// Make a new `CountryCode`.
     fn new(cc_orig: &str) -> Result<Self, Error> {
-        /// Try to convert an array of 2 bytes into an array of 2 nonzero bytes.
+        /// Try to convert an array of 2 bytes into a NonZeroU16.
         #[inline]
-        fn try_cvt_to_nz(inp: [u8; 2]) -> Result<[NonZeroU8; 2], TryFromIntError> {
-            // I have confirmed that the asm here is reasonably efficient.
-            Ok([inp[0].try_into()?, inp[1].try_into()?])
+        fn try_cvt_to_nz(inp: [u8; 2]) -> Result<NonZeroU16, Error> {
+            if inp[0] == 0 || inp[1] == 0 {
+                return Err(Error::BadCountryCode("Country code contained NULs".into()));
+            }
+            Ok(u16::from_ne_bytes(inp)
+                .try_into()
+                .expect("zero arrived surprisingly"))
         }
 
         let cc = cc_orig.to_ascii_uppercase();
@@ -152,17 +151,17 @@ impl Debug for CountryCode {
 
 impl AsRef<str> for CountryCode {
     fn as_ref(&self) -> &str {
-        /// Convert a reference to an array of 2 nonzero bytes to a reference to
+        /// Convert a reference to a NonZeroU16 to a reference to
         /// an array of 2 bytes.
         #[inline]
-        fn cvt_ref(inp: &[NonZeroU8; 2]) -> &[u8; 2] {
-            // SAFETY: Every NonZeroU8 has a layout and bit validity that is
-            // also a valid u8.  The layout of arrays is also guaranteed.
+        fn cvt_ref(inp: &NonZeroU16) -> &[u8; 2] {
+            // SAFETY: Every NonZeroU16 has a layout, alignment, and bit validity that is
+            // also a valid [u8; 2].  The layout of arrays is also guaranteed.
             //
             // (We don't use try_into here because we need to return a str that
             // points to a reference to self.)
-            let ptr = inp.as_ptr() as *const u8;
-            let slice = unsafe { std::slice::from_raw_parts(ptr, inp.len()) };
+            let slice: &[NonZeroU16] = std::slice::from_ref(inp);
+            let (_, slice, _) = unsafe { slice.align_to::<u8>() };
             slice
                 .try_into()
                 .expect("the resulting slice should have the correct length!")
@@ -215,46 +214,16 @@ impl Display for OptionCc {
     }
 }
 
-/// A country code / ASN definition.
-///
-/// Type lifted from `geoip-db-tool` in the C-tor source.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-struct NetDefn {
-    /// The country code.
-    ///
-    /// We translate the value "??" into None.
-    cc: Option<CountryCode>,
-    /// The ASN, if we have one. We translate the value "0" into None.
-    asn: Option<NonZeroU32>,
-}
-
-impl NetDefn {
-    /// Make a new `NetDefn`.
-    fn new(cc: &str, asn: Option<u32>) -> Result<Self, Error> {
-        let asn = NonZeroU32::new(asn.unwrap_or(0));
-        let cc = cc.parse::<OptionCc>()?.into();
-
-        Ok(Self { cc, asn })
-    }
-
-    /// Return the country code.
-    fn country_code(&self) -> Option<&CountryCode> {
-        self.cc.as_ref()
-    }
-
-    /// Return the ASN, if there is one.
-    fn asn(&self) -> Option<u32> {
-        self.asn.as_ref().map(|x| x.get())
-    }
-}
+/// The type of an ASN.
+type Asn = NonZeroU32;
 
 /// A database of IP addresses to country codes.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct GeoipDb {
     /// The IPv4 subset of the database, with v4 addresses stored as 32-bit integers.
-    map_v4: RangeInclusiveMap<u32, NetDefn>,
+    map_v4: DenseRangeMap<u32, CountryCode, Asn>,
     /// The IPv6 subset of the database, with v6 addresses stored as 128-bit integers.
-    map_v6: RangeInclusiveMap<u128, NetDefn>,
+    map_v6: DenseRangeMap<u128, CountryCode, Asn>,
 }
 
 impl GeoipDb {
@@ -265,90 +234,76 @@ impl GeoipDb {
     #[cfg(feature = "embedded-db")]
     pub fn new_embedded() -> Arc<Self> {
         Arc::clone(EMBEDDED_DB_PARSED.get_or_init(|| {
+            use tor_geoip_db as db;
+            fn cvt_ccs(ccs: &'static [Option<NonZeroU16>]) -> &'static [Option<CountryCode>] {
+                // SAFETY: CountryCode is a repr(transparent) for NonZeroU16.
+                let (pre, data, post) = unsafe { ccs.align_to::<Option<CountryCode>>() };
+                assert!(pre.is_empty());
+                assert!(post.is_empty());
+                data
+            }
+
+            let map_v4 = DenseRangeMap::from_static_parts(db::ipv4s(), cvt_ccs(db::ipv4c()), None);
+            let map_v6 = DenseRangeMap::from_static_parts(db::ipv6s(), cvt_ccs(db::ipv6c()), None);
+
             Arc::new(
-                // It's reasonable to assume the one we embedded is fine -- we'll test it in CI, etc.
-                Self::new_from_legacy_format(EMBEDDED_DB_V4, EMBEDDED_DB_V6)
-                    .expect("failed to parse embedded geoip database"),
+                // It's reasonable to assume the one we embedded is fine --
+                // we'll test it in CI, etc.
+                GeoipDb { map_v4, map_v6 },
             )
         }))
     }
 
     /// Make a new `GeoipDb` using provided copies of the v4 and v6 database, in Tor legacy format.
-    pub fn new_from_legacy_format(db_v4: &str, db_v6: &str) -> Result<Self, Error> {
-        let mut ret = GeoipDb {
-            map_v4: Default::default(),
-            map_v6: Default::default(),
-        };
+    pub fn new_from_legacy_format(
+        db_v4: &str,
+        db_v6: &str,
+        include_asn: bool,
+    ) -> Result<Self, Error> {
+        let discard_asn = !include_asn;
+        let map_v4 = DenseRangeMap::try_from_sorted_inclusive_ranges(
+            db_v4
+                .lines()
+                .filter_map(|line| parse_line::<u32>(line).transpose()),
+            discard_asn,
+        )?;
 
-        for line in db_v4.lines() {
-            if line.starts_with('#') {
-                continue;
-            }
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let mut split = line.split(',');
-            let from = split
-                .next()
-                .ok_or(Error::BadFormat("empty line somehow?"))?
-                .parse::<u32>()?;
-            let to = split
-                .next()
-                .ok_or(Error::BadFormat("line with insufficient commas"))?
-                .parse::<u32>()?;
-            let cc = split
-                .next()
-                .ok_or(Error::BadFormat("line with insufficient commas"))?;
-            let asn = split.next().map(|x| x.parse::<u32>()).transpose()?;
+        let map_v6 = DenseRangeMap::try_from_sorted_inclusive_ranges(
+            db_v6
+                .lines()
+                .filter_map(|line| parse_line::<Ipv6Addr>(line).transpose()),
+            discard_asn,
+        )?;
 
-            let defn = NetDefn::new(cc, asn)?;
-
-            ret.map_v4.insert(from..=to, defn);
-        }
-
-        // This is slightly copypasta, but probably less readable to merge into one thing.
-        for line in db_v6.lines() {
-            if line.starts_with('#') {
-                continue;
-            }
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let mut split = line.split(',');
-            let from = split
-                .next()
-                .ok_or(Error::BadFormat("empty line somehow?"))?
-                .parse::<Ipv6Addr>()?;
-            let to = split
-                .next()
-                .ok_or(Error::BadFormat("line with insufficient commas"))?
-                .parse::<Ipv6Addr>()?;
-            let cc = split
-                .next()
-                .ok_or(Error::BadFormat("line with insufficient commas"))?;
-            let asn = split.next().map(|x| x.parse::<u32>()).transpose()?;
-
-            let defn = NetDefn::new(cc, asn)?;
-
-            ret.map_v6.insert(from.into()..=to.into(), defn);
-        }
-
-        Ok(ret)
+        Ok(Self { map_v4, map_v6 })
     }
 
-    /// Get the `NetDefn` for an IP address.
-    fn lookup_defn(&self, ip: IpAddr) -> Option<&NetDefn> {
-        match ip {
-            IpAddr::V4(v4) => self.map_v4.get(&v4.into()),
-            IpAddr::V6(v6) => self.map_v6.get(&v6.into()),
+    /// Return the database in a raw format suitable for embedding.
+    ///
+    /// This method and the format it returns are unstable.
+    /// This method should only be used for maintaining the database.
+    #[cfg(feature = "export")]
+    #[allow(clippy::type_complexity)]
+    pub fn export_raw(&self) -> RawGeoipDbExport {
+        let (ipv4_starts, ipv4_ccs, ipv4_asns) = self.map_v4.export();
+        let (ipv6_starts, ipv6_ccs, ipv6_asns) = self.map_v6.export();
+
+        RawGeoipDbExport {
+            ipv4_starts,
+            ipv4_ccs,
+            ipv4_asns,
+            ipv6_starts,
+            ipv6_ccs,
+            ipv6_asns,
         }
     }
 
     /// Get a 2-letter country code for the given IP address, if this data is available.
     pub fn lookup_country_code(&self, ip: IpAddr) -> Option<&CountryCode> {
-        self.lookup_defn(ip).and_then(|x| x.country_code())
+        match ip {
+            IpAddr::V4(v4) => self.map_v4.get1(&v4.into()),
+            IpAddr::V6(v6) => self.map_v6.get1(&v6.into()),
+        }
     }
 
     /// Determine a 2-letter country code for a host with multiple IP addresses.
@@ -379,8 +334,80 @@ impl GeoipDb {
 
     /// Return the ASN the IP address is in, if this data is available.
     pub fn lookup_asn(&self, ip: IpAddr) -> Option<u32> {
-        self.lookup_defn(ip)?.asn()
+        let cc = match ip {
+            IpAddr::V4(v4) => self.map_v4.get2(&v4.into()),
+            IpAddr::V6(v6) => self.map_v6.get2(&v6.into()),
+        };
+        cc.map(|nz| nz.get())
     }
+}
+
+/// A type that can be an address entry in one of our databases.
+trait DbAddress: FromStr {
+    /// The integer that we use to represent this kind of address.
+    type Int;
+
+    /// Convert this address to an integer.
+    fn to_int(&self) -> Self::Int;
+}
+
+impl DbAddress for u32 {
+    type Int = u32;
+
+    fn to_int(&self) -> Self::Int {
+        *self
+    }
+}
+
+impl DbAddress for Ipv6Addr {
+    type Int = u128;
+
+    fn to_int(&self) -> Self::Int {
+        (*self).into()
+    }
+}
+
+/// A line as returned by [`parse_line`].
+type ParsedLine<T> = (RangeInclusive<T>, Option<CountryCode>, Option<Asn>);
+
+/// Parse a single line from a database, expecting addresses of type T.
+///
+/// Return Ok(None) if the line is empty.
+fn parse_line<T: DbAddress>(line: &str) -> Result<Option<ParsedLine<T::Int>>, Error>
+where
+    Error: From<<T as FromStr>::Err>,
+{
+    if line.starts_with('#') {
+        return Ok(None);
+    }
+    let line = line.trim();
+    if line.is_empty() {
+        return Ok(None);
+    }
+
+    let mut split = line.split(',');
+    let from = split
+        .next()
+        .ok_or(Error::BadFormat("empty line somehow?".into()))?
+        .parse::<T>()?
+        .to_int();
+    let to = split
+        .next()
+        .ok_or(Error::BadFormat("line with insufficient commas".into()))?
+        .parse::<T>()?
+        .to_int();
+    let cc = split
+        .next()
+        .ok_or(Error::BadFormat("line with insufficient commas".into()))?;
+    let cc = match cc {
+        "" => None,
+        cc => OptionCc::from_str(cc)?.0,
+    };
+    let asn = split.next().map(|x| x.parse::<u32>()).transpose()?;
+    // Treat "0" as "no asn".
+    let asn = asn.map(NonZeroU32::try_from).transpose().ok().flatten();
+
+    Ok(Some((from..=to, cc, asn)))
 }
 
 /// A (representation of a) host on the network which may have a known country code.
@@ -396,6 +423,46 @@ pub trait HasCountryCode {
     /// Returning `None` signifies that no country code information is available. (Conflicting
     /// GeoIP lookup results might also cause `None` to be returned.)
     fn country_code(&self) -> Option<CountryCode>;
+}
+
+/// An export of a GeoIp database in a raw format suitable for embedding.
+///
+/// This format is deliberately undocumented, and not for other uses.
+#[cfg(feature = "export")]
+#[allow(clippy::exhaustive_structs, missing_docs)]
+pub struct RawGeoipDbExport<'a> {
+    pub ipv4_starts: &'a [u32],
+    pub ipv4_ccs: &'a [Option<CountryCode>],
+    pub ipv4_asns: Option<&'a [Option<NonZeroU32>]>,
+    pub ipv6_starts: &'a [u128],
+    pub ipv6_ccs: &'a [Option<CountryCode>],
+    pub ipv6_asns: Option<&'a [Option<NonZeroU32>]>,
+}
+
+#[cfg(feature = "export")]
+impl<'a> RawGeoipDbExport<'a> {
+    /// Save the contents of this export into a set of data files in "Path".
+    pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
+        use std::fs::write;
+        fn into_bytes<'a, T>(data: &'a [T]) -> &'a [u8] {
+            // SAFETY: Every possible bit sequence is a valid u8.
+            let (pre, data, post) = unsafe { data.align_to::<u8>() };
+            assert!(pre.is_empty());
+            assert!(post.is_empty());
+            data
+        }
+        write(path.join("geoip_data_v4s"), into_bytes(self.ipv4_starts))?;
+        write(path.join("geoip_data_v4c"), into_bytes(self.ipv4_ccs))?;
+        if let Some(asns) = self.ipv4_asns {
+            write(path.join("geoip_data_v4a"), into_bytes(asns))?;
+        }
+        write(path.join("geoip_data_v6s"), into_bytes(self.ipv6_starts))?;
+        write(path.join("geoip_data_v6c"), into_bytes(self.ipv6_ccs))?;
+        if let Some(asns) = self.ipv6_asns {
+            write(path.join("geoip_data_v6a"), into_bytes(asns))?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -437,15 +504,21 @@ mod test {
     }
 
     #[test]
+    fn cc_rep() {
+        let italy = CountryCode::new("IT").unwrap();
+        assert_eq!(italy.as_ref(), "IT");
+    }
+
+    #[test]
     fn basic_lookups() {
         let src_v4 = r#"
         16909056,16909311,GB
         "#;
         let src_v6 = r#"
-        fe80::,fe81::,US
         dead:beef::,dead:ffff::,??
+        fe80::,fe81::,US
         "#;
-        let db = GeoipDb::new_from_legacy_format(src_v4, src_v6).unwrap();
+        let db = GeoipDb::new_from_legacy_format(src_v4, src_v6, true).unwrap();
 
         assert_eq!(
             db.lookup_country_code(Ipv4Addr::new(1, 2, 3, 4).into())
