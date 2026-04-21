@@ -40,6 +40,20 @@ pub struct RelayNtorKeys {
 }
 
 impl RelayNtorKeys {
+    /// Constructor.
+    pub fn new(latest: RelayNtorKeypair) -> Self {
+        Self {
+            latest,
+            previous: None,
+        }
+    }
+
+    /// Set the previous Ntor key.
+    pub fn with_previous(mut self, previous: RelayNtorKeypair) -> Self {
+        self.previous = Some(previous);
+        self
+    }
+
     /// Return the latest.
     pub fn latest(&self) -> &RelayNtorKeypair {
         &self.latest
@@ -48,30 +62,5 @@ impl RelayNtorKeys {
     /// Return the previous key, if any.
     pub fn previous(&self) -> Option<&RelayNtorKeypair> {
         self.previous.as_ref()
-    }
-}
-
-/// Error returned when trying to build a [`RelayNtorKeys`] from an empty iterator.
-#[derive(Clone, Debug, derive_more::Display, derive_more::Error)]
-#[display("Cannot build RelayNtorKeys: iterator was empty")]
-#[non_exhaustive]
-pub struct NoNtorKeypairError;
-
-impl FromIterator<RelayNtorKeypair> for Result<RelayNtorKeys, NoNtorKeypairError> {
-    /// Build a [`RelayNtorKeys`] from an iterator.
-    ///
-    /// The last item becomes the latest key, the second-to-last (if present)
-    /// becomes the previous key. Returns [`NoNtorKeypairError`] if the iterator is empty.
-    ///
-    /// And so it is primordial that the iterator be sorted in ascending order.
-    fn from_iter<I: IntoIterator<Item = RelayNtorKeypair>>(iter: I) -> Self {
-        let mut it = iter.into_iter();
-        let first = it.next().ok_or(NoNtorKeypairError)?;
-        let second = it.next();
-        let (latest, previous) = match second {
-            Some(s) => (s, Some(first)),
-            None => (first, None),
-        };
-        Ok(RelayNtorKeys { latest, previous })
     }
 }

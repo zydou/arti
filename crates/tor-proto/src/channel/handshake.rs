@@ -939,6 +939,8 @@ pub(crate) mod test {
     use {
         crate::relay::channel::handshake::RelayInitiatorHandshake,
         crate::relay::channel::test::{RelayMsgBuf, fake_auth_material},
+        tor_basic_utils::test_rng::{TestingRng, testing_rng},
+        tor_llcrypto::rng::FakeEntropicRng,
     };
 
     pub(crate) const VERSIONS: &[u8] = &hex!("0000 07 0006 0003 0004 0005");
@@ -1300,15 +1302,11 @@ pub(crate) mod test {
                 let ntor_keys = {
                     use tor_key_forge::Keygen;
                     use tor_relay_crypto::pk::{RelayNtorKeypair, RelayNtorKeys};
+                    let mut rng = FakeEntropicRng::<TestingRng>(testing_rng());
                     let ntor = RelayNtorKeypair::from(
-                        tor_llcrypto::pk::curve25519::StaticKeypair::generate(
-                            &mut tor_llcrypto::rng::CautiousRng,
-                        )
-                        .unwrap(),
+                        tor_llcrypto::pk::curve25519::StaticKeypair::generate(&mut rng).unwrap(),
                     );
-                    std::iter::once(ntor)
-                        .collect::<std::result::Result<RelayNtorKeys, _>>()
-                        .unwrap()
+                    RelayNtorKeys::new(ntor)
                 };
                 let create_handler = Arc::new(CreateRequestHandler::new(
                     Arc::downgrade(&chan_provider) as Weak<_>,
