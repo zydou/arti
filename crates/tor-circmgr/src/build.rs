@@ -291,8 +291,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                 // the fault of the guard or some later relay.
                 guard_status.pending(GuardStatus::Indeterminate);
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
-                let mut hop_num = 1;
-                for relay in p[1..].iter() {
+                for (hop_num, relay) in (1..).zip(p[1..].iter()) {
                     // Get the params per subsequent hop (EXTEND).
                     circ.extend(&self.runtime, relay, params.clone()).await?;
                     n_hops_built.fetch_add(1, Ordering::SeqCst);
@@ -301,7 +300,6 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                         self.runtime.now() - start_time,
                         hop_num == (n_hops - 1),
                     );
-                    hop_num += 1;
                 }
                 Ok(circ)
             }
