@@ -86,6 +86,9 @@ def gen_shadow_config(seed: int) -> dict[str, Any]:
             # conflicts with other instances of shadow trying to do the same
             # thing.
             "use_cpu_pinning": False,
+            # Likewise, shadow's default behavior of spin-looping is bad
+            # behavior in a shared environment.
+            "use_worker_spinning": False,
         },
         "hosts": {
             "host": {
