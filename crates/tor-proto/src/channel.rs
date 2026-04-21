@@ -297,7 +297,6 @@ pub struct Channel {
     /// Target identity and address information for this peer.
     peer_id: OwnedChanTarget,
     /// Validated information for this peer.
-    #[expect(unused)] // TODO(relay) Remove once used un choose_channel()
     peer: MaybeSensitive<PeerInfo>,
     /// The declared clock skew on this channel, at the time when this channel was
     /// created.
