@@ -82,6 +82,10 @@ def gen_shadow_config(seed: int) -> dict[str, Any]:
             #   time forward, potentially causing the simulation to take a bit
             #   longer to run. (if it would have otherwise timed out earlier than 10ms)
             "max_unapplied_cpu_latency": "100us",
+            # In CI, attempting to pin to particular CPU cores may result in
+            # conflicts with other instances of shadow trying to do the same
+            # thing.
+            "use_cpu_pinning": False,
         },
         "hosts": {
             "host": {

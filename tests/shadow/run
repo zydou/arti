@@ -56,6 +56,7 @@ shadow \
   --template-directory=./shadow.data.template \
   --progress=true \
   --use-memory-manager=false \
+  --use-cpu-pinning=false \
   --use-worker-spinning=false \
   --seed="$SEED" \
   shadow.yaml \
