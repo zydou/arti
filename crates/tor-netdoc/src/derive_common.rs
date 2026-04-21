@@ -205,6 +205,8 @@ define_derive_deftly_module! {
     // where someone leaves a (debug) in where it's not implemented, and we later implement it.
     ${define EMIT_DEBUG_PLACEHOLDER {
         ${if tmeta(netdoc(debug)) {
+            use std::io::Write as _;
+
             // This messing about with std::io::stderr() mirrors netdoc_parseable_derive_debug.
             // (We could use eprintln! #[test] captures eprintln! but not io::stderr.)
             writeln!(

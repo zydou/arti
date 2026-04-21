@@ -732,6 +732,7 @@ struct TestItem0 {
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
+#[deftly(netdoc(debug))] // For testing our debugging arrangements
 struct TestItem {
     #[deftly(netdoc(skip))]
     skip: u32,

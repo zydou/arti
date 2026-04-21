@@ -612,6 +612,9 @@ mod ignored_impl {
         fn finish(self, _acc: Option<NotPresent>, _: &'static str) -> Result<NotPresent, EP> {
             Ok(NotPresent)
         }
+        fn debug_core(self) -> &'static str {
+            "Ignored"
+        }
     }
 
     #[cfg(feature = "parse2")]
@@ -627,6 +630,9 @@ mod ignored_impl {
         type Each = Void;
         fn resolve_option(self, _found: Option<Void>) -> Result<NotPresent, EP> {
             Ok(NotPresent)
+        }
+        fn debug_core(self) -> &'static str {
+            "NotPresent"
         }
     }
 
@@ -679,6 +685,9 @@ mod ignored_impl {
         type Each = Ignored;
         fn resolve_option(self, _found: Option<Ignored>) -> Result<Ignored, EP> {
             Ok(Ignored)
+        }
+        fn debug_core(self) -> &'static str {
+            "Ignored"
         }
     }
 
