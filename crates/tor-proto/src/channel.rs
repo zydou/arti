@@ -836,6 +836,12 @@ impl Channel {
         }
     }
 
+    /// Return the [`PeerInfo`] of this channel.
+    #[cfg(feature = "relay")]
+    pub(crate) fn peer_info(&self) -> &PeerInfo {
+        &self.peer
+    }
+
     /// Return a newly allocated PendingClientTunnel object with
     /// a corresponding tunnel reactor. A circuit ID is allocated, but no
     /// messages are sent, and no cryptography is done.
