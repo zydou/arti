@@ -1,6 +1,6 @@
 //! RPC support for client tor-proto objects.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use derive_deftly::Deftly;
 use tor_linkspec::{HasAddrs, HasRelayIds};
@@ -132,10 +132,15 @@ pub struct PathDescription {
     /// Within each path, entries are ordered from first (closest to the client)
     /// to last (farthest from the client).
     ///
-    /// The order of paths is unspecified but, consistent for each single tunnel.
+    /// Since tunnels can have multiple paths, each path is identified with a string.
+    /// The actual content of these strings is not documented,
+    /// but the string identifying each tunnel is stable.
+    ///
     /// (That is, if you query a tunnel's path description twice,
-    /// you will get the paths in the same order each time.)
-    path: Vec<Vec<PathEntry>>,
+    /// each path will have the same identifying string both times.
+    /// If you get a new identifying string,
+    /// it represents a path that was previously not part of the tunnel.)
+    path: HashMap<String, Vec<PathEntry>>,
 }
 
 impl PathEntry {
@@ -176,12 +181,15 @@ fn client_stream_tunnel(stream: &ClientDataStreamCtrl) -> Result<Arc<ClientTunne
 /// Helper: Return a [`PathDescription`] for a [`ClientTunnel`]
 fn tunnel_path(tunnel: &ClientTunnel, method: &DescribePath) -> PathDescription {
     let path = tunnel
-        .all_paths()
-        .iter()
-        .map(|path| {
-            path.iter()
+        .tagged_paths()
+        .into_iter()
+        .map(|(id, path)| {
+            let id = id.display_chan_circ().to_string();
+            let path = path
+                .iter()
                 .map(|hop| PathEntry::from_client_entry(hop, method))
-                .collect()
+                .collect();
+            (id, path)
         })
         .collect();
     PathDescription { path }

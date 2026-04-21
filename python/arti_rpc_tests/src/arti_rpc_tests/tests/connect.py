@@ -25,7 +25,9 @@ def connect_simple(context):
     path_via_tunnel = tunnel.invoke("arti:describe_path")
     assert path_via_stream == path_via_tunnel
     assert len(path_via_stream["path"]) > 0
-    p = path_via_stream["path"][0]
+    (ident, p) = path_via_stream["path"].popitem()
+    assert isinstance(ident, str) # this is all we are guaranteed.
+
     # TODO: Assumption about path length holds true for now...
     assert len(p) == 3
 

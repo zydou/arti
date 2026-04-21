@@ -240,6 +240,19 @@ impl TunnelMutableState {
         lock.values().map(|mutable| mutable.path()).collect()
     }
 
+    /// Return a representation of the Paths for all the circuits in this tunnel,
+    /// as a map from each circuits' UniqId to its path.
+    ///
+    /// This is only exposed for the RPC subsystem, where it is documented that the
+    /// format of `UniqId` is not stable.
+    #[cfg(feature = "rpc")]
+    pub(super) fn tagged_paths(&self) -> HashMap<UniqId, Arc<Path>> {
+        let lock = self.0.lock().expect("lock poisoned");
+        lock.iter()
+            .map(|(id, mutable)| (*id, mutable.path()))
+            .collect()
+    }
+
     /// Return a list of [`Path`] objects describing the only circuit in this tunnel.
     ///
     /// Returns an error if the tunnel has more than one tunnel.

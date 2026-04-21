@@ -191,6 +191,16 @@ impl ClientTunnel {
         self.circ.all_paths()
     }
 
+    /// Return a representation of the Paths for all the circuits in this tunnel,
+    /// as a map from each circuits' UniqId to its path.
+    ///
+    /// This is only exposed for the RPC subsystem, where it is documented that the
+    /// format of `UniqId` is not stable.
+    #[cfg(feature = "rpc")]
+    pub(crate) fn tagged_paths(&self) -> std::collections::HashMap<UniqId, Arc<Path>> {
+        self.circ.mutable.tagged_paths()
+    }
+
     /// Return a process-unique identifier for this tunnel.
     ///
     /// Returns the reactor unique ID of the main reactor.
