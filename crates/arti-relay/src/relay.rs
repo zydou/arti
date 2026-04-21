@@ -27,6 +27,7 @@ use tor_rtcompat::{NetStreamProvider, Runtime};
 use crate::client::RelayClient;
 use crate::config::TorRelayConfig;
 use crate::tasks::channel::build_circ_net_params;
+use crate::tasks::crypto::get_ntor_keys;
 
 /// An initialized but unbootstrapped relay.
 ///
@@ -234,8 +235,13 @@ impl<R: Runtime> TorRelay<R> {
             .context("Failed to build circuit parameters for CREATE* request handler")?;
 
         // A handler that will process CREATE* requests on channels.
-        let create_request_handler =
-            CreateRequestHandler::new(Arc::downgrade(&chanmgr) as Weak<_>, circ_net_params);
+        let ntor_keys = get_ntor_keys(&inert.keymgr)
+            .context("Failed to get ntor keys for CREATE* request handler")?;
+        let create_request_handler = CreateRequestHandler::new(
+            Arc::downgrade(&chanmgr) as Weak<_>,
+            circ_net_params,
+            ntor_keys,
+        );
         let create_request_handler = Arc::new(create_request_handler);
 
         // Configure the channel manager to handle CREATE* requests.

@@ -27,11 +27,9 @@ use crate::keys::{
 };
 use tor_relay_crypto::pk::{
     RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayLinkSigningKeypair, RelayNtorKeypair,
-    RelaySigningKeypair,
+    RelayNtorKeys, RelaySigningKeypair,
 };
 use tor_rtcompat::{Runtime, SleepProviderExt};
-
-use smallvec::SmallVec;
 
 /// Buffer time before key expiry to trigger rotation. This ensures we rotate slightly before the
 /// key actually expires rather than right at or after expiry.
@@ -590,6 +588,44 @@ pub(crate) fn try_generate_keys<R: Runtime>(
     // Now that we have our up-to-date keys, build the relay channel auth material object.
     build_proto_relay_auth_material(now, keymgr)
 }
+/// Return the current ntor keypairs from the keystore as [`RelayNtorKeys`].
+pub(crate) fn get_ntor_keys(keymgr: &KeyMgr) -> anyhow::Result<RelayNtorKeys> {
+    let mut entries = keymgr
+        .list_matching(&RelayNtorKeypairSpecifierPattern::new_any().arti_pattern()?)?
+        .into_iter()
+        .map(|entry| {
+            let valid_until = RelayNtorKeypairSpecifier::try_from(entry.key_path())?.valid_until;
+            Ok((valid_until, entry))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    // Sort in ascending order and then reverse so we get the descending order as in the newest
+    // keys first.
+    entries.sort_by_key(|(valid_until, _)| *valid_until);
+    entries.reverse();
+
+    let mut iter = entries.into_iter();
+    // Get newest and if none, return an error.
+    let (_, newest_entry) = iter
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("no ntor keys found"))?;
+    let latest = keymgr
+        .get_entry::<RelayNtorKeypair>(&newest_entry)?
+        .context("failed to retrieve newest ntor key")?;
+    let previous: Option<RelayNtorKeypair> = iter
+        .next()
+        .map(|(_, entry)| -> anyhow::Result<RelayNtorKeypair> {
+            keymgr
+                .get_entry::<RelayNtorKeypair>(&entry)?
+                .context("ntor key disappeared")
+        })
+        .transpose()?;
+    let mut keys = RelayNtorKeys::new(latest);
+    if let Some(prev) = previous {
+        keys = keys.with_previous(prev);
+    }
+    Ok(keys)
+}
+
 /// Task to rotate keys when they need to be rotated.
 pub(crate) async fn rotate_keys_task<R: Runtime>(
     runtime: R,
@@ -612,17 +648,7 @@ pub(crate) async fn rotate_keys_task<R: Runtime>(
             // Any keys left in the keystore at this point are considered to be usable
             // (either because they are newly generated, or because they are still
             // within the grace period).
-            let ntor_keys = keymgr
-                .list_matching(&RelayNtorKeypairSpecifierPattern::new_any().arti_pattern()?)?
-                .into_iter()
-                .map(|entry| {
-                    keymgr
-                        .get_entry::<RelayNtorKeypair>(&entry)
-                        .context("failed to retrieve ntor key")?
-                        .context("ntor key disappeared?!")
-                })
-                .collect::<anyhow::Result<SmallVec<_>>>()?;
-
+            let ntor_keys = get_ntor_keys(&keymgr)?;
             create_request_handler.update_ntor_keys(ntor_keys);
         }
 

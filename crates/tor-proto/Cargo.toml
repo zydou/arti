@@ -165,6 +165,7 @@ regex = { version = "1", default-features = false, features = ["std"] }
 statrs = "0.18.0"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-key-forge = { path = "../tor-key-forge", version = "0.41.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.41.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.41.0", features = ["tokio", "native-tls"] }
 tracing-test = "0.2.4"
 
