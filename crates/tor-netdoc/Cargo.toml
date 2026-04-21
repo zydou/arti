@@ -53,13 +53,13 @@ encode = ["rand"]
 
 # Enable the "router descriptor" document type, which is needed by relays and
 # bridge clients.
-routerdesc = []
+routerdesc = ["plain-consensus", "encode"]
 
 # Expose interfaces useful for testing
 testing = ["hex-literal", "hsdesc-inner-docs", "visibility"]
 
 # Enable the "ns consensus" document type, which some relays cache and serve.
-plain-consensus = []
+plain-consensus = ["routerdesc", "encode"]
 ns_consensus = ["plain-consensus"] # deprecated
 # Enable support for votes.  Very very experimental!
 ns-vote = ["__is_experimental"]
@@ -71,6 +71,10 @@ parse2 = ["__is_experimental"]
 # Experimental: not covered by semver guarantees.
 # TODO hs: mark these as part of "full" once they are done and stable.
 hs-dir = ["hs-common", "__is_experimental"]
+
+# TODO unconditionally enable `hs-client` `hs-service` `hs-common` (de-cfg-gate all items).
+# These are "document type" features in #2492's taxonomy but that ticket didn't mention them
+# by name, so we should have another consensus call for those.
 hs-client = ["hs-common"]
 hs-service = ["hs-common", "encode", "tor-cert/encode"]
 hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
