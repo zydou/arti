@@ -5,6 +5,7 @@ use super::{CircEvent, ExtendResult, Outbound};
 use crate::Error;
 use crate::circuit::UniqId;
 use crate::circuit::create::{Create2Wrap, CreateHandshakeWrap};
+use crate::peer::PeerInfo;
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult, OutboundChanSender};
 use crate::relay::reactor::CircuitAccount;
 use crate::util::err::ReactorError;
@@ -42,7 +43,7 @@ pub(super) struct ExtendRequestHandler {
     /// to enable the reuse of existing Tor channels where possible.
     chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
     /// The identity of the inbound relay (the previous hop).
-    inbound_peer: OwnedChanTarget,
+    inbound_peer: PeerInfo,
     /// A stream of events to be read from the main loop of the reactor.
     event_tx: mpsc::Sender<CircEvent>,
     /// Memory quota account
@@ -54,7 +55,7 @@ impl ExtendRequestHandler {
     pub(super) fn new(
         unique_id: UniqId,
         chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
-        inbound_peer: OwnedChanTarget,
+        inbound_peer: PeerInfo,
         event_tx: mpsc::Sender<CircEvent>,
         memquota: CircuitAccount,
     ) -> Self {
