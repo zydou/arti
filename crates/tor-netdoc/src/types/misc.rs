@@ -370,6 +370,15 @@ mod b16impl {
     #[allow(clippy::exhaustive_structs)]
     pub struct B16U(pub Vec<u8>);
 
+    /// A fixed-length version of [`B16U`].
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(derive_more::Debug)]
+    #[debug(r#"FixedB16("{self}")"#)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct FixedB16U<const N: usize>(pub [u8; N]);
+
     impl FromStr for B16 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
@@ -386,6 +395,17 @@ mod b16impl {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             Ok(B16U(B16::from_str(s)?.0))
+        }
+    }
+
+    impl<const N: usize> FromStr for FixedB16U<N> {
+        type Err = Error;
+        fn from_str(s: &str) -> Result<Self> {
+            Ok(Self(B16U::from_str(s)?.0.try_into().map_err(|_| {
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("invalid length")
+            })?))
         }
     }
 
@@ -409,8 +429,19 @@ mod b16impl {
         }
     }
 
+    impl<const N: usize> Display for FixedB16U<N> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            // `hex` has `hex::encode_upper` but that allocates a `String`
+            for c in self.as_bytes() {
+                write!(f, "{c:02X}")?;
+            }
+            Ok(())
+        }
+    }
+
     impl NormalItemArgument for B16 {}
     impl NormalItemArgument for B16U {}
+    impl<const N: usize> NormalItemArgument for FixedB16U<N> {}
 }
 
 // ============================================================
