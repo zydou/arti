@@ -375,7 +375,7 @@ mod b16impl {
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
     #[derive(derive_more::Debug)]
-    #[debug(r#"FixedB16("{self}")"#)]
+    #[debug(r#"FixedB16U("{self}")"#)]
     #[allow(clippy::exhaustive_structs)]
     pub struct FixedB16U<const N: usize>(pub [u8; N]);
 
