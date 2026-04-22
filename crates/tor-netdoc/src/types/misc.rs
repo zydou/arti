@@ -1771,6 +1771,8 @@ pub mod routerdesc {
     use derive_deftly::Deftly;
 
     /// Version argument found in an `overload-general` item.
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
     #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, strum::EnumString, strum::Display)]
     #[non_exhaustive]
     pub enum OverloadGeneralVersion {
@@ -1782,6 +1784,8 @@ pub mod routerdesc {
     impl NormalItemArgument for OverloadGeneralVersion {}
 
     /// The overload general type found in router descriptors.
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Deftly)]
     #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
     #[non_exhaustive]
@@ -1793,6 +1797,8 @@ pub mod routerdesc {
     }
 
     /// Introduction line of a router descriptor.
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router>
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
     #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
     #[non_exhaustive]
@@ -1814,6 +1820,8 @@ pub mod routerdesc {
     }
 
     /// Digest identifying the extra-info document.
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:extra-info-digest>
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
     #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
     #[non_exhaustive]
