@@ -366,7 +366,7 @@ mod b16impl {
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
     #[derive(derive_more::Debug)]
-    #[debug(r#"B16("{self}")"#)]
+    #[debug(r#"B16U("{self}")"#)]
     #[allow(clippy::exhaustive_structs)]
     pub struct B16U(pub Vec<u8>);
 
