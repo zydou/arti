@@ -431,6 +431,7 @@ mod b16impl {
 
     impl<const N: usize> Display for FixedB16U<N> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            // TODO DIRAUTH combine this with the same code in `Display for B16U`
             // `hex` has `hex::encode_upper` but that allocates a `String`
             for c in self.as_bytes() {
                 write!(f, "{c:02X}")?;
