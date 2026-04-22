@@ -27,9 +27,7 @@ pub use misc::{Iso8601TimeNoSp, Iso8601TimeSp};
 #[cfg(feature = "routerdesc")]
 pub use misc::routerdesc;
 
-#[cfg(any(feature = "parse2", feature = "encode"))]
 mod parse2_encode;
-#[cfg(any(feature = "parse2", feature = "encode"))]
 pub use parse2_encode::raw_data_object;
 
 use crate::NormalItemArgument;
