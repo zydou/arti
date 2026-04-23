@@ -5,9 +5,13 @@ use std::fmt::Display;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 
-use crate::types::policy::RuleKind;
+use crate::NormalItemArgument;
+#[cfg(feature = "parse2")]
+use crate::parse2::{
+    ErrorProblem as EP, ItemArgumentParseable, KeywordRef, NetdocParseableFields, UnparsedItem,
+};
 
-use super::{PolicyError, PortRange};
+use super::{PolicyError, PortRange, RuleKind};
 
 /// A sequence of rules that are applied to an address:port until one
 /// matches.
@@ -34,7 +38,7 @@ use super::{PolicyError, PortRange};
 ///  accept *:9000-65535
 ///  reject *:*
 /// ```
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AddrPolicy {
     /// A list of rules to apply to find out whether an address is
     /// contained by this policy.
@@ -80,10 +84,35 @@ impl AddrPolicy {
     }
 }
 
+#[cfg(feature = "parse2")]
+impl NetdocParseableFields for AddrPolicy {
+    type Accumulator = AddrPolicy;
+
+    fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
+        matches!(kw.as_str(), "accept" | "reject")
+    }
+
+    fn accumulate_item(acc: &mut Self::Accumulator, mut item: UnparsedItem<'_>) -> Result<(), EP> {
+        // We must use `FromStr`, not argument parsing, because
+        // RuleKind is the keyword and not an argument.
+        let rule = RuleKind::from_str(item.keyword().as_str())
+            .map_err(|_| EP::Internal("accept/reject not a RuleKind?"))?;
+        let args = item.args_mut();
+        let pattern =
+            AddrPortPattern::from_args(args).map_err(args.error_handler("accept/reject"))?;
+        acc.push(rule, pattern);
+        Ok(())
+    }
+
+    fn finish(acc: Self::Accumulator) -> Result<Self, EP> {
+        Ok(acc)
+    }
+}
+
 /// A single rule in an address policy.
 ///
 /// Contains a pattern and what to do with things that match it.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct AddrPolicyRule {
     /// What do we do with items that match the pattern?
     kind: RuleKind,
@@ -175,6 +204,8 @@ impl FromStr for AddrPortPattern {
         Ok(AddrPortPattern { pattern, ports })
     }
 }
+
+impl NormalItemArgument for AddrPortPattern {}
 
 /// A pattern that matches one or more IP addresses.
 //
@@ -417,5 +448,63 @@ mod test {
         let x3: X = serde_json::from_str(expected).unwrap();
         assert_eq!(&x2, &x3);
         assert_eq!(&x2, &x);
+    }
+
+    #[cfg(feature = "parse2")]
+    #[test]
+    fn parse2() {
+        use crate::{
+            parse2::{self, ParseInput},
+            types::Ignored,
+        };
+        use derive_deftly::Deftly;
+
+        const RULES: &str = "\
+        intro\n\
+        reject *:25\n\
+        reject 127.0.0.0/8:*\n\
+        reject 192.168.0.0/16:*\n\
+        accept *:80\n\
+        accept *:443\n\
+        accept *:9000-65535\n\
+        reject *:*\n";
+
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocParseable)]
+        struct Wrapper {
+            #[allow(dead_code)]
+            intro: Ignored,
+            #[deftly(netdoc(flatten))]
+            ipv4_policy: AddrPolicy,
+        }
+
+        let wrapper = parse2::parse_netdoc::<Wrapper>(&ParseInput::new(RULES, "")).unwrap();
+        let ap = wrapper.ipv4_policy;
+
+        assert_eq!(
+            ap.allows_sockaddr(&"1.1.1.1:80".parse().unwrap()),
+            Some(RuleKind::Accept)
+        );
+        assert_eq!(
+            ap.allows_sockaddr(&"1.1.1.1:443".parse().unwrap()),
+            Some(RuleKind::Accept)
+        );
+        assert_eq!(
+            ap.allows_sockaddr(&"1.1.1.1:9005".parse().unwrap()),
+            Some(RuleKind::Accept)
+        );
+
+        assert_eq!(
+            ap.allows_sockaddr(&"1.1.1.1:25".parse().unwrap()),
+            Some(RuleKind::Reject)
+        );
+        assert_eq!(
+            ap.allows_sockaddr(&"127.0.0.1:80".parse().unwrap()),
+            Some(RuleKind::Reject)
+        );
+        assert_eq!(
+            ap.allows_sockaddr(&"1.1.1.1:70".parse().unwrap()),
+            Some(RuleKind::Reject)
+        );
     }
 }

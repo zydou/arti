@@ -12,7 +12,7 @@ pub use curve25519impl::*;
 pub use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
-pub(crate) use fingerprint::*;
+pub use fingerprint::*;
 pub use hostname::*;
 pub use rsa::*;
 pub use timeimpl::*;
@@ -49,6 +49,8 @@ use {
 };
 
 pub use nickname::{InvalidNickname, Nickname};
+
+pub use boolean::NumericBoolean;
 
 pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
@@ -364,9 +366,18 @@ mod b16impl {
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
     #[derive(derive_more::Debug)]
-    #[debug(r#"B16("{self}")"#)]
+    #[debug(r#"B16U("{self}")"#)]
     #[allow(clippy::exhaustive_structs)]
     pub struct B16U(pub Vec<u8>);
+
+    /// A fixed-length version of [`B16U`].
+    #[derive(Clone, Hash, Deftly)]
+    #[derive_deftly(BytesTransparent)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(derive_more::Debug)]
+    #[debug(r#"FixedB16U("{self}")"#)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct FixedB16U<const N: usize>(pub [u8; N]);
 
     impl FromStr for B16 {
         type Err = Error;
@@ -384,6 +395,17 @@ mod b16impl {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
             Ok(B16U(B16::from_str(s)?.0))
+        }
+    }
+
+    impl<const N: usize> FromStr for FixedB16U<N> {
+        type Err = Error;
+        fn from_str(s: &str) -> Result<Self> {
+            Ok(Self(B16U::from_str(s)?.0.try_into().map_err(|_| {
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("invalid length")
+            })?))
         }
     }
 
@@ -407,8 +429,20 @@ mod b16impl {
         }
     }
 
+    impl<const N: usize> Display for FixedB16U<N> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            // TODO DIRAUTH combine this with the same code in `Display for B16U`
+            // `hex` has `hex::encode_upper` but that allocates a `String`
+            for c in self.as_bytes() {
+                write!(f, "{c:02X}")?;
+            }
+            Ok(())
+        }
+    }
+
     impl NormalItemArgument for B16 {}
     impl NormalItemArgument for B16U {}
+    impl<const N: usize> NormalItemArgument for FixedB16U<N> {}
 }
 
 // ============================================================
@@ -1310,17 +1344,21 @@ mod identified_digest {
 /// Types for decoding RSA fingerprints
 mod fingerprint {
     use super::*;
+    #[cfg(feature = "parse2")]
+    use crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable};
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use base64ct::{Base64Unpadded, Encoding as _};
     use tor_llcrypto::pk::rsa::RsaIdentity;
 
     /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
     ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html?highlight=fingerprint#item:fingerprint>
+    ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
     #[derive(Debug, Clone, Eq, PartialEq, Hash, Deftly)]
     #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
-    pub(crate) struct SpFingerprint(pub RsaIdentity);
+    pub struct SpFingerprint(pub RsaIdentity);
 
     /// A hex-encoded fingerprint with no spaces.
     ///
@@ -1360,6 +1398,36 @@ mod fingerprint {
         fn from_str(s: &str) -> Result<SpFingerprint> {
             let ident = parse_hex_ident(&s.replace(' ', "")).map_err(|e| e.at_pos(Pos::at(s)))?;
             Ok(SpFingerprint(ident))
+        }
+    }
+
+    #[cfg(feature = "parse2")]
+    impl ItemArgumentParseable for SpFingerprint {
+        fn from_args<'s>(
+            args: &mut ArgumentStream<'s>,
+        ) -> std::result::Result<Self, ArgumentError> {
+            // Take the first 10 arguments because an SpFingerprint consists of
+            // 10 x 4 = 40 characters.
+            let fp = args.take(10).collect::<Vec<_>>();
+
+            // Less than 10 means missing arguments.
+            if fp.len() < 10 {
+                return Err(ArgumentError::Missing);
+            }
+
+            // More than 10 should be impossible due to .take(10).
+            debug_assert_eq!(fp.len(), 10);
+
+            // All arguments must be 4 characters long.
+            if fp.iter().any(|arg| arg.len() != 4) {
+                return Err(ArgumentError::Invalid);
+            }
+
+            // Convert it to a string without spaces, RsaIdentity::from_hex will
+            // verify the rest.
+            Ok(Self(
+                RsaIdentity::from_hex(fp.join("").as_str()).ok_or(ArgumentError::Invalid)?,
+            ))
         }
     }
 
@@ -1437,7 +1505,7 @@ mod nickname {
     ///
     /// Nicknames are required to be ASCII, alphanumeric, and between 1 and 19
     /// characters inclusive.
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
 
     /// Invalid nickname
@@ -1651,6 +1719,119 @@ mod contact_info {
                 .parse()
                 .map_err(|_e| item.args().handle_error("info", ArgumentError::Invalid))
         }
+    }
+}
+
+/// Types for boolean-like types.
+mod boolean {
+    use std::{fmt::Display, str::FromStr};
+
+    use derive_more::{From, Into};
+
+    use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos};
+
+    /// A boolean that is represented by a `0` (false) or `1` (true).
+    // TODO DIRMIRROR: Derive Transparent
+    #[derive(Clone, Copy, Debug, Default, From, Into)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct NumericBoolean(pub bool);
+
+    impl FromStr for NumericBoolean {
+        type Err = Error;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s {
+                "0" => Ok(Self(false)),
+                "1" => Ok(Self(true)),
+                _ => Err(EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("Invalid numeric boolean")),
+            }
+        }
+    }
+
+    impl Display for NumericBoolean {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", u8::from(self.0))
+        }
+    }
+
+    impl NormalItemArgument for NumericBoolean {}
+}
+
+/// Types for router descriptors.
+#[cfg(feature = "routerdesc")]
+pub mod routerdesc {
+    use crate::{
+        NormalItemArgument,
+        types::{
+            Iso8601TimeSp, Nickname,
+            misc::{FixedB16U, FixedB64},
+        },
+    };
+    use derive_deftly::Deftly;
+
+    /// Version argument found in an `overload-general` item.
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
+    #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, strum::EnumString, strum::Display)]
+    #[non_exhaustive]
+    pub enum OverloadGeneralVersion {
+        /// Version 1, currently the only supported and specified one.
+        #[strum(serialize = "1")]
+        V1,
+    }
+
+    impl NormalItemArgument for OverloadGeneralVersion {}
+
+    /// The overload general type found in router descriptors.
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Deftly)]
+    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[non_exhaustive]
+    pub struct OverloadGeneral {
+        /// The version of the item.
+        pub version: OverloadGeneralVersion,
+        /// The timestamp since when the relay is overloaded.
+        pub since: Iso8601TimeSp,
+    }
+
+    /// Introduction line of a router descriptor.
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router>
+    #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
+    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[non_exhaustive]
+    pub struct RouterDescIntroItem {
+        /// A valid router [`Nickname`].
+        pub nickname: Nickname,
+
+        /// An IPv4 address in dotted-squad format.
+        pub address: std::net::Ipv4Addr,
+
+        /// The TCP port of the onion router.
+        pub orport: u16,
+
+        /// Legacy.
+        pub socksport: u16,
+
+        /// Legacy.
+        pub dirport: u16,
+    }
+
+    /// Digest identifying the extra-info document.
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:extra-info-digest>
+    #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
+    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[non_exhaustive]
+    pub struct ExtraInfoDigests {
+        /// Mandatory SHA-1 of the signed data in base 16.
+        pub sha1: FixedB16U<20>,
+
+        /// Optional SHA-256 of the entire extra-info in base 64.
+        pub sha2: Option<FixedB64<32>>,
     }
 }
 
@@ -2166,5 +2347,78 @@ mod test {
         }
 
         Ok(())
+    }
+
+    /// Round trip test for [`NumericBoolean`] ensuring that `0` is false,
+    /// `1` is true, and other things fail.
+    #[test]
+    fn numeric_boolean() {
+        let chk = |s: &str| {
+            assert_eq!(NumericBoolean::from_str(s).expect(s).to_string(), s);
+        };
+        chk("0");
+        chk("1");
+        // Testing this because it is not a u8.
+        assert!(NumericBoolean::from_str("10000").is_err());
+    }
+
+    /// Test that ensures SpFingerprint matches the 10x4 requirement.
+    #[test]
+    #[cfg(feature = "parse2")]
+    fn sp_fingerprint() {
+        use derive_deftly::Deftly;
+        use tor_llcrypto::pk::rsa::RsaIdentity;
+
+        use crate::parse2::ErrorProblem;
+
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocParseable)]
+        struct Wrapper {
+            #[deftly(netdoc(single_arg))]
+            fingerprint: SpFingerprint,
+        }
+
+        /// Small helper to parse an [`SpFingerprint`].
+        fn parse2(s: &str) -> std::result::Result<SpFingerprint, ErrorProblem> {
+            use crate::parse2::{self, ParseInput};
+
+            let s = format!("fingerprint {s}\n");
+            parse2::parse_netdoc::<Wrapper>(&ParseInput::new(&s, ""))
+                .map(|x| x.fingerprint)
+                .map_err(|x| x.problem)
+        }
+
+        // Test a valid one.
+        assert_eq!(
+            parse2(&vec!["ABAB"; 10].join(" ")).unwrap(),
+            SpFingerprint(RsaIdentity::from_bytes(&[0xAB; 20]).unwrap())
+        );
+
+        // Test a valid one with tail.
+        assert_eq!(
+            parse2(&vec!["ABAB"; 11].join(" ")).unwrap(),
+            SpFingerprint(RsaIdentity::from_bytes(&[0xAB; 20]).unwrap())
+        );
+
+        // Missing argument
+        assert!(matches!(
+            parse2(&vec!["ABAB"; 9].join(" ")).unwrap_err(),
+            ErrorProblem::MissingArgument { .. }
+        ));
+
+        // Invalid argument.
+        // In this case, we have string with a total length of 40 but with
+        // one pair having 6 characters and another one having 2 as a proof
+        // of that.
+        assert!(matches!(
+            parse2("0000 000000 00 0000 0000 0000 0000 0000 0000 0000").unwrap_err(),
+            ErrorProblem::InvalidArgument { .. }
+        ));
+
+        // And of course invalid hex should fail too.
+        assert!(matches!(
+            parse2(&vec!["ZZZZ"; 10].join(" ")).unwrap_err(),
+            ErrorProblem::InvalidArgument { .. }
+        ));
     }
 }

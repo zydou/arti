@@ -32,3 +32,17 @@ ADDED: `doc::netstatus::PreambleConstructor`
 ADDED: `NetdocEncodableFields` impl for `doc::netstatus::Preamble`
 ADDED: `DocRelayFlags::new_empty_unknown_discarded()` convenience constructor
 BREAKING: `doc::netstatus::Preamble`, added `known_flags`
+ADDED: `NumericBoolean` type
+ADDED: `routerdesc::OverloadGeneral` type
+ADDED: `routerdesc::OverloadGeneralVersion` type
+ADDED: Implement `Eq` for `Nickname`
+ADDED: `routerdesc::RouterDescIntroItem` type
+ADDED: `routerdesc::ExtraInfoDigests` type
+ADDED: `RelayFamilyIds::sort()` method
+ADDED: `RelayFamilyIds::dedup()` method
+ADDED: Implement `PartialEq` and `Eq` for `AddrPolicy`
+ADDED: Implement `PartialEq` and `Eq` for `AddrPolicyRule`
+ADDED: Implement `NormalItemArgument` for `AddrPortPattern`
+ADDED: Implement `NetdocParseableFields` for `AddrPolicy`
+ADDED: `SpFingerprint` type
+ADDED: Implement `ItemArgumentParseable` for `RelayPlatform`

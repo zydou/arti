@@ -534,6 +534,7 @@ pub struct UncheckedCert {
 
 /// A certificate that has been parsed and signature-checked, but whose
 /// timeliness has not been checked.
+#[derive(Debug, Clone)]
 pub struct SigCheckedCert {
     /// The certificate that might or might not be timely
     cert: Ed25519Cert,

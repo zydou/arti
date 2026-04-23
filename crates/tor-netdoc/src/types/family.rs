@@ -153,7 +153,11 @@ impl NormalItemArgument for RelayFamilyId {}
 /// A list of multiple [`RelayFamilyId`] entries as found in microdescs.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deftly, derive_more::AsRef)]
 #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
-pub struct RelayFamilyIds(Vec<RelayFamilyId>);
+pub struct RelayFamilyIds(
+    // TODO DIRMIRROR: Replace with BTreeSet at one point.
+    // TODO could/should this be a type alias instead?
+    Vec<RelayFamilyId>,
+);
 
 impl RelayFamilyIds {
     /// Return a new empty [`RelayFamilyIds`].
@@ -164,6 +168,16 @@ impl RelayFamilyIds {
     /// Push `family_id` onto this instance.
     pub fn push(&mut self, family_id: RelayFamilyId) {
         self.0.push(family_id);
+    }
+
+    /// Sort entries ascending by their [`RelayFamilyId`].
+    pub fn sort(&mut self) {
+        self.0.sort();
+    }
+
+    /// Deduplicates entries.
+    pub fn dedup(&mut self) {
+        self.0.dedup();
     }
 }
 
