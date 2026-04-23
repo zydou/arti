@@ -30,6 +30,7 @@ pub use ignored_impl::{Ignored, IgnoredItemOrObjectValue, NotPresent};
 use crate::NormalItemArgument;
 use crate::encode::{
     self,
+    ItemArgument,
     ItemEncoder,
     ItemObjectEncodable,
     ItemValueEncodable,
@@ -479,7 +480,7 @@ mod ed25519impl {
 
     use crate::{Error, NormalItemArgument, Result, types::misc::FixedB64};
     use derive_deftly::Deftly;
-    use tor_llcrypto::pk::ed25519::Ed25519Identity;
+    use tor_llcrypto::pk::ed25519::{Ed25519Identity, Signature};
 
     /// An alleged ed25519 public key, encoded in base64 with optional
     /// padding.
@@ -547,6 +548,12 @@ mod ed25519impl {
     impl From<Ed25519Identity> for Ed25519IdentityLine {
         fn from(pk: Ed25519Identity) -> Self {
             Ed25519Public(pk).into()
+        }
+    }
+
+    impl ItemArgument for Signature {
+        fn write_arg_onto(&self, out: &mut ItemEncoder) -> StdResult<(), Bug> {
+            FixedB64::from(self.to_bytes()).write_arg_onto(out)
         }
     }
 }
@@ -1892,6 +1899,7 @@ pub mod routerdesc {
             hash_inputs: &SignatureHashInputs<'_>,
             hash: &mut Self::HashAccu,
         ) -> Result<Self, EP> {
+            // TODO DIRMIRROR break this out into impl ItemArgumentParseable for Signature
             let args = item.args_mut();
             let sig = FixedB64::<64>::from_args(args)
                 .map_err(|e| args.handle_error("router-sig-ed25519", e))?

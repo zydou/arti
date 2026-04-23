@@ -50,3 +50,4 @@ ADDED: `RouterHashAccu` type
 ADDED: `RouterDescSignature` type
 ADDED: `RouterSigEd25519` type
 ADDED: `RouterDescSignatures` type
+ADDED: Implement `ItemArgument` for `tor_llcrypto::pk::ed25519::Signature`
