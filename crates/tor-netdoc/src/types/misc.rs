@@ -1813,7 +1813,6 @@ pub mod routerdesc {
         const HASH_PREFIX_MAGIC: &str = "Tor router descriptor signature v1";
     }
 
-    #[cfg(feature = "parse2")]
     impl SignatureItemParseable for RouterSigEd25519 {
         type HashAccu = RouterHashAccu;
 
@@ -1843,7 +1842,6 @@ pub mod routerdesc {
     #[allow(clippy::exhaustive_structs)]
     pub struct RouterSignature(pub Vec<u8>);
 
-    #[cfg(feature = "parse2")]
     impl SignatureItemParseable for RouterSignature {
         type HashAccu = RouterHashAccu;
 
