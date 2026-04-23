@@ -7,15 +7,20 @@
 //! signing keys to sign votes and consensuses.
 
 use crate::batching_split_before::IteratorExt as _;
+use crate::encode::{Bug, ItemObjectEncodable, NetdocEncodable, NetdocEncoder};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
+use crate::parse2::{
+    self, ItemObjectParseable, NetdocUnverified as _, sig_hashes::Sha1WholeKeywordLine,
+};
 use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublicParse1Helper, RsaSha1Signature};
 use crate::util::str::Extent;
 use crate::{NetdocErrorKind as EK, NormalItemArgument, Result};
 
 use tor_basic_utils::impl_debug_hex;
 use tor_checkable::{signed, timed};
+use tor_error::into_internal;
 use tor_llcrypto::pk::rsa;
 use tor_llcrypto::{d, pk, pk::rsa::RsaIdentity};
 
@@ -33,15 +38,6 @@ mod build;
 #[cfg(feature = "build_docs")]
 #[allow(deprecated)]
 pub use build::AuthCertBuilder;
-
-use crate::parse2::{
-    self, ItemObjectParseable, NetdocUnverified as _, sig_hashes::Sha1WholeKeywordLine,
-};
-
-use {
-    crate::encode::{Bug, ItemObjectEncodable, NetdocEncodable, NetdocEncoder},
-    tor_error::into_internal,
-};
 
 mod encoded;
 pub use encoded::EncodedAuthCert;
