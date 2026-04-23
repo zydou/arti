@@ -2266,6 +2266,9 @@ mod test {
 
     #[test]
     fn contact_info() -> anyhow::Result<()> {
+        use encode::NetdocEncodable;
+        use parse2::{ParseInput, parse_netdoc};
+
         const S: &str = "some relay operator";
         let n: ContactInfo = S.parse()?;
         assert_eq!(n.as_str(), S);
@@ -2278,35 +2281,29 @@ mod test {
         bad(" starts with space");
         bad("contains\nnewline");
 
-        // XXXX abolish this block
-        {
-            use encode::NetdocEncodable;
-            use parse2::{ParseInput, parse_netdoc};
-
-            #[derive(PartialEq, Debug, Deftly)]
-            #[derive_deftly(NetdocParseable, NetdocEncodable)]
-            struct TestDoc {
-                pub intro: (),
-                pub contact: ContactInfo,
-            }
-
-            let roundtrip = |s: &str| -> anyhow::Result<()> {
-                let doc = TestDoc {
-                    intro: (),
-                    contact: s.parse()?,
-                };
-                let mut enc = NetdocEncoder::new();
-                doc.encode_unsigned(&mut enc)?;
-                let enc = enc.finish()?;
-                let reparsed = parse_netdoc::<TestDoc>(&ParseInput::new(&enc, "<test>"))?;
-                assert_eq!(doc, reparsed);
-                Ok(())
-            };
-
-            roundtrip("normal")?;
-            roundtrip("trailing  white space  ")?;
-            roundtrip("wtf is this allowed in \x03 netdocs\r")?; // TODO torspec#396
+        #[derive(PartialEq, Debug, Deftly)]
+        #[derive_deftly(NetdocParseable, NetdocEncodable)]
+        struct TestDoc {
+            pub intro: (),
+            pub contact: ContactInfo,
         }
+
+        let roundtrip = |s: &str| -> anyhow::Result<()> {
+            let doc = TestDoc {
+                intro: (),
+                contact: s.parse()?,
+            };
+            let mut enc = NetdocEncoder::new();
+            doc.encode_unsigned(&mut enc)?;
+            let enc = enc.finish()?;
+            let reparsed = parse_netdoc::<TestDoc>(&ParseInput::new(&enc, "<test>"))?;
+            assert_eq!(doc, reparsed);
+            Ok(())
+        };
+
+        roundtrip("normal")?;
+        roundtrip("trailing  white space  ")?;
+        roundtrip("wtf is this allowed in \x03 netdocs\r")?; // TODO torspec#396
 
         Ok(())
     }
