@@ -43,7 +43,7 @@ pub(super) struct ExtendRequestHandler {
     /// to enable the reuse of existing Tor channels where possible.
     chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
     /// The identity of the inbound relay (the previous hop).
-    inbound_peer: PeerInfo,
+    inbound_peer: Arc<PeerInfo>,
     /// A stream of events to be read from the main loop of the reactor.
     event_tx: mpsc::Sender<CircEvent>,
     /// Memory quota account
@@ -55,7 +55,7 @@ impl ExtendRequestHandler {
     pub(super) fn new(
         unique_id: UniqId,
         chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
-        inbound_peer: PeerInfo,
+        inbound_peer: Arc<PeerInfo>,
         event_tx: mpsc::Sender<CircEvent>,
         memquota: CircuitAccount,
     ) -> Self {
@@ -114,7 +114,7 @@ impl ExtendRequestHandler {
             Error::CircProto("Invalid channel target".into())
         })?;
 
-        if chan_target.has_any_relay_id_from(&self.inbound_peer) {
+        if chan_target.has_any_relay_id_from(&*self.inbound_peer) {
             return Err(Error::CircProto("Cannot extend circuit to previous hop".into()).into());
         }
 

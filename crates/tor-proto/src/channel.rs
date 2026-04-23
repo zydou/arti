@@ -297,7 +297,7 @@ pub struct Channel {
     /// Target identity and address information for this peer.
     peer_id: OwnedChanTarget,
     /// Validated information for this peer.
-    peer: MaybeSensitive<PeerInfo>,
+    peer: MaybeSensitive<Arc<PeerInfo>>,
     /// The declared clock skew on this channel, at the time when this channel was
     /// created.
     clock_skew: ClockSkew,
@@ -596,7 +596,7 @@ impl Channel {
             padding_ctrl: padding_ctrl.clone(),
             unique_id,
             peer_id,
-            peer,
+            peer: peer.map(Arc::new),
             clock_skew,
             opened_at: coarsetime::Instant::now(),
             mutable: Mutex::new(mutable),
@@ -837,7 +837,7 @@ impl Channel {
 
     /// Return the [`PeerInfo`] of this channel.
     #[cfg(feature = "relay")]
-    pub(crate) fn peer_info(&self) -> &PeerInfo {
+    pub(crate) fn peer_info(&self) -> &Arc<PeerInfo> {
         &self.peer
     }
 
@@ -1043,7 +1043,7 @@ impl Channel {
             padding_ctrl,
             unique_id,
             peer_id,
-            peer: MaybeSensitive::not_sensitive(PeerInfo::EMPTY),
+            peer: MaybeSensitive::not_sensitive(Arc::new(PeerInfo::EMPTY)),
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),
@@ -1213,7 +1213,7 @@ pub(crate) mod test {
             padding_ctrl,
             unique_id,
             peer_id,
-            peer: MaybeSensitive::not_sensitive(PeerInfo::EMPTY),
+            peer: MaybeSensitive::not_sensitive(Arc::new(PeerInfo::EMPTY)),
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),

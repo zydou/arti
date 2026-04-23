@@ -117,7 +117,7 @@ impl Forward {
         event_tx: mpsc::Sender<CircEvent>,
         memquota: CircuitAccount,
     ) -> Self {
-        let inbound_peer = inbound_chan.peer_info().clone();
+        let inbound_peer = Arc::clone(inbound_chan.peer_info());
         let extend_handler =
             ExtendRequestHandler::new(unique_id, chan_provider, inbound_peer, event_tx, memquota);
 
