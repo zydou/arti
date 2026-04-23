@@ -102,7 +102,7 @@ define_derive_deftly_module! {
               }
               F_NORMAL {
                         $LET_SELECTOR
-                        for item in selector.iter_ordered(&self.$fname) {
+                        for item in selector.${paste_spanned $fname iter_ordered}(&self.$fname) {
                             $ENCODE_ITEM_VALUE
                         }
               }
