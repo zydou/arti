@@ -51,3 +51,4 @@ ADDED: `RouterDescSignature` type
 ADDED: `RouterSigEd25519` type
 ADDED: `RouterDescSignatures` type
 ADDED: Implement `ItemArgument` for `tor_llcrypto::pk::ed25519::Signature`
+ADDED: Implement conversions from `tor_checkable` errors to `VerifyFailed`

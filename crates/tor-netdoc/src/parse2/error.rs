@@ -292,3 +292,20 @@ impl From<UnexpectedArgument> for ArgumentError {
         AE::Unexpected
     }
 }
+
+impl From<tor_cert::CertError> for VerifyFailed {
+    fn from(_: tor_cert::CertError) -> VerifyFailed {
+        VerifyFailed::VerifyFailed
+    }
+}
+
+impl From<tor_checkable::TimeValidityError> for VerifyFailed {
+    fn from(te: tor_checkable::TimeValidityError) -> VerifyFailed {
+        use tor_checkable::TimeValidityError as TVE;
+        match te {
+            TVE::Expired(_) => VerifyFailed::TooOld,
+            TVE::NotYetValid(_) => VerifyFailed::TooNew,
+            _ => VerifyFailed::Other,
+        }
+    }
+}
