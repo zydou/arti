@@ -335,6 +335,13 @@ impl Readable for CertExt {
     }
 }
 
+impl<'b> TryFrom<&'b [u8]> for KeyUnknownCert {
+    type Error = tor_bytes::Error;
+    fn try_from(data: &'b [u8]) -> BytesResult<KeyUnknownCert> {
+        Ed25519Cert::decode(data)
+    }
+}
+
 impl Ed25519Cert {
     /// Try to decode a certificate from a byte slice.
     ///
