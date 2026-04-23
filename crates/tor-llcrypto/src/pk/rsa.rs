@@ -145,6 +145,11 @@ impl RsaIdentity {
         &self.id.as_ref()[..]
     }
 
+    /// Expose an RsaIdentity as a byte array.
+    pub fn to_bytes(&self) -> [u8; 20] {
+        self.id.into()
+    }
+
     /// Expose an RsaIdentity as an uppercase hexadecimal string.
     pub fn as_hex_upper(&self) -> String {
         hex::encode_upper(self.as_bytes())
