@@ -1722,7 +1722,6 @@ mod boolean {
 }
 
 /// Types for router descriptors.
-#[cfg(feature = "routerdesc")]
 pub mod routerdesc {
     use super::*;
 
