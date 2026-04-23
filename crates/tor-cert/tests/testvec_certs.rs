@@ -1,3 +1,4 @@
+use tor_bytes::Writeable;
 use tor_cert::rsa::RsaCrosscert;
 use tor_cert::{Ed25519Cert, KeyType};
 use tor_checkable::{ExternallySigned, SelfSigned, Timebound};
@@ -28,6 +29,11 @@ fn test_valid_ed() {
     let cert = Ed25519Cert::decode(&c[..]).unwrap();
     assert_eq!(cert.peek_cert_type(), 4.into());
     assert_eq!(cert.peek_subject_key().as_ed25519(), Some(&signing_key));
+
+    let mut re_encode = vec![];
+    cert.write_onto(&mut re_encode).unwrap();
+    assert_eq!(re_encode, c);
+
     let cert = cert
         .should_have_signing_key()
         .unwrap()
