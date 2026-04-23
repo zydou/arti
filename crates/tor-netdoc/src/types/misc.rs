@@ -1809,7 +1809,8 @@ pub mod routerdesc {
     }
 
     /// SHA-256 router descriptor signature including magic and the keyword.
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[derive_deftly(ItemValueEncodable)]
     #[allow(clippy::exhaustive_structs)]
     // TODO SPEC is RouterSigEd25519 not a standard-ish kind of signature?
     // TODO DIRAUTH is RouterSigEd25519 not a standard-ish kind of signature?
