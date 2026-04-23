@@ -1811,6 +1811,17 @@ pub mod routerdesc {
     impl RouterSigEd25519 {
         /// The magic prefix for hashing this type of signature.
         const HASH_PREFIX_MAGIC: &str = "Tor router descriptor signature v1";
+
+        /// Calculate the hash for signature
+        fn hash(document_sofar: &str, signature_item_kw_spc: &[&str]) -> [u8; 32] {
+            let mut h = tor_llcrypto::d::Sha256::new();
+            h.update(Self::HASH_PREFIX_MAGIC);
+            h.update(document_sofar);
+            for b in signature_item_kw_spc {
+                h.update(b);
+            }
+            h.finalize().into()
+        }
     }
 
     impl SignatureItemParseable for RouterSigEd25519 {
@@ -1826,12 +1837,10 @@ pub mod routerdesc {
                 .map_err(|e| args.handle_error("router-sig-ed25519", e))?
                 .0;
             let sig = ed25519::Signature::from(sig);
-
-            let mut h = tor_llcrypto::d::Sha256::new();
-            h.update(Self::HASH_PREFIX_MAGIC);
-            h.update(hash_inputs.document_sofar);
-            h.update(hash_inputs.signature_item_kw_spc);
-            hash.sha256 = Some(h.finalize().into());
+            hash.sha256 = Some(Self::hash(
+                hash_inputs.document_sofar,
+                &[hash_inputs.signature_item_kw_spc],
+            ));
             Ok(Self(sig))
         }
     }
