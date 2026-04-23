@@ -17,7 +17,7 @@ pub use hostname::*;
 pub use rsa::*;
 pub use timeimpl::*;
 
-#[cfg(feature = "encode")]
+// XXXX tidy and unify these use's
 use {
     crate::encode::{
         self,
@@ -33,7 +33,6 @@ use {
     std::result::Result as StdResult,
     tor_error::into_internal,
 };
-#[cfg(feature = "parse2")]
 use {
     crate::parse2::multiplicity::{
         ItemSetMethods,
@@ -532,7 +531,7 @@ mod ed25519impl {
 
     /// An Ed25519 public key found in a micro descriptor `id` line.
     #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[derive_deftly(ItemValueParseable)]
     #[non_exhaustive]
     pub struct Ed25519IdentityLine {
         /// Fixed magic identifier (`ed25519`) for this line.
@@ -564,7 +563,6 @@ mod ed25519impl {
 mod ignored_impl {
     use super::*;
 
-    #[cfg(feature = "parse2")]
     use crate::parse2::ErrorProblem as EP;
 
     /// Part of a network document, that isn't actually there.
@@ -595,11 +593,8 @@ mod ignored_impl {
     // TODO we'll need to implement ItemArgument etc., for encoding, too.
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
     #[allow(clippy::exhaustive_structs)]
-    #[cfg_attr(
-        feature = "parse2",
-        derive(Deftly),
-        derive_deftly(NetdocParseableFields)
-    )]
+    #[derive(Deftly)]
+    #[derive_deftly(NetdocParseableFields)]
     pub struct NotPresent;
 
     /// Ignored part of a network document.
@@ -616,12 +611,8 @@ mod ignored_impl {
     /// Argument, we need something to put into the output document to avoid generating
     /// a document with the arguments out of step.  If it *is* the last argument,
     /// it could simply be omitted, since additional arguments are in any case ignored.
-    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
-    #[cfg_attr(
-        feature = "parse2",
-        derive(Deftly),
-        derive_deftly(ItemValueParseable, NetdocParseableFields)
-    )]
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default, Deftly)]
+    #[derive_deftly(ItemValueParseable, NetdocParseableFields)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Ignored;
 
@@ -633,7 +624,6 @@ mod ignored_impl {
     /// This type is uninhabited.
     pub struct IgnoredItemOrObjectValue(Void);
 
-    #[cfg(feature = "parse2")]
     impl ItemSetMethods for P2MultiplicitySelector<NotPresent> {
         type Each = Ignored;
         type Field = NotPresent;
@@ -651,14 +641,12 @@ mod ignored_impl {
         }
     }
 
-    #[cfg(feature = "parse2")]
     impl ItemArgumentParseable for NotPresent {
         fn from_args(_: &mut ArgumentStream) -> Result<NotPresent, ArgumentError> {
             Ok(NotPresent)
         }
     }
 
-    #[cfg(feature = "parse2")]
     impl ObjectSetMethods for P2MultiplicitySelector<NotPresent> {
         type Field = NotPresent;
         type Each = Void;
@@ -670,7 +658,6 @@ mod ignored_impl {
         }
     }
 
-    #[cfg(feature = "encode")]
     impl<'f> encode::MultiplicityMethods<'f> for EMultiplicitySelector<NotPresent> {
         type Field = NotPresent;
         type Each = Void;
@@ -679,7 +666,6 @@ mod ignored_impl {
         }
     }
 
-    #[cfg(feature = "encode")]
     impl encode::OptionalityMethods for EMultiplicitySelector<NotPresent> {
         type Field = NotPresent;
         type Each = Void;
@@ -695,14 +681,12 @@ mod ignored_impl {
         }
     }
 
-    #[cfg(feature = "parse2")]
     impl ItemArgumentParseable for Ignored {
         fn from_args(_: &mut ArgumentStream) -> Result<Ignored, ArgumentError> {
             Ok(Ignored)
         }
     }
 
-    #[cfg(feature = "parse2")]
     impl ItemObjectParseable for Ignored {
         fn check_label(_label: &str) -> Result<(), EP> {
             // allow any label
@@ -713,7 +697,6 @@ mod ignored_impl {
         }
     }
 
-    #[cfg(feature = "parse2")]
     impl ObjectSetMethods for P2MultiplicitySelector<Ignored> {
         type Field = Ignored;
         type Each = Ignored;
@@ -725,7 +708,6 @@ mod ignored_impl {
         }
     }
 
-    #[cfg(feature = "encode")]
     impl<'f> encode::MultiplicityMethods<'f> for EMultiplicitySelector<Ignored> {
         type Field = Ignored;
         type Each = IgnoredItemOrObjectValue;
@@ -734,7 +716,6 @@ mod ignored_impl {
         }
     }
 
-    #[cfg(feature = "encode")]
     impl encode::OptionalityMethods for EMultiplicitySelector<Ignored> {
         type Field = Ignored;
         type Each = IgnoredItemOrObjectValue;
@@ -743,14 +724,12 @@ mod ignored_impl {
         }
     }
 
-    #[cfg(feature = "encode")]
     impl ItemValueEncodable for IgnoredItemOrObjectValue {
         fn write_item_value_onto(&self, _: ItemEncoder) -> Result<(), Bug> {
             void::unreachable(self.0)
         }
     }
 
-    #[cfg(feature = "encode")]
     impl ItemObjectEncodable for IgnoredItemOrObjectValue {
         fn label(&self) -> &str {
             void::unreachable(self.0)
@@ -980,7 +959,6 @@ mod rsa {
     use crate::{NetdocErrorKind as EK, Pos, Result};
     use std::ops::RangeBounds;
     use tor_llcrypto::pk::rsa::PublicKey;
-    #[cfg(feature = "encode")]
     use tor_llcrypto::{d::Sha1, pk::rsa::KeyPair};
 
     /// The fixed exponent which we require when parsing any RSA key in a netdoc
@@ -1018,14 +996,8 @@ mod rsa {
     /// set of allowed object labels includes `ID SIGNATURE` whereas this type
     /// is always `SIGNATURE`
     #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-    #[cfg_attr(
-        feature = "parse2",
-        derive_deftly(ItemValueParseable),
-        deftly(netdoc(no_extra_args, signature(hash_accu = Sha1WholeKeywordLine)))
-    )]
-    #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
-    // derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-    #[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+    #[derive_deftly(ItemValueParseable, ItemValueEncodable)]
+    #[deftly(netdoc(no_extra_args, signature(hash_accu = Sha1WholeKeywordLine)))]
     #[non_exhaustive]
     pub struct RsaSha1Signature {
         /// The bytes of the signature (base64-decoded).
@@ -1074,7 +1046,6 @@ mod rsa {
         }
     }
 
-    #[cfg(feature = "encode")]
     impl RsaSha1Signature {
         /// Make a signature according to "Signing documents" in the netdoc spec
         ///
@@ -1344,7 +1315,6 @@ mod identified_digest {
 /// Types for decoding RSA fingerprints
 mod fingerprint {
     use super::*;
-    #[cfg(feature = "parse2")]
     use crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable};
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use base64ct::{Base64Unpadded, Encoding as _};
@@ -1401,7 +1371,6 @@ mod fingerprint {
         }
     }
 
-    #[cfg(feature = "parse2")]
     impl ItemArgumentParseable for SpFingerprint {
         fn from_args<'s>(
             args: &mut ArgumentStream<'s>,
@@ -1685,9 +1654,9 @@ mod contact_info {
     /// Also used for authority entries in netstatus documents.
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)] //
     #[derive(derive_more::Into, derive_more::AsRef, derive_more::Deref, derive_more::Display)]
-    #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+    #[derive_deftly(ItemValueEncodable)]
     #[non_exhaustive]
-    pub struct ContactInfo(#[cfg_attr(feature = "encode", deftly(netdoc(rest)))] String);
+    pub struct ContactInfo(#[deftly(netdoc(rest))] String);
 
     /// Contact information (`contact` item value) has invalid syntax
     #[derive(Clone, Debug, thiserror::Error)]
@@ -1710,7 +1679,6 @@ mod contact_info {
         }
     }
 
-    #[cfg(feature = "parse2")]
     impl ItemValueParseable for ContactInfo {
         fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<Self, parse2::ErrorProblem> {
             item.check_no_object()?;
@@ -1788,7 +1756,7 @@ pub mod routerdesc {
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Deftly)]
-    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[derive_deftly(ItemValueParseable)]
     #[non_exhaustive]
     pub struct OverloadGeneral {
         /// The version of the item.
@@ -1801,7 +1769,7 @@ pub mod routerdesc {
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router>
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
-    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[derive_deftly(ItemValueParseable)]
     #[non_exhaustive]
     pub struct RouterDescIntroItem {
         /// A valid router [`Nickname`].
@@ -1824,7 +1792,7 @@ pub mod routerdesc {
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:extra-info-digest>
     #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
-    #[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+    #[derive_deftly(ItemValueParseable)]
     #[non_exhaustive]
     pub struct ExtraInfoDigests {
         /// Mandatory SHA-1 of the signed data in base 16.
@@ -2316,7 +2284,7 @@ mod test {
         bad(" starts with space");
         bad("contains\nnewline");
 
-        #[cfg(all(feature = "encode", feature = "parse2"))]
+        // XXXX abolish this block
         {
             use encode::NetdocEncodable;
             use parse2::{ParseInput, parse_netdoc};
@@ -2364,7 +2332,6 @@ mod test {
 
     /// Test that ensures SpFingerprint matches the 10x4 requirement.
     #[test]
-    #[cfg(feature = "parse2")]
     fn sp_fingerprint() {
         use derive_deftly::Deftly;
         use tor_llcrypto::pk::rsa::RsaIdentity;
