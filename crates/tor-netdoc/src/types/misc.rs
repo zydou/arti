@@ -1838,6 +1838,7 @@ pub mod routerdesc {
     }
 
     /// SHA-1 router descriptor signature over `router-sig-ed25519`.
+    // TODO DIRMIRROR Is this not the same as RsaSha1Signature ?
     #[derive(Debug, Clone, PartialEq, Eq)]
     #[allow(clippy::exhaustive_structs)]
     pub struct RouterSignature(pub Vec<u8>);
