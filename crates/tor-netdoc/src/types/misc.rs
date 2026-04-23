@@ -1822,6 +1822,66 @@ pub mod routerdesc {
             }
             h.finalize().into()
         }
+
+        /// Make a signature during document encoding
+        ///
+        /// `item_keyword` is the keyword for the signature item.
+        ///
+        /// # Example
+        ///
+        /// ```
+        /// use derive_deftly::Deftly;
+        /// use tor_error::Bug;
+        /// use tor_llcrypto::pk::ed25519;
+        /// use tor_netdoc::derive_deftly_template_NetdocEncodable;
+        /// use tor_netdoc::encode::{NetdocEncodable, NetdocEncoder};
+        /// use tor_netdoc::types::routerdesc::RouterSigEd25519;
+        ///
+        /// #[derive(Deftly, Default)]
+        /// #[derive_deftly(NetdocEncodable)]
+        /// pub struct Document {
+        ///     pub document_intro_keyword: (),
+        /// }
+        /// #[derive(Deftly)]
+        /// #[derive_deftly(NetdocEncodable)]
+        /// pub struct DocumentSignatures {
+        ///     pub document_signature: RouterSigEd25519,
+        /// }
+        /// impl Document {
+        ///     pub fn encode_sign(&self, k: &ed25519::Keypair) -> Result<String, Bug> {
+        ///         let mut encoder = NetdocEncoder::new();
+        ///         self.encode_unsigned(&mut encoder)?;
+        ///         let document_signature =
+        ///             RouterSigEd25519::new_sign_netdoc(k, &encoder, "document-signature")?;
+        ///         let sigs = DocumentSignatures { document_signature };
+        ///         sigs.encode_unsigned(&mut encoder)?;
+        ///         let encoded = encoder.finish()?;
+        ///         Ok(encoded)
+        ///     }
+        /// }
+        ///
+        /// # fn main() -> Result<(), anyhow::Error> {
+        /// let k = ed25519::Keypair::generate(&mut tor_basic_utils::test_rng::testing_rng());
+        /// let doc = Document::default();
+        /// let encoded = doc.encode_sign(&k)?;
+        /// assert!(encoded.starts_with(concat!(
+        ///     "document-intro-keyword\n",
+        ///     "document-signature ",
+        /// )));
+        /// # Ok(())
+        /// # }
+        /// ```
+        pub fn new_sign_netdoc(
+            private_key: &ed25519::Keypair,
+            encoder: &NetdocEncoder,
+            item_keyword: &str,
+        ) -> StdResult<Self, Bug> {
+            let signature = private_key
+                .sign(&Self::hash(encoder.text_sofar()?, &[item_keyword, " "]))
+                .to_bytes()
+                .into();
+            Ok(RouterSigEd25519(signature))
+        }
     }
 
     impl SignatureItemParseable for RouterSigEd25519 {
