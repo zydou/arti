@@ -197,16 +197,19 @@ pub struct Ed25519Cert {
 }
 
 /// One of the data types that can be certified by an Ed25519Cert.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, derive_more::From)]
 #[non_exhaustive]
 pub enum CertifiedKey {
     /// An Ed25519 public key, signed directly.
     Ed25519(ed25519::Ed25519Identity),
     /// The SHA256 digest of a DER-encoded RsaPublicKey
+    #[from(skip)]
     RsaSha256Digest([u8; 32]),
     /// The SHA256 digest of an X.509 certificate.
+    #[from(skip)]
     X509Sha256Digest([u8; 32]),
     /// Some unrecognized key type.
+    #[from(skip)]
     Unrecognized(UnrecognizedKey),
 }
 
