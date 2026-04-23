@@ -1724,14 +1724,7 @@ mod boolean {
 /// Types for router descriptors.
 #[cfg(feature = "routerdesc")]
 pub mod routerdesc {
-    use crate::{
-        NormalItemArgument,
-        types::{
-            Iso8601TimeSp, Nickname,
-            misc::{FixedB16U, FixedB64},
-        },
-    };
-    use derive_deftly::Deftly;
+    use super::*;
 
     /// Version argument found in an `overload-general` item.
     ///
