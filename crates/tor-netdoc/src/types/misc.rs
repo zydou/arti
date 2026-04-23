@@ -17,36 +17,6 @@ pub use hostname::*;
 pub use rsa::*;
 pub use timeimpl::*;
 
-// XXXX tidy and unify these use's
-use {
-    crate::encode::{
-        self,
-        ItemEncoder,
-        ItemObjectEncodable,
-        ItemValueEncodable,
-        // `E` for "encode`; different from `parse2::MultiplicitySelector`
-        MultiplicitySelector as EMultiplicitySelector,
-        NetdocEncoder,
-    },
-    digest::Digest as _,
-    std::iter,
-    std::result::Result as StdResult,
-    tor_error::into_internal,
-};
-use {
-    crate::parse2::multiplicity::{
-        ItemSetMethods,
-        // `P2` for "parse2`; different from `encode::MultiplicitySelector`
-        MultiplicitySelector as P2MultiplicitySelector,
-        ObjectSetMethods,
-    },
-    crate::parse2::sig_hashes::Sha1WholeKeywordLine,
-    crate::parse2::{
-        self, ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable,
-        ItemValueParseable, SignatureHashInputs, UnparsedItem,
-    },
-};
-
 pub use nickname::{InvalidNickname, Nickname};
 
 pub use boolean::NumericBoolean;
@@ -58,14 +28,38 @@ pub use identified_digest::{DigestName, IdentifiedDigest};
 pub use ignored_impl::{Ignored, IgnoredItemOrObjectValue, NotPresent};
 
 use crate::NormalItemArgument;
+use crate::encode::{
+    self,
+    ItemEncoder,
+    ItemObjectEncodable,
+    ItemValueEncodable,
+    // `E` for "encode`; different from `parse2::MultiplicitySelector`
+    MultiplicitySelector as EMultiplicitySelector,
+    NetdocEncoder,
+};
+use crate::parse2::{
+    self, ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable,
+    ItemValueParseable, SignatureHashInputs, UnparsedItem,
+    multiplicity::{
+        ItemSetMethods,
+        // `P2` for "parse2`; different from `encode::MultiplicitySelector`
+        MultiplicitySelector as P2MultiplicitySelector,
+        ObjectSetMethods,
+    },
+    sig_hashes::Sha1WholeKeywordLine,
+};
+
 use derive_deftly::{Deftly, define_derive_deftly, define_derive_deftly_module};
+use digest::Digest as _;
 use std::cmp::{self, PartialOrd};
 use std::fmt::{self, Display};
+use std::iter;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
+use std::result::Result as StdResult;
 use std::str::FromStr;
 use subtle::{Choice, ConstantTimeEq};
-use tor_error::{Bug, ErrorReport as _, internal};
+use tor_error::{Bug, ErrorReport as _, internal, into_internal};
 use void::{ResultVoidExt as _, Void};
 
 /// Describes a value that van be decoded from a bunch of bytes.
