@@ -8,11 +8,14 @@
 //! NOTE: Several of these modules may eventually move elsewhere,
 //! or become their own crates.
 
+pub(crate) mod embedded_cert;
 pub mod family;
 pub(crate) mod misc;
 pub mod policy;
 pub mod relay_flags;
 pub mod version;
+
+pub use embedded_cert::*;
 
 pub use misc::RetainedOrderVec;
 pub use misc::{ContactInfo, InvalidNickname, Nickname, NotPresent, NumericBoolean, Unknown};
