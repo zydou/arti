@@ -5,7 +5,7 @@
 //!
 //! These types shouldn't be exposed outside of the netdoc crate.
 
-pub(crate) use b16impl::*;
+pub use b16impl::*;
 pub use b64impl::*;
 pub use contact_info::*;
 pub use curve25519impl::*;
@@ -313,6 +313,7 @@ mod b64impl {
     #[allow(clippy::derived_hash_with_manual_eq)]
     #[derive(derive_more::Debug)]
     #[debug(r#"FixedB64::<{N}>("{self}")"#)]
+    #[allow(clippy::exhaustive_structs)]
     pub struct FixedB64<const N: usize>(pub [u8; N]);
 
     impl<const N: usize> Display for FixedB64<N> {

@@ -17,7 +17,7 @@ pub mod version;
 pub use misc::{ContactInfo, InvalidNickname, Nickname, NotPresent, NumericBoolean, Unknown};
 pub use misc::{Hostname, InternetHost, InvalidHostname, InvalidInternetHost};
 
-pub use misc::B64;
+pub use misc::{B16, B16U, FixedB16U, B64, FixedB64};
 pub use misc::RsaSha1Signature;
 pub use misc::{Base64Fingerprint, Fingerprint, Ignored, IgnoredItemOrObjectValue, SpFingerprint};
 pub use misc::{Curve25519Public, Ed25519AlgorithmString, Ed25519IdentityLine, Ed25519Public};
