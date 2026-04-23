@@ -27,4 +27,4 @@ echo $CONTAINER
 
 exec docker run --rm -i -v "$(git rev-parse --show-toplevel)":/builds/arti \
 		-w /builds/arti $CONTAINER \
-		sh -c "apk add bash && ./maint/reproducible_build $*"
+		sh -c "apk add bash && ./maint/reproducible-build $*"
