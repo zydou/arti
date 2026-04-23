@@ -1804,6 +1804,8 @@ pub mod routerdesc {
     /// SHA-256 router descriptor signature including magic and the keyword.
     #[derive(Debug, Clone, PartialEq, Eq)]
     #[allow(clippy::exhaustive_structs)]
+    // TODO SPEC is RouterSigEd25519 not a standard-ish kind of signature?
+    // TODO DIRAUTH is RouterSigEd25519 not a standard-ish kind of signature?
     pub struct RouterSigEd25519(pub ed25519::Signature);
 
     impl RouterSigEd25519 {
