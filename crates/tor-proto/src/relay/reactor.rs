@@ -148,6 +148,7 @@ impl<R: Runtime> Reactor<R> {
         #[allow(clippy::disallowed_methods)]
         let (fwd_ev_tx, fwd_ev_rx) = mpsc::channel(0);
         let forward = Forward::new(
+            channel,
             unique_id,
             crypto_out,
             chan_provider,
@@ -224,7 +225,7 @@ pub(crate) mod test {
     use tor_cell::relaycell::{
         AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId, msg as relaymsg,
     };
-    use tor_linkspec::{EncodedLinkSpec, LinkSpec};
+    use tor_linkspec::{EncodedLinkSpec, HasRelayIds, LinkSpec};
     use tor_protover::{Protocols, named};
     use tor_rtcompat::SpawnExt;
     use tor_rtcompat::{DynTimeProvider, Runtime};
@@ -508,6 +509,48 @@ pub(crate) mod test {
             assert!(logs_contain("got EXTEND2 in a RELAY cell?!"));
             assert!(!ctrl.outbound_chan_launched());
             assert_circuit_destroyed(&mut ctrl, DestroyReason::NONE);
+        });
+    }
+
+    #[traced_test]
+    #[test]
+    fn reject_extend2_previous_hop() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let mut ctrl = ReactorTestCtrl::spawn_reactor(&rt);
+            rt.advance_until_stalled().await;
+
+            // No outbound circuits yet
+            assert!(!ctrl.outbound_chan_launched());
+
+            // Build a linkspec with the identities of the dummy channel
+            let mut linkspecs = ctrl
+                .inbound_chan
+                .channel
+                .target()
+                .identities()
+                .map(|id| LinkSpec::from(id.to_owned()).encode())
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+
+            // Make sure this channel actually has some identities
+            // (i.e. that it's not a client channel or something)
+            assert_eq!(linkspecs.len(), 2);
+
+            // There must be at least one IPv4 OR port address
+            linkspecs.push(
+                LinkSpec::OrPort("127.0.0.1".parse::<IpAddr>().unwrap(), 999)
+                    .encode()
+                    .unwrap(),
+            );
+            let handshake_type = HandshakeType::NTOR_V3;
+            let extend2 = relaymsg::Extend2::new(linkspecs, handshake_type, vec![]).into();
+            ctrl.send_fwd(None, extend2, Recognized::Yes, true).await;
+            rt.advance_until_stalled().await;
+
+            // The reactor handled the EXTEND2 and launched an outbound channel
+            assert!(logs_contain("Cannot extend circuit to previous hop"));
+            assert!(!ctrl.outbound_chan_launched());
+            assert!(ctrl.is_closing());
         });
     }
 

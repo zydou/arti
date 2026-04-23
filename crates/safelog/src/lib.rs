@@ -227,6 +227,21 @@ impl<T> MaybeSensitive<T> {
             either::Either::Right(s) => s.into_inner(),
         }
     }
+
+    /// Map a `MaybeSensitive<T>` to a `MaybeSensitive<U>`
+    /// by applying the supplied function `f` to the inner `T`
+    pub fn map<U, F>(self, f: F) -> MaybeSensitive<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self.0 {
+            either::Either::Left(t) => MaybeSensitive(either::Either::Left(f(t))),
+            either::Either::Right(s) => {
+                let new_inner = f(s.into_inner());
+                MaybeSensitive(either::Either::Right(Sensitive::new(new_inner)))
+            }
+        }
+    }
 }
 
 impl<T: std::fmt::Debug> std::fmt::Debug for MaybeSensitive<T> {

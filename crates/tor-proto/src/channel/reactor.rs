@@ -902,12 +902,12 @@ pub(crate) mod test {
     use crate::client::circuit::CircParameters;
     use crate::client::circuit::padding::new_padding;
     use crate::fake_mpsc;
-    use crate::peer::PeerInfo;
+    use crate::peer::{PeerAddr, PeerInfo};
     use crate::util::{DummyTimeoutEstimator, fake_mq};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
     use tor_cell::chancell::msg;
-    use tor_linkspec::OwnedChanTarget;
+    use tor_linkspec::{OwnedChanTarget, RelayIdsBuilder};
     use tor_rtcompat::SpawnExt;
     use tor_rtcompat::{DynTimeProvider, NoOpStreamOpsHandle, Runtime};
 
@@ -925,11 +925,17 @@ pub(crate) mod test {
         let (send1, recv1) = mpsc::channel(32);
         let (send2, recv2) = mpsc::channel(32);
         let unique_id = UniqId::new();
+        let ed = [6; 32].into();
+        let rsa = [10; 20].into();
         let dummy_target = OwnedChanTarget::builder()
-            .ed_identity([6; 32].into())
-            .rsa_identity([10; 20].into())
+            .ed_identity(ed)
+            .rsa_identity(rsa)
             .build()
             .unwrap();
+        let mut peer_ids = RelayIdsBuilder::default();
+        peer_ids.ed_identity(ed);
+        peer_ids.rsa_identity(rsa);
+        let peer_info = PeerInfo::new(PeerAddr::UNSPECIFIED, peer_ids.build().unwrap());
         let send1 = send1.sink_map_err(|e| {
             trace!("got sink error: {:?}", e);
             Error::CellDecodeErr {
@@ -946,7 +952,7 @@ pub(crate) mod test {
             Box::new(stream_ops),
             unique_id,
             dummy_target,
-            safelog::MaybeSensitive::not_sensitive(PeerInfo::EMPTY),
+            safelog::MaybeSensitive::not_sensitive(peer_info),
             crate::ClockSkew::None,
             runtime,
             fake_mq(),
