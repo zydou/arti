@@ -52,6 +52,7 @@ use crate::parse2::{
 
 use derive_deftly::{Deftly, define_derive_deftly, define_derive_deftly_module};
 use digest::Digest as _;
+use educe::Educe;
 use std::cmp::{self, PartialOrd};
 use std::fmt::{self, Display};
 use std::iter;
@@ -859,6 +860,23 @@ impl<T: PartialOrd> PartialOrd for Unknown<T> {
         }
     }
 }
+
+// ============================================================
+
+/// A sequence of `T` items, with their order retained
+///
+/// Normally when a `Vec<T>` appears in a network document,
+/// we expect the items to be sortable - they must impl [`EncodeOrd`](encode::EncodeOrd).
+/// When encoding, the output is always sorted.
+///
+/// *This* type retains the ordering.
+///
+/// Implements the [`encode`] and [`parse2`] item multiplicity traits.
+#[derive(Debug, Clone, Hash, Deftly, Eq, PartialEq, Educe)]
+#[educe(Default)]
+#[derive_deftly(Transparent)]
+#[allow(clippy::exhaustive_structs)]
+pub struct RetainedOrderVec<T>(pub Vec<T>);
 
 // ============================================================
 

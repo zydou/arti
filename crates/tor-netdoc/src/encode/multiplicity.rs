@@ -43,6 +43,7 @@
 //! for example, a document's intro item cannot be repeated or omitted.
 
 use super::*;
+use crate::types::RetainedOrderVec;
 
 /// Helper type that allows us to select an impl of `MultiplicityMethods`
 ///
@@ -137,6 +138,13 @@ impl<'f, T: EncodeOrd + 'f> MultiplicityMethods<'f> for DeterminedMultiplicitySe
         let mut v = f.iter().collect_vec();
         v.sort_by(|a, b| a.encode_cmp(*b));
         v.into_iter()
+    }
+}
+impl<'f, T: 'f> MultiplicityMethods<'f> for MultiplicitySelector<RetainedOrderVec<T>> {
+    type Each = T;
+    type Field = RetainedOrderVec<T>;
+    fn iter_ordered(self, f: &'f Self::Field) -> impl Iterator<Item = &'f Self::Each> {
+        f.0.iter()
     }
 }
 impl<'f, T: 'f> MultiplicityMethods<'f> for MultiplicitySelector<BTreeSet<T>> {

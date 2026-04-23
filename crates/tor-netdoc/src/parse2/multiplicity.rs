@@ -37,6 +37,7 @@
 //!  to which a value is going to be stored.)
 
 use super::*;
+use crate::types::RetainedOrderVec;
 
 /// Helper type that allows us to select an impl of `ItemSetMethods` etc.
 ///
@@ -209,6 +210,28 @@ impl<T> ItemSetMethods for MultiplicitySelector<Vec<T>> {
     }
     fn debug_core(self) -> &'static str {
         "Vec<_>"
+    }
+}
+impl<T> ItemSetMethods for MultiplicitySelector<RetainedOrderVec<T>> {
+    type Each = T;
+    type Field = RetainedOrderVec<T>;
+    // We always have None, or Some(nonempty)
+    fn can_accumulate(self, _acc: &Option<RetainedOrderVec<T>>) -> Result<(), EP> {
+        Ok(())
+    }
+    fn accumulate(self, acc: &mut Option<RetainedOrderVec<T>>, item: T) -> Result<(), EP> {
+        acc.get_or_insert_default().0.push(item);
+        Ok(())
+    }
+    fn finish(
+        self,
+        acc: Option<RetainedOrderVec<T>>,
+        _keyword: &'static str,
+    ) -> Result<RetainedOrderVec<T>, EP> {
+        Ok(acc.unwrap_or_default())
+    }
+    fn debug_core(self) -> &'static str {
+        "RetainedOrderVec<_>"
     }
 }
 impl<T: Ord> ItemSetMethods for MultiplicitySelector<BTreeSet<T>> {
