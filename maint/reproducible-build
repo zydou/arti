@@ -99,7 +99,6 @@ if [ -n "$macos" ]; then
 	# "o64a" for aarch64.
 
 	# This is the version of OSX that we try to build against.
-	# This one (10.12) is the oldest supported by Rust.
 	export MACOSX_DEPLOYMENT_TARGET="10.14"
 
 	mkdir -p .cargo
