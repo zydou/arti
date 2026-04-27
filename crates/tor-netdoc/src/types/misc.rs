@@ -772,7 +772,7 @@ mod ignored_impl {
 /// `Unknown` is not `Eq` or `Ord` because we won't want to relate a `Discarded`
 /// to a `Retained`.  That would be a logic error.  `partial_cmp` gives `None` for this.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_enums)] // this isn't going to change
 pub enum Unknown<T> {
     /// The parsing discarded unknown values and they are no longer available.
     Discarded(PhantomData<T>),
