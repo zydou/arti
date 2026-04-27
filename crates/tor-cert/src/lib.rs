@@ -54,7 +54,7 @@ pub use tor_cert_x509 as x509;
 
 use caret::caret_int;
 use tor_bytes::{Error as BytesError, Result as BytesResult};
-use tor_bytes::{Readable, Reader};
+use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_llcrypto::pk::*;
 
 use web_time_compat as time;
@@ -197,16 +197,19 @@ pub struct Ed25519Cert {
 }
 
 /// One of the data types that can be certified by an Ed25519Cert.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, derive_more::From)]
 #[non_exhaustive]
 pub enum CertifiedKey {
     /// An Ed25519 public key, signed directly.
     Ed25519(ed25519::Ed25519Identity),
     /// The SHA256 digest of a DER-encoded RsaPublicKey
+    #[from(skip)]
     RsaSha256Digest([u8; 32]),
     /// The SHA256 digest of an X.509 certificate.
+    #[from(skip)]
     X509Sha256Digest([u8; 32]),
     /// Some unrecognized key type.
+    #[from(skip)]
     Unrecognized(UnrecognizedKey),
 }
 
@@ -332,6 +335,19 @@ impl Readable for CertExt {
     }
 }
 
+impl Writeable for KeyUnknownCert {
+    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> Result<(), tor_bytes::EncodeError> {
+        self.cert.write_onto(b)
+    }
+}
+
+impl Readable for KeyUnknownCert {
+    fn take_from(r: &mut Reader<'_>) -> BytesResult<KeyUnknownCert> {
+        let b = r.take_rest();
+        Ed25519Cert::decode(b)
+    }
+}
+
 impl Ed25519Cert {
     /// Try to decode a certificate from a byte slice.
     ///
@@ -373,6 +389,7 @@ impl Ed25519Cert {
         let sig_offset = r.consumed();
         let signature: ed25519::Signature = r.extract()?;
         r.should_be_exhausted()?;
+        // See comment in `impl Writeable for UncheckedCert`.
 
         let keyext = extensions
             .iter()
@@ -566,6 +583,25 @@ impl UncheckedCert {
             .signed_with
             .as_ref()
             .expect("Made an UncheckedCert without a signing key")
+    }
+}
+
+impl Writeable for UncheckedCert {
+    // TODO in some sense this duplicates things in encode.rs.
+    // However, encode.rs is not useable in type-driven (derive-based) situations,
+    // because it uses entirely different types for encoding to those for decoding.
+    //
+    // Therefore, here we implement tor_bytes's encoding trait for the type which can
+    // also be decoded.  Perhaps the encode module could be abolished.
+    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> Result<(), tor_bytes::EncodeError> {
+        // Ed25519Cert::decode does a lot of work, which finds a lot of fields,
+        // but also `sig_offset`.  It then splits the incoming byte buffer at `sig_offset`
+        // into `text` and `signature`, insisting that there is nothing else.
+        //
+        // Therefore this is guaranteed to write precisely the input to `decode`.
+        self.text.write_onto(b)?;
+        self.signature.write_onto(b)?;
+        Ok(())
     }
 }
 

@@ -46,3 +46,11 @@ ADDED: Implement `NormalItemArgument` for `AddrPortPattern`
 ADDED: Implement `NetdocParseableFields` for `AddrPolicy`
 ADDED: `SpFingerprint` type
 ADDED: Implement `ItemArgumentParseable` for `RelayPlatform`
+ADDED: `RouterHashAccu` type
+ADDED: `RouterDescSignature` type
+ADDED: `RouterSigEd25519` type
+ADDED: `RouterDescSignatures` type
+ADDED: Implement `ItemArgument` for `tor_llcrypto::pk::ed25519::Signature`
+ADDED: Implement conversions from `tor_checkable` errors to `VerifyFailed`
+ADDED: `RetainedOrderVec`
+ADDED: `EmbeddedCert`

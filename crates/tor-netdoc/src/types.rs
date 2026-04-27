@@ -8,23 +8,26 @@
 //! NOTE: Several of these modules may eventually move elsewhere,
 //! or become their own crates.
 
+pub(crate) mod embedded_cert;
 pub mod family;
 pub(crate) mod misc;
 pub mod policy;
 pub mod relay_flags;
 pub mod version;
 
+pub use embedded_cert::*;
+
+pub use misc::RetainedOrderVec;
 pub use misc::{ContactInfo, InvalidNickname, Nickname, NotPresent, NumericBoolean, Unknown};
 pub use misc::{Hostname, InternetHost, InvalidHostname, InvalidInternetHost};
 
-pub use misc::B64;
 pub use misc::RsaSha1Signature;
+pub use misc::{B16, B16U, B64, FixedB16U, FixedB64};
 pub use misc::{Base64Fingerprint, Fingerprint, Ignored, IgnoredItemOrObjectValue, SpFingerprint};
 pub use misc::{Curve25519Public, Ed25519AlgorithmString, Ed25519IdentityLine, Ed25519Public};
 pub use misc::{DigestName, IdentifiedDigest};
 pub use misc::{Iso8601TimeNoSp, Iso8601TimeSp};
 
-#[cfg(feature = "routerdesc")]
 pub use misc::routerdesc;
 
 mod parse2_encode;
