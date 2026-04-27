@@ -65,3 +65,4 @@ BREAKING: `NormalItemArgument` no longer has `FromStr` and `Display` as supertra
 BREAKING: `Unknown::as_ref` signature changed; `only_known` may be needed too now.
 ADDED: `Unknown::only_known`
 ADDED: `Unknown` is now an exhaustive enum.
+ADDED: `KeywordOrString`

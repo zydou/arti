@@ -877,6 +877,52 @@ impl<T: PartialOrd> PartialOrd for Unknown<T> {
 
 // ============================================================
 
+/// Known keyword (enum) value, or arbitrary string
+///
+/// `T` should be a `Copy` enum with unit variants.
+/// It should have appropriate `FromStr` and `Display`,
+/// as well as [`NormalItemArgument`], impls.
+///
+/// Then `KeywordOrString` will implement the same traits.
+///
+/// Unlike [`Unknown`], unknown values are always retained as strings.
+//
+// `RelayFlags` has machinery for parsing flags and retaining unknown values,
+// but it uses `Unknown` to maybe discard unknown flags,
+// and it is generally quite a lot more complicated.
+#[derive(Debug, PartialEq, Clone, Hash)]
+#[allow(clippy::exhaustive_enums)] // this isn't going to change
+pub enum KeywordOrString<T: Copy> {
+    /// Known and recognised `T`
+    Known(T),
+
+    /// Unknown value in arbitrary syntax
+    Unknown(String),
+}
+
+impl<T: Copy + NormalItemArgument> NormalItemArgument for KeywordOrString<T> {}
+
+impl<T: Copy + Display> Display for KeywordOrString<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            KeywordOrString::Known(t) => Display::fmt(t, f),
+            KeywordOrString::Unknown(s) => Display::fmt(s, f),
+        }
+    }
+}
+
+impl<T: Copy + FromStr> FromStr for KeywordOrString<T> {
+    type Err = Void;
+    fn from_str(s: &str) -> Result<Self, Void> {
+        Ok(match s.parse() {
+            Ok(y) => KeywordOrString::Known(y),
+            Err(_) => KeywordOrString::Unknown(s.to_owned()),
+        })
+    }
+}
+
+// ============================================================
+
 /// A sequence of `T` items, with their order retained
 ///
 /// Normally when a `Vec<T>` appears in a network document,
