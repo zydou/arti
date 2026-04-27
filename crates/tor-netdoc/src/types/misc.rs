@@ -803,7 +803,22 @@ impl<T> Unknown<T> {
     }
 
     /// Obtain an `Unknown` containing (maybe) a reference
-    pub fn as_ref(&self) -> Option<&T> {
+    pub fn as_ref(&self) -> Unknown<&T> {
+        match self {
+            Unknown::Discarded(_) => Unknown::Discarded(PhantomData),
+            #[cfg(feature = "retain-unknown")]
+            Unknown::Retained(t) => Unknown::Retained(t),
+        }
+    }
+
+    /// Return the retained unknown data, giving `None` if none was saved
+    ///
+    /// This is the function for disregarding the possible previously existence
+    /// of now-discarded unknown (unrecognised) information.
+    ///
+    /// Use [`into_retained`](Self::into_retained) if it would be a bug
+    /// if unrecognised information had been previously discarded.
+    pub fn only_known(self) -> Option<T> {
         match self {
             Unknown::Discarded(_) => None,
             #[cfg(feature = "retain-unknown")]

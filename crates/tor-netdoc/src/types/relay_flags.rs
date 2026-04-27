@@ -301,6 +301,7 @@ mod parse2_impl {
                 flags
                     .unknown
                     .as_ref()
+                    .only_known()
                     .map(|u| u.iter())
                     .into_iter()
                     .flatten()
