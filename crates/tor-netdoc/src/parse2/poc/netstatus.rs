@@ -138,6 +138,7 @@ define_derive_deftly! {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, strum::EnumString, Deftly)]
 #[derive_deftly(DirectorySignatureHashesAccu)]
 #[non_exhaustive]
+#[strum(serialize_all = "snake_case")]
 pub enum DirectorySignatureHashAlgo {
     /// SHA-1
     #[deftly(hash_len = "20")]
