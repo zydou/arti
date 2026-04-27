@@ -1273,6 +1273,7 @@ define_derive_deftly! {
             #[allow(unused)]
             let mut args = input.args_mut();
           $(
+            #[allow(non_snake_case)]
             let $fpatname = ${select1
               F_NORMAL { {
                   let selector = MultiplicitySelector::<$ftype>::default();

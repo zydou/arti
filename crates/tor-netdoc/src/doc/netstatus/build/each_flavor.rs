@@ -56,7 +56,7 @@ pub struct ConsensusBuilder {
     /// See [`Preamble::shared_rand_current_value`]
     shared_rand_current_value: Option<SharedRandStatus>,
     /// See [`Consensus::voters`]
-    voters: Vec<ConsensusVoterInfo>,
+    voters: Vec<ConsensusAuthorityEntry>,
     /// See [`Consensus::relays`]
     relays: Vec<RouterStatus>,
     /// See [`Footer::weights`]
@@ -277,7 +277,7 @@ impl ConsensusBuilder {
     }
 }
 
-/// Builder object for constructing a [`ConsensusVoterInfo`]
+/// Builder object for constructing a [`ConsensusAuthorityEntry`]
 pub struct VoterInfoBuilder {
     /// See [`DirSource::nickname`]
     nickname: Option<String>,
@@ -285,9 +285,9 @@ pub struct VoterInfoBuilder {
     identity: Option<RsaIdentity>,
     /// See [`DirSource::ip`]
     ip: Option<IpAddr>,
-    /// See [`ConsensusVoterInfo::contact`]
+    /// See [`ConsensusAuthorityEntry::contact`]
     contact: Option<String>,
-    /// See [`ConsensusVoterInfo::vote_digest`]
+    /// See [`ConsensusAuthorityEntry::vote_digest`]
     vote_digest: Vec<u8>,
     /// See [`DirSource::or_port`]
     or_port: u16,
@@ -368,31 +368,37 @@ impl VoterInfoBuilder {
             .nickname
             .as_ref()
             .ok_or(Error::CannotBuild("Missing nickname"))?
-            .clone();
+            .parse()
+            .map_err(|_| Error::CannotBuild("Invalid nickname"))?;
         let identity = self
             .identity
-            .ok_or(Error::CannotBuild("Missing identity"))?;
+            .ok_or(Error::CannotBuild("Missing identity"))?
+            .into();
         let ip = self.ip.ok_or(Error::CannotBuild("Missing IP"))?;
         let contact = self
             .contact
             .as_ref()
             .ok_or(Error::CannotBuild("Missing contact"))?
-            .clone();
+            .parse()
+            .map_err(|_| Error::CannotBuild("Invalid contact"))?;
         if self.vote_digest.is_empty() {
             return Err(Error::CannotBuild("Missing vote digest"));
         }
         let dir_source = DirSource {
             nickname,
             identity,
+            hostname: "deprecated-builder.invalid".parse().expect("statically valid"),
             ip,
             dir_port: self.dir_port,
             or_port: self.or_port,
+            __non_exhaustive: (),
         };
 
-        let info = ConsensusVoterInfo {
+        let info = ConsensusAuthorityEntry {
             dir_source,
             contact,
-            vote_digest: self.vote_digest.clone(),
+            vote_digest: self.vote_digest.clone().into(),
+            __non_exhaustive: (),
         };
         builder.voters.push(info);
         Ok(())

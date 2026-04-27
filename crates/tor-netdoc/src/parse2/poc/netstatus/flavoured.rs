@@ -164,15 +164,6 @@ pub struct NddDirectoryFooter {
     pub directory_footer: (),
 }
 
-/// Authority Key Entry (in a network status document)
-#[derive(Deftly, Clone, Debug)]
-#[derive_deftly(NetdocParseable)]
-#[non_exhaustive]
-pub struct NddAuthorityEntry {
-    /// `dir-source`
-    pub dir_source: NdiAuthorityDirSource,
-}
-
 /// `dir-source`
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(ItemValueParseable)]
@@ -185,138 +176,9 @@ pub struct NdiAuthorityDirSource {
 }
 
 ns_choose! { (
-    define_derive_deftly! {
-        NddAuthoritySection:
-
-        impl NetdocParseable for NddAuthoritySection {
-            fn doctype_for_error() -> &'static str {
-                "vote.authority.section"
-            }
-            fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
-                NddAuthorityEntry::is_intro_item_keyword(kw)
-            }
-            fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
-                NddAuthorityEntry::is_structural_keyword(kw)
-                    .or_else(|| authcert::AuthCertUnverified::is_structural_keyword(kw))
-            }
-            fn from_items<'s>(
-                input: &mut ItemStream<'s>,
-                stop_outer: stop_at!(),
-            ) -> Result<Self, ErrorProblem> {
-                let stop_inner = stop_outer
-                  $(
-                    | StopAt($ftype::is_intro_item_keyword)
-                  )
-                ;
-                Ok(NddAuthoritySection { $(
-                    $fname: NetdocParseable::from_items(input, stop_inner)?,
-                ) })
-            }
-        }
-    }
-
-    /// An authority section in a vote
-    ///
-    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority>
-    //
-    // We can't derive the parsing here with the normal macro, because it's not a document,
-    // just a kind of ad-hoc thing which we've made into its own type
-    // to avoid the NetworkStatus becoming very odd.
-    #[derive(Deftly, Clone, Debug)]
-    #[derive_deftly(NddAuthoritySection)]
-    #[non_exhaustive]
-    pub struct NddAuthoritySection {
-        /// Authority entry
-        pub authority: NddAuthorityEntry,
-        /// Authority key certificate
-        pub cert: crate::doc::authcert::EncodedAuthCert,
-    }
+    use VoteAuthoritySection as NddAuthoritySection;
 )(
-    /// An authority section in a consensus
-    ///
-    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority>
-    //
-    // We can't derive the parsing here, because it's not a document,
-    // just a kind of ad-hoc thing - and one which is quite weird.
-    // https://gitlab.torproject.org/tpo/core/torspec/-/issues/361
-    #[derive(Deftly, Clone, Debug)]
-    #[non_exhaustive]
-    pub struct NddAuthoritySection {
-        /// The authority entries.
-        ///
-        /// Proper entries precede superseded ones.
-        pub authorities: Vec<NddAuthorityEntryOrSuperseded>,
-    }
-
-    /// An element of an authority section in a consensus
-    #[derive(Clone, Debug)]
-    #[non_exhaustive]
-    pub enum NddAuthorityEntryOrSuperseded {
-        /// Proper Authority Entry
-        Entry(NddAuthorityEntry),
-        /// Superseded Key Authority
-        ///
-        /// `nickname` contains the value *with* `-legacy`
-        Superseded(NdiAuthorityDirSource),
-    }
-
-    impl NetdocParseable for NddAuthoritySection {
-        fn doctype_for_error() -> &'static str {
-            "consensus.authority.section"
-        }
-        fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
-            NddAuthorityEntry::is_intro_item_keyword(kw)
-        }
-        fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
-            NddAuthorityEntry::is_structural_keyword(kw)
-        }
-        fn from_items(
-            input: &mut ItemStream<'_>,
-            stop_outer: stop_at!(),
-        ) -> Result<Self, ErrorProblem> {
-            let is_our_keyword = NddAuthorityEntry::is_intro_item_keyword;
-            let stop_inner = stop_outer | StopAt(is_our_keyword);
-            let mut authorities = vec![];
-            while let Some(peek) = input.peek_keyword()? {
-                if !is_our_keyword(peek) { break };
-
-                // But is it a superseded entry or not?
-                let mut lookahead = input.clone();
-                let _: UnparsedItem<'_> = lookahead.next().expect("peeked")?;
-
-                let entry = match lookahead.next().transpose()? {
-                    Some(item) if !stop_inner.stop_at(item.keyword()) => {
-                        // Non-structural item.  Non-superseded entry.
-                        let entry = NddAuthorityEntry::from_items(input, stop_inner)?;
-                        NddAuthorityEntryOrSuperseded::Entry(entry)
-                    }
-                    None | Some(_) => {
-                        // EOF, or the item is another dir-source, or the item
-                        // is the start of the next document at the next outer level
-                        // (eg a router status entry)
-                        let item = input.next().expect("just peeked")?;
-                        let entry = NdiAuthorityDirSource::from_unparsed(item)?;
-                        if !entry.nickname.as_str().ends_with("-legacy") {
-                            return Err(EP::OtherBadDocument(
- "authority entry lacks mandatory fields (eg `contact`) so is not a proper (non-superseded) entry, but nickname lacks `-legacy` suffix so is not a superseded entry"
-                            ))
-                        }
-                        NddAuthorityEntryOrSuperseded::Superseded(entry)
-                    }
-                };
-                authorities.push(entry);
-            }
-            if !authorities.is_sorted_by_key(
-                |entry| matches!(entry, NddAuthorityEntryOrSuperseded::Superseded(_))
-            ) {
-                return Err(EP::OtherBadDocument(
- "normal (non-superseded) authority entry follows superseded authority key entry"
-                ))
-            }
-
-            Ok(NddAuthoritySection { authorities })
-        }
-    }
+    use ConsensusAuthoritySection as NddAuthoritySection;
 )}
 
 ns_choose! { (

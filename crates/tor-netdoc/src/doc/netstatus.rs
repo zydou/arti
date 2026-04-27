@@ -48,6 +48,7 @@
 //! As with the other tor-netdoc types, I'm deferring those till I know what
 //! they should be.
 
+mod dir_source;
 mod rs;
 
 pub mod md;
@@ -59,15 +60,24 @@ pub mod vote;
 #[cfg(feature = "build_docs")]
 mod build;
 
+#[cfg(feature = "encode")]
+use {
+    crate::encode::{ItemValueEncodable, NetdocEncodable, NetdocEncoder}, //
+    tor_error::Bug,
+};
 #[cfg(feature = "parse2")]
 use {
-    crate::parse2::{self, ArgumentStream}, //
+    crate::parse2::{self, ArgumentStream, ItemValueParseable}, //
 };
 
 #[cfg(feature = "parse2")]
 pub use {
+    parse2::{ErrorProblem, IsStructural, ItemStream, KeywordRef, NetdocParseable, StopAt},
     proto_statuses_parse2_encode::ProtoStatusesNetdocParseAccumulator, //
 };
+
+#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+use crate::doc::authcert::EncodedAuthCert;
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
 use crate::parse::keyword::Keyword;
@@ -123,6 +133,8 @@ pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
 #[cfg(feature = "ns-vote")]
 pub use rs::{RouterStatusMdDigestsVote, SoftwareVersion};
+
+pub use dir_source::{ConsensusAuthoritySection, DirSource, SupersededAuthorityKey};
 
 /// `publiscation` field in routerstatus entry intro item other than in votes
 ///
@@ -585,28 +597,6 @@ pub struct SharedRandStatus {
     pub timestamp: Option<Iso8601TimeNoSp>,
 }
 
-/// Description of an authority's identity and address.
-///
-/// (Corresponds to a dir-source line.)
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct DirSource {
-    /// human-readable nickname for this authority.
-    pub nickname: String,
-    /// Fingerprint for the _authority_ identity key of this
-    /// authority.
-    ///
-    /// This is the same key as the one that signs the authority's
-    /// certificates.
-    pub identity: RsaIdentity,
-    /// IP address for the authority
-    pub ip: net::IpAddr,
-    /// HTTP directory port for this authority
-    pub dir_port: u16,
-    /// OR port for this authority.
-    pub or_port: u16,
-}
-
 /// Recognized weight fields on a single relay in a consensus
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
@@ -628,17 +618,180 @@ impl RelayWeight {
     }
 }
 
-/// All information about a single authority, as represented in a consensus
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct ConsensusVoterInfo {
-    /// Contents of the dirsource line about an authority
+/// Authority entry in a consensus - deprecated compatibility type alias
+#[deprecated = "renamed to ConsensusAuthorityEntry"]
+pub type ConsensusVoterInfo = ConsensusAuthorityEntry;
+
+/// Authority entry in a plain consensus - type alias provided for consistency
+pub type PlainAuthorityEntry = ConsensusAuthorityEntry;
+/// Authority entry in an md consensus - type alias provided for consistency
+pub type MdAuthorityEntry = ConsensusAuthorityEntry;
+
+/// An authority entry as found in a consensus
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority-entry>
+///
+/// See also [`VoteAuthorityEntry`]
+//
+// We don't use the `each_variety` system for this because:
+//  1. That avoids separating the two consensus authority entry types, which are identical
+//  2. The only common fields are `dir-source` and `contact`, so there is little duplication
+#[derive(Debug, Clone, Deftly)]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[derive_deftly(Constructor)]
+#[allow(clippy::exhaustive_structs)]
+pub struct ConsensusAuthorityEntry {
+    /// Contents of the `dir-source` line about an authority
+    #[deftly(constructor)]
     pub dir_source: DirSource,
+
     /// Human-readable contact information about the authority
-    pub contact: String,
+    //
+    // If more non-intro fields get added that are the same in votes and cosensuses,
+    // consider using each_variety.rs or breaking those fields out into
+    // `AuthorityEntryCommon` implementing `NetdocParseableFields`, or something.
+    #[deftly(constructor)]
+    pub contact: ContactInfo,
+
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
-    pub vote_digest: Vec<u8>,
+    ///
+    /// This is not a fixed-length, fixed-algorithm field.
+    /// Bizarrely, the algorithm is supposed to be inferred from the length!
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:vote-digest>
+    #[deftly(netdoc(single_arg))]
+    #[deftly(constructor)]
+    pub vote_digest: B16U,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
+}
+
+/// An authority entry as found in a vote
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority-entry>
+///
+/// See also [`ConsensusAuthorityEntry`]
+///
+/// TODO DIRAUTH not all fields are here yet.
+// They have individual comments, below.
+#[derive(Debug, Clone, Deftly)]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
+#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
+#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[derive_deftly(Constructor)]
+#[allow(clippy::exhaustive_structs)]
+pub struct VoteAuthorityEntry {
+    /// Contents of the `dir-source` line about an authority
+    #[deftly(constructor)]
+    pub dir_source: DirSource,
+
+    /// Human-readable contact information about the authority
+    #[deftly(constructor)]
+    pub contact: ContactInfo,
+
+    // TODO DIRAUTH missing field legacy-dir-key
+    // TODO DIRAUTH missing field shared-rand-participate
+    // TODO DIRAUTH missing field shared-rand-commit
+    // TODO DIRAUTH missing field shared-rand-previous-value
+    // TODO DIRAUTH missing field shared-rand-current-value
+    //
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
+}
+
+// For `ConsensusAuthoritySection`, see `dir_source.rs`.
+
+define_derive_deftly! {
+    /// Ad-hoc derive, `impl NetdocParseable for VoteAuthoritySection`
+    ///
+    /// We can't derive from `VoteAuthoritySection` with the normal macros, because
+    /// it's not a document, with its own intro item.  It's just a collection of sub-documents.
+    /// The netdoc derive macros don't have support for that - and it would be a fairly
+    /// confusing thing to support because you'd end up with nested multiplicities and a whole
+    /// variety of "intro item keywords" that were keywords for arbitrary sub-documents.
+    ///
+    /// Instead, we do that ad-hoc here.  It's less confusing because we don't need to
+    /// worry about multiplicity, and because we know what only the outer document is
+    /// that will contain this.
+    VoteAuthoritySection:
+
+    ${defcond F_NORMAL not(fmeta(netdoc(skip)))}
+
+    #[cfg(feature = "parse2")]
+    impl NetdocParseable for VoteAuthoritySection {
+        fn doctype_for_error() -> &'static str {
+            "vote.authority.section"
+        }
+        fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
+            VoteAuthorityEntry::is_intro_item_keyword(kw)
+        }
+        fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
+          $(
+            ${when F_NORMAL}
+            if let y @ Some(_) = $ftype::is_structural_keyword(kw) {
+                return y;
+            }
+          )
+            None
+        }
+        fn from_items<'s>(
+            input: &mut ItemStream<'s>,
+            stop_outer: stop_at!(),
+        ) -> StdResult<Self, ErrorProblem> {
+            let stop_inner = stop_outer
+              $(
+                ${when F_NORMAL}
+                | StopAt($ftype::is_intro_item_keyword)
+              )
+            ;
+            Ok(VoteAuthoritySection { $(
+                ${when F_NORMAL}
+                $fname: NetdocParseable::from_items(input, stop_inner)?,
+            )
+                __non_exhaustive: (),
+            })
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl NetdocEncodable for VoteAuthoritySection {
+        fn encode_unsigned(&self, out: &mut NetdocEncoder) -> StdResult<(), Bug> {
+          $(
+            ${when F_NORMAL}
+            self.$fname.encode_unsigned(out)?;
+          )
+          Ok(())
+        }
+    }
+}
+
+/// An authority section in a vote
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority>
+//
+// We have split this out to help encapsulate vote/consensus-specific
+// information in a forthcoming overall network status document type.
+#[derive(Deftly, Clone, Debug)]
+#[derive_deftly(VoteAuthoritySection, Constructor)]
+#[allow(clippy::exhaustive_structs)]
+#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+pub struct VoteAuthoritySection {
+    /// Authority entry
+    #[deftly(constructor)]
+    pub authority: VoteAuthorityEntry,
+
+    /// Authority key certificate
+    #[deftly(constructor)]
+    pub cert: EncodedAuthCert,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// The signed footer of a consensus netstatus.
@@ -1011,8 +1164,19 @@ impl DirSource {
                     .at_pos(item.pos()),
             );
         }
-        let nickname = item.required_arg(0)?.to_string();
-        let identity = item.parse_arg::<Fingerprint>(1)?.into();
+        let nickname = item
+            .required_arg(0)?
+            .parse()
+            .map_err(|e: InvalidNickname| {
+                EK::BadArgument.at_pos(item.pos()).with_msg(e.to_string())
+            })?;
+        let identity = item.parse_arg(1)?;
+        let hostname = item
+            .required_arg(2)?
+            .parse()
+            .map_err(|e: InvalidInternetHost| {
+                EK::BadArgument.at_pos(item.pos()).with_msg(e.to_string())
+            })?;
         let ip = item.parse_arg(3)?;
         let dir_port = item.parse_arg(4)?;
         let or_port = item.parse_arg(5)?;
@@ -1020,16 +1184,18 @@ impl DirSource {
         Ok(DirSource {
             nickname,
             identity,
+            hostname,
             ip,
             dir_port,
             or_port,
+            __non_exhaustive: (),
         })
     }
 }
 
-impl ConsensusVoterInfo {
-    /// Parse a single ConsensusVoterInfo from a voter info section.
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusVoterInfo> {
+impl ConsensusAuthorityEntry {
+    /// Parse a single ConsensusAuthorityEntry from a voter info section.
+    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusAuthorityEntry> {
         use NetstatusKwd::*;
         // this unwrap should be safe because if there is not at least one
         // token in the section, the section is unparsable.
@@ -1044,14 +1210,28 @@ impl ConsensusVoterInfo {
         }
         let dir_source = DirSource::from_item(sec.required(DIR_SOURCE)?)?;
 
-        let contact = sec.required(CONTACT)?.args_as_str().to_string();
+        let contact = sec.required(CONTACT)?;
+        // Ideally we would parse_args_as_str but that requires us to
+        // impl From<InvalidContactInfo> for crate::Error which is wrong
+        // because many it's a footgun which lets you just write ? here
+        // resulting in lack of position information.
+        // (This is a general problem with the error handling in crate::parse.)
+        let contact = contact
+            .args_as_str()
+            .parse()
+            .map_err(|err: InvalidContactInfo| {
+                EK::BadArgument
+                    .with_msg(err.to_string())
+                    .at_pos(contact.pos())
+            })?;
 
-        let vote_digest = sec.required(VOTE_DIGEST)?.parse_arg::<B16>(0)?.into();
+        let vote_digest = sec.required(VOTE_DIGEST)?.parse_arg::<B16U>(0)?;
 
-        Ok(ConsensusVoterInfo {
+        Ok(ConsensusAuthorityEntry {
             dir_source,
             contact,
             vote_digest,
+            __non_exhaustive: (),
         })
     }
 }
@@ -1105,7 +1285,7 @@ mod parse2_impls {
     use super::*;
     pub(super) use parse2::{
         ArgumentError as AE, ArgumentStream, ErrorProblem as EP, ItemArgumentParseable,
-        ItemValueParseable, KeywordRef, NetdocParseableFields, UnparsedItem,
+        ItemValueParseable, NetdocParseableFields, UnparsedItem,
     };
     use std::result::Result;
 
@@ -1158,7 +1338,7 @@ mod encode_impls {
     use super::*;
     use std::result::Result;
     pub(crate) use {
-        crate::encode::{ItemEncoder, ItemValueEncodable, NetdocEncodableFields, NetdocEncoder},
+        crate::encode::{ItemEncoder, ItemValueEncodable, NetdocEncodableFields},
         tor_error::Bug,
     };
 
