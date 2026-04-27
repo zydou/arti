@@ -335,13 +335,6 @@ impl Readable for CertExt {
     }
 }
 
-impl<'b> TryFrom<&'b [u8]> for KeyUnknownCert {
-    type Error = tor_bytes::Error;
-    fn try_from(data: &'b [u8]) -> BytesResult<KeyUnknownCert> {
-        Ed25519Cert::decode(data)
-    }
-}
-
 impl Writeable for KeyUnknownCert {
     fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> Result<(), tor_bytes::EncodeError> {
         self.cert.write_onto(b)
