@@ -657,6 +657,10 @@ pub struct ConsensusAuthorityEntry {
 
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
+    ///
+    /// This is not a fixed-length, fixed-algorithm field.
+    /// Bizarrely, the algorithm is supposed to be inferred from the length!
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:vote-digest>
     #[deftly(netdoc(single_arg))]
     #[deftly(constructor)]
     pub vote_digest: B16U,
