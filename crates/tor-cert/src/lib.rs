@@ -348,6 +348,13 @@ impl Writeable for KeyUnknownCert {
     }
 }
 
+impl Readable for KeyUnknownCert {
+    fn take_from(r: &mut Reader<'_>) -> BytesResult<KeyUnknownCert> {
+        let b = r.take_rest();
+        Ed25519Cert::decode(b)
+    }
+}
+
 impl Ed25519Cert {
     /// Try to decode a certificate from a byte slice.
     ///
