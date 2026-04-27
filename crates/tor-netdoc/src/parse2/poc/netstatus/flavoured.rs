@@ -177,54 +177,6 @@ pub struct NdiAuthorityDirSource {
 
 ns_choose! { (
     use VoteAuthoritySection as NddAuthoritySection;
-    use crate::doc::authcert::{AuthCertUnverified, EncodedAuthCert};
-
-define_derive_deftly! {
-    VoteAuthoritySection:
-
-    impl NetdocParseable for VoteAuthoritySection {
-        fn doctype_for_error() -> &'static str {
-            "vote.authority.section"
-        }
-        fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
-            VoteAuthorityEntry::is_intro_item_keyword(kw)
-        }
-        fn is_structural_keyword(kw: KeywordRef<'_>) -> Option<IsStructural> {
-            VoteAuthorityEntry::is_structural_keyword(kw)
-                .or_else(|| AuthCertUnverified::is_structural_keyword(kw))
-        }
-        fn from_items<'s>(
-            input: &mut ItemStream<'s>,
-            stop_outer: stop_at!(),
-        ) -> StdResult<Self, ErrorProblem> {
-            let stop_inner = stop_outer
-              $(
-                | StopAt($ftype::is_intro_item_keyword)
-              )
-            ;
-            Ok(VoteAuthoritySection { $(
-                $fname: NetdocParseable::from_items(input, stop_inner)?,
-            ) })
-        }
-    }
-}
-
-/// An authority section in a vote
-///
-/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:authority>
-//
-// We can't derive the parsing here with the normal macro, because it's not a document,
-// just a kind of ad-hoc thing which we've made into its own type
-// to avoid the NetworkStatus becoming very odd.
-#[derive(Deftly, Clone, Debug)]
-#[derive_deftly(VoteAuthoritySection)]
-#[non_exhaustive]
-pub struct VoteAuthoritySection {
-    /// Authority entry
-    pub authority: VoteAuthorityEntry,
-    /// Authority key certificate
-    pub cert: EncodedAuthCert,
-}
 )(
     /// An authority section in a consensus
     ///
