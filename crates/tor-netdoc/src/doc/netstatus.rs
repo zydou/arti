@@ -1285,7 +1285,7 @@ mod parse2_impls {
     use super::*;
     pub(super) use parse2::{
         ArgumentError as AE, ArgumentStream, ErrorProblem as EP, ItemArgumentParseable,
-        ItemValueParseable, KeywordRef, NetdocParseableFields, UnparsedItem,
+        ItemValueParseable, NetdocParseableFields, UnparsedItem,
     };
     use std::result::Result;
 
@@ -1338,7 +1338,7 @@ mod encode_impls {
     use super::*;
     use std::result::Result;
     pub(crate) use {
-        crate::encode::{ItemEncoder, ItemValueEncodable, NetdocEncodableFields, NetdocEncoder},
+        crate::encode::{ItemEncoder, ItemValueEncodable, NetdocEncodableFields},
         tor_error::Bug,
     };
 
