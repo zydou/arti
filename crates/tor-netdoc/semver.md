@@ -61,3 +61,4 @@ BREAKING: `ConsensusVoterInfo`; several field types changed
 ADDED: `ConsensusVoterInfo`: `ItemValueParseable`, `ItemValueEncodable`, `Constructor`
 ADDED: `VoteAuthorityEntry`, `VoteAuthoritySection`
 ADDED: `SupersededAuthorityKey`, `ConsensusAuthoritySection`
+BREAKING: `NormalItemArgument` no longer has `FromStr` and `Display` as supertraits

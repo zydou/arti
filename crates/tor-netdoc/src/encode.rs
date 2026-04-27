@@ -230,7 +230,7 @@ impl Default for NetdocEncoder {
     }
 }
 
-impl<T: crate::NormalItemArgument> ItemArgument for T {
+impl<T: crate::NormalItemArgument + Display> ItemArgument for T {
     fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         (*self.to_string()).write_arg_onto(out)
     }
