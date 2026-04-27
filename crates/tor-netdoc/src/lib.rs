@@ -53,10 +53,8 @@
 mod util;
 #[macro_use]
 mod derive_common;
-#[cfg(feature = "parse2")]
 #[macro_use]
 pub mod parse2;
-#[cfg(feature = "encode")]
 #[macro_use]
 pub mod encode;
 #[macro_use]

@@ -110,7 +110,6 @@ pub(crate) mod void_impls {
         }
     }
 
-    #[cfg(feature = "parse2")]
     impl ItemObjectParseable for Void {
         fn check_label(_label: &str) -> Result<(), ErrorProblem> {
             Ok(())

@@ -1586,7 +1586,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(all(feature = "ns-vote", feature = "parse2"))]
+    #[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
     fn parse2_vote() -> anyhow::Result<()> {
         let file = "testdata2/v3-status-votes--1";
         let text = fs::read_to_string(file)?;

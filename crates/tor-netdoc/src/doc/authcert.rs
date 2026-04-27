@@ -7,15 +7,20 @@
 //! signing keys to sign votes and consensuses.
 
 use crate::batching_split_before::IteratorExt as _;
+use crate::encode::{Bug, ItemObjectEncodable, NetdocEncodable, NetdocEncoder};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
+use crate::parse2::{
+    self, ItemObjectParseable, NetdocUnverified as _, sig_hashes::Sha1WholeKeywordLine,
+};
 use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublicParse1Helper, RsaSha1Signature};
 use crate::util::str::Extent;
 use crate::{NetdocErrorKind as EK, NormalItemArgument, Result};
 
 use tor_basic_utils::impl_debug_hex;
 use tor_checkable::{signed, timed};
+use tor_error::into_internal;
 use tor_llcrypto::pk::rsa;
 use tor_llcrypto::{d, pk, pk::rsa::RsaIdentity};
 
@@ -34,21 +39,9 @@ mod build;
 #[allow(deprecated)]
 pub use build::AuthCertBuilder;
 
-#[cfg(feature = "parse2")]
-use crate::parse2::{
-    self, ItemObjectParseable, NetdocUnverified as _, sig_hashes::Sha1WholeKeywordLine,
-};
-
-#[cfg(feature = "encode")]
-use {
-    crate::encode::{Bug, ItemObjectEncodable, NetdocEncodable, NetdocEncoder},
-    tor_error::into_internal,
-};
-
-// TODO DIRAUTH untangle these feature(s)
-#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+#[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
 mod encoded;
-#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+#[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
 pub use encoded::EncodedAuthCert;
 
 decl_keyword! {
@@ -99,10 +92,7 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 /// To make a fresh `AuthCert`, use [`AuthCertConstructor`].
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Constructor)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableUnverified))]
-#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
-// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[derive_deftly(NetdocParseableUnverified, NetdocEncodable)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[allow(clippy::exhaustive_structs)]
 pub struct AuthCert {
@@ -462,14 +452,8 @@ impl AuthCert {
 // TODO SPEC (Diziet): it is far from clear to me that this cert serves any useful purpose.
 // However, we are far too busy now with rewriting the universe to consider transitioning it away.
 #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-#[cfg_attr(
-    feature = "parse2",
-    derive_deftly(ItemValueParseable),
-    deftly(netdoc(no_extra_args))
-)]
-#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
-// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
+#[deftly(netdoc(no_extra_args))]
 #[non_exhaustive]
 pub struct CrossCert {
     /// The bytes of the signature (base64-decoded).
@@ -500,7 +484,6 @@ pub struct CrossCert {
 pub struct CrossCertObject(pub Vec<u8>);
 impl_debug_hex! { CrossCertObject . 0 }
 
-#[cfg(feature = "encode")]
 impl CrossCert {
     /// Make a `CrossCert`
     pub fn new(
@@ -526,12 +509,8 @@ impl CrossCert {
 /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certification>
 /// * <https://spec.torproject.org/dir-spec/netdoc.html#signing>
 #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
-#[cfg_attr(
-    feature = "parse2",
-    derive_deftly(NetdocParseableSignatures),
-    deftly(netdoc(signatures(hashes_accu = Sha1WholeKeywordLine)))
-)]
-#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
+#[derive_deftly(NetdocParseableSignatures, NetdocEncodable)]
+#[deftly(netdoc(signatures(hashes_accu = Sha1WholeKeywordLine)))]
 #[non_exhaustive]
 pub struct AuthCertSignatures {
     /// Contains the actual signature, see [`AuthCertSignatures`].
@@ -546,7 +525,6 @@ pub struct AuthCertSignatures {
 #[deprecated = "use RsaSha1Signature"]
 pub type AuthCertSignature = RsaSha1Signature;
 
-#[cfg(feature = "parse2")]
 impl ItemObjectParseable for CrossCertObject {
     fn check_label(label: &str) -> StdResult<(), parse2::EP> {
         match label {
@@ -560,7 +538,6 @@ impl ItemObjectParseable for CrossCertObject {
     }
 }
 
-#[cfg(feature = "encode")]
 impl ItemObjectEncodable for CrossCertObject {
     fn label(&self) -> &str {
         "ID SIGNATURE"
@@ -583,7 +560,6 @@ impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAut
     }
 }
 
-#[cfg(feature = "parse2")]
 impl AuthCertUnverified {
     /// Verifies the signature of a [`AuthCert`]
     ///
@@ -653,7 +629,6 @@ impl AuthCertUnverified {
     }
 }
 
-#[cfg(feature = "encode")]
 impl AuthCert {
     /// Make the base for a new `AuthCert`
     ///
@@ -702,7 +677,7 @@ impl AuthCert {
     /// as an [`EncodedAuthCert`].
     // TODO these features are quite tangled
     // `EncodedAuthCert` is only available with `parse2` and `plain-consensus`
-    #[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+    #[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
     pub fn encode_sign(&self, k_auth_id_rsa: &rsa::KeyPair) -> StdResult<EncodedAuthCert, Bug> {
         let mut encoder = NetdocEncoder::new();
         self.encode_unsigned(&mut encoder)?;
@@ -838,7 +813,6 @@ mod test {
         assert_eq!(res.len(), 2);
     }
 
-    #[cfg(feature = "parse2")]
     mod parse2_test {
         use super::{AuthCert, AuthCertUnverified, AuthCertVersion, CrossCert, CrossCertObject};
 
@@ -1216,7 +1190,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         }
     }
 
-    #[cfg(all(feature = "encode", feature = "parse2", feature = "plain-consensus"))]
+    #[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
     mod encode_test {
         use super::*;
         use crate::parse2::{ParseInput, parse_netdoc};
