@@ -1840,7 +1840,16 @@ pub mod routerdesc {
         const HASH_PREFIX_MAGIC: &str = "Tor router descriptor signature v1";
 
         /// Calculate the hash for signature
+        ///
+        /// `signature_item_kw_spc` is the keyword *with a trailing space*.
+        /// It's `&[&str]` for the convenience of the two call sites.
         fn hash(document_sofar: &str, signature_item_kw_spc: &[&str]) -> [u8; 32] {
+            debug_assert!(
+                signature_item_kw_spc
+                    .last()
+                    .expect("signature_item_kw_spc")
+                    .ends_with(" ")
+            );
             let mut h = tor_llcrypto::d::Sha256::new();
             h.update(Self::HASH_PREFIX_MAGIC);
             h.update(document_sofar);
