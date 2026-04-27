@@ -292,7 +292,7 @@ impl From<UnexpectedArgument> for ArgumentError {
         AE::Unexpected
     }
 }
-
+// TODO: Replace .map_err() calls for this with this trait impl.
 impl From<tor_cert::CertError> for VerifyFailed {
     fn from(_: tor_cert::CertError) -> VerifyFailed {
         VerifyFailed::VerifyFailed
