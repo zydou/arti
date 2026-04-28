@@ -271,10 +271,7 @@ impl NetdocParseable for EncodedAuthCert {
 }
 
 impl NetdocEncodable for EncodedAuthCert {
-    fn encode_unsigned(
-        &self,
-        out: &mut NetdocEncoder,
-    ) -> Result<(), Bug> {
+    fn encode_unsigned(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
         // OK because invariants include the right syntax including a trailing newline.
         out.push_raw_string(&self.as_str());
         Ok(())
