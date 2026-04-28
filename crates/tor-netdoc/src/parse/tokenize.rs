@@ -513,7 +513,6 @@ impl<'a, 'b, K: Keyword> MaybeItem<'a, 'b, K> {
     /// If this item is present, parse its argument at position `idx`.
     /// Treat the absence or malformedness of the argument as an error,
     /// but treat the absence of this item as acceptable.
-    #[cfg(any(test, feature = "routerdesc"))]
     pub(crate) fn parse_arg<V: FromStr>(&self, idx: usize) -> Result<Option<V>>
     where
         Error: From<V::Err>,
@@ -669,7 +668,6 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     ///
     /// Like [`should_be_exhausted`](Self::should_be_exhausted),
     /// but permit empty lines at the end of the document.
-    #[cfg(feature = "routerdesc")]
     pub(crate) fn should_be_exhausted_but_for_empty_lines(&mut self) -> Result<()> {
         use crate::err::NetdocErrorKind as K;
         while let Some(Err(e)) = self.peek() {

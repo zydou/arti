@@ -237,5 +237,5 @@ where
     }
 }
 
-#[cfg(all(test, feature = "routerdesc"))]
+#[cfg(test)]
 mod test;
