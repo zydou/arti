@@ -152,11 +152,8 @@ pub struct IgnoredPublicationTimeSp;
 ///
 /// Aggregate of three netdoc preamble fields.
 #[derive(Clone, Debug, Deftly)]
-#[derive_deftly(Constructor)]
+#[derive_deftly(Constructor, NetdocEncodableFields, NetdocParseableFields)]
 #[derive_deftly(Lifetime)]
-// XXXX rewrap
-#[derive_deftly(NetdocEncodableFields)]
-#[derive_deftly(NetdocParseableFields)]
 #[allow(clippy::exhaustive_structs)]
 pub struct Lifetime {
     /// `valid-after` --- Time at which the document becomes valid
@@ -268,9 +265,7 @@ impl NormalItemArgument for ConsensusMethod {}
 ///
 /// There is also [`consensus_methods_comma_separated`] for `m` lines in votes.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Deftly)]
-// XXXX rewrap
-#[derive_deftly(ItemValueParseable)]
-#[derive_deftly(ItemValueEncodable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 #[non_exhaustive]
 pub struct ConsensusMethods {
     /// Consensus methods.
@@ -568,9 +563,7 @@ pub struct SharedRandVal([u8; 32]);
 /// along with meta-information about that value.
 #[derive(Debug, Clone, Deftly)]
 #[non_exhaustive]
-// XXXX rewrap
-#[derive_deftly(ItemValueParseable)]
-#[derive_deftly(ItemValueEncodable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
     pub n_reveals: u8,
@@ -628,10 +621,7 @@ pub type MdAuthorityEntry = ConsensusAuthorityEntry;
 //  1. That avoids separating the two consensus authority entry types, which are identical
 //  2. The only common fields are `dir-source` and `contact`, so there is little duplication
 #[derive(Debug, Clone, Deftly)]
-// XXXX rewrap
-#[derive_deftly(NetdocParseable)]
-#[derive_deftly(NetdocEncodable)]
-#[derive_deftly(Constructor)]
+#[derive_deftly(Constructor, NetdocEncodable, NetdocParseable)]
 #[allow(clippy::exhaustive_structs)]
 pub struct ConsensusAuthorityEntry {
     /// Contents of the `dir-source` line about an authority
