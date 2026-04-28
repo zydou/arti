@@ -47,6 +47,16 @@ pub(crate) struct LoggingConfig {
     ))]
     journald: Option<String>,
 
+    /// Filtering directives for the syslog logger.
+    ///
+    /// Only takes effect if Arti is built with the `syslog` feature.
+    #[deftly(tor_config(
+        cfg = r#"all(feature = "syslog", unix)"#,
+        cfg_desc = "with syslog support",
+        default = r#"Some("".into())"#,
+    ))]
+    syslog: Option<String>,
+
     /// Configuration for logging spans with OpenTelemetry.
     #[deftly(tor_config(
         sub_builder,
@@ -317,6 +327,39 @@ where
     }
 }
 
+/// Try to construct a tracing [`Layer`] for logging to syslog, if one is
+/// configured.
+#[cfg(all(feature = "syslog", unix))]
+fn syslog_layer<S>(config: &LoggingConfig) -> Result<impl Layer<S>>
+where
+    S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
+{
+    use syslog_tracing::{Facility, Options, Syslog};
+
+    let identity = c"arti";
+
+    if let Some(filter) = filt_from_opt_str(&config.syslog, "logging.syslog")? {
+        let options = Options::LOG_PID;
+        let facility = Facility::Daemon;
+
+        let syslog_maker = Syslog::new(identity, options, facility).ok_or_else(|| {
+            anyhow::anyhow!("syslog already initialized; only one logger allowed")
+        })?;
+
+        let layer = tracing_subscriber::fmt::layer()
+            .with_writer(syslog_maker)
+            // Syslog doesn't support ANSI colors, and we usually want
+            // the system log to handle the timestamping.
+            .with_ansi(false)
+            .without_time()
+            .with_filter(filter);
+
+        Ok(Some(layer))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Try to construct a tracing [`Layer`] for exporting spans via OpenTelemetry.
 ///
 /// This doesn't allow for filtering, since most of our spans are exported at the trace level
@@ -562,6 +605,9 @@ pub(crate) fn setup_logging(
 
     #[cfg(feature = "journald")]
     let registry = registry.with(journald_layer(config)?);
+
+    #[cfg(all(feature = "syslog", unix))]
+    let registry = registry.with(syslog_layer(config)?);
 
     #[cfg(feature = "opentelemetry")]
     let registry = registry.with(otel_layer(config, path_resolver)?);
