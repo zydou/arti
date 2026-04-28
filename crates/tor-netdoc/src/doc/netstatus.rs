@@ -660,10 +660,7 @@ pub struct ConsensusAuthorityEntry {
 /// TODO DIRAUTH not all fields are here yet.
 // They have individual comments, below.
 #[derive(Debug, Clone, Deftly)]
-// XXXX rewrap
-#[derive_deftly(NetdocParseable)]
-#[derive_deftly(NetdocEncodable)]
-#[derive_deftly(Constructor)]
+#[derive_deftly(Constructor, NetdocEncodable, NetdocParseable)]
 #[allow(clippy::exhaustive_structs)]
 pub struct VoteAuthorityEntry {
     /// Contents of the `dir-source` line about an authority

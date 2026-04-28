@@ -48,8 +48,8 @@ ns_choose! { (
 ///
 /// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc>
 /// `r` item.
-#[derive(Deftly)] #[derive_deftly(ItemValueParseable)] // XXXX tidy
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(ItemValueParseable)]
 #[non_exhaustive]
 pub struct RouterStatusIntroItem {
     /// The nickname for this relay.
@@ -86,8 +86,8 @@ pub struct RouterStatusIntroItem {
 // In most netdocs we would use the item keywords as the field names.  But routerstatus
 // entry keywords are chosen to be very short to minimise the consensus size, so we
 // use longer names in the struct and specify the keyword separately.
-#[derive(Deftly)] #[derive_deftly(NetdocParseable)] // XXXX tidy
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(NetdocParseable)]
 #[non_exhaustive]
 pub struct RouterStatus {
     /// `r` --- Introduce a routerstatus entry
