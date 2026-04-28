@@ -29,7 +29,7 @@ testing = ["experimental-udp", "__is_experimental"]
 hs-pow-full = ["tor-hscrypto/hs-pow-full", "__is_experimental"]
 
 # Support for relay-only operations
-relay = ["tor-cert/encode"]
+relay = []
 
 full = [
     "caret/full",
