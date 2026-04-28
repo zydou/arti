@@ -677,7 +677,7 @@ impl AuthCert {
     /// as an [`EncodedAuthCert`].
     // TODO these features are quite tangled
     // `EncodedAuthCert` is only available with `parse2` and `plain-consensus`
-    #[cfg(feature = "incomplete")]
+    #[cfg(feature = "incomplete")] // Needs EncodedAuthCert
     pub fn encode_sign(&self, k_auth_id_rsa: &rsa::KeyPair) -> StdResult<EncodedAuthCert, Bug> {
         let mut encoder = NetdocEncoder::new();
         self.encode_unsigned(&mut encoder)?;

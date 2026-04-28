@@ -300,7 +300,7 @@ use ns_do_variety_md;
 /// Include variety-agnostic items, for a vote, from `each_variety.rs`.
 ///
 /// Use within `vote.rs`.
-#[allow(unused)] // TODO feature = "ns-vote"
+#[allow(unused)] // TODO DIRAUTH
 macro_rules! ns_do_variety_vote { {} => { ns_do_one_variety! { vote : plain md vote $ } } }
 #[cfg(doc)]
 use ns_do_variety_vote;
@@ -342,8 +342,8 @@ macro_rules! ns_export_each_variety {
         pub use { plain ::$id as [<plain   $($case)* $($infix)* $id>] };
         // unconditional
         pub use { md  ::$id as [<md   $($case)* $($infix)* $id>] };
-        #[cfg(feature = "ns-vote")] // TODO ns-vote this feature doesn't exist yet
-        #[cfg_attr(docsrs, doc(cfg(feature = "ns-vote")))]
+        #[cfg(feature = "incomplete")]
+        #[cfg_attr(docsrs, doc(cfg(feature = "incomplete")))]
         pub use { vote::$id as [<vote $($case)* $($infix)* $id>] };
     } };
 }

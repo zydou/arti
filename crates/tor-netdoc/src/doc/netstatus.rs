@@ -53,7 +53,7 @@ mod rs;
 
 pub mod md;
 pub mod plain;
-#[cfg(feature = "ns-vote")]
+#[cfg(feature = "incomplete")]
 pub mod vote;
 
 #[cfg(feature = "build_docs")]
@@ -694,7 +694,7 @@ define_derive_deftly! {
 
     ${defcond F_NORMAL not(fmeta(netdoc(skip)))}
 
-    #[cfg(feature = "parse2")]
+    #[cfg(feature = "incomplete")] // needs EncodedAuthCert, otherwise complete
     impl NetdocParseable for VoteAuthoritySection {
         fn doctype_for_error() -> &'static str {
             "vote.authority.section"
@@ -730,7 +730,7 @@ define_derive_deftly! {
         }
     }
 
-    #[cfg(feature = "encode")]
+    #[cfg(feature = "incomplete")]
     impl NetdocEncodable for VoteAuthoritySection {
         fn encode_unsigned(&self, out: &mut NetdocEncoder) -> StdResult<(), Bug> {
           $(
@@ -751,7 +751,7 @@ define_derive_deftly! {
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(VoteAuthoritySection, Constructor)]
 #[allow(clippy::exhaustive_structs)]
-#[cfg(feature = "parse2")]
+#[cfg(feature = "incomplete")] // needs EncodedAuthCert, otherwise complete
 pub struct VoteAuthoritySection {
     /// Authority entry
     #[deftly(constructor)]
@@ -1608,7 +1608,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use hex_literal::hex;
-    #[cfg(all(feature = "ns-vote", feature = "parse2"))]
+    #[cfg(feature = "incomplete")]
     use {
         crate::parse2::{NetdocUnverified as _, ParseInput, parse_netdoc},
         std::fs,

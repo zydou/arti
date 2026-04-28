@@ -7,7 +7,7 @@
 pub(crate) mod build;
 pub(crate) mod md;
 pub(crate) mod plain;
-#[cfg(feature = "ns-vote")]
+#[cfg(feature = "incomplete")]
 pub(crate) mod vote;
 
 use super::{ConsensusFlavor, ConsensusMethods, consensus_methods_comma_separated};

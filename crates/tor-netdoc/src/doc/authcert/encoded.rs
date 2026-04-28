@@ -268,7 +268,7 @@ impl NetdocParseable for EncodedAuthCert {
     }
 }
 
-#[cfg(feature = "encode")] // TODO get rid of this feature, and use imports rather than :: paths
+// XXXX use imports rather than :: paths
 impl crate::encode::NetdocEncodable for EncodedAuthCert {
     fn encode_unsigned(
         &self,
