@@ -26,8 +26,7 @@ pub(super) const HS_DESC_AUTH_TYPE: &str = "x25519";
 /// A more-or-less verbatim representation of the middle document of an onion
 /// service descriptor.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
-pub(super) struct HsDescMiddle {
+pub struct HsDescMiddle {
     /// A public key used by authorized clients to decrypt the key used to
     /// decrypt the encryption layer and decode the inner document.  This is
     /// ignored if restricted discovery is not in use.
@@ -54,8 +53,7 @@ impl HsDescMiddle {
     ///
     /// A failure may mean either that the encryption was corrupted, or that we
     /// didn't have the right key.
-    #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
-    pub(super) fn decrypt_inner(
+    pub fn decrypt_inner(
         &self,
         blinded_id: &HsBlindId,
         revision: RevisionCounter,
@@ -193,8 +191,7 @@ static HS_MIDDLE_RULES: LazyLock<SectionRules<HsMiddleKwd>> = LazyLock::new(|| {
 impl HsDescMiddle {
     /// Try to parse the middle document of an onion service descriptor from a provided
     /// string.
-    #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
-    pub(super) fn parse(s: &str) -> Result<HsDescMiddle> {
+    pub fn parse(s: &str) -> Result<HsDescMiddle> {
         let mut reader = NetDocReader::new(s)?;
         let result = HsDescMiddle::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
         Ok(result)

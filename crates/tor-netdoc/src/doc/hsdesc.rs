@@ -38,7 +38,6 @@ use smallvec::SmallVec;
 use std::result::Result as StdResult;
 use std::time::SystemTime;
 
-#[cfg(feature = "hsdesc-inner-docs")]
 pub use {inner::HsDescInner, middle::HsDescMiddle, outer::HsDescOuter};
 
 #[cfg(feature = "hs-service")]

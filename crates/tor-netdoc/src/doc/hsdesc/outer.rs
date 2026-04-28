@@ -28,8 +28,7 @@ pub(super) const HS_DESC_SIGNATURE_PREFIX: &[u8] = b"Tor onion service descripto
 /// A more-or-less verbatim representation of the outermost plaintext document
 /// of an onion service descriptor.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
-pub(super) struct HsDescOuter {
+pub struct HsDescOuter {
     /// The lifetime of this descriptor, in minutes.
     ///
     /// This doesn't actually list the starting time or the end time for the
@@ -157,8 +156,7 @@ static HS_OUTER_RULES: LazyLock<SectionRules<HsOuterKwd>> = LazyLock::new(|| {
 
 impl HsDescOuter {
     /// Try to parse an outer document of an onion service descriptor from a string.
-    #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
-    pub(super) fn parse(s: &str) -> Result<UncheckedHsDescOuter> {
+    pub fn parse(s: &str) -> Result<UncheckedHsDescOuter> {
         // TOSO HS needs to be unchecked.
         let mut reader = NetDocReader::new(s)?;
         let result = HsDescOuter::take_from_reader(&mut reader).map_err(|e| e.within(s))?;

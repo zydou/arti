@@ -23,8 +23,7 @@ use tor_llcrypto::pk::{ValidatableSignature, curve25519, ed25519};
 
 /// The contents of the inner document of an onion service descriptor.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
-pub(crate) struct HsDescInner {
+pub struct HsDescInner {
     /// The authentication types that this onion service accepts when
     /// connecting.
     //
@@ -192,8 +191,7 @@ impl HsDescInner {
     ///
     /// On success, return the signing key that was used for every certificate in the
     /// inner document, and the inner document itself.
-    #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
-    pub(super) fn parse(s: &str) -> Result<(Option<Ed25519Identity>, UncheckedHsDescInner)> {
+    pub fn parse(s: &str) -> Result<(Option<Ed25519Identity>, UncheckedHsDescInner)> {
         let mut reader = NetDocReader::new(s)?;
         let result = Self::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
         Ok(result)
