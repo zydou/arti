@@ -267,21 +267,16 @@ mod parse_impl {
 }
 
 /// New parser impl
-#[cfg(any(feature = "parse2", feature = "encode"))]
 mod parse2_impl {
     use super::*;
 
-    #[cfg(feature = "parse2")]
     use crate::parse2::{self, ErrorProblem as EP};
-
-    #[cfg(feature = "encode")]
     use {
         crate::encode::ItemEncoder, itertools::chain, std::collections::BTreeSet, tor_error::Bug,
     };
 
     impl<'s, M: ReprMode> ParserEncoder<'s, M> {
         /// Parse relay flags
-        #[cfg(feature = "parse2")]
         #[allow(clippy::needless_pass_by_value)] // we must match trait signature
         pub(crate) fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<DocRelayFlags, EP> {
             item.check_no_object()?;
@@ -295,7 +290,6 @@ mod parse2_impl {
         }
 
         /// Encode relay flags
-        #[cfg(feature = "encode")]
         #[allow(clippy::unnecessary_wraps)] // we must match trait signature
         #[allow(clippy::redundant_closure)] // rust-clippy/issues#14215 |f| <&'static str>::from(f)
         pub(crate) fn write_item_value_onto(
