@@ -25,6 +25,8 @@ pub struct EncodedEd25519Cert(Vec<u8>);
 impl Ed25519Cert {
     /// Return a new `Ed25519CertConstructor` to create and return a new signed
     /// `Ed25519Cert`.
+    //
+    // XXXX rename to builder
     pub fn constructor() -> Ed25519CertConstructor {
         Default::default()
     }

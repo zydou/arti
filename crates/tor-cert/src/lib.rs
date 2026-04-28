@@ -71,6 +71,10 @@ pub use err::CertEncodeError;
 /// A Result defined to use CertError
 type CertResult<T> = std::result::Result<T, CertError>;
 
+/// XXXX type alias which will be removed in a moment
+#[cfg(feature = "encode")] // XXXX un-gate
+pub use Ed25519CertBuilder as Ed25519CertConstructor;
+
 caret_int! {
     /// Recognized values for Tor's certificate type field.
     ///
@@ -173,7 +177,7 @@ caret_int! {
 #[cfg_attr(feature = "encode", derive(derive_builder::Builder))]
 #[cfg_attr(
     feature = "encode",
-    builder(name = "Ed25519CertConstructor", build_fn(skip))
+    builder(build_fn(skip))
 )]
 pub struct Ed25519Cert {
     /// How many _hours_ after the epoch will this certificate expire?
