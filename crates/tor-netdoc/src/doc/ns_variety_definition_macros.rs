@@ -339,8 +339,6 @@ macro_rules! ns_export_each_variety {
     {
         @ [ $($case:tt)* ] [$($infix:tt)*] $id:ident
     } => { paste::paste!{
-        #[cfg(feature = "plain-consensus")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "plain-consensus")))]
         pub use { plain ::$id as [<plain   $($case)* $($infix)* $id>] };
         // unconditional
         pub use { md  ::$id as [<md   $($case)* $($infix)* $id>] };
@@ -372,8 +370,6 @@ macro_rules! ns_export_each_flavor {
     {
         @ [ $($case:tt)* ] [$($infix:tt)*] $id:ident
     } => { paste::paste!{
-        #[cfg(feature = "plain-consensus")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "plain-consensus")))]
         pub use { plain ::$id as [<plain   $($case)* $($infix)* $id>] };
         // unconditional
         pub use { md  ::$id as [<md   $($case)* $($infix)* $id>] };

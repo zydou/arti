@@ -6,7 +6,6 @@
 #[cfg(feature = "build_docs")]
 pub(crate) mod build;
 pub(crate) mod md;
-#[cfg(feature = "plain-consensus")]
 pub(crate) mod plain;
 #[cfg(feature = "ns-vote")]
 pub(crate) mod vote;

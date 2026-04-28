@@ -19,7 +19,6 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 pub(crate) mod md;
-#[cfg(feature = "plain-consensus")]
 pub(crate) mod plain;
 
 ns_export_each_flavor! {

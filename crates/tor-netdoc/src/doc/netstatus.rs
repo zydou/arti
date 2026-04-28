@@ -52,7 +52,6 @@ mod dir_source;
 mod rs;
 
 pub mod md;
-#[cfg(feature = "plain-consensus")]
 pub mod plain;
 #[cfg(feature = "ns-vote")]
 pub mod vote;
@@ -62,7 +61,7 @@ mod build;
 
 pub use proto_statuses_parse2_encode::ProtoStatusesNetdocParseAccumulator;
 
-#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+#[cfg(feature = "incomplete")]
 use crate::doc::authcert::EncodedAuthCert;
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
@@ -98,7 +97,7 @@ use serde::{Deserialize, Deserializer};
 
 #[cfg(feature = "build_docs")]
 pub use build::MdConsensusBuilder;
-#[cfg(all(feature = "build_docs", feature = "plain-consensus"))]
+#[cfg(feature = "build_docs")]
 pub use build::PlainConsensusBuilder;
 #[cfg(feature = "build_docs")]
 ns_export_each_flavor! {
@@ -110,16 +109,12 @@ ns_export_each_variety! {
 }
 
 #[deprecated]
-#[cfg(feature = "ns_consensus")]
 pub use PlainConsensus as NsConsensus;
 #[deprecated]
-#[cfg(feature = "ns_consensus")]
 pub use PlainRouterStatus as NsRouterStatus;
 #[deprecated]
-#[cfg(feature = "ns_consensus")]
 pub use UncheckedPlainConsensus as UncheckedNsConsensus;
 #[deprecated]
-#[cfg(feature = "ns_consensus")]
 pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
 #[cfg(feature = "ns-vote")]
@@ -757,7 +752,7 @@ define_derive_deftly! {
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(VoteAuthoritySection, Constructor)]
 #[allow(clippy::exhaustive_structs)]
-#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+#[cfg(feature = "parse2")]
 pub struct VoteAuthoritySection {
     /// Authority entry
     #[deftly(constructor)]
@@ -796,17 +791,14 @@ pub type UnvalidatedMdConsensus = md::UnvalidatedConsensus;
 /// and timeliness.
 pub type UncheckedMdConsensus = md::UncheckedConsensus;
 
-#[cfg(feature = "plain-consensus")]
 /// A consensus document that lists relays along with their
 /// router descriptor documents.
 pub type PlainConsensus = plain::Consensus;
 
-#[cfg(feature = "plain-consensus")]
 /// An PlainConsensus that has been parsed and checked for timeliness,
 /// but not for signatures.
 pub type UnvalidatedPlainConsensus = plain::UnvalidatedConsensus;
 
-#[cfg(feature = "plain-consensus")]
 /// An PlainConsensus that has been parsed but not checked for signatures
 /// and timeliness.
 pub type UncheckedPlainConsensus = plain::UncheckedConsensus;
@@ -1626,9 +1618,7 @@ mod test {
     const CERTS: &str = include_str!("../../testdata/authcerts2.txt");
     const CONSENSUS: &str = include_str!("../../testdata/mdconsensus1.txt");
 
-    #[cfg(feature = "plain-consensus")]
     const PLAIN_CERTS: &str = include_str!("../../testdata2/cached-certs");
-    #[cfg(feature = "plain-consensus")]
     const PLAIN_CONSENSUS: &str = include_str!("../../testdata2/cached-consensus");
 
     fn read_bad(fname: &str) -> String {
@@ -1709,7 +1699,6 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "plain-consensus")]
     fn parse_and_validate_ns() -> Result<()> {
         use tor_checkable::{SelfSigned, Timebound};
         let mut certs = Vec::new();
@@ -1735,7 +1724,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
+    #[cfg(feature = "incomplete")]
     fn parse2_vote() -> anyhow::Result<()> {
         let file = "testdata2/v3-status-votes--1";
         let text = fs::read_to_string(file)?;

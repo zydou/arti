@@ -39,9 +39,9 @@ mod build;
 #[allow(deprecated)]
 pub use build::AuthCertBuilder;
 
-#[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
+#[cfg(feature = "incomplete")]
 mod encoded;
-#[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
+#[cfg(feature = "incomplete")]
 pub use encoded::EncodedAuthCert;
 
 decl_keyword! {
@@ -677,7 +677,7 @@ impl AuthCert {
     /// as an [`EncodedAuthCert`].
     // TODO these features are quite tangled
     // `EncodedAuthCert` is only available with `parse2` and `plain-consensus`
-    #[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
+    #[cfg(feature = "incomplete")]
     pub fn encode_sign(&self, k_auth_id_rsa: &rsa::KeyPair) -> StdResult<EncodedAuthCert, Bug> {
         let mut encoder = NetdocEncoder::new();
         self.encode_unsigned(&mut encoder)?;
@@ -1190,7 +1190,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         }
     }
 
-    #[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
+    #[cfg(feature = "incomplete")]
     mod encode_test {
         use super::*;
         use crate::parse2::{ParseInput, parse_netdoc};

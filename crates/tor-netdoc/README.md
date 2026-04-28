@@ -68,9 +68,6 @@ the parsers for the documents themselves.
 
 ## Features
 
-`plain-consensus`: enable support for the "plain (unflavoured) consensus" document type, which
-some relays cache and serve.
-
 `hs-client`: enable support for parsing hidden service descriptors.
 
 `hs-service`: enable support for generating hidden service descriptors.
@@ -89,6 +86,10 @@ not be used.  Use of such features is (even more) at your own risk.
 
 `routerdesc`: previously needed to enable support for the "router
 descriptor" document type.  This support is now enabled unconditionally.
+
+`plain-consensus`: previously needed to enable support for the "plain
+(unflavoured) consensus" document type.  This support is now enabled
+unconditionally.
 
 `build_docs`: enable code to construct the objects representing different
 network documents, with builder patterns.
