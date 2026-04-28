@@ -131,11 +131,8 @@ define_derive_deftly! {
 /// Corresponds to a dir-source line which is *not* a "superseded authority key entry".
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:dir-source>
 #[derive(Debug, Clone, Deftly)]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
 #[derive_deftly(SupersededAuthorityKey)]
-// XXXX rewrap
-#[derive_deftly(ItemValueParseable)]
-#[derive_deftly(ItemValueEncodable)]
-#[derive_deftly(Constructor)]
 #[allow(clippy::exhaustive_structs)]
 pub struct DirSource {
     /// human-readable nickname for this authority.
