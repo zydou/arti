@@ -26,7 +26,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 ///
 /// TODO: This type probably belongs in a different crate.
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Deftly)]
-#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+#[derive_deftly(ItemValueParseable)]
 pub struct RelayFamily(Vec<LongIdent>);
 
 /// Cache of RelayFamily objects, for saving memory.
@@ -152,7 +152,7 @@ impl NormalItemArgument for RelayFamilyId {}
 
 /// A list of multiple [`RelayFamilyId`] entries as found in microdescs.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deftly, derive_more::AsRef)]
-#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+#[derive_deftly(ItemValueParseable)]
 pub struct RelayFamilyIds(
     // TODO DIRMIRROR: Replace with BTreeSet at one point.
     // TODO could/should this be a type alias instead?
@@ -274,10 +274,9 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "parse2")]
     fn parse2() {
         #[derive(Debug, PartialEq, Eq, derive_deftly::Deftly)]
-        #[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
+        #[derive_deftly(NetdocParseable)]
         struct Wrapper {
             family: RelayFamily,
         }
