@@ -60,17 +60,15 @@ pub mod vote;
 #[cfg(feature = "build_docs")]
 mod build;
 
-#[cfg(feature = "encode")]
+// XXXX unify and tidy
 use {
     crate::encode::{ItemValueEncodable, NetdocEncodable, NetdocEncoder}, //
     tor_error::Bug,
 };
-#[cfg(feature = "parse2")]
 use {
     crate::parse2::{self, ArgumentStream, ItemValueParseable}, //
 };
 
-#[cfg(feature = "parse2")]
 pub use {
     parse2::{ErrorProblem, IsStructural, ItemStream, KeywordRef, NetdocParseable, StopAt},
     proto_statuses_parse2_encode::ProtoStatusesNetdocParseAccumulator, //
@@ -1279,8 +1277,7 @@ impl RelayWeight {
 
 /// `parse2` impls for types in this modulea
 ///
-/// Separate module to save on repeated `cfg` and for a separate namespace.
-#[cfg(feature = "parse2")]
+/// Separate module for a separate namespace.
 mod parse2_impls {
     use super::*;
     pub(super) use parse2::{
@@ -1332,8 +1329,7 @@ mod parse2_impls {
 
 /// `encode` impls for types in this modulea
 ///
-/// Separate module to save on repeated `cfg` and for a separate namespace.
-#[cfg(feature = "encode")]
+/// Separate module for a separate namespace.
 mod encode_impls {
     use super::*;
     use std::result::Result;
@@ -1379,12 +1375,9 @@ impl Footer {
 
 /// `ProtoStatuses` parsing and encoding
 ///
-/// Separate module to save on repeated `cfg` to hide the helper struct
-#[cfg(any(feature = "encode", feature = "parse2"))]
+/// Separate module for separate namespace
 mod proto_statuses_parse2_encode {
-    #[cfg(feature = "encode")]
     use super::encode_impls::*;
-    #[cfg(feature = "parse2")]
     use super::parse2_impls::*;
     use super::*;
     use paste::paste;
@@ -1406,7 +1399,6 @@ mod proto_statuses_parse2_encode {
     macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
         #[derive(Deftly)]
         #[derive_deftly(NetdocParseableFields)]
-        #[cfg(feature = "parse2")]
         // Only ProtoStatusesParseNetdocParseAccumulator is exposed.
         #[allow(unreachable_pub)]
         pub struct ProtoStatusesParseHelper {
@@ -1417,11 +1409,9 @@ mod proto_statuses_parse2_encode {
         }
 
         /// Partially parsed `ProtoStatuses`
-        #[cfg(feature = "parse2")]
         pub use ProtoStatusesParseHelperNetdocParseAccumulator
             as ProtoStatusesNetdocParseAccumulator;
 
-        #[cfg(feature = "parse2")]
         impl NetdocParseableFields for ProtoStatuses {
             type Accumulator = ProtoStatusesNetdocParseAccumulator;
             fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
@@ -1443,7 +1433,6 @@ mod proto_statuses_parse2_encode {
             }
         }
 
-        #[cfg(feature = "encode")]
         impl NetdocEncodableFields for ProtoStatuses {
             fn encode_fields(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
               $(
@@ -1884,7 +1873,7 @@ mod test {
         let p = "Hello=Goodbye Fred=7".parse::<NetParams<u32>>();
         assert!(p.is_err());
 
-        #[cfg(feature = "encode")]
+        // XXXX remove { }
         {
             use crate::encode::{ItemValueEncodable, NetdocEncoder};
 
