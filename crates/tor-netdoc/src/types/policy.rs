@@ -459,15 +459,15 @@ mod test {
             ]
         );
 
-            #[derive(derive_deftly::Deftly)]
-            #[derive_deftly(NetdocParseable)]
-            struct Dummy {
-                #[deftly(netdoc(single_arg))]
-                dummy: PortRanges,
-            }
-            let ranges2 =
-                parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {INPUT}\n"), ""))
-                    .unwrap();
-            assert_eq!(ranges, ranges2.dummy);
+        #[derive(derive_deftly::Deftly)]
+        #[derive_deftly(NetdocParseable)]
+        struct Dummy {
+            #[deftly(netdoc(single_arg))]
+            dummy: PortRanges,
+        }
+        let ranges2 =
+            parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {INPUT}\n"), ""))
+                .unwrap();
+        assert_eq!(ranges, ranges2.dummy);
     }
 }
