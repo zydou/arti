@@ -117,7 +117,6 @@ pub use UncheckedPlainConsensus as UncheckedNsConsensus;
 #[deprecated]
 pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
-#[cfg(feature = "ns-vote")]
 pub use rs::{RouterStatusMdDigestsVote, SoftwareVersion};
 
 pub use dir_source::{ConsensusAuthoritySection, DirSource, SupersededAuthorityKey};
