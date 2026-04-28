@@ -33,7 +33,6 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time;
 
-#[cfg(feature = "parse2")]
 use crate::parse2::ItemObjectParseable;
 
 #[cfg(feature = "build_docs")]
@@ -62,7 +61,7 @@ pub type MdDigest = [u8; DOC_DIGEST_LEN];
 ///
 /// <https://spec.torproject.org/dir-spec/computing-microdescriptors.html>
 #[derive(Clone, Debug, Deftly, PartialEq, Eq)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
+#[derive_deftly(NetdocParseable)]
 #[non_exhaustive]
 pub struct Microdesc {
     /// The legacy onion key, whose object is optional but whose item serves
@@ -74,31 +73,28 @@ pub struct Microdesc {
     onion_key: OnionKeyIntro,
 
     /// Public key used for the ntor circuit extension protocol.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    #[deftly(netdoc(single_arg))]
     pub ntor_onion_key: Curve25519Public,
 
     /// Declared family for this relay.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(default)))]
+    #[deftly(netdoc(default))]
     pub family: Arc<RelayFamily>,
 
     /// Family identities for this relay.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(default)))]
+    #[deftly(netdoc(default))]
     pub family_ids: RelayFamilyIds,
 
     /// List of IPv4 ports to which this relay will exit
-    #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "p", default)))]
+    #[deftly(netdoc(keyword = "p", default))]
     pub ipv4_policy: Arc<PortPolicy>,
 
     /// List of IPv6 ports to which this relay will exit
-    #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "p6", default)))]
+    #[deftly(netdoc(keyword = "p6", default))]
     pub ipv6_policy: Arc<PortPolicy>,
 
     /// Ed25519 identity for this relay
     // TODO SPEC: Set this to "exactly once".
-    #[cfg_attr(
-        feature = "parse2",
-        deftly(netdoc(keyword = "id", with = "Ed25519IdentityLine"))
-    )]
+    #[deftly(netdoc(keyword = "id", with = "Ed25519IdentityLine"))]
     pub ed25519_id: Ed25519IdentityLine,
 
     // addr is obsolete and doesn't go here any more
@@ -108,7 +104,7 @@ pub struct Microdesc {
     /// it, and when listing it in a consensus document.
     // TODO: maybe this belongs somewhere else. Once it's used to store
     // correlate the microdesc to a consensus, it's never used again.
-    #[cfg_attr(feature = "parse2", deftly(netdoc(skip)))]
+    #[deftly(netdoc(skip))]
     pub sha256: MdDigest,
 }
 
@@ -165,9 +161,9 @@ impl Microdesc {
 /// The object (the onion key) is deprecated and optional, but the item itself
 /// must be present, because it is used to mark the start of the netdoc.
 #[derive(Debug, Clone, Default, Deftly, PartialEq, Eq)]
-#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+#[derive_deftly(ItemValueParseable)]
 struct OnionKeyIntro(
-    #[cfg_attr(feature = "parse2", deftly(netdoc(object)))] Option<rsa::PublicKey>,
+    #[deftly(netdoc(object))] Option<rsa::PublicKey>,
 );
 
 /// A microdescriptor annotated with additional data
@@ -663,7 +659,6 @@ mod test {
     /// replaced by a copy and paste in the case one replaces the testdata2
     /// vector's in the future.
     #[test]
-    #[cfg(feature = "parse2")]
     fn parse2() {
         use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
@@ -716,7 +711,6 @@ Yl0wCKpUZFHs5CHsajLSfXZKHkwfqRXFEJu9aMtmQdQFfqE9JOJHAgMBAAE=
     // TODO: This should be included in testdata2/ but that would require the
     // chutney/shadow integration test to actually do families at all.
     #[test]
-    #[cfg(feature = "parse2")]
     fn parse2_happy_family() {
         use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
