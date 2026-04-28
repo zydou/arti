@@ -28,7 +28,6 @@ use super::*;
 // but they're just byte arrays and such impls would imply that byte arrays are always
 // represented the same way in netdocs which is very far from being true.
 // TODO consider introducing newtypes for routerdesc and microdesc hashes?
-#[cfg(feature = "parse2")]
 ns_choose! { (
     use doc_digest_parse2_real as doc_digest_parse2_r; // implemented here in rs/each_variety.rs
     use Ignored as doc_digest_parse2_m;
@@ -49,7 +48,7 @@ ns_choose! { (
 ///
 /// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc>
 /// `r` item.
-#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
+#[derive(Deftly)] #[derive_deftly(ItemValueParseable)] // XXXX tidy
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RouterStatusIntroItem {
@@ -63,7 +62,7 @@ pub struct RouterStatusIntroItem {
     /// Digest of the document for this relay (except md consensuses)
     // TODO SPEC rename in the spec from `digest` to "doc_digest"
     // TODO SPEC in md consensuses the referenced document digest is in a separate `m` item
-    #[cfg_attr(feature = "parse2", deftly(netdoc(with = doc_digest_parse2_r)))]
+    #[deftly(netdoc(with = doc_digest_parse2_r))]
     pub doc_digest: ns_type!(DocDigest, NotPresent, DocDigest),
     /// Publication time.
     pub publication: ns_type!(
@@ -87,7 +86,7 @@ pub struct RouterStatusIntroItem {
 // In most netdocs we would use the item keywords as the field names.  But routerstatus
 // entry keywords are chosen to be very short to minimise the consensus size, so we
 // use longer names in the struct and specify the keyword separately.
-#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(NetdocParseable))]
+#[derive(Deftly)] #[derive_deftly(NetdocParseable)] // XXXX tidy
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RouterStatus {
@@ -106,42 +105,41 @@ pub struct RouterStatus {
     /// `r` item.
     // We call this field `m` rather than `doc_digest` because it's not always the doc digest.
     // TODO SPEC in all but md consensuses the referenced document digest is in the `r` intro item
-    #[cfg_attr(feature = "parse2", deftly(netdoc(with = doc_digest_parse2_m)))]
+    #[deftly(netdoc(with = doc_digest_parse2_m))]
     pub m: ns_type!(NotPresent, DocDigest, Vec<RouterStatusMdDigestsVote>),
 
     /// `a` --- Further router address(es) (IPv6)
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:a>
     /// (and, the md version, which is different).
-    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    #[deftly(netdoc(single_arg))]
     pub a: Vec<net::SocketAddr>,
 
     /// `s` --- Router status flags
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
-    #[cfg_attr(
-        feature = "parse2",
-        deftly(netdoc(keyword = "s")),
-        deftly(netdoc(with = { relay_flags::ParserEncoder::<VarietyRelayFlagsRepr> }))
-    )]
+    #[deftly(netdoc(
+        keyword = "s",
+        with = { relay_flags::ParserEncoder::<VarietyRelayFlagsRepr> },
+    ))]
     pub flags: DocRelayFlags,
 
     /// `v` --- Relay's Tor software version
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:v>
-    #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "v")))]
+    #[deftly(netdoc(keyword = "v"))]
     pub version: Option<SoftwareVersion>,
 
     /// `pr` --- Subprotocol capabilities supported
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:v>
-    #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "pr")))]
+    #[deftly(netdoc(keyword = "pr"))]
     pub protos: Protocols,
 
     /// `w` --- Bandwidth estimates
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
-    #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "w")))]
+    #[deftly(netdoc(keyword = "w"))]
     pub weight: RelayWeight,
 }
 
@@ -161,7 +159,6 @@ impl RouterStatus {
 ///
 /// This field is present in `r` items, except for md consensuses, where it's in `m`.
 /// Hence the `_real`, which lets us swap it out for each variety.
-#[cfg(feature = "parse2")]
 pub(crate) mod doc_digest_parse2_real {
     use super::*;
     use crate::parse2::ArgumentError as AE;

@@ -26,7 +26,7 @@ use tor_basic_utils::intern::InternCache;
 use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
-#[cfg(feature = "parse2")]
+// XXXX tidy
 use {
     super::consensus_methods_comma_separated, //
     derive_deftly::Deftly,
@@ -69,14 +69,11 @@ static OTHER_VERSION_CACHE: InternCache<str> = InternCache::new();
 ///    and across multiple instances of it within a `RouterStatus`.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 #[cfg(feature = "ns-vote")]
-#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
+#[derive(Deftly)] #[derive_deftly(ItemValueParseable)] // XXXX tidy
 #[non_exhaustive]
 pub struct RouterStatusMdDigestsVote {
     /// The methods for which this document is applicable.
-    #[cfg_attr(
-        feature = "parse2",
-        deftly(netdoc(with = consensus_methods_comma_separated))
-    )]
+    #[deftly(netdoc(with = consensus_methods_comma_separated))]
     pub consensus_methods: ConsensusMethods,
 
     /// The various hashes of this document.

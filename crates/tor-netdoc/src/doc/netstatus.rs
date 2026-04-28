@@ -660,9 +660,9 @@ pub struct ConsensusAuthorityEntry {
 /// TODO DIRAUTH not all fields are here yet.
 // They have individual comments, below.
 #[derive(Debug, Clone, Deftly)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
-#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+// XXXX rewrap
+#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable)]
 #[derive_deftly(Constructor)]
 #[allow(clippy::exhaustive_structs)]
 pub struct VoteAuthorityEntry {

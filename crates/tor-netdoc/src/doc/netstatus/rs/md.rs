@@ -28,7 +28,6 @@ impl RouterStatus {
 /// See `doc_digest_parse2_real` in `rs/each_variety.rs`.
 /// This is in `md.rs` because it's needed only for md consensuses.
 /// Elsewhere, the value is in the `r` item, so is merely `ItemArgumentParseable`.
-#[cfg(feature = "parse2")]
 pub(crate) mod doc_digest_parse2_real_item {
     use super::*;
     use crate::parse2::ErrorProblem as EP;
