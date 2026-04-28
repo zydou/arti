@@ -138,22 +138,20 @@ CREATE TABLE consensus_router_descriptor_member(
     -- These two fields contain the SHA-1 and SHA-2 of the router descriptors
     -- without signatures.
     --
-    -- This is required to query/check server descriptors and micro descriptors.
-    -- Unfortunately, server descriptors use SHA-1 exclusively whereas
-    -- micro descriptors use SHA-2 exclusively.  We compute and store both
-    -- although that would not be required.  Unfortunately, SQL does not offer
-    -- a nicer way to model this.  Storing either 40 or 64 bytes and deciding
-    -- upon this at runtime feels weird; similar behavior applies for xor the
-    -- NULL on one of these two fields.  Besides, we already store both fields
-    -- in the `router_descriptor` table.
-    unsigned_sha1           TEXT NOT NULL,
-    unsigned_sha2           TEXT NOT NULL,
-    PRIMARY KEY(consensus_docid, unsigned_sha1, unsigned_sha2),
+    -- They are mutually exclusive, meaning that either one of them must be set.
+    -- This is a bit unfortunate but depending on the consensus flavor, we may
+    -- either only have the SHA-1 (ns) or the SHA-2 (md).
+    unsigned_sha1           TEXT,
+    unsigned_sha2           TEXT,
+    UNIQUE(consensus_docid, unsigned_sha1, unsigned_sha2),
     FOREIGN KEY(consensus_docid) REFERENCES consensus(docid),
     CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', unsigned_sha2) == 0),
     CHECK(LENGTH(unsigned_sha1) == 40),
-    CHECK(LENGTH(unsigned_sha2) == 64)
+    CHECK(LENGTH(unsigned_sha2) == 64),
+    CHECK(
+        (unsigned_sha1 IS NULL) != (unsigned_sha2 IS NULL)
+    )
 ) STRICT;
 
 -- Stores which authority key signed which consensuses.
