@@ -79,6 +79,10 @@
 #console = "info"
 
 # As above, but specify filtering directives for sending trace messages to
+# the system syslog. Empty string means not to use syslog.
+#syslog = ""
+
+# As above, but specify filtering directives for sending trace messages to
 # the journald logging system.  Empty string means not to use journald.
 #journald = ""
 

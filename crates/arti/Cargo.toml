@@ -37,6 +37,7 @@ full = [
     "tokio",
     "native-tls",
     "journald",
+    "syslog",
     "arti-client/full",
     "dns-proxy",
     "harden",
@@ -116,6 +117,7 @@ static = ["arti-client/static", "__is_nonadditive"]
 static-sqlite = ["arti-client/static-sqlite", "__is_nonadditive"]
 static-native-tls = ["arti-client/static-native-tls", "native-tls", "__is_nonadditive"]
 journald = ["tracing-journald"]
+syslog = ["syslog-tracing"]
 
 opentelemetry = [
     "tracing-opentelemetry",
@@ -200,6 +202,7 @@ safelog = { path = "../safelog", version = "0.8.1" }
 secmem-proc = { version = "0.3.4", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
+syslog-tracing = { version = "0.3.1", optional = true }
 thiserror = "2"
 time = "0.3.47"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }

@@ -239,6 +239,7 @@ dependencies = [
  "secmem-proc",
  "serde",
  "serde_json",
+ "syslog-tracing",
  "tempfile",
  "test-temp-dir",
  "thiserror 2.0.18",
@@ -6291,6 +6292,17 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-io-kit",
  "windows",
+]
+
+[[package]]
+name = "syslog-tracing"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d349bc2df408b4bf656709a29643641cef7f1795d708f88b105c626a8f64f6e4"
+dependencies = [
+ "libc",
+ "tracing-core",
+ "tracing-subscriber",
 ]
 
 [[package]]
