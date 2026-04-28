@@ -6,13 +6,11 @@ use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
 
-#[cfg(feature = "parse2")]
 use crate::parse2::{ErrorProblem as EP, ItemValueParseable, UnparsedItem};
 
 use super::{PolicyError, PortRanges, RuleKind};
 use tor_basic_utils::intern::InternCache;
 
-#[cfg(feature = "parse2")]
 use derive_deftly::Deftly;
 
 /// A policy to match zero or more TCP/UDP ports.
@@ -126,7 +124,6 @@ impl FromStr for PortPolicy {
     }
 }
 
-#[cfg(feature = "parse2")]
 impl ItemValueParseable for PortPolicy {
     // Manual implementation incorporating the `accept`/`reject`,
     // using `.invert()` if necessary to yield simply a `PortPolicy`,
@@ -183,13 +180,9 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use itertools::Itertools;
-
-    #[cfg(feature = "parse2")]
     use crate::parse2::{self, ParseInput};
-
     use super::*;
 
-    #[cfg(feature = "parse2")]
     #[derive(derive_deftly::Deftly)]
     #[derive_deftly(NetdocParseable)]
     struct Dummy {
@@ -207,7 +200,7 @@ mod test {
             for p in deny {
                 assert!(!policy.allows_port(*p));
             }
-            #[cfg(feature = "parse2")]
+            // XXXX remove { }
             {
                 let policy2 =
                     parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {inp}"), ""))
@@ -268,7 +261,7 @@ mod test {
             "reject 5,4,3,2",
         ] {
             assert!(s.parse::<PortPolicy>().is_err());
-            #[cfg(feature = "parse2")]
+            // XXXX remove { }
             {
                 assert!(
                     parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {s}"), ""))
