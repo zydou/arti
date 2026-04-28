@@ -32,3 +32,10 @@ proptest = "1.0.0"
 
 [package.metadata.docs.rs]
 all-features = true
+
+[[bin]]
+name = "geoip-convert-mm-format"
+path = "bin/convert.rs"
+test = false
+bench = false
+required-features = ["export"]
