@@ -891,7 +891,7 @@ mod tests {
         // after the epoch.
         let cert_exp = SystemTime::UNIX_EPOCH + Duration::from_secs(60 * 60);
 
-        let encoded_cert = Ed25519Cert::constructor()
+        let encoded_cert = Ed25519Cert::builder()
             .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
             .expiration(cert_exp)
             .signing_key(signing_key.public_key().into())

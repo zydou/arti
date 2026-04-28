@@ -2077,7 +2077,7 @@ mod tests {
         // (like the `ArtiNativeKeystore` tests)
         let mut rng = FakeEntropicRng(testing_rng());
         let keypair = ed25519::Keypair::generate(&mut rng);
-        let encoded_cert = Ed25519Cert::constructor()
+        let encoded_cert = Ed25519Cert::builder()
             .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
             .expiration(SystemTime::get() + Duration::from_secs(180))
             .signing_key(keypair.public_key().into())

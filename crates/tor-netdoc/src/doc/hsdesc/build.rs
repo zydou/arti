@@ -245,7 +245,7 @@ pub fn create_desc_sign_key_cert(
     // "The certificate cross-certifies the short-term descriptor signing key with the blinded
     // public key.  The certificate type must be [08], and the blinded public key must be
     // present as the signing-key extension."
-    Ed25519Cert::constructor()
+    Ed25519Cert::builder()
         .cert_type(CertType::HS_BLINDED_ID_V_SIGNING)
         .expiration(expiry)
         .signing_key(ed25519::Ed25519Identity::from(blind_id.as_ref().public()))

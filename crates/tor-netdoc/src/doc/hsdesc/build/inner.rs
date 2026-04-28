@@ -172,7 +172,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
 
             // For compatibility with c-tor, the introduction point authentication key is signed by
             // the descriptor signing key.
-            let signed_auth_key = Ed25519Cert::constructor()
+            let signed_auth_key = Ed25519Cert::builder()
                 .cert_type(CertType::HS_IP_V_SIGNING)
                 .expiration(intro_auth_key_cert_expiry)
                 .signing_key(ed25519::Ed25519Identity::from(hs_desc_sign.verifying_key()))
@@ -213,7 +213,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
 
             // For compatibility with c-tor, the encryption key is signed with the descriptor
             // signing key.
-            let signed_enc_key = Ed25519Cert::constructor()
+            let signed_enc_key = Ed25519Cert::builder()
                 .cert_type(CertType::HS_IP_CC_SIGNING)
                 .expiration(intro_enc_key_cert_expiry)
                 .signing_key(ed25519::Ed25519Identity::from(hs_desc_sign.verifying_key()))

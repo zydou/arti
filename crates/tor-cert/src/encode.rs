@@ -25,9 +25,7 @@ pub struct EncodedEd25519Cert(Vec<u8>);
 impl Ed25519Cert {
     /// Return a new `Ed25519CertBuilder` to create and return a new signed
     /// `Ed25519Cert`.
-    //
-    // XXXX rename to builder
-    pub fn constructor() -> Ed25519CertBuilder {
+    pub fn builder() -> Ed25519CertBuilder {
         Default::default()
     }
 }
@@ -221,7 +219,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::CertifiedKey;
+    use crate::{CertifiedKey, Ed25519Cert};
     use tor_checkable::{SelfSigned, Timebound};
     use web_time_compat::{Duration, SystemTimeExt};
 
@@ -231,7 +229,7 @@ mod test {
         let keypair = ed25519::Keypair::generate(&mut rng);
         let now = SystemTime::get();
         let day = Duration::from_secs(86400);
-        let encoded = Ed25519Cert::constructor()
+        let encoded = Ed25519Cert::builder()
             .expiration(now + day * 30)
             .cert_key(CertifiedKey::Ed25519(keypair.verifying_key().into()))
             .cert_type(7.into())

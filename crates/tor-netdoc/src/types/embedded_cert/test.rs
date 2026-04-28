@@ -50,7 +50,7 @@ impl FamilyCert {
         kp_relayid_ed: Ed25519Identity,
         expiry: SystemTime,
     ) -> Result<EmbeddedCert<FamilyCert, KeyUnknownCert>, Bug> {
-        let cert = Ed25519Cert::constructor()
+        let cert = Ed25519Cert::builder()
             .expiration(expiry)
             .signing_key(ks_familyid_ed.public_key().into())
             .cert_type(tor_cert::CertType::FAMILY_V_IDENTITY)

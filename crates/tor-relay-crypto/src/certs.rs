@@ -21,7 +21,7 @@ pub fn gen_signing_cert(
     kp_relaysign_id: &RelaySigningKeypair,
     expiry: SystemTime,
 ) -> Result<RelaySigningKeyCert, CertEncodeError> {
-    Ed25519Cert::constructor()
+    Ed25519Cert::builder()
         .cert_type(RelaySigningKeyCert::cert_type())
         .expiration(expiry)
         .signing_key(kp_relay_id.to_ed25519_id())
@@ -37,7 +37,7 @@ pub fn gen_link_cert(
     kp_link_id: &RelayLinkSigningKeypair,
     expiry: SystemTime,
 ) -> Result<RelayLinkSigningKeyCert, CertEncodeError> {
-    Ed25519Cert::constructor()
+    Ed25519Cert::builder()
         .cert_type(RelayLinkSigningKeyCert::cert_type())
         .expiration(expiry)
         .signing_key(kp_relaysign_id.to_ed25519_id())
@@ -53,7 +53,7 @@ pub fn gen_tls_cert(
     tls_digest: [u8; 32],
     expiry: SystemTime,
 ) -> Result<EncodedEd25519Cert, CertEncodeError> {
-    Ed25519Cert::constructor()
+    Ed25519Cert::builder()
         .cert_type(CertType::SIGNING_V_TLS_CERT)
         .expiration(expiry)
         .signing_key(kp_relaysign_id.to_ed25519_id())
