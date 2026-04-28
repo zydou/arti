@@ -200,8 +200,6 @@ mod test {
             for p in deny {
                 assert!(!policy.allows_port(*p));
             }
-            // XXXX remove { }
-            {
                 let policy2 =
                     parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {inp}"), ""))
                         .unwrap()
@@ -212,7 +210,6 @@ mod test {
                 for p in deny {
                     assert!(!policy2.allows_port(*p));
                 }
-            }
         }
 
         check(
@@ -261,13 +258,10 @@ mod test {
             "reject 5,4,3,2",
         ] {
             assert!(s.parse::<PortPolicy>().is_err());
-            // XXXX remove { }
-            {
                 assert!(
                     parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {s}"), ""))
                         .is_err()
                 );
-            }
         }
     }
 
