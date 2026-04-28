@@ -61,11 +61,8 @@ use web_time_compat as time;
 
 pub use err::CertError;
 
-#[cfg(feature = "encode")]
 mod encode;
-#[cfg(feature = "encode")]
 pub use encode::{EncodedCert, EncodedEd25519Cert};
-#[cfg(feature = "encode")]
 pub use err::CertEncodeError;
 
 /// A Result defined to use CertError
@@ -170,29 +167,26 @@ caret_int! {
 /// Structure for an Ed25519-signed certificate as described in Tor's
 /// cert-spec.txt.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "encode", derive(derive_builder::Builder))]
-#[cfg_attr(
-    feature = "encode",
-    builder(build_fn(skip))
-)]
+#[derive(derive_builder::Builder)]
+#[builder(build_fn(skip))]
 pub struct Ed25519Cert {
     /// How many _hours_ after the epoch will this certificate expire?
-    #[cfg_attr(feature = "encode", builder(setter(custom)))]
+    #[builder(setter(custom))]
     exp_hours: ExpiryHours,
     /// Type of the certificate; recognized values are in certtype::*
     cert_type: CertType,
     /// The key or object being certified.
     cert_key: CertifiedKey,
     /// A list of extensions.
-    #[allow(unused)]
-    #[cfg_attr(feature = "encode", builder(setter(custom)))]
+    #[allow(unused)] // TODO review CertExt and make it pub, and add a getter
+    #[builder(setter(custom))]
     extensions: Vec<CertExt>,
     /// The key that signed this cert.
     ///
     /// Once the cert has been unwrapped from an KeyUnknownCert, this field will
     /// be set.  If there is a `SignedWithEd25519` extension in
     /// `self.extensions`, this will match it.
-    #[cfg_attr(feature = "encode", builder(setter(custom)))]
+    #[builder(setter(custom))]
     signed_with: Option<ed25519::Ed25519Identity>,
 }
 
@@ -670,7 +664,6 @@ impl From<ExpiryHours> for time::SystemTime {
     }
 }
 
-#[cfg(feature = "encode")]
 impl ExpiryHours {
     /// Return the earliest possible `ExpiryHours` that is no earlier than `expiry`.
     fn try_from_systemtime_ceil(expiry: time::SystemTime) -> Result<Self, CertEncodeError> {
@@ -769,7 +762,6 @@ mod test {
         Ok(())
     }
 
-    #[cfg(feature = "encode")]
     #[test]
     fn expiry_hours_ceil() {
         use std::time::{Duration, SystemTime};

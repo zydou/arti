@@ -11,9 +11,7 @@ use digest::Digest;
 
 use crate::{CertType, ExpiryHours};
 
-#[cfg(feature = "encode")]
 mod encode;
-#[cfg(feature = "encode")]
 pub use encode::EncodedRsaCrosscert;
 
 /// A RSA->Ed25519 cross-certificate

@@ -16,7 +16,7 @@ all-features = true
 [features]
 default = []
 experimental = ["encode", "experimental-api"]
-encode = ["derive_builder", "__is_experimental"]
+encode = ["derive_builder", "__is_experimental"] # XXXX abolish
 full = [
     "caret/full",
     "tor-bytes/full",
