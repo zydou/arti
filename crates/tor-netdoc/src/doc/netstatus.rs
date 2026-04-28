@@ -60,27 +60,20 @@ pub mod vote;
 #[cfg(feature = "build_docs")]
 mod build;
 
-// XXXX unify and tidy
-use {
-    crate::encode::{ItemValueEncodable, NetdocEncodable, NetdocEncoder}, //
-    tor_error::Bug,
-};
-use {
-    crate::parse2::{self, ArgumentStream, ItemValueParseable}, //
-};
-
-pub use {
-    parse2::{ErrorProblem, IsStructural, ItemStream, KeywordRef, NetdocParseable, StopAt},
-    proto_statuses_parse2_encode::ProtoStatusesNetdocParseAccumulator, //
-};
+pub use proto_statuses_parse2_encode::ProtoStatusesNetdocParseAccumulator;
 
 #[cfg(all(feature = "parse2", feature = "plain-consensus"))]
 use crate::doc::authcert::EncodedAuthCert;
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
+use crate::encode::{ItemValueEncodable, NetdocEncodable, NetdocEncoder};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
+use crate::parse2::{
+    self, ArgumentStream, ItemValueParseable,
+    ErrorProblem, IsStructural, ItemStream, KeywordRef, NetdocParseable, StopAt,
+};
 use crate::types::misc::*;
 use crate::types::relay_flags::{self, DocRelayFlags};
 use crate::util::PeekableIterator;
@@ -91,7 +84,7 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{net, result, time};
-use tor_error::{HasKind, bad_api_usage, internal};
+use tor_error::{Bug, HasKind, bad_api_usage, internal};
 use tor_protover::Protocols;
 
 use derive_deftly::{Deftly, define_derive_deftly};
@@ -1873,10 +1866,6 @@ mod test {
         let p = "Hello=Goodbye Fred=7".parse::<NetParams<u32>>();
         assert!(p.is_err());
 
-        // XXXX remove { }
-        {
-            use crate::encode::{ItemValueEncodable, NetdocEncoder};
-
             for bad_kw in ["What=The", "", "\n", "\0"] {
                 let p = [(bad_kw, 42)].into_iter().collect::<NetParams<i32>>();
                 let mut d = NetdocEncoder::new();
@@ -1887,7 +1876,6 @@ mod test {
                 })();
                 let _: tor_error::Bug = d.expect_err(bad_kw);
             }
-        }
     }
 
     #[test]
