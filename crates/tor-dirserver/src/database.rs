@@ -478,6 +478,7 @@ impl ConsensusMeta {
               LEFT JOIN router_extra_info AS extra ON server.extra_unsigned_sha1 = extra.unsigned_sha1
             WHERE
               cr.consensus_docid = :docid
+              AND server.extra_unsigned_sha1 IS NOT NULL
               AND extra.unsigned_sha1 IS NULL
             "
         ))?;
