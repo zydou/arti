@@ -17,5 +17,8 @@ description = "Fake crate to influence cargo dependency selection"
 # This tends to work because cargo likes to use a single version where it can.
 
 [dependencies]
-# TODO #2387 encourage cargo to select a version of security-framework which builds for us
-security-framework = "~3.6.0"
+# Example:  We used this to encourage Cargo to select an older version
+# of security-framework, when we were stuck on the 10.12 OSX APIs and couldn't
+# build the newer versions. (#2387)
+#
+#security-framework = "~3.6.0"
