@@ -1771,7 +1771,7 @@ mod test {
         let file = "testdata2/v3-status-votes--1";
         let text = fs::read_to_string(file)?;
 
-        // TODO replace the poc struct here when we have parsing of proper whole votes
+        // TODO DIRAUTH replace the poc struct here when we have parsing of proper whole votes
         use crate::parse2::poc::netstatus::NetworkStatusUnverifiedVote;
 
         let input = ParseInput::new(&text, file);
