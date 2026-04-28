@@ -179,9 +179,9 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use itertools::Itertools;
-    use crate::parse2::{self, ParseInput};
     use super::*;
+    use crate::parse2::{self, ParseInput};
+    use itertools::Itertools;
 
     #[derive(derive_deftly::Deftly)]
     #[derive_deftly(NetdocParseable)]
@@ -200,16 +200,16 @@ mod test {
             for p in deny {
                 assert!(!policy.allows_port(*p));
             }
-                let policy2 =
-                    parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {inp}"), ""))
-                        .unwrap()
-                        .dummy;
-                for p in allow {
-                    assert!(policy2.allows_port(*p));
-                }
-                for p in deny {
-                    assert!(!policy2.allows_port(*p));
-                }
+            let policy2 =
+                parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {inp}"), ""))
+                    .unwrap()
+                    .dummy;
+            for p in allow {
+                assert!(policy2.allows_port(*p));
+            }
+            for p in deny {
+                assert!(!policy2.allows_port(*p));
+            }
         }
 
         check(
@@ -258,10 +258,9 @@ mod test {
             "reject 5,4,3,2",
         ] {
             assert!(s.parse::<PortPolicy>().is_err());
-                assert!(
-                    parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {s}"), ""))
-                        .is_err()
-                );
+            assert!(
+                parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {s}"), "")).is_err()
+            );
         }
     }
 
