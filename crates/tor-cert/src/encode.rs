@@ -3,7 +3,7 @@
 //! Only available when the crate is built with the `encode` feature.
 
 use crate::{
-    CertEncodeError, CertExt, CertType, Ed25519Cert, Ed25519CertConstructor, ExpiryHours, ExtType,
+    CertEncodeError, CertExt, CertType, Ed25519Cert, Ed25519CertBuilder, ExpiryHours, ExtType,
     SignedWithEd25519Ext, UnrecognizedExt,
 };
 use std::time::SystemTime;
@@ -13,7 +13,7 @@ use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey, Ed25519SigningKey};
 use derive_more::{AsRef, Deref, Into};
 
 /// An encoded ed25519 certificate,
-/// created using [`Ed25519CertConstructor::encode_and_sign`].
+/// created using [`Ed25519CertBuilder::encode_and_sign`].
 ///
 /// The certificate is encoded in the format specified
 /// in Tor's cert-spec.txt.
@@ -23,11 +23,11 @@ use derive_more::{AsRef, Deref, Into};
 pub struct EncodedEd25519Cert(Vec<u8>);
 
 impl Ed25519Cert {
-    /// Return a new `Ed25519CertConstructor` to create and return a new signed
+    /// Return a new `Ed25519CertBuilder` to create and return a new signed
     /// `Ed25519Cert`.
     //
     // XXXX rename to builder
-    pub fn constructor() -> Ed25519CertConstructor {
+    pub fn constructor() -> Ed25519CertBuilder {
         Default::default()
     }
 }
@@ -36,7 +36,7 @@ impl EncodedEd25519Cert {
     /// Create an `EncodedEd25519Cert` from a byte slice.
     ///
     /// **Important**: generally you should not use this function.
-    /// Instead, prefer using [`Ed25519CertConstructor::encode_and_sign`]
+    /// Instead, prefer using [`Ed25519CertBuilder::encode_and_sign`]
     /// to encode certificates.
     ///
     /// This function should only be used if `cert`
@@ -95,7 +95,7 @@ impl Writeable for UnrecognizedExt {
     }
 }
 
-impl Ed25519CertConstructor {
+impl Ed25519CertBuilder {
     /// Set the approximate expiration time for this certificate.
     ///
     /// (The time will be rounded forward to the nearest hour after the epoch.)
@@ -121,7 +121,7 @@ impl Ed25519CertConstructor {
         self
     }
 
-    /// Remove any signing key previously set on this Ed25519CertConstructor.
+    /// Remove any signing key previously set on this Ed25519CertBuilder.
     pub fn clear_signing_key(&mut self) -> &mut Self {
         self.signed_with = None;
         self.extensions
@@ -140,7 +140,7 @@ impl Ed25519CertConstructor {
     where
         S: Ed25519PublicKey + Ed25519SigningKey,
     {
-        let Ed25519CertConstructor {
+        let Ed25519CertBuilder {
             exp_hours,
             cert_type,
             cert_key,

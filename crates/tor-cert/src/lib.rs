@@ -71,10 +71,6 @@ pub use err::CertEncodeError;
 /// A Result defined to use CertError
 type CertResult<T> = std::result::Result<T, CertError>;
 
-/// XXXX type alias which will be removed in a moment
-#[cfg(feature = "encode")] // XXXX un-gate
-pub use Ed25519CertBuilder as Ed25519CertConstructor;
-
 caret_int! {
     /// Recognized values for Tor's certificate type field.
     ///
