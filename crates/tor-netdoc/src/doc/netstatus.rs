@@ -71,8 +71,8 @@ use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::parse2::{
-    self, ArgumentStream, ItemValueParseable,
-    ErrorProblem, IsStructural, ItemStream, KeywordRef, NetdocParseable, StopAt,
+    self, ArgumentStream, ErrorProblem, IsStructural, ItemStream, ItemValueParseable, KeywordRef,
+    NetdocParseable, StopAt,
 };
 use crate::types::misc::*;
 use crate::types::relay_flags::{self, DocRelayFlags};
@@ -1866,16 +1866,16 @@ mod test {
         let p = "Hello=Goodbye Fred=7".parse::<NetParams<u32>>();
         assert!(p.is_err());
 
-            for bad_kw in ["What=The", "", "\n", "\0"] {
-                let p = [(bad_kw, 42)].into_iter().collect::<NetParams<i32>>();
-                let mut d = NetdocEncoder::new();
-                let d = (|| {
-                    let i = d.item("bad-psrams");
-                    p.write_item_value_onto(i)?;
-                    d.finish()
-                })();
-                let _: tor_error::Bug = d.expect_err(bad_kw);
-            }
+        for bad_kw in ["What=The", "", "\n", "\0"] {
+            let p = [(bad_kw, 42)].into_iter().collect::<NetParams<i32>>();
+            let mut d = NetdocEncoder::new();
+            let d = (|| {
+                let i = d.item("bad-psrams");
+                p.write_item_value_onto(i)?;
+                d.finish()
+            })();
+            let _: tor_error::Bug = d.expect_err(bad_kw);
+        }
     }
 
     #[test]
