@@ -154,10 +154,9 @@ pub struct IgnoredPublicationTimeSp;
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Constructor)]
 #[derive_deftly(Lifetime)]
-#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodableFields))]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableFields))]
-// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+// XXXX rewrap
+#[derive_deftly(NetdocEncodableFields)]
+#[derive_deftly(NetdocParseableFields)]
 #[allow(clippy::exhaustive_structs)]
 pub struct Lifetime {
     /// `valid-after` --- Time at which the document becomes valid
@@ -269,8 +268,9 @@ impl NormalItemArgument for ConsensusMethod {}
 ///
 /// There is also [`consensus_methods_comma_separated`] for `m` lines in votes.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Deftly)]
-#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
-#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+// XXXX rewrap
+#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable)]
 #[non_exhaustive]
 pub struct ConsensusMethods {
     /// Consensus methods.
@@ -281,7 +281,6 @@ pub struct ConsensusMethods {
 ///
 /// As found in an `m` item in a vote:
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:m>
-#[cfg(feature = "parse2")]
 pub mod consensus_methods_comma_separated {
     use super::*;
     use parse2::ArgumentError as AE;
@@ -569,8 +568,9 @@ pub struct SharedRandVal([u8; 32]);
 /// along with meta-information about that value.
 #[derive(Debug, Clone, Deftly)]
 #[non_exhaustive]
-#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
-#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+// XXXX rewrap
+#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable)]
 pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
     pub n_reveals: u8,
@@ -628,9 +628,9 @@ pub type MdAuthorityEntry = ConsensusAuthorityEntry;
 //  1. That avoids separating the two consensus authority entry types, which are identical
 //  2. The only common fields are `dir-source` and `contact`, so there is little duplication
 #[derive(Debug, Clone, Deftly)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
-#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+// XXXX rewrap
+#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable)]
 #[derive_deftly(Constructor)]
 #[allow(clippy::exhaustive_structs)]
 pub struct ConsensusAuthorityEntry {
