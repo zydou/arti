@@ -348,6 +348,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::Result;
+    use crate::parse2::{self, ParseInput};
+
     #[test]
     fn parse_portrange() -> Result<()> {
         assert_eq!(
@@ -457,10 +459,6 @@ mod test {
             ]
         );
 
-        // XXXX move this code out of the now-pointless block
-        {
-            use crate::parse2::{self, ParseInput};
-
             #[derive(derive_deftly::Deftly)]
             #[derive_deftly(NetdocParseable)]
             struct Dummy {
@@ -471,6 +469,5 @@ mod test {
                 parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {INPUT}\n"), ""))
                     .unwrap();
             assert_eq!(ranges, ranges2.dummy);
-        }
     }
 }
