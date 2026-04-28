@@ -166,8 +166,7 @@ caret_int! {
 
 /// Structure for an Ed25519-signed certificate as described in Tor's
 /// cert-spec.txt.
-#[derive(Debug, Clone)]
-#[derive(derive_builder::Builder)]
+#[derive(Debug, Clone, derive_builder::Builder)]
 #[builder(build_fn(skip))]
 pub struct Ed25519Cert {
     /// How many _hours_ after the epoch will this certificate expire?
