@@ -32,11 +32,15 @@ use crate::{
 #[builder(derive(Debug))]
 pub struct RelayIds {
     /// Copy of the ed25519 id from the underlying ChanTarget.
-    #[serde(rename = "ed25519")]
+    //
+    // NOTE: we added serde(default) for ed25519 and rsa around April 2026.
+    // Do not assume that they are present in older versions!
+    #[serde(rename = "ed25519", default)]
     #[builder(default, setter(strip_option))]
     ed_identity: Option<pk::ed25519::Ed25519Identity>,
+
     /// Copy of the rsa id from the underlying ChanTarget.
-    #[serde(rename = "rsa")]
+    #[serde(rename = "rsa", default)]
     #[builder(default, setter(strip_option))]
     rsa_identity: Option<pk::rsa::RsaIdentity>,
 }
