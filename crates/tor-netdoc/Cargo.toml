@@ -39,7 +39,6 @@ experimental = [
     "dangerous-expose-struct-fields",
     "experimental-api",
     "incomplete",
-    "hsdesc-inner-docs",
     "hs-dir",
     "hs-pow-full",
     "ns-vote",
@@ -59,7 +58,7 @@ incomplete = ["encode", "ns-vote", "parse2", "__is_experimental"]
 routerdesc = ["plain-consensus", "encode"]
 
 # Expose interfaces useful for testing
-testing = ["hex-literal", "hsdesc-inner-docs", "visibility"]
+testing = ["hex-literal", "visibility"]
 
 # Enable the "ns consensus" document type, which some relays cache and serve.
 plain-consensus = ["routerdesc", "encode"]
@@ -82,10 +81,6 @@ hs-client = ["hs-common"]
 hs-service = ["hs-common", "encode"]
 hs-common = ["tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
-hsdesc-inner-docs = [
-    "visibility",
-    "__is_experimental",
-] # TODO maybe fold this feature into `testing`
 
 # Onion service proof of work schemes
 hs-pow-full = ["tor-hscrypto/hs-pow-full", "__is_experimental"]
