@@ -4,6 +4,9 @@ pub mod channel;
 pub mod circuit;
 pub mod stream;
 
+#[cfg(feature = "rpc")]
+pub mod rpc;
+
 #[cfg(feature = "send-control-msg")]
 pub(crate) mod msghandler;
 pub(crate) mod reactor;
@@ -112,6 +115,11 @@ impl Conversation<'_> {
 /// is done preventing for instance multi path calls to be used on a single path. Top level types
 /// should prevent this and thus this object should never be used directly.
 #[derive(Debug)]
+#[cfg_attr(
+    feature = "rpc",
+    derive(derive_deftly::Deftly),
+    derive_deftly(tor_rpcbase::templates::Object)
+)]
 #[allow(dead_code)] // TODO(conflux)
 pub struct ClientTunnel {
     /// The underlying handle to the reactor.
@@ -181,6 +189,16 @@ impl ClientTunnel {
     /// of all the circuits in this tunnel.
     pub fn all_paths(&self) -> Vec<Arc<Path>> {
         self.circ.all_paths()
+    }
+
+    /// Return a representation of the Paths for all the circuits in this tunnel,
+    /// as a map from each circuits' UniqId to its path.
+    ///
+    /// This is only exposed for the RPC subsystem, where it is documented that the
+    /// format of `UniqId` is not stable.
+    #[cfg(feature = "rpc")]
+    pub(crate) fn tagged_paths(&self) -> std::collections::HashMap<UniqId, Arc<Path>> {
+        self.circ.mutable.tagged_paths()
     }
 
     /// Return a process-unique identifier for this tunnel.

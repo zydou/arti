@@ -154,6 +154,11 @@ assert_impl_all! { DataStream: Send, Sync }
 /// need to have a single owner for the `AsyncRead` and `AsyncWrite` APIs to
 /// work correctly.
 #[cfg(feature = "stream-ctrl")]
+#[cfg_attr(
+    feature = "rpc",
+    derive(derive_deftly::Deftly),
+    derive_deftly(tor_rpcbase::templates::Object)
+)]
 #[derive(Debug)]
 pub struct ClientDataStreamCtrl {
     /// The circuit to which this stream is attached.
