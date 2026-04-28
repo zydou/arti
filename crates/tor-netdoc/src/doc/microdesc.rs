@@ -162,9 +162,7 @@ impl Microdesc {
 /// must be present, because it is used to mark the start of the netdoc.
 #[derive(Debug, Clone, Default, Deftly, PartialEq, Eq)]
 #[derive_deftly(ItemValueParseable)]
-struct OnionKeyIntro(
-    #[deftly(netdoc(object))] Option<rsa::PublicKey>,
-);
+struct OnionKeyIntro(#[deftly(netdoc(object))] Option<rsa::PublicKey>);
 
 /// A microdescriptor annotated with additional data
 ///
