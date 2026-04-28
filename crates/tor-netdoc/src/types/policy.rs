@@ -27,7 +27,6 @@ pub use addrpolicy::{AddrPolicy, AddrPortPattern};
 pub use portpolicy::PortPolicy;
 
 use crate::NormalItemArgument;
-#[cfg(feature = "parse2")]
 use crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable};
 
 /// Error from an unparsable or invalid policy.
@@ -306,7 +305,6 @@ impl FromStr for PortRanges {
     }
 }
 
-#[cfg(feature = "parse2")]
 impl ItemArgumentParseable for PortRanges {
     /// [`PortRanges`] argument parser which is odd because port ranges are
     /// syntactically a single argument although semantically multiple ones.
@@ -459,7 +457,7 @@ mod test {
             ]
         );
 
-        #[cfg(feature = "parse2")]
+        // XXXX move this code out of the now-pointless block
         {
             use crate::parse2::{self, ParseInput};
 
