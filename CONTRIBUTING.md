@@ -151,6 +151,15 @@ You might want to begin by looking around the
 [codebase](https://gitlab.torproject.org/tpo/core/arti/), or getting to
 know our [architecture](./doc/dev/Architecture.md).
 
+Before you begin working on a large feature or bug fix,
+you may want to ask other Arti developers whether it's a good topic to contribute to.
+You can do this by opening a gitlab ticket (or commenting on an existing ticket),
+or asking on the [`\#tor-dev` IRC channel on OFTC](https://www.torproject.org/contact/).
+Someone else may already be working on this topic,
+or if it's related to an open ticket the ticket may be out of date.
+This helps to avoid situations where you've spent a lot of time on an MR,
+but we need to close it since it conflicts or is adjacent with active work by someone else.
+
 More tests would always be great. You can look at the [coverage reports](https://tpo.pages.torproject.net/core/arti/coverage/)
 to find out what parts need the more love.
 
