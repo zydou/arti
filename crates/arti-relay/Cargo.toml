@@ -58,7 +58,7 @@ strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1.7", features = ["signal"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.41.0" }
-tor-cert = { path = "../tor-cert", version = "0.41.0", features = ["encode"] }
+tor-cert = { path = "../tor-cert", version = "0.41.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.41.0", features = ["relay"] }
 tor-circmgr = { version = "0.41.0", path = "../tor-circmgr", features = ["flowctl-cc"] }
 tor-config = { path = "../tor-config", version = "0.41.0" }
