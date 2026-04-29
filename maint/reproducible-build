@@ -108,9 +108,19 @@ if [ -n "$macos" ]; then
 linker = "o64-clang++"
 EOF
 
-	# (The TB team maintains this cache.  I chose 15.5 more or less arbitrarily.
-	# It should be okay to use an SDK that is newer than our
-	# MACOSX_DEPLOYMENT_TARGET.)
+	# Here we explain hw oto find the SDK we want.  This
+	# originally comes from apple upstream as a '.dmg'.  The copy
+	# below is an extacted '.pkg' in a cache maintained by the TB
+	# team.
+	#
+	# To upgrade the SDK:
+	#   - Make sure that OSX_SDK_URL is a .pkg file in buid-sources.tbb.tpo.
+	#   - Set OSX_SDK_VERSION to the versions of that SDK.
+	#   - Set OSX_PKG_SHA256 to the sha256 digest of that SDK's pkg file.
+	#   - Make sure that OSX_PKG is the base-name of that pkg file.
+	#
+	# This SDK doesn't need to be the most recent or the oldest;
+	# it does have to be at least as recent as our MACOSX_DEPLOYMENT_TARGET.
 	OSX_SDK_URL=https://build-sources.tbb.torproject.org/CLTools_macOSNMOS_SDK-15.5.pkg
 	OSX_SDK_VERSION=15.5
 	OSX_PKG="CLTools_macOSNMOS_SDK-${OSX_SDK_VERSION}.pkg"
