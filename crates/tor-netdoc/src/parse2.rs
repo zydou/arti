@@ -95,7 +95,7 @@ pub mod multiplicity;
 mod signatures;
 mod traits;
 
-#[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
+#[cfg(feature = "incomplete")]
 pub mod poc;
 
 use internal_prelude::*;

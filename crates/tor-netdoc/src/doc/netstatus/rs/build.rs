@@ -10,5 +10,4 @@ use tor_protover::Protocols;
 use std::net::SocketAddr;
 
 pub(crate) mod md;
-#[cfg(feature = "plain-consensus")]
 pub(crate) mod plain;

@@ -1,7 +1,9 @@
 //! `EncodedAuthCert`
 
 use std::str::FromStr;
+use tor_error::Bug;
 
+use crate::encode::{NetdocEncodable, NetdocEncoder};
 use crate::parse2::{
     ErrorProblem, IsStructural, ItemStream, KeywordRef, NetdocParseable, ParseInput,
 };
@@ -268,12 +270,8 @@ impl NetdocParseable for EncodedAuthCert {
     }
 }
 
-#[cfg(feature = "encode")] // TODO get rid of this feature, and use imports rather than :: paths
-impl crate::encode::NetdocEncodable for EncodedAuthCert {
-    fn encode_unsigned(
-        &self,
-        out: &mut crate::encode::NetdocEncoder,
-    ) -> Result<(), tor_error::Bug> {
+impl NetdocEncodable for EncodedAuthCert {
+    fn encode_unsigned(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
         // OK because invariants include the right syntax including a trailing newline.
         out.push_raw_string(&self.as_str());
         Ok(())

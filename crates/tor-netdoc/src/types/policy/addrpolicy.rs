@@ -6,7 +6,6 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 
 use crate::NormalItemArgument;
-#[cfg(feature = "parse2")]
 use crate::parse2::{
     ErrorProblem as EP, ItemArgumentParseable, KeywordRef, NetdocParseableFields, UnparsedItem,
 };
@@ -84,7 +83,6 @@ impl AddrPolicy {
     }
 }
 
-#[cfg(feature = "parse2")]
 impl NetdocParseableFields for AddrPolicy {
     type Accumulator = AddrPolicy;
 
@@ -450,7 +448,6 @@ mod test {
         assert_eq!(&x2, &x);
     }
 
-    #[cfg(feature = "parse2")]
     #[test]
     fn parse2() {
         use crate::{

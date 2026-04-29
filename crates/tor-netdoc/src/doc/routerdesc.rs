@@ -214,7 +214,6 @@ impl std::str::FromStr for RelayPlatform {
     }
 }
 
-#[cfg(feature = "parse2")]
 impl ItemArgumentParseable for RelayPlatform {
     fn from_args<'s>(args: &mut ArgumentStream<'s>) -> std::result::Result<Self, ArgumentError> {
         args.into_remaining()

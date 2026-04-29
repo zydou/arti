@@ -27,7 +27,6 @@ pub use addrpolicy::{AddrPolicy, AddrPortPattern};
 pub use portpolicy::PortPolicy;
 
 use crate::NormalItemArgument;
-#[cfg(feature = "parse2")]
 use crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable};
 
 /// Error from an unparsable or invalid policy.
@@ -306,7 +305,6 @@ impl FromStr for PortRanges {
     }
 }
 
-#[cfg(feature = "parse2")]
 impl ItemArgumentParseable for PortRanges {
     /// [`PortRanges`] argument parser which is odd because port ranges are
     /// syntactically a single argument although semantically multiple ones.
@@ -350,6 +348,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::Result;
+    use crate::parse2::{self, ParseInput};
+
     #[test]
     fn parse_portrange() -> Result<()> {
         assert_eq!(
@@ -459,20 +459,15 @@ mod test {
             ]
         );
 
-        #[cfg(feature = "parse2")]
-        {
-            use crate::parse2::{self, ParseInput};
-
-            #[derive(derive_deftly::Deftly)]
-            #[derive_deftly(NetdocParseable)]
-            struct Dummy {
-                #[deftly(netdoc(single_arg))]
-                dummy: PortRanges,
-            }
-            let ranges2 =
-                parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {INPUT}\n"), ""))
-                    .unwrap();
-            assert_eq!(ranges, ranges2.dummy);
+        #[derive(derive_deftly::Deftly)]
+        #[derive_deftly(NetdocParseable)]
+        struct Dummy {
+            #[deftly(netdoc(single_arg))]
+            dummy: PortRanges,
         }
+        let ranges2 =
+            parse2::parse_netdoc::<Dummy>(&ParseInput::new(&format!("dummy {INPUT}\n"), ""))
+                .unwrap();
+        assert_eq!(ranges, ranges2.dummy);
     }
 }

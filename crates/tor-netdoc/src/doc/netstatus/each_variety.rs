@@ -30,11 +30,7 @@ ns_use_this_variety! {
 // and is missing some consensus fields that need to be manipulated by dirauths;
 // there are individual TODO comments about each such defect.
 #[derive(Clone, Debug, Deftly)]
-#[derive_deftly(Constructor)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableFields))]
-#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodableFields))]
-// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
+#[derive_deftly(Constructor, NetdocEncodableFields, NetdocParseableFields)]
 #[allow(clippy::exhaustive_structs)]
 pub struct Preamble {
     /// Consensus methods supported by this voter.

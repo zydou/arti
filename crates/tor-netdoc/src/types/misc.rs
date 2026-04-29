@@ -10,7 +10,6 @@ pub use b64impl::*;
 pub use contact_info::*;
 pub use curve25519impl::*;
 pub use ed25519impl::*;
-#[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 pub(crate) use edcert::*;
 pub use fingerprint::*;
 pub use hostname::*;
@@ -1143,11 +1142,9 @@ mod rsa {
 }
 
 /// Types for decoding Ed25519 certificates
-#[cfg(any(feature = "routerdesc", feature = "hs-common"))]
 mod edcert {
     use crate::{NetdocErrorKind as EK, Pos, Result};
     use tor_cert::{CertType, Ed25519Cert, KeyUnknownCert};
-    #[cfg(feature = "routerdesc")]
     use tor_llcrypto::pk::ed25519;
 
     /// An ed25519 certificate as parsed from a directory object, with
@@ -1183,7 +1180,6 @@ mod edcert {
             Ok(self)
         }
         /// Give an error if this certificate's subject_key is not `pk`
-        #[cfg(feature = "routerdesc")]
         pub(crate) fn check_subject_key_is(self, pk: &ed25519::Ed25519Identity) -> Result<Self> {
             if self.0.peek_subject_key().as_ed25519() != Some(pk) {
                 return Err(EK::BadObjectVal
@@ -2271,7 +2267,6 @@ mod test {
         assert!(failure.is_err());
     }
 
-    #[cfg(feature = "routerdesc")]
     #[test]
     fn ed_cert() {
         use tor_llcrypto::pk::ed25519::Ed25519Identity;

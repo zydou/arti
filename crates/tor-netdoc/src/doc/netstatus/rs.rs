@@ -6,12 +6,11 @@
 #[cfg(feature = "build_docs")]
 pub(crate) mod build;
 pub(crate) mod md;
-#[cfg(feature = "plain-consensus")]
 pub(crate) mod plain;
-#[cfg(feature = "ns-vote")]
+#[cfg(feature = "incomplete")]
 pub(crate) mod vote;
 
-use super::{ConsensusFlavor, ConsensusMethods};
+use super::{ConsensusFlavor, ConsensusMethods, consensus_methods_comma_separated};
 use crate::doc::netstatus::NetstatusKwd;
 use crate::doc::netstatus::{IgnoredPublicationTimeSp, Protocols, RelayWeight};
 use crate::parse::parser::Section;
@@ -19,18 +18,13 @@ use crate::types::misc::*;
 use crate::types::relay_flags::{self, DocRelayFlags, RelayFlag, RelayFlags};
 use crate::types::version::TorVersion;
 use crate::{Error, NetdocErrorKind as EK, Result};
+use derive_deftly::Deftly;
 use itertools::chain;
 use std::sync::Arc;
 use std::{net, time};
 use tor_basic_utils::intern::InternCache;
 use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
-
-#[cfg(feature = "parse2")]
-use {
-    super::consensus_methods_comma_separated, //
-    derive_deftly::Deftly,
-};
 
 /// A version as presented in a router status.
 ///
@@ -67,16 +61,12 @@ static OTHER_VERSION_CACHE: InternCache<str> = InternCache::new();
 ///    must sort it.
 ///  * These non-invariants apply both within one instance of this struct,
 ///    and across multiple instances of it within a `RouterStatus`.
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
-#[cfg(feature = "ns-vote")]
-#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Deftly)]
+#[derive_deftly(ItemValueParseable)]
 #[non_exhaustive]
 pub struct RouterStatusMdDigestsVote {
     /// The methods for which this document is applicable.
-    #[cfg_attr(
-        feature = "parse2",
-        deftly(netdoc(with = consensus_methods_comma_separated))
-    )]
+    #[deftly(netdoc(with = consensus_methods_comma_separated))]
     pub consensus_methods: ConsensusMethods,
 
     /// The various hashes of this document.

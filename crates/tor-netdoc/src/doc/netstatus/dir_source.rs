@@ -48,7 +48,7 @@ define_derive_deftly! {
     //
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:dir-source>
     #[derive(Debug, Clone, Deftly, amplify::Getters)]
-    #[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+    #[derive_deftly(ItemValueEncodable)]
     #[derive_deftly_adhoc] // ignore deftly attrs directed at Constructor
     pub struct SupersededAuthorityKey {
         /// Real nickname for this authority, not including the `-legacy`
@@ -96,7 +96,6 @@ define_derive_deftly! {
     /// Instead we derive `ItemValueParseable` on this and convert it ad-hoc
     /// in `ConsensusAuthoritySection`'s parser.
     #[derive(Debug, Clone, Deftly)]
-    #[cfg(feature = "parse2")]
     #[derive_deftly(ItemValueParseable)]
     #[derive_deftly_adhoc] // ignore deftly attrs directed at Constructor
     struct RawDirSource {
@@ -106,7 +105,6 @@ define_derive_deftly! {
         $DEFINE_NORMAL_FIELDS
     }
 
-    #[cfg(feature = "parse2")]
     impl RawDirSource {
         /// Convert into the public representation.
         fn into_superseded(self) -> Result<SupersededAuthorityKey, ErrorProblem> {
@@ -133,11 +131,8 @@ define_derive_deftly! {
 /// Corresponds to a dir-source line which is *not* a "superseded authority key entry".
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:dir-source>
 #[derive(Debug, Clone, Deftly)]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
 #[derive_deftly(SupersededAuthorityKey)]
-#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
-#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
-#[derive_deftly(Constructor)]
 #[allow(clippy::exhaustive_structs)]
 pub struct DirSource {
     /// human-readable nickname for this authority.
@@ -198,7 +193,6 @@ pub struct ConsensusAuthoritySection {
     pub __non_exhaustive: (),
 }
 
-#[cfg(feature = "encode")]
 impl NetdocEncodable for ConsensusAuthoritySection {
     fn encode_unsigned(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
         // bind all fields so that if any are added we remember to encode them
@@ -222,7 +216,6 @@ impl NetdocEncodable for ConsensusAuthoritySection {
     }
 }
 
-#[cfg(feature = "parse2")]
 impl NetdocParseable for ConsensusAuthoritySection {
     fn doctype_for_error() -> &'static str {
         "consensus.authorities"

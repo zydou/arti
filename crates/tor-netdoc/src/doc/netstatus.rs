@@ -52,37 +52,27 @@ mod dir_source;
 mod rs;
 
 pub mod md;
-#[cfg(feature = "plain-consensus")]
 pub mod plain;
-#[cfg(feature = "ns-vote")]
+#[cfg(feature = "incomplete")]
 pub mod vote;
 
 #[cfg(feature = "build_docs")]
 mod build;
 
-#[cfg(feature = "encode")]
-use {
-    crate::encode::{ItemValueEncodable, NetdocEncodable, NetdocEncoder}, //
-    tor_error::Bug,
-};
-#[cfg(feature = "parse2")]
-use {
-    crate::parse2::{self, ArgumentStream, ItemValueParseable}, //
-};
+pub use proto_statuses_parse2_encode::ProtoStatusesNetdocParseAccumulator;
 
-#[cfg(feature = "parse2")]
-pub use {
-    parse2::{ErrorProblem, IsStructural, ItemStream, KeywordRef, NetdocParseable, StopAt},
-    proto_statuses_parse2_encode::ProtoStatusesNetdocParseAccumulator, //
-};
-
-#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+#[cfg(feature = "incomplete")]
 use crate::doc::authcert::EncodedAuthCert;
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
+use crate::encode::{ItemValueEncodable, NetdocEncodable, NetdocEncoder};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
+use crate::parse2::{
+    self, ArgumentStream, ErrorProblem, IsStructural, ItemStream, ItemValueParseable, KeywordRef,
+    NetdocParseable, StopAt,
+};
 use crate::types::misc::*;
 use crate::types::relay_flags::{self, DocRelayFlags};
 use crate::util::PeekableIterator;
@@ -93,7 +83,7 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{net, result, time};
-use tor_error::{HasKind, bad_api_usage, internal};
+use tor_error::{Bug, HasKind, bad_api_usage, internal};
 use tor_protover::Protocols;
 
 use derive_deftly::{Deftly, define_derive_deftly};
@@ -107,7 +97,7 @@ use serde::{Deserialize, Deserializer};
 
 #[cfg(feature = "build_docs")]
 pub use build::MdConsensusBuilder;
-#[cfg(all(feature = "build_docs", feature = "plain-consensus"))]
+#[cfg(feature = "build_docs")]
 pub use build::PlainConsensusBuilder;
 #[cfg(feature = "build_docs")]
 ns_export_each_flavor! {
@@ -119,19 +109,14 @@ ns_export_each_variety! {
 }
 
 #[deprecated]
-#[cfg(feature = "ns_consensus")]
 pub use PlainConsensus as NsConsensus;
 #[deprecated]
-#[cfg(feature = "ns_consensus")]
 pub use PlainRouterStatus as NsRouterStatus;
 #[deprecated]
-#[cfg(feature = "ns_consensus")]
 pub use UncheckedPlainConsensus as UncheckedNsConsensus;
 #[deprecated]
-#[cfg(feature = "ns_consensus")]
 pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
-#[cfg(feature = "ns-vote")]
 pub use rs::{RouterStatusMdDigestsVote, SoftwareVersion};
 
 pub use dir_source::{ConsensusAuthoritySection, DirSource, SupersededAuthorityKey};
@@ -161,12 +146,8 @@ pub struct IgnoredPublicationTimeSp;
 ///
 /// Aggregate of three netdoc preamble fields.
 #[derive(Clone, Debug, Deftly)]
-#[derive_deftly(Constructor)]
+#[derive_deftly(Constructor, NetdocEncodableFields, NetdocParseableFields)]
 #[derive_deftly(Lifetime)]
-#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodableFields))]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableFields))]
-// derive_deftly_adhoc disables unused deftly attribute checking, so we needn't cfg_attr them all
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
 #[allow(clippy::exhaustive_structs)]
 pub struct Lifetime {
     /// `valid-after` --- Time at which the document becomes valid
@@ -278,8 +259,7 @@ impl NormalItemArgument for ConsensusMethod {}
 ///
 /// There is also [`consensus_methods_comma_separated`] for `m` lines in votes.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Deftly)]
-#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
-#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 #[non_exhaustive]
 pub struct ConsensusMethods {
     /// Consensus methods.
@@ -290,7 +270,6 @@ pub struct ConsensusMethods {
 ///
 /// As found in an `m` item in a vote:
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:m>
-#[cfg(feature = "parse2")]
 pub mod consensus_methods_comma_separated {
     use super::*;
     use parse2::ArgumentError as AE;
@@ -578,8 +557,7 @@ pub struct SharedRandVal([u8; 32]);
 /// along with meta-information about that value.
 #[derive(Debug, Clone, Deftly)]
 #[non_exhaustive]
-#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
-#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
     pub n_reveals: u8,
@@ -637,10 +615,7 @@ pub type MdAuthorityEntry = ConsensusAuthorityEntry;
 //  1. That avoids separating the two consensus authority entry types, which are identical
 //  2. The only common fields are `dir-source` and `contact`, so there is little duplication
 #[derive(Debug, Clone, Deftly)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
-#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
-#[derive_deftly(Constructor)]
+#[derive_deftly(Constructor, NetdocEncodable, NetdocParseable)]
 #[allow(clippy::exhaustive_structs)]
 pub struct ConsensusAuthorityEntry {
     /// Contents of the `dir-source` line about an authority
@@ -679,10 +654,7 @@ pub struct ConsensusAuthorityEntry {
 /// TODO DIRAUTH not all fields are here yet.
 // They have individual comments, below.
 #[derive(Debug, Clone, Deftly)]
-#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseable))]
-#[cfg_attr(feature = "encode", derive_deftly(NetdocEncodable))]
-#[cfg_attr(not(any(feature = "parse2", feature = "encode")), derive_deftly_adhoc)]
-#[derive_deftly(Constructor)]
+#[derive_deftly(Constructor, NetdocEncodable, NetdocParseable)]
 #[allow(clippy::exhaustive_structs)]
 pub struct VoteAuthorityEntry {
     /// Contents of the `dir-source` line about an authority
@@ -722,7 +694,7 @@ define_derive_deftly! {
 
     ${defcond F_NORMAL not(fmeta(netdoc(skip)))}
 
-    #[cfg(feature = "parse2")]
+    #[cfg(feature = "incomplete")] // needs EncodedAuthCert, otherwise complete
     impl NetdocParseable for VoteAuthoritySection {
         fn doctype_for_error() -> &'static str {
             "vote.authority.section"
@@ -758,7 +730,7 @@ define_derive_deftly! {
         }
     }
 
-    #[cfg(feature = "encode")]
+    #[cfg(feature = "incomplete")]
     impl NetdocEncodable for VoteAuthoritySection {
         fn encode_unsigned(&self, out: &mut NetdocEncoder) -> StdResult<(), Bug> {
           $(
@@ -779,7 +751,7 @@ define_derive_deftly! {
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(VoteAuthoritySection, Constructor)]
 #[allow(clippy::exhaustive_structs)]
-#[cfg(all(feature = "parse2", feature = "plain-consensus"))]
+#[cfg(feature = "incomplete")] // needs EncodedAuthCert, otherwise complete
 pub struct VoteAuthoritySection {
     /// Authority entry
     #[deftly(constructor)]
@@ -818,17 +790,14 @@ pub type UnvalidatedMdConsensus = md::UnvalidatedConsensus;
 /// and timeliness.
 pub type UncheckedMdConsensus = md::UncheckedConsensus;
 
-#[cfg(feature = "plain-consensus")]
 /// A consensus document that lists relays along with their
 /// router descriptor documents.
 pub type PlainConsensus = plain::Consensus;
 
-#[cfg(feature = "plain-consensus")]
 /// An PlainConsensus that has been parsed and checked for timeliness,
 /// but not for signatures.
 pub type UnvalidatedPlainConsensus = plain::UnvalidatedConsensus;
 
-#[cfg(feature = "plain-consensus")]
 /// An PlainConsensus that has been parsed but not checked for signatures
 /// and timeliness.
 pub type UncheckedPlainConsensus = plain::UncheckedConsensus;
@@ -1279,8 +1248,7 @@ impl RelayWeight {
 
 /// `parse2` impls for types in this modulea
 ///
-/// Separate module to save on repeated `cfg` and for a separate namespace.
-#[cfg(feature = "parse2")]
+/// Separate module for a separate namespace.
 mod parse2_impls {
     use super::*;
     pub(super) use parse2::{
@@ -1332,8 +1300,7 @@ mod parse2_impls {
 
 /// `encode` impls for types in this modulea
 ///
-/// Separate module to save on repeated `cfg` and for a separate namespace.
-#[cfg(feature = "encode")]
+/// Separate module for a separate namespace.
 mod encode_impls {
     use super::*;
     use std::result::Result;
@@ -1379,12 +1346,9 @@ impl Footer {
 
 /// `ProtoStatuses` parsing and encoding
 ///
-/// Separate module to save on repeated `cfg` to hide the helper struct
-#[cfg(any(feature = "encode", feature = "parse2"))]
+/// Separate module for separate namespace
 mod proto_statuses_parse2_encode {
-    #[cfg(feature = "encode")]
     use super::encode_impls::*;
-    #[cfg(feature = "parse2")]
     use super::parse2_impls::*;
     use super::*;
     use paste::paste;
@@ -1406,7 +1370,6 @@ mod proto_statuses_parse2_encode {
     macro_rules! impl_proto_statuses { { $( $rr:ident $cr:ident; )* } => { paste! {
         #[derive(Deftly)]
         #[derive_deftly(NetdocParseableFields)]
-        #[cfg(feature = "parse2")]
         // Only ProtoStatusesParseNetdocParseAccumulator is exposed.
         #[allow(unreachable_pub)]
         pub struct ProtoStatusesParseHelper {
@@ -1417,11 +1380,9 @@ mod proto_statuses_parse2_encode {
         }
 
         /// Partially parsed `ProtoStatuses`
-        #[cfg(feature = "parse2")]
         pub use ProtoStatusesParseHelperNetdocParseAccumulator
             as ProtoStatusesNetdocParseAccumulator;
 
-        #[cfg(feature = "parse2")]
         impl NetdocParseableFields for ProtoStatuses {
             type Accumulator = ProtoStatusesNetdocParseAccumulator;
             fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
@@ -1443,7 +1404,6 @@ mod proto_statuses_parse2_encode {
             }
         }
 
-        #[cfg(feature = "encode")]
         impl NetdocEncodableFields for ProtoStatuses {
             fn encode_fields(&self, out: &mut NetdocEncoder) -> Result<(), Bug> {
               $(
@@ -1648,7 +1608,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use hex_literal::hex;
-    #[cfg(all(feature = "ns-vote", feature = "parse2"))]
+    #[cfg(feature = "incomplete")]
     use {
         crate::parse2::{NetdocUnverified as _, ParseInput, parse_netdoc},
         std::fs,
@@ -1657,9 +1617,7 @@ mod test {
     const CERTS: &str = include_str!("../../testdata/authcerts2.txt");
     const CONSENSUS: &str = include_str!("../../testdata/mdconsensus1.txt");
 
-    #[cfg(feature = "plain-consensus")]
     const PLAIN_CERTS: &str = include_str!("../../testdata2/cached-certs");
-    #[cfg(feature = "plain-consensus")]
     const PLAIN_CONSENSUS: &str = include_str!("../../testdata2/cached-consensus");
 
     fn read_bad(fname: &str) -> String {
@@ -1740,7 +1698,6 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "plain-consensus")]
     fn parse_and_validate_ns() -> Result<()> {
         use tor_checkable::{SelfSigned, Timebound};
         let mut certs = Vec::new();
@@ -1766,12 +1723,12 @@ mod test {
     }
 
     #[test]
-    #[cfg(all(feature = "plain-consensus", feature = "incomplete"))]
+    #[cfg(feature = "incomplete")]
     fn parse2_vote() -> anyhow::Result<()> {
         let file = "testdata2/v3-status-votes--1";
         let text = fs::read_to_string(file)?;
 
-        // TODO replace the poc struct here when we have parsing of proper whole votes
+        // TODO DIRAUTH replace the poc struct here when we have parsing of proper whole votes
         use crate::parse2::poc::netstatus::NetworkStatusUnverifiedVote;
 
         let input = ParseInput::new(&text, file);
@@ -1884,20 +1841,15 @@ mod test {
         let p = "Hello=Goodbye Fred=7".parse::<NetParams<u32>>();
         assert!(p.is_err());
 
-        #[cfg(feature = "encode")]
-        {
-            use crate::encode::{ItemValueEncodable, NetdocEncoder};
-
-            for bad_kw in ["What=The", "", "\n", "\0"] {
-                let p = [(bad_kw, 42)].into_iter().collect::<NetParams<i32>>();
-                let mut d = NetdocEncoder::new();
-                let d = (|| {
-                    let i = d.item("bad-psrams");
-                    p.write_item_value_onto(i)?;
-                    d.finish()
-                })();
-                let _: tor_error::Bug = d.expect_err(bad_kw);
-            }
+        for bad_kw in ["What=The", "", "\n", "\0"] {
+            let p = [(bad_kw, 42)].into_iter().collect::<NetParams<i32>>();
+            let mut d = NetdocEncoder::new();
+            let d = (|| {
+                let i = d.item("bad-psrams");
+                p.write_item_value_onto(i)?;
+                d.finish()
+            })();
+            let _: tor_error::Bug = d.expect_err(bad_kw);
         }
     }
 

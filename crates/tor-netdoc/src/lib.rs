@@ -63,7 +63,7 @@ pub mod doc;
 mod err;
 pub mod types;
 
-#[cfg(all(test, feature = "parse2", feature = "encode"))]
+#[cfg(test)]
 mod test2;
 
 #[doc(hidden)]
@@ -76,8 +76,6 @@ pub use util::batching_split_before;
 
 pub use err::{BuildError, Error, NetdocErrorKind, Pos};
 
-#[cfg(feature = "encode")]
-#[cfg_attr(docsrs, doc(cfg(feature = "encode")))]
 pub use encode::NetdocBuilder;
 
 /// Alias for the Result type returned by most objects in this module.
