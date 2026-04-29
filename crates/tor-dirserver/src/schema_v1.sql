@@ -53,7 +53,7 @@ CREATE TABLE router_descriptor(
     docid                   TEXT NOT NULL UNIQUE,
     unsigned_sha1           TEXT NOT NULL UNIQUE,
     unsigned_sha2           TEXT NOT NULL UNIQUE,
-    kp_relay_id_rsa_sha1    TEXT NOT NULL,
+    kp_relay_id_rsa_sha1    TEXT,
     flavor                  TEXT NOT NULL,
     extra_unsigned_sha1     TEXT,
     FOREIGN KEY(docid) REFERENCES store(docid),
@@ -63,7 +63,7 @@ CREATE TABLE router_descriptor(
     CHECK(GLOB('*[^0-9A-F]*', extra_unsigned_sha1) == 0),
     CHECK(LENGTH(unsigned_sha1) == 40),
     CHECK(LENGTH(unsigned_sha2) == 64),
-    CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40),
+    CHECK(kp_relay_id_rsa_sha1 IS NULL OR LENGTH(kp_relay_id_rsa_sha1) == 40),
     CHECK(LENGTH(extra_unsigned_sha1) == 40)
 ) STRICT;
 

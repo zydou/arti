@@ -7191,6 +7191,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tor-basic-utils",
+ "tor-checkable",
  "tor-dirclient",
  "tor-dircommon",
  "tor-error",
