@@ -134,18 +134,8 @@ define_derive_deftly! {
     }
 }
 
-/// `directory-signature` hash algorithm argument
-#[derive(Clone, Copy, Debug, Eq, PartialEq, strum::EnumString, Deftly)]
-#[derive_deftly(DirectorySignatureHashesAccu)]
-#[non_exhaustive]
-#[strum(serialize_all = "snake_case")]
-pub enum DirectorySignatureHashAlgo {
-    /// SHA-1
-    #[deftly(hash_len = "20")]
-    Sha1,
-    /// SHA-256
-    #[deftly(hash_len = "32")]
-    Sha256,
+define_directory_signature_hash_algo! {
+    #[derive_deftly(DirectorySignatureHashesAccu)]
 }
 
 /// Unsupported `vote-status` value
