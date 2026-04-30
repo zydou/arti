@@ -119,9 +119,11 @@ pub enum AllowAnnotations {
 /// A type that is represented as a single argument
 /// whose representation is as for the type's `FromStr` and `Display`.
 ///
-/// Implementing this trait enables a blanket impl of `parse2::ItemArgumentParseable`
-/// and `build::ItemArgument`.
-pub trait NormalItemArgument: std::str::FromStr + std::fmt::Display {}
+/// Implementing this trait enables a blanket impl of
+/// [`parse2::ItemArgumentParseable`] (if `FromStr`)
+/// and
+/// [`encode::ItemArgument`] (if `Display`).
+pub trait NormalItemArgument {}
 // TODO: should we implement ItemArgument for, say, tor_llcrypto::pk::rsa::RsaIdentity ?
 // It's not clear whether it's always formatted the same way in all parts of the spec.
 // The Display impl of RsaIdentity adds a `$` which is not supposed to be present

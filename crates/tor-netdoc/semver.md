@@ -61,3 +61,8 @@ BREAKING: `ConsensusVoterInfo`; several field types changed
 ADDED: `ConsensusVoterInfo`: `ItemValueParseable`, `ItemValueEncodable`, `Constructor`
 ADDED: `VoteAuthorityEntry`, `VoteAuthoritySection`
 ADDED: `SupersededAuthorityKey`, `ConsensusAuthoritySection`
+BREAKING: `NormalItemArgument` no longer has `FromStr` and `Display` as supertraits
+BREAKING: `Unknown::as_ref` signature changed; `only_known` may be needed too now.
+ADDED: `Unknown::only_known`
+ADDED: `Unknown` is now an exhaustive enum.
+ADDED: `KeywordOrString`

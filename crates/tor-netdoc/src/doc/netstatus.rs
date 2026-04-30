@@ -85,6 +85,7 @@ use std::sync::Arc;
 use std::{net, result, time};
 use tor_error::{Bug, HasKind, bad_api_usage, internal};
 use tor_protover::Protocols;
+use void::ResultVoidExt as _;
 
 use derive_deftly::{Deftly, define_derive_deftly};
 use digest::Digest;
@@ -518,6 +519,10 @@ impl ConsensusFlavor {
     }
 }
 
+define_directory_signature_hash_algo! {
+    #[derive_deftly_adhoc] // TODO DIRAUTH; suppresses complaints about attrs used only in poc
+}
+
 /// The signature of a single directory authority on a networkstatus document.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -526,7 +531,7 @@ pub struct Signature {
     ///
     /// Currently sha1 and sh256 are recognized.  Here we only support
     /// sha256.
-    pub digestname: String,
+    pub digest_algo: KeywordOrString<DirectorySignatureHashAlgo>,
     /// Fingerprints of the keys for the authority that made
     /// this signature.
     pub key_ids: AuthCertKeyIds,
@@ -1447,7 +1452,7 @@ impl Signature {
             .at_pos(item.pos()));
         }
 
-        let (alg, id_fp, sk_fp) = if item.n_args() > 2 {
+        let (digest_algo, id_fp, sk_fp) = if item.n_args() > 2 {
             (
                 item.required_arg(0)?,
                 item.required_arg(1)?,
@@ -1457,7 +1462,7 @@ impl Signature {
             ("sha1", item.required_arg(0)?, item.required_arg(1)?)
         };
 
-        let digestname = alg.to_string();
+        let digest_algo = digest_algo.to_string().parse().void_unwrap();
         let id_fingerprint = id_fp.parse::<Fingerprint>()?.into();
         let sk_fingerprint = sk_fp.parse::<Fingerprint>()?.into();
         let key_ids = AuthCertKeyIds {
@@ -1467,7 +1472,7 @@ impl Signature {
         let signature = item.obj("SIGNATURE")?;
 
         Ok(Signature {
-            digestname,
+            digest_algo,
             key_ids,
             signature,
         })
@@ -1566,9 +1571,12 @@ impl SignatureGroup {
                 continue;
             }
 
-            let d: Option<&[u8]> = match sig.digestname.as_ref() {
-                "sha256" => self.sha256.as_ref().map(|a| &a[..]),
-                "sha1" => self.sha1.as_ref().map(|a| &a[..]),
+            use DirectorySignatureHashAlgo as DSHA;
+            use KeywordOrString as KOS;
+
+            let d: Option<&[u8]> = match sig.digest_algo {
+                KOS::Known(DSHA::Sha256) => self.sha256.as_ref().map(|a| &a[..]),
+                KOS::Known(DSHA::Sha1) => self.sha1.as_ref().map(|a| &a[..]),
                 _ => None, // We don't know how to find this digest.
             };
             if d.is_none() {

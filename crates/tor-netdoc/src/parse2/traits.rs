@@ -149,7 +149,7 @@ impl<T: ItemArgumentParseable> ItemArgumentParseable for Arc<T> {
     }
 }
 
-impl<T: NormalItemArgument> ItemArgumentParseable for T {
+impl<T: NormalItemArgument + FromStr> ItemArgumentParseable for T {
     fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, AE> {
         let v = args
             .next()

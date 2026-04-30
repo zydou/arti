@@ -91,3 +91,32 @@ fn test_as_mut_compiles() {
 
     let _: &mut S<()> = S { t: () }.as_mut();
 }
+
+/// Define `DirectorySignatureHashAlgo`, for `directory-signature` items
+///
+/// This macro exists to avoid clone-and-hack between poc and prod code.
+///
+/// It is difficult for either of those modules to use the other's definition,
+/// because they have different stability, different cfg gating,
+/// and want to derive deftly differently.
+///
+/// tl;dr: defining this type in doc/netstatus.rs would mean
+/// the poc derived structs would end up in the prod module;
+/// defining it in poc puts it behind the `incomplete` feature gate.
+//
+// TODO DIRAUTH after poc abolished, turn back into a normal struct DirectorySignatureHashAlgo
+macro_rules! define_directory_signature_hash_algo { { $( $attrs:tt )* } => {
+    /// `directory-signature` hash algorithm argument
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, strum::EnumString, Deftly)]
+    $($attrs)*
+    #[non_exhaustive]
+    #[strum(serialize_all = "snake_case")]
+    pub enum DirectorySignatureHashAlgo {
+        /// SHA-1
+        #[deftly(hash_len = "20")]
+        Sha1,
+        /// SHA-256
+        #[deftly(hash_len = "32")]
+        Sha256,
+    }
+} }

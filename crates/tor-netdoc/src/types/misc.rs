@@ -772,7 +772,7 @@ mod ignored_impl {
 /// `Unknown` is not `Eq` or `Ord` because we won't want to relate a `Discarded`
 /// to a `Retained`.  That would be a logic error.  `partial_cmp` gives `None` for this.
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_enums)] // this isn't going to change
 pub enum Unknown<T> {
     /// The parsing discarded unknown values and they are no longer available.
     Discarded(PhantomData<T>),
@@ -803,7 +803,22 @@ impl<T> Unknown<T> {
     }
 
     /// Obtain an `Unknown` containing (maybe) a reference
-    pub fn as_ref(&self) -> Option<&T> {
+    pub fn as_ref(&self) -> Unknown<&T> {
+        match self {
+            Unknown::Discarded(_) => Unknown::Discarded(PhantomData),
+            #[cfg(feature = "retain-unknown")]
+            Unknown::Retained(t) => Unknown::Retained(t),
+        }
+    }
+
+    /// Return the retained unknown data, giving `None` if none was saved
+    ///
+    /// This is the function for disregarding the possible previously existence
+    /// of now-discarded unknown (unrecognised) information.
+    ///
+    /// Use [`into_retained`](Self::into_retained) if it would be a bug
+    /// if unrecognised information had been previously discarded.
+    pub fn only_known(self) -> Option<T> {
         match self {
             Unknown::Discarded(_) => None,
             #[cfg(feature = "retain-unknown")]
@@ -857,6 +872,52 @@ impl<T: PartialOrd> PartialOrd for Unknown<T> {
             #[cfg(feature = "retain-unknown")]
             (Retained(a), Retained(b)) => a.partial_cmp(b),
         }
+    }
+}
+
+// ============================================================
+
+/// Known keyword (enum) value, or arbitrary string
+///
+/// `T` should be a `Copy` enum with unit variants.
+/// It should have appropriate `FromStr` and `Display`,
+/// as well as [`NormalItemArgument`], impls.
+///
+/// Then `KeywordOrString` will implement the same traits.
+///
+/// Unlike [`Unknown`], unknown values are always retained as strings.
+//
+// `RelayFlags` has machinery for parsing flags and retaining unknown values,
+// but it uses `Unknown` to maybe discard unknown flags,
+// and it is generally quite a lot more complicated.
+#[derive(Debug, PartialEq, Clone, Hash)]
+#[allow(clippy::exhaustive_enums)] // this isn't going to change
+pub enum KeywordOrString<T: Copy> {
+    /// Known and recognised `T`
+    Known(T),
+
+    /// Unknown value in arbitrary syntax
+    Unknown(String),
+}
+
+impl<T: Copy + NormalItemArgument> NormalItemArgument for KeywordOrString<T> {}
+
+impl<T: Copy + Display> Display for KeywordOrString<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            KeywordOrString::Known(t) => Display::fmt(t, f),
+            KeywordOrString::Unknown(s) => Display::fmt(s, f),
+        }
+    }
+}
+
+impl<T: Copy + FromStr> FromStr for KeywordOrString<T> {
+    type Err = Void;
+    fn from_str(s: &str) -> Result<Self, Void> {
+        Ok(match s.parse() {
+            Ok(y) => KeywordOrString::Known(y),
+            Err(_) => KeywordOrString::Unknown(s.to_owned()),
+        })
     }
 }
 
