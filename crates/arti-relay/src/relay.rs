@@ -437,6 +437,27 @@ impl<R: Runtime> TorRelay<R> {
             }
         });
 
+        // Channel used to ask the descriptor publisher to rebuild and re-publish the descriptor.
+        //
+        // TODO(relay): Give the tx to the crypto task. And give a crypto task's tx to the
+        // descriptor task.
+        let (desc_command_tx, desc_command_rx) = crate::tasks::descriptor::new_command_channel();
+        // We keep the sender alive for the lifetime of the relay so the channel stays open.
+        let _desc_command_tx = desc_command_tx;
+
+        // Build and publish the relay's own descriptor.
+        task_handles.spawn({
+            let runtime = self.runtime.clone();
+            let netdir = Arc::clone(self.client.dirmgr()) as Arc<_>;
+            async move {
+                crate::tasks::RelayDescriptorPublisherTask::new(runtime, netdir, desc_command_rx)
+                    .context("Failed to create descriptor publisher task")?
+                    .start()
+                    .await
+                    .context("Failed to run descriptor publisher task")
+            }
+        });
+
         // Launch client tasks.
         //
         // We need to hold on to these handles until the relay stops, otherwise dropping these
