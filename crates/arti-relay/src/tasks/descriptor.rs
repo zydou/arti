@@ -20,6 +20,7 @@ use futures::channel::mpsc;
 use futures::{StreamExt as _, select_biased};
 use tracing::{debug, trace};
 
+use tor_dircommon::authority::AuthorityContacts;
 use tor_dirpublish::{Publisher, UploadError, Uploader};
 use tor_netdir::{DirEvent, NetDirProvider};
 use tor_rtcompat::Runtime;
@@ -105,6 +106,11 @@ pub(crate) struct RelayDescriptorPublisherTask<R: Runtime> {
     /// Directory provider, used to learn about new consensus documents and parameters.
     netdir: Arc<dyn NetDirProvider>,
 
+    /// The directory authorities we upload our descriptor to.
+    ///
+    /// This is either from the config file or the compiled-in default list.
+    authorities: AuthorityContacts,
+
     /// Channel on which we receive [`DescriptorCommand`]s from other tasks.
     command_rx: DescriptorCommandReceiver,
 
@@ -123,6 +129,7 @@ impl<R: Runtime> RelayDescriptorPublisherTask<R> {
     pub(crate) fn new(
         runtime: R,
         netdir: Arc<dyn NetDirProvider>,
+        authorities: AuthorityContacts,
         command_rx: DescriptorCommandReceiver,
     ) -> anyhow::Result<Self> {
         let uploader = Arc::new(RelayDescUploader {
@@ -144,6 +151,7 @@ impl<R: Runtime> RelayDescriptorPublisherTask<R> {
         Ok(Self {
             runtime,
             netdir,
+            authorities,
             command_rx,
             publisher,
         })
@@ -162,14 +170,25 @@ impl<R: Runtime> RelayDescriptorPublisherTask<R> {
         todo!("descriptor building not yet implemented");
     }
 
-    /// Recompute the set of directory authorities we should upload to.
+    /// Recompute the set of directory authorities we upload to.
     ///
-    /// Returns `None` if we don't yet know the targets.
+    /// Each authority becomes one target, carrying all of its upload addresses so the [`Uploader`]
+    /// can try them in turn.
+    ///
+    /// Returns `None` if we somehow have no authorities at all.
     fn compute_targets(&self) -> Option<HashSet<Arc<DirAuthorityTarget>>> {
-        // TODO(relay): get the directory authorities to upload to. There is a challenge here
-        // because we will allow to have authorites in the config file or use the hardcoded one or
-        // from NetDir?
-        todo!("computing dirauth target not yet implemented");
+        let targets: HashSet<Arc<DirAuthorityTarget>> = self
+            .authorities
+            .uploads()
+            .iter()
+            .filter(|&addrs| !addrs.is_empty())
+            .cloned()
+            .map(|addrs| Arc::new(DirAuthorityTarget { addrs }))
+            .collect();
+
+        // This should never be None because we have compiled in authorities by default but better
+        // safe than sorry. If that case ever happens, the publisher will just do nothing.
+        (!targets.is_empty()).then_some(targets)
     }
 
     /// Rebuild the descriptor (and refresh targets) and hand it to the publisher.

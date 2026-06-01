@@ -449,12 +449,18 @@ impl<R: Runtime> TorRelay<R> {
         task_handles.spawn({
             let runtime = self.runtime.clone();
             let netdir = Arc::clone(self.client.dirmgr()) as Arc<_>;
+            let authorities = self.client.authorities().clone();
             async move {
-                crate::tasks::RelayDescriptorPublisherTask::new(runtime, netdir, desc_command_rx)
-                    .context("Failed to create descriptor publisher task")?
-                    .start()
-                    .await
-                    .context("Failed to run descriptor publisher task")
+                crate::tasks::RelayDescriptorPublisherTask::new(
+                    runtime,
+                    netdir,
+                    authorities,
+                    desc_command_rx,
+                )
+                .context("Failed to create descriptor publisher task")?
+                .start()
+                .await
+                .context("Failed to run descriptor publisher task")
             }
         });
 

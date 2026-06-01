@@ -5,6 +5,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use tor_chanmgr::ChanMgr;
 use tor_circmgr::{CircMgr, CircMgrConfig};
+use tor_dircommon::authority::AuthorityContacts;
 use tor_dirmgr::{DirMgr, DirMgrConfig, DirMgrStore, DirProvider};
 use tor_guardmgr::{GuardMgr, GuardMgrConfig};
 use tor_persist::FsStateMgr;
@@ -40,6 +41,12 @@ pub(crate) struct RelayClient<R: Runtime> {
 
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<dyn DirProvider>,
+
+    /// The directory authorities that either were either configured or the compiled-in defaults.
+    ///
+    /// We keep a copy here so we can pass it to the descriptor publisher task. These are not
+    /// exposed by a [`DirProvider`] hence why we keep that copy from the config.
+    authorities: AuthorityContacts,
 }
 
 impl<R: Runtime> RelayClient<R> {
@@ -79,6 +86,10 @@ impl<R: Runtime> RelayClient<R> {
             .context("Failed to initialize the circuit manager")?,
         );
 
+        // Clone the authorities before the config is moved into the `DirMgr`. This is either the
+        // configured authorities or the hardcoded compiled-in ones.
+        let authorities = dirmgr_config.authorities().clone();
+
         let dirmgr_store =
             DirMgrStore::new(&dirmgr_config, runtime.clone(), /* offline= */ false)
                 .context("Failed to initialize directory store")?;
@@ -103,6 +114,7 @@ impl<R: Runtime> RelayClient<R> {
             guardmgr,
             circmgr,
             dirmgr,
+            authorities,
         })
     }
 
@@ -131,5 +143,10 @@ impl<R: Runtime> RelayClient<R> {
     /// Get the client's [`DirProvider`].
     pub(crate) fn dirmgr(&self) -> &Arc<dyn DirProvider> {
         &self.dirmgr
+    }
+
+    /// Get the directory authorities the client is configured with.
+    pub(crate) fn authorities(&self) -> &AuthorityContacts {
+        &self.authorities
     }
 }
