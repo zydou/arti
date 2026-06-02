@@ -34,6 +34,7 @@ full = [
     "tor-general-addr/full",
     "tor-circmgr/full",
     "tor-dircommon/full",
+    "tor-dirclient/full",
     "tor-dirmgr/full",
     "tor-dirpublish/full",
     "tor-guardmgr/full",
@@ -82,6 +83,7 @@ tor-chanmgr = { path = "../tor-chanmgr", version = "0.44.0", features = ["relay"
 tor-circmgr = { version = "0.44.0", path = "../tor-circmgr", features = ["flowctl-cc"] }
 tor-config = { path = "../tor-config", version = "0.44.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.44.0" }
+tor-dirclient = { version = "0.44.0", path = "../tor-dirclient", features = ["relay"] }
 tor-dircommon = { version = "0.44.0", path = "../tor-dircommon" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.44.0" }
 tor-dirpublish = { path = "../tor-dirpublish", version = "0.44.0" }

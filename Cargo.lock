@@ -404,6 +404,7 @@ dependencies = [
  "tor-circmgr",
  "tor-config",
  "tor-config-path",
+ "tor-dirclient",
  "tor-dircommon",
  "tor-dirmgr",
  "tor-dirpublish",

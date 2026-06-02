@@ -20,6 +20,7 @@ use futures::channel::mpsc;
 use futures::{StreamExt as _, select_biased};
 use tracing::{debug, trace};
 
+use tor_dirclient::request::UploadRouterDesc;
 use tor_dircommon::authority::AuthorityContacts;
 use tor_dirpublish::{Publisher, UploadError, Uploader};
 use tor_netdir::{DirEvent, NetDirProvider};
@@ -43,8 +44,6 @@ pub(crate) type RelayDescDocument = String;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct DirAuthorityTarget {
     /// The upload (DirPort) socket addresses of this authority, possibly dual-stack.
-    // TODO(relay): remove once used.
-    #[allow(dead_code)]
     addrs: Vec<SocketAddr>,
 }
 
@@ -73,7 +72,7 @@ pub(crate) fn new_command_channel() -> (DescriptorCommandSender, DescriptorComma
 
 /// The [`Uploader`] used to deliver our descriptor to a directory authority.
 struct RelayDescUploader<R: Runtime> {
-    #[allow(dead_code)] // TODO(relay): used once upload() is implemented
+    /// Asynchronous runtime, used to open the connection to the authority.
     runtime: R,
 }
 
@@ -84,15 +83,35 @@ impl<R: Runtime> Uploader for RelayDescUploader<R> {
 
     async fn upload(
         self: Arc<Self>,
-        _target: Arc<Self::Target>,
-        _document: Arc<Self::Doc>,
+        target: Arc<Self::Target>,
+        document: Arc<Self::Doc>,
     ) -> Result<(), UploadError> {
-        // TODO(relay): upload the descriptor to the target which should be a dirauth.
+        let request = UploadRouterDesc::new(Arc::from(document.as_str()));
+
+        // Try the authority's addresses in turn. On connection failure, move on to the
+        // next address else upload over the first one we manage to reach.
         //
-        // This should:
-        //   * open a directory connection/circuit to target,
-        //   * POST the encoded descriptor document,
-        todo!("descriptor upload not yet implemented");
+        // TODO(relay): We need to check our relay capabilities for IPv6 and not try
+        // that. We might also want to sort this list in a preferred order.
+        let mut connect_err = None;
+        for addr in &target.addrs {
+            let mut stream = match self.runtime.connect(addr).await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    connect_err = Some(e);
+                    continue;
+                }
+            };
+
+            let response =
+                tor_dirclient::send_request(&self.runtime, &request, &mut stream, None).await;
+            return UploadError::from_directory_response(response);
+        }
+
+        // We couldn't connect to any of the authority's addresses.
+        Err(UploadError::Connect(Arc::new(connect_err.unwrap_or_else(
+            || std::io::Error::other("authority has no upload addresses"),
+        ))))
     }
 }
 
