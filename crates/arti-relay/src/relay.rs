@@ -445,12 +445,11 @@ impl<R: Runtime> TorRelay<R> {
 
         // Build and publish the relay's own descriptor.
         task_handles.spawn({
-            let runtime = self.runtime.clone();
             let netdir = Arc::clone(self.client.dirmgr()) as Arc<_>;
             let authorities = self.client.authorities().clone();
             async move {
                 crate::tasks::RelayDescriptorPublisherTask::new(
-                    runtime,
+                    &self.runtime,
                     netdir,
                     authorities,
                     crypto_command_tx,
