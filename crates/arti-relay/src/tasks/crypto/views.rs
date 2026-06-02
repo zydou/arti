@@ -52,6 +52,15 @@ pub(super) struct ValidUntilChanged {
     pub(super) ntor_previous: bool,
 }
 
+impl ValidUntilChanged {
+    /// Return true iff at least one key that is used for a relay descriptor has changed.
+    ///
+    /// The relay descriptor requires the relay signing key and the ntor key (onion key).
+    pub(super) fn relay_desc_keys_changed(&self) -> bool {
+        self.relaysign_ed || self.ntor_latest
+    }
+}
+
 /// A full view of all relay keys within the [`KeyMgr`] it holds.
 ///
 /// This keeps the key view that are used accross tasks coherent that is it keeps a cache of

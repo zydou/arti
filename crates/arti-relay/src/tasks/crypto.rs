@@ -22,7 +22,10 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use crate::{
     keys::{RelayIdentityKeypairSpecifier, RelayIdentityRsaKeypairSpecifier},
-    tasks::crypto::views::FullKeyView,
+    tasks::{
+        crypto::views::FullKeyView,
+        descriptor::{DescriptorCommand, DescriptorCommandSender},
+    },
 };
 
 /// Buffer time before key expiry to trigger rotation. This ensures we rotate slightly before the
@@ -120,6 +123,8 @@ pub(crate) struct Reactor<R: Runtime> {
     view: FullKeyView<KeyMgr>,
     /// Net directory provider used to watch for consensus changes.
     netdir: Arc<dyn NetDirProvider>,
+    /// Descriptor task TX channel.
+    desc_tx: DescriptorCommandSender,
 }
 
 impl<R: Runtime> Reactor<R> {
@@ -130,6 +135,7 @@ impl<R: Runtime> Reactor<R> {
         create_request_handler: Arc<CreateRequestHandler>,
         keymgr: KeyMgr,
         netdir: Arc<dyn NetDirProvider>,
+        desc_tx: DescriptorCommandSender,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             runtime,
@@ -137,6 +143,7 @@ impl<R: Runtime> Reactor<R> {
             create_request_handler,
             view: FullKeyView::new(keymgr)?,
             netdir,
+            desc_tx,
         })
     }
 
@@ -207,6 +214,13 @@ impl<R: Runtime> Reactor<R> {
         if changed.ntor_latest || changed.ntor_previous {
             let ntor_keys = self.view.ks_ntor_keys()?;
             self.create_request_handler.update_ntor_keys(ntor_keys);
+        }
+
+        // Notify the descriptor task that its keys have changed.
+        if changed.relay_desc_keys_changed() {
+            self.desc_tx
+                .try_send(DescriptorCommand::Publish)
+                .context("Desc task channel is gone")?;
         }
 
         // Sleep until the earliest key expiry minus buffer so we rotate before it expires.

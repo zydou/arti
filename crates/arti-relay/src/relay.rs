@@ -428,6 +428,7 @@ impl<R: Runtime> TorRelay<R> {
                 self.create_request_handler.clone(),
                 self.keymgr,
                 self.client.dirmgr().clone(),
+                desc_command_tx,
             )?;
             async {
                 reactor
@@ -442,8 +443,6 @@ impl<R: Runtime> TorRelay<R> {
         // TODO(relay): Give the tx to the crypto task. And give a crypto task's tx to the
         // descriptor task.
         let (desc_command_tx, desc_command_rx) = crate::tasks::descriptor::new_command_channel();
-        // We keep the sender alive for the lifetime of the relay so the channel stays open.
-        let _desc_command_tx = desc_command_tx;
 
         // Build and publish the relay's own descriptor.
         task_handles.spawn({
