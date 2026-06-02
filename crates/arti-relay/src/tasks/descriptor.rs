@@ -18,6 +18,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::{StreamExt as _, select_biased};
+use tor_async_utils::oneshot;
 use tracing::{debug, trace};
 
 use tor_dirclient::request::UploadRouterDesc;
@@ -25,6 +26,8 @@ use tor_dircommon::authority::AuthorityContacts;
 use tor_dirpublish::{Publisher, UploadError, Uploader};
 use tor_netdir::{DirEvent, NetDirProvider};
 use tor_rtcompat::Runtime;
+
+use crate::tasks::crypto::{CryptoCommand, CryptoCommandSender};
 
 /// Initial delay before retrying a failed descriptor upload.
 ///
@@ -135,6 +138,9 @@ pub(crate) struct RelayDescriptorPublisherTask<R: Runtime> {
 
     /// The [`tor_dirpublish`] publisher that manages uploads to all targets.
     publisher: Arc<Publisher<RelayDescDocument, DirAuthorityTarget>>,
+
+    /// The crypto task sender channel.
+    crypto_tx: CryptoCommandSender,
 }
 
 impl<R: Runtime> RelayDescriptorPublisherTask<R> {
@@ -149,6 +155,7 @@ impl<R: Runtime> RelayDescriptorPublisherTask<R> {
         runtime: R,
         netdir: Arc<dyn NetDirProvider>,
         authorities: AuthorityContacts,
+        crypto_tx: CryptoCommandSender,
         command_rx: DescriptorCommandReceiver,
     ) -> anyhow::Result<Self> {
         let uploader = Arc::new(RelayDescUploader {
@@ -173,6 +180,7 @@ impl<R: Runtime> RelayDescriptorPublisherTask<R> {
             authorities,
             command_rx,
             publisher,
+            crypto_tx,
         })
     }
 
@@ -180,12 +188,26 @@ impl<R: Runtime> RelayDescriptorPublisherTask<R> {
     ///
     /// Returns `None` if we don't have everything we need to build a descriptor.
     #[allow(clippy::unused_async)] // TODO(relay): remove once used.
-    async fn build_descriptor(&self) -> anyhow::Result<Option<Arc<RelayDescDocument>>> {
+    async fn build_descriptor(&mut self) -> anyhow::Result<Option<Arc<RelayDescDocument>>> {
         // TODO(relay): No relay desc encoding support yet from tor-netdoc.
         //
         // Once encoding exists, this should:
-        //   * gather the relay's keys by asking the crypto task.
         //   * encode and sign the descriptor,
+
+        // Get the latest ntor key (onion key) from the crypto task.
+        let (tx, rx) = oneshot::channel();
+        self.crypto_tx
+            .try_send(CryptoCommand::GetLatestNtorKey { tx })
+            .context("Crypto task is gone")?;
+        let _ntor_key = rx.await.context("Unable to get ntor key")?;
+
+        // Get the relay signing key from the crypto task.
+        let (tx, rx) = oneshot::channel();
+        self.crypto_tx
+            .try_send(CryptoCommand::GetSignKey { tx })
+            .context("Crypto task is gone")?;
+        let _relay_sign_kp = rx.await.context("Unable to get relay sign keypair")?;
+
         todo!("descriptor building not yet implemented");
     }
 
@@ -211,7 +233,7 @@ impl<R: Runtime> RelayDescriptorPublisherTask<R> {
     }
 
     /// Rebuild the descriptor (and refresh targets) and hand it to the publisher.
-    async fn rebuild_and_publish(&self) -> anyhow::Result<()> {
+    async fn rebuild_and_publish(&mut self) -> anyhow::Result<()> {
         // Adjust the targets onto our publisher before.
         if let Some(targets) = self.compute_targets() {
             self.publisher.adjust_targets(|t| *t = targets);

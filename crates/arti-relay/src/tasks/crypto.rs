@@ -3,21 +3,25 @@
 mod keys;
 mod views;
 
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use base64ct::{Base64Unpadded, Encoding};
-use futures::{FutureExt as _, StreamExt as _};
+use futures::{FutureExt as _, StreamExt as _, channel::mpsc};
 use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
 use tracing::trace;
 
+use tor_async_utils::oneshot;
 use tor_chanmgr::ChanMgr;
 use tor_keymgr::KeyMgr;
 use tor_netdir::{DirEvent, NetDirProvider};
 use tor_proto::RelayChannelAuthMaterial;
 use tor_proto::relay::CreateRequestHandler;
-use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayNtorKeys};
+use tor_relay_crypto::pk::{
+    RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayNtorKeys, RelayNtorPublicKey,
+    RelaySigningKeypair,
+};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use crate::{
@@ -34,6 +38,34 @@ use crate::{
 /// C-tor uses 3 hours for the link/auth key and 1 day for the signing key. Let's use 3 hours here,
 /// it should be plenty to make it happen even if hiccups happen.
 const KEY_ROTATION_EXPIRE_BUFFER: Duration = Duration::from_secs(3 * 60 * 60);
+
+/// A command sent handled by the [`Reactor`] over a command channel.
+#[derive(Debug)]
+#[non_exhaustive]
+pub(crate) enum CryptoCommand {
+    /// Request to get the latest ntor key.
+    GetLatestNtorKey {
+        /// Reply channel for the key.
+        tx: oneshot::Sender<RelayNtorPublicKey>,
+    },
+    /// Request to get the relay signing key.
+    GetSignKey {
+        /// Reply channel for the key.
+        tx: oneshot::Sender<RelaySigningKeypair>,
+    },
+}
+
+/// The sending side of the [`DescriptorCommand`] channel.
+pub(crate) type CryptoCommandSender = mpsc::Sender<CryptoCommand>;
+/// The receiving side of the [`DescriptorCommand`] channel.
+pub(crate) type CryptoCommandReceiver = mpsc::Receiver<CryptoCommand>;
+
+/// Returns a new [`CryptoCommand`] channel.
+///
+/// This is a bounded to limit key request spamming (in case of a bug).
+pub(crate) fn new_command_channel() -> (CryptoCommandSender, CryptoCommandReceiver) {
+    mpsc::channel(128)
+}
 
 /// Key rotation parameters derived from the consensus.
 #[derive(Copy, Clone, Debug)]
@@ -125,6 +157,8 @@ pub(crate) struct Reactor<R: Runtime> {
     netdir: Arc<dyn NetDirProvider>,
     /// Descriptor task TX channel.
     desc_tx: DescriptorCommandSender,
+    /// Our crypto command RX channel.
+    our_rx: CryptoCommandReceiver,
 }
 
 impl<R: Runtime> Reactor<R> {
@@ -136,6 +170,7 @@ impl<R: Runtime> Reactor<R> {
         keymgr: KeyMgr,
         netdir: Arc<dyn NetDirProvider>,
         desc_tx: DescriptorCommandSender,
+        our_rx: CryptoCommandReceiver,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             runtime,
@@ -144,6 +179,7 @@ impl<R: Runtime> Reactor<R> {
             view: FullKeyView::new(keymgr)?,
             netdir,
             desc_tx,
+            our_rx,
         })
     }
 
@@ -164,6 +200,24 @@ impl<R: Runtime> Reactor<R> {
         tracing::info!("RSA identity: {rsa_id}");
         tracing::info!("Ed25519 identity: {ed_id}");
         tracing::info!("Ntor public key: {ntor}");
+
+        Ok(())
+    }
+
+    /// Handle a [`CryptoCommand`] received by the reactor.
+    fn handle_command(&mut self, cmd: CryptoCommand) -> anyhow::Result<()> {
+        match cmd {
+            CryptoCommand::GetLatestNtorKey { tx } => {
+                let pubkey = self.view.ks_ntor_keys()?.latest().public();
+                tx.send(pubkey)
+                    .map_err(|_| anyhow!("GetLatestNtorKey replay tx failed"))?;
+            }
+            CryptoCommand::GetSignKey { tx } => {
+                let keypair = self.view.ks_relaysign_ed()?;
+                tx.send(keypair)
+                    .map_err(|_| anyhow!("GetSignKey replay tx failed"))?;
+            }
+        }
 
         Ok(())
     }
@@ -193,6 +247,13 @@ impl<R: Runtime> Reactor<R> {
                 // latest.
                 ev = consensus_events.next().fuse() => {
                     ev.context("NetDir event stream ended unexpectedly")?;
+                }
+                // Crypto command channel.
+                cmd = self.our_rx.next().fuse() => {
+                    let cmd = cmd.context("Crypto command channel closed")?;
+                    if let Err(e) = self.handle_command(cmd) {
+                        tracing::warn!("Command handling failure: {e}");
+                    }
                 }
             }
         }

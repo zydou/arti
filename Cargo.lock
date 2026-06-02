@@ -397,6 +397,7 @@ dependencies = [
  "strum",
  "thiserror 2.0.18",
  "tokio",
+ "tor-async-utils",
  "tor-basic-utils",
  "tor-cell",
  "tor-cert",
