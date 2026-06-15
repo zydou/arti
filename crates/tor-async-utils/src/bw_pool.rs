@@ -113,6 +113,11 @@ impl Permit {
     pub fn claim_all(&mut self) {
         let _ = self.claim(self.granted);
     }
+
+    /// How many tokens this permit still has granted a.k.a available.
+    pub fn granted(&self) -> u64 {
+        self.granted
+    }
 }
 
 impl Drop for Permit {

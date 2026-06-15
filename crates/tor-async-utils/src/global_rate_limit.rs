@@ -3,13 +3,16 @@
 //!
 //! Available in this module is:
 //!     * A [`sink::GlobalRateLimitedSink`] that implements [`futures::Sink`].
+//!     * A [`writer::GlobalRateLimitedWriter`] that implements [`futures::AsyncWrite`].
 //!
 //! Please read carefully each submodule documentation before using. These can be tricky
 //! to operate without a license ;).
 
 mod sink;
+mod writer;
 
 pub use sink::GlobalRateLimitedSink;
+pub use writer::GlobalRateLimitedWriter;
 
 use std::io::Error;
 use std::num::NonZero;
