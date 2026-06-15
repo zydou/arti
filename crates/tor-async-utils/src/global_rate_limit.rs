@@ -4,13 +4,16 @@
 //! Available in this module is:
 //!     * A [`sink::GlobalRateLimitedSink`] that implements [`futures::Sink`].
 //!     * A [`writer::GlobalRateLimitedWriter`] that implements [`futures::AsyncWrite`].
+//!     * A [`reader::GlobalRateLimitedReader`] that implements [`futures::AsyncRead`].
 //!
 //! Please read carefully each submodule documentation before using. These can be tricky
 //! to operate without a license ;).
 
+mod reader;
 mod sink;
 mod writer;
 
+pub use reader::GlobalRateLimitedReader;
 pub use sink::GlobalRateLimitedSink;
 pub use writer::GlobalRateLimitedWriter;
 
