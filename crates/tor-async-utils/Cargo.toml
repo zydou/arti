@@ -25,6 +25,9 @@ full = [
     "web-time-compat/full",
 ]
 tokio = ["dep:tokio", "dep:tokio-util"]
+# Use visibility dependency so we can change the some functions that our
+# benchmarks require from pub(crate) to pub.
+bench = ["dep:visibility"]
 
 [dependencies]
 cfg-if = "1.0.0"
@@ -43,12 +46,23 @@ tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-basic-utils = { version = "0.46.0", path = "../tor-basic-utils" }
 tor-rtcompat = { version = "0.46.0", path = "../tor-rtcompat" }
 tracing = "0.1"
+visibility = { version = "0.1.0", optional = true }
 void = "1"
 web-time-compat = { version = "0.2.0", path = "../web-time-compat" }
 
 [dev-dependencies]
+criterion = "0.8.0"
 futures-await-test = "0.3.0"
 tokio = { version = "1.47.1", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
 tor-error = { path = "../tor-error", version = "0.46.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.46.0" }
 visibility = "0.1.0"
+
+[[bench]]
+name = "bw_pool_fast"
+harness = false
+
+[[bench]]
+name = "bw_pool_slow"
+harness = false
+required-features = ["bench"]
