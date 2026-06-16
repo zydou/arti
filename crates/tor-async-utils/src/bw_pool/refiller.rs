@@ -4,42 +4,16 @@
 //!
 //! # Driving a pool
 //!
-//! The refiller should live in its own task that owns the clock and the rate. As an
-//! example, using the tor-proto TokenBucket, which is the missing clock part and knows
-//! the rate. The task should sleeps while the pool is idle.
+//! The refiller must live in its own task that owns the clock and the rate. Simply call
+//! [`BandwidthRefiller::run`] into a spawned task. It builds a token bucket from the given
+//! rate + burst and a [`tor_rtcompat::SleepProvider`].
 //!
-//! Here is an example of pseudo-Rust code that shows how to use the refiller:
+//! # Example
 //!
 //! ```ignore
-//!
-//! // If Some(u64) is returned, it is the deficit that is needed to serve the next request.
-//! fn refill(bucket: &mut TokenBucket<Instant>, refiller: &mut BandwidthRefiller) -> Option<u64> {
-//!     bucket.refill(Instant::now());
-//!     let available = bucket.claim_all(); // Function doesn't exists, it is to show intent.
-//!     refiller.refill(available)
-//! }
-//!
-//! async fn drive(mut refiller: BandwidthRefiller, mut bucket: TokenBucket<Instant>) {
-//!     loop {
-//!         // Wait until the refiller gets a request. This avoids busy ticking the task.
-//!         if !refiller.wait().await {
-//!             return;
-//!         }
-//!
-//!         // Serve what we can until everyone is served (refill returning None) or we have
-//!         // a deficit for the next request. In that case, wait for that deficit.
-//!         while let Some(deficit) = refill(&mut bucket, &mut refiller) {
-//!             // Let the clock half tell us when the missing tokens will exist.
-//!             match bucket.tokens_available_at(deficit) {
-//!                 Ok(at) => sleep_until(at).await,
-//!                 // Zero rate or exceed capacity, something has gone wrong.
-//!                 Err(_) => return,
-//!             }
-//!         }
-//!         // Everyone is served, the surplus went back to the fast path. Go back to wait on the
-//!         // next request.
-//!     }
-//! }
+//! let (pool, refiller) = BandwidthPool::new(capacity);
+//! let config = TokenBucketConfig { rate, bucket_max: capacity };
+//! runtime.spawn(refiller.run(runtime.clone(), config))?;
 //! ```
 
 use futures::StreamExt as _;
@@ -48,6 +22,9 @@ use futures::task::AtomicWaker;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::task::Waker;
+
+use tor_basic_utils::token_bucket::{TokenBucket, TokenBucketConfig};
+use tor_rtcompat::SleepProvider;
 
 use super::bucket::AtomicTokenBucket;
 
@@ -188,6 +165,75 @@ impl BandwidthRefiller {
             rx,
             head: None,
             held: 0,
+        }
+    }
+
+    /// Start the refiller main loop. This should be run in its own task as it is
+    /// blocking until the bandwidth pool closes.
+    ///
+    /// Using the given [`SleepProvider`], we drive the refill with it along side a
+    /// [`TokenBucket`] that is built at the start with the given `config`.
+    ///
+    /// This waits on new request that comes in when the fast-path is depleted that is a
+    /// request waiting for a refill. Once a request is received, a refill is triggered
+    /// and then the loop sleeps until the needed deficit is available.
+    ///
+    /// As an example, if the queue has a request for 10 tokens but only 5 are available
+    /// in the pool after an immediate refill, we will sleep the exact time it takes to
+    /// get another 5 tokens. Then, it goes on to the next request and so on until the
+    /// queue is empty.
+    ///
+    /// Keen observer will notice that once a request is received, the refiller will have
+    /// to empty the entire queue before the fast path could even see 1 token added back
+    /// by a refill. That is because each iteration of the loop sleeps the exact amount
+    /// of time to fulfill the pending request.
+    ///
+    /// Returns when the pool is closed or if the config rate is zero or if the requested
+    /// amount of token is above the pool capacity.
+    pub async fn run<SP: SleepProvider>(mut self, sleep: SP, rate: u64) {
+        let config = TokenBucketConfig {
+            rate,
+            bucket_max: self.bucket.capacity(),
+        };
+        let mut bucket = TokenBucket::new(&config, sleep.now());
+        // Start empty. The pool's first start full. This avoids adding a second burst to
+        // the pool after the fast path is depleted.
+        let _ = bucket.drain_all();
+
+        loop {
+            // Wait on the "doorbell" that is a pending request wanting tokens.
+            if !self.wait().await {
+                // The pool is closed.
+                return;
+            }
+
+            // Serve the queue. Sleep for the deficit until queue is empty.
+            loop {
+                // Refill the bucket with what we can.
+                bucket.refill(sleep.now());
+                // This will reserve all available tokens from the pool so the fast-path
+                // ends up empty and then starts serving queued requests. We use all
+                // token from the TokenBucket as well.
+                //
+                // If everyone is served and we still have tokens, they are put back
+                // in the fast path.
+                match self.refill(bucket.drain_all()) {
+                    // We served everyone, fast-path has the surplus if any. Go back to
+                    // the doorbell.
+                    None => break,
+                    // The pending request wants `deficit` amount of tokens, wait for that
+                    // exact value.
+                    Some(deficit) => match bucket.tokens_available_at(deficit) {
+                        Ok(at) => {
+                            let d = at.saturating_duration_since(sleep.now());
+                            sleep.sleep(d).await;
+                        }
+                        // Zero rate or a deficit above the burst. We can never fulfill
+                        // that request so error else we are stuck.
+                        Err(_) => return,
+                    },
+                }
+            }
         }
     }
 
