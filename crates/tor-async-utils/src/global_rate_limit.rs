@@ -5,14 +5,18 @@
 //!     * A [`sink::GlobalRateLimitedSink`] that implements [`futures::Sink`].
 //!     * A [`writer::GlobalRateLimitedWriter`] that implements [`futures::AsyncWrite`].
 //!     * A [`reader::GlobalRateLimitedReader`] that implements [`futures::AsyncRead`].
+//!     * A [`conn::GlobalRateLimitedConn`] that implements both [`futures::AsyncRead`] and
+//!       [`futures::AsyncWrite`], rate limiting each direction independently.
 //!
 //! Please read carefully each submodule documentation before using. These can be tricky
 //! to operate without a license ;).
 
+mod conn;
 mod reader;
 mod sink;
 mod writer;
 
+pub use conn::GlobalRateLimitedConn;
 pub use reader::GlobalRateLimitedReader;
 pub use sink::GlobalRateLimitedSink;
 pub use writer::GlobalRateLimitedWriter;
