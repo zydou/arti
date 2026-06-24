@@ -1,3 +1,4 @@
+ADDED: `Copy` for `Ed25519Public`
 BREAKING: Remove `Eq` on `RouterDesc` and `RouterDescSignatures`
 BREAKING: Remove `Eq` on `EmbeddedCert` and `NtorOnionKeyCrossCert`
 ADDED: `NetdocEncodable` for `RouterDesc`
