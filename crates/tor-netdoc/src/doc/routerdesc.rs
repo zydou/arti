@@ -36,7 +36,9 @@ use crate::encode::{ItemEncoder, ItemValueEncodable};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::parse2::{ArgumentError, ErrorProblem, ItemValueParseable, UnparsedItem};
+use crate::parse2::{
+    ArgumentError, ErrorProblem, ItemValueParseable, SignaturesData, UnparsedItem, VerifyFailed,
+};
 use crate::types::family::{RelayFamily, RelayFamilyIds};
 use crate::types::policy::*;
 use crate::types::routerdesc::*;
@@ -53,9 +55,12 @@ use std::sync::LazyLock;
 use std::{iter, net, time};
 use tor_basic_utils::intern::Intern;
 use tor_cert::{CertType, KeyUnknownCert};
-use tor_checkable::{TimeBound, signed, timed};
+use tor_checkable::timed::TimeRangeBound;
+use tor_checkable::{Timebound, signed, timed};
 use tor_error::{internal, into_internal};
 use tor_llcrypto as ll;
+use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use digest::Digest;
@@ -125,7 +130,6 @@ pub struct RouterDesc {
     ///
     /// * `master-key-ed25519 <master key>`
     /// * Exactly once.
-    // TODO DIRAUTH when implementing verification, don't forget to check this!
     #[deftly(netdoc(single_arg))]
     pub master_key_ed25519: Ed25519Public,
 
@@ -290,9 +294,118 @@ pub struct RouterDescSignatures {
     pub router_signature: RouterSignature,
 }
 
-// TODO: Implement a .verify() method.
 // TODO: Implement a .encode_sign() method.
-impl RouterDescUnverified {}
+impl RouterDescUnverified {
+    /// Verifies a self-signed [`RouterDescUnverified`].
+    ///
+    /// This verification performs the following checks:
+    /// * [`RouterDesc::identity_ed25519`] is validly signed.
+    /// * [`RouterDesc::master_key_ed25519`] is as implied by [`RouterDesc::identity_ed25519`].
+    /// * [`RouterDesc::fingerprint`] is as implied by [`RouterDesc::signing_key`].
+    /// * [`RouterDesc::ntor_onion_key_crosscert`] is validly signed.
+    /// * [`RouterDesc::signing_key`] has correct length and exponent.
+    /// * All [`RouterDesc::family_cert`] elements are valid.
+    /// * The inner and outer [`RouterDescSignatures`] are valid.
+    ///
+    /// The result will be a [`TimeRangeBound`] composed from the respective
+    /// minimums and maximums found in the present certificates.  For the lower
+    /// bound, [`RouterDesc::published`] will also be taken into account when
+    /// determining the minimum.
+    //
+    // We deny the use of unused variables as a hint to use all TimeRangeBound
+    // values obtained through a dangerous split.
+    #[deny(unused_variables)]
+    fn verify(self) -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
+        // Type annotations to make LSP happy.
+        let (mut body, sigs): (RouterDesc, SignaturesData<_>) = (self.body, self.sigs);
+
+        // Collect all timebounds returned by .dangerously_into_parts().
+        let mut timebounds = Vec::new();
+
+        // Verify the ed25519 identity certificate.
+        // This also includes a check for the master-key-ed25519.
+        let (identity_ed25519, identity_ed25519_bounds) =
+            Ed25519IdentityCert::verify(body.identity_ed25519.raw_unverified().clone())?
+                .dangerously_into_parts();
+        let Ed25519IdentityCert {
+            id_ed25519,
+            sign_ed25519,
+        } = identity_ed25519;
+        if id_ed25519 != body.master_key_ed25519.0 {
+            return Err(VerifyFailed::Inconsistent);
+        }
+        body.identity_ed25519.set_verified(identity_ed25519);
+        timebounds.push(identity_ed25519_bounds);
+
+        // Keep track of the published value as lower time bound.
+        timebounds.push(TimeRangeBound::new_from_start_end((), Some(body.published.0), None));
+
+        // If set, ensure that the fingerprint equals to the signing key id.
+        if body
+            .fingerprint
+            .is_some_and(|fp| fp.0 != body.signing_key.to_rsa_identity())
+        {
+            return Err(VerifyFailed::Inconsistent);
+        }
+
+        // Verify the ntor-onion-key-crosscert.
+        // For this, we also need to convert the X25519 ntor key to an Ed25519
+        // key using convert_curve25519_to_ed25519_public().
+        let ntor_pk = convert_curve25519_to_ed25519_public(
+            &body.ntor_onion_key.0,
+            // Rust std turns false into 0 and true into 1.
+            body.ntor_onion_key_crosscert.bit.0.into(),
+        )
+        .ok_or(VerifyFailed::Other)?;
+        let (ntor_cc, ntor_cc_bounds) = Ed25519NtorCrossCert::verify(
+            ntor_pk.into(),
+            id_ed25519,
+            body.ntor_onion_key_crosscert.cert.raw_unverified().clone(),
+        )?
+        .dangerously_into_parts();
+        body.ntor_onion_key_crosscert.cert.set_verified(ntor_cc);
+        timebounds.push(ntor_cc_bounds);
+
+        // Verify that the signing key has the proper exponent and length.
+        // TODO DIRAUTH: We want to enforce this type wise with parse2.
+        if body.signing_key.bits() != 1024 || !body.signing_key.exponent_is(65537) {
+            return Err(VerifyFailed::Other);
+        }
+
+        // Verify all family certificates.
+        for cert in body.family_cert.0.iter_mut() {
+            let (cert_verified, cert_bounds) =
+                Ed25519FamilyCert::verify(id_ed25519, cert.raw_unverified().clone())?
+                    .dangerously_into_parts();
+            cert.set_verified(cert_verified);
+            timebounds.push(cert_bounds);
+        }
+
+        // Verify the actual outer document signatures.
+        // VerifyFailed should be an okay error variant in case that the hashes
+        // were not accumulated, as it is not possible to verify without a
+        // hash.
+        ed25519::PublicKey::try_from(sign_ed25519)
+            .map_err(|_| VerifyFailed::Other)?
+            .verify(
+                &sigs.hashes.sha256.ok_or(VerifyFailed::VerifyFailed)?,
+                &sigs.sigs.router_sig_ed25519.0,
+            )?;
+        body.signing_key.verify(
+            sigs.hashes.sha1.ok_or(VerifyFailed::VerifyFailed)?.as_ref(),
+            sigs.sigs.router_signature.0.as_ref(),
+        )?;
+
+        // Construct the final TimeRangeBound by obtaining the min and max.
+        // TODO DIRMIRROR: Replace the map logic with TimeRangeBound::intersect_bounds().
+        let min = timebounds.iter().filter_map(|x| x.bounds_start_end().0).min();
+        let max = timebounds.iter().filter_map(|x| x.bounds_start_end().1).max();
+        debug_assert!(min.is_some()); // At least always obtained from published.
+        debug_assert!(max.is_some()); // At least always obtained from an edcert.
+
+        Ok(TimeRangeBound::new_from_start_end(body, min, max))
+    }
+}
 
 /// Description of the software a relay is running.
 ///
