@@ -1534,7 +1534,10 @@ mod test {
         let rd = parse2::parse_netdoc_multiple::<RouterDescUnverified>(&input)
             .unwrap()
             .into_iter()
-            .map(|rd| rd.unwrap_unverified())
+            .map(|rd| {
+                rd.clone().verify().unwrap();
+                rd.unwrap_unverified()
+            })
             .map(|(body, sig)| (body, sig.sigs))
             .collect::<Vec<(RouterDesc, RouterDescSignatures)>>();
         assert_eq!(rd.len(), 20);
@@ -1559,6 +1562,10 @@ mod test {
         // This is the best we can get as the current encoder is not bug for
         // bug compatible with the CTor one (i.e. absence of TAP and different
         // order), so this is the closest we can get.
+        //
+        // Unfortunately, we cannot verify the re-encoded signatures, because
+        // the re-encoded body misses the TAP related fields which are accounted
+        // for in the signature however.
         let mut out = NetdocEncoder::new();
         for (body, sig) in &rd {
             body.encode_unsigned(&mut out).unwrap();
