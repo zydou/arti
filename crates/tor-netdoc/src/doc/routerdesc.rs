@@ -1282,6 +1282,7 @@ mod test {
         encode::{NetdocEncodable, NetdocEncoder},
         parse2::{self, NetdocParseableUnverified, ParseInput},
     };
+    use tor_llcrypto::pk::rsa;
 
     use super::*;
     const TESTDATA: &str = include_str!("../../testdata/routerdesc1.txt");
@@ -1580,5 +1581,50 @@ mod test {
             .map(|(body, sig)| (body, sig.sigs))
             .collect::<Vec<(RouterDesc, _)>>();
         assert_eq!(rd, rd2);
+    }
+
+    /// Very bad encode and sign method for router descriptors.
+    // TODO: Replace with proper one, once it exists
+    fn rd_encode_sign(doc: &RouterDesc, rsa: &rsa::KeyPair, ed25519: &ed25519::Keypair) -> String {
+        /// Helper for writing out router-sig-ed25519.
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocEncodable)]
+        struct Ed25519Writer {
+            router_sig_ed25519: RouterSigEd25519,
+        }
+
+        /// Helper for writing out router-signature.
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocEncodable)]
+        struct RsaWriter {
+            router_signature: RouterSignature,
+        }
+
+        // Add the router-sig-ed25519 signature.
+        let mut out = NetdocEncoder::new();
+        doc.encode_unsigned(&mut out).unwrap();
+        Ed25519Writer {
+            router_sig_ed25519: RouterSigEd25519::new_sign_netdoc(
+                ed25519,
+                &out,
+                "router-sig-ed25519",
+            )
+            .unwrap(),
+        }
+        .encode_unsigned(&mut out)
+        .unwrap();
+
+        // Add the router-signature signature.
+        RsaWriter {
+            router_signature: RouterSignature(
+                RsaSha1Signature::new_sign_netdoc(rsa, &out, "router-signature")
+                    .unwrap()
+                    .signature,
+            ),
+        }
+        .encode_unsigned(&mut out)
+        .unwrap();
+
+        out.finish().unwrap()
     }
 }
