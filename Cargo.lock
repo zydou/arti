@@ -218,6 +218,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry-proto",
  "opentelemetry_sdk",
+ "otlp-file-exporter",
  "paste",
  "pin-project",
  "postage",
@@ -4433,6 +4434,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2355d85b9a3786f481747ced0e0ff2ba35213a1f9bd406ed906554d7af805a1"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "otlp-file-exporter"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "opentelemetry-proto",
+ "opentelemetry_sdk",
+ "serde_json",
 ]
 
 [[package]]

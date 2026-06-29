@@ -1,0 +1,24 @@
+[package]
+name = "otlp-file-exporter"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Wesley Aptekar-Cassels <wesleyac@torproject.org>"]
+edition = "2024"
+rust-version = "1.91"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "OpenTelemetry SpanExporter for writing to a OTLP file."
+keywords = ["opentelemetry", "otlp", "tor", "arti"]
+categories = ["development-tools::profiling", "development-tools::debugging"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[dependencies]
+futures = "0.3.14"
+opentelemetry-proto = "0.32.0"
+opentelemetry_sdk = "0.32.1"
+serde_json = "1.0.50"
+
+[features]
+full = []
+
+[package.metadata.docs.rs]
+all-features = true

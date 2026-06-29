@@ -125,6 +125,7 @@ syslog = ["syslog-tracing"]
 opentelemetry = [
     "tracing-opentelemetry",
     "dep:opentelemetry",
+    "otlp-file-exporter",
     "opentelemetry_sdk",
     "opentelemetry-otlp",
     "opentelemetry-appender-tracing",
@@ -200,6 +201,7 @@ opentelemetry-appender-tracing = { version = "0.32.0", optional = true }
 opentelemetry-otlp = { version = "0.32.0", optional = true }
 opentelemetry-proto = { version = "0.32.0", optional = true }
 opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
+otlp-file-exporter = { path = "../otlp-file-exporter", version = "0.1.0", optional = true }
 paste = "1.0.3"
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }

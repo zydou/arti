@@ -20,8 +20,6 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{Layer, filter::Targets, fmt, registry};
 
 mod fields;
-#[cfg(feature = "opentelemetry")]
-mod otlp_file_exporter;
 mod time;
 
 /// Structure to hold our logging configuration options

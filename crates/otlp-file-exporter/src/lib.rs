@@ -18,7 +18,7 @@ use std::{
 
 /// Tracing exporter to write OTLP JSON to a file (or anything else that implements [`LineWriter`].
 #[derive(Debug)]
-pub(crate) struct FileExporter<W: Write + Send + Debug> {
+pub struct FileExporter<W: Write + Send + Debug> {
     /// The [`LineWriter`] to write to.
     writer: Arc<Mutex<LineWriter<W>>>,
     /// The [`Resource`] to associate spans with.
@@ -27,7 +27,7 @@ pub(crate) struct FileExporter<W: Write + Send + Debug> {
 
 impl<W: Write + Send + Debug> FileExporter<W> {
     /// Create a new [`FileExporter`]
-    pub(crate) fn new(writer: W, resource: Resource) -> Self {
+    pub fn new(writer: W, resource: Resource) -> Self {
         Self {
             writer: Arc::new(Mutex::new(LineWriter::new(writer))),
             resource,
