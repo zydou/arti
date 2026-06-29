@@ -315,6 +315,8 @@ impl CreateRequestHandler {
         let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
             .map_err(into_internal!("Circuit crypt state construction failed"))?;
 
+        let (crypto_out, crypto_in, _binding) = split_relay_layer(crypt);
+
         let circ_net_params = self
             .circ_net_params
             .read()
@@ -333,8 +335,6 @@ impl CreateRequestHandler {
 
         let response = CreatedFast::new(handshake_msg);
         let response = CreateResponse::CreatedFast(response);
-
-        let (crypto_out, crypto_in, _binding) = split_relay_layer(crypt);
 
         trace!("Completed CREATE_FAST handshake");
 
