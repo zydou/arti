@@ -45,6 +45,7 @@ use tor_memquota::mq_queue::MpscSpec;
 use tor_relay_crypto::pk::{RelayNtorKeypair, RelayNtorKeys};
 use tor_rtcompat::SpawnExt as _;
 use tor_rtcompat::{DynTimeProvider, Runtime};
+use tracing::trace;
 
 /// Everything needed to handle CREATE* messages on channels.
 #[derive(derive_more::Debug)]
@@ -335,6 +336,8 @@ impl CreateRequestHandler {
 
         let (crypto_out, crypto_in, _binding) = split_relay_layer(crypt);
 
+        trace!("Completed CREATE_FAST handshake");
+
         Ok(CompletedHandshakeComponents {
             response,
             hop_settings,
@@ -386,6 +389,8 @@ impl CreateRequestHandler {
 
         let response = Created2::new(handshake_msg);
         let response = CreateResponse::Created2(response);
+
+        trace!("Completed ntor handshake");
 
         Ok(CompletedHandshakeComponents {
             response,
