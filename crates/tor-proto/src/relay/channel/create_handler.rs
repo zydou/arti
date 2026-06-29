@@ -2,15 +2,14 @@
 
 use crate::FlowCtrlParameters;
 use crate::ccparams::{
-    Algorithm, AlgorithmDiscriminants, CongestionControlParams, CongestionWindowParams,
-    FixedWindowParams, RoundTripEstimatorParams, VegasParams,
+    AlgorithmDiscriminants, CongestionWindowParams, FixedWindowParams, RoundTripEstimatorParams,
+    VegasParams,
 };
 use crate::channel::Channel;
 use crate::circuit::CircuitRxSender;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::{CreateRequest, CreateResponse};
-use crate::circuit::circhop::{HopNegotiationType, HopSettings};
-use crate::client::circuit::CircParameters;
+use crate::circuit::circhop::{HandshakeParamsError, HopSettings};
 use crate::client::circuit::padding::PaddingController;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::CryptInit as _;
@@ -35,7 +34,7 @@ use tor_cell::chancell::msg::{
     CreateFast, Created2, CreatedFast, Destroy, DestroyReason, HandshakeType,
 };
 use tor_cell::relaycell::RelayCmd;
-use tor_error::{Bug, ErrorKind, HasKind, debug_report, internal, into_internal, warn_report};
+use tor_error::{ErrorKind, HasKind, debug_report, internal, into_internal, warn_report};
 use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::cipher::aes::Aes128Ctr;
 use tor_llcrypto::d::Sha1;
@@ -46,7 +45,6 @@ use tor_memquota::mq_queue::MpscSpec;
 use tor_relay_crypto::pk::{RelayNtorKeypair, RelayNtorKeys};
 use tor_rtcompat::SpawnExt as _;
 use tor_rtcompat::{DynTimeProvider, Runtime};
-use tracing::warn;
 
 /// Everything needed to handle CREATE* messages on channels.
 #[derive(derive_more::Debug)]
@@ -316,19 +314,18 @@ impl CreateRequestHandler {
         let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
             .map_err(into_internal!("Circuit crypt state construction failed"))?;
 
-        let circ_params = self
+        let circ_net_params = self
             .circ_net_params
             .read()
             .expect("rwlock poisoned")
-            // CREATE_FAST always uses fixed-window flow control.
-            .as_circ_parameters(AlgorithmDiscriminants::FixedWindow)?;
+            .clone();
 
-        // TODO(relay): I don't think that this is the right way to do this. It works for
-        // CREATE_FAST, but we might want to rethink it for CREATE2.
-        let protos = tor_protover::Protocols::default();
-        let hop_settings =
-            HopSettings::from_params_and_caps(HopNegotiationType::None, &circ_params, &protos)
-                .map_err(into_internal!("Unable to build `HopSettings`"))?;
+        let hop_settings = HopSettings::from_handshake_params(
+            circ_net_params,
+            // CREATE_FAST always uses fixed-window flow control.
+            AlgorithmDiscriminants::FixedWindow,
+            /* cgo_enabled= */ false,
+        )?;
 
         let response = CreatedFast::new(handshake_msg);
         let response = CreateResponse::CreatedFast(response);
@@ -368,19 +365,18 @@ impl CreateRequestHandler {
 
         let (crypto_out, crypto_in, _binding) = split_relay_layer(crypt);
 
-        let circ_params = self
+        let circ_net_params = self
             .circ_net_params
             .read()
             .expect("rwlock poisoned")
-            // CREATE2 with ntor (non-v3) always uses fixed-window flow control.
-            .as_circ_parameters(AlgorithmDiscriminants::FixedWindow)?;
+            .clone();
 
-        // TODO(relay): I don't think that this is the right way to do this. It works for
-        // ntor, but won't work well for ntor-v3.
-        let protos = tor_protover::Protocols::default();
-        let hop_settings =
-            HopSettings::from_params_and_caps(HopNegotiationType::None, &circ_params, &protos)
-                .map_err(into_internal!("Unable to build `HopSettings`"))?;
+        let hop_settings = HopSettings::from_handshake_params(
+            circ_net_params,
+            // CREATE2 with ntor (non-v3) always uses fixed-window flow control.
+            AlgorithmDiscriminants::FixedWindow,
+            /* cgo_enabled= */ false,
+        )?;
 
         let response = Created2::new(handshake_msg);
         let response = CreateResponse::Created2(response);
@@ -485,6 +481,9 @@ enum HandleCreateError {
     /// Circuit relay handshake failed.
     #[error("Circuit relay handshake failed")]
     Handshake(#[from] RelayHandshakeError),
+    /// Circuit relay handshake failed.
+    #[error("Failed to process the circuit relay handshake parameters")]
+    HandshakeParameters(#[from] HandshakeParamsError),
     /// The requested handshake type is unsupported.
     #[error("Unsupported handshake type {0}")]
     Create2HandshakeType(HandshakeType),
@@ -506,6 +505,7 @@ impl HasKind for HandleCreateError {
     fn kind(&self) -> ErrorKind {
         match self {
             Self::Handshake(e) => e.kind(),
+            Self::HandshakeParameters(e) => e.kind(),
             Self::Create2HandshakeType(_) => ErrorKind::NotImplemented,
             Self::Memquota(e) => e.kind(),
             Self::Spawn(e) => e.kind(),
@@ -588,52 +588,6 @@ pub struct CircNetParameters {
 
     /// Congestion control network parameters.
     pub cc: CongestionControlNetParams,
-}
-
-impl CircNetParameters {
-    /// Convert the [`CircNetParameters`] into a [`CircParameters`].
-    ///
-    /// We expect the circuit creation handshake to know what congestion control algorithm was
-    /// negotiated, and provide that as `algorithm`.
-    //
-    // We disable `unused` warnings at the root of tor-proto,
-    // but it's nice to have here so we re-enable it.
-    #[warn(unused)]
-    fn as_circ_parameters(&self, algorithm: AlgorithmDiscriminants) -> Result<CircParameters, Bug> {
-        // Unpack everything to make sure that we aren't missing anything
-        // (otherwise clippy would warn).
-        let Self {
-            extend_by_ed25519_id,
-            cc:
-                CongestionControlNetParams {
-                    fixed_window,
-                    vegas_exit,
-                    cwnd,
-                    rtt,
-                    flow_ctrl,
-                },
-        } = self;
-
-        let algorithm = match algorithm {
-            AlgorithmDiscriminants::FixedWindow => Algorithm::FixedWindow(*fixed_window),
-            AlgorithmDiscriminants::Vegas => Algorithm::Vegas(*vegas_exit),
-        };
-
-        // TODO(arti#2442): The builder pattern here seems like a footgun.
-        let cc = CongestionControlParams::builder()
-            .alg(algorithm)
-            .fixed_window_params(*fixed_window)
-            .cwnd_params(*cwnd)
-            .rtt_params(rtt.clone())
-            .build()
-            .map_err(into_internal!("Could not build `CongestionControlParams`"))?;
-
-        Ok(CircParameters::new(
-            *extend_by_ed25519_id,
-            cc,
-            flow_ctrl.clone(),
-        ))
-    }
 }
 
 /// An [`IncomingStreamRequestFilter`] factory for building [`IncomingStreamRequestFilter`]s.

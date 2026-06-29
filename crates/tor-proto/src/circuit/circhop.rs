@@ -34,7 +34,7 @@ use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
     StreamId, UnparsedRelayMsg,
 };
-use tor_error::{Bug, internal};
+use tor_error::{Bug, ErrorKind, HasKind, internal, into_internal};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 use tor_protover::named;
@@ -48,6 +48,12 @@ use web_time_compat::Instant;
 
 #[cfg(test)]
 use tor_cell::relaycell::msg::SendmeTag;
+
+#[cfg(feature = "relay")]
+use {
+    crate::ccparams::{Algorithm, AlgorithmDiscriminants},
+    crate::relay::{CircNetParameters, CongestionControlNetParams},
+};
 
 use cfg_if::cfg_if;
 
@@ -189,6 +195,69 @@ impl HopSettings {
         })
     }
 
+    /// Build a [`HopSettings`] from the parameters requested during a circuit handshake.
+    //
+    // We disable `unused` warnings at the root of tor-proto,
+    // but it's nice to have here so we re-enable it.
+    #[warn(unused)]
+    #[cfg(feature = "relay")]
+    pub(crate) fn from_handshake_params(
+        circ_net_params: CircNetParameters,
+        cc_algorithm: AlgorithmDiscriminants,
+        cgo_enabled: bool,
+    ) -> StdResult<Self, HandshakeParamsError> {
+        // Unpack everything to make sure that we aren't missing anything
+        // (otherwise clippy would warn).
+        let CircNetParameters {
+            // XXXX: We should remove this from `CircNetParameters` now that we no longer need it.
+            extend_by_ed25519_id: _,
+            cc:
+                CongestionControlNetParams {
+                    fixed_window,
+                    vegas_exit,
+                    cwnd,
+                    rtt,
+                    flow_ctrl,
+                },
+        } = circ_net_params;
+
+        let (cc_algorithm, relay_crypt_protocol) = match (cc_algorithm, cgo_enabled) {
+            (AlgorithmDiscriminants::FixedWindow, false) => (
+                Algorithm::FixedWindow(fixed_window),
+                RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0),
+            ),
+            (AlgorithmDiscriminants::FixedWindow, true) => {
+                return Err(HandshakeParamsError::IncompatibleParams(
+                    "requested CGO but not congestion control",
+                ));
+            }
+            (AlgorithmDiscriminants::Vegas, false) => (
+                Algorithm::Vegas(vegas_exit),
+                RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0),
+            ),
+            (AlgorithmDiscriminants::Vegas, true) => {
+                (Algorithm::Vegas(vegas_exit), RelayCryptLayerProtocol::Cgo)
+            }
+        };
+
+        // TODO(arti#2442): The builder pattern here seems like a footgun.
+        let ccontrol = CongestionControlParams::builder()
+            .alg(cc_algorithm)
+            .fixed_window_params(fixed_window)
+            .cwnd_params(cwnd)
+            .rtt_params(rtt)
+            .build()
+            .map_err(into_internal!("Could not build `CongestionControlParams`"))?;
+
+        Ok(Self {
+            ccontrol,
+            flow_ctrl_params: flow_ctrl,
+            relay_crypt_protocol,
+            n_incoming_cells_permitted: None,
+            n_outgoing_cells_permitted: None,
+        })
+    }
+
     /// Return the negotiated relay crypto protocol.
     pub(crate) fn relay_crypt_protocol(&self) -> RelayCryptLayerProtocol {
         self.relay_crypt_protocol
@@ -261,6 +330,27 @@ impl std::default::Default for CircParameters {
             flow_ctrl: FlowCtrlParameters::defaults_for_tests(),
             n_incoming_cells_permitted: None,
             n_outgoing_cells_permitted: None,
+        }
+    }
+}
+
+/// An error that can occur when building a [`HopSettings`] using parameters requested during a
+/// circuit handshake.
+#[derive(Clone, Debug, thiserror::Error)]
+pub(crate) enum HandshakeParamsError {
+    /// The provided parameters are incompatible with each other.
+    #[error("The provided handshake parameters are incompatible with each other: {0}")]
+    IncompatibleParams(&'static str),
+    /// An internal error.
+    #[error("Internal error")]
+    Internal(#[from] tor_error::Bug),
+}
+
+impl HasKind for HandshakeParamsError {
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Self::IncompatibleParams(_) => ErrorKind::TorProtocolViolation,
+            Self::Internal(_) => ErrorKind::Internal,
         }
     }
 }
