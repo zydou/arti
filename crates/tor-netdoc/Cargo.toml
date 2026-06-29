@@ -109,7 +109,7 @@ tor-checkable = { path = "../tor-checkable", version = "0.44.0" }
 tor-error = { path = "../tor-error", version = "0.44.0" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.44.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.44.0", optional = true }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.44.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.44.0", features = ["cvt-x25519"] }
 tor-protover = { path = "../tor-protover", version = "0.44.0", features = ["serde"] }
 tor-units = { version = "0.44.0", path = "../tor-units", optional = true }
 visibility = { version = "0.1.0", optional = true }
