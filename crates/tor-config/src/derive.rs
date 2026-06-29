@@ -1595,13 +1595,6 @@ where
 
 /// A trait implemented by types that we shouldn't actually use as fields in a configuration.
 pub trait ShouldNotBeUsed: seal::SealShouldNotBeUsed {}
-impl_many! {
-    // This is unsuitable, since there is no actual way to set a value to `none` in Toml.
-    // Use Duration with a default instead.
-    Option<std::time::Duration>,
-    Option<Option<std::time::Duration>>
-    : seal::SealShouldNotBeUsed, ShouldNotBeUsed
-}
 /// Declare that types shouldn't be used in a collection (because they would want magic
 /// serde handling, but that isn't implemented).
 macro_rules! should_not_be_used_in_collection {
