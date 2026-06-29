@@ -82,6 +82,7 @@ relay = [
     "tor-relay-crypto",
     "__is_experimental",
     "flowctl-cc",
+    "counter-galois-onion",
 ]
 rpc = ["stream-ctrl", "dep:tor-rpcbase", "dep:serde"]
 
