@@ -105,7 +105,6 @@ pub(crate) mod test {
     #[cfg(feature = "relay")]
     pub(crate) fn new_circ_net_params() -> CircNetParameters {
         CircNetParameters {
-            extend_by_ed25519_id: true,
             cc: CongestionControlNetParams::defaults_for_tests(),
         }
     }

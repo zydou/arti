@@ -583,9 +583,6 @@ impl CongestionControlNetParams {
 #[derive(Debug, Clone)]
 #[allow(clippy::exhaustive_structs)]
 pub struct CircNetParameters {
-    /// Whether we should include ed25519 identities when we send EXTEND2 cells.
-    pub extend_by_ed25519_id: bool,
-
     /// Congestion control network parameters.
     pub cc: CongestionControlNetParams,
 }

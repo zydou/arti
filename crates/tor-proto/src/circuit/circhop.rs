@@ -209,8 +209,6 @@ impl HopSettings {
         // Unpack everything to make sure that we aren't missing anything
         // (otherwise clippy would warn).
         let CircNetParameters {
-            // XXXX: We should remove this from `CircNetParameters` now that we no longer need it.
-            extend_by_ed25519_id: _,
             cc:
                 CongestionControlNetParams {
                     fixed_window,
