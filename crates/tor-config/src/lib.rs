@@ -62,6 +62,7 @@ pub mod metrics;
 mod misc;
 pub mod mistrust;
 mod mut_cfg;
+pub mod opentelemetry;
 pub mod setter_traits;
 pub mod sources;
 #[cfg(feature = "testing")]
@@ -87,6 +88,7 @@ pub use load::{resolve, resolve_ignore_warnings, resolve_return_results};
 pub use metrics::*;
 pub use misc::*;
 pub use mut_cfg::MutCfg;
+pub use opentelemetry::*;
 use serde::de::DeserializeOwned;
 pub use sources::{ConfigurationSource, ConfigurationSources};
 use tor_error::into_internal;

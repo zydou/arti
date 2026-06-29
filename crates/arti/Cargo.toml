@@ -130,6 +130,7 @@ opentelemetry = [
     "opentelemetry-otlp",
     "opentelemetry-appender-tracing",
     "opentelemetry-proto",
+    "tor-config/opentelemetry",
     "__is_experimental",
 ]
 
