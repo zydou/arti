@@ -7231,6 +7231,7 @@ dependencies = [
  "paste",
  "rangemap",
  "thiserror 2.0.19",
+ "tor-basic-utils",
  "tor-error",
  "tor-netdoc",
 ]
