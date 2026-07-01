@@ -4,8 +4,6 @@
 //!
 //! Contrast precise summaries, in `tor-netdoc/src/types/policy/summary.rs`.
 
-#![allow(unused)] // TODO DIRAUTH
-
 use super::*;
 
 // These are very specific to this area; let's not have them in the crate prelude.
@@ -382,7 +380,6 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use derive_deftly::Deftly;
-    use itertools::Itertools;
     use tor_netdoc::parse_testcase_from_netdoc;
     use tor_netdoc::types::policy::PortSummaryThresholds;
 

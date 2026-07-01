@@ -11,11 +11,14 @@ pub(crate) use itertools::{Itertools, chain};
 pub(crate) use paste::paste;
 pub(crate) use rangemap::RangeInclusiveMap;
 
+pub(crate) use tor_basic_utils::intern::GloballyInternable as _;
 pub(crate) use tor_error::{Bug, internal, into_internal};
 pub(crate) use tor_netdoc::{
-    //
+    doc::microdesc::{Microdesc, MicrodescConstructor},
     doc::netstatus::ConsensusMethod,
+    doc::routerdesc::RouterDesc,
     rangemap_mutate_range,
+    types::family::{RelayFamily, RelayFamilyId, RelayFamilyIds},
 };
 
 pub(crate) use crate::utils::*;
