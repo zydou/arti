@@ -67,6 +67,18 @@ use crate::bw_pool::refiller::RefillWaiter;
 // Public export as the outside world needs this.
 pub use crate::bw_pool::refiller::BandwidthRefiller;
 
+/// Error returned by this module.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum BwPoolError {
+    /// Over permit claim.
+    #[error("Permit's claim() exceeds the granted tokens")]
+    ClaimExceedsGrant,
+    /// The bandwidth pool is closed.
+    #[error("bandwidth pool is closed")]
+    PoolClosed,
+}
+
 /// Proof that the requested number of tokens were granted.
 ///
 /// If dropped, any remaining tokens will be refunded hence why there is a reference to
@@ -95,14 +107,13 @@ impl Permit {
     /// Returns true if the permit had at least `tokens` that are now claimed. Else,
     /// return false and nothing is claimed as in the caller is trying to use more
     /// than it was granted.
-    #[must_use]
-    pub fn claim(&mut self, tokens: u64) -> bool {
+    pub fn claim(&mut self, tokens: u64) -> Result<(), BwPoolError> {
         match self.granted.checked_sub(tokens) {
             Some(left) => {
                 self.granted = left;
-                true
+                Ok(())
             }
-            None => false,
+            None => Err(BwPoolError::ClaimExceedsGrant),
         }
     }
 
@@ -111,7 +122,8 @@ impl Permit {
     /// Used in the for a Sink implementation that gets its permit in the poll_ready()
     /// which is before the start_send().
     pub fn claim_all(&mut self) {
-        let _ = self.claim(self.granted);
+        let r = self.claim(self.granted);
+        debug_assert!(r.is_ok());
     }
 
     /// How many tokens this permit still has granted a.k.a available.
@@ -127,13 +139,6 @@ impl Drop for Permit {
         self.bucket.refund(self.granted);
     }
 }
-
-/// Error returned once the pool has been closed as in its [`BandwidthRefiller`] was
-/// dropped. We consider the pool closed.
-#[derive(Clone, Debug, thiserror::Error)]
-#[error("bandwidth pool is closed")]
-#[non_exhaustive]
-pub struct PoolClosed;
 
 /// A reusable bandwidth acquirer that is designed for an async context (poll).
 ///
@@ -191,7 +196,7 @@ impl BandwidthAcquirer {
         &mut self,
         cx: &mut Context<'_>,
         tokens: u64,
-    ) -> Poll<Result<Permit, PoolClosed>> {
+    ) -> Poll<Result<Permit, BwPoolError>> {
         if !self.in_flight {
             // Cap to the pool capacity as the refiller can never go beyond the burst.
             let tokens = tokens.min(self.pool.capacity());
@@ -253,7 +258,7 @@ impl BandwidthAcquirer {
         if self.pool.is_closed() {
             // The refiller is gone; nobody will ever serve us.
             self.in_flight = false;
-            return Poll::Ready(Err(PoolClosed));
+            return Poll::Ready(Err(BwPoolError::PoolClosed));
         }
 
         Poll::Pending
@@ -261,8 +266,8 @@ impl BandwidthAcquirer {
 
     /// Enqueue a request for `tokens` tokens that is NOT in flight.
     ///
-    /// Return a [`PoolClosed`] error if the refiller is gone.
-    fn enqueue_request(&mut self, cx: &mut Context<'_>, tokens: u64) -> Result<(), PoolClosed> {
+    /// Return a [`BwPoolError::PoolClosed`] error if the refiller is gone.
+    fn enqueue_request(&mut self, cx: &mut Context<'_>, tokens: u64) -> Result<(), BwPoolError> {
         // Reset the waiter with this new waker.
         self.waiter.reset(cx.waker());
         // Remember the in-flight amount so we can grant the permit later from it.
@@ -285,7 +290,7 @@ impl BandwidthAcquirer {
         {
             self.pool.bucket.remove_waiter();
             // The refiller is gone, the pool is closed.
-            return Err(PoolClosed);
+            return Err(BwPoolError::PoolClosed);
         }
         self.in_flight = true;
         Ok(())
@@ -382,7 +387,7 @@ impl BandwidthPool {
 
     /// Unit tests helper: async acquire wrapping a throwaway [`BandwidthAcquirer`].
     #[cfg(test)]
-    pub async fn acquire(&self, tokens: u64) -> Result<Permit, PoolClosed> {
+    async fn acquire(&self, tokens: u64) -> Result<Permit, BwPoolError> {
         if let Some(permit) = self.try_acquire(tokens) {
             return Ok(permit);
         }
@@ -439,7 +444,7 @@ mod test {
     }
 
     /// Expect `poll` to be a granted permit and claim all so the drop refunds zero.
-    fn expect_granted(poll: Poll<Result<Permit, PoolClosed>>) {
+    fn expect_granted(poll: Poll<Result<Permit, BwPoolError>>) {
         match poll {
             Poll::Ready(Ok(mut permit)) => permit.claim_all(),
             other => panic!("expected a granted permit, got {other:?}"),
@@ -554,7 +559,7 @@ mod test {
         assert!(pool.try_acquire(1).is_none());
         assert!(matches!(
             pool.acquire(10).now_or_never(),
-            Some(Err(PoolClosed)),
+            Some(Err(BwPoolError::PoolClosed)),
         ));
 
         // A blocked acquirer is woken with PoolClosed when the refiller drops.
@@ -566,7 +571,7 @@ mod test {
         drop(refiller);
         assert!(matches!(
             a.as_mut().poll(&mut cx),
-            Poll::Ready(Err(PoolClosed)),
+            Poll::Ready(Err(BwPoolError::PoolClosed)),
         ));
 
         let (pool, mut refiller) = BandwidthPool::new(0);
@@ -615,11 +620,17 @@ mod test {
         // Claims are cumulative.
         let mut permit = pool.try_acquire(40).unwrap();
         // Can't over claim.
-        assert!(!permit.claim(41));
-        assert!(permit.claim(10));
-        assert!(permit.claim(20));
+        assert!(matches!(
+            permit.claim(41),
+            Err(BwPoolError::ClaimExceedsGrant),
+        ));
+        assert!(permit.claim(10).is_ok());
+        assert!(permit.claim(20).is_ok());
         // Over claiming by one.
-        assert!(!permit.claim(11));
+        assert!(matches!(
+            permit.claim(11),
+            Err(BwPoolError::ClaimExceedsGrant),
+        ));
         // 10 remains unclaimed now (claimed: 30, unclaimed: 10, pool: 60)
         drop(permit);
         // Refund the 10 left, pool is now 70.
@@ -640,7 +651,7 @@ mod test {
 
         // Get 60 on the fast path and only use 10 so we keep holding 50.
         let mut permit_hold = pool.try_acquire(60).unwrap();
-        assert!(permit_hold.claim(10));
+        assert!(permit_hold.claim(10).is_ok());
         // Drain the rest so the pool is empty.
         let mut drain = pool.try_acquire(40).unwrap();
         drain.claim_all();

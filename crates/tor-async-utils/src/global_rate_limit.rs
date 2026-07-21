@@ -111,7 +111,7 @@ impl DirectionState {
         let mut permit = self.permit.take().expect("permit disappeared");
         // The claim should always succeed but if the inner misbehaves and reports a bigger
         // value than was granted, we claim it all to avoid refunding what was actually used.
-        if !permit.claim(to_u64(tokens)) {
+        if permit.claim(to_u64(tokens)).is_ok() {
             permit.claim_all();
         }
     }
@@ -126,9 +126,9 @@ impl DirectionState {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum GlobalRateLimitedError<E> {
-    /// The bandwidth pool was closed. No more refiller.
-    #[error("bandwidth pool closed")]
-    Pool(#[from] crate::bw_pool::PoolClosed),
+    /// The bandwidth pool is on error. No more refiller.
+    #[error("bandwidth pool error")]
+    Pool(#[from] crate::bw_pool::BwPoolError),
     /// The underlying sink failed.
     #[error("underlying sink error")]
     Sink(#[source] E),
