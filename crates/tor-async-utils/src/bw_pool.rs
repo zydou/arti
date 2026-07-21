@@ -220,28 +220,8 @@ impl BandwidthAcquirer {
             };
         }
 
-        // Optimization. Before re-registering the waker (see why below), check if we were
-        // granted. This is very cheap to call and avoids the waker registration complexity.
-        // However, it is NOT critical to the lockless state of this pool.
-        if self.waiter.is_granted() {
-            return Poll::Ready(Ok(self.grant_permit()));
-        }
-
-        // The async contract here is that even if we registered a previous Waker before,
-        // the one given right now is the one that is expected to be woken. Hence, the
-        // register() again.
-        //
-        // We then check again if the tokens were granted because of the documented
-        // `AtomicWaker` pattern that goes like this:
-        //
-        //      sink:     check if granted -> false
-        //      refiller: grant the tokens. waker.wake()
-        //      sink:     register(new waker). return Pending.
-        //
-        // That new waker is never woken up because the grant was done just before hence
-        // why we re-check the granted tokens.
-        self.waiter.set_waker(cx.waker());
-        if self.waiter.is_granted() {
+        // Register our current waker and check if we were granted.
+        if self.waiter.poll_granted(cx.waker()) {
             return Poll::Ready(Ok(self.grant_permit()));
         }
 

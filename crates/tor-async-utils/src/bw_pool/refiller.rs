@@ -41,17 +41,17 @@ use super::bucket::AtomicTokenBucket;
 /// before cancellation (drop) is forfeited.
 #[derive(Debug)]
 pub(super) struct RefillWaiter {
-    /// Set by the refiller once it has funded this request; read by the
-    /// acquirer on each poll to distinguish a grant from a spurious wakeup.
+    /// Set by the refiller once it has funded this request. Read by the acquirer on each
+    /// poll to distinguish a grant from a spurious wakeup.
     ///
-    /// Reset by the acquirer (while no request is in flight) before each new
-    /// request is sent.
+    /// Reset by the acquirer (while no request is in flight) before each new request is
+    /// sent.
     granted: AtomicBool,
-    /// The blocked acquirer's task waker; re-registered on every poll so it is
-    /// always current, and woken by the refiller on grant.
+    /// The blocked acquirer's task waker. Re-registered on every poll so it is always
+    /// current, and woken by the refiller on grant.
     waker: AtomicWaker,
-    /// How many tokens the acquirer is wanting. Set by the acquirer before the
-    /// waiter is sent and read by the refiller to decide when it can be funded.
+    /// How many tokens the acquirer is wanting. Set by the acquirer before the waiter is
+    /// sent and read by the refiller to decide when it can be funded.
     needed: AtomicU64,
 }
 
@@ -69,7 +69,7 @@ impl RefillWaiter {
     /// bandwidth.
     ///
     /// See [`Self::set_granted`] for the memory ordering.
-    pub(super) fn is_granted(&self) -> bool {
+    fn is_granted(&self) -> bool {
         self.granted.load(Ordering::Relaxed)
     }
 
@@ -77,6 +77,51 @@ impl RefillWaiter {
     pub(super) fn reset(&self, waker: &Waker) {
         self.set_granted(false);
         self.set_waker(waker);
+    }
+
+    /// Grant a number of tokens for this waiter.
+    ///
+    /// The `granted` value is given because it might be clamped so we simply set the
+    /// needed value to what was granted.
+    ///
+    /// This function does the atomic work in the proper order the caller doesn't need to
+    /// bother about. The concurrency handling logic is contained.
+    pub(super) fn grant(&self, granted: u64) {
+        // Set the clamped value before the flag so the needed value is correct when the
+        // flag is read as true.
+        self.set_needed(granted);
+        self.set_granted(true);
+        // We are granted, wake up the waiter!
+        self.wake();
+    }
+
+    /// Register the given `waker` and return true iff this waiter was granted.
+    ///
+    /// Note on the function name, it doesn't return a Poll state but this was done so
+    /// the function semantic carries the intent of the context.
+    pub(super) fn poll_granted(&self, waker: &Waker) -> bool {
+        // Optimization. Before re-registering the waker (see why below), check if we were
+        // granted. This is very cheap to call and avoids the waker registration complexity.
+        // However, it is NOT critical to the lockless state of this pool.
+        if self.is_granted() {
+            return true;
+        }
+
+        // The async contract here is that even if we registered a previous Waker before,
+        // the one given right now is the one that is expected to be woken. Hence, the
+        // register() again.
+        //
+        // We then check again if the tokens were granted because of the documented
+        // `AtomicWaker` pattern that goes like this:
+        //
+        //      sink:     check if granted -> false
+        //      refiller: grant the tokens. waker.wake()
+        //      sink:     register(new waker). return Pending.
+        //
+        // That new waker is never woken up because the grant was done just before hence
+        // why we re-check the granted tokens.
+        self.set_waker(waker);
+        self.is_granted()
     }
 
     /// Set atomically the given `val` as the granted value.
@@ -97,12 +142,12 @@ impl RefillWaiter {
     /// That happens-before is actually provided by the [`AtomicWaker`].
     ///
     /// [`Ordering::Relaxed`] suffices because the flag gates no other memory.
-    pub(super) fn set_granted(&self, val: bool) {
+    fn set_granted(&self, val: bool) {
         self.granted.store(val, Ordering::Relaxed);
     }
 
     /// Register the given `waker` into our atomic waker.
-    pub(super) fn set_waker(&self, waker: &Waker) {
+    fn set_waker(&self, waker: &Waker) {
         self.waker.register(waker);
     }
 
@@ -332,9 +377,7 @@ impl BandwidthRefiller {
             // down, the grant is forfeited but that is a documented limitation.
             self.held -= needed;
             // Just in case it was clamped.
-            req.set_needed(needed);
-            req.set_granted(true);
-            req.wake();
+            req.grant(needed);
             // Remove a waiter from the shared pool.
             self.bucket.remove_waiter();
         }
