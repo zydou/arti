@@ -175,9 +175,8 @@ impl BandwidthAcquirer {
     ///
     /// This sets the `in-flight` to false and reset `needed` as we now grant the permit.
     fn grant_permit(&mut self) -> Permit {
-        let granted = self.waiter.needed();
+        let granted = self.waiter.take_granted();
         self.in_flight = false;
-        self.waiter.set_needed(0);
         Permit::new(Arc::clone(&self.pool.bucket), granted)
     }
 
@@ -248,10 +247,8 @@ impl BandwidthAcquirer {
     ///
     /// Return a [`BwPoolError::PoolClosed`] error if the refiller is gone.
     fn enqueue_request(&mut self, cx: &mut Context<'_>, tokens: u64) -> Result<(), BwPoolError> {
-        // Reset the waiter with this new waker.
-        self.waiter.reset(cx.waker());
-        // Remember the in-flight amount so we can grant the permit later from it.
-        self.waiter.set_needed(tokens);
+        // Prepare the waiter for this new request.
+        self.waiter.prepare(cx.waker(), tokens);
         // Add the waiter before sending to avoid this race:
         //
         //      acquirer: send request

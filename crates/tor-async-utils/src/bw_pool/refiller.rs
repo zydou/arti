@@ -73,10 +73,15 @@ impl RefillWaiter {
         self.granted.load(Ordering::Relaxed)
     }
 
-    /// Reset this waiter with a new `waker`.
-    pub(super) fn reset(&self, waker: &Waker) {
+    /// Prepare this waiter for a new request of `tokens` tokens with the given `waker`.
+    ///
+    /// This must be called before the waiter is enqueued with the refiller.
+    pub(super) fn prepare(&self, waker: &Waker, tokens: u64) {
+        // Reset the waiter with this new waker.
         self.set_granted(false);
         self.set_waker(waker);
+        // Remember the in-flight amount so we can grant the permit later from it.
+        self.set_needed(tokens);
     }
 
     /// Grant a number of tokens for this waiter.
@@ -124,6 +129,15 @@ impl RefillWaiter {
         self.is_granted()
     }
 
+    /// Take the granted tokens out of this waiter leaving it to zero tokens.
+    ///
+    /// This is used by the acquirer to build the permit once granted.
+    pub(super) fn take_granted(&self) -> u64 {
+        let granted = self.needed();
+        self.set_needed(0);
+        granted
+    }
+
     /// Set atomically the given `val` as the granted value.
     ///
     /// # Ordering
@@ -157,7 +171,7 @@ impl RefillWaiter {
     }
 
     /// Return how many tokens this waiter is wanting.
-    pub(super) fn needed(&self) -> u64 {
+    fn needed(&self) -> u64 {
         self.needed.load(Ordering::Acquire)
     }
 
@@ -166,7 +180,7 @@ impl RefillWaiter {
     /// Stored [`Ordering::Release`] to match with the refiller's [`Ordering::Acquire`]
     /// load. It is not gating any memory but for thoroughness and synchronization
     /// between our methods.
-    pub(super) fn set_needed(&self, val: u64) {
+    fn set_needed(&self, val: u64) {
         self.needed.store(val, Ordering::Release);
     }
 }
