@@ -4,8 +4,10 @@ use crate::internal_prelude::*;
 
 mod ip_summary;
 mod method;
+mod tracked_method;
 
 pub use method::*;
+pub use tracked_method::*;
 
 /// Supported consensus methods
 ///
