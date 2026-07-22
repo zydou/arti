@@ -223,6 +223,10 @@ impl HopSettings {
 
         let HandshakeSubprotocols { relay_crypt_cgo } = subprotos_requested;
 
+        // TODO: We have similar logic in and around `HopSettings` that deals with determining the
+        // crypt protocol and cc algorithm to use. We might want to try to dedup some of this, or
+        // make it more self-contained. This is a bit tricky though since the code is used in
+        // different situations and the inputs are not the same.
         let (cc_algorithm, relay_crypt_protocol) = match (cc_algorithm, relay_crypt_cgo) {
             (AlgorithmDiscriminants::FixedWindow, Disabled) => (
                 Algorithm::FixedWindow(fixed_window),
