@@ -9,7 +9,7 @@ use crate::channel::Channel;
 use crate::circuit::CircuitRxSender;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::{CreateRequest, CreateResponse};
-use crate::circuit::circhop::{HandshakeParamsError, HopSettings};
+use crate::circuit::circhop::{HandshakeParamsError, HandshakeSubprotocols, HopSettings};
 use crate::client::circuit::padding::PaddingController;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::CryptInit as _;
@@ -320,11 +320,14 @@ impl CreateRequestHandler {
             .expect("rwlock poisoned")
             .clone();
 
+        // No subprotocols are requested during a CREATE_FAST handshake.
+        let subprotos = HandshakeSubprotocols::default();
+
         let hop_settings = HopSettings::from_handshake_params(
             circ_net_params,
             // CREATE_FAST always uses fixed-window flow control.
             AlgorithmDiscriminants::FixedWindow,
-            /* cgo_enabled= */ false,
+            subprotos,
         )?;
 
         let response = CreatedFast::new(handshake_msg);
@@ -371,11 +374,14 @@ impl CreateRequestHandler {
             .expect("rwlock poisoned")
             .clone();
 
+        // No subprotocols are requested during an ntor (non-v3) handshake.
+        let subprotos = HandshakeSubprotocols::default();
+
         let hop_settings = HopSettings::from_handshake_params(
             circ_net_params,
             // CREATE2 with ntor (non-v3) always uses fixed-window flow control.
             AlgorithmDiscriminants::FixedWindow,
-            /* cgo_enabled= */ false,
+            subprotos,
         )?;
 
         let response = Created2::new(handshake_msg);
