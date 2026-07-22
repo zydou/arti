@@ -313,7 +313,7 @@ impl ResolutionState {
 /// Only implemented for IPv4.
 pub(crate) fn summarise_policy_v4_approximate(
     policy: &AddrPolicy,
-    _method: SupportedConsensusMethod,
+    _method: &TrackedConsensusMethod,
 ) -> Result<PortPolicy, Bug> {
     let mut state = ResolutionState {
         port_map: RangeInclusiveMap::new(),
@@ -403,6 +403,10 @@ mod test {
         full: AddrPolicy,
     }
 
+    fn method_for_testing() -> TrackedConsensusMethod {
+        TrackedConsensusMethod::new(SupportedConsensusMethod::MAX)
+    }
+
     /// Run one test case where the approx summary is, in fact, precise
     ///
     /// The expected output is calculated with [`AddrPolicy::summarise_precise`]
@@ -413,7 +417,7 @@ mod test {
         let approx = summarise_policy_v4_approximate(
             //
             &case.full,
-            SupportedConsensusMethod::MAX,
+            &method_for_testing(),
         )
         .unwrap();
 
@@ -472,7 +476,7 @@ mod test {
         let approx = summarise_policy_v4_approximate(
             //
             &case.full,
-            SupportedConsensusMethod::MAX,
+            &method_for_testing(),
         )
         .unwrap();
 
