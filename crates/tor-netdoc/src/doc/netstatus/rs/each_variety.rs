@@ -162,7 +162,7 @@ pub struct RouterStatus {
     ///
     /// This field is not properly parsed in plain consensuses by the old parser.
     #[deftly(netdoc(keyword = "p"))]
-    pub port_policy: ns_type!(Option<Arc<PortPolicy>>, NotPresent, Option<Arc<PortPolicy>>),
+    pub port_policy: ns_type!(Option<Intern<PortPolicy>>, NotPresent, Option<Intern<PortPolicy>>),
 
     /// `id` --- Relay’s (ed25519) identity
     ///

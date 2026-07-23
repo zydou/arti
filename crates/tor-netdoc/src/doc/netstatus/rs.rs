@@ -24,7 +24,6 @@ use crate::{Error, NetdocErrorKind as EK, Result};
 use derive_deftly::Deftly;
 use itertools::chain;
 use std::cmp::Ordering;
-use std::sync::Arc;
 use std::{net, time};
 use tor_basic_utils::intern::{Intern, InternCache};
 use tor_error::{Bug, internal};
