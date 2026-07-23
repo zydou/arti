@@ -326,7 +326,7 @@ impl BandwidthRefiller {
     /// Add `tokens` to the pool and then serve all pending requests if any.
     ///
     /// The very first thing that this function does is drain the pool's fast path tokens
-    /// in order to avoid a newcomer jumping the queue.
+    /// in order to reserve its current balance for the waiting queue.
     ///
     /// Any surplus left will be put back into the pool's fast path.
     ///
@@ -392,8 +392,6 @@ impl BandwidthRefiller {
             self.held -= needed;
             // Just in case it was clamped.
             req.grant(needed);
-            // Remove a waiter from the shared pool.
-            self.bucket.remove_waiter();
         }
     }
 

@@ -29,14 +29,6 @@ pub(super) struct AtomicTokenBucket {
     /// This is atomic because it can be set during runtime. For instance, a config
     /// option reconfigure of a bandwidth rate.
     capacity: u64,
-    /// Number of acquire requests currently queued with the refiller.
-    ///
-    /// Incremented by an acquirer when it enqueues and decremented by the refiller when it
-    /// serves the request.
-    ///
-    /// We use this counter to gate the fast path because every refund goes back to the
-    /// available pool. As long as this is non-zero, the fast path can't access the pool.
-    waiters: AtomicU64,
 }
 
 impl AtomicTokenBucket {
@@ -47,7 +39,6 @@ impl AtomicTokenBucket {
         AtomicTokenBucket {
             available: AtomicU64::new(capacity),
             capacity,
-            waiters: AtomicU64::new(0),
         }
     }
 
@@ -110,37 +101,8 @@ impl AtomicTokenBucket {
     }
 
     /// Refund `tokens` back to the pool.
-    ///
-    /// The `available` pool fast path is gated by the number of `waiters`.
     pub(super) fn refund(&self, tokens: u64) {
         self.refill(tokens);
-    }
-
-    /// Return true iff there is at least one waiter.
-    ///
-    /// Relaxed: the counter gates no other memory. There is an extremely tiny race here
-    /// between the load and the comparison which will make the fast path miss, enqueue
-    /// the request. This is so small that we consider it negligible.
-    pub(super) fn has_waiters(&self) -> bool {
-        self.waiters.load(Ordering::Relaxed) > 0
-    }
-
-    /// Record that a new acquirer has queued a request with the refiller.
-    pub(super) fn add_waiter(&self) {
-        // Relaxed: only the atomic increment matters, the counter gates no other memory.
-        self.waiters.fetch_add(1, Ordering::Relaxed);
-    }
-
-    /// Record that one queued acquirer has been served by the refiller.
-    pub(super) fn remove_waiter(&self) {
-        // Let's prevent it from underflowing.
-        //
-        // Relaxed: only the atomic decrement matters, the counter gates no other memory.
-        let _ = self
-            .waiters
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |w| {
-                Some(w.saturating_sub(1))
-            });
     }
 
     /// Return the capacity.

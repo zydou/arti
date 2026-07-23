@@ -1,5 +1,4 @@
-//! A shared token pool with a lock-free fast path and FIFO waiting queue ensuring basic
-//! fairness.
+//! A shared token pool with a lock-free fast path and FIFO waiting queue.
 //!
 //! [`BandwidthPool`] is a set of tokens that many tasks can draw from concurrently
 //! representing a bandwidth [`Permit`]. Deciding how many tokens become available and
@@ -38,10 +37,10 @@
 //!
 //! ## Refund
 //!
-//! Refunded tokens always go back to the fast-path pool. Fairness is preserved by the
-//! fast path being gated on if we have any pending requests. This is so no newcomer
-//! jumps the queue. The [`BandwidthRefiller`] reclaims whatever sits in the pool on its
-//! next refill and serves the queued requests. Once emptied, the fast path is re-opened.
+//! Refunded tokens always go back to the fast-path pool where they are immediately
+//! available. A newcomer can acquire them while another request is queued but before
+//! the [`BandwidthRefiller`] drains the pool. This favors keeping the fast path busy
+//! over strict fairness between the fast path and the waiting queue.
 //!
 //! ## Teardown
 //!
@@ -206,6 +205,30 @@ impl BandwidthAcquirer {
             //
             // An under-utilized relay with bandwidth limitation will hit this path most
             // of the time.
+            //
+            // The fast path is deliberately not gated by queued requests. But there is a
+            // fairness race that we accept:
+            //
+            //      task A: fail the fast path and enqueue
+            //      permit: drop and refund enough tokens
+            //      task B: claim the refund before the refiller sees queued task A
+            //
+            // Task B has jumped task A.
+            //
+            // This is OK because the refiller drains the global bucket before serving
+            // the queue and the refill are never done directly into that bucket.
+            // Instead, it keeps it locally until all enqueued requests have been served.
+            // And so, letting B use the refund(s) keeps the pool active without breaking
+            // the rate/burst limits.
+            //
+            // This prevents a slow enqueuing on one CPU to not block the fast path on
+            // another CPU. This logic also applies for a slow refiller task. We
+            // essentially compromise almost-strict fairness for high throughput.
+            //
+            // For the case of a relay, in normal operations, we expect the write side to
+            // rarely have refunds and so this race would be rare. On the read side,
+            // refunds are much more likely to happen because as a relay we don't know
+            // exactly how many bytes we should expect at every recv().
             if let Some(permit) = self.pool.try_acquire(tokens) {
                 return Poll::Ready(Ok(permit));
             }
@@ -249,14 +272,6 @@ impl BandwidthAcquirer {
     fn enqueue_request(&mut self, cx: &mut Context<'_>, tokens: u64) -> Result<(), BwPoolError> {
         // Prepare the waiter for this new request.
         self.waiter.prepare(cx.waker(), tokens);
-        // Add the waiter before sending to avoid this race:
-        //
-        //      acquirer: send request
-        //      refiller: serve request
-        //      acquirer: add waiter <-- without any request.
-        //
-        // If the send errors, we'll remove the waiter.
-        self.pool.bucket.add_waiter();
         // Send the waiter. Notice, this is the only dynamic allocation in this path
         // because it is sent on an unbounded MPSC queue.
         if self
@@ -265,7 +280,6 @@ impl BandwidthAcquirer {
             .unbounded_send(Arc::clone(&self.waiter))
             .is_err()
         {
-            self.pool.bucket.remove_waiter();
             // The refiller is gone, the pool is closed.
             return Err(BwPoolError::PoolClosed);
         }
@@ -336,23 +350,12 @@ impl BandwidthPool {
     /// Try to take `tokens` from the pool without waiting.
     ///
     /// Returns `Some(permit)` if there were enough tokens available right now, or `None`
-    /// if the pool is closed or if requests are currently queued. The fast path is gated
-    /// by if there are any waiters.
+    /// if the pool is closed.
     ///
     /// This never blocks and never enqueues. It is the fast path that the other
     /// acquisition methods use first.
     fn try_acquire(&self, tokens: u64) -> Option<Permit> {
         if self.is_closed() {
-            return None;
-        }
-        // If we have any waiters as in queued requests, the fast path is not available.
-        // This prevents new comers from jumping the queue.
-        //
-        // There is a benign race here: a waiter can enqueue between this and the claim()
-        // below. This is equivalent to this call having run entirely before the enqueue,
-        // so it is a valid ordering. In other words, the caller will always be before
-        // the new waiters and thus accessing the fast path is correct.
-        if self.bucket.has_waiters() {
             return None;
         }
         if self.bucket.claim(tokens) {
@@ -622,7 +625,7 @@ mod test {
     }
 
     #[test]
-    fn refund_hold() {
+    fn refund_newcomer() {
         let (pool, mut refiller) = BandwidthPool::new(100);
         let mut cx = noop_cx();
 
@@ -639,17 +642,20 @@ mod test {
         let mut a = pin!(pool.acquire(50));
         assert!(a.as_mut().poll(&mut cx).is_pending());
 
-        // Drop permit which refunds 50 to the fast-path balance. But because A is
-        // queued, the fast path is gated. The 50 shows up in the balance. New commer
-        // can't get them.
+        // Drop permit which refunds 50 to the fast-path balance. A newcomer can claim
+        // the refund even though A is already queued.
         drop(permit_hold);
         assert_eq!(pool.available(), 50);
-        assert!(pool.try_acquire(5).is_none());
+        let mut newcomer = pool.try_acquire(50).unwrap();
+        newcomer.claim_all();
+        drop(newcomer);
+        assert_eq!(pool.available(), 0);
 
-        // A refill of 10 reclaims the 50 from the gated fast path, serves A with 50, and
-        // publishes the remaining 10 back to the opened fast path.
-        assert_eq!(refiller.refill(10), None);
+        // A remains queued and is served by subsequent refills.
+        assert_eq!(refiller.refill(10), Some(40));
+        assert!(a.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(refiller.refill(40), None);
         expect_granted(a.as_mut().poll(&mut cx));
-        assert_eq!(pool.available(), 10);
+        assert_eq!(pool.available(), 0);
     }
 }
