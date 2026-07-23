@@ -26,7 +26,7 @@ use itertools::chain;
 use std::cmp::Ordering;
 use std::sync::Arc;
 use std::{net, time};
-use tor_basic_utils::intern::InternCache;
+use tor_basic_utils::intern::{Intern, InternCache};
 use tor_error::{Bug, internal};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -42,7 +42,7 @@ pub enum SoftwareVersion {
     #[display("Tor {_0}")]
     CTor(TorVersion),
     /// A string we couldn't parse.
-    Other(Arc<str>),
+    Other(Intern<str>),
 }
 
 /// A cache of unparsable version strings.
@@ -91,7 +91,7 @@ impl std::str::FromStr for SoftwareVersion {
         }
 
         Ok(SoftwareVersion::Other(
-            OTHER_VERSION_CACHE.intern_ref(s).into(),
+            OTHER_VERSION_CACHE.intern_ref(s),
         ))
     }
 }
