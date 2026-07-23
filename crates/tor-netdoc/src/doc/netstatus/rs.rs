@@ -90,9 +90,7 @@ impl std::str::FromStr for SoftwareVersion {
             }
         }
 
-        Ok(SoftwareVersion::Other(
-            OTHER_VERSION_CACHE.intern_ref(s),
-        ))
+        Ok(SoftwareVersion::Other(OTHER_VERSION_CACHE.intern_ref(s)))
     }
 }
 
