@@ -9,9 +9,6 @@ pub mod batching_split_before;
 
 use std::iter::Peekable;
 
-#[cfg(test)]
-use std::fmt::Display;
-
 define_derive_deftly! {
     /// Implement `AsMut<Self>`
     ///
@@ -32,25 +29,6 @@ define_derive_deftly! {
             self
         }
     }
-}
-
-#[cfg(test)]
-/// Assert that `$a = $b`; if not, panic with a unidiff
-//
-// implementation is in fn assert_eq_or_diff, at the bottom of the file
-macro_rules! assert_eq_or_diff {
-    { $a:expr, $b:expr $(,)? } => {
-        assert_eq_or_diff!($a, $b, "")
-    };
-    { $a:expr, $b:expr , $($message:tt)*} => {
-        $crate::util::assert_eq_or_diff(
-            &$a,
-            stringify!($a),
-            &$b,
-            stringify!($b),
-            &format_args!($($message)*),
-        )
-    };
 }
 
 /// An iterator with a `.peek()` method
@@ -121,39 +99,4 @@ pub(crate) fn regsub(update: &mut String, re: &str, repl: impl regex::Replacer) 
         .expect(re)
         .replace_all(update, repl)
         .to_string();
-}
-
-#[cfg(test)]
-pub(crate) fn assert_eq_or_diff(
-    a: &str,
-    a_what: &str,
-    b: &str,
-    b_what: &str,
-    message: &dyn Display,
-) {
-    use imara_diff::{Algorithm, BasicLineDiffPrinter, Diff, InternedInput, UnifiedDiffConfig};
-
-    if a == b {
-        return;
-    }
-    let input = InternedInput::new(a, b);
-    let mut diff = Diff::compute(Algorithm::Histogram, &input);
-    diff.postprocess_lines(&input);
-    panic!(
-        // rustdoc insists on this unhelpful formatting
-        "===== document {a_what} =====
-{a}
-===== document {b_what} =====
-{b}
-===== diff ====
-{}
-===== documents differ: {a_what} != {b_what} =====
-{message}
-",
-        diff.unified_diff(
-            &BasicLineDiffPrinter(&input.interner),
-            UnifiedDiffConfig::default(),
-            &input,
-        ),
-    );
 }
