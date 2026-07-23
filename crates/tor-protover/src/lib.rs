@@ -50,12 +50,10 @@
 #![allow(non_upper_case_globals)]
 #![allow(clippy::upper_case_acronyms)]
 
-use std::sync::Arc;
-
 use caret::caret_int;
 
 use thiserror::Error;
-use tor_basic_utils::intern::InternCache;
+use tor_basic_utils::intern::{Intern, InternCache};
 
 pub mod named;
 
@@ -254,11 +252,13 @@ struct SubprotocolEntry {
     feature = "serde",
     derive(serde_with::DeserializeFromStr, serde_with::SerializeDisplay)
 )]
-pub struct Protocols(Arc<ProtocolsInner>);
+pub struct Protocols(
+    Intern<ProtocolsInner>,
+);
 
 /// Inner representation of Protocols.
 ///
-/// We make this a separate type so that we can intern it inside an Arc.
+/// We make this a separate type so that we can intern it inside an `Intern`
 #[derive(Default, Clone, Debug, Eq, PartialEq, Hash)]
 struct ProtocolsInner {
     /// A mapping from protocols' integer encodings to bit-vectors.
@@ -281,7 +281,7 @@ static PROTOCOLS: InternCache<ProtocolsInner> = InternCache::new();
 impl From<ProtocolsInner> for Protocols {
     fn from(value: ProtocolsInner) -> Self {
         // TODO: Use Intern more natively.
-        Protocols(PROTOCOLS.intern(value).into())
+        Protocols(PROTOCOLS.intern(value))
     }
 }
 
@@ -449,7 +449,7 @@ impl Protocols {
     ///            "Desc=2-4 Microdesc=1-5,10".parse().unwrap());
     /// ```
     pub fn union(&self, other: &Protocols) -> Protocols {
-        let mut r = (*self.0).clone();
+        let mut r = (**self.0).clone();
         for i in 0..N_RECOGNIZED {
             r.recognized[i] |= other.0.recognized[i];
         }
