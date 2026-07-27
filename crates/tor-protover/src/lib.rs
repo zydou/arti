@@ -172,6 +172,12 @@ impl From<NamedSubver> for NumberedSubver {
     }
 }
 
+impl From<NamedSubver> for Protocols {
+    fn from(value: NamedSubver) -> Self {
+        Self::from_iter([value])
+    }
+}
+
 #[cfg(feature = "tor-bytes")]
 impl tor_bytes::Readable for NumberedSubver {
     fn take_from(b: &mut tor_bytes::Reader<'_>) -> tor_bytes::Result<Self> {
