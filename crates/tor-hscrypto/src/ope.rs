@@ -122,11 +122,10 @@ pub struct SrvPeriodOffset(
 fn add_slice_as_le_u16(slice: &[u8]) -> u64 {
     assert_eq!(slice.len() % 2, 0);
     slice
-        .chunks_exact(2)
-        .map(|bytepair| {
-            let a: [u8; 2] = bytepair.try_into().expect("chunk was not of size 2!");
-            u64::from(u16::from_le_bytes(a))
-        })
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|bytepair| u64::from(u16::from_le_bytes(*bytepair)))
         .sum()
 }
 

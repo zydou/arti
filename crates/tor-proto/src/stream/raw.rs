@@ -17,7 +17,7 @@ use crate::{Error, Result};
 
 /// The read part of a stream on a particular circuit.
 ///
-/// This [`Stream`](Stream) will return incoming messages for this Tor stream, excluding flow control
+/// This [`Stream`] will return incoming messages for this Tor stream, excluding flow control
 /// related messages like SENDME, XON, and XOFF.
 ///
 /// To avoid ambiguity, the following uses "stream" to refer to the `futures::Stream`, not the Tor
