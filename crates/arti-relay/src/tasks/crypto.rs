@@ -282,7 +282,10 @@ impl<R: Runtime> Reactor<R> {
         if changed.relay_desc_keys_changed() {
             self.desc_tx
                 .try_send(DescriptorCommand::Publish)
-                .context("Desc task channel is gone")?;
+                .context("Desc task channel try_send failed")?;
+            // Note, we can never wait for the publish to finish here because the
+            // descriptor task upon receiving the command will send us commands to get
+            // the keys it needs. Waiting here would lead to a deadlock.
         }
 
         // Sleep until the earliest key expiry minus buffer so we rotate before it expires.

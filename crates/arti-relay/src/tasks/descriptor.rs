@@ -174,14 +174,14 @@ impl RelayDescriptorPublisherTask {
         let (tx, rx) = oneshot::channel();
         self.crypto_tx
             .try_send(CryptoCommand::GetLatestNtorKey { tx })
-            .context("Crypto task is gone")?;
+            .context("Crypto task try_send failed")?;
         let _ntor_key = rx.await.context("Unable to get ntor key")?;
 
         // Get the relay signing key from the crypto task.
         let (tx, rx) = oneshot::channel();
         self.crypto_tx
             .try_send(CryptoCommand::GetSignKey { tx })
-            .context("Crypto task is gone")?;
+            .context("Crypto task try_send failed")?;
         let _relay_sign_kp = rx.await.context("Unable to get relay sign keypair")?;
 
         todo!("descriptor building not yet implemented");
