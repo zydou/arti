@@ -20,7 +20,7 @@ use futures::channel::mpsc;
 use futures::{StreamExt as _, select_biased};
 use tracing::{debug, trace};
 
-use tor_async_utils::oneshot;
+use tor_async_utils::{mpsc_channel_no_memquota, oneshot};
 use tor_dirclient::request::UploadRouterDesc;
 use tor_dircommon::authority::AuthorityContacts;
 use tor_dirpublish::http::DirectHttpUploader;
@@ -71,7 +71,8 @@ pub(crate) type DescriptorCommandReceiver = mpsc::Receiver<DescriptorCommand>;
 ///
 /// This is a bounded to limit descriptor publication spamming (in case of a bug).
 pub(crate) fn new_command_channel() -> (DescriptorCommandSender, DescriptorCommandReceiver) {
-    mpsc::channel(16)
+    // TODO(relay): We might want to make those memquota actually?
+    mpsc_channel_no_memquota(16)
 }
 
 /// The [`Uploader`] used to deliver our descriptor to a directory authority.

@@ -12,7 +12,7 @@ use std::{
 };
 use tracing::trace;
 
-use tor_async_utils::oneshot;
+use tor_async_utils::{mpsc_channel_no_memquota, oneshot};
 use tor_chanmgr::ChanMgr;
 use tor_error::warn_report;
 use tor_keymgr::KeyMgr;
@@ -65,7 +65,7 @@ pub(crate) type CryptoCommandReceiver = mpsc::Receiver<CryptoCommand>;
 ///
 /// This is a bounded to limit key request spamming (in case of a bug).
 pub(crate) fn new_command_channel() -> (CryptoCommandSender, CryptoCommandReceiver) {
-    mpsc::channel(128)
+    mpsc_channel_no_memquota(128)
 }
 
 /// Key rotation parameters derived from the consensus.
