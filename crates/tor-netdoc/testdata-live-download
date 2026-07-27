@@ -16,6 +16,10 @@
 # see list below.  *Those* should be committed.
 #
 #
+# There is currently no facility to regenerate the output without also downloading new data.
+# That's nontrivial because we don't commit the whole consensus (and don't want to).
+#
+#
 # Output, all in crates/tor-netdoc/testdata-live:
 #
 #     authority                         Vote
