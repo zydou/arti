@@ -46,7 +46,7 @@ impl<R: Runtime> Uploader for DirectHttpUploader<R> {
     type Target = Vec<SocketAddr>;
 
     async fn upload(
-        self: Arc<Self>,
+        &self,
         target: Arc<Vec<SocketAddr>>,
         doc: Arc<dyn tor_dirclient::request::Requestable>,
     ) -> Result<(), UploadError> {
