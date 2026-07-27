@@ -18,12 +18,12 @@ use anyhow::Context;
 use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::{StreamExt as _, select_biased};
-use tor_async_utils::oneshot;
-use tor_error::internal;
 use tracing::{debug, trace};
 
+use tor_async_utils::oneshot;
 use tor_dirclient::request::UploadRouterDesc;
 use tor_dircommon::authority::AuthorityContacts;
+use tor_dirpublish::http::DirectHttpUploader;
 use tor_dirpublish::{Publisher, UploadError, Uploader};
 use tor_netdir::{DirEvent, NetDirProvider};
 use tor_rtcompat::Runtime;
@@ -76,8 +76,9 @@ pub(crate) fn new_command_channel() -> (DescriptorCommandSender, DescriptorComma
 
 /// The [`Uploader`] used to deliver our descriptor to a directory authority.
 struct RelayDescUploader<R: Runtime> {
-    /// Asynchronous runtime, used to open the connection to the authority.
-    runtime: R,
+    /// The [`tor_dirpublish`] uploader that is used to send the HTTP request. Keep it
+    /// here so we avoid re-allocating at each upload.
+    uploader: Arc<DirectHttpUploader<R>>,
 }
 
 #[async_trait]
@@ -90,32 +91,12 @@ impl<R: Runtime> Uploader for RelayDescUploader<R> {
         target: Arc<Self::Target>,
         document: Arc<Self::Doc>,
     ) -> Result<(), UploadError> {
-        let request = UploadRouterDesc::new(Arc::from(document.as_str()));
-
-        // Try the authority's addresses in turn. On connection failure, move on to the
-        // next address else upload over the first one we manage to reach.
-        //
-        // TODO(relay): We need to check our relay capabilities for IPv6 and not try
-        // that. We might also want to sort this list in a preferred order.
-        let mut connect_err = None;
-        for addr in &target.addrs {
-            let mut stream = match self.runtime.connect(addr).await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    connect_err = Some(e);
-                    continue;
-                }
-            };
-
-            let response =
-                tor_dirclient::send_request(&self.runtime, &request, &mut stream, None).await;
-            return UploadError::from_directory_response(response);
-        }
-
-        // We couldn't connect to any of the authority's addresses.
-        Err(UploadError::Bug(internal!(
-            "authority has no upload addresses"
-        )))
+        let doc = Arc::new(UploadRouterDesc::new(Arc::from(document.as_str())));
+        // TODO(relay): We have to check those against our relay capabilities as in if we
+        // support IPv6 or if we have an IPv4. For now, we pass all targets and let any
+        // failures be handled at the connect() attempt.
+        let addrs = Arc::new(target.addrs.clone());
+        self.uploader.clone().upload(addrs, doc).await
     }
 }
 
@@ -155,7 +136,7 @@ impl RelayDescriptorPublisherTask {
         command_rx: DescriptorCommandReceiver,
     ) -> anyhow::Result<Self> {
         let uploader = Arc::new(RelayDescUploader {
-            runtime: runtime.clone(),
+            uploader: Arc::new(DirectHttpUploader::new(runtime.clone())),
         });
 
         // We start with no document and no targets. Both are populated once we build a descriptor.
