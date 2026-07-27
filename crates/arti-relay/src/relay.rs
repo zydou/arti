@@ -176,6 +176,12 @@ pub(crate) struct TorRelay<R: Runtime> {
     /// A "client" used by relays to construct circuits.
     client: RelayClient<R>,
 
+    /// The directory authorities that were either configured or the compiled-in defaults.
+    ///
+    /// We keep a copy here so we can pass it to the descriptor publisher task. These are not
+    /// exposed by a [`tor_dirmgr::DirProvider`] hence why we keep that copy from the config.
+    authorities: AuthorityContacts,
+
     /// The directory mirror object, used for handling BEGIN_DIR.
     dir_mirror: DirMirror,
 
@@ -234,6 +240,8 @@ impl<R: Runtime> TorRelay<R> {
             )
             .context("Failed to build chan manager")?,
         );
+
+        let authorities = inert.dirmgr_config.authorities().clone();
 
         // Init the relay's client.
         let client = RelayClient::new(
@@ -330,16 +338,17 @@ impl<R: Runtime> TorRelay<R> {
 
         // TODO DIRMIRROR: Need a config for the DirMirror
         let path: PathBuf = PathBuf::from("/dev/null");
-        let authorities: AuthorityContacts = Default::default();
+        let dir_mirror_authorities: AuthorityContacts = Default::default();
         let schedule: DownloadScheduleConfig = Default::default();
         let tolerance: DirTolerance = Default::default();
 
-        let dir_mirror = DirMirror::new(path, authorities, schedule, tolerance);
+        let dir_mirror = DirMirror::new(path, dir_mirror_authorities, schedule, tolerance);
 
         Ok(Self {
             runtime,
             memquota,
             client,
+            authorities,
             dir_mirror,
             chanmgr,
             create_request_handler,
@@ -446,7 +455,7 @@ impl<R: Runtime> TorRelay<R> {
         // Build and publish the relay's own descriptor.
         task_handles.spawn({
             let netdir = Arc::clone(self.client.dirmgr()) as Arc<_>;
-            let authorities = self.client.authorities().clone();
+            let authorities = self.authorities;
             async move {
                 crate::tasks::RelayDescriptorPublisherTask::new(
                     &self.runtime,
