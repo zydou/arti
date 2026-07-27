@@ -14,6 +14,7 @@ use tracing::trace;
 
 use tor_async_utils::oneshot;
 use tor_chanmgr::ChanMgr;
+use tor_error::warn_report;
 use tor_keymgr::KeyMgr;
 use tor_netdir::{DirEvent, NetDirProvider};
 use tor_proto::RelayChannelAuthMaterial;
@@ -252,7 +253,7 @@ impl<R: Runtime> Reactor<R> {
                 cmd = self.our_rx.next().fuse() => {
                     let cmd = cmd.context("Crypto command channel closed")?;
                     if let Err(e) = self.handle_command(cmd) {
-                        tracing::warn!("Command handling failure: {e}");
+                        warn_report!(e, "Crypto task command failure");
                     }
                 }
             }
