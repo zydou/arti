@@ -211,25 +211,25 @@ impl RelayDescriptorPublisherTask {
     /// can try them in turn.
     ///
     /// Returns `None` if we somehow have no authorities at all.
-    fn compute_targets(&self) -> Option<HashSet<Arc<DirAuthorityTarget>>> {
-        let targets: HashSet<Arc<DirAuthorityTarget>> = self
-            .authorities
+    fn compute_targets(&self) -> HashSet<Arc<DirAuthorityTarget>> {
+        // This should never be empty because we have compiled in authorities by default.
+        // If that case ever happens, the publisher will just do nothing.
+        self.authorities
             .uploads()
             .iter()
             .filter(|&addrs| !addrs.is_empty())
             .cloned()
             .map(|addrs| Arc::new(DirAuthorityTarget { addrs }))
-            .collect();
-
-        // This should never be None because we have compiled in authorities by default but better
-        // safe than sorry. If that case ever happens, the publisher will just do nothing.
-        (!targets.is_empty()).then_some(targets)
+            .collect()
     }
 
     /// Rebuild the descriptor (and refresh targets) and hand it to the publisher.
     async fn rebuild_and_publish(&mut self) -> anyhow::Result<()> {
-        // Adjust the targets onto our publisher before.
-        if let Some(targets) = self.compute_targets() {
+        // Adjust the targets onto our publisher if we have any targets. An empty set
+        // means something has gone wrong somehow so don't touch the publisher in an
+        // attempt to use what was there before.
+        let targets = self.compute_targets();
+        if !targets.is_empty() {
             self.publisher.adjust_targets(|t| *t = targets);
         }
 
