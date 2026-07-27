@@ -154,8 +154,8 @@ where
 
 /// Encode a collection of fields (a document without an intro item) into a `String`
 ///
-/// Does not support multiple document inputs, because unlike `NetdocEncodablew`,
-/// document document texts for `NetdocEncodableFields` can't be concatenated
+/// Does not support multiple document inputs, because unlike [`NetdocEncodable`],
+/// document texts for [`NetdocEncodableFields`] can't be concatenated
 /// to make multiple documents, because there aren't any intro items to use as boundaries.
 pub fn encode_netdoc_fields<D: NetdocEncodableFields>(doc: &D) -> Result<String, Bug> {
     let mut encoder = NetdocEncoder::new();
