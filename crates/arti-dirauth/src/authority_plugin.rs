@@ -10,7 +10,7 @@ use tor_dirauth::consensus;
 use tor_error::ErrorReport as _;
 
 mod utils;
-use utils::{FilenameOrStdio, map_range};
+use utils::FilenameOrStdio;
 
 /// Options and arguments to plugin invocation
 #[derive(Debug, clap::Parser)]
@@ -72,10 +72,7 @@ enum CliError {
 fn plugin_impl(args: CliArgs) -> Result<(), CliError> {
     match args.op {
         CliOperation::ListMethods { output } => output.write(|w| {
-            for m in consensus::SUPPORTED_METHODS
-                .iter()
-                .flat_map(|r| map_range(r, |e| u32::from(*e)))
-            {
+            for m in consensus::SupportedConsensusMethod::iter_all() {
                 writeln!(w, "{m}")?;
             }
             Ok(())

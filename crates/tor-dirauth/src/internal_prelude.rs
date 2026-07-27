@@ -14,3 +14,5 @@ pub(crate) use tor_netdoc::{
     doc::netstatus::ConsensusMethod,
     rangemap_mutate_range,
 };
+
+pub(crate) use crate::utils::*;

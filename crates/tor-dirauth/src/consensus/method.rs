@@ -35,6 +35,19 @@ impl TryFrom<ConsensusMethod> for SupportedConsensusMethod {
     }
 }
 
+impl SupportedConsensusMethod {
+    /// Iterate over all supported methods
+    pub fn iter_all() -> impl Iterator<Item = SupportedConsensusMethod> {
+        SUPPORTED_METHODS
+            .iter()
+            .flat_map(|r| map_range(r, |b| u32::from(*b)))
+            .map(|v: u32| {
+                SupportedConsensusMethod::try_from(ConsensusMethod(v))
+                    .expect("from our own ranges of supported methods")
+            })
+    }
+}
+
 // Convenience impl so you can write write (eg) method < 110 rather than **method < 110.
 impl PartialOrd<u32> for SupportedConsensusMethod {
     fn partial_cmp(&self, other: &u32) -> Option<cmp::Ordering> {
@@ -85,5 +98,10 @@ mod test {
         let e = SupportedConsensusMethod::try_from(ConsensusMethod(10_000)).unwrap_err();
         let m = e.to_string();
         assert!(m.contains("unsupported consensus method 10000"), "{m:?}");
+    }
+
+    #[test]
+    fn iter_all() {
+        println!("{:?}", SupportedConsensusMethod::iter_all().collect_vec());
     }
 }
