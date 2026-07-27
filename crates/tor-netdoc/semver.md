@@ -22,3 +22,4 @@ ADDED: `types::policy::PortPolicy::from_ordered_allowed_ranges`
 BREAKING: `HsDesc::parse_decrypt_validate` no longer takes a `SystemTime` and **no longer checks validity time**
 ADDED: `encode::encode_netdoc_unsigned` and `encode_netdoc_fields`
 ADDED: impl `Hash` for `netstatus::ConsensusMethods`
+BREAKING: `RouterStatus.port_policy` is `Intern`, not `Arc`

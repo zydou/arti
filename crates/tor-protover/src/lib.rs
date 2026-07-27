@@ -50,12 +50,11 @@
 #![allow(non_upper_case_globals)]
 #![allow(clippy::upper_case_acronyms)]
 
-use std::sync::Arc;
-
 use caret::caret_int;
 
+use derive_deftly::Deftly;
 use thiserror::Error;
-use tor_basic_utils::intern::InternCache;
+use tor_basic_utils::intern::{GloballyInternable as _, Intern};
 
 pub mod named;
 
@@ -254,12 +253,19 @@ struct SubprotocolEntry {
     feature = "serde",
     derive(serde_with::DeserializeFromStr, serde_with::SerializeDisplay)
 )]
-pub struct Protocols(Arc<ProtocolsInner>);
+pub struct Protocols(
+    /// We intern ProtocolsInner objects because:
+    ///  - There are very few _distinct_ values in any given set of relays.
+    ///  - Every relay has one.
+    ///  - We often want to copy them when we're remembering information about circuits.
+    Intern<ProtocolsInner>,
+);
 
 /// Inner representation of Protocols.
 ///
-/// We make this a separate type so that we can intern it inside an Arc.
-#[derive(Default, Clone, Debug, Eq, PartialEq, Hash)]
+/// We make this a separate type so that we can intern it inside an `Intern`
+#[derive(Default, Clone, Debug, Eq, PartialEq, Hash, Deftly)]
+#[derive_deftly(tor_basic_utils::GloballyInternable)]
 struct ProtocolsInner {
     /// A mapping from protocols' integer encodings to bit-vectors.
     recognized: [u64; N_RECOGNIZED],
@@ -270,18 +276,9 @@ struct ProtocolsInner {
     unrecognized: Vec<SubprotocolEntry>,
 }
 
-/// An InternCache of ProtocolsInner.
-///
-/// We intern ProtocolsInner objects because:
-///  - There are very few _distinct_ values in any given set of relays.
-///  - Every relay has one.
-///  - We often want to copy them when we're remembering information about circuits.
-static PROTOCOLS: InternCache<ProtocolsInner> = InternCache::new();
-
 impl From<ProtocolsInner> for Protocols {
     fn from(value: ProtocolsInner) -> Self {
-        // TODO: Use Intern more natively.
-        Protocols(PROTOCOLS.intern(value).into())
+        Protocols(value.into_intern())
     }
 }
 
@@ -449,7 +446,7 @@ impl Protocols {
     ///            "Desc=2-4 Microdesc=1-5,10".parse().unwrap());
     /// ```
     pub fn union(&self, other: &Protocols) -> Protocols {
-        let mut r = (*self.0).clone();
+        let mut r = (**self.0).clone();
         for i in 0..N_RECOGNIZED {
             r.recognized[i] |= other.0.recognized[i];
         }

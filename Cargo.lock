@@ -8128,6 +8128,7 @@ name = "tor-protover"
 version = "0.44.0"
 dependencies = [
  "caret",
+ "derive-deftly",
  "paste",
  "serde_with",
  "thiserror 2.0.18",
