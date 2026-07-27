@@ -31,7 +31,7 @@ tor-error = { path = "../tor-error", version = "0.44.0" }
 tor-netdoc = { version = "0.44.0", path = "../tor-netdoc", features = ["full", "experimental"] }
 
 [dev-dependencies]
-derive-deftly = { version = "~1.11.3", features = ["full", "beta"] }
+derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }
 
 [package.metadata.docs.rs]
 all-features = true

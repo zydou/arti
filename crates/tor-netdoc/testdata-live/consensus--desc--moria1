@@ -8,11 +8,11 @@ DvHnbbw2sn6DD0CD7YViKL0kNgfyuTvCzq/0A8C/NytUw+a07HqrGd1PjwA=
 master-key-ed25519 qpL/LxLYVEXghU76iG3LsSI/UW7MBpIROZK0AB18560
 platform Tor 0.5.0.0-alpha-dev on Linux
 proto Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
-published 2026-07-21 13:42:47
+published 2026-07-22 07:43:08
 fingerprint 1A25 C635 8DB9 1342 AA51 720A 5038 B727 4273 2498
-uptime 0
-bandwidth 40960 104857600 7584768
-extra-info-digest 012CF8500233D75A843FDA754DC9D0FFEE0C1ED1 8SicrREwB3HgOkuDmoyG/g4YO/y1bRV1ts3VsrKm6i8
+uptime 64819
+bandwidth 40960 104857600 8578035
+extra-info-digest CE2FABB62E3F041EAD9E390E0C1529DDBEC1935A kFlMsqhHWWsKWQDiQwBYDMx3CJ3hQw8CSBTnBZfmvtU
 caches-extra-info
 onion-key
 -----BEGIN RSA PUBLIC KEY-----
@@ -34,19 +34,19 @@ aQGk46MYE3xNVqF+iG34LGCDrfFznLVovALychyvTZI=
 -----END CROSSCERT-----
 ntor-onion-key-crosscert 1
 -----BEGIN ED25519 CERT-----
-AQoAB5MWAaqS/y8S2FRF4IVO+ohty7EiP1FuzAaSETmStAAdfOetAEEsEEGBmHZO
-xk9ydPLEplfTBXBhz8lecMc7GeO9k44BC2FGYhpUaSjx6B2Rz1AZY3CBXLlsDyzn
-buVBkvYDfQ0=
+AQoAB5MoAaqS/y8S2FRF4IVO+ohty7EiP1FuzAaSETmStAAdfOetAGzenOhozeXq
+wByiL7faS0RQ2HQUiiAGdKHcCusQWHebTwEvg1uS3EsWsTz+iErCh1TWyC/XlOmp
+B52XoFPYxQs=
 -----END ED25519 CERT-----
 hidden-service-dir
 contact 1024D/EB5A896A28988BF5 arma mit edu
 ntor-onion-key MHNK0H4nufvk7IBh8R63OSY0KyFvI+z0m4JCE6qMbg4
 reject *:*
 tunnelled-dir-server
-router-sig-ed25519 xmtOGT2ZHIJ13oL65OemYHRjJ97k7dVQuJa0YUkzLMhXAWAOZ0IQLdGJ1gWPwfcVirkoqNjC96BNH8U24gWzAw
+router-sig-ed25519 qwYuZ1AuN3AoyhpCJzHs3vRPuja6hcUF+LeJkl2+yg70WToiZ0CaPKAC4CeTDcOU0a2o1f6cQkhThAdu4knnAw
 router-signature
 -----BEGIN SIGNATURE-----
-Vr/yMA5Hvq7RsMigWNXDhrvfzAHX53W2aMroVF5Qb1FqqlqwicI7ZyLZrQTPIFSY
-QLqTezD8UApSet2JaHO06jyftQRxiXNGUgQyzHzMfphum784o1TPz52JdnCBAyMO
-b5X2TNtZ8nmbvBfQVjlQZTA46J/L4yko0RO1G+qL2gs=
+Xos6n/M4JR2FlelB0hTFq2RUXowboDrZT7ReKBn0B1vVWvzF6fNtc509WDU2bphc
+kbMXK9x+axHdCaPpML88jiqFagymYbqwyb+fjQqKMtCtSRxR1GWYs+hmwQ21C4ga
+lR1XkbMh3x12BQddVz4zwHo+c4mRy4u3ae/xPnh1WpI=
 -----END SIGNATURE-----

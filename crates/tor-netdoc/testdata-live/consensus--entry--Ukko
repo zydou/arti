@@ -1,7 +1,7 @@
-r Ukko MDUJq5EO8ge3Q4wnQ1xKL9V58bE PGF4lmi2JXo34ep3ZVvM+3XkCoE 2026-07-21 06:28:54 95.216.33.30 443 0
+r Ukko MDUJq5EO8ge3Q4wnQ1xKL9V58bE tVSBYbM9mZeORbH46lkRNOsltXQ 2026-07-22 00:28:57 95.216.33.30 443 0
 a [2a01:4f9:2a:2145::1]:443
 s Fast Guard HSDir Running Stable V2Dir Valid
 v Tor 0.4.9.5
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
-w Bandwidth=90000
+w Bandwidth=91000
 p reject 1-65535

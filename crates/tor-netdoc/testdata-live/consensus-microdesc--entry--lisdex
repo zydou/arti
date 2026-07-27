@@ -1,7 +1,7 @@
 r lisdex AAAErLudKby6FyVrs1ko3b/Iq6k 2038-01-01 00:00:00 152.53.144.50 8443 0
 a [2a0a:4cc0:c1:2aac::1]:8443
 m vtKpzB+Vw6LlETW6txvAH+1G6gJIl6x1D/N3NZdPK24
-s Fast Guard Running Stable V2Dir Valid
+s Fast Guard HSDir Running Stable V2Dir Valid
 v Tor 0.4.9.9
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
-w Bandwidth=26000
+w Bandwidth=27000

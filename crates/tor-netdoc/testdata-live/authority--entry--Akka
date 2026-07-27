@@ -1,4 +1,4 @@
-r Akka VpJ+YbUebzY/tVSYFQpt389wd/I X6FfYOP1rtFPaDmwej+rSvLV+TI 2026-07-21 08:14:13 95.216.33.58 443 0
+r Akka VpJ+YbUebzY/tVSYFQpt389wd/I sowHgTS7eAR7Rmq8wgrUn/AOGDM 2026-07-22 02:14:16 95.216.33.58 443 0
 a [2a01:4f9:2a:2145::2]:443
 s Fast Guard HSDir Running Stable V2Dir Valid
 v Tor 0.4.9.5
@@ -6,6 +6,6 @@ pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRen
 w Bandwidth=10000 Measured=110000
 p reject 1-65535
 id ed25519 CVTjf1oeaL616hH+1+UvYZ8OgkwF3z7UMITvJzm5r7A
-stats wfu=0.999427 tk=5896280 mtbf=4091931
+stats wfu=0.999443 tk=5476861 mtbf=3917672
 m 32,33,34 sha256=fkH7rc+V0NXq2ZklHUijGlAjfg35NfcFLgc5SppaBtg
 m 35 sha256=DT8j0UcSuHr0xhwGrfng1922N+n4h6/3rhvmPcWqulo

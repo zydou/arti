@@ -4,4 +4,4 @@ m gfcC0RhmSh0jemnjwkFD8soL/4Yj6lqsek6WpPPRRPk
 s Fast Guard HSDir Running Stable V2Dir Valid
 v Tor 0.4.9.5
 pr Conflux=1 Cons=1-2 Desc=1-4 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=3-5 LinkAuth=3 Microdesc=1-3 Padding=2 Relay=2-6
-w Bandwidth=90000
+w Bandwidth=91000
