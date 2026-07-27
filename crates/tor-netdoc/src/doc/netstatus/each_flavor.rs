@@ -690,9 +690,7 @@ fn verify_error_netstatus() -> Result<(), anyhow::Error> {
 
     // one broken signature, but enough others
 
-    for b in &mut doc.sigs.sigs.directory_signature[0].signature {
-        *b = 0xff;
-    }
+    doc.sigs.sigs.directory_signature[0].signature.fill(0xff);
 
     assert_matches! {
         doc.can_verify(&authorities, &certs),

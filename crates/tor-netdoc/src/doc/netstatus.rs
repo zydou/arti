@@ -2956,9 +2956,7 @@ mod test {
         // sabotage the overall signature
         {
             let mut doc = doc.clone();
-            for b in &mut doc.sigs.sigs.directory_signature.signature {
-                *b = 0xff;
-            }
+            doc.sigs.sigs.directory_signature.signature.fill(0xff);
             assert_matches! {
                 doc.verify(&trusted),
                 Err(VVF::InvalidSignature(VF::VerifyFailed))
