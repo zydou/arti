@@ -758,6 +758,7 @@ mod test {
     use super::*;
     use crate::{
         Pos,
+        encode::encode_netdoc_unsigned,
         parse2::{ErrorProblem, ParseError, ParseInput, VerifyFailed, parse_netdoc},
         types,
     };
@@ -1202,9 +1203,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
 ids 1234567812345678123456781234567812345678 ABCDABCDABCDABCDABCDABCDABCDABCDABCDABCD
 "#;
         let doc = parse2::parse_netdoc::<Doc>(&ParseInput::new(text, "<text>"))?;
-        let mut re_encode = NetdocEncoder::new();
-        doc.encode_unsigned(&mut re_encode)?;
-        let re_encode = re_encode.finish()?;
+        let re_encode = encode_netdoc_unsigned([&doc])?;
 
         assert_eq_or_diff!(text, re_encode);
         Ok(())

@@ -292,7 +292,7 @@ impl NormalItemArgument for ConsensusMethod {}
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-methods>
 ///
 /// There is also [`consensus_methods_comma_separated`] for `m` lines in votes.
-#[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Deftly)]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Deftly)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 #[non_exhaustive]
 pub struct ConsensusMethods {

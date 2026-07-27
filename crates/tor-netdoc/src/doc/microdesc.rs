@@ -549,7 +549,7 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::encode::{NetdocEncodable, NetdocEncoder};
+    use crate::encode::encode_netdoc_unsigned;
     use hex_literal::hex;
     const TESTDATA: &str = include_str!("../../testdata/microdesc1.txt");
     const TESTDATA2: &str = include_str!("../../testdata/microdesc2.txt");
@@ -735,11 +735,7 @@ Yl0wCKpUZFHs5CHsajLSfXZKHkwfqRXFEJu9aMtmQdQFfqE9JOJHAgMBAAE=
             }
         );
 
-        let mut enc = NetdocEncoder::new();
-        for md in &mds {
-            md.encode_unsigned(&mut enc)?;
-        }
-        let enc = enc.finish()?;
+        let enc = encode_netdoc_unsigned(&mds)?;
         let exp = md;
         assert_eq_or_diff!(&enc, &exp);
 

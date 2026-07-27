@@ -137,6 +137,32 @@ pub trait ItemArgument {
     fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug>;
 }
 
+/// Encode one or more whole (unsigned) network documents into a `String`
+///
+/// To encode just one document, write `encode_netdoc_unsigned([&doc])`.
+pub fn encode_netdoc_unsigned<'d, 'i, D, I>(docs: I) -> Result<String, Bug>
+where
+    D: NetdocEncodable + 'd,
+    I: IntoIterator<Item = &'d D> + 'i,
+{
+    let mut encoder = NetdocEncoder::new();
+    for doc in docs {
+        doc.encode_unsigned(&mut encoder)?;
+    }
+    encoder.finish()
+}
+
+/// Encode a collection of fields (a document without an intro item) into a `String`
+///
+/// Does not support multiple document inputs, because unlike [`NetdocEncodable`],
+/// document texts for [`NetdocEncodableFields`] can't be concatenated
+/// to make multiple documents, because there aren't any intro items to use as boundaries.
+pub fn encode_netdoc_fields<D: NetdocEncodableFields>(doc: &D) -> Result<String, Bug> {
+    let mut encoder = NetdocEncoder::new();
+    doc.encode_fields(&mut encoder)?;
+    encoder.finish()
+}
+
 impl NetdocEncoder {
     /// Start encoding a document
     pub fn new() -> Self {

@@ -2840,7 +2840,7 @@ mod test {
     use super::*;
     use crate::{
         Pos, Result,
-        encode::NetdocEncodable,
+        encode::{NetdocEncodable, encode_netdoc_unsigned},
         parse2::{ErrorProblem, ParseInput, VerifyFailed},
         types::{
             EmbeddedCert,
@@ -3294,7 +3294,6 @@ mod test {
 
     #[test]
     fn contact_info() -> anyhow::Result<()> {
-        use encode::NetdocEncodable;
         use parse2::{ParseInput, parse_netdoc};
 
         const S: &str = "some relay operator";
@@ -3321,9 +3320,7 @@ mod test {
                 intro: (),
                 contact: s.parse()?,
             };
-            let mut enc = NetdocEncoder::new();
-            doc.encode_unsigned(&mut enc)?;
-            let enc = enc.finish()?;
+            let enc = encode_netdoc_unsigned([&doc])?;
             let reparsed = parse_netdoc::<TestDoc>(&ParseInput::new(&enc, "<test>"))?;
             assert_eq!(doc, reparsed);
             Ok(())
@@ -3531,14 +3528,12 @@ mod test {
         ];
 
         for (present, output) in tests {
-            let mut encoder = NetdocEncoder::new();
-            TestDoc {
+            let re_encoded = encode_netdoc_unsigned([&TestDoc {
                 intro: (),
                 foo: present,
-            }
-            .encode_unsigned(&mut encoder)
+            }])
             .unwrap();
-            assert_eq!(encoder.finish().unwrap(), output);
+            assert_eq!(re_encoded, output);
         }
     }
 
