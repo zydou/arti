@@ -199,8 +199,5 @@ pub(crate) fn build_circ_net_params(params: &NetParameters) -> anyhow::Result<Ci
         flow_ctrl,
     };
 
-    Ok(CircNetParameters {
-        extend_by_ed25519_id: params.extend_by_ed25519_id.into(),
-        cc,
-    })
+    Ok(CircNetParameters { cc })
 }

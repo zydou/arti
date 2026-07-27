@@ -34,7 +34,7 @@ use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
     StreamId, UnparsedRelayMsg,
 };
-use tor_error::{Bug, internal};
+use tor_error::{Bug, ErrorKind, HasKind, internal, into_internal};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 use tor_protover::named;
@@ -48,6 +48,12 @@ use web_time_compat::Instant;
 
 #[cfg(test)]
 use tor_cell::relaycell::msg::SendmeTag;
+
+#[cfg(feature = "relay")]
+use {
+    crate::ccparams::{Algorithm, AlgorithmDiscriminants},
+    crate::relay::{CircNetParameters, CongestionControlNetParams},
+};
 
 use cfg_if::cfg_if;
 
@@ -189,6 +195,75 @@ impl HopSettings {
         })
     }
 
+    /// Build a [`HopSettings`] from the parameters requested during a circuit handshake.
+    //
+    // We disable `unused` warnings at the root of tor-proto,
+    // but it's nice to have here so we re-enable it.
+    #[warn(unused)]
+    #[cfg(feature = "relay")]
+    pub(crate) fn from_handshake_params(
+        circ_net_params: CircNetParameters,
+        cc_algorithm: AlgorithmDiscriminants,
+        subprotos_requested: HandshakeSubprotocols,
+    ) -> StdResult<Self, HandshakeParamsError> {
+        use SubprotocolEnabled::*;
+
+        // Unpack everything to make sure that we aren't missing anything
+        // (otherwise clippy would warn).
+        let CircNetParameters {
+            cc:
+                CongestionControlNetParams {
+                    fixed_window,
+                    vegas_exit,
+                    cwnd,
+                    rtt,
+                    flow_ctrl,
+                },
+        } = circ_net_params;
+
+        let HandshakeSubprotocols { relay_crypt_cgo } = subprotos_requested;
+
+        // TODO: We have similar logic in and around `HopSettings` that deals with determining the
+        // crypt protocol and cc algorithm to use. We might want to try to dedup some of this, or
+        // make it more self-contained. This is a bit tricky though since the code is used in
+        // different situations and the inputs are not the same.
+        let (cc_algorithm, relay_crypt_protocol) = match (cc_algorithm, relay_crypt_cgo) {
+            (AlgorithmDiscriminants::FixedWindow, Disabled) => (
+                Algorithm::FixedWindow(fixed_window),
+                RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0),
+            ),
+            (AlgorithmDiscriminants::FixedWindow, Enabled) => {
+                return Err(HandshakeParamsError::IncompatibleParams(
+                    "requested CGO but not congestion control",
+                ));
+            }
+            (AlgorithmDiscriminants::Vegas, Disabled) => (
+                Algorithm::Vegas(vegas_exit),
+                RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0),
+            ),
+            (AlgorithmDiscriminants::Vegas, Enabled) => {
+                (Algorithm::Vegas(vegas_exit), RelayCryptLayerProtocol::Cgo)
+            }
+        };
+
+        // TODO(arti#2442): The builder pattern here seems like a footgun.
+        let ccontrol = CongestionControlParams::builder()
+            .alg(cc_algorithm)
+            .fixed_window_params(fixed_window)
+            .cwnd_params(cwnd)
+            .rtt_params(rtt)
+            .build()
+            .map_err(into_internal!("Could not build `CongestionControlParams`"))?;
+
+        Ok(Self {
+            ccontrol,
+            flow_ctrl_params: flow_ctrl,
+            relay_crypt_protocol,
+            n_incoming_cells_permitted: None,
+            n_outgoing_cells_permitted: None,
+        })
+    }
+
     /// Return the negotiated relay crypto protocol.
     pub(crate) fn relay_crypt_protocol(&self) -> RelayCryptLayerProtocol {
         self.relay_crypt_protocol
@@ -231,6 +306,8 @@ impl HopSettings {
         // with this extension. For the current list, see
         // https://spec.torproject.org/tor-spec/create-created-cells.html#subproto-request)
         //
+        // TODO: Should this use `HandshakeSubprotocols` so that the above comment has some
+        // compile-time checks?
         #[allow(unused_mut)]
         let mut required_protocol_capabilities: Vec<tor_protover::NamedSubver> = Vec::new();
 
@@ -261,6 +338,55 @@ impl std::default::Default for CircParameters {
             flow_ctrl: FlowCtrlParameters::defaults_for_tests(),
             n_incoming_cells_permitted: None,
             n_outgoing_cells_permitted: None,
+        }
+    }
+}
+
+/// The enabled/disabled status of subprotocols that are allowed to be requested through a
+/// subprotocol request during a circuit handshake.
+///
+/// The allowed subprotocols are defined in:
+/// <https://spec.torproject.org/tor-spec/create-created-cells.html#subproto-request>
+///
+/// Each field corresponds with one specific subprotocol version,
+/// and each has the same naming format as its corresponding named subprotocol version.
+//
+// TODO: It might be nice to have a macro that can generate restricted sets of subprotocol versions.
+// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4171#note_3439060
+#[derive(Copy, Clone, Debug, Default)]
+pub(crate) struct HandshakeSubprotocols {
+    /// The `RELAY_CRYPT_CGO` subprotocol version.
+    relay_crypt_cgo: SubprotocolEnabled,
+}
+
+/// Whether a specific named subprotocol version is enabled or not.
+#[derive(Copy, Clone, Debug, Default)]
+#[allow(unused)]
+pub(crate) enum SubprotocolEnabled {
+    /// The subprotocol version is disabled.
+    #[default]
+    Disabled,
+    /// The subprotocol version is enabled.
+    Enabled,
+}
+
+/// An error that can occur when building a [`HopSettings`] using parameters requested during a
+/// circuit handshake.
+#[derive(Clone, Debug, thiserror::Error)]
+pub(crate) enum HandshakeParamsError {
+    /// The provided parameters are incompatible with each other.
+    #[error("The provided handshake parameters are incompatible with each other: {0}")]
+    IncompatibleParams(&'static str),
+    /// An internal error.
+    #[error("Internal error")]
+    Internal(#[from] tor_error::Bug),
+}
+
+impl HasKind for HandshakeParamsError {
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Self::IncompatibleParams(_) => ErrorKind::TorProtocolViolation,
+            Self::Internal(_) => ErrorKind::Internal,
         }
     }
 }
