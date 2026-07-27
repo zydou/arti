@@ -19,6 +19,7 @@ use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::{StreamExt as _, select_biased};
 use tor_async_utils::oneshot;
+use tor_error::internal;
 use tracing::{debug, trace};
 
 use tor_dirclient::request::UploadRouterDesc;
@@ -112,9 +113,9 @@ impl<R: Runtime> Uploader for RelayDescUploader<R> {
         }
 
         // We couldn't connect to any of the authority's addresses.
-        Err(UploadError::Connect(Arc::new(connect_err.unwrap_or_else(
-            || std::io::Error::other("authority has no upload addresses"),
-        ))))
+        Err(UploadError::Bug(internal!(
+            "authority has no upload addresses"
+        )))
     }
 }
 
