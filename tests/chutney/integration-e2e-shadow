@@ -13,6 +13,7 @@ vs running it directly for several reasons.
 import atexit
 import argparse
 import shadowtools.config as scfg
+import shadowtools.shadow_exec as shadow_exec
 import os
 import pathlib
 import subprocess
@@ -21,6 +22,7 @@ import yaml
 
 from pathlib import Path
 from chutney import TorNet
+from typing import Final
 
 import common
 from config import Config
@@ -29,16 +31,8 @@ assert __name__ == "__main__", "Can't determine _SCRIPT_DIR"
 _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
 
 
-def _shadow_data_dir_path(n: TorNet.Network) -> Path:
-    return n.dir.joinpath("shadow.data")
-
-
 def _shadow_config_path(n: TorNet.Network) -> Path:
     return n.dir.joinpath("shadow.yaml")
-
-
-def _shadow_log_path(n: TorNet.Network) -> Path:
-    return n.dir.joinpath("shadow.log")
 
 
 def _integration_e2e(args: argparse.Namespace) -> None:
@@ -56,7 +50,7 @@ def _integration_e2e(args: argparse.Namespace) -> None:
     subprocess.check_call([_SCRIPT_DIR.joinpath("test"), "-v"])
 
 
-def gen_shadow_config(seed: int) -> scfg.Config:
+def gen_shadow_config(*, seed: int, controller_hostname: str) -> scfg.Config:
     """
     Generate a shadow config file, as a string, for the given parameters.
     """
@@ -112,7 +106,7 @@ def gen_shadow_config(seed: int) -> scfg.Config:
             use_worker_spinning=False,
         ),
         hosts={
-            "host": scfg.Host(
+            controller_hostname: scfg.Host(
                 network_node_id=0,
                 processes=[
                     scfg.Process(
@@ -174,18 +168,19 @@ def _configure_and_run_shadow(args: argparse.Namespace) -> None:
 
     # Write out shadow config. We could just pipe it directly to the shadow
     # process below, but writing it out is useful for debugging.
-    shadow_config = gen_shadow_config(args.seed)
+    controller_hostname: Final = "host"
+    shadow_config = gen_shadow_config(
+        seed=args.seed, controller_hostname=controller_hostname
+    )
     with _shadow_config_path(network).open("w") as f:
         f.write(yaml.safe_dump(shadow_config))
 
-    shadow_args = [
-        "shadow",
-        "--data-directory=" + str(_shadow_data_dir_path(network)),
-        "--progress=true",
-        str(_shadow_config_path(network)),
-    ]
-    with network.dir.joinpath(_shadow_log_path(network)).open("w") as shadow_log_file:
-        subprocess.run(shadow_args, check=True, stdout=shadow_log_file)
+    shadow_exec.run_shadow_watching_process(
+        watch_host=controller_hostname,
+        shadow_bin=Path("shadow"),
+        dstdir=network.dir,
+        shadow_config_path=_shadow_config_path(network),
+    )
 
 
 def main() -> None:
