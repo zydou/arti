@@ -139,7 +139,7 @@ pub trait ItemArgument {
 
 /// Encode one or more whole (unsigned) network documents into a `String`
 ///
-/// To encode just one document, writhe `encode_netdoc_unsigned([&doc])`.
+/// To encode just one document, write `encode_netdoc_unsigned([&doc])`.
 pub fn encode_netdoc_unsigned<'d, 'i, D, I>(docs: I) -> Result<String, Bug>
 where
     D: NetdocEncodable + 'd,
