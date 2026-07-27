@@ -12,6 +12,7 @@ vs running it directly for several reasons.
 
 import atexit
 import argparse
+import shadowtools.config as scfg
 import os
 import pathlib
 import subprocess
@@ -19,7 +20,6 @@ import sys
 import yaml
 
 from pathlib import Path
-from typing import Any
 from chutney import TorNet
 
 import common
@@ -56,7 +56,7 @@ def _integration_e2e(args: argparse.Namespace) -> None:
     subprocess.check_call([_SCRIPT_DIR.joinpath("test"), "-v"])
 
 
-def gen_shadow_config(seed: int) -> dict[str, Any]:
+def gen_shadow_config(seed: int) -> scfg.Config:
     """
     Generate a shadow config file, as a string, for the given parameters.
     """
@@ -67,19 +67,19 @@ def gen_shadow_config(seed: int) -> dict[str, Any]:
         common.RUNNING_IN_SHADOW_ENV: "yes",
         # re-export PATH. The test scripts assume that
         # usual shell utilities are on it.
-        "PATH": os.getenv("PATH"),
+        "PATH": os.getenv("PATH", ""),
     }
 
-    return {
-        "general": {
-            "stop_time": "10m",
-            "model_unblocked_syscall_latency": True,
-            "seed": seed,
-        },
-        "network": {
-            "graph": {"type": "1_gbit_switch"},
-        },
-        "experimental": {
+    return scfg.Config(
+        general=scfg.General(
+            stop_time="10m",
+            model_unblocked_syscall_latency=True,
+            seed=seed,
+        ),
+        network=scfg.Network(
+            graph=scfg.Graph(type="1_gbit_switch"),
+        ),
+        experimental=scfg.Experimental(
             # shadow only actually increments simulated time (and potentially
             # switches threads) if this much time would have been consumed by an
             # unbroken sequence of unblocked syscalls. Using a relatively large
@@ -102,41 +102,41 @@ def gen_shadow_config(seed: int) -> dict[str, Any]:
             #   busy loop, it may spend a bit longer "spinning" before moving
             #   time forward, potentially causing the simulation to take a bit
             #   longer to run. (if it would have otherwise timed out earlier than 10ms)
-            "max_unapplied_cpu_latency": "100us",
+            max_unapplied_cpu_latency="100us",
             # In CI, attempting to pin to particular CPU cores may result in
             # conflicts with other instances of shadow trying to do the same
             # thing.
-            "use_cpu_pinning": False,
+            use_cpu_pinning=False,
             # Likewise, shadow's default behavior of spin-looping is bad
             # behavior in a shared environment.
-            "use_worker_spinning": False,
-        },
-        "hosts": {
-            "host": {
-                "network_node_id": 0,
-                "processes": [
-                    {
-                        "path": "sh",
-                        "args": f"-c '{current_script} integration-e2e 2>&1'",
-                        "environment": env,
+            use_worker_spinning=False,
+        ),
+        hosts={
+            "host": scfg.Host(
+                network_node_id=0,
+                processes=[
+                    scfg.Process(
+                        path="sh",
+                        args=f"-c '{current_script} integration-e2e 2>&1'",
+                        environment=env,
                         # Give the web server below a little time to start.
-                        "start_time": "5s",
-                    }
+                        start_time="5s",
+                    )
                 ],
-            },
-            common.TEST_DOMAIN: {
-                "network_node_id": 0,
-                "processes": [
-                    {
-                        "path": "python3",
-                        "args": "-m http.server 80",
-                        "start_time": "0",
-                        "expected_final_state": "running",
-                    }
+            ),
+            common.TEST_DOMAIN: scfg.Host(
+                network_node_id=0,
+                processes=[
+                    scfg.Process(
+                        path="python3",
+                        args="-m http.server 80",
+                        start_time=0,
+                        expected_final_state="running",
+                    )
                 ],
-            },
+            ),
         },
-    }
+    )
 
 
 def _configure_and_run_shadow(args: argparse.Namespace) -> None:
