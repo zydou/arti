@@ -6,10 +6,9 @@ use crate::ccparams::{
     VegasParams,
 };
 use crate::channel::Channel;
-use crate::circuit::CircuitRxSender;
-use crate::circuit::UniqId;
 use crate::circuit::celltypes::{CreateRequest, CreateResponse};
-use crate::circuit::circhop::{HandshakeParamsError, HandshakeSubprotocols, HopSettings};
+use crate::circuit::circhop::{HandshakeParamsError, HopSettings};
+use crate::circuit::{CircuitRxSender, HandshakeSubprotocols, UniqId};
 use crate::client::circuit::padding::PaddingController;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::CryptInit as _;
