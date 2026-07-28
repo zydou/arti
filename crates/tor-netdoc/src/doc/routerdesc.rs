@@ -168,13 +168,6 @@ pub struct RouterDesc {
     #[deftly(netdoc(single_arg))]
     pub uptime: Option<u64>,
 
-    /// `onion-key` --- Relay's obsolete RSA tap key.
-    ///
-    /// * `onion-key\n<rsa public key>`
-    /// * At most once.
-    /// * No extra arguments.
-    pub onion_key: Option<ll::pk::rsa::PublicKey>,
-
     /// `ntor-onion-key` --- The circuit extension key.
     ///
     /// * `ntor-onion-key <base64 padded key>`
@@ -1070,7 +1063,6 @@ impl RouterDesc {
             fingerprint: Some(rsa_identity.into()),
             hibernating: Default::default(),
             uptime,
-            onion_key: tap_onion_key,
             ntor_onion_key,
             ntor_onion_key_crosscert: cc_cert,
             signing_key: rsa_identity_key,
@@ -1284,7 +1276,6 @@ mod test {
                 "[2a01:4f9:2a:2145::2]:443".parse().unwrap(),
             ]
         );
-        assert!(rd.onion_key.is_some());
 
         Ok(())
     }
@@ -1292,10 +1283,9 @@ mod test {
     #[test]
     fn parse_no_tap_key() -> Result<()> {
         use tor_checkable::{SelfSigned, TimeBound};
-        let rd = RouterDesc::parse(TESTDATA2)?
+        let _rd = RouterDesc::parse(TESTDATA2)?
             .check_signature()?
             .dangerously_assume_timely();
-        assert!(rd.onion_key.is_none());
 
         Ok(())
     }
