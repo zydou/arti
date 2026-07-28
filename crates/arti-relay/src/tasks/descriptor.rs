@@ -140,7 +140,8 @@ impl RelayDescriptorPublisherTask {
             .context("Crypto task try_send failed")?;
         let _relay_sign_kp = rx.await.context("Unable to get relay sign keypair")?;
 
-        todo!("descriptor building not yet implemented");
+        // Keep the publisher idle until descriptor encoding is implemented.
+        Ok(None)
     }
 
     /// Recompute the set of directory authorities we upload to.
