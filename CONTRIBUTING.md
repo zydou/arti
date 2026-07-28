@@ -192,7 +192,6 @@ mark it with <code>XX&#88;</code>.
 This will be spotted by the CI, preventing a mistaken merge.
 <!-- that's X X X with no spaces.  Putting it here literally would fail CI :-) -->
 
-
 There is a list of features that I wish other crates had in a file called
 `WANT_FROM_OTHER_CRATES`.
 
