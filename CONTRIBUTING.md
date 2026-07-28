@@ -177,7 +177,7 @@ Many of these tickets are difficult, or things we're actively working on,
 but you may be able to find some low hanging fruit that we haven't had time for.
 There are some tickets there labeled as
 ["First Contribution"](https://gitlab.torproject.org/tpo/core/arti/-/issues?scope=all&utf8=%E2%9C%93&state=opened&label_name[]=First%20Contribution):
-that label means that we think they might be a good place to start out.
+that label means that we think (or thought) they might be a good place to start out.
 
 When you see "TODO" and "FIXME" in the code, you should approach with caution.
 Often a programmer will write a note like that when their head is very full.
