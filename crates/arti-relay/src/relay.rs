@@ -336,7 +336,8 @@ impl<R: Runtime> TorRelay<R> {
             ));
         }
 
-        // TODO DIRMIRROR: Need a config for the DirMirror
+        // TODO DIRMIRROR: Need a config for the DirMirror and should be same as our
+        // TorRelay one.
         let path: PathBuf = PathBuf::from("/dev/null");
         let dir_mirror_authorities: AuthorityContacts = Default::default();
         let schedule: DownloadScheduleConfig = Default::default();
