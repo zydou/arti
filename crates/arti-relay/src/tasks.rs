@@ -5,6 +5,8 @@
 
 pub(crate) mod channel;
 pub(crate) mod crypto;
+pub(crate) mod descriptor;
 pub(crate) mod listeners;
 
 pub(crate) use channel::ChannelHouseKeepingTask;
+pub(crate) use descriptor::RelayDescriptorPublisherTask;

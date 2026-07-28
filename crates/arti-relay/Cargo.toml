@@ -18,6 +18,7 @@ all-features = true
 full = [
     "fs-mistrust/full",
     "safelog/full",
+    "tor-async-utils/full",
     "tor-chanmgr/full",
     "tor-config/full",
     "tor-error/full",
@@ -34,7 +35,9 @@ full = [
     "tor-general-addr/full",
     "tor-circmgr/full",
     "tor-dircommon/full",
+    "tor-dirclient/full",
     "tor-dirmgr/full",
+    "tor-dirpublish/full",
     "tor-guardmgr/full",
     "tor-log-ratelim/full",
     "tor-basic-utils/full",
@@ -53,6 +56,7 @@ __is_experimental = []
 
 [dependencies]
 anyhow = "1.0.23"
+async-trait = "0.1.54"
 base64ct = "1.8.0"
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
@@ -73,6 +77,7 @@ smallvec = "1.10"
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1.47.1", features = ["signal"] }
+tor-async-utils = { path = "../tor-async-utils", version = "0.44.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.44.0" }
 tor-cell = { path = "../tor-cell", version = "0.44.0", features = ["relay"] }
 tor-cert = { path = "../tor-cert", version = "0.44.0" }
@@ -80,8 +85,10 @@ tor-chanmgr = { path = "../tor-chanmgr", version = "0.44.0", features = ["relay"
 tor-circmgr = { version = "0.44.0", path = "../tor-circmgr", features = ["flowctl-cc"] }
 tor-config = { path = "../tor-config", version = "0.44.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.44.0" }
+tor-dirclient = { version = "0.44.0", path = "../tor-dirclient", features = ["relay"] }
 tor-dircommon = { version = "0.44.0", path = "../tor-dircommon" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.44.0" }
+tor-dirpublish = { path = "../tor-dirpublish", version = "0.44.0" }
 tor-dirserver = { path = "../tor-dirserver", version = "0.44.0" }
 tor-error = { path = "../tor-error", version = "0.44.0" }
 tor-general-addr = { path = "../tor-general-addr", version = "0.44.0" }

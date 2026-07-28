@@ -176,6 +176,12 @@ pub(crate) struct TorRelay<R: Runtime> {
     /// A "client" used by relays to construct circuits.
     client: RelayClient<R>,
 
+    /// The directory authorities that were either configured or the compiled-in defaults.
+    ///
+    /// We keep a copy here so we can pass it to the descriptor publisher task. These are not
+    /// exposed by a [`tor_dirmgr::DirProvider`] hence why we keep that copy from the config.
+    authorities: AuthorityContacts,
+
     /// The directory mirror object, used for handling BEGIN_DIR.
     dir_mirror: DirMirror,
 
@@ -234,6 +240,8 @@ impl<R: Runtime> TorRelay<R> {
             )
             .context("Failed to build chan manager")?,
         );
+
+        let authorities = inert.dirmgr_config.authorities().clone();
 
         // Init the relay's client.
         let client = RelayClient::new(
@@ -328,18 +336,20 @@ impl<R: Runtime> TorRelay<R> {
             ));
         }
 
-        // TODO DIRMIRROR: Need a config for the DirMirror
+        // TODO DIRMIRROR: Need a config for the DirMirror and should be same as our
+        // TorRelay one.
         let path: PathBuf = PathBuf::from("/dev/null");
-        let authorities: AuthorityContacts = Default::default();
+        let dir_mirror_authorities: AuthorityContacts = Default::default();
         let schedule: DownloadScheduleConfig = Default::default();
         let tolerance: DirTolerance = Default::default();
 
-        let dir_mirror = DirMirror::new(path, authorities, schedule, tolerance);
+        let dir_mirror = DirMirror::new(path, dir_mirror_authorities, schedule, tolerance);
 
         Ok(Self {
             runtime,
             memquota,
             client,
+            authorities,
             dir_mirror,
             chanmgr,
             create_request_handler,
@@ -420,6 +430,10 @@ impl<R: Runtime> TorRelay<R> {
             crate::stream::handle_incoming_streams(runtime, begin_dir_tx, self.circuit_stream_rx),
         );
 
+        // Channel used to ask the descriptor publisher to rebuild and re-publish the descriptor.
+        let (desc_command_tx, desc_command_rx) = crate::tasks::descriptor::new_command_channel();
+        let (crypto_command_tx, crypto_command_rx) = crate::tasks::crypto::new_command_channel();
+
         // Start the crypto task.
         task_handles.spawn({
             let reactor = crate::tasks::crypto::Reactor::new(
@@ -428,12 +442,33 @@ impl<R: Runtime> TorRelay<R> {
                 self.create_request_handler.clone(),
                 self.keymgr,
                 self.client.dirmgr().clone(),
+                desc_command_tx,
+                crypto_command_rx,
             )?;
             async {
                 reactor
                     .run()
                     .await
                     .context("Failed to run key rotation task")
+            }
+        });
+
+        // Build and publish the relay's own descriptor.
+        task_handles.spawn({
+            let netdir = Arc::clone(self.client.dirmgr()) as Arc<_>;
+            let authorities = self.authorities;
+            async move {
+                crate::tasks::RelayDescriptorPublisherTask::new(
+                    &self.runtime,
+                    netdir,
+                    authorities,
+                    crypto_command_tx,
+                    desc_command_rx,
+                )
+                .context("Failed to create descriptor publisher task")?
+                .start()
+                .await
+                .context("Failed to run descriptor publisher task")
             }
         });
 
