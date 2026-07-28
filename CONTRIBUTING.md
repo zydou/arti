@@ -196,9 +196,6 @@ This will be spotted by the CI, preventing a mistaken merge.
 There is a list of features that I wish other crates had in a file called
 `WANT_FROM_OTHER_CRATES`.
 
-Finally, check out
-[the bugtracker](https://gitlab.torproject.org/tpo/core/arti/-/issues).
-
 ## Caveat haxxor: what to watch out for
 
 Please don't assume that what you see here is good Rust: we've tried to
