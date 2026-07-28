@@ -113,7 +113,7 @@ shellcheck:
     - ./maint/common/shellcheck-all
 
 python3-checks:
-  needs: []
+  needs: ["build-shadow"]
   stage: build
   variables:
     # Updated 2026-01-21
@@ -143,6 +143,8 @@ python3-checks:
         black=="$BLACK_VERSION"
         flake8=="$FLAKE8_VERSION"
         mypy=="$MYPY_VERSION"
+    # Install shadowtools, built in build-shadow
+    - pip3 install --no-index --find-links="$CI_PROJECT_DIR"/opt/shadow/wheels shadowtools
     - ./maint/python-lints
 
 maint-checks:
@@ -622,8 +624,8 @@ build-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    # Last updated 2026-06-03
-    JOB_SHADOW_COMMIT: "fda368e7f9ed87c3981c8d8679f716c20c8b634a"
+    # Last updated 2026-07-27
+    JOB_SHADOW_COMMIT: "6599c7c7e1726bf621d10ef83f528575fcf0348d"
   artifacts:
     paths:
       - opt/shadow
@@ -631,7 +633,7 @@ build-shadow:
     # around for longer.
     expire_in: 1 day
   cache:
-    - key: $CI_JOB_NAME-shadow-$JOB_SHADOW_COMMIT
+    - key: $CI_JOB_NAME-shadow-v3-$JOB_SHADOW_COMMIT
       paths:
       - opt/shadow
   script:
@@ -642,7 +644,7 @@ build-shadow:
         echo "Using shadow binary from cache"
       else
         echo "Building shadow"
-        maint/common/apt-install git
+        maint/common/apt-install git python3-pip
         git clone --shallow-since=2021-08-01 -b $JOB_SHADOW_BRANCH $JOB_SHADOW_REPO ~/src/shadow
         cd ~/src/shadow
         git checkout $JOB_SHADOW_COMMIT
@@ -652,6 +654,9 @@ build-shadow:
         export PATH="$HOME/.cargo/bin:${PATH}"
         ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/shadow
         ./setup install
+
+        mkdir "$CI_PROJECT_DIR"/opt/shadow/wheels
+        python3 -m pip wheel --wheel-dir="$CI_PROJECT_DIR"/opt/shadow/wheels ./shadowtools
       fi
 
 integration-chutney:
@@ -715,6 +720,9 @@ integration-chutney-shadow:
     # Set up shadow, built in build-shadow
     - maint/common/apt-install libglib2.0-0
     - stow -d opt -t $HOME/.local shadow
+
+    # Install shadowtools, built in build-shadow
+    - python3 -m pip install --no-index --find-links="$CI_PROJECT_DIR"/opt/shadow/wheels shadowtools
 
     # Select a random simulation seed to avoid "dooming"
     # an unlucky MR that hits a low-probability bug.
