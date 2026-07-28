@@ -154,7 +154,7 @@ know our [architecture](./doc/dev/Architecture.md).
 Before you begin working on a nontrivial fix or feature,
 you may want to ask other Arti developers whether it's a good thing to tackle.
 A lightweight way is to ask
-on the [`\#tor-dev` IRC channel on OFTC](https://www.torproject.org/contact/)
+on the [`#tor-dev` IRC channel on OFTC](https://www.torproject.org/contact/)
 (although you will get the best response times there on Mondays to Thursdays).
 Or you could write in the relevant gitlab ticket, or file a new ticket.
 
