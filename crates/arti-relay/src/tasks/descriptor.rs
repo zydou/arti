@@ -34,11 +34,6 @@ use crate::tasks::crypto::{CryptoCommand, CryptoCommandSender};
 /// algorithm seeded with this value.
 const INITIAL_RETRY_DELAY: Duration = Duration::from_secs(60);
 
-/// Type alias representing Relay descriptor document.
-///
-/// It is a flat string as when we encode a descriptor, that is what we get.
-pub(crate) type RelayDescDocument = String;
-
 /// A command sent to the [`RelayDescriptorPublisherTask`] over its control channel.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -125,7 +120,7 @@ impl RelayDescriptorPublisherTask {
     ///
     /// Returns `None` if we don't have everything we need to build a descriptor.
     #[allow(clippy::unused_async)] // TODO(relay): remove once used.
-    async fn build_descriptor(&mut self) -> anyhow::Result<Option<Arc<RelayDescDocument>>> {
+    async fn build_descriptor(&mut self) -> anyhow::Result<Option<Arc<str>>> {
         // TODO(relay): No relay desc encoding support yet from tor-netdoc.
         //
         // Once encoding exists, this should:
@@ -187,9 +182,7 @@ impl RelayDescriptorPublisherTask {
             .context("Failed to build relay descriptor")?;
         // Turn the encoded descriptor into a request and erase its concrete type for the
         // generic HTTP publisher.
-        let doc = desc.map(|desc| {
-            Arc::new(UploadRouterDesc::new(Arc::from(desc.as_str()))) as Arc<dyn Requestable>
-        });
+        let doc = desc.map(|desc| Arc::new(UploadRouterDesc::new(desc)) as Arc<dyn Requestable>);
 
         // Tell the publisher to publish the new document. Failing to build the descriptor, as in a
         // None value, will make the publisher wait and do nothing.
