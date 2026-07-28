@@ -183,8 +183,8 @@ When you see "TODO" and "FIXME" in the code, you should approach with caution.
 When a developer writes a note like this instead of just doing the task,
 it's usually because it's unclear the best way to do that task,
 or whether it actually ought to be done at all.
-Often if a TODO looks juicy, the best next step is to file a ticket
-with your findings and a more concrete proposal.
+Often if a TODO looks juicy, the best next steps are to do some research,
+and then to file a ticket with your findings and a more concrete proposal.
 
 If you want to make a temporary change that ought *definitely* not to be merged,
 mark it with <code>XX&#88;</code>.
