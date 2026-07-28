@@ -685,7 +685,7 @@ impl<R: Runtime> Reactor<R> {
             // chance to notice.
             // We'll just try to reject the new circuit request and let the reactor shut down
             // normally, rather than return an error.
-            let destroy = Destroy::new(DestroyReason::CHANNEL_CLOSED);
+            let destroy = Destroy::new(DestroyReason::NONE);
             let destroy = AnyChanCell::new(Some(circid), destroy.into());
 
             debug!(

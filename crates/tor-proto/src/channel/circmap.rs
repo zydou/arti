@@ -234,7 +234,7 @@ impl CircMap {
     ) -> StdResult<(), DestroyReason> {
         // The peer is only allowed to use a subset of the ID range.
         if !self.range.is_allowed_for_peer(circ_id) {
-            return Err(DestroyReason::PROTOCOL);
+            return Err(DestroyReason::NONE);
         }
 
         let circ_ent = CircEnt::OpenRelay {
@@ -248,7 +248,7 @@ impl CircMap {
             self.open_count += 1;
             Ok(())
         } else {
-            Err(DestroyReason::PROTOCOL)
+            Err(DestroyReason::NONE)
         }
     }
 
