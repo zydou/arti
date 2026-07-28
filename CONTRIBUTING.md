@@ -180,10 +180,9 @@ There are some tickets there labeled as
 that label means that we think (or thought) they might be a good place to start out.
 
 When you see "TODO" and "FIXME" in the code, you should approach with caution.
-Often a programmer will write a note like that when their head is very full.
-The thing that the TODO suggests ought to be done may be a bad idea,
-or very difficult.  Usually the first thing to do with an in-code TODO
-is research and double-checking, and then making a judgement about what should be done.
+When a developer writes a note like this instead of just doing the task,
+it's usually because it's unclear the best way to do that task,
+or whether it actually ought to be done at all.
 Often if a TODO looks juicy, the best next step is to file a ticket
 with your findings and a more concrete proposal.
 
