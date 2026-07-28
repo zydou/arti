@@ -15,16 +15,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
-use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::{StreamExt as _, select_biased};
 use tracing::{debug, trace};
 
 use tor_async_utils::{mpsc_channel_no_memquota, oneshot};
-use tor_dirclient::request::UploadRouterDesc;
+use tor_dirclient::request::{Requestable, UploadRouterDesc};
 use tor_dircommon::authority::AuthorityContacts;
-use tor_dirpublish::http::DirectHttpUploader;
-use tor_dirpublish::{Publisher, UploadError, Uploader};
+use tor_dirpublish::{Publisher, http::DirectHttpUploader};
 use tor_netdir::{DirEvent, NetDirProvider};
 use tor_rtcompat::Runtime;
 
@@ -40,16 +38,6 @@ const INITIAL_RETRY_DELAY: Duration = Duration::from_secs(60);
 ///
 /// It is a flat string as when we encode a descriptor, that is what we get.
 pub(crate) type RelayDescDocument = String;
-
-/// A directory authority we upload our descriptor to.
-///
-/// This holds the upload endpoint, DirPort, of a single logical authority. There may be
-/// an IPv4 or/and IPv6.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct DirAuthorityTarget {
-    /// The upload (DirPort) socket addresses of this authority, possibly dual-stack.
-    addrs: Vec<SocketAddr>,
-}
 
 /// A command sent to the [`RelayDescriptorPublisherTask`] over its control channel.
 #[derive(Clone, Debug)]
@@ -75,32 +63,6 @@ pub(crate) fn new_command_channel() -> (DescriptorCommandSender, DescriptorComma
     mpsc_channel_no_memquota(16)
 }
 
-/// The [`Uploader`] used to deliver our descriptor to a directory authority.
-struct RelayDescUploader<R: Runtime> {
-    /// The [`tor_dirpublish`] uploader that is used to send the HTTP request. Keep it
-    /// here so we avoid re-allocating at each upload.
-    uploader: Arc<DirectHttpUploader<R>>,
-}
-
-#[async_trait]
-impl<R: Runtime> Uploader for RelayDescUploader<R> {
-    type Doc = RelayDescDocument;
-    type Target = DirAuthorityTarget;
-
-    async fn upload(
-        self: Arc<Self>,
-        target: Arc<Self::Target>,
-        document: Arc<Self::Doc>,
-    ) -> Result<(), UploadError> {
-        let doc = Arc::new(UploadRouterDesc::new(Arc::from(document.as_str())));
-        // TODO(relay): We have to check those against our relay capabilities as in if we
-        // support IPv6 or if we have an IPv4. For now, we pass all targets and let any
-        // failures be handled at the connect() attempt.
-        let addrs = Arc::new(target.addrs.clone());
-        self.uploader.clone().upload(addrs, doc).await
-    }
-}
-
 /// Background task that builds and publishes the relay's descriptor.
 pub(crate) struct RelayDescriptorPublisherTask {
     /// Directory provider, used to learn about new consensus documents and parameters.
@@ -115,7 +77,7 @@ pub(crate) struct RelayDescriptorPublisherTask {
     command_rx: DescriptorCommandReceiver,
 
     /// The [`tor_dirpublish`] publisher that manages uploads to all targets.
-    publisher: Arc<Publisher<RelayDescDocument, DirAuthorityTarget>>,
+    publisher: Arc<Publisher<dyn Requestable, Vec<SocketAddr>>>,
 
     /// The crypto task sender channel.
     crypto_tx: CryptoCommandSender,
@@ -136,9 +98,7 @@ impl RelayDescriptorPublisherTask {
         crypto_tx: CryptoCommandSender,
         command_rx: DescriptorCommandReceiver,
     ) -> anyhow::Result<Self> {
-        let uploader = Arc::new(RelayDescUploader {
-            uploader: Arc::new(DirectHttpUploader::new(runtime.clone())),
-        });
+        let uploader = Arc::new(DirectHttpUploader::new(runtime.clone()));
 
         // We start with no document and no targets. Both are populated once we build a descriptor.
         // This way we catch any new directory authorities showing up in the config or consensus.
@@ -190,19 +150,22 @@ impl RelayDescriptorPublisherTask {
 
     /// Recompute the set of directory authorities we upload to.
     ///
-    /// Each authority becomes one target, carrying all of its upload addresses so the [`Uploader`]
-    /// can try them in turn.
+    /// Each authority becomes one target, carrying all of its upload addresses so the
+    /// [`DirectHttpUploader`] can try them in turn.
     ///
-    /// Returns `None` if we somehow have no authorities at all.
-    fn compute_targets(&self) -> HashSet<Arc<DirAuthorityTarget>> {
+    /// Returns an empty set if we somehow have no authorities at all.
+    fn compute_targets(&self) -> HashSet<Vec<SocketAddr>> {
         // This should never be empty because we have compiled in authorities by default.
         // If that case ever happens, the publisher will just do nothing.
+        //
+        // TODO(relay): We have to check those against our relay capabilities as in if we
+        // support IPv6 or if we have an IPv4. For now, we pass all targets and let any
+        // failures be handled at the connect() attempt.
         self.authorities
             .uploads()
             .iter()
             .filter(|&addrs| !addrs.is_empty())
             .cloned()
-            .map(|addrs| Arc::new(DirAuthorityTarget { addrs }))
             .collect()
     }
 
@@ -213,18 +176,24 @@ impl RelayDescriptorPublisherTask {
         // attempt to use what was there before.
         let targets = self.compute_targets();
         if !targets.is_empty() {
+            let targets = targets.into_iter().map(Arc::new).collect();
             self.publisher.adjust_targets(|t| *t = targets);
         }
 
         // Get the latest descriptor.
-        let document = self
+        let desc = self
             .build_descriptor()
             .await
             .context("Failed to build relay descriptor")?;
+        // Turn the encoded descriptor into a request and erase its concrete type for the
+        // generic HTTP publisher.
+        let doc = desc.map(|desc| {
+            Arc::new(UploadRouterDesc::new(Arc::from(desc.as_str()))) as Arc<dyn Requestable>
+        });
 
         // Tell the publisher to publish the new document. Failing to build the descriptor, as in a
         // None value, will make the publisher wait and do nothing.
-        self.publisher.set_document(document, false);
+        self.publisher.set_document(doc, false);
         Ok(())
     }
 
