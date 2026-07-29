@@ -602,7 +602,7 @@ pub(crate) mod test {
 
     use chanmsg::AnyChanMsg;
 
-    #[cfg(feature = "hs-service")]
+    #[cfg(any(feature = "hs-service", feature = "relay"))]
     use crate::stream::IncomingStreamRequestFilter;
 
     pub(crate) fn rmsg_to_ccmsg(
