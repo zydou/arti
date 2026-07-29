@@ -8,7 +8,7 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use tracing::{debug, instrument, trace};
 
-use safelog::{MaybeSensitive, Redacted};
+use safelog::MaybeSensitive;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_cell::restrict::{RestrictedMsg, restricted_msg};
@@ -529,7 +529,7 @@ impl<
 
         debug!(
             stream_id = %self.unique_id,
-            "Completed handshake without authentication to {}", Redacted::new(&peer_target)
+            "Completed handshake without authentication to {}", peer_info
         );
 
         super::Channel::new(
