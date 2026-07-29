@@ -316,6 +316,8 @@ pub(crate) struct Reactor<R: Runtime, F: ForwardHandler, B: BackwardHandler> {
     ///
     /// Used for logging.
     unique_id: UniqId,
+    /// The circuit identifier on the inbound Tor channel.
+    circ_id: CircId,
     /// The reactor for handling
     ///
     ///   * cells moving in the forward direction (from the client towards exit), if we are a relay
@@ -461,6 +463,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         let forward = ForwardReactor::new(
             runtime.clone(),
             unique_id,
+            circ_id,
             forward_impl,
             hop_mgr,
             inbound_chan_rx,
@@ -488,6 +491,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
 
         let reactor = Reactor {
             unique_id,
+            circ_id,
             forward: Some(forward),
             backward: Some(backward),
             control: control_rx,
@@ -514,7 +518,8 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
                 res = self.command.next() => {
                     let Some(cmd) = res else {
                         trace!(
-                            circ_id = %self.unique_id,
+                            uniq_id = %self.unique_id,
+                            circ_id = %self.circ_id,
                             reason = "command channel drop",
                             "reactor shutdown",
                         );
@@ -527,7 +532,8 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
                 res = self.control.next() => {
                     let Some(msg) = res else {
                         trace!(
-                            circ_id = %self.unique_id,
+                            uniq_id = %self.unique_id,
+                            circ_id = %self.circ_id,
                             reason = "control channel drop",
                             "reactor shutdown",
                         );

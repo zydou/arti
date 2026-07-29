@@ -214,6 +214,7 @@ impl<R: Runtime> Reactor<R> {
         let mut hop_mgr = HopMgr::new_with_incoming_handler(
             runtime.clone(),
             unique_id,
+            circ_id,
             StreamHandler,
             stream_tx,
             incoming_handler,
@@ -232,6 +233,7 @@ impl<R: Runtime> Reactor<R> {
         let (fwd_ev_tx, fwd_ev_rx) = mpsc::channel(0);
         let forward = Forward::new(
             channel,
+            circ_id,
             unique_id,
             crypto_out,
             chan_provider,
@@ -754,7 +756,7 @@ pub(crate) mod test {
 
             // The reactor handled the EXTEND2 and launched an outbound channel
             assert!(logs_contain(
-                "Launched channel to the next hop circ_id=Circ 8.17"
+                "Launched channel to the next hop uniq_id=Circ 8.17"
             ));
             assert!(ctrl.outbound_chan_launched());
             assert!(!ctrl.is_closing());
@@ -1019,7 +1021,7 @@ pub(crate) mod test {
             // ... but the exit stream is not
             assert!(logs_contain("stream reactor shut down"));
             assert!(logs_contain(
-                "Stream protocol violation: Unexpected BEGIN on incoming stream circ_id=Circ 8.17"
+                "Stream protocol violation: Unexpected BEGIN on incoming stream uniq_id=Circ 8.17"
             ));
 
             // The reactor won't create an IncomingStream,

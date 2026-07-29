@@ -18,6 +18,7 @@ use crate::stream::incoming::{
 };
 
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
+use tor_cell::chancell::CircId;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Begin, BeginDir, End, EndReason, Resolve};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
@@ -79,6 +80,8 @@ pub(crate) struct StreamReactor {
     time_provider: DynTimeProvider,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
+    /// The circuit identifier on the inbound Tor channel.
+    circ_id: CircId,
     /// Receiver for Tor stream data that need to be delivered to a Tor stream.
     ///
     /// The sender is in the [`HopMgr`](super::hop_mgr::HopMgr) of the
@@ -120,6 +123,7 @@ impl StreamReactor {
         hopnum: Option<HopNum>,
         hop: CircHopOutbound,
         unique_id: UniqId,
+        circ_id: CircId,
         cell_rx: mpsc::Receiver<CtrlMsg>,
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         inner: Arc<dyn StreamHandler>,
@@ -132,6 +136,7 @@ impl StreamReactor {
             hop,
             time_provider: DynTimeProvider::new(runtime),
             unique_id,
+            circ_id,
             #[cfg(any(feature = "hs-service", feature = "relay"))]
             incoming,
             cell_rx,
@@ -281,8 +286,12 @@ impl StreamReactor {
             // (the BWD handles the encoding)
             if c_t_w {
                 if let Some(stream_id) = bwd_msg.stream_id() {
-                    self.hop
-                        .about_to_send(self.unique_id, stream_id, bwd_msg.msg())?;
+                    self.hop.about_to_send(
+                        self.unique_id,
+                        self.circ_id,
+                        stream_id,
+                        bwd_msg.msg(),
+                    )?;
                 }
             }
 
@@ -465,7 +474,8 @@ impl StreamReactor {
                 // IncomingStreamRequestHandler, we need to do it elsewhere, in
                 // a different way.
                 debug!(
-                    circ_id = %self.unique_id,
+                    uniq_id = %self.unique_id,
+                    circ_id = %self.circ_id,
                     "Incoming stream request receiver dropped",
                 );
                 // This will _cause_ the circuit to get closed.
@@ -549,9 +559,15 @@ impl StreamReactor {
     ) -> StdResult<(), ReactorError> {
         let timeout = self.inner.halfstream_expiry(&self.hop);
         let expire_at = self.time_provider.now() + timeout;
-        let res = self
-            .hop
-            .close_stream(self.unique_id, sid, None, behav, reason, expire_at)?;
+        let res = self.hop.close_stream(
+            self.unique_id,
+            self.circ_id,
+            sid,
+            None,
+            behav,
+            reason,
+            expire_at,
+        )?;
         let Some(msg) = res else {
             // We may not need to send anything at all...
             return Ok(());

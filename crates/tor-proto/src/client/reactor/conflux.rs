@@ -296,7 +296,8 @@ impl ConfluxSet {
         let circ = self.remove_unchecked(leg)?;
 
         tracing::trace!(
-            circ_id = %circ.unique_id(),
+            uniq_id = %circ.unique_id(),
+            circ_id = %circ.circ_id(),
             "Circuit removed from conflux set"
         );
 
@@ -942,6 +943,7 @@ impl ConfluxSet {
 
         for leg in &mut self.legs {
             let unique_id = leg.unique_id();
+            let circ_id = leg.circ_id();
             let tunnel_id = self.tunnel_id;
             let runtime = runtime.clone();
 
@@ -1011,7 +1013,11 @@ impl ConfluxSet {
                 match ready_streams.next().await {
                     Some(x) => x,
                     None => {
-                        info!(circ_id=%unique_id, "no ready streams (maybe blocked on cc?)");
+                        info!(
+                            uniq_id = %unique_id,
+                            circ_id = %circ_id,
+                            "no ready streams (maybe blocked on cc?)"
+                        );
                         // There are no ready streams (for example, they may all be
                         // blocked due to congestion control), so there is nothing
                         // to do.
@@ -1055,7 +1061,8 @@ impl ConfluxSet {
                         () = conflux_hs_timeout.fuse() => {
                             warn!(
                                 tunnel_id = %tunnel_id,
-                                circ_id = %unique_id,
+                                uniq_id = %unique_id,
+                                circ_id = %circ_id,
                                 "Conflux handshake timed out on circuit"
                             );
 

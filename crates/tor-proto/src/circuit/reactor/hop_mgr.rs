@@ -15,6 +15,7 @@ use {
     tor_cell::relaycell::StreamId,
 };
 
+use tor_cell::chancell::CircId;
 use tor_error::internal;
 use tor_rtcompat::Runtime;
 
@@ -68,6 +69,8 @@ pub(crate) struct HopMgr<R: Runtime> {
 struct StreamReactorContext {
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
+    /// The circuit identifier on the inbound Tor channel.
+    circ_id: CircId,
     /// The incoming stream handler.
     ///
     /// This is shared with every StreamReactor.
@@ -86,6 +89,7 @@ impl<R: Runtime> HopMgr<R> {
     pub(crate) fn new_with_incoming_handler<S: StreamHandler>(
         runtime: R,
         unique_id: UniqId,
+        circ_id: CircId,
         handler: S,
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         incoming_handler: IncomingStreamRequestHandler,
@@ -94,6 +98,7 @@ impl<R: Runtime> HopMgr<R> {
         Self::new_inner(
             runtime,
             unique_id,
+            circ_id,
             handler,
             bwd_tx,
             Some(incoming_handler),
@@ -108,6 +113,7 @@ impl<R: Runtime> HopMgr<R> {
     pub(crate) fn new<S: StreamHandler>(
         runtime: R,
         unique_id: UniqId,
+        circ_id: CircId,
         handler: S,
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         memquota: CircuitAccount,
@@ -115,6 +121,7 @@ impl<R: Runtime> HopMgr<R> {
         Self::new_inner(
             runtime,
             unique_id,
+            circ_id,
             handler,
             bwd_tx,
             #[cfg(any(feature = "hs-service", feature = "relay"))]
@@ -127,6 +134,7 @@ impl<R: Runtime> HopMgr<R> {
     fn new_inner<S: StreamHandler>(
         runtime: R,
         unique_id: UniqId,
+        circ_id: CircId,
         handler: S,
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         #[cfg(any(feature = "hs-service", feature = "relay"))] incoming_handler: Option<
@@ -139,6 +147,7 @@ impl<R: Runtime> HopMgr<R> {
         let hops = Arc::new(RwLock::new(Default::default()));
         let ctx = StreamReactorContext {
             unique_id,
+            circ_id,
             #[cfg(any(feature = "hs-service", feature = "relay"))]
             incoming: Arc::new(Mutex::new(incoming_handler)),
             handler: Arc::new(handler),
@@ -292,6 +301,7 @@ impl<R: Runtime> HopMgr<R> {
             hopnum,
             outbound,
             self.ctx.unique_id,
+            self.ctx.circ_id,
             fwd_stream_rx,
             self.bwd_tx.clone(),
             Arc::clone(&self.ctx.handler),
