@@ -339,7 +339,11 @@ impl RouterDescUnverified {
         timebounds.push(identity_ed25519_bounds);
 
         // Keep track of the published value as lower time bound.
-        timebounds.push(TimeRangeBound::new_from_start_end((), Some(body.published.0), None));
+        timebounds.push(TimeRangeBound::new_from_start_end(
+            (),
+            Some(body.published.0),
+            None,
+        ));
 
         // If set, ensure that the fingerprint equals to the signing key id.
         if body
@@ -399,8 +403,14 @@ impl RouterDescUnverified {
 
         // Construct the final TimeRangeBound by obtaining the min and max.
         // TODO DIRMIRROR: Replace the map logic with TimeRangeBound::intersect_bounds().
-        let min = timebounds.iter().filter_map(|x| x.bounds_start_end().0).min();
-        let max = timebounds.iter().filter_map(|x| x.bounds_start_end().1).max();
+        let min = timebounds
+            .iter()
+            .filter_map(|x| x.bounds_start_end().0)
+            .min();
+        let max = timebounds
+            .iter()
+            .filter_map(|x| x.bounds_start_end().1)
+            .max();
         debug_assert!(min.is_some()); // At least always obtained from published.
         debug_assert!(max.is_some()); // At least always obtained from an edcert.
 
