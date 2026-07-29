@@ -637,7 +637,7 @@ impl Reactor {
     #[allow(clippy::type_complexity, clippy::too_many_arguments)] // TODO
     pub(super) fn new(
         channel: Arc<Channel>,
-        channel_id: CircId,
+        circ_id: CircId,
         unique_id: UniqId,
         input: CircuitRxReceiver,
         runtime: DynTimeProvider,
@@ -669,7 +669,7 @@ impl Reactor {
         let circuit_leg = Circuit::new(
             runtime.clone(),
             channel,
-            channel_id,
+            circ_id,
             unique_id,
             input,
             memquota,

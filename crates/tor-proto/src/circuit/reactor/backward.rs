@@ -175,7 +175,7 @@ pub(crate) trait BackwardHandler: ControlHandler {
     /// or a [`BackwardCellDisposition`] specifying how it should be handled.
     fn handle_backward_cell(
         &mut self,
-        circ_id: UniqId,
+        unique_id: UniqId,
         cell: Self::CircChanMsg,
     ) -> StdResult<BackwardCellDisposition, ReactorError>;
 }

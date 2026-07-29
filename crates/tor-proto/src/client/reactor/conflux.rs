@@ -1213,12 +1213,12 @@ impl ConfluxSet {
     /// if the removal of the leg ought to trigger a reactor shutdown.
     ///
     /// Returns an error if the leg doesn't exit in the conflux set.
-    fn remove_unchecked(&mut self, circ_id: UniqId) -> Result<Circuit, Bug> {
+    fn remove_unchecked(&mut self, unique_id: UniqId) -> Result<Circuit, Bug> {
         let idx = self
             .legs
             .iter()
-            .position(|circ| circ.unique_id() == circ_id)
-            .ok_or_else(|| internal!("leg {circ_id:?} not found in conflux set"))?;
+            .position(|circ| circ.unique_id() == unique_id)
+            .ok_or_else(|| internal!("leg {unique_id:?} not found in conflux set"))?;
 
         Ok(self.legs.remove(idx))
     }
@@ -1227,11 +1227,11 @@ impl ConfluxSet {
     #[cfg(feature = "circ-padding")]
     pub(super) async fn run_padding_event(
         &mut self,
-        circ_id: UniqId,
+        unique_id: UniqId,
         padding_event: PaddingEvent,
     ) -> crate::Result<()> {
         use PaddingEvent as E;
-        let Some(circ) = self.leg_mut(circ_id) else {
+        let Some(circ) = self.leg_mut(unique_id) else {
             // No such circuit; it must have gone away after generating this event.
             // Just ignore it.
             return Ok(());

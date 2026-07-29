@@ -116,7 +116,7 @@ pub(crate) struct Circuit {
     /// shared with the reactor's `ConfluxSet`.
     mutable: Arc<MutableState>,
     /// This circuit's identifier on the upstream channel.
-    channel_id: CircId,
+    circ_id: CircId,
     /// An identifier for logging about this reactor's circuit.
     unique_id: TunnelScopedCircId,
     /// A handler for conflux cells.
@@ -220,7 +220,7 @@ impl Circuit {
     pub(super) fn new(
         runtime: DynTimeProvider,
         channel: Arc<Channel>,
-        channel_id: CircId,
+        circ_id: CircId,
         unique_id: TunnelScopedCircId,
         input: CircuitRxReceiver,
         memquota: CircuitAccount,
@@ -240,7 +240,7 @@ impl Circuit {
             crypto_in: InboundClientCrypt::new(),
             hops: CircHopList::default(),
             unique_id,
-            channel_id,
+            circ_id,
             crypto_out,
             mutable,
             #[cfg(feature = "conflux")]
@@ -1371,7 +1371,7 @@ impl Circuit {
         msg: AnyChanMsg,
         info: Option<QueuedCellPaddingInfo>,
     ) -> Result<()> {
-        let cell = AnyChanCell::new(Some(self.channel_id), msg);
+        let cell = AnyChanCell::new(Some(self.circ_id), msg);
         // Note: this future is always `Ready`, so await won't block.
         Pin::new(&mut self.chan_sender)
             .send_unbounded((cell, info))
@@ -1629,6 +1629,6 @@ impl Circuit {
 
 impl Drop for Circuit {
     fn drop(&mut self) {
-        let _ = self.channel.close_circuit(self.channel_id);
+        let _ = self.channel.close_circuit(self.circ_id);
     }
 }

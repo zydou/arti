@@ -801,7 +801,7 @@ impl PendingClientTunnel {
     /// Does not send a CREATE* cell on its own.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        id: CircId,
+        circ_id: CircId,
         channel: Arc<Channel>,
         createdreceiver: oneshot::Receiver<CreateResponse>,
         input: CircuitRxReceiver,
@@ -815,7 +815,7 @@ impl PendingClientTunnel {
         let time_provider = channel.time_provider().clone();
         let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) = Reactor::new(
             channel,
-            id,
+            circ_id,
             unique_id,
             input,
             runtime,
@@ -832,7 +832,7 @@ impl PendingClientTunnel {
             command: command_tx,
             reactor_closed_rx: reactor_closed_rx.shared(),
             #[cfg(test)]
-            circid: id,
+            circid: circ_id,
             memquota,
             time_provider,
             is_multi_path: false,
