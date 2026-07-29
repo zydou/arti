@@ -326,7 +326,7 @@ impl RouterDescUnverified {
         // This also includes a check for the master-key-ed25519.
         let (identity_ed25519, identity_ed25519_bounds) =
             Ed25519IdentityCert::verify(body.identity_ed25519.raw_unverified().clone())?
-                .dangerously_into_parts();
+                .dangerously_into_parts(); // TODO DIRMIRROR: Use TimeRangeBoundBuilder
         let Ed25519IdentityCert {
             id_ed25519,
             sign_ed25519,
@@ -366,7 +366,7 @@ impl RouterDescUnverified {
             id_ed25519,
             body.ntor_onion_key_crosscert.cert.raw_unverified().clone(),
         )?
-        .dangerously_into_parts();
+        .dangerously_into_parts(); // TODO DIRMIRROR: Use TimeRangeBoundBuilder
         body.ntor_onion_key_crosscert.cert.set_verified(ntor_cc);
         timebounds.push(ntor_cc_bounds);
 
@@ -380,7 +380,7 @@ impl RouterDescUnverified {
         for cert in body.family_cert.0.iter_mut() {
             let (cert_verified, cert_bounds) =
                 Ed25519FamilyCert::verify(id_ed25519, cert.raw_unverified().clone())?
-                    .dangerously_into_parts();
+                    .dangerously_into_parts(); // TODO DIRMIRROR: Use TimeRangeBoundBuilder
             cert.set_verified(cert_verified);
             timebounds.push(cert_bounds);
         }
@@ -402,6 +402,8 @@ impl RouterDescUnverified {
 
         // Construct the final TimeRangeBound by obtaining the min and max.
         // TODO DIRMIRROR: Replace the map logic with TimeRangeBound::intersect_bounds().
+        // Alternatively, we may also want to add a TimeBoundAccumulator, as outlined in
+        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4144#note_3440907
         let min = timebounds
             .iter()
             .filter_map(|x| x.bounds_start_end().0)

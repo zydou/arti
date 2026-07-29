@@ -2619,6 +2619,9 @@ pub mod routerdesc {
 
     impl RouterSigEd25519 {
         /// The magic prefix for hashing this type of signature.
+        //
+        // TODO DIRMIRROR have the old parser's verification code use this
+        // constant, thereby de-duplicating.
         const HASH_PREFIX_MAGIC: &str = "Tor router descriptor signature v1";
 
         /// Calculate the hash for signature
