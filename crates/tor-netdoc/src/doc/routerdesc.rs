@@ -168,13 +168,6 @@ pub struct RouterDesc {
     #[deftly(netdoc(single_arg))]
     pub uptime: Option<u64>,
 
-    /// `onion-key` --- Relay's obsolete RSA tap key.
-    ///
-    /// * `onion-key\n<rsa public key>`
-    /// * At most once.
-    /// * No extra arguments.
-    pub onion_key: Option<ll::pk::rsa::PublicKey>,
-
     /// `ntor-onion-key` --- The circuit extension key.
     ///
     /// * `ntor-onion-key <base64 padded key>`
@@ -402,8 +395,6 @@ decl_keyword! {
         "master-key-ed25519" => MASTER_KEY_ED25519,
         "ntor-onion-key" => NTOR_ONION_KEY,
         "ntor-onion-key-crosscert" => NTOR_ONION_KEY_CROSSCERT,
-        "onion-key" => ONION_KEY,
-        "onion-key-crosscert" => ONION_KEY_CROSSCERT,
         "or-address" => OR_ADDRESS,
         "platform" => PLATFORM,
         "proto" => PROTO,
@@ -457,8 +448,6 @@ static ROUTER_BODY_RULES: LazyLock<SectionRules<RouterKwd>> = LazyLock::new(|| {
     rules.add(PUBLISHED.rule().required());
     rules.add(FINGERPRINT.rule());
     rules.add(UPTIME.rule().args(1..));
-    rules.add(ONION_KEY.rule().no_args().obj_required());
-    rules.add(ONION_KEY_CROSSCERT.rule().no_args().obj_required());
     rules.add(NTOR_ONION_KEY.rule().required().args(1..));
     rules.add(
         NTOR_ONION_KEY_CROSSCERT
@@ -849,37 +838,6 @@ impl RouterDesc {
             (sig, expiry, cert)
         };
 
-        // TAP key
-        let tap_onion_key: Option<ll::pk::rsa::PublicKey> = if let Some(tok) = body.get(ONION_KEY) {
-            Some(
-                tok.parse_obj::<RsaPublicParse1Helper>("RSA PUBLIC KEY")?
-                    .check_len_eq(1024)?
-                    .check_exponent(65537)?
-                    .into(),
-            )
-        } else {
-            None
-        };
-
-        // TAP crosscert
-        let tap_crosscert_sig = if let Some(cc_tok) = body.get(ONION_KEY_CROSSCERT) {
-            let cc_val = cc_tok.obj("CROSSCERT")?;
-            let mut signed = Vec::new();
-            signed.extend(rsa_identity.as_bytes());
-            signed.extend(identity_cert.peek_signing_key().as_bytes());
-            Some(ll::pk::rsa::ValidatableRsaSignature::new(
-                tap_onion_key.as_ref().ok_or_else(|| {
-                    EK::MissingToken.with_msg("onion-key-crosscert without onion-key")
-                })?,
-                &cc_val,
-                &signed,
-            ))
-        } else if tap_onion_key.is_some() {
-            return Err(EK::MissingToken.with_msg("onion-key without onion-key-crosscert"));
-        } else {
-            None
-        };
-
         // List of subprotocol versions
         let proto = {
             let proto_tok = body.required(PROTO)?;
@@ -1010,9 +968,6 @@ impl RouterDesc {
             Box::new(identity_sig),
             Box::new(cc_sig),
         ];
-        if let Some(s) = tap_crosscert_sig {
-            signatures.push(Box::new(s));
-        }
 
         let identity_cert = identity_cert.dangerously_assume_timely();
         let mut expirations = vec![
@@ -1070,7 +1025,6 @@ impl RouterDesc {
             fingerprint: Some(rsa_identity.into()),
             hibernating: Default::default(),
             uptime,
-            onion_key: tap_onion_key,
             ntor_onion_key,
             ntor_onion_key_crosscert: cc_cert,
             signing_key: rsa_identity_key,
@@ -1284,7 +1238,6 @@ mod test {
                 "[2a01:4f9:2a:2145::2]:443".parse().unwrap(),
             ]
         );
-        assert!(rd.onion_key.is_some());
 
         Ok(())
     }
@@ -1292,10 +1245,9 @@ mod test {
     #[test]
     fn parse_no_tap_key() -> Result<()> {
         use tor_checkable::{SelfSigned, TimeBound};
-        let rd = RouterDesc::parse(TESTDATA2)?
+        let _rd = RouterDesc::parse(TESTDATA2)?
             .check_signature()?
             .dangerously_assume_timely();
-        assert!(rd.onion_key.is_none());
 
         Ok(())
     }
