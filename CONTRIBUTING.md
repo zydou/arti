@@ -151,14 +151,16 @@ You might want to begin by looking around the
 [codebase](https://gitlab.torproject.org/tpo/core/arti/), or getting to
 know our [architecture](./doc/dev/Architecture.md).
 
-Before you begin working on a large feature or bug fix,
-you may want to ask other Arti developers whether it's a good topic to contribute to.
-You can do this by opening a gitlab ticket (or commenting on an existing ticket),
-or asking on the [`\#tor-dev` IRC channel on OFTC](https://www.torproject.org/contact/).
-Someone else may already be working on this topic,
-or if it's related to an open ticket the ticket may be out of date.
-This helps to avoid situations where you've spent a lot of time on an MR,
-but we need to close it since it conflicts or is adjacent with active work by someone else.
+Before you begin working on a nontrivial fix or feature,
+you may want to ask other Arti developers whether it's a good thing to tackle.
+A lightweight way is to ask
+on the [`#tor-dev` IRC channel on OFTC](https://www.torproject.org/contact/)
+(although you will get the best response times there on Mondays to Thursdays).
+Or you could write in the relevant gitlab ticket, or file a new ticket.
+
+Asking first helps to avoid situations where you've spent a lot of time on an MR,
+but we need to close it because it's based on outdated plans, or
+conflicts with other active work,
 
 More tests would always be great. You can look at the [coverage reports](https://tpo.pages.torproject.net/core/arti/coverage/)
 to find out what parts need the more love.
@@ -171,28 +173,28 @@ Improvements or bugfixes to the existing code would be great.
 
 Improving the look and feel of the documentation would also rock.
 
-We've made a bunch of notes throughout the document in comments with strings
-like "FIXME" or "TODO".
+You could take a look in our
+[ticket tracker](https://gitlab.torproject.org/tpo/core/arti/-/work_items).
+Many of these tickets are difficult, or things we're actively working on,
+but you may be able to find some low hanging fruit that we haven't had time for.
+There are some tickets there labeled as
+["First Contribution"](https://gitlab.torproject.org/tpo/core/arti/-/issues?scope=all&utf8=%E2%9C%93&state=opened&label_name[]=First%20Contribution):
+that label means that we think (or thought) they might be a good place to start out.
 
-When we have TODOs that we want to fix prior to the release of a particular
-feature or milestone, we define a special TODO format.
-Right now we have "TODO HS" (or "TODO hs") for things we intend to fix
-before we release support for Tor Hidden Services (.onion services).
+When you see "TODO" and "FIXME" in the code, you should approach with caution.
+When a developer writes a note like this instead of just doing the task,
+it's usually because it's unclear the best way to do that task,
+or whether it actually ought to be done at all.
+Often if a TODO looks juicy, the best next steps are to do some research,
+and then to file a ticket with your findings and a more concrete proposal.
 
 If you want to make a temporary change that ought *definitely* not to be merged,
 mark it with <code>XX&#88;</code>.
 This will be spotted by the CI, preventing a mistaken merge.
 <!-- that's X X X with no spaces.  Putting it here literally would fail CI :-) -->
 
-
 There is a list of features that I wish other crates had in a file called
 `WANT_FROM_OTHER_CRATES`.
-
-Finally, check out
-[the bugtracker](https://gitlab.torproject.org/tpo/core/arti/-/issues).
-There are some tickets there labeled as
-["First Contribution"](https://gitlab.torproject.org/tpo/core/arti/-/issues?scope=all&utf8=%E2%9C%93&state=opened&label_name[]=First%20Contribution):
-that label means that we think they might be a good place to start out.
 
 ## Caveat haxxor: what to watch out for
 
