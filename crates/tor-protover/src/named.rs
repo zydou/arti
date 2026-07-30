@@ -177,7 +177,7 @@ def_named! {
 /// ```
 /// tor_protover::subprotocol_restricted_set! {
 ///     #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-///     struct SupportedSubprotocols {
+///     pub(crate) struct SupportedSubprotocols {
 ///         RELAY_CRYPT_CGO,
 ///         RELAY_NTORV3,
 ///     }
@@ -188,9 +188,9 @@ def_named! {
 ///
 /// ```
 /// #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-/// struct SupportedSubprotocols {
-///     relay_crypt_cgo: bool,
-///     relay_ntorv3: bool,
+/// pub(crate) struct SupportedSubprotocols {
+///     pub(crate) relay_crypt_cgo: bool,
+///     pub(crate) relay_ntorv3: bool,
 /// }
 /// ```
 #[macro_export]
@@ -216,7 +216,7 @@ macro_rules! subprotocol_restricted_set {
                         stringify!($crate), "::named::", stringify!($field),
                         ") subprotocol version."
                     )]
-                    [<$field:lower>]: bool,
+                    $v [<$field:lower>]: bool,
                 )*
             }
 
