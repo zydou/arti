@@ -138,32 +138,32 @@ impl std::ops::Deref for FlowCtrlVersion {
 #[non_exhaustive]
 pub struct UnrecognizedVersionError;
 
-/// The `kbps_ewma` field of an XON cell.
+/// The `kBps_ewma` field of an XON cell.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deftly)]
 #[derive_deftly(HasMemoryCost)]
 #[allow(clippy::exhaustive_enums)]
 pub enum XonKBpsEwma {
-    /// Stream is rate limited to the value in kbps.
+    /// Stream is rate limited to the value in KB/s (1000 bytes per second).
     Limited(NonZero<u32>),
     /// Stream is not rate limited.
     Unlimited,
 }
 
 impl XonKBpsEwma {
-    /// Decode the `kbps_ewma` field of an XON cell.
-    fn decode(kbps_ewma: u32) -> Self {
+    /// Decode the `kBps_ewma` field of an XON cell.
+    fn decode(kbytes_per_sec_ewma: u32) -> Self {
         // prop-324:
-        // > In `xon_cell`, a zero value for `kbps_ewma` means that the stream's rate is unlimited.
-        match NonZero::new(kbps_ewma) {
+        // > In `xon_cell`, a zero value for `kBps_ewma` means that the stream's rate is unlimited.
+        match NonZero::new(kbytes_per_sec_ewma) {
             Some(x) => Self::Limited(x),
             None => Self::Unlimited,
         }
     }
 
-    /// Encode as the `kbps_ewma` field of an XON cell.
+    /// Encode as the `kBps_ewma` field of an XON cell.
     fn encode(&self) -> u32 {
         // prop-324:
-        // > In `xon_cell`, a zero value for `kbps_ewma` means that the stream's rate is unlimited.
+        // > In `xon_cell`, a zero value for `kBps_ewma` means that the stream's rate is unlimited.
         match self {
             Self::Limited(x) => x.get(),
             Self::Unlimited => 0,
@@ -174,7 +174,7 @@ impl XonKBpsEwma {
 impl std::fmt::Display for XonKBpsEwma {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Limited(rate) => write!(f, "{rate} kbps"),
+            Self::Limited(rate) => write!(f, "{rate} KB/s"),
             Self::Unlimited => write!(f, "unlimited"),
         }
     }
