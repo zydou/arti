@@ -60,6 +60,9 @@ pub mod params;
 mod reactor;
 mod unique_id;
 
+#[cfg(test)]
+pub(crate) mod test_utils;
+
 pub use crate::channel::params::*;
 pub(crate) use crate::channel::reactor::Reactor;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream};
