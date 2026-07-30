@@ -646,7 +646,7 @@ mod test {
         test_with_one_runtime!(|rt| async move {
             let mut conn_inspector = test_utils::ConnInspector::new();
 
-            let (client_chan, _relay_chan, _target_builder) =
+            let (client_chan, _relay_chan, _circuit_stream_rx, _target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
@@ -674,7 +674,7 @@ mod test {
         test_with_one_runtime!(|rt| async move {
             let mut conn_inspector = test_utils::ConnInspector::new();
 
-            let (client_chan, _relay_chan, mut target_builder) =
+            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
@@ -718,7 +718,7 @@ mod test {
                 // TODO: We should be able to run all tests using a single channel,
                 // but for some reason the client doesn't appear to be sending a DESTROY
                 // when the tunnel object is dropped, so something is weird here.
-                let (client_chan, _relay_chan, mut target_builder) =
+                let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
                     test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
                 let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
