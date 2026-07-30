@@ -281,6 +281,22 @@ impl<'a> IncomingStreamRequestContext<'a> {
     }
 }
 
+/// A no-op request filter to be used in testing.
+#[cfg(test)]
+#[derive(Copy, Clone, Debug, Default)]
+pub(crate) struct NoOpRequestFilter;
+
+#[cfg(test)]
+impl IncomingStreamRequestFilter for NoOpRequestFilter {
+    fn disposition(
+        &mut self,
+        _ctx: &IncomingStreamRequestContext<'_>,
+        _circ: &CircHopSyncView<'_>,
+    ) -> crate::Result<IncomingStreamRequestDisposition> {
+        Ok(IncomingStreamRequestDisposition::Accept)
+    }
+}
+
 /// Information about an incoming stream request.
 #[derive(Debug, Deftly)]
 #[derive_deftly(HasMemoryCost)]
