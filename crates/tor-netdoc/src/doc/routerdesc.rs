@@ -407,11 +407,11 @@ impl RouterDescUnverified {
         let start_time = timebounds
             .iter()
             .filter_map(|x| x.bounds_start_end().0)
-            .min();
+            .max();
         let end_time = timebounds
             .iter()
             .filter_map(|x| x.bounds_start_end().1)
-            .max();
+            .min();
         debug_assert!(start_time.is_some()); // At least always obtained from published.
         debug_assert!(end_time.is_some()); // At least always obtained from an edcert.
 
