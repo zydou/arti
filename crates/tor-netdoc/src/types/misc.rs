@@ -326,7 +326,9 @@ mod b64impl {
 
     impl NormalItemArgument for B64 {}
 
-    /// A byte array encoded in a hexadecimal with a fixed length.
+    /// A byte array encoded in a base64 with a fixed length.
+    ///
+    /// As with [`B64`], padding is optional when paring, but omitted when encoding.
     #[derive(Clone, Hash, Deftly)]
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
