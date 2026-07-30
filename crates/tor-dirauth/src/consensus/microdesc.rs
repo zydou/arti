@@ -50,6 +50,91 @@ pub fn compute_microdesc(
     Ok(m)
 }
 
+/// Microdescriptors computed from one routerdesc, for various supported consensus methods
+pub type MicrodescsForRouterDesc = BTreeMap<tor_netdoc::doc::netstatus::ConsensusMethods, String>;
+
+/// Errors calculating one or more microdescriptors
+pub type MicrodescsErrors = Vec<(SupportedConsensusMethod, MicrodescError)>;
+
+/// Computes the microdescriptor for this descriptor, for each supported consensus method
+///
+/// If all goes well returns `MicrodescsForRouterDesc`, a map from methods to strings.
+/// The map is guaranteed not to have the same *value* for different keys:
+/// if different emthods yield the same microdesc, thy will be represented as
+/// a single `ConsensusMethods` set mapping to a single `String`.
+///
+/// Hashing (calculating and collating document digests) is done by the caller of this function.
+///
+/// If any microdesc couldn't be computed (currently, only possible due to internal errors)
+/// returns an `Err` containing both the failed consensus method(s) and the corresponding errors,
+/// and the successful results (if any).
+///
+/// This unusual error handling is so that a handful of strange routerdescs,
+/// that trigger bugs in our code, do not cause the whole algorithm to collapse.
+/// See torspec!522  TODO DIRAUTH turn this into a proper spec ref when that's merged.
+pub fn compute_supported_microdescs(
+    rd: &RouterDesc,
+) -> Result<MicrodescsForRouterDesc, (MicrodescsErrors, MicrodescsForRouterDesc)> {
+    compute_supported_generic(
+        //
+        SupportedConsensusMethod::iter_all(),
+        |tracker| {
+            let md = compute_microdesc(rd, tracker)?;
+            let md = encode_netdoc_unsigned([&md])?;
+            Ok(md)
+        },
+    )
+}
+
+/// "Good" output from [`compute_supported_generic`]
+type Outputs<O> = BTreeMap<tor_netdoc::doc::netstatus::ConsensusMethods, O>;
+
+/// Compute `O` for all supported consensus methods
+///
+/// This is the core of `compute_supported_microdescs`,
+/// but made generic so that we can pass an interesting calculation function, for testing.
+#[allow(clippy::type_complexity)] // return type is sadly rather complex
+fn compute_supported_generic<O: Clone + Eq + Hash, E: From<Bug>>(
+    all_methods: impl Iterator<Item = SupportedConsensusMethod>,
+    computor: impl Fn(&TrackedConsensusMethod) -> Result<O, E>,
+) -> Result<Outputs<O>, (Vec<(SupportedConsensusMethod, E)>, Outputs<O>)> {
+    let mut results = HashMap::<O, tor_netdoc::doc::netstatus::ConsensusMethods>::new();
+    let mut errors = vec![];
+
+    let mut last = None::<(ConsensusMethodRange, O)>;
+    for method in all_methods {
+        (|| {
+            let entry = if let Some((range, prev)) = &last
+                && range.contains(&method)
+            {
+                results
+                    .get_mut(prev)
+                    .ok_or_else(|| internal!("prev not inserted!"))?
+            } else {
+                let tracker = TrackedConsensusMethod::new(method);
+                let output = computor(&tracker)?;
+                last = Some((tracker.finish_get_equivalent(), output.clone()));
+                results.entry(output).or_default()
+            };
+            entry.methods.insert(method.into());
+            Ok(())
+        })()
+        .unwrap_or_else(|e| {
+            errors.push((method, e));
+        });
+    }
+
+    let results = results
+        .into_iter()
+        .map(|(output, meths)| (meths, output))
+        .collect();
+    if errors.is_empty() {
+        Ok(results)
+    } else {
+        Err((errors, results))
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

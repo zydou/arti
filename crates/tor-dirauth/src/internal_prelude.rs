@@ -2,7 +2,9 @@
 
 pub(crate) use std::cell::Cell;
 pub(crate) use std::cmp::{self, Ordering};
+pub(crate) use std::collections::{BTreeMap, HashMap};
 pub(crate) use std::fmt::{self, Debug};
+pub(crate) use std::hash::Hash;
 pub(crate) use std::net::Ipv4Addr;
 pub(crate) use std::ops::{RangeBounds, RangeInclusive};
 
@@ -13,7 +15,6 @@ pub(crate) use rangemap::RangeInclusiveMap;
 
 pub(crate) use tor_basic_utils::intern::GloballyInternable as _;
 pub(crate) use tor_error::{Bug, internal, into_internal};
-#[allow(unused)] // XXXX
 pub(crate) use tor_netdoc::{
     doc::microdesc::{Microdesc, MicrodescConstructor},
     doc::netstatus::ConsensusMethod,
