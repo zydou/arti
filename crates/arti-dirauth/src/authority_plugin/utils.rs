@@ -74,7 +74,11 @@ impl FilenameOrStdio {
                 fs::rename(&tmp, main).with_context(|| format!("install {tmp:?} as {main:?}"))
             })(),
         }
-        .context("write output")
-        .map_err(CliError::OperationalError)
+        .map_err(convert_output_error)
     }
+}
+
+/// Helper to convert an error encountered while writing to CliError
+fn convert_output_error(e: anyhow::Error) -> CliError {
+    CliError::OperationalError(e.context("write output"))
 }
