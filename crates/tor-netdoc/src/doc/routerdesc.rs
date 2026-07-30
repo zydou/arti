@@ -315,6 +315,7 @@ impl RouterDescUnverified {
     // We deny the use of unused variables as a hint to use all TimeRangeBound
     // values obtained through a dangerous split.
     #[deny(unused_variables)]
+    #[cfg(feature = "incomplete")]
     pub fn verify(self) -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
         // Type annotations to make LSP happy.
         let (mut body, sigs): (RouterDesc, SignaturesData<_>) = (self.body, self.sigs);
@@ -404,18 +405,20 @@ impl RouterDescUnverified {
         // TODO DIRMIRROR: Replace the map logic with TimeRangeBound::intersect_bounds().
         // Alternatively, we may also want to add a TimeBoundAccumulator, as outlined in
         // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4144#note_3440907
-        let min = timebounds
+        let start_time = timebounds
             .iter()
             .filter_map(|x| x.bounds_start_end().0)
-            .min();
-        let max = timebounds
+            .max();
+        let end_time = timebounds
             .iter()
             .filter_map(|x| x.bounds_start_end().1)
-            .max();
-        debug_assert!(min.is_some()); // At least always obtained from published.
-        debug_assert!(max.is_some()); // At least always obtained from an edcert.
+            .min();
+        debug_assert!(start_time.is_some()); // At least always obtained from published.
+        debug_assert!(end_time.is_some()); // At least always obtained from an edcert.
 
-        Ok(TimeRangeBound::new_from_start_end(body, min, max))
+        Ok(TimeRangeBound::new_from_start_end(
+            body, start_time, end_time,
+        ))
     }
 }
 
@@ -1552,6 +1555,7 @@ mod test {
             .unwrap()
             .into_iter()
             .map(|rd| {
+                #[cfg(feature = "incomplete")]
                 rd.clone().verify().unwrap();
                 rd.unwrap_unverified()
             })
@@ -1646,6 +1650,7 @@ mod test {
 
     /// Test for various succeeding and failing verifications.
     #[test]
+    #[cfg(feature = "incomplete")]
     fn test_verify() {
         // Generate keys we will use later.
         let rng = &mut testing_rng();
