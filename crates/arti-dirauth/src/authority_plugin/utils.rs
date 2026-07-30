@@ -64,7 +64,8 @@ impl FilenameOrStdio {
             FilenameOrStdio::Stdio => writer(&mut io::stdout().lock()).context("write to stdout"),
             FilenameOrStdio::Path(main) => (|| {
                 let tmp = format!("{main}.tmp");
-                let f = File::create(&tmp).with_context(|| format!("create {tmp:?}"))?;
+                let f = File::create(&tmp)
+                    .with_context(|| format!("create {tmp:?}"))?;
                 let mut f = BufWriter::new(f);
                 (|| {
                     writer(&mut f)?;
