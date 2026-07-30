@@ -13,10 +13,12 @@ pub(crate) use rangemap::RangeInclusiveMap;
 
 pub(crate) use tor_basic_utils::intern::GloballyInternable as _;
 pub(crate) use tor_error::{Bug, internal, into_internal};
+#[allow(unused)] // XXXX
 pub(crate) use tor_netdoc::{
     doc::microdesc::{Microdesc, MicrodescConstructor},
     doc::netstatus::ConsensusMethod,
     doc::routerdesc::RouterDesc,
+    encode::encode_netdoc_unsigned,
     rangemap_mutate_range,
     types::family::{RelayFamily, RelayFamilyId, RelayFamilyIds},
 };
