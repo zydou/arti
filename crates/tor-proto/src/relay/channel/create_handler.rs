@@ -722,18 +722,15 @@ mod test {
     #[test]
     fn ntor() {
         test_with_one_runtime!(|rt| async move {
+            let mut conn_inspector = test_utils::ConnInspector::new();
+
+            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+                test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
+
             // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
             // 2 = RELAY_NTOR
             // 3 = RELAY_EXTEND_IPv6
             for relay_version in [2, 3] {
-                let mut conn_inspector = test_utils::ConnInspector::new();
-
-                // TODO: We should be able to run all tests using a single channel,
-                // but for some reason the client doesn't appear to be sending a DESTROY
-                // when the tunnel object is dropped, so something is weird here.
-                let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
-                    test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
-
                 let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
 
                 let circ_params = CircParameters::default();
