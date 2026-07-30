@@ -315,6 +315,7 @@ impl RouterDescUnverified {
     // We deny the use of unused variables as a hint to use all TimeRangeBound
     // values obtained through a dangerous split.
     #[deny(unused_variables)]
+    #[cfg(feature = "incomplete")]
     pub fn verify(self) -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
         // Type annotations to make LSP happy.
         let (mut body, sigs): (RouterDesc, SignaturesData<_>) = (self.body, self.sigs);
@@ -1554,6 +1555,7 @@ mod test {
             .unwrap()
             .into_iter()
             .map(|rd| {
+                #[cfg(feature = "incomplete")]
                 rd.clone().verify().unwrap();
                 rd.unwrap_unverified()
             })
@@ -1648,6 +1650,7 @@ mod test {
 
     /// Test for various succeeding and failing verifications.
     #[test]
+    #[cfg(feature = "incomplete")]
     fn test_verify() {
         // Generate keys we will use later.
         let rng = &mut testing_rng();
