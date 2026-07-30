@@ -68,7 +68,7 @@ pub mod types;
 mod test2;
 
 #[cfg(any(test, feature = "testing"))]
-mod test_support;
+pub mod test_support;
 #[cfg(any(test, feature = "testing"))]
 pub mod testdata_live;
 
