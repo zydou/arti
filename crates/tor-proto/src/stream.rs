@@ -18,7 +18,7 @@ use postage::watch;
 use safelog::sensitive;
 
 use tor_async_utils::SinkCloseChannel as _;
-use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
+use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End};
 use tor_cell::relaycell::{RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_memquota::mq_queue::{self, MpscSpec};
@@ -251,7 +251,7 @@ impl StreamTarget {
     /// This sends a message to inform the circuit reactor of the new drain rate,
     /// but it does not block or wait for a response from the reactor.
     /// An error is only returned if we are unable to send the update.
-    pub(crate) fn drain_rate_update(&mut self, rate: XonKbpsEwma) -> Result<()> {
+    pub(crate) fn drain_rate_update(&mut self, rate: XonKBpsEwma) -> Result<()> {
         match &mut self.tunnel {
             Tunnel::Client(t) => t.drain_rate_update(self.stream_id, self.hop, rate),
             #[cfg(feature = "relay")]

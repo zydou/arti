@@ -15,7 +15,7 @@ pub struct Xon {
     /// Cell `version` field.
     version: FlowCtrlVersion,
     /// Cell `kbps_ewma` field.
-    kbps_ewma: XonKbpsEwma,
+    kbps_ewma: XonKBpsEwma,
 }
 
 /// An `XOFF` relay message.
@@ -28,7 +28,7 @@ pub struct Xoff {
 
 impl Xon {
     /// Construct a new [`Xon`] cell.
-    pub fn new(version: FlowCtrlVersion, kbps_ewma: XonKbpsEwma) -> Self {
+    pub fn new(version: FlowCtrlVersion, kbps_ewma: XonKBpsEwma) -> Self {
         Self { version, kbps_ewma }
     }
 
@@ -38,7 +38,7 @@ impl Xon {
     }
 
     /// Return the rate limit in kbps.
-    pub fn kbps_ewma(&self) -> XonKbpsEwma {
+    pub fn kbps_ewma(&self) -> XonKBpsEwma {
         self.kbps_ewma
     }
 }
@@ -54,7 +54,7 @@ impl Body for Xon {
             }
         };
 
-        let kbps_ewma = XonKbpsEwma::decode(r.take_u32()?);
+        let kbps_ewma = XonKBpsEwma::decode(r.take_u32()?);
 
         Ok(Self::new(version, kbps_ewma))
     }
@@ -142,14 +142,14 @@ pub struct UnrecognizedVersionError;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deftly)]
 #[derive_deftly(HasMemoryCost)]
 #[allow(clippy::exhaustive_enums)]
-pub enum XonKbpsEwma {
+pub enum XonKBpsEwma {
     /// Stream is rate limited to the value in kbps.
     Limited(NonZero<u32>),
     /// Stream is not rate limited.
     Unlimited,
 }
 
-impl XonKbpsEwma {
+impl XonKBpsEwma {
     /// Decode the `kbps_ewma` field of an XON cell.
     fn decode(kbps_ewma: u32) -> Self {
         // prop-324:
@@ -171,7 +171,7 @@ impl XonKbpsEwma {
     }
 }
 
-impl std::fmt::Display for XonKbpsEwma {
+impl std::fmt::Display for XonKBpsEwma {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Limited(rate) => write!(f, "{rate} kbps"),

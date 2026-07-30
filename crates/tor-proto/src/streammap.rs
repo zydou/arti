@@ -11,7 +11,7 @@ use crate::{Error, Result};
 use pin_project::pin_project;
 use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
 use tor_async_utils::stream_peek::StreamUnobtrusivePeeker;
-use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKBpsEwma};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 use tor_cell::relaycell::{StreamId, msg::AnyRelayMsg};
 
@@ -97,7 +97,7 @@ impl OpenStreamEnt {
     ///
     /// If we should, then returns the XON message that should be sent.
     /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
-    pub(crate) fn maybe_send_xon(&mut self, rate: XonKbpsEwma) -> Result<Option<Xon>> {
+    pub(crate) fn maybe_send_xon(&mut self, rate: XonKBpsEwma) -> Result<Option<Xon>> {
         self.flow_ctrl
             .maybe_send_xon(rate, self.approx_stream_bytes_buffered())
     }

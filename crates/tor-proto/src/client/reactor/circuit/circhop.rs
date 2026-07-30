@@ -18,7 +18,7 @@ use futures::Stream;
 use futures::stream::FuturesUnordered;
 use smallvec::SmallVec;
 use tor_cell::chancell::BoxedCellBody;
-use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKBpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, StreamId,
@@ -289,7 +289,7 @@ impl CircHop {
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn maybe_send_xon(
         &mut self,
-        rate: XonKbpsEwma,
+        rate: XonKBpsEwma,
         id: StreamId,
     ) -> Result<Option<Xon>> {
         self.outbound.maybe_send_xon(rate, id)
