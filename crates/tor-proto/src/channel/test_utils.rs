@@ -298,13 +298,13 @@ impl ConnInspector {
         }
     }
 
-    /// Get the next message sent by the client.
-    pub(crate) fn client_cell(&mut self) -> Option<AnyChanCell> {
+    /// Try to get the next message sent by the client.
+    pub(crate) fn try_client_cell(&mut self) -> Option<AnyChanCell> {
         self.client_inspector_rx.try_recv().ok()
     }
 
-    /// Get the next message sent by the relay.
-    pub(crate) fn relay_cell(&mut self) -> Option<AnyChanCell> {
+    /// Try to get the next message sent by the relay.
+    pub(crate) fn try_relay_cell(&mut self) -> Option<AnyChanCell> {
         self.relay_inspector_rx.try_recv().ok()
     }
 }

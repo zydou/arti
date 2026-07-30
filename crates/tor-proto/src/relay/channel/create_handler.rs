@@ -659,11 +659,11 @@ mod test {
                 .unwrap();
 
             assert_eq!(
-                conn_inspector.client_cell().unwrap().msg().cmd(),
+                conn_inspector.try_client_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATE_FAST,
             );
             assert_eq!(
-                conn_inspector.relay_cell().unwrap().msg().cmd(),
+                conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATED_FAST,
             );
         });
@@ -696,11 +696,11 @@ mod test {
 
             // TODO: As above, this is wrong.
             assert_eq!(
-                conn_inspector.client_cell().unwrap().msg().cmd(),
+                conn_inspector.try_client_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATE2,
             );
             assert_eq!(
-                conn_inspector.relay_cell().unwrap().msg().cmd(),
+                conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATED2,
             );
         });
@@ -734,11 +734,11 @@ mod test {
                     .unwrap();
 
                 assert_eq!(
-                    conn_inspector.client_cell().unwrap().msg().cmd(),
+                    conn_inspector.try_client_cell().unwrap().msg().cmd(),
                     ChanCmd::CREATE2,
                 );
                 assert_eq!(
-                    conn_inspector.relay_cell().unwrap().msg().cmd(),
+                    conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                     ChanCmd::CREATED2,
                 );
             }
