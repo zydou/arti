@@ -58,6 +58,12 @@ use tor_basic_utils::intern::{GloballyInternable as _, Intern};
 
 pub mod named;
 
+/// Types we export for macros.
+#[doc(hidden)]
+pub mod macro_export {
+    pub use paste;
+}
+
 caret_int! {
     /// A recognized subprotocol.
     ///
@@ -169,6 +175,12 @@ impl From<NamedSubver> for NumberedSubver {
             kind: value.kind,
             version: value.version,
         }
+    }
+}
+
+impl From<NamedSubver> for Protocols {
+    fn from(value: NamedSubver) -> Self {
+        Self::from_iter([value])
     }
 }
 

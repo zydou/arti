@@ -52,6 +52,7 @@ use tor_cell::relaycell::msg::SendmeTag;
 #[cfg(feature = "relay")]
 use {
     crate::ccparams::{Algorithm, AlgorithmDiscriminants},
+    crate::circuit::HandshakeSubprotocols,
     crate::relay::{CircNetParameters, CongestionControlNetParams},
 };
 
@@ -206,8 +207,6 @@ impl HopSettings {
         cc_algorithm: AlgorithmDiscriminants,
         subprotos_requested: HandshakeSubprotocols,
     ) -> StdResult<Self, HandshakeParamsError> {
-        use SubprotocolEnabled::*;
-
         // Unpack everything to make sure that we aren't missing anything
         // (otherwise clippy would warn).
         let CircNetParameters {
@@ -228,20 +227,20 @@ impl HopSettings {
         // make it more self-contained. This is a bit tricky though since the code is used in
         // different situations and the inputs are not the same.
         let (cc_algorithm, relay_crypt_protocol) = match (cc_algorithm, relay_crypt_cgo) {
-            (AlgorithmDiscriminants::FixedWindow, Disabled) => (
+            (AlgorithmDiscriminants::FixedWindow, false) => (
                 Algorithm::FixedWindow(fixed_window),
                 RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0),
             ),
-            (AlgorithmDiscriminants::FixedWindow, Enabled) => {
+            (AlgorithmDiscriminants::FixedWindow, true) => {
                 return Err(HandshakeParamsError::IncompatibleParams(
                     "requested CGO but not congestion control",
                 ));
             }
-            (AlgorithmDiscriminants::Vegas, Disabled) => (
+            (AlgorithmDiscriminants::Vegas, false) => (
                 Algorithm::Vegas(vegas_exit),
                 RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0),
             ),
-            (AlgorithmDiscriminants::Vegas, Enabled) => {
+            (AlgorithmDiscriminants::Vegas, true) => {
                 (Algorithm::Vegas(vegas_exit), RelayCryptLayerProtocol::Cgo)
             }
         };
@@ -340,34 +339,6 @@ impl std::default::Default for CircParameters {
             n_outgoing_cells_permitted: None,
         }
     }
-}
-
-/// The enabled/disabled status of subprotocols that are allowed to be requested through a
-/// subprotocol request during a circuit handshake.
-///
-/// The allowed subprotocols are defined in:
-/// <https://spec.torproject.org/tor-spec/create-created-cells.html#subproto-request>
-///
-/// Each field corresponds with one specific subprotocol version,
-/// and each has the same naming format as its corresponding named subprotocol version.
-//
-// TODO: It might be nice to have a macro that can generate restricted sets of subprotocol versions.
-// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4171#note_3439060
-#[derive(Copy, Clone, Debug, Default)]
-pub(crate) struct HandshakeSubprotocols {
-    /// The `RELAY_CRYPT_CGO` subprotocol version.
-    relay_crypt_cgo: SubprotocolEnabled,
-}
-
-/// Whether a specific named subprotocol version is enabled or not.
-#[derive(Copy, Clone, Debug, Default)]
-#[allow(unused)]
-pub(crate) enum SubprotocolEnabled {
-    /// The subprotocol version is disabled.
-    #[default]
-    Disabled,
-    /// The subprotocol version is enabled.
-    Enabled,
 }
 
 /// An error that can occur when building a [`HopSettings`] using parameters requested during a

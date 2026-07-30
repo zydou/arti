@@ -162,3 +162,132 @@ def_named! {
     }
 
 }
+
+/// Define a restricted set of subprotocol versions.
+///
+/// This supports a set of named subprotocols as defined in [`tor_protover::named`](crate::named).
+///
+/// This is useful when you want to restrict what subprotocol versions are allowed,
+/// and also want to be able to exhaustively handle each subprotocol version.
+/// If you don't care about (or don't want) the exhaustive property,
+/// you might be better off defining a wrapper around [`Protocols`]($crate::Protocols) instead.
+///
+/// Example:
+///
+/// ```
+/// tor_protover::subprotocol_restricted_set! {
+///     #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+///     pub(crate) struct SupportedSubprotocols {
+///         RELAY_CRYPT_CGO,
+///         RELAY_NTORV3,
+///     }
+/// }
+/// ```
+///
+/// generates a struct of the form:
+///
+/// ```
+/// #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+/// pub(crate) struct SupportedSubprotocols {
+///     pub(crate) relay_crypt_cgo: bool,
+///     pub(crate) relay_ntorv3: bool,
+/// }
+/// ```
+#[macro_export]
+macro_rules! subprotocol_restricted_set {
+    {
+        $(#[$meta:meta])*
+        $v:vis struct $name:ident {
+            $(
+                $(#[$field_meta:meta])*
+                $field:ident
+            ),* $(,)?
+        }
+    } => {
+        $crate::macro_export::paste::paste!{
+            // We don't make this `non_exhaustive` because the goal of this type is to support
+            // exhaustively handling all elements.
+            $(#[$meta])*
+            $v struct $name {
+                $(
+                    $(#[$field_meta])*
+                    #[doc = concat!(
+                        "The [`", stringify!($field), "`](",
+                        stringify!($crate), "::named::", stringify!($field),
+                        ") subprotocol version."
+                    )]
+                    $v [<$field:lower>]: bool,
+                )*
+            }
+
+            impl $name {
+                /// All subprotocol versions that are supported by this set.
+                $v const ALL: Self = Self {$(
+                    [<$field:lower>]: true,
+                )*};
+            }
+
+            impl From<$name> for $crate::Protocols {
+                fn from(set: $name) -> Self {
+                    Self::from_iter(
+                        [$(set.[<$field:lower>].then_some($crate::named::$field)),*]
+                        .into_iter()
+                        .filter_map(|x| x)
+                    )
+                }
+            }
+        }
+    };
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    #![allow(clippy::string_slice)] // See arti#2571
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use crate::Protocols;
+
+    subprotocol_restricted_set! {
+        #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+        struct SupportedSubprotocols {
+            RELAY_CRYPT_CGO,
+            RELAY_NTORV3,
+        }
+    }
+
+    #[test]
+    fn restricted_set_constants() {
+        assert_eq!(
+            SupportedSubprotocols::ALL,
+            SupportedSubprotocols {
+                relay_crypt_cgo: true,
+                relay_ntorv3: true,
+            },
+        );
+    }
+
+    #[test]
+    fn restricted_set() {
+        let protocols: Protocols = "Relay=4".parse().unwrap();
+
+        assert_eq!(
+            Protocols::from(SupportedSubprotocols {
+                relay_crypt_cgo: false,
+                relay_ntorv3: true,
+            }),
+            protocols,
+        );
+    }
+}
