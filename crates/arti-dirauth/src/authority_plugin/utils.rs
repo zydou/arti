@@ -110,8 +110,7 @@ impl FilenameOrStdio {
                 let f = File::create(&tmp)
                     .with_context(|| format!("create {tmp:?}"))
                     .map_err(convert_output_error)?;
-                #[allow(unused_mut)] // XXXX
-                let mut f = BufWriter::new(f);
+                let f = BufWriter::new(f);
                 Ok(Writing {
                     handle: Box::new(f),
                     files: Some(WritingFiles {
