@@ -109,7 +109,7 @@ pub trait Uploader: Send + Sync + 'static {
     ///
     /// [Happy-eyeballs]: https://en.wikipedia.org/wiki/Happy_Eyeballs
     async fn upload(
-        self: Arc<Self>,
+        &self,
         target: Arc<Self::Target>,
         document: Arc<Self::Doc>,
     ) -> Result<(), UploadError>;
@@ -557,11 +557,7 @@ mod test {
     impl Uploader for TestUploader {
         type Doc = String;
         type Target = u32;
-        async fn upload(
-            self: Arc<Self>,
-            target: Arc<u32>,
-            document: Arc<String>,
-        ) -> Result<(), UploadError> {
+        async fn upload(&self, target: Arc<u32>, document: Arc<String>) -> Result<(), UploadError> {
             let mut map = self.state.lock().unwrap();
             let entry: &mut TState = map.entry(*target).or_default();
             if entry.should_reject {

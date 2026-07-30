@@ -315,7 +315,7 @@ struct ExitLoop;
 
 impl<R: SleepProvider, D, T, UP> PublishReactor<R, D, T, UP>
 where
-    D: ?Sized,
+    D: ?Sized + Send + Sync + 'static,
     T: Hash + Eq + Send + Sync + Debug + ?Sized + 'static,
     UP: Uploader<Doc = D, Target = T> + ?Sized,
 {
@@ -650,24 +650,30 @@ where
         let Some(status) = self.target_status.get_mut(target) else {
             return;
         };
-        let Some(document) = self.latest_document.contents.clone() else {
+        let Some(document) = &self.latest_document.contents else {
             // There's no document, so we can't upload it.
             return;
         };
-        let target = target.clone();
 
         trace!(?target, "Launching {} upload request", &self.description);
 
         let doc_version = self.latest_document.version;
         let action = ActionNum::next();
-        let future = Arc::clone(&self.uploader)
-            .upload(target.clone(), document)
-            .map(move |res| TaskResult {
-                target,
-                action,
-                doc_version,
-                outcome: ActionOutcome::from_upload_result(res),
-            });
+
+        let uploader = Arc::clone(&self.uploader);
+        let target = Arc::clone(target);
+        let document = Arc::clone(document);
+        let future = async move {
+            uploader
+                .upload(Arc::clone(&target), document)
+                .map(move |res| TaskResult {
+                    target,
+                    action,
+                    doc_version,
+                    outcome: ActionOutcome::from_upload_result(res),
+                })
+                .await
+        };
         self.inflight.push(Box::pin(future));
 
         status.set_inflight(now, action);
