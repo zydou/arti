@@ -64,3 +64,25 @@ pub trait ChannelProvider {
         tx: OutboundChanSender,
     ) -> Result<()>;
 }
+
+/// A no-op channel provider to be used in testing.
+///
+/// Always returns an error.
+#[cfg(test)]
+#[derive(Copy, Clone, Debug, Default)]
+pub(crate) struct NoOpChannelProvider;
+
+#[cfg(test)]
+impl ChannelProvider for NoOpChannelProvider {
+    // We choose this because it's needed by the relay circuit reactor constructor.
+    type BuildSpec = tor_linkspec::OwnedChanTarget;
+
+    fn get_or_launch(
+        self: Arc<Self>,
+        _reactor_id: UniqId,
+        _target: Self::BuildSpec,
+        _tx: OutboundChanSender,
+    ) -> Result<()> {
+        Err(tor_error::internal!("NoOpChannelProvider cannot launch channels").into())
+    }
+}
