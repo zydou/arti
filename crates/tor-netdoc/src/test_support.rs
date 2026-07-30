@@ -43,13 +43,7 @@ macro_rules! assert_eq_or_diff {
 ///
 /// Normally it is more convenient to use the [`assert_eq_or_diff!`] macro.
 #[cfg(any(test, feature = "testing"))]
-pub fn assert_eq_or_diff(
-    a: &str,
-    a_what: &str,
-    b: &str,
-    b_what: &str,
-    message: &dyn Display,
-) {
+pub fn assert_eq_or_diff(a: &str, a_what: &str, b: &str, b_what: &str, message: &dyn Display) {
     use imara_diff::{Algorithm, BasicLineDiffPrinter, Diff, InternedInput, UnifiedDiffConfig};
 
     if a == b {
