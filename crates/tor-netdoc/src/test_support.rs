@@ -28,7 +28,6 @@ use itertools::chain;
 ///  - `#`-comments are stripped
 ///  - each line is trimmed (so the input can be inden ted)
 ///  - blank lines are removed
-#[cfg(any(test, feature = "testing"))]
 pub fn parse_testcase_from_netdoc<T: NetdocParseableFields>(input_doc: &str) -> T {
     #[derive(Deftly)]
     #[derive_deftly(NetdocParseable)]
