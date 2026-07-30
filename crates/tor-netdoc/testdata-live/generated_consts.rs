@@ -11,7 +11,7 @@ pub const NETSTATUS: PerVariety =
         };
 
 /// Relays' routerstatus entries (excerpts from each corresponding network status)
-pub const RELAYH_ROUTERSTATUSES: &[PerRelay] = &[
+pub const RELAY_ROUTERSTATUSES: &[PerRelay] = &[
     PerRelay {
         nick: "lisdex",
         data: PerVariety {
@@ -135,7 +135,7 @@ pub const RELAYH_ROUTERSTATUSES: &[PerRelay] = &[
 ];
 
 /// Relays' router descriptors and microdescriptors
-pub const RELAYH_DESCRIPTORS: &[PerRelay] = &[
+pub const RELAY_DESCRIPTORS: &[PerRelay] = &[
     PerRelay {
         nick: "lisdex",
         data: PerVariety {

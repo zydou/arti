@@ -158,7 +158,7 @@ rust_relay_list () {
     rust_module+=\
 "
 $(cat)
-pub const RELAYH_$var: &[PerRelay] = &[
+pub const RELAY_$var: &[PerRelay] = &[
 ${rust_per_relay_data[$var]}];
 "
 }
