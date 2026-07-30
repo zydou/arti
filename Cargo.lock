@@ -7224,6 +7224,7 @@ name = "tor-dirauth"
 version = "0.45.0"
 dependencies = [
  "amplify",
+ "anyhow",
  "derive-deftly",
  "derive_more",
  "ipnet",
@@ -7232,6 +7233,7 @@ dependencies = [
  "rangemap",
  "thiserror 2.0.19",
  "tor-basic-utils",
+ "tor-checkable",
  "tor-error",
  "tor-netdoc",
 ]
