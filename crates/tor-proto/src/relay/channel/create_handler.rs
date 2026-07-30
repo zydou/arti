@@ -645,25 +645,38 @@ mod test {
         test_with_one_runtime!(|rt| async move {
             let mut conn_inspector = test_utils::ConnInspector::new();
 
-            let (client_chan, _relay_chan, _target_builder) =
+            let (client_chan, _relay_chan, _circuit_stream_rx, _target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
 
             let circ_params = CircParameters::default();
 
-            let _tunnel = pending_tunnel
+            let tunnel = pending_tunnel
                 .create_firsthop_fast(circ_params)
                 .await
                 .unwrap();
 
             assert_eq!(
-                conn_inspector.client_cell().unwrap().msg().cmd(),
+                conn_inspector.try_client_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATE_FAST,
             );
             assert_eq!(
-                conn_inspector.relay_cell().unwrap().msg().cmd(),
+                conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATED_FAST,
+            );
+
+            drop(tunnel);
+
+            assert_eq!(
+                conn_inspector.client_cell().await.unwrap().msg().cmd(),
+                ChanCmd::DESTROY,
+            );
+            // TODO(relay): I think the relay shouldn't be sending a DESTROY back to the client.
+            // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2648
+            assert_eq!(
+                conn_inspector.relay_cell().await.unwrap().msg().cmd(),
+                ChanCmd::DESTROY,
             );
         });
     }
@@ -673,7 +686,7 @@ mod test {
         test_with_one_runtime!(|rt| async move {
             let mut conn_inspector = test_utils::ConnInspector::new();
 
-            let (client_chan, _relay_chan, mut target_builder) =
+            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
@@ -685,7 +698,7 @@ mod test {
             let protocols = "Relay=1".parse().unwrap();
             let target = target_builder.protocols(protocols).build().unwrap();
 
-            // TODO(relay): This should fail since we don't support TAP handshakes.
+            // TODO: This should fail since we don't support TAP handshakes.
             // But the channel will do an ntor handshake anyway even though it's not supported.
             // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2489
             let _tunnel = pending_tunnel
@@ -693,13 +706,13 @@ mod test {
                 .await
                 .unwrap();
 
-            // TODO(relay): As above, this is wrong.
+            // TODO: As above, this is wrong.
             assert_eq!(
-                conn_inspector.client_cell().unwrap().msg().cmd(),
+                conn_inspector.try_client_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATE2,
             );
             assert_eq!(
-                conn_inspector.relay_cell().unwrap().msg().cmd(),
+                conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATED2,
             );
         });
@@ -708,18 +721,15 @@ mod test {
     #[test]
     fn ntor() {
         test_with_one_runtime!(|rt| async move {
+            let mut conn_inspector = test_utils::ConnInspector::new();
+
+            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+                test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
+
             // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
             // 2 = RELAY_NTOR
             // 3 = RELAY_EXTEND_IPv6
             for relay_version in [2, 3] {
-                let mut conn_inspector = test_utils::ConnInspector::new();
-
-                // TODO: We should be able to run all tests using a single channel,
-                // but for some reason the client doesn't appear to be sending a DESTROY
-                // when the tunnel object is dropped, so something is weird here.
-                let (client_chan, _relay_chan, mut target_builder) =
-                    test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
-
                 let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
 
                 let circ_params = CircParameters::default();
@@ -727,18 +737,31 @@ mod test {
                 let protocols = format!("Relay=2-{relay_version}").parse().unwrap();
                 let target = target_builder.protocols(protocols).build().unwrap();
 
-                let _tunnel = pending_tunnel
+                let tunnel = pending_tunnel
                     .create_firsthop(&target, circ_params)
                     .await
                     .unwrap();
 
                 assert_eq!(
-                    conn_inspector.client_cell().unwrap().msg().cmd(),
+                    conn_inspector.try_client_cell().unwrap().msg().cmd(),
                     ChanCmd::CREATE2,
                 );
                 assert_eq!(
-                    conn_inspector.relay_cell().unwrap().msg().cmd(),
+                    conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                     ChanCmd::CREATED2,
+                );
+
+                drop(tunnel);
+
+                assert_eq!(
+                    conn_inspector.client_cell().await.unwrap().msg().cmd(),
+                    ChanCmd::DESTROY,
+                );
+                // TODO(relay): I think the relay shouldn't be sending a DESTROY back to the client.
+                // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2648
+                assert_eq!(
+                    conn_inspector.relay_cell().await.unwrap().msg().cmd(),
+                    ChanCmd::DESTROY,
                 );
             }
         });

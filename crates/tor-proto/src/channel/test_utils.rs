@@ -29,7 +29,7 @@ use crate::peer::{PeerAddr, PeerInfo};
 use {
     crate::relay::CreateRequestHandler,
     crate::relay::channel_provider::{ChannelProvider, NoOpChannelProvider},
-    crate::relay::{CircNetParameters, CongestionControlNetParams},
+    crate::relay::{CircNetParameters, CircuitIncomingStreamReceiver, CongestionControlNetParams},
     crate::stream::incoming::NoOpRequestFilter,
     tor_relay_crypto::pk::RelayNtorKeys,
 };
@@ -87,7 +87,7 @@ pub(crate) fn new_channel_pair<R: Runtime>(
     relay_ids: RelayIds,
     relay_ntor_keys: RelayNtorKeys,
     conn_inspector: &ConnInspector,
-) -> (Arc<Channel>, Arc<Channel>) {
+) -> (Arc<Channel>, Arc<Channel>, CircuitIncomingStreamReceiver) {
     let relay_info = PeerInfo::new(PeerAddr::UNSPECIFIED, relay_ids);
     let client_info = PeerInfo::new(PeerAddr::UNSPECIFIED, RelayIds::empty());
 
@@ -96,7 +96,7 @@ pub(crate) fn new_channel_pair<R: Runtime>(
     };
 
     // A handler that will process CREATE* requests on channels.
-    let (create_request_handler, _circuit_stream_rx) = CreateRequestHandler::new(
+    let (create_request_handler, circuit_stream_rx) = CreateRequestHandler::new(
         chan_provider,
         circ_net_params,
         relay_ntor_keys,
@@ -180,7 +180,7 @@ pub(crate) fn new_channel_pair<R: Runtime>(
     })
     .unwrap();
 
-    (client_chan, relay_chan)
+    (client_chan, relay_chan, circuit_stream_rx)
 }
 
 /// Initialize connected client and relay channels with pre-generated keys.
@@ -193,7 +193,12 @@ pub(crate) fn new_channel_pair<R: Runtime>(
 pub(crate) fn new_channel_pair_with_keys<R: Runtime>(
     rt: &R,
     conn_inspector: &ConnInspector,
-) -> (Arc<Channel>, Arc<Channel>, OwnedCircTargetBuilder) {
+) -> (
+    Arc<Channel>,
+    Arc<Channel>,
+    CircuitIncomingStreamReceiver,
+    OwnedCircTargetBuilder,
+) {
     let mut rng = tor_llcrypto::rng::CautiousRng;
 
     // Keys are chosen arbitrarily.
@@ -213,7 +218,7 @@ pub(crate) fn new_channel_pair_with_keys<R: Runtime>(
         LazyLock::new(|| Arc::new(NoOpChannelProvider));
     let chan_provider = Arc::downgrade(&CHAN_PROVIDER);
 
-    let (client_chan, relay_chan) = new_channel_pair(
+    let (client_chan, relay_chan, circuit_stream_rx) = new_channel_pair(
         rt,
         chan_provider,
         relay_ids.clone(),
@@ -225,7 +230,7 @@ pub(crate) fn new_channel_pair_with_keys<R: Runtime>(
     target_builder.ntor_onion_key(*relay_ntor_keys.latest().public().inner());
     *target_builder.chan_target().ids() = RelayIdsBuilder::from_relay_ids(&relay_ids);
 
-    (client_chan, relay_chan, target_builder)
+    (client_chan, relay_chan, circuit_stream_rx, target_builder)
 }
 
 /// Create a new [`PendingClientTunnel`] and start its reactor.
@@ -293,13 +298,23 @@ impl ConnInspector {
         }
     }
 
-    /// Get the next message sent by the client.
-    pub(crate) fn client_cell(&mut self) -> Option<AnyChanCell> {
+    /// Try to get the next message sent by the client.
+    pub(crate) fn try_client_cell(&mut self) -> Option<AnyChanCell> {
         self.client_inspector_rx.try_recv().ok()
     }
 
-    /// Get the next message sent by the relay.
-    pub(crate) fn relay_cell(&mut self) -> Option<AnyChanCell> {
+    /// Try to get the next message sent by the relay.
+    pub(crate) fn try_relay_cell(&mut self) -> Option<AnyChanCell> {
         self.relay_inspector_rx.try_recv().ok()
+    }
+
+    /// Wait for the next message sent by the client.
+    pub(crate) async fn client_cell(&mut self) -> Option<AnyChanCell> {
+        self.client_inspector_rx.recv().await.ok()
+    }
+
+    /// Wait for the next message sent by the relay.
+    pub(crate) async fn relay_cell(&mut self) -> Option<AnyChanCell> {
+        self.relay_inspector_rx.recv().await.ok()
     }
 }
