@@ -222,7 +222,7 @@ pub struct CongestionWindowParams {
     /// The SENDME increment as in the number of cells to ACK with every SENDME. This is coming
     /// from the consensus and negotiated during circuit setup.
     #[getter(as_copy)]
-    sendme_inc: u32,
+    sendme_inc: u8,
 }
 impl_standard_builder! { CongestionWindowParams: !Deserialize + !Default}
 
@@ -233,7 +233,7 @@ impl CongestionWindowParams {
     /// [`CongestionWindowParamsBuilder`].
     /// Typically the default when built should be from the network parameters from the consensus.
     pub(crate) fn set_sendme_inc(&mut self, inc: u8) {
-        self.sendme_inc = u32::from(inc);
+        self.sendme_inc = inc;
     }
 
     #[cfg(test)]
@@ -297,8 +297,6 @@ impl CongestionControlParams {
 /// Return true iff the given sendme increment is valid with regards to the value in the circuit
 /// parameters that is taken from the consensus.
 pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CongestionControlParams) -> bool {
-    // Ease our lives a bit because the consensus value is u32.
-    let inc_u32 = u32::from(inc);
     // A consensus value of 1 would allow this sendme increment to be 0 and thus
     // we have to special case it before evaluating.
     if inc == 0 {
@@ -306,7 +304,7 @@ pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CongestionControlParams) -> 
     }
     let inc_consensus = params.cwnd_params().sendme_inc();
     // See prop324 section 10.3
-    if inc_u32 > (inc_consensus.saturating_add(1)) || inc_u32 < (inc_consensus.saturating_sub(1)) {
+    if inc > inc_consensus.saturating_add(1) || inc < inc_consensus.saturating_sub(1) {
         return false;
     }
     true
@@ -321,7 +319,7 @@ mod test {
     #[test]
     fn test_sendme_inc_valid() {
         let params = build_cc_vegas_params();
-        let ref_inc = params.cwnd_params().sendme_inc() as u8;
+        let ref_inc = params.cwnd_params().sendme_inc();
 
         // In range.
         assert!(is_sendme_inc_valid(ref_inc, &params));
