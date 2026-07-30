@@ -35,7 +35,7 @@ use std::num::Saturating;
 use std::sync::Arc;
 
 use postage::watch;
-use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKBpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayCmd, RelayMsg, UnparsedRelayMsg};
 use tracing::trace;
@@ -146,15 +146,15 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
             sidechannel_mitigation.received_xon(&self.params)?;
         }
 
-        trace!("Received an XON with rate {}", xon.kbps_ewma());
+        trace!("Received an XON with rate {}", xon.kbytes_per_sec_ewma());
 
-        let rate = match xon.kbps_ewma() {
-            XonKbpsEwma::Limited(rate_kbps) => {
-                let rate_kbps = u64::from(rate_kbps.get());
-                // convert from kbps to bytes/s
-                StreamRateLimit::new_bytes_per_sec(rate_kbps * 1000 / 8)
+        let rate = match xon.kbytes_per_sec_ewma() {
+            XonKBpsEwma::Limited(rate_kbytes_per_sec) => {
+                let rate_kbytes_per_sec = u64::from(rate_kbytes_per_sec.get());
+                // convert from kilobytes/s to bytes/s
+                StreamRateLimit::new_bytes_per_sec(rate_kbytes_per_sec * 1000)
             }
-            XonKbpsEwma::Unlimited => StreamRateLimit::MAX,
+            XonKBpsEwma::Unlimited => StreamRateLimit::MAX,
         };
 
         *self.rate_limit_updater.borrow_mut() = rate;
@@ -186,7 +186,7 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
         Ok(())
     }
 
-    fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
+    fn maybe_send_xon(&mut self, rate: XonKBpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
         if buffer_len as u64 > self.xoff_limit.as_bytes() {
             // we can't send an XON, and we should have already sent an XOFF when the queue first
             // exceeded the limit (see `maybe_send_xoff()`)
@@ -303,10 +303,10 @@ enum XonXoff {
 #[derive(Debug)]
 enum XonXoffMsg {
     /// XON message with a rate.
-    // TODO: I'm expecting that we'll want the `XonKbpsEwma` in the future.
+    // TODO: I'm expecting that we'll want the `XonKBpsEwma` in the future.
     // If that doesn't end up being the case, then we should remove it.
     #[expect(dead_code)]
-    Xon(XonKbpsEwma),
+    Xon(XonKBpsEwma),
     /// XOFF message.
     Xoff,
 }

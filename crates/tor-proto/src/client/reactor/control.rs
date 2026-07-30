@@ -24,7 +24,7 @@ use crate::util::tunnel_activity::TunnelActivity;
 #[cfg(test)]
 use crate::{circuit::UniqId, client::circuit::CircParameters, crypto::cell::HopNum};
 use tor_cell::chancell::msg::HandshakeType;
-use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
+use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId};
 use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage};
@@ -315,7 +315,7 @@ pub(crate) enum FlowCtrlMsg {
     /// Send a SENDME message on this stream.
     Sendme,
     /// Send an XON message on this stream with the given rate.
-    Xon(XonKbpsEwma),
+    Xon(XonKBpsEwma),
 }
 
 /// A control message handler object. Keep a reference to the Reactor tying its lifetime to it.

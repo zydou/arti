@@ -28,7 +28,7 @@ use tracing::{debug, trace};
 
 use tor_cell::chancell::BoxedCellBody;
 use tor_cell::relaycell::extend::{CcRequest, CircRequestExt};
-use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKBpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
@@ -598,7 +598,7 @@ impl CircHopOutbound {
     /// If we should, then returns the XON message that should be sent.
     pub(crate) fn maybe_send_xon(
         &mut self,
-        rate: XonKbpsEwma,
+        rate: XonKBpsEwma,
         id: StreamId,
     ) -> Result<Option<Xon>> {
         // the call below will return an error if XON/XOFF aren't supported,

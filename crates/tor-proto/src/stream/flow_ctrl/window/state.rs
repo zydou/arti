@@ -1,6 +1,6 @@
 //! Circuit reactor's stream window flow control.
 
-use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKBpsEwma};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{RelayCmd, RelayMsg, UnparsedRelayMsg};
 
@@ -65,7 +65,7 @@ impl FlowCtrlHooks for WindowFlowCtrl {
         Err(Error::CircProto(msg.into()))
     }
 
-    fn maybe_send_xon(&mut self, _rate: XonKbpsEwma, _buffer_len: usize) -> Result<Option<Xon>> {
+    fn maybe_send_xon(&mut self, _rate: XonKBpsEwma, _buffer_len: usize) -> Result<Option<Xon>> {
         let msg = "XON messages cannot be sent with window flow control";
         Err(Error::CircProto(msg.into()))
     }

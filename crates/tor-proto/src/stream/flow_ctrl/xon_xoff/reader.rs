@@ -10,7 +10,7 @@ use std::task::{Context, Poll};
 use futures::{AsyncRead, Stream};
 use pin_project::pin_project;
 use tor_basic_utils::assert_val_impl_trait;
-use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
+use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 
 use crate::stream::StreamTarget;
 use crate::util::notify::NotifyReceiver;
@@ -101,7 +101,7 @@ impl<R: AsyncRead + BufferIsEmpty, T: DrainRateNotifier> AsyncRead for XonXoffRe
             self_
                 .ctrl
                 .drain_rate_notifier
-                .notify(XonKbpsEwma::Unlimited)?;
+                .notify(XonKBpsEwma::Unlimited)?;
             *self_.pending_drain_rate_update = false;
         }
 
@@ -112,11 +112,11 @@ impl<R: AsyncRead + BufferIsEmpty, T: DrainRateNotifier> AsyncRead for XonXoffRe
 /// Something that sends drain rate updates to the flow control logic (the `XonXoffFlowCtrl`).
 pub(crate) trait DrainRateNotifier {
     /// Send the drain rate update.
-    fn notify(&mut self, rate: XonKbpsEwma) -> Result<(), Error>;
+    fn notify(&mut self, rate: XonKBpsEwma) -> Result<(), Error>;
 }
 
 impl DrainRateNotifier for StreamTarget {
-    fn notify(&mut self, rate: XonKbpsEwma) -> Result<(), Error> {
+    fn notify(&mut self, rate: XonKBpsEwma) -> Result<(), Error> {
         self.drain_rate_update(rate).map_err(Into::into)
     }
 }
@@ -216,16 +216,16 @@ mod test {
     /// The type that will be stored by the [`XonXoffReader`] and used to send drain rate updates.
     ///
     /// This essentially mocks what the [`StreamTarget`] would do.
-    struct TestingDrainRateUpdates(mpsc::UnboundedSender<XonKbpsEwma>);
+    struct TestingDrainRateUpdates(mpsc::UnboundedSender<XonKBpsEwma>);
 
     impl TestingDrainRateUpdates {
-        pub(crate) fn new(sender: mpsc::UnboundedSender<XonKbpsEwma>) -> Self {
+        pub(crate) fn new(sender: mpsc::UnboundedSender<XonKBpsEwma>) -> Self {
             Self(sender)
         }
     }
 
     impl DrainRateNotifier for TestingDrainRateUpdates {
-        fn notify(&mut self, rate: XonKbpsEwma) -> Result<(), Error> {
+        fn notify(&mut self, rate: XonKBpsEwma) -> Result<(), Error> {
             self.0.unbounded_send(rate).unwrap();
             Ok(())
         }
@@ -349,7 +349,7 @@ mod test {
     ) -> (
         WriterWithLength<Compat<DuplexStream>>,
         XonXoffReader<ReaderWithLength<Compat<DuplexStream>>, TestingDrainRateUpdates>,
-        mpsc::UnboundedReceiver<XonKbpsEwma>,
+        mpsc::UnboundedReceiver<XonKBpsEwma>,
         XonXoffFlowCtrl,
     ) {
         let params = FlowCtrlParameters::defaults_for_tests();
@@ -504,7 +504,7 @@ mod test {
             assert!(Pin::new(reader.inner_mut()).is_empty());
             assert!(!reader.pending_drain_rate_update);
             let xon_rate = drain_rate_receiver.try_recv().unwrap();
-            assert_eq!(xon_rate, XonKbpsEwma::Unlimited);
+            assert_eq!(xon_rate, XonKBpsEwma::Unlimited);
 
             // The buffer is still empty,
             // so the flow control logic should want to send an XON.
@@ -512,7 +512,7 @@ mod test {
                 .maybe_send_xon(xon_rate, writer.len() as usize)
                 .unwrap()
                 .unwrap();
-            assert_eq!(xon.kbps_ewma(), xon_rate);
+            assert_eq!(xon.kbytes_per_sec_ewma(), xon_rate);
         });
     }
 
@@ -559,7 +559,7 @@ mod test {
             // Since the buffer is past the high-water mark,
             // we won't want to send an XON.
             let xon_rate = drain_rate_receiver.try_recv().unwrap();
-            assert_eq!(xon_rate, XonKbpsEwma::Unlimited);
+            assert_eq!(xon_rate, XonKBpsEwma::Unlimited);
             let xon = flow_ctrl
                 .maybe_send_xon(xon_rate, writer.len() as usize)
                 .unwrap();

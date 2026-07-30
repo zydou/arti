@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use postage::watch;
-use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKBpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
@@ -107,7 +107,7 @@ impl FlowCtrlHooks for StreamFlowCtrl {
         self.inner.handle_incoming_xoff(msg)
     }
 
-    fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
+    fn maybe_send_xon(&mut self, rate: XonKBpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
         self.inner.maybe_send_xon(rate, buffer_len)
     }
 
@@ -165,7 +165,7 @@ pub(crate) trait FlowCtrlHooks {
     ///
     /// If we should, then returns the XON message that should be sent.
     /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
-    fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>>;
+    fn maybe_send_xon(&mut self, rate: XonKBpsEwma, buffer_len: usize) -> Result<Option<Xon>>;
 
     /// Check if we should send an XOFF message.
     ///

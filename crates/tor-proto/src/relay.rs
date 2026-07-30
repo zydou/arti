@@ -25,7 +25,7 @@ use oneshot_fused_workaround as oneshot;
 
 use tor_cell::chancell::msg::{self as chanmsg};
 use tor_cell::relaycell::StreamId;
-use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
+use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use crate::Error;
@@ -97,7 +97,7 @@ impl RelayCirc {
     pub(crate) fn drain_rate_update(
         &self,
         _stream_id: StreamId,
-        _rate: XonKbpsEwma,
+        _rate: XonKBpsEwma,
     ) -> crate::Result<()> {
         todo!()
     }
