@@ -44,6 +44,18 @@ impl FilenameOrStdio {
     /// It shouldn't fail other than for write errors.
     ///
     /// Makes no attempt to preserve file permissions.
+    ///
+    /// ### `.tmp` file cleanup
+    ///
+    /// If this fails, we can leave a `.tmp` file lying about.  This is fine for
+    /// the C Tor Arti consensus method plugin.
+    ///
+    /// If we promote this code we might want to make an effort to clean up leftover `.tmp`
+    /// files.  Note however that it is not possible to make that cleanup reliable.
+    /// Therefore whatever invokes us will need to be able to clean up such garbage, anyway.
+    /// It might be better to rely entirely on that, avoiding the situation where
+    /// a caller fails to have any cleanup functionality and very occasionally
+    /// `.tmp` files get left over anyway (and *this* code unjustifiably gets the blame).
     pub(super) fn write<W>(&self, writer: W) -> Result<(), CliError>
     where
         W: FnOnce(&mut dyn io::Write) -> io::Result<()>,
@@ -62,15 +74,6 @@ impl FilenameOrStdio {
                 fs::rename(&tmp, p).with_context(|| format!("install {tmp:?} as {p:?}"))
             })(),
         }
-        // If this fails, we can leave a `.tmp` file lying about.  This is fine for
-        // the C Tor Arti consensus method plugin.
-        //
-        // If we promote this code we might want to make an effort to clean up leftover `.tmp`
-        // files.  Note however that it is not possible to make that cleanup reliable.
-        // Therefore whatever invokes us will need to be able to clean up such garbage, anyway.
-        // It might be better to rely entirely on that, avoiding the situation where
-        // a caller fails to have any cleanup functionality and very occasionally
-        // `.tmp` files get left over anyway (and *this* code unjustifiably gets the blame).
         .context("write output")
         .map_err(CliError::OperationalError)
     }
