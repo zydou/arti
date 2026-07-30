@@ -404,18 +404,20 @@ impl RouterDescUnverified {
         // TODO DIRMIRROR: Replace the map logic with TimeRangeBound::intersect_bounds().
         // Alternatively, we may also want to add a TimeBoundAccumulator, as outlined in
         // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4144#note_3440907
-        let min = timebounds
+        let start_time = timebounds
             .iter()
             .filter_map(|x| x.bounds_start_end().0)
             .min();
-        let max = timebounds
+        let end_time = timebounds
             .iter()
             .filter_map(|x| x.bounds_start_end().1)
             .max();
-        debug_assert!(min.is_some()); // At least always obtained from published.
-        debug_assert!(max.is_some()); // At least always obtained from an edcert.
+        debug_assert!(start_time.is_some()); // At least always obtained from published.
+        debug_assert!(end_time.is_some()); // At least always obtained from an edcert.
 
-        Ok(TimeRangeBound::new_from_start_end(body, min, max))
+        Ok(TimeRangeBound::new_from_start_end(
+            body, start_time, end_time,
+        ))
     }
 }
 
