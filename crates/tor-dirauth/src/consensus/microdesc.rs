@@ -197,4 +197,24 @@ mod test {
 
         Ok(())
     }
+
+    #[test]
+    fn all_microdesc() -> anyhow::Result<()> {
+        for relay in testdata_live::RELAY_DESCRIPTORS {
+            let rd = get_router_desc(relay)?;
+            let descs = compute_supported_microdescs(&rd).expect("no bugs");
+            for md in descs.values() {
+                let _md: Microdesc = parse_netdoc(&ParseInput::new(md, relay.nick))?;
+            }
+            itertools::assert_equal(
+                descs
+                    .keys()
+                    .flat_map(|m| m.methods.iter())
+                    .sorted()
+                    .copied(),
+                SupportedConsensusMethod::iter_all().map(|m| *m),
+            );
+        }
+        Ok(())
+    }
 }
