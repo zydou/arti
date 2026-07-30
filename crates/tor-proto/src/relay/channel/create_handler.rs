@@ -686,7 +686,7 @@ mod test {
             let protocols = "Relay=1".parse().unwrap();
             let target = target_builder.protocols(protocols).build().unwrap();
 
-            // TODO(relay): This should fail since we don't support TAP handshakes.
+            // TODO: This should fail since we don't support TAP handshakes.
             // But the channel will do an ntor handshake anyway even though it's not supported.
             // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2489
             let _tunnel = pending_tunnel
@@ -694,7 +694,7 @@ mod test {
                 .await
                 .unwrap();
 
-            // TODO(relay): As above, this is wrong.
+            // TODO: As above, this is wrong.
             assert_eq!(
                 conn_inspector.client_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATE2,
