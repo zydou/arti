@@ -307,4 +307,14 @@ impl ConnInspector {
     pub(crate) fn try_relay_cell(&mut self) -> Option<AnyChanCell> {
         self.relay_inspector_rx.try_recv().ok()
     }
+
+    /// Wait for the next message sent by the client.
+    pub(crate) async fn client_cell(&mut self) -> Option<AnyChanCell> {
+        self.client_inspector_rx.recv().await.ok()
+    }
+
+    /// Wait for the next message sent by the relay.
+    pub(crate) async fn relay_cell(&mut self) -> Option<AnyChanCell> {
+        self.relay_inspector_rx.recv().await.ok()
+    }
 }

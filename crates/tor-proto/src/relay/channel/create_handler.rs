@@ -653,7 +653,7 @@ mod test {
 
             let circ_params = CircParameters::default();
 
-            let _tunnel = pending_tunnel
+            let tunnel = pending_tunnel
                 .create_firsthop_fast(circ_params)
                 .await
                 .unwrap();
@@ -665,6 +665,19 @@ mod test {
             assert_eq!(
                 conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATED_FAST,
+            );
+
+            drop(tunnel);
+
+            assert_eq!(
+                conn_inspector.client_cell().await.unwrap().msg().cmd(),
+                ChanCmd::DESTROY,
+            );
+            // TODO(relay): I think the relay shouldn't be sending a DESTROY back to the client.
+            // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2648
+            assert_eq!(
+                conn_inspector.relay_cell().await.unwrap().msg().cmd(),
+                ChanCmd::DESTROY,
             );
         });
     }
@@ -728,7 +741,7 @@ mod test {
                 let protocols = format!("Relay=2-{relay_version}").parse().unwrap();
                 let target = target_builder.protocols(protocols).build().unwrap();
 
-                let _tunnel = pending_tunnel
+                let tunnel = pending_tunnel
                     .create_firsthop(&target, circ_params)
                     .await
                     .unwrap();
@@ -740,6 +753,19 @@ mod test {
                 assert_eq!(
                     conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                     ChanCmd::CREATED2,
+                );
+
+                drop(tunnel);
+
+                assert_eq!(
+                    conn_inspector.client_cell().await.unwrap().msg().cmd(),
+                    ChanCmd::DESTROY,
+                );
+                // TODO(relay): I think the relay shouldn't be sending a DESTROY back to the client.
+                // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2648
+                assert_eq!(
+                    conn_inspector.relay_cell().await.unwrap().msg().cmd(),
+                    ChanCmd::DESTROY,
                 );
             }
         });
