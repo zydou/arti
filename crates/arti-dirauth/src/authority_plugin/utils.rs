@@ -26,6 +26,24 @@ pub(super) enum FilenameOrStdio {
     Stdio,
 }
 
+/// Output file currently being written to
+///
+/// See [`FilenameOrStdio::start_writing`].
+pub(super) struct Writing {
+    /// Actual open-file
+    handle: Box<dyn io::Write>,
+    /// Filenames
+    files: Option<WritingFiles>,
+}
+
+/// Filenames when writing an output file
+struct WritingFiles {
+    /// The `.tmp` file
+    tmp: String,
+    /// The main file
+    main: String,
+}
+
 impl FromStr for FilenameOrStdio {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -60,22 +78,93 @@ impl FilenameOrStdio {
     where
         W: FnOnce(&mut dyn io::Write) -> io::Result<()>,
     {
+        let mut w = self.start_writing()?;
+        w.append_with(writer)?;
+        w.finish()
+    }
+
+    /// Start writing the output file, with write-to-`.tmp`-and-rename
+    ///
+    /// Returns a [`Writing`], which implements `io::Write` -
+    /// but usually it's better to use [`Writing::append_with`]
+    /// since that automatically converts errors to a nice `CliError`.
+    ///
+    /// When the output is complete, you *must* call [`Writing::finish`]
+    /// to install the output file.
+    ///
+    /// If `Writing` is dropped, we leave the `.tmp` file lying about.
+    /// See [`FilenameOrStdio::write`] for more information.
+    ///
+    /// Makes no attempt to preserve file permissions.
+    pub(super) fn start_writing(&self) -> Result<Writing, CliError> {
         match self {
-            FilenameOrStdio::Stdio => writer(&mut io::stdout().lock()).context("write to stdout"),
-            FilenameOrStdio::Path(main) => (|| {
+            FilenameOrStdio::Stdio => {
+                //
+                Ok(Writing {
+                    handle: Box::new(io::stdout().lock()),
+                    files: None,
+                })
+            }
+            FilenameOrStdio::Path(main) => {
                 let tmp = format!("{main}.tmp");
                 let f = File::create(&tmp)
-                    .with_context(|| format!("create {tmp:?}"))?;
+                    .with_context(|| format!("create {tmp:?}"))
+                    .map_err(convert_output_error)?;
+                #[allow(unused_mut)] // XXXX
                 let mut f = BufWriter::new(f);
-                (|| {
-                    writer(&mut f)?;
-                    f.flush()
-                })()
-                .with_context(|| format!("write {tmp:?}"))?;
-                fs::rename(&tmp, main).with_context(|| format!("install {tmp:?} as {main:?}"))
-            })(),
+                Ok(Writing {
+                    handle: Box::new(f),
+                    files: Some(WritingFiles {
+                        tmp,
+                        main: main.clone(),
+                    }),
+                })
+            }
         }
-        .map_err(convert_output_error)
+    }
+}
+
+impl io::Write for Writing {
+    fn write(&mut self, b: &[u8]) -> io::Result<usize> {
+        self.handle.write(b)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.handle.flush()
+    }
+}
+
+impl Writing {
+    /// Write to an output file, with a `dyn io::Write`, handling errors
+    ///
+    /// Calls `writer(self)` but converts the erorr into a nice `CliError`
+    pub(super) fn append_with<W>(&mut self, writer: W) -> Result<(), CliError>
+    where
+        W: FnOnce(&mut dyn io::Write) -> io::Result<()>,
+    {
+        writer(self).map_err(self.handle_write_error())
+    }
+
+    /// Finish writing and install the output file
+    pub(super) fn finish(mut self) -> Result<(), CliError> {
+        self.flush().map_err(self.handle_write_error())?;
+
+        if let Some(WritingFiles { main, tmp }) = &self.files {
+            fs::rename(tmp, main)
+                .with_context(|| format!("install {tmp:?} as {main:?}"))
+                .map_err(convert_output_error)?;
+        }
+
+        Ok(())
+    }
+
+    /// Helper to handle errors from `io::Write::write` and `flush`
+    fn handle_write_error(&self) -> impl FnOnce(io::Error) -> CliError {
+        let msg = self
+            .files
+            .as_ref()
+            .map(|files| format!("write to {:?}", files.tmp))
+            .unwrap_or("write to stdout".into());
+        move |e| convert_output_error(anyhow::Error::from(e).context(msg))
     }
 }
 
