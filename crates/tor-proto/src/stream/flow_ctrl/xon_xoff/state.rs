@@ -149,10 +149,10 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
         trace!("Received an XON with rate {}", xon.kbytes_per_sec_ewma());
 
         let rate = match xon.kbytes_per_sec_ewma() {
-            XonKBpsEwma::Limited(rate_kbps) => {
-                let rate_kbps = u64::from(rate_kbps.get());
-                // convert from kbps to bytes/s
-                StreamRateLimit::new_bytes_per_sec(rate_kbps * 1000 / 8)
+            XonKBpsEwma::Limited(rate_kbytes_per_sec) => {
+                let rate_kbytes_per_sec = u64::from(rate_kbytes_per_sec.get());
+                // convert from kilobytes/s to bytes/s
+                StreamRateLimit::new_bytes_per_sec(rate_kbytes_per_sec * 1000)
             }
             XonKBpsEwma::Unlimited => StreamRateLimit::MAX,
         };
