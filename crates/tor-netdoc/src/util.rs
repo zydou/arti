@@ -92,11 +92,3 @@ fn test_as_mut_compiles() {
 
     let _: &mut S<()> = S { t: () }.as_mut();
 }
-
-#[cfg(test)]
-pub(crate) fn regsub(update: &mut String, re: &str, repl: impl regex::Replacer) {
-    *update = regex::Regex::new(&format!("(?m){re}"))
-        .expect(re)
-        .replace_all(update, repl)
-        .to_string();
-}

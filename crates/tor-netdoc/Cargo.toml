@@ -43,7 +43,7 @@ experimental = [
 build_docs = ["__is_experimental"]
 encode = []
 incomplete = ["encode", "__is_experimental"]
-testing = ["hex-literal", "visibility", "dep:imara-diff"]
+testing = ["hex-literal", "visibility", "dep:imara-diff", "dep:regex"]
 
 # Client-side, directory-side, and service-side support for onion services.
 # Experimental: not covered by semver guarantees.
@@ -92,6 +92,7 @@ paste = "1.0.3"
 phf = { version = "0.14.0", features = ["macros"] }
 rand = { version = "0.10.1" }
 rangemap = "1.7"
+regex = { version = "1", optional = true }
 saturating-time = "0.4.0"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"

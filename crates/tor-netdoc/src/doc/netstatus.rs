@@ -2603,7 +2603,7 @@ mod test {
     use crate::doc::authcert::AuthCertUnverified;
     use crate::encode::{NetdocEncodable, NetdocEncodableFields};
     use crate::parse2::{ParseInput, parse_netdoc, parse_netdoc_multiple};
-    use crate::util::regsub;
+    use crate::test_support::regsub;
     use anyhow::Context as _;
     use assert_matches::assert_matches;
     use hex_literal::hex;

@@ -71,6 +71,19 @@ pub fn assert_eq_or_diff(a: &str, a_what: &str, b: &str, b_what: &str, message: 
     );
 }
 
+/// Substitute all `re` in `update` with `repl`
+///
+/// **Note** that `re` is processed in "multiple lines mode"
+/// (`(?m)` is prepended.)
+///
+/// Convenience wrapper around [`regex::Regex::replace_all`].
+pub fn regsub(update: &mut String, re: &str, repl: impl regex::Replacer) {
+    *update = regex::Regex::new(&format!("(?m){re}"))
+        .expect(re)
+        .replace_all(update, repl)
+        .to_string();
+}
+
 /// Parse a test case from a netdoc-style test case string
 ///
 /// `T` must be `NetdocParseableFields`.
