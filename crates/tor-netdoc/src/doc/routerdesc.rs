@@ -36,7 +36,9 @@ use crate::encode::{ItemEncoder, ItemValueEncodable};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::parse2::{ArgumentError, ErrorProblem, ItemValueParseable, UnparsedItem};
+use crate::parse2::{
+    ArgumentError, ErrorProblem, ItemValueParseable, SignaturesData, UnparsedItem, VerifyFailed,
+};
 use crate::types::family::{RelayFamily, RelayFamilyIds};
 use crate::types::policy::*;
 use crate::types::routerdesc::*;
@@ -53,9 +55,12 @@ use std::sync::LazyLock;
 use std::{iter, net, time};
 use tor_basic_utils::intern::Intern;
 use tor_cert::{CertType, KeyUnknownCert};
-use tor_checkable::{TimeBound, signed, timed};
+use tor_checkable::timed::TimeRangeBound;
+use tor_checkable::{Timebound, signed, timed};
 use tor_error::{internal, into_internal};
 use tor_llcrypto as ll;
+use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use digest::Digest;
@@ -125,7 +130,6 @@ pub struct RouterDesc {
     ///
     /// * `master-key-ed25519 <master key>`
     /// * Exactly once.
-    // TODO DIRAUTH when implementing verification, don't forget to check this!
     #[deftly(netdoc(single_arg))]
     pub master_key_ed25519: Ed25519Public,
 
@@ -290,9 +294,130 @@ pub struct RouterDescSignatures {
     pub router_signature: RouterSignature,
 }
 
-// TODO: Implement a .verify() method.
 // TODO: Implement a .encode_sign() method.
-impl RouterDescUnverified {}
+impl RouterDescUnverified {
+    /// Verifies a self-signed [`RouterDescUnverified`].
+    ///
+    /// This verification performs the following checks:
+    /// * [`RouterDesc::identity_ed25519`] is validly signed.
+    /// * [`RouterDesc::master_key_ed25519`] is as implied by [`RouterDesc::identity_ed25519`].
+    /// * [`RouterDesc::fingerprint`] is as implied by [`RouterDesc::signing_key`].
+    /// * [`RouterDesc::ntor_onion_key_crosscert`] is validly signed.
+    /// * [`RouterDesc::signing_key`] has correct length and exponent.
+    /// * All [`RouterDesc::family_cert`] elements are valid.
+    /// * The inner and outer [`RouterDescSignatures`] are valid.
+    ///
+    /// The result will be a [`TimeRangeBound`] composed from the respective
+    /// minimums and maximums found in the present certificates.  For the lower
+    /// bound, [`RouterDesc::published`] will also be taken into account when
+    /// determining the minimum.
+    //
+    // We deny the use of unused variables as a hint to use all TimeRangeBound
+    // values obtained through a dangerous split.
+    #[deny(unused_variables)]
+    pub fn verify(self) -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
+        // Type annotations to make LSP happy.
+        let (mut body, sigs): (RouterDesc, SignaturesData<_>) = (self.body, self.sigs);
+
+        // Collect all timebounds returned by .dangerously_into_parts().
+        let mut timebounds = Vec::new();
+
+        // Verify the ed25519 identity certificate.
+        // This also includes a check for the master-key-ed25519.
+        let (identity_ed25519, identity_ed25519_bounds) =
+            Ed25519IdentityCert::verify(body.identity_ed25519.raw_unverified().clone())?
+                .dangerously_into_parts(); // TODO DIRMIRROR: Use TimeRangeBoundBuilder
+        let Ed25519IdentityCert {
+            id_ed25519,
+            sign_ed25519,
+        } = identity_ed25519;
+        if id_ed25519 != body.master_key_ed25519.0 {
+            return Err(VerifyFailed::Inconsistent);
+        }
+        body.identity_ed25519.set_verified(identity_ed25519);
+        timebounds.push(identity_ed25519_bounds);
+
+        // Keep track of the published value as lower time bound.
+        timebounds.push(TimeRangeBound::new_from_start_end(
+            (),
+            Some(body.published.0),
+            None,
+        ));
+
+        // If set, ensure that the fingerprint equals to the signing key id.
+        if body
+            .fingerprint
+            .is_some_and(|fp| fp.0 != body.signing_key.to_rsa_identity())
+        {
+            return Err(VerifyFailed::Inconsistent);
+        }
+
+        // Verify the ntor-onion-key-crosscert.
+        // For this, we also need to convert the X25519 ntor key to an Ed25519
+        // key using convert_curve25519_to_ed25519_public().
+        let ntor_pk = convert_curve25519_to_ed25519_public(
+            &body.ntor_onion_key.0,
+            // Rust std turns false into 0 and true into 1.
+            body.ntor_onion_key_crosscert.bit.0.into(),
+        )
+        .ok_or(VerifyFailed::Other)?;
+        let (ntor_cc, ntor_cc_bounds) = Ed25519NtorCrossCert::verify(
+            ntor_pk.into(),
+            id_ed25519,
+            body.ntor_onion_key_crosscert.cert.raw_unverified().clone(),
+        )?
+        .dangerously_into_parts(); // TODO DIRMIRROR: Use TimeRangeBoundBuilder
+        body.ntor_onion_key_crosscert.cert.set_verified(ntor_cc);
+        timebounds.push(ntor_cc_bounds);
+
+        // Verify that the signing key has the proper exponent and length.
+        // TODO DIRAUTH: We want to enforce this type wise with parse2.
+        if body.signing_key.bits() != 1024 || !body.signing_key.exponent_is(65537) {
+            return Err(VerifyFailed::Other);
+        }
+
+        // Verify all family certificates.
+        for cert in body.family_cert.0.iter_mut() {
+            let (cert_verified, cert_bounds) =
+                Ed25519FamilyCert::verify(id_ed25519, cert.raw_unverified().clone())?
+                    .dangerously_into_parts(); // TODO DIRMIRROR: Use TimeRangeBoundBuilder
+            cert.set_verified(cert_verified);
+            timebounds.push(cert_bounds);
+        }
+
+        // Verify the actual outer document signatures.
+        // VerifyFailed should be an okay error variant in case that the hashes
+        // were not accumulated, as it is not possible to verify without a
+        // hash.
+        ed25519::PublicKey::try_from(sign_ed25519)
+            .map_err(|_| VerifyFailed::Other)?
+            .verify(
+                &sigs.hashes.sha256.ok_or(VerifyFailed::VerifyFailed)?,
+                &sigs.sigs.router_sig_ed25519.0,
+            )?;
+        body.signing_key.verify(
+            sigs.hashes.sha1.ok_or(VerifyFailed::VerifyFailed)?.as_ref(),
+            sigs.sigs.router_signature.0.as_ref(),
+        )?;
+
+        // Construct the final TimeRangeBound by obtaining the min and max.
+        // TODO DIRMIRROR: Replace the map logic with TimeRangeBound::intersect_bounds().
+        // Alternatively, we may also want to add a TimeBoundAccumulator, as outlined in
+        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4144#note_3440907
+        let min = timebounds
+            .iter()
+            .filter_map(|x| x.bounds_start_end().0)
+            .min();
+        let max = timebounds
+            .iter()
+            .filter_map(|x| x.bounds_start_end().1)
+            .max();
+        debug_assert!(min.is_some()); // At least always obtained from published.
+        debug_assert!(max.is_some()); // At least always obtained from an edcert.
+
+        Ok(TimeRangeBound::new_from_start_end(body, min, max))
+    }
+}
 
 /// Description of the software a relay is running.
 ///
@@ -1165,10 +1290,15 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use std::{net::Ipv4Addr, str::FromStr, time::Duration};
+
     use crate::{
         encode::{NetdocEncodable, NetdocEncoder},
         parse2::{self, NetdocParseableUnverified, ParseInput},
     };
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_checkable::TimeValidityError;
+    use tor_llcrypto::pk::{curve25519, ed25519::Ed25519PublicKey, rsa};
 
     use super::*;
     const TESTDATA: &str = include_str!("../../testdata/routerdesc1.txt");
@@ -1421,7 +1551,10 @@ mod test {
         let rd = parse2::parse_netdoc_multiple::<RouterDescUnverified>(&input)
             .unwrap()
             .into_iter()
-            .map(|rd| rd.unwrap_unverified())
+            .map(|rd| {
+                rd.clone().verify().unwrap();
+                rd.unwrap_unverified()
+            })
             .map(|(body, sig)| (body, sig.sigs))
             .collect::<Vec<(RouterDesc, RouterDescSignatures)>>();
         assert_eq!(rd.len(), 20);
@@ -1446,6 +1579,10 @@ mod test {
         // This is the best we can get as the current encoder is not bug for
         // bug compatible with the CTor one (i.e. absence of TAP and different
         // order), so this is the closest we can get.
+        //
+        // Unfortunately, we cannot verify the re-encoded signatures, because
+        // the re-encoded body misses the TAP related fields which are accounted
+        // for in the signature however.
         let mut out = NetdocEncoder::new();
         for (body, sig) in &rd {
             body.encode_unsigned(&mut out).unwrap();
@@ -1460,5 +1597,214 @@ mod test {
             .map(|(body, sig)| (body, sig.sigs))
             .collect::<Vec<(RouterDesc, _)>>();
         assert_eq!(rd, rd2);
+    }
+
+    /// Very bad encode and sign method for router descriptors.
+    // TODO: Replace with proper one, once it exists
+    fn rd_encode_sign(doc: &RouterDesc, rsa: &rsa::KeyPair, ed25519: &ed25519::Keypair) -> String {
+        /// Helper for writing out router-sig-ed25519.
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocEncodable)]
+        struct Ed25519Writer {
+            router_sig_ed25519: RouterSigEd25519,
+        }
+
+        /// Helper for writing out router-signature.
+        #[derive(Deftly)]
+        #[derive_deftly(NetdocEncodable)]
+        struct RsaWriter {
+            router_signature: RouterSignature,
+        }
+
+        // Add the router-sig-ed25519 signature.
+        let mut out = NetdocEncoder::new();
+        doc.encode_unsigned(&mut out).unwrap();
+        Ed25519Writer {
+            router_sig_ed25519: RouterSigEd25519::new_sign_netdoc(
+                ed25519,
+                &out,
+                "router-sig-ed25519",
+            )
+            .unwrap(),
+        }
+        .encode_unsigned(&mut out)
+        .unwrap();
+
+        // Add the router-signature signature.
+        RsaWriter {
+            router_signature: RouterSignature(
+                RsaSha1Signature::new_sign_netdoc(rsa, &out, "router-signature")
+                    .unwrap()
+                    .signature,
+            ),
+        }
+        .encode_unsigned(&mut out)
+        .unwrap();
+
+        out.finish().unwrap()
+    }
+
+    /// Test for various succeeding and failing verifications.
+    #[test]
+    fn test_verify() {
+        // Generate keys we will use later.
+        let rng = &mut testing_rng();
+        let rsa_id = rsa::KeyPair::generate(rng).unwrap();
+        let ed25519_id = ed25519::Keypair::generate(rng);
+        let ed25519_sign = ed25519::Keypair::generate(rng);
+        let curve25519_ntor = curve25519::StaticSecret::random_from_rng(&mut *rng);
+        let curve25519_ntor = curve25519::StaticKeypair {
+            secret: curve25519_ntor.clone(),
+            public: (&curve25519_ntor).into(),
+        };
+        let ed25519_ntor = tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_private(
+            &curve25519_ntor.secret,
+        )
+        .unwrap();
+
+        // Values arbitrarily chosen for expirations.
+        let too_early = Iso8601TimeSp::from_str("2026-05-01 03:00:00").unwrap().0;
+        let published = Iso8601TimeSp::from_str("2026-06-01 03:00:00").unwrap().0;
+        let now = Iso8601TimeSp::from_str("2026-06-10 15:30:12").unwrap().0;
+        let expiration = Iso8601TimeSp::from_str("2026-06-20 03:00:00").unwrap().0;
+        let expired = expiration + Duration::from_secs(60 * 60 * 24);
+
+        // Very boilerplatey construction of a router descriptor.
+        let mut rd = RouterDesc {
+            router: RouterDescIntroItem {
+                nickname: "foo".parse().unwrap(),
+                address: Ipv4Addr::LOCALHOST,
+                orport: 9000,
+                socksport: 0,
+                dirport: 0,
+            },
+            identity_ed25519: Ed25519IdentityCert::new_signed(
+                &ed25519_id,
+                Ed25519Identity::from(ed25519_sign.public_key()),
+                expiration,
+            )
+            .unwrap(),
+            master_key_ed25519: Ed25519Identity::from(ed25519_id.public_key()).into(),
+            bandwidth: Bandwidth {
+                average: 0,
+                burst: 0,
+                observed: 0,
+            },
+            platform: None,
+            published: published.into(),
+            fingerprint: Some(rsa_id.to_public_key().to_rsa_identity().into()),
+            hibernating: NumericBoolean(false),
+            uptime: None,
+            ntor_onion_key: Curve25519Public(curve25519_ntor.public),
+            ntor_onion_key_crosscert: NtorOnionKeyCrossCert {
+                bit: NumericBoolean(ed25519_ntor.1 == 1),
+                cert: Ed25519NtorCrossCert::new_signed(
+                    &ed25519_ntor.0,
+                    ed25519_id.public_key().into(),
+                    expiration,
+                )
+                .unwrap(),
+            },
+            signing_key: rsa_id.to_public_key(),
+            ipv4_policy: AddrPolicy::default(),
+            ipv6_policy: Default::default(),
+            overload_general: None,
+            contact: None,
+            family: Default::default(),
+            family_cert: Default::default(),
+            caches_extra_info: Some(Default::default()),
+            extra_info_digest: None,
+            hidden_service_dir: Some(Default::default()),
+            or_address: Default::default(),
+            tunnelled_dir_server: Some(Default::default()),
+            proto: tor_protover::Protocols::new(),
+        };
+        let rd_original = rd.clone();
+
+        let verify =
+            |rd: &RouterDesc| -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
+                let encoded = rd_encode_sign(rd, &rsa_id, &ed25519_sign);
+                let decoded = parse2::parse_netdoc::<RouterDescUnverified>(&ParseInput::new(
+                    &encoded,
+                    "<test_invalid>",
+                ))
+                .unwrap();
+                decoded.verify()
+            };
+
+        // Test valid and invalid timestamps.
+        assert_eq!(
+            verify(&rd).unwrap().if_valid_at(&too_early).unwrap_err(),
+            TimeValidityError::NotYetValid(published.duration_since(too_early).unwrap())
+        );
+        verify(&rd).unwrap().if_valid_at(&published).unwrap();
+        // This is our good/"everything is working" test
+        verify(&rd).unwrap().if_valid_at(&now).unwrap();
+        verify(&rd).unwrap().if_valid_at(&expiration).unwrap();
+        assert_eq!(
+            verify(&rd).unwrap().if_valid_at(&expired).unwrap_err(),
+            TimeValidityError::Expired(expired.duration_since(expiration).unwrap())
+        );
+
+        // Let's make the certificate inconsistent by changing the master key.
+        rd.master_key_ed25519 = Ed25519Public(Ed25519Identity::from([0x12; 32]));
+        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::Inconsistent);
+        rd = rd_original.clone();
+
+        // Set the published to expired (weird on many levels).
+        rd.published = expired.into();
+        assert_eq!(
+            verify(&rd).unwrap().if_valid_at(&now).unwrap_err(),
+            TimeValidityError::NotYetValid(expired.duration_since(now).unwrap())
+        );
+        rd = rd_original.clone();
+
+        // Have an inconsistent fingerprint.
+        let other_rsa_key = rsa::KeyPair::generate(rng).unwrap();
+        rd.fingerprint = Some(other_rsa_key.to_public_key().to_rsa_identity().into());
+        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::Inconsistent);
+        // It should fail with a different error if we change the signing key.
+        // (No longer inconsistent but simply not validly signed)
+        rd.signing_key = other_rsa_key.to_public_key();
+        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+        // It should work again if we set it to None.
+        rd.signing_key = rd_original.signing_key.clone();
+        rd.fingerprint = None;
+        verify(&rd).unwrap().if_valid_at(&now).unwrap();
+        rd = rd_original.clone();
+
+        // If we change the ntor-onion-key, the crosscert verification will fail.
+        // We must generate a valid random key here because otherwise, decompress
+        // will fail.
+        let other_curve25519 = curve25519::StaticSecret::random_from_rng(&mut *rng);
+        let other_curve25519 = (&other_curve25519).into();
+        rd.ntor_onion_key = Curve25519Public(other_curve25519);
+        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+        rd = rd_original.clone();
+
+        // Testing for a signature key of the wrong size is hard because
+        // tor-llcrypto makes it purposely hard to generate key sizes other
+        // than 1024 bit.
+
+        // TODO: Test family certificates.
+
+        // Violate the outer ed25519 signatures, which can be done by swapping
+        // the signing key to something else.
+        let different_ed25519_sign = ed25519::Keypair::generate(rng);
+        rd.identity_ed25519 = Ed25519IdentityCert::new_signed(
+            &ed25519_id,
+            Ed25519Identity::from(different_ed25519_sign.public_key()),
+            expiration,
+        )
+        .unwrap();
+        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+        rd = rd_original.clone();
+
+        // Violate the outer RSA signature by swapping the signing key and
+        // "disabling" the fingerprint.
+        let different_rsa_id = rsa::KeyPair::generate(rng).unwrap();
+        rd.signing_key = different_rsa_id.to_public_key();
+        rd.fingerprint = None;
+        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
     }
 }

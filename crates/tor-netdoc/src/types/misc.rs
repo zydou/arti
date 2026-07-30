@@ -504,7 +504,7 @@ mod ed25519impl {
 
     /// An alleged ed25519 public key, encoded in base64 with optional
     /// padding.
-    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Deftly)]
     #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Ed25519Public(pub Ed25519Identity);
@@ -2619,6 +2619,9 @@ pub mod routerdesc {
 
     impl RouterSigEd25519 {
         /// The magic prefix for hashing this type of signature.
+        //
+        // TODO DIRMIRROR have the old parser's verification code use this
+        // constant, thereby de-duplicating.
         const HASH_PREFIX_MAGIC: &str = "Tor router descriptor signature v1";
 
         /// Calculate the hash for signature
