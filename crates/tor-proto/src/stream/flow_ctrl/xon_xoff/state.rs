@@ -146,9 +146,9 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
             sidechannel_mitigation.received_xon(&self.params)?;
         }
 
-        trace!("Received an XON with rate {}", xon.kbps_ewma());
+        trace!("Received an XON with rate {}", xon.kbytes_per_sec_ewma());
 
-        let rate = match xon.kbps_ewma() {
+        let rate = match xon.kbytes_per_sec_ewma() {
             XonKBpsEwma::Limited(rate_kbps) => {
                 let rate_kbps = u64::from(rate_kbps.get());
                 // convert from kbps to bytes/s

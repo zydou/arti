@@ -512,7 +512,7 @@ mod test {
                 .maybe_send_xon(xon_rate, writer.len() as usize)
                 .unwrap()
                 .unwrap();
-            assert_eq!(xon.kbps_ewma(), xon_rate);
+            assert_eq!(xon.kbytes_per_sec_ewma(), xon_rate);
         });
     }
 

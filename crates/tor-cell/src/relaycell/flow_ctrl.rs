@@ -14,8 +14,8 @@ use crate::relaycell::msg::Body;
 pub struct Xon {
     /// Cell `version` field.
     version: FlowCtrlVersion,
-    /// Cell `kbps_ewma` field.
-    kbps_ewma: XonKBpsEwma,
+    /// Cell `kBps_ewma` field.
+    kbytes_per_sec_ewma: XonKBpsEwma,
 }
 
 /// An `XOFF` relay message.
@@ -28,8 +28,11 @@ pub struct Xoff {
 
 impl Xon {
     /// Construct a new [`Xon`] cell.
-    pub fn new(version: FlowCtrlVersion, kbps_ewma: XonKBpsEwma) -> Self {
-        Self { version, kbps_ewma }
+    pub fn new(version: FlowCtrlVersion, kbytes_per_sec_ewma: XonKBpsEwma) -> Self {
+        Self {
+            version,
+            kbytes_per_sec_ewma,
+        }
     }
 
     /// Return the version.
@@ -37,9 +40,9 @@ impl Xon {
         self.version
     }
 
-    /// Return the rate limit in kbps.
-    pub fn kbps_ewma(&self) -> XonKBpsEwma {
-        self.kbps_ewma
+    /// Return the rate limit in KB/s (1000 bytes per second).
+    pub fn kbytes_per_sec_ewma(&self) -> XonKBpsEwma {
+        self.kbytes_per_sec_ewma
     }
 }
 
@@ -54,14 +57,14 @@ impl Body for Xon {
             }
         };
 
-        let kbps_ewma = XonKBpsEwma::decode(r.take_u32()?);
+        let kbytes_per_sec_ewma = XonKBpsEwma::decode(r.take_u32()?);
 
-        Ok(Self::new(version, kbps_ewma))
+        Ok(Self::new(version, kbytes_per_sec_ewma))
     }
 
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(*self.version);
-        w.write_u32(self.kbps_ewma.encode());
+        w.write_u32(self.kbytes_per_sec_ewma.encode());
         Ok(())
     }
 }
