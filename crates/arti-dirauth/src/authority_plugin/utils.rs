@@ -62,8 +62,8 @@ impl FilenameOrStdio {
     {
         match self {
             FilenameOrStdio::Stdio => writer(&mut io::stdout().lock()).context("write to stdout"),
-            FilenameOrStdio::Path(p) => (|| {
-                let tmp = format!("{p}.tmp");
+            FilenameOrStdio::Path(main) => (|| {
+                let tmp = format!("{main}.tmp");
                 let f = File::create(&tmp).with_context(|| format!("create {tmp:?}"))?;
                 let mut f = BufWriter::new(f);
                 (|| {
@@ -71,7 +71,7 @@ impl FilenameOrStdio {
                     f.flush()
                 })()
                 .with_context(|| format!("write {tmp:?}"))?;
-                fs::rename(&tmp, p).with_context(|| format!("install {tmp:?} as {p:?}"))
+                fs::rename(&tmp, main).with_context(|| format!("install {tmp:?} as {main:?}"))
             })(),
         }
         .context("write output")
