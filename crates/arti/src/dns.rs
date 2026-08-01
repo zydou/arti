@@ -71,7 +71,7 @@ struct DnsResponseTarget<U> {
 /// Run a DNS query over tor, returning either a list of answers, or a DNS error code.
 async fn do_query<R>(
     tor_client: &TorClient<R>,
-    queries: &[Query],
+    query: &Query,
     prefs: &StreamPrefs,
 ) -> Result<Vec<Record>, ResponseCode>
 where
@@ -87,66 +87,62 @@ where
             ResponseCode::ServFail
         }
     };
-    for query in queries {
-        let mut a = Vec::new();
-        let mut ptr = Vec::new();
 
-        // TODO if there are N questions, this would take N rtt to answer. By joining all futures it
-        // could take only 1 rtt, but having more than 1 question is actually very rare.
-        match query.query_class() {
-            DNSClass::IN => {
-                match query.query_type() {
-                    typ @ RecordType::A | typ @ RecordType::AAAA => {
-                        let mut name = query.name().clone();
-                        // name would be "torproject.org." without this
-                        name.set_fqdn(false);
-                        let res = tor_client
-                            .resolve_with_prefs(&name.to_utf8(), prefs)
-                            .await
-                            .map_err(err_conv)?;
-                        for ip in res {
-                            a.push((query.name().clone(), ip, typ));
-                        }
-                    }
-                    RecordType::PTR => {
-                        let addr = query
-                            .name()
-                            .parse_arpa_name()
-                            .map_err(|_| ResponseCode::FormErr)?
-                            .addr();
-                        let res = tor_client
-                            .resolve_ptr_with_prefs(addr, prefs)
-                            .await
-                            .map_err(err_conv)?;
-                        for domain in res {
-                            let domain =
-                                Name::from_utf8(domain).map_err(|_| ResponseCode::ServFail)?;
-                            ptr.push((query.name().clone(), domain));
-                        }
-                    }
-                    _ => {
-                        return Err(ResponseCode::NotImp);
+    let mut a = Vec::new();
+    let mut ptr = Vec::new();
+
+    match query.query_class() {
+        DNSClass::IN => {
+            match query.query_type() {
+                typ @ RecordType::A | typ @ RecordType::AAAA => {
+                    let mut name = query.name().clone();
+                    // name would be "torproject.org." without this
+                    name.set_fqdn(false);
+                    let res = tor_client
+                        .resolve_with_prefs(&name.to_utf8(), prefs)
+                        .await
+                        .map_err(err_conv)?;
+                    for ip in res {
+                        a.push((query.name().clone(), ip, typ));
                     }
                 }
-            }
-            _ => {
-                return Err(ResponseCode::NotImp);
-            }
-        }
-        for (name, ip, typ) in a {
-            match (ip, typ) {
-                (IpAddr::V4(v4), RecordType::A) => {
-                    answers.push(Record::from_rdata(name, 3600, RData::A(rdata::A(v4))));
+                RecordType::PTR => {
+                    let addr = query
+                        .name()
+                        .parse_arpa_name()
+                        .map_err(|_| ResponseCode::FormErr)?
+                        .addr();
+                    let res = tor_client
+                        .resolve_ptr_with_prefs(addr, prefs)
+                        .await
+                        .map_err(err_conv)?;
+                    for domain in res {
+                        let domain = Name::from_utf8(domain).map_err(|_| ResponseCode::ServFail)?;
+                        ptr.push((query.name().clone(), domain));
+                    }
                 }
-                (IpAddr::V6(v6), RecordType::AAAA) => {
-                    answers.push(Record::from_rdata(name, 3600, RData::AAAA(rdata::AAAA(v6))));
+                _ => {
+                    return Err(ResponseCode::NotImp);
                 }
-                _ => (),
             }
         }
-        for (ptr, name) in ptr {
-            answers.push(Record::from_rdata(ptr, 3600, RData::PTR(rdata::PTR(name))));
+        _ => {
+            return Err(ResponseCode::NotImp);
         }
+    }
+    for (name, ip, typ) in a {
+        match (ip, typ) {
+            (IpAddr::V4(v4), RecordType::A) => {
+                answers.push(Record::from_rdata(name, 3600, RData::A(rdata::A(v4))));
+            }
+            (IpAddr::V6(v6), RecordType::AAAA) => {
+                answers.push(Record::from_rdata(name, 3600, RData::AAAA(rdata::AAAA(v6))));
+            }
+            _ => (),
+        }
+    }
+    for (ptr, name) in ptr {
+        answers.push(Record::from_rdata(ptr, 3600, RData::PTR(rdata::PTR(name))));
     }
 
     Ok(answers)
@@ -191,20 +187,27 @@ where
         request_id
     };
 
-    let mut prefs = StreamPrefs::new();
-    prefs.set_isolation(isolation);
+    let mut response: Message;
+    // According to rfc9619 there should only be 1 query per request. This constraint would
+    // need to be relaxed for things like DNS cookies.
+    if queries.len() != 1 {
+        response = Message::error_msg(id, OpCode::Query, ResponseCode::FormErr);
+    } else {
+        let mut prefs = StreamPrefs::new();
+        prefs.set_isolation(isolation);
 
-    let mut response = match do_query(tor_client, &queries, &prefs).await {
-        Ok(answers) => {
-            let mut response = Message::response(id, OpCode::Query);
-            response.metadata.recursion_desired = query.metadata.recursion_desired;
-            response.metadata.recursion_available = true;
-            response.add_queries(queries).add_answers(answers);
-            // TODO maybe add some edns?
-            response
-        }
-        Err(error_type) => Message::error_msg(id, OpCode::Query, error_type),
-    };
+        response = match do_query(tor_client, &queries[0], &prefs).await {
+            Ok(answers) => {
+                let mut response = Message::response(id, OpCode::Query);
+                response.metadata.recursion_desired = query.metadata.recursion_desired;
+                response.metadata.recursion_available = true;
+                response.add_queries(queries).add_answers(answers);
+                // TODO maybe add some edns?
+                response
+            }
+            Err(error_type) => Message::error_msg(id, OpCode::Query, error_type),
+        };
+    }
 
     // remove() should never return None, but just in case
     let targets = current_requests
