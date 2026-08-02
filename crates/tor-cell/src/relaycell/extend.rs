@@ -91,7 +91,7 @@ impl Ext for CcResponse {
 }
 
 /// A request that a certain set of protocols should be enabled. (client to server)
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SubprotocolRequest {
     /// The protocols to enable.
     protocols: Vec<tor_protover::NumberedSubver>,
