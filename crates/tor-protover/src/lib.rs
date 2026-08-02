@@ -65,7 +65,7 @@ pub mod macro_export {
 }
 
 caret_int! {
-    /// A recognized subprotocol.
+    /// A subprotocol.
     ///
     /// These names are kept in sync with the names used in consensus
     /// documents; the values are kept in sync with the values in the
