@@ -175,7 +175,8 @@ pub(crate) trait BackwardHandler: ControlHandler {
     /// or a [`BackwardCellDisposition`] specifying how it should be handled.
     fn handle_backward_cell(
         &mut self,
-        circ_id: UniqId,
+        circ_uniq_id: UniqId,
+        circ_id: CircId,
         cell: Self::CircChanMsg,
     ) -> StdResult<BackwardCellDisposition, ReactorError>;
 }
@@ -585,7 +586,8 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             ForwardShutdown => {
                 // The forward reactor has crashed, so we have to shut down.
                 trace!(
-                    circ_id = %self.unique_id,
+                    circ_uniq_id = %self.unique_id,
+                    backward_circ_id = %self.circ_id,
                     "Backward relay reactor shutdown (forward reactor has closed)",
                 );
 
@@ -633,7 +635,8 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                 self.send_relay_msg(hop, msg).await?;
 
                 debug!(
-                    circ_id = %self.unique_id,
+                    circ_uniq_id = %self.unique_id,
+                    backward_circ_id = %self.circ_id,
                     "Extended circuit to the next hop"
                 );
             }
@@ -655,7 +658,8 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         // and confirm relaying cells works as expected
         // (in practice it will be too noisy to be useful, even at trace level).
         trace!(
-            circ_id = %self.unique_id,
+            circ_uniq_id = %self.unique_id,
+            backward_circ_id = %self.circ_id,
             hopnum=?hopnum,
             cmd = %cmd,
             "Sending backward cell"
@@ -804,7 +808,10 @@ impl<B: BackwardHandler> BackwardReactor<B> {
 
     /// Handle a backward cell (moving from the exit towards the client).
     async fn handle_backward_cell(&mut self, cell: B::CircChanMsg) -> StdResult<(), ReactorError> {
-        match self.inner.handle_backward_cell(self.unique_id, cell)? {
+        match self
+            .inner
+            .handle_backward_cell(self.unique_id, self.circ_id, cell)?
+        {
             BackwardCellDisposition::Forward(cell) => {
                 let cell = AnyChanCell::new(Some(self.circ_id), cell);
                 self.inbound_chan_tx

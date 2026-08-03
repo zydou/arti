@@ -12,6 +12,7 @@ use crate::{Error, Result};
 use crate::{HopLocation, congestion};
 use oneshot_fused_workaround as oneshot;
 use std::borrow::Borrow;
+use tor_cell::chancell::CircId;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{Extend2, Extended2};
 use tor_cell::relaycell::{AnyRelayMsgOuter, UnparsedRelayMsg};
@@ -44,6 +45,8 @@ where
     settings: HopSettings,
     /// An identifier for logging about this reactor's circuit.
     unique_id: TunnelScopedCircId,
+    /// The circuit identifier on the channel.
+    circ_id: CircId,
     /// The hop we're expecting the EXTENDED2 cell to come back from.
     expected_hop: HopNum,
     /// A oneshot channel that we should inform when we are done with this extend operation.
@@ -77,12 +80,14 @@ where
         match (|| {
             let mut rng = rand::rng();
             let unique_id = circ.unique_id;
+            let circ_id = circ.circ_id;
 
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
             let n_hops = circ.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
             trace!(
-                circ_id = %unique_id,
+                circ_uniq_id = %unique_id,
+                forward_circ_id = %circ_id,
                 target_hop = n_hops + 1,
                 linkspecs = ?linkspecs,
                 "Extending circuit",
@@ -96,13 +101,18 @@ where
                 cell,
             };
 
-            trace!(circ_id = %unique_id, "waiting for EXTENDED2 cell");
+            trace!(
+                circ_uniq_id = %unique_id,
+                forward_circ_id = %circ_id,
+                "waiting for EXTENDED2 cell"
+            );
             // ... and now we wait for a response.
             let extender = Self {
                 peer_id,
                 state: Some(state),
                 settings,
                 unique_id,
+                circ_id,
                 expected_hop: hop,
                 operation_finished: None,
             };
@@ -137,7 +147,8 @@ where
         let relay_handshake = msg.into_body();
 
         trace!(
-            circ_id = %self.unique_id,
+            circ_uniq_id = %self.unique_id,
+            forward_circ_id = %self.circ_id,
             "Received EXTENDED2 cell; completing handshake.",
         );
         // Now perform the second part of the handshake, and see if it
@@ -158,8 +169,12 @@ where
             .relay_crypt_protocol()
             .construct_client_layers(HandshakeRole::Initiator, keygen)?;
 
-        trace!(circ_id = %self.unique_id, settings = ?self.settings,
-            "Handshake complete; circuit extended.");
+        trace!(
+            circ_uniq_id = %self.unique_id,
+            forward_circ_id = %self.circ_id,
+            settings = ?self.settings,
+            "Handshake complete; circuit extended."
+        );
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
         circ.add_hop(

@@ -876,13 +876,13 @@ impl Channel {
             sender,
             tx,
         })?;
-        let (id, circ_unique_id, padding_ctrl, padding_stream) =
+        let (circ_id, circ_unique_id, padding_ctrl, padding_stream) =
             rx.await.map_err(|_| ChannelClosed)??;
 
-        trace!("{}: Allocated CircId {}", circ_unique_id, id);
+        trace!("{}: Allocated CircId {}", circ_unique_id, circ_id);
 
         Ok(PendingClientTunnel::new(
-            id,
+            circ_id,
             self.clone(),
             createdreceiver,
             receiver,

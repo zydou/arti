@@ -24,7 +24,7 @@ use {
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::PaddingController;
 
-use tor_cell::chancell::msg::AnyChanMsg;
+use tor_cell::chancell::{CircId, msg::AnyChanMsg};
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg,
@@ -64,6 +64,8 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     runtime: R,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
+    /// The circuit identifier on the inbound Tor channel.
+    circ_id: CircId,
     /// Implementation-dependent part of the reactor.
     ///
     /// This enables us to customize the behavior of the reactor,
@@ -241,6 +243,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     pub(super) fn new(
         runtime: R,
         unique_id: UniqId,
+        circ_id: CircId,
         inner: F,
         hop_mgr: HopMgr<R>,
         inbound_chan_rx: CircuitRxReceiver,
@@ -253,6 +256,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         Self {
             runtime,
             unique_id,
+            circ_id,
             inbound_chan_rx,
             control_rx,
             command_rx,
@@ -295,7 +299,8 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 let cell = res.map_err(ReactorError::Err)?;
                 let Some(cell) = cell else {
                     debug!(
-                        circ_id = %self.unique_id,
+                        circ_uniq_id = %self.unique_id,
+                        backward_circ_id = %self.circ_id,
                         "Backward channel has closed, shutting down forward relay reactor",
                     );
 
@@ -452,13 +457,15 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 Err(e) => {
                     for m in msgs {
                         debug!(
-                            circ_id = %self.unique_id,
+                            circ_uniq_id = %self.unique_id,
+                            backward_circ_id = %self.circ_id,
                             "Ignoring relay msg received after triggering shutdown: {m:?}",
                         );
                     }
                     if let Some(incomplete) = incomplete {
                         debug!(
-                            circ_id = %self.unique_id,
+                            circ_uniq_id = %self.unique_id,
+                            backward_circ_id = %self.circ_id,
                             "Ignoring partial relay msg received after triggering shutdown: {:?}",
                             incomplete,
                         );

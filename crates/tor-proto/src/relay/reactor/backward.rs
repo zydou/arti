@@ -9,7 +9,7 @@ use crate::util::err::ReactorError;
 use crate::{Error, HopNum};
 
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
-use tor_cell::chancell::{BoxedCellBody, ChanCmd};
+use tor_cell::chancell::{BoxedCellBody, ChanCmd, CircId};
 use tor_cell::relaycell::msg::SendmeTag;
 
 use std::result::Result as StdResult;
@@ -51,7 +51,8 @@ impl BackwardHandler for Backward {
 
     fn handle_backward_cell(
         &mut self,
-        circ_id: UniqId,
+        circ_uniq_id: UniqId,
+        circ_id: CircId,
         cell: RelayCircChanMsg,
     ) -> StdResult<BackwardCellDisposition, ReactorError> {
         let disp = match cell {
@@ -73,7 +74,8 @@ impl BackwardHandler for Backward {
             }
             RelayCircChanMsg::Destroy(d) => {
                 debug!(
-                    circ_id = %circ_id,
+                    circ_uniq_id = %circ_uniq_id,
+                    backward_circ_id = %circ_id,
                     reason = %d.reason(),
                     "Received inbound DESTROY, circuit shutting down",
                 );

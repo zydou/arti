@@ -17,7 +17,7 @@ use crate::{Error, Result};
 use futures::Stream;
 use futures::stream::FuturesUnordered;
 use smallvec::SmallVec;
-use tor_cell::chancell::BoxedCellBody;
+use tor_cell::chancell::{BoxedCellBody, CircId};
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKBpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
@@ -211,6 +211,8 @@ impl CircHopList {
 pub(crate) struct CircHop {
     /// The unique ID of the circuit. Used for logging.
     unique_id: TunnelScopedCircId,
+    /// The Tor circuit identifier. Used for logging.
+    circ_id: CircId,
     /// Hop number in the path.
     hop_num: HopNum,
     /// The inbound state of the hop.
@@ -227,6 +229,7 @@ impl CircHop {
     /// Create a new hop.
     pub(crate) fn new(
         unique_id: TunnelScopedCircId,
+        circ_id: CircId,
         hop_num: HopNum,
         settings: &HopSettings,
     ) -> Self {
@@ -244,6 +247,7 @@ impl CircHop {
 
         CircHop {
             unique_id,
+            circ_id,
             hop_num,
             inbound,
             outbound,
@@ -279,8 +283,15 @@ impl CircHop {
         why: streammap::TerminateReason,
         expiry: Instant,
     ) -> Result<Option<SendRelayCell>> {
-        self.outbound
-            .close_stream(self.unique_id, id, Some(self.hop_num), message, why, expiry)
+        self.outbound.close_stream(
+            self.unique_id,
+            self.circ_id,
+            id,
+            Some(self.hop_num),
+            message,
+            why,
+            expiry,
+        )
     }
 
     /// Check if we should send an XON message.
@@ -332,7 +343,8 @@ impl CircHop {
     //
     // TODO prop340: This should take a cell or similar, not a message.
     pub(crate) fn about_to_send(&mut self, stream_id: StreamId, msg: &AnyRelayMsg) -> Result<()> {
-        self.outbound.about_to_send(self.unique_id, stream_id, msg)
+        self.outbound
+            .about_to_send(self.unique_id, self.circ_id, stream_id, msg)
     }
 
     /// Add an entry to this map using the specified StreamId.

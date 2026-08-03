@@ -9,7 +9,7 @@ use crate::peer::PeerInfo;
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult, OutboundChanSender};
 use crate::relay::reactor::CircuitAccount;
 use crate::util::err::ReactorError;
-use tor_cell::chancell::AnyChanCell;
+use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_cell::relaycell::UnparsedRelayMsg;
 use tor_cell::relaycell::msg::{Extend2, Extended2};
 use tor_error::{internal, into_internal, warn_report};
@@ -28,6 +28,8 @@ use std::sync::Arc;
 pub(super) struct ExtendRequestHandler {
     /// An identifier for logging about this handler.
     unique_id: UniqId,
+    /// The circuit identifier on the inbound Tor channel.
+    circ_id: CircId,
     /// Whether we have received an EXTEND2 on this circuit.
     ///
     // TODO(relay): bools can be finicky.
@@ -54,6 +56,7 @@ impl ExtendRequestHandler {
     /// Create a new [`ExtendRequestHandler`].
     pub(super) fn new(
         unique_id: UniqId,
+        circ_id: CircId,
         chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
         inbound_peer: Arc<PeerInfo>,
         event_tx: mpsc::Sender<CircEvent>,
@@ -61,6 +64,7 @@ impl ExtendRequestHandler {
     ) -> Self {
         Self {
             unique_id,
+            circ_id,
             have_seen_extend2: false,
             chan_provider,
             inbound_peer,
@@ -129,6 +133,7 @@ impl ExtendRequestHandler {
         let mut result_tx = self.event_tx.clone();
         let rt = runtime.clone();
         let unique_id = self.unique_id;
+        let circ_id = self.circ_id;
         let memquota = self.memquota.clone();
 
         // TODO(relay): because we dispatch this the entire EXTEND2 handling to a background task,
@@ -137,7 +142,8 @@ impl ExtendRequestHandler {
         // because it runs in another task). Maybe we need to rethink the ChannelProvider API?
         runtime
             .spawn(async move {
-                let res = Self::extend_circuit(rt, unique_id, extend2, chan_rx, memquota).await;
+                let res =
+                    Self::extend_circuit(rt, unique_id, circ_id, extend2, chan_rx, memquota).await;
 
                 // Discard the error if the reactor shut down before we had
                 // a chance to complete the extend handshake
@@ -155,6 +161,7 @@ impl ExtendRequestHandler {
     async fn extend_circuit<R: Runtime>(
         _runtime: R,
         unique_id: UniqId,
+        inbound_circ_id: CircId,
         extend2: Extend2,
         mut chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
         memquota: CircuitAccount,
@@ -177,7 +184,8 @@ impl ExtendRequestHandler {
         };
 
         debug!(
-            circ_id = %unique_id,
+            circ_uniq_id = %unique_id,
+            backward_circ_id = %inbound_circ_id,
             "Launched channel to the next hop"
         );
 
@@ -203,7 +211,8 @@ impl ExtendRequestHandler {
         let cell = AnyChanCell::new(Some(circ_id), create2);
 
         trace!(
-            circ_id = %unique_id,
+            circ_uniq_id = %unique_id,
+            forward_circ_id = %circ_id,
             "Sending CREATE2 to the next hop"
         );
 
@@ -219,7 +228,8 @@ impl ExtendRequestHandler {
             .map_err(|_| internal!("channel disappeared?"))?;
 
         trace!(
-            circ_id = %unique_id,
+            circ_uniq_id = %unique_id,
+            forward_circ_id = %circ_id,
             "Got CREATED2 response from next hop"
         );
 
