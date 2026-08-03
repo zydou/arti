@@ -1,6 +1,6 @@
 [package]
 name = "arti-dirauth"
-version = "0.44.0"
+version = "0.45.0"
 authors = [
     "The Tor Project, Inc.",
     "Ian Jackson <iwj@torproject.org>",
@@ -33,8 +33,8 @@ __is_experimental = []
 anyhow = "1.0.72"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 thiserror = "2"
-tor-dirauth = { path = "../tor-dirauth", version = "0.44.0" }
-tor-error = { path = "../tor-error", version = "0.44.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.44.0", features = ["full", "incomplete"] }
+tor-dirauth = { path = "../tor-dirauth", version = "0.45.0" }
+tor-error = { path = "../tor-error", version = "0.45.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.45.0", features = ["full", "incomplete"] }
 
 [dev-dependencies]

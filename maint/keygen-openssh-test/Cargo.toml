@@ -14,9 +14,9 @@ base32 = "0.5"
 clap = { version = "4.3.24", features = ["derive"] }
 rand = "0.10.1"
 ssh-key = { version = "0.6.7", package = "ssh-key-fork-arti", features = ["dsa", "alloc", "rand_core", "std"] }
-tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.44" }
-tor-keymgr = { path = "../../crates/tor-keymgr", version = "0.44", features = ["keymgr"] }
-tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.44", features = ["relay", "rng-compat", "cvt-x25519"] }
+tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.45" }
+tor-keymgr = { path = "../../crates/tor-keymgr", version = "0.45", features = ["keymgr"] }
+tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.45", features = ["relay", "rng-compat", "cvt-x25519"] }
 
 [features]
 full = ["tor-basic-utils/full", "tor-keymgr/full", "tor-llcrypto/full"]
