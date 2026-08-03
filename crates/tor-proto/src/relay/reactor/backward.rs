@@ -51,7 +51,7 @@ impl BackwardHandler for Backward {
 
     fn handle_backward_cell(
         &mut self,
-        unique_id: UniqId,
+        circ_uniq_id: UniqId,
         circ_id: CircId,
         cell: RelayCircChanMsg,
     ) -> StdResult<BackwardCellDisposition, ReactorError> {
@@ -74,7 +74,7 @@ impl BackwardHandler for Backward {
             }
             RelayCircChanMsg::Destroy(d) => {
                 debug!(
-                    uniq_id = %unique_id,
+                    circ_uniq_id = %circ_uniq_id,
                     circ_id = %circ_id,
                     reason = %d.reason(),
                     "Received inbound DESTROY, circuit shutting down",

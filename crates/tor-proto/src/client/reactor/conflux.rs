@@ -296,7 +296,7 @@ impl ConfluxSet {
         let circ = self.remove_unchecked(leg)?;
 
         tracing::trace!(
-            uniq_id = %circ.unique_id(),
+            circ_uniq_id = %circ.unique_id(),
             circ_id = %circ.circ_id(),
             "Circuit removed from conflux set"
         );
@@ -1014,7 +1014,7 @@ impl ConfluxSet {
                     Some(x) => x,
                     None => {
                         info!(
-                            uniq_id = %unique_id,
+                            circ_uniq_id = %unique_id,
                             circ_id = %circ_id,
                             "no ready streams (maybe blocked on cc?)"
                         );
@@ -1061,7 +1061,7 @@ impl ConfluxSet {
                         () = conflux_hs_timeout.fuse() => {
                             warn!(
                                 tunnel_id = %tunnel_id,
-                                uniq_id = %unique_id,
+                                circ_uniq_id = %unique_id,
                                 circ_id = %circ_id,
                                 "Conflux handshake timed out on circuit"
                             );
@@ -1220,12 +1220,12 @@ impl ConfluxSet {
     /// if the removal of the leg ought to trigger a reactor shutdown.
     ///
     /// Returns an error if the leg doesn't exit in the conflux set.
-    fn remove_unchecked(&mut self, unique_id: UniqId) -> Result<Circuit, Bug> {
+    fn remove_unchecked(&mut self, circ_uniq_id: UniqId) -> Result<Circuit, Bug> {
         let idx = self
             .legs
             .iter()
-            .position(|circ| circ.unique_id() == unique_id)
-            .ok_or_else(|| internal!("leg {unique_id:?} not found in conflux set"))?;
+            .position(|circ| circ.unique_id() == circ_uniq_id)
+            .ok_or_else(|| internal!("leg {circ_uniq_id:?} not found in conflux set"))?;
 
         Ok(self.legs.remove(idx))
     }
@@ -1234,11 +1234,11 @@ impl ConfluxSet {
     #[cfg(feature = "circ-padding")]
     pub(super) async fn run_padding_event(
         &mut self,
-        unique_id: UniqId,
+        circ_uniq_id: UniqId,
         padding_event: PaddingEvent,
     ) -> crate::Result<()> {
         use PaddingEvent as E;
-        let Some(circ) = self.leg_mut(unique_id) else {
+        let Some(circ) = self.leg_mut(circ_uniq_id) else {
             // No such circuit; it must have gone away after generating this event.
             // Just ignore it.
             return Ok(());

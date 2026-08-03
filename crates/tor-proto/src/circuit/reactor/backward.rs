@@ -175,7 +175,7 @@ pub(crate) trait BackwardHandler: ControlHandler {
     /// or a [`BackwardCellDisposition`] specifying how it should be handled.
     fn handle_backward_cell(
         &mut self,
-        unique_id: UniqId,
+        circ_uniq_id: UniqId,
         circ_id: CircId,
         cell: Self::CircChanMsg,
     ) -> StdResult<BackwardCellDisposition, ReactorError>;
@@ -586,7 +586,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             ForwardShutdown => {
                 // The forward reactor has crashed, so we have to shut down.
                 trace!(
-                    uniq_id = %self.unique_id,
+                    circ_uniq_id = %self.unique_id,
                     circ_id = %self.circ_id,
                     "Backward relay reactor shutdown (forward reactor has closed)",
                 );
@@ -635,7 +635,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                 self.send_relay_msg(hop, msg).await?;
 
                 debug!(
-                    uniq_id = %self.unique_id,
+                    circ_uniq_id = %self.unique_id,
                     circ_id = %self.circ_id,
                     "Extended circuit to the next hop"
                 );
@@ -658,7 +658,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         // and confirm relaying cells works as expected
         // (in practice it will be too noisy to be useful, even at trace level).
         trace!(
-            uniq_id = %self.unique_id,
+            circ_uniq_id = %self.unique_id,
             circ_id = %self.circ_id,
             hopnum=?hopnum,
             cmd = %cmd,

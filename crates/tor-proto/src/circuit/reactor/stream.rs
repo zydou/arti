@@ -474,7 +474,7 @@ impl StreamReactor {
                 // IncomingStreamRequestHandler, we need to do it elsewhere, in
                 // a different way.
                 debug!(
-                    uniq_id = %self.unique_id,
+                    circ_uniq_id = %self.unique_id,
                     circ_id = %self.circ_id,
                     "Incoming stream request receiver dropped",
                 );

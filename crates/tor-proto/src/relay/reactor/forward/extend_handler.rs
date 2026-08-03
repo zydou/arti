@@ -184,7 +184,7 @@ impl ExtendRequestHandler {
         };
 
         debug!(
-            uniq_id = %unique_id,
+            circ_uniq_id = %unique_id,
             circ_id = %inbound_circ_id,
             "Launched channel to the next hop"
         );
@@ -211,7 +211,7 @@ impl ExtendRequestHandler {
         let cell = AnyChanCell::new(Some(circ_id), create2);
 
         trace!(
-            uniq_id = %unique_id,
+            circ_uniq_id = %unique_id,
             circ_id = %circ_id,
             "Sending CREATE2 to the next hop"
         );
@@ -228,7 +228,7 @@ impl ExtendRequestHandler {
             .map_err(|_| internal!("channel disappeared?"))?;
 
         trace!(
-            uniq_id = %unique_id,
+            circ_uniq_id = %unique_id,
             circ_id = %circ_id,
             "Got CREATED2 response from next hop"
         );

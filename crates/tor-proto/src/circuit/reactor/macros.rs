@@ -31,7 +31,7 @@ derive_deftly::define_derive_deftly! {
             let unique_id = self.unique_id;
 
             tracing::debug!(
-                uniq_id = %unique_id,
+                circ_uniq_id = %unique_id,
                 circ_id = %self.circ_id,
                 "Running {}", ${tmeta(reactor_name) as str}
             );
@@ -55,13 +55,13 @@ derive_deftly::define_derive_deftly! {
             let msg = format!("{} shut down", ${tmeta(reactor_name) as str});
             match &result {
                 Ok(()) => tracing::trace!(
-                    uniq_id = %unique_id,
+                    circ_uniq_id = %unique_id,
                     circ_id = %self.circ_id,
                     "{msg}"
                 ),
                 Err(e) => tor_error::debug_report!(
                     e,
-                    uniq_id = %unique_id,
+                    circ_uniq_id = %unique_id,
                     circ_id = %self.circ_id,
                     "{msg}"
                 ),

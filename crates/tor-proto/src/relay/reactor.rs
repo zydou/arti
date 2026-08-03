@@ -756,7 +756,7 @@ pub(crate) mod test {
 
             // The reactor handled the EXTEND2 and launched an outbound channel
             assert!(logs_contain(
-                "Launched channel to the next hop uniq_id=Circ 8.17"
+                "Launched channel to the next hop circ_uniq_id=Circ 8.17"
             ));
             assert!(ctrl.outbound_chan_launched());
             assert!(!ctrl.is_closing());
@@ -1021,7 +1021,7 @@ pub(crate) mod test {
             // ... but the exit stream is not
             assert!(logs_contain("stream reactor shut down"));
             assert!(logs_contain(
-                "Stream protocol violation: Unexpected BEGIN on incoming stream uniq_id=Circ 8.17"
+                "Stream protocol violation: Unexpected BEGIN on incoming stream circ_uniq_id=Circ 8.17"
             ));
 
             // The reactor won't create an IncomingStream,

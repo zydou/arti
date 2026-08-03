@@ -552,14 +552,14 @@ impl CircHopOutbound {
     /// If no END cell is specified, an END cell with the reason byte set to
     /// REASON_MISC will be sent.
     ///
-    // Note(relay): `unique_id` is an opaque displayable type
+    // Note(relay): `circ_uniq_id` is an opaque displayable type
     // because relays use a different circuit ID type
     // than clients. Eventually, we should probably make
     // them both use the same ID type, or have a nicer approach here
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn close_stream(
         &mut self,
-        unique_id: impl std::fmt::Display,
+        circ_uniq_id: impl std::fmt::Display,
         circ_id: CircId,
         id: StreamId,
         hop: Option<HopNum>,
@@ -573,7 +573,7 @@ impl CircHopOutbound {
             .expect("lock poisoned")
             .terminate(id, why, expiry)?;
         trace!(
-            uniq_id = %unique_id,
+            circ_uniq_id = %circ_uniq_id,
             circ_id = %circ_id,
             stream_id = %id,
             should_send_end = ?should_send_end,
@@ -684,13 +684,13 @@ impl CircHopOutbound {
     //
     // TODO prop340: This should take a cell or similar, not a message.
     //
-    // Note(relay): `unique_id` is an opaque displayable type
+    // Note(relay): `circ_uniq_id` is an opaque displayable type
     // because relays use a different circuit ID type
     // than clients. Eventually, we should probably make
     // them both use the same ID type, or have a nicer approach here
     pub(crate) fn about_to_send(
         &mut self,
-        unique_id: impl std::fmt::Display,
+        circ_uniq_id: impl std::fmt::Display,
         circ_id: CircId,
         stream_id: StreamId,
         msg: &AnyRelayMsg,
@@ -707,7 +707,7 @@ impl CircHopOutbound {
             // but the caller of `about_to_send()` isn't designed to handle fallible sends
             // so it would need some refactoring to handle this.
             debug!(
-                uniq_id = %unique_id,
+                circ_uniq_id = %circ_uniq_id,
                 circ_id = %circ_id,
                 stream_id = %stream_id,
                 "sending a relay cell for non-existent or non-open stream!",

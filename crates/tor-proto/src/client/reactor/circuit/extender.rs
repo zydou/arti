@@ -86,7 +86,7 @@ where
             let n_hops = circ.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
             trace!(
-                uniq_id = %unique_id,
+                circ_uniq_id = %unique_id,
                 circ_id = %circ_id,
                 target_hop = n_hops + 1,
                 linkspecs = ?linkspecs,
@@ -102,7 +102,7 @@ where
             };
 
             trace!(
-                uniq_id = %unique_id,
+                circ_uniq_id = %unique_id,
                 circ_id = %circ_id,
                 "waiting for EXTENDED2 cell"
             );
@@ -147,7 +147,7 @@ where
         let relay_handshake = msg.into_body();
 
         trace!(
-            uniq_id = %self.unique_id,
+            circ_uniq_id = %self.unique_id,
             circ_id = %self.circ_id,
             "Received EXTENDED2 cell; completing handshake.",
         );
@@ -170,7 +170,7 @@ where
             .construct_client_layers(HandshakeRole::Initiator, keygen)?;
 
         trace!(
-            uniq_id = %self.unique_id,
+            circ_uniq_id = %self.unique_id,
             circ_id = %self.circ_id,
             settings = ?self.settings,
             "Handshake complete; circuit extended."
