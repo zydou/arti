@@ -343,9 +343,6 @@ impl CircMap {
     pub(super) fn open_ent_count(&self) -> usize {
         self.open_count
     }
-
-    // TODO: Eventually if we want relay support, we'll need to support
-    // circuit IDs chosen by somebody else. But for now, we don't need those.
 }
 
 #[cfg(test)]
