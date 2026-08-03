@@ -877,14 +877,18 @@ mod test {
                     .await
                     .unwrap();
 
-                assert_eq!(
-                    conn_inspector.try_client_cell().unwrap().msg().cmd(),
-                    ChanCmd::CREATE2,
-                );
-                assert_eq!(
-                    conn_inspector.try_relay_cell().unwrap().msg().cmd(),
-                    ChanCmd::CREATED2,
-                );
+                let client_cell = conn_inspector.try_client_cell().unwrap().msg().clone();
+                let relay_cell = conn_inspector.try_relay_cell().unwrap().msg().clone();
+
+                // Check that we got CREATE2 and CREATED2.
+                assert_eq!(client_cell.cmd(), ChanCmd::CREATE2);
+                assert_eq!(relay_cell.cmd(), ChanCmd::CREATED2);
+
+                // Check that it was an ntor handshake.
+                let AnyChanMsg::Create2(client_cell) = client_cell else {
+                    unreachable!("CREATE2 checked above");
+                };
+                assert_eq!(client_cell.handshake_type(), HandshakeType::NTOR);
 
                 drop(tunnel);
 
