@@ -1,0 +1,31 @@
+[package]
+name = "tor-config-shared"
+version = "0.45.0"
+authors = ["The Tor Project, Inc.", "Wesley Aptekar-Cassels <wesleyac@torproject.org>"]
+edition = "2024"
+rust-version = "1.91"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Configuration information that is shared between arti, arti-relay, and other Arti projects."
+keywords = ["tor", "arti"]
+categories = ["config"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[features]
+default = []
+experimental = ["opentelemetry"]
+opentelemetry = ["opentelemetry_sdk", "__is_experimental"]
+
+__is_experimental = []
+
+[dependencies]
+amplify = { version = "4", default-features = false, features = ["derive"] }
+derive-deftly = { version = "~1.11.3", features = ["full", "beta"] }
+humantime-serde = "1.1.1"
+tor-config = { path = "../tor-config", version = "0.45.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.45.0" }
+opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
+serde = { version = "1.0.103", features = ["derive"] }
+
+[package.metadata.docs.rs]
+all-features = true

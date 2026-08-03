@@ -242,6 +242,7 @@ dependencies = [
  "tor-cell",
  "tor-config",
  "tor-config-path",
+ "tor-config-shared",
  "tor-error",
  "tor-general-addr",
  "tor-hsclient",
@@ -388,8 +389,16 @@ dependencies = [
  "directories",
  "fs-mistrust",
  "futures",
+ "humantime",
+ "humantime-serde",
  "libc",
  "metrics-exporter-prometheus",
+ "opentelemetry",
+ "opentelemetry-appender-tracing",
+ "opentelemetry-otlp",
+ "opentelemetry-proto",
+ "opentelemetry_sdk",
+ "otlp-file-exporter",
  "rand 0.10.2",
  "rustls",
  "safelog",
@@ -406,6 +415,7 @@ dependencies = [
  "tor-circmgr",
  "tor-config",
  "tor-config-path",
+ "tor-config-shared",
  "tor-dirclient",
  "tor-dircommon",
  "tor-dirmgr",
@@ -428,6 +438,7 @@ dependencies = [
  "tor-rtmock",
  "tor-units",
  "tracing",
+ "tracing-opentelemetry",
  "tracing-subscriber",
  "void",
  "web-time-compat",
@@ -7087,7 +7098,6 @@ dependencies = [
  "humantime-serde",
  "itertools 0.15.0",
  "notify",
- "opentelemetry_sdk",
  "paste",
  "postage",
  "regex",
@@ -7126,6 +7136,19 @@ dependencies = [
  "tor-config",
  "tor-error",
  "tor-general-addr",
+]
+
+[[package]]
+name = "tor-config-shared"
+version = "0.45.0"
+dependencies = [
+ "amplify",
+ "derive-deftly",
+ "humantime-serde",
+ "opentelemetry_sdk",
+ "serde",
+ "tor-config",
+ "tor-config-path",
 ]
 
 [[package]]

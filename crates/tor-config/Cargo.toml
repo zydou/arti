@@ -21,7 +21,7 @@ full = [
     "tor-rtcompat/full",
 ]
 
-experimental = ["testing", "experimental-api", "opentelemetry"]
+experimental = ["testing", "experimental-api"]
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
@@ -31,8 +31,6 @@ experimental-api = ["__is_experimental"]
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["__is_experimental"]
-
-opentelemetry = ["opentelemetry_sdk", "__is_experimental"]
 
 __is_experimental = []
 
@@ -50,7 +48,6 @@ futures = "0.3.14"
 humantime-serde = "1.1.1"
 itertools = "0.15.0"
 notify = { version = "8", default-features = false, features = ["macos_kqueue"] }
-opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
 paste = "1.0.3"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 regex = { version = "1", default-features = false, features = ["std"] }

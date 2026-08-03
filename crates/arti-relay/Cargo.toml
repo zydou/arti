@@ -16,6 +16,8 @@ all-features = true
 
 [features]
 full = [
+    "metrics",
+    "opentelemetry",
     "fs-mistrust/full",
     "safelog/full",
     "tor-async-utils/full",
@@ -51,9 +53,19 @@ full = [
 
 # This feature flag enables experimental features that are not supported. Turning it on may
 # void your API.
-experimental = ["metrics"]
+experimental = ["metrics", "opentelemetry"]
 
 metrics = ["tor-chanmgr/metrics", "dep:metrics-exporter-prometheus", "__is_experimental"]
+opentelemetry = [
+    "tracing-opentelemetry",
+    "dep:opentelemetry",
+    "otlp-file-exporter",
+    "opentelemetry_sdk",
+    "opentelemetry-otlp",
+    "opentelemetry-appender-tracing",
+    "opentelemetry-proto",
+    "__is_experimental",
+]
 __is_experimental = []
 
 [dependencies]
@@ -67,10 +79,18 @@ derive_more = { version = "2.0.1", features = ["full"] }
 directories = "6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.15.0", features = ["serde"] }
 futures = "0.3.14"
+humantime = "2"
+humantime-serde = "1.1.1"
 libc = "0.2"
 metrics-exporter-prometheus = { version = "0.18.0", optional = true, default-features = false, features = [
     "http-listener",
 ] }
+otlp-file-exporter = { path = "../otlp-file-exporter", version = "0.1.0", optional = true }
+opentelemetry = { version = "0.32.0", optional = true }
+opentelemetry-appender-tracing = { version = "0.32.0", optional = true }
+opentelemetry-otlp = { version = "0.32.0", optional = true }
+opentelemetry-proto = { version = "0.32.0", optional = true }
+opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
 rand = "0.10.1"
 rustls = { version = "0.23.5", default-features = false, features = ["logging", "aws_lc_rs"] }
 safelog = { path = "../safelog", version = "0.9.0" }
@@ -87,6 +107,7 @@ tor-chanmgr = { path = "../tor-chanmgr", version = "0.45.0", features = ["relay"
 tor-circmgr = { version = "0.45.0", path = "../tor-circmgr", features = ["flowctl-cc"] }
 tor-config = { path = "../tor-config", version = "0.45.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.45.0" }
+tor-config-shared = { path = "../tor-config-shared", version = "0.45.0" }
 tor-dirclient = { version = "0.45.0", path = "../tor-dirclient", features = ["relay"] }
 tor-dircommon = { version = "0.45.0", path = "../tor-dircommon" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.45.0" }
@@ -108,6 +129,7 @@ tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.45.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.45.0", features = ["rustls", "tokio", "tls-server"] }
 tor-units = { path = "../tor-units", version = "0.45.0" }
 tracing = "0.1.36"
+tracing-opentelemetry = { version = "0.33.0", optional = true }
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 void = "1"
 web-time-compat = { path = "../web-time-compat", version = "0.2.0" }

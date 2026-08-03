@@ -1,6 +1,6 @@
 //! Configuration for OpenTelemetry exporter
 
-use crate::derive::prelude::*;
+use tor_config::derive::prelude::*;
 use amplify::Getters;
 use derive_deftly::Deftly;
 use serde::{Deserialize, Serialize};
