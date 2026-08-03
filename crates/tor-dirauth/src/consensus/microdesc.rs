@@ -153,10 +153,11 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use tor_checkable::TimeBound as _;
+    use tor_error::ErrorReport as _;
     use tor_netdoc::{
         assert_eq_or_diff,
         doc::routerdesc::RouterDescUnverified,
-        parse2::{ParseInput, parse_netdoc},
+        parse2::{NetdocParseableUnverified as _, ParseInput, parse_netdoc},
         test_support::regsub,
         testdata_live,
     };
@@ -214,6 +215,29 @@ mod test {
                     .copied(),
                 SupportedConsensusMethod::iter_all().map(|m| *m),
             );
+        }
+        Ok(())
+    }
+
+    #[test]
+    #[allow(clippy::len_zero)] // assert!(!foo.is_empty()) is just terrible with all the subtle !
+    fn buggy_microdesc() -> anyhow::Result<()> {
+        // Test error handling of microdescriptor construction.
+        // It turns out we can sabotage microdescriptor construction if we bypass
+        // RouterDesc::verify, because that fails to populate family info that we need.
+        let relay = &testdata_live::RELAY_DESCRIPTORS[0];
+        let rd_txt = relay.data.plain;
+        let rd: RouterDescUnverified = parse_netdoc(&ParseInput::new(rd_txt, relay.nick))?;
+        let rd = rd.unwrap_unverified().0;
+        let (errors, descs) = compute_supported_microdescs(&rd)
+            .expect_err("should access unverified EmbeddedCert, throwing Bug");
+        assert!(descs.len() == 0);
+        assert!(errors.len() > 0);
+        for (method, error) in errors {
+            let _: SupportedConsensusMethod = method;
+            let msg = error.report().to_string();
+            let exp = "attempted to access verified data of unverified EmbeddedCert";
+            assert!(msg.contains(exp), "{msg:?}");
         }
         Ok(())
     }
