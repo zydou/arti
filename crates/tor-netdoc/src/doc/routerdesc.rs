@@ -56,6 +56,8 @@ use std::{iter, net, time};
 use tor_basic_utils::intern::Intern;
 use tor_cert::{CertType, KeyUnknownCert};
 use tor_checkable::timed::TimeRangeBound;
+#[cfg(feature = "incomplete")]
+use tor_checkable::timed::TimeRangeBoundBuilder;
 use tor_checkable::{Timebound, signed, timed};
 use tor_error::{internal, into_internal};
 use tor_llcrypto as ll;
@@ -317,17 +319,15 @@ impl RouterDescUnverified {
     #[deny(unused_variables)]
     #[cfg(feature = "incomplete")]
     pub fn verify(self) -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
+        let logic = |trbb: &mut TimeRangeBoundBuilder| -> _ {
         // Type annotations to make LSP happy.
         let (mut body, sigs): (RouterDesc, SignaturesData<_>) = (self.body, self.sigs);
 
-        // Collect all timebounds returned by .dangerously_into_parts().
-        let mut timebounds = Vec::new();
-
         // Verify the ed25519 identity certificate.
         // This also includes a check for the master-key-ed25519.
-        let (identity_ed25519, identity_ed25519_bounds) =
+        let identity_ed25519 =
             Ed25519IdentityCert::verify(body.identity_ed25519.raw_unverified().clone())?
-                .dangerously_into_parts(); // TODO DIRMIRROR: Use TimeRangeBoundBuilder
+                .unwrap_with(trbb);
         let Ed25519IdentityCert {
             id_ed25519,
             sign_ed25519,
@@ -336,14 +336,9 @@ impl RouterDescUnverified {
             return Err(VerifyFailed::Inconsistent);
         }
         body.identity_ed25519.set_verified(identity_ed25519);
-        timebounds.push(identity_ed25519_bounds);
 
         // Keep track of the published value as lower time bound.
-        timebounds.push(TimeRangeBound::new_from_start_end(
-            (),
-            Some(body.published.0),
-            None,
-        ));
+        trbb.intersect_bounds(TimeRangeBound::new((), body.published.0..));
 
         // If set, ensure that the fingerprint equals to the signing key id.
         if body
@@ -362,14 +357,13 @@ impl RouterDescUnverified {
             body.ntor_onion_key_crosscert.bit.0.into(),
         )
         .ok_or(VerifyFailed::Other)?;
-        let (ntor_cc, ntor_cc_bounds) = Ed25519NtorCrossCert::verify(
+        let ntor_cc = Ed25519NtorCrossCert::verify(
             ntor_pk.into(),
             id_ed25519,
             body.ntor_onion_key_crosscert.cert.raw_unverified().clone(),
         )?
-        .dangerously_into_parts(); // TODO DIRMIRROR: Use TimeRangeBoundBuilder
+        .unwrap_with(trbb);
         body.ntor_onion_key_crosscert.cert.set_verified(ntor_cc);
-        timebounds.push(ntor_cc_bounds);
 
         // Verify that the signing key has the proper exponent and length.
         // TODO DIRAUTH: We want to enforce this type wise with parse2.
@@ -379,11 +373,10 @@ impl RouterDescUnverified {
 
         // Verify all family certificates.
         for cert in body.family_cert.0.iter_mut() {
-            let (cert_verified, cert_bounds) =
+            let cert_verified =
                 Ed25519FamilyCert::verify(id_ed25519, cert.raw_unverified().clone())?
-                    .dangerously_into_parts(); // TODO DIRMIRROR: Use TimeRangeBoundBuilder
+                    .unwrap_with(trbb);
             cert.set_verified(cert_verified);
-            timebounds.push(cert_bounds);
         }
 
         // Verify the actual outer document signatures.
@@ -401,24 +394,10 @@ impl RouterDescUnverified {
             sigs.sigs.router_signature.0.as_ref(),
         )?;
 
-        // Construct the final TimeRangeBound by obtaining the min and max.
-        // TODO DIRMIRROR: Replace the map logic with TimeRangeBound::intersect_bounds().
-        // Alternatively, we may also want to add a TimeBoundAccumulator, as outlined in
-        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4144#note_3440907
-        let start_time = timebounds
-            .iter()
-            .filter_map(|x| x.bounds_start_end().0)
-            .max();
-        let end_time = timebounds
-            .iter()
-            .filter_map(|x| x.bounds_start_end().1)
-            .min();
-        debug_assert!(start_time.is_some()); // At least always obtained from published.
-        debug_assert!(end_time.is_some()); // At least always obtained from an edcert.
+        Ok(body)
+        };
 
-        Ok(TimeRangeBound::new_from_start_end(
-            body, start_time, end_time,
-        ))
+        TimeRangeBound::build_intersect(logic)
     }
 }
 
