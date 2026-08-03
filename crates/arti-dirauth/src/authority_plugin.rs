@@ -3,6 +3,7 @@
 //! Implements `authority-plugin.md` pursuant to `doc/dev/notes/dirauth-sketch.md`.
 //!
 //! This is the actual implementation.
+#![allow(unused)] // XXXX
 
 use anyhow::Context as _;
 

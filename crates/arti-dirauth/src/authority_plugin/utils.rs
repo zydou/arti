@@ -1,7 +1,7 @@
 //! Utilities
 
 use std::fs::{self, File};
-use std::io::{self, BufWriter, Write as _};
+use std::io::{self, BufReader, BufWriter, Read as _, Write as _};
 use std::str::FromStr;
 
 use anyhow::{Context as _, anyhow};
@@ -24,6 +24,16 @@ pub(super) enum FilenameOrStdio {
     Path(String),
     /// `-`
     Stdio,
+}
+
+/// Output file currently being read from
+///
+/// See [`FilenameOrStdio::start_reading`].
+pub(super) struct Reading {
+    /// Actual open-file
+    handle: io::BufReader<Box<dyn io::Read>>,
+    /// Description (for error messages), already quoted
+    description: String,
 }
 
 /// Output file currently being written to
@@ -120,6 +130,65 @@ impl FilenameOrStdio {
                 })
             }
         }
+    }
+
+    /// Start reading this input file
+    pub(super) fn start_reading(&self) -> Result<Reading, CliError> {
+        let (handle, description);
+        match self {
+            FilenameOrStdio::Stdio => {
+                handle = Box::new(io::stdin().lock()) as _;
+                description = "<stdin>".into();
+            }
+            FilenameOrStdio::Path(path) => {
+                handle = Box::new(
+                    File::open(path)
+                        .with_context(|| format!("open input file {path:?}"))
+                        .map_err(CliError::OperationalError)?,
+                ) as _;
+                description = format!("{path:?}");
+            }
+        }
+        let handle = BufReader::new(handle);
+        Ok(Reading {
+            handle,
+            description,
+        })
+    }
+}
+
+impl io::Read for Reading {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.handle.read(buf)
+    }
+}
+
+impl io::BufRead for Reading {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        self.handle.fill_buf()
+    }
+    #[allow(clippy::semicolon_if_nothing_returned)] // more consistent without the ;
+    fn consume(&mut self, n: usize) {
+        self.handle.consume(n)
+    }
+}
+
+impl Reading {
+    /// Reads the whole file into memory as a `String`
+    ///
+    /// Non-UTF-8 input is treated as an operational error, just like an io error.
+    pub(crate) fn read_entire_string(mut self) -> Result<String, CliError> {
+        let mut s = String::new();
+        self.handle
+            .read_to_string(&mut s)
+            .map_err(self.handle_read_error())?;
+        Ok(s)
+    }
+
+    /// Returns an error handler for IO errors from this input file
+    pub(crate) fn handle_read_error(&self) -> impl FnOnce(io::Error) -> CliError {
+        let m = format!("error reading {}", self.description);
+        move |e| CliError::OperationalError(anyhow::Error::from(e).context(m))
     }
 }
 
