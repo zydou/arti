@@ -320,81 +320,81 @@ impl RouterDescUnverified {
     #[cfg(feature = "incomplete")]
     pub fn verify(self) -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
         let logic = |trbb: &mut TimeRangeBoundBuilder| -> _ {
-        // Type annotations to make LSP happy.
-        let (mut body, sigs): (RouterDesc, SignaturesData<_>) = (self.body, self.sigs);
+            // Type annotations to make LSP happy.
+            let (mut body, sigs): (RouterDesc, SignaturesData<_>) = (self.body, self.sigs);
 
-        // Verify the ed25519 identity certificate.
-        // This also includes a check for the master-key-ed25519.
-        let identity_ed25519 =
-            Ed25519IdentityCert::verify(body.identity_ed25519.raw_unverified().clone())?
-                .unwrap_with(trbb);
-        let Ed25519IdentityCert {
-            id_ed25519,
-            sign_ed25519,
-        } = identity_ed25519;
-        if id_ed25519 != body.master_key_ed25519.0 {
-            return Err(VerifyFailed::Inconsistent);
-        }
-        body.identity_ed25519.set_verified(identity_ed25519);
-
-        // Keep track of the published value as lower time bound.
-        trbb.intersect_bounds(TimeRangeBound::new((), body.published.0..));
-
-        // If set, ensure that the fingerprint equals to the signing key id.
-        if body
-            .fingerprint
-            .is_some_and(|fp| fp.0 != body.signing_key.to_rsa_identity())
-        {
-            return Err(VerifyFailed::Inconsistent);
-        }
-
-        // Verify the ntor-onion-key-crosscert.
-        // For this, we also need to convert the X25519 ntor key to an Ed25519
-        // key using convert_curve25519_to_ed25519_public().
-        let ntor_pk = convert_curve25519_to_ed25519_public(
-            &body.ntor_onion_key.0,
-            // Rust std turns false into 0 and true into 1.
-            body.ntor_onion_key_crosscert.bit.0.into(),
-        )
-        .ok_or(VerifyFailed::Other)?;
-        let ntor_cc = Ed25519NtorCrossCert::verify(
-            ntor_pk.into(),
-            id_ed25519,
-            body.ntor_onion_key_crosscert.cert.raw_unverified().clone(),
-        )?
-        .unwrap_with(trbb);
-        body.ntor_onion_key_crosscert.cert.set_verified(ntor_cc);
-
-        // Verify that the signing key has the proper exponent and length.
-        // TODO DIRAUTH: We want to enforce this type wise with parse2.
-        if body.signing_key.bits() != 1024 || !body.signing_key.exponent_is(65537) {
-            return Err(VerifyFailed::Other);
-        }
-
-        // Verify all family certificates.
-        for cert in body.family_cert.0.iter_mut() {
-            let cert_verified =
-                Ed25519FamilyCert::verify(id_ed25519, cert.raw_unverified().clone())?
+            // Verify the ed25519 identity certificate.
+            // This also includes a check for the master-key-ed25519.
+            let identity_ed25519 =
+                Ed25519IdentityCert::verify(body.identity_ed25519.raw_unverified().clone())?
                     .unwrap_with(trbb);
-            cert.set_verified(cert_verified);
-        }
+            let Ed25519IdentityCert {
+                id_ed25519,
+                sign_ed25519,
+            } = identity_ed25519;
+            if id_ed25519 != body.master_key_ed25519.0 {
+                return Err(VerifyFailed::Inconsistent);
+            }
+            body.identity_ed25519.set_verified(identity_ed25519);
 
-        // Verify the actual outer document signatures.
-        // VerifyFailed should be an okay error variant in case that the hashes
-        // were not accumulated, as it is not possible to verify without a
-        // hash.
-        ed25519::PublicKey::try_from(sign_ed25519)
-            .map_err(|_| VerifyFailed::Other)?
-            .verify(
-                &sigs.hashes.sha256.ok_or(VerifyFailed::VerifyFailed)?,
-                &sigs.sigs.router_sig_ed25519.0,
+            // Keep track of the published value as lower time bound.
+            trbb.intersect_bounds(TimeRangeBound::new((), body.published.0..));
+
+            // If set, ensure that the fingerprint equals to the signing key id.
+            if body
+                .fingerprint
+                .is_some_and(|fp| fp.0 != body.signing_key.to_rsa_identity())
+            {
+                return Err(VerifyFailed::Inconsistent);
+            }
+
+            // Verify the ntor-onion-key-crosscert.
+            // For this, we also need to convert the X25519 ntor key to an Ed25519
+            // key using convert_curve25519_to_ed25519_public().
+            let ntor_pk = convert_curve25519_to_ed25519_public(
+                &body.ntor_onion_key.0,
+                // Rust std turns false into 0 and true into 1.
+                body.ntor_onion_key_crosscert.bit.0.into(),
+            )
+            .ok_or(VerifyFailed::Other)?;
+            let ntor_cc = Ed25519NtorCrossCert::verify(
+                ntor_pk.into(),
+                id_ed25519,
+                body.ntor_onion_key_crosscert.cert.raw_unverified().clone(),
+            )?
+            .unwrap_with(trbb);
+            body.ntor_onion_key_crosscert.cert.set_verified(ntor_cc);
+
+            // Verify that the signing key has the proper exponent and length.
+            // TODO DIRAUTH: We want to enforce this type wise with parse2.
+            if body.signing_key.bits() != 1024 || !body.signing_key.exponent_is(65537) {
+                return Err(VerifyFailed::Other);
+            }
+
+            // Verify all family certificates.
+            for cert in body.family_cert.0.iter_mut() {
+                let cert_verified =
+                    Ed25519FamilyCert::verify(id_ed25519, cert.raw_unverified().clone())?
+                        .unwrap_with(trbb);
+                cert.set_verified(cert_verified);
+            }
+
+            // Verify the actual outer document signatures.
+            // VerifyFailed should be an okay error variant in case that the hashes
+            // were not accumulated, as it is not possible to verify without a
+            // hash.
+            ed25519::PublicKey::try_from(sign_ed25519)
+                .map_err(|_| VerifyFailed::Other)?
+                .verify(
+                    &sigs.hashes.sha256.ok_or(VerifyFailed::VerifyFailed)?,
+                    &sigs.sigs.router_sig_ed25519.0,
+                )?;
+            body.signing_key.verify(
+                sigs.hashes.sha1.ok_or(VerifyFailed::VerifyFailed)?.as_ref(),
+                sigs.sigs.router_signature.0.as_ref(),
             )?;
-        body.signing_key.verify(
-            sigs.hashes.sha1.ok_or(VerifyFailed::VerifyFailed)?.as_ref(),
-            sigs.sigs.router_signature.0.as_ref(),
-        )?;
 
-        Ok(body)
+            Ok(body)
         };
 
         TimeRangeBound::build_intersect(logic)
