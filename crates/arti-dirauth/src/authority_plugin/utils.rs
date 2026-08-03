@@ -84,6 +84,7 @@ impl FilenameOrStdio {
     }
 
     /// Start writing the output file, with write-to-`.tmp`-and-rename
+    /// in the case of the file being on the file system (i.e. no stdout).
     ///
     /// Returns a [`Writing`], which implements `io::Write` -
     /// but usually it's better to use [`Writing::append_with`]
