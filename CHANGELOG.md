@@ -6,7 +6,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 # Arti 2.5.1 - 3 August 2026
 
 Arti 2.5.1 continues development on relays and directory authorities.
-It also adds some perfomance, security, and convenience features for
+It also adds some performance, security, and convenience features for
 onion services.
 
 <!-- Up to date as of 4f08464f17a2bf2c23e07028241d9aab21061bcc -->
@@ -58,7 +58,7 @@ onion services.
 
 - Infrastructure for validating and handling incoming relay messages.
   ([#2606], [!4177])
-- Accept `BeginDir` and `Resolve` messges. ([#2613], [!4188])
+- Accept `BeginDir` and `Resolve` messages. ([#2613], [!4188])
 - Handle incoming `BeginDir` messages via an (as-yet-unfinished)
   `DirMirror` type. ([!4222])
 - Encoding and generation for router descriptors. ([!4153])
@@ -79,7 +79,7 @@ onion services.
 - Initial work to calculate directory consensuses. ([!4200])
 - Initial work on a command-line plugin tool to calculate consensuses for
   C tor directory authorities. ([!4225], [!4253])
-- Improved usibility for parsing APIs. ([!4235])
+- Improved usability for parsing APIs. ([!4235])
 - Full verification for router descriptors under new `parse2`
   logic. ([!4144], [!4252])
 - Exposed more test utilities from `tor-netdoc`, for use in `tor-dirauth`.
@@ -91,7 +91,7 @@ onion services.
   operations. ([!4224], [!4229], [!4237], [!4238], [!4249])
 - Integration tests now configure and initialize the network before
   launching Shadow. ([#1683], [!4211])
-- Integration tests now use shadowtools to consolodate configuration and
+- Integration tests now use shadowtools to consolidate configuration and
   logging. ([!4236])
 
 ### Documentation
