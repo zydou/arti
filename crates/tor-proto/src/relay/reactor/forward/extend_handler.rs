@@ -185,7 +185,7 @@ impl ExtendRequestHandler {
 
         debug!(
             circ_uniq_id = %unique_id,
-            circ_id = %inbound_circ_id,
+            backward_circ_id = %inbound_circ_id,
             "Launched channel to the next hop"
         );
 
@@ -212,7 +212,7 @@ impl ExtendRequestHandler {
 
         trace!(
             circ_uniq_id = %unique_id,
-            circ_id = %circ_id,
+            forward_circ_id = %circ_id,
             "Sending CREATE2 to the next hop"
         );
 
@@ -229,7 +229,7 @@ impl ExtendRequestHandler {
 
         trace!(
             circ_uniq_id = %unique_id,
-            circ_id = %circ_id,
+            forward_circ_id = %circ_id,
             "Got CREATED2 response from next hop"
         );
 

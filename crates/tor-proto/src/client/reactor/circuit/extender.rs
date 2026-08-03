@@ -87,7 +87,7 @@ where
             let hop = ((n_hops - 1) as u8).into();
             trace!(
                 circ_uniq_id = %unique_id,
-                circ_id = %circ_id,
+                forward_circ_id = %circ_id,
                 target_hop = n_hops + 1,
                 linkspecs = ?linkspecs,
                 "Extending circuit",
@@ -103,7 +103,7 @@ where
 
             trace!(
                 circ_uniq_id = %unique_id,
-                circ_id = %circ_id,
+                forward_circ_id = %circ_id,
                 "waiting for EXTENDED2 cell"
             );
             // ... and now we wait for a response.
@@ -148,7 +148,7 @@ where
 
         trace!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %self.circ_id,
+            forward_circ_id = %self.circ_id,
             "Received EXTENDED2 cell; completing handshake.",
         );
         // Now perform the second part of the handshake, and see if it
@@ -171,7 +171,7 @@ where
 
         trace!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %self.circ_id,
+            forward_circ_id = %self.circ_id,
             settings = ?self.settings,
             "Handshake complete; circuit extended."
         );

@@ -32,7 +32,7 @@ derive_deftly::define_derive_deftly! {
 
             tracing::debug!(
                 circ_uniq_id = %unique_id,
-                circ_id = %self.circ_id,
+                backward_circ_id = %self.circ_id,
                 "Running {}", ${tmeta(reactor_name) as str}
             );
 
@@ -56,13 +56,13 @@ derive_deftly::define_derive_deftly! {
             match &result {
                 Ok(()) => tracing::trace!(
                     circ_uniq_id = %unique_id,
-                    circ_id = %self.circ_id,
+                    backward_circ_id = %self.circ_id,
                     "{msg}"
                 ),
                 Err(e) => tor_error::debug_report!(
                     e,
                     circ_uniq_id = %unique_id,
-                    circ_id = %self.circ_id,
+                    backward_circ_id = %self.circ_id,
                     "{msg}"
                 ),
             }

@@ -587,7 +587,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                 // The forward reactor has crashed, so we have to shut down.
                 trace!(
                     circ_uniq_id = %self.unique_id,
-                    circ_id = %self.circ_id,
+                    backward_circ_id = %self.circ_id,
                     "Backward relay reactor shutdown (forward reactor has closed)",
                 );
 
@@ -636,7 +636,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
 
                 debug!(
                     circ_uniq_id = %self.unique_id,
-                    circ_id = %self.circ_id,
+                    backward_circ_id = %self.circ_id,
                     "Extended circuit to the next hop"
                 );
             }
@@ -659,7 +659,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         // (in practice it will be too noisy to be useful, even at trace level).
         trace!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %self.circ_id,
+            backward_circ_id = %self.circ_id,
             hopnum=?hopnum,
             cmd = %cmd,
             "Sending backward cell"

@@ -75,7 +75,7 @@ impl BackwardHandler for Backward {
             RelayCircChanMsg::Destroy(d) => {
                 debug!(
                     circ_uniq_id = %circ_uniq_id,
-                    circ_id = %circ_id,
+                    backward_circ_id = %circ_id,
                     reason = %d.reason(),
                     "Received inbound DESTROY, circuit shutting down",
                 );

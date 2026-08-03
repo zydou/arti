@@ -519,7 +519,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
                     let Some(cmd) = res else {
                         trace!(
                             circ_uniq_id = %self.unique_id,
-                            circ_id = %self.circ_id,
+                            backward_circ_id = %self.circ_id,
                             reason = "command channel drop",
                             "reactor shutdown",
                         );
@@ -533,7 +533,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
                     let Some(msg) = res else {
                         trace!(
                             circ_uniq_id = %self.unique_id,
-                            circ_id = %self.circ_id,
+                            backward_circ_id = %self.circ_id,
                             reason = "control channel drop",
                             "reactor shutdown",
                         );

@@ -297,7 +297,7 @@ impl ConfluxSet {
 
         tracing::trace!(
             circ_uniq_id = %circ.unique_id(),
-            circ_id = %circ.circ_id(),
+            forward_circ_id = %circ.circ_id(),
             "Circuit removed from conflux set"
         );
 
@@ -1015,7 +1015,7 @@ impl ConfluxSet {
                     None => {
                         info!(
                             circ_uniq_id = %unique_id,
-                            circ_id = %circ_id,
+                            forward_circ_id = %circ_id,
                             "no ready streams (maybe blocked on cc?)"
                         );
                         // There are no ready streams (for example, they may all be
@@ -1062,7 +1062,7 @@ impl ConfluxSet {
                             warn!(
                                 tunnel_id = %tunnel_id,
                                 circ_uniq_id = %unique_id,
-                                circ_id = %circ_id,
+                                forward_circ_id = %circ_id,
                                 "Conflux handshake timed out on circuit"
                             );
 

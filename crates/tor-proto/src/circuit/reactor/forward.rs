@@ -300,7 +300,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 let Some(cell) = cell else {
                     debug!(
                         circ_uniq_id = %self.unique_id,
-                        circ_id = %self.circ_id,
+                        backward_circ_id = %self.circ_id,
                         "Backward channel has closed, shutting down forward relay reactor",
                     );
 
@@ -458,14 +458,14 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                     for m in msgs {
                         debug!(
                             circ_uniq_id = %self.unique_id,
-                            circ_id = %self.circ_id,
+                            backward_circ_id = %self.circ_id,
                             "Ignoring relay msg received after triggering shutdown: {m:?}",
                         );
                     }
                     if let Some(incomplete) = incomplete {
                         debug!(
                             circ_uniq_id = %self.unique_id,
-                            circ_id = %self.circ_id,
+                            backward_circ_id = %self.circ_id,
                             "Ignoring partial relay msg received after triggering shutdown: {:?}",
                             incomplete,
                         );

@@ -475,7 +475,7 @@ impl StreamReactor {
                 // a different way.
                 debug!(
                     circ_uniq_id = %self.unique_id,
-                    circ_id = %self.circ_id,
+                    backward_circ_id = %self.circ_id,
                     "Incoming stream request receiver dropped",
                 );
                 // This will _cause_ the circuit to get closed.

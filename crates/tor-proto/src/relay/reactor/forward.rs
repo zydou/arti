@@ -255,7 +255,7 @@ impl Forward {
 
         trace!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %chan.circ_id,
+            forward_circ_id = %chan.circ_id,
             "Forwarding unrecognized cell"
         );
 
@@ -288,7 +288,7 @@ impl Forward {
     fn handle_destroy_cell(&mut self, cell: &Destroy) -> StdResult<(), ReactorError> {
         debug!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %self.circ_id,
+            backward_circ_id = %self.circ_id,
             reason = %cell.reason(),
             "Received outbound DESTROY, circuit shutting down",
         );

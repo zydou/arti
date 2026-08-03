@@ -438,7 +438,7 @@ impl Circuit {
 
         trace!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %self.circ_id,
+            forward_circ_id = %self.circ_id,
             cell = ?msg,
             "sending relay cell"
         );
@@ -516,7 +516,7 @@ impl Circuit {
     ) -> Result<Vec<CircuitCmd>> {
         trace!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %self.circ_id,
+            forward_circ_id = %self.circ_id,
             cell = ?cell,
             "handling cell"
         );
@@ -527,7 +527,7 @@ impl Circuit {
                 let reason = d.reason();
                 debug!(
                     circ_uniq_id = %self.unique_id,
-                    circ_id = %self.circ_id,
+                    forward_circ_id = %self.circ_id,
                     "Received DESTROY cell. Reason: {} [{}]",
                     reason.human_str(),
                     reason
@@ -981,7 +981,7 @@ impl Circuit {
                 // a different way.
                 debug!(
                     circ_uniq_id = %self.unique_id,
-                    circ_id = %self.circ_id,
+                    forward_circ_id = %self.circ_id,
                     "Incoming stream request receiver dropped",
                 );
                 // This will _cause_ the circuit to get closed.
@@ -1064,7 +1064,7 @@ impl Circuit {
         let create_cell = wrap.to_chanmsg(msg);
         trace!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %self.circ_id,
+            forward_circ_id = %self.circ_id,
             create = %create_cell.cmd(),
             "Extending to hop 1",
         );
@@ -1085,7 +1085,7 @@ impl Circuit {
 
         trace!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %self.circ_id,
+            forward_circ_id = %self.circ_id,
             "Handshake complete; circuit created."
         );
 
@@ -1260,7 +1260,7 @@ impl Circuit {
             let reason = truncated.reason();
             debug!(
                 circ_uniq_id = %self.unique_id,
-                circ_id = %self.circ_id,
+                forward_circ_id = %self.circ_id,
                 "Truncated from hop {}. Reason: {} [{}]",
                 hopnum.display(),
                 reason.human_str(),
@@ -1283,7 +1283,7 @@ impl Circuit {
 
         trace!(
             circ_uniq_id = %self.unique_id,
-            circ_id = %self.circ_id,
+            forward_circ_id = %self.circ_id,
             cell = ?msg,
             "Received meta-cell"
         );
@@ -1303,7 +1303,7 @@ impl Circuit {
         if self.is_conflux_pending() {
             warn!(
                 circ_uniq_id = %self.unique_id,
-                circ_id = %self.circ_id,
+                forward_circ_id = %self.circ_id,
                 "received unexpected cell {msg:?} on unlinked conflux circuit",
             );
             return Err(Error::CircProto(
@@ -1325,7 +1325,7 @@ impl Circuit {
                 let ret = handler.handle_msg(msg, self);
                 trace!(
                     circ_uniq_id = %self.unique_id,
-                    circ_id = %self.circ_id,
+                    forward_circ_id = %self.circ_id,
                     result = ?ret,
                     "meta handler completed",
                 );
