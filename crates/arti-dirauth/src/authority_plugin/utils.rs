@@ -135,7 +135,7 @@ impl io::Write for Writing {
 impl Writing {
     /// Write to an output file, with a `dyn io::Write`, handling errors
     ///
-    /// Calls `writer(self)` but converts the erorr into a nice `CliError`
+    /// Calls `writer(self)` but converts the error into a nice `CliError`
     pub(super) fn append_with<W>(&mut self, writer: W) -> Result<(), CliError>
     where
         W: FnOnce(&mut dyn io::Write) -> io::Result<()>,
