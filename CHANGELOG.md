@@ -9,7 +9,7 @@ Arti 2.5.1 continues development on relays and directory authorities.
 It also adds some perfomance, security, and convenience features for
 onion services.
 
-<!-- Up to date as of f7b2611fa90c2b5b77a915248a8e4cb5283558b0 -->
+<!-- Up to date as of 4f08464f17a2bf2c23e07028241d9aab21061bcc -->
 
 ### Major bugfixes
 
@@ -78,7 +78,7 @@ onion services.
 - Support for calculating exit policy port summaries. ([!4198], [!4212])
 - Initial work to calculate directory consensuses. ([!4200])
 - Initial work on a command-line plugin tool to calculate consensuses for
-  C tor directory authorities. ([!4225])
+  C tor directory authorities. ([!4225], [!4253])
 - Improved usibility for parsing APIs. ([!4235])
 - Full verification for router descriptors under new `parse2`
   logic. ([!4144], [!4252])
@@ -144,6 +144,9 @@ onion services.
   information leakage. ([#2578], [!4202])
 - Support for working with restricted sets of subprotocol capabilities.
   ([!4241])
+- Renamed various local variables and fields to distinguish between
+  `UniqId` and `CircId`. ([!4246])
+- Include more information when logging about circuits. ([!4246])
 
 ### Acknowledgments
 
@@ -211,10 +214,12 @@ for funding the development of Arti!
 [!4243]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4243
 [!4244]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4244
 [!4245]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4245
+[!4246]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4246
 [!4248]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4248
 [!4249]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4249
 [!4250]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4250
 [!4252]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4252
+[!4253]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4253
 [!4254]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4254
 [!4255]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4255
 [!4257]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4257
