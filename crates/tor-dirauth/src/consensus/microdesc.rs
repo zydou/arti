@@ -152,6 +152,7 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use std::rc::Rc;
     use tor_checkable::TimeBound as _;
     use tor_error::ErrorReport as _;
     use tor_netdoc::{
@@ -240,5 +241,56 @@ mod test {
             assert!(msg.contains(exp), "{msg:?}");
         }
         Ok(())
+    }
+
+    #[test]
+    fn all_supported_track_coalesce() {
+        use crate::consensus::tracked_method::test::interesting_function;
+
+        #[derive(Debug, thiserror::Error)]
+        enum TestCaseError {
+            #[error("expected")]
+            Expected,
+            #[error("{0:?}")]
+            Internal(#[from] Bug),
+        }
+
+        let n_calls = Cell::new(0);
+
+        let (errors, good) = compute_supported_generic(
+            (1..=100)
+                .map(ConsensusMethod)
+                .map(SupportedConsensusMethod::new_unchecked),
+            |tracker| {
+                n_calls.update(|n_calls| n_calls + 1);
+                eprintln!("called with {tracker:?}");
+
+                if tracker == 80 {
+                    Err(TestCaseError::Expected)
+                } else {
+                    let v = interesting_function(tracker);
+                    Ok(Rc::new(v))
+                }
+            },
+        )
+        .expect_err("80 fails");
+
+        // Check that we got the expected error
+        match &*errors {
+            [(m, TestCaseError::Expected)] if *m == 80 => {}
+            other => panic!("{other:?}"),
+        }
+
+        // Check that results are consistent with calculating every value
+        for (ms, o) in good {
+            for &m in &ms.methods {
+                let m = SupportedConsensusMethod::new_unchecked(m);
+                let exp = interesting_function(&TrackedConsensusMethod::new(m));
+                assert_eq!(*o, exp);
+            }
+        }
+
+        // Check how many calculations were needed:
+        assert_eq!(n_calls.get(), 11);
     }
 }
