@@ -55,9 +55,7 @@ use std::sync::LazyLock;
 use std::{iter, net, time};
 use tor_basic_utils::intern::Intern;
 use tor_cert::{CertType, KeyUnknownCert};
-use tor_checkable::timed::TimeRangeBound;
-#[cfg(feature = "incomplete")]
-use tor_checkable::timed::TimeRangeBoundBuilder;
+use tor_checkable::timed::{TimeRangeBound, TimeRangeBoundBuilder};
 use tor_checkable::{Timebound, signed, timed};
 use tor_error::{internal, into_internal};
 use tor_llcrypto as ll;
@@ -317,7 +315,6 @@ impl RouterDescUnverified {
     // We deny the use of unused variables as a hint to use all TimeRangeBound
     // values obtained through a dangerous split.
     #[deny(unused_variables)]
-    #[cfg(feature = "incomplete")]
     pub fn verify(self) -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
         let logic = |trbb: &mut TimeRangeBoundBuilder| -> _ {
             // Type annotations to make LSP happy.
