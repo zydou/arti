@@ -15,9 +15,18 @@ keywords = ["tor", "arti", "privacy", "anonymity", "networking"]
 categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[package.metadata.docs.rs]
+all-features = true
+
+[[bin]]
+name = "arti-authority-plugin"
+path = "src/bin/arti_authority_plugin.rs"
+test = false
+bench = false
+
 [features]
 experimental = []
-full = ["tor-dirauth/full", "tor-netdoc/full"]
+full = ["tor-dirauth/full", "tor-netdoc/full", "tor-error/full"]
 __is_experimental = []
 
 [dependencies]
@@ -28,13 +37,4 @@ tor-dirauth = { path = "../tor-dirauth", version = "0.44.0" }
 tor-error = { path = "../tor-error", version = "0.44.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.44.0", features = ["full", "incomplete"] }
 
-[[bin]]
-name = "arti-authority-plugin"
-path = "src/bin/arti_authority_plugin.rs"
-test = false
-bench = false
-
 [dev-dependencies]
-
-[package.metadata.docs.rs]
-all-features = true

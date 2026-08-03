@@ -16,9 +16,12 @@ keywords = ["tor", "arti"]
 categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 experimental = []
-full = ["tor-netdoc/full"]
+full = ["tor-netdoc/full", "tor-error/full"]
 __is_experimental = []
 
 [dependencies]
@@ -32,6 +35,3 @@ tor-netdoc = { version = "0.44.0", path = "../tor-netdoc", features = ["full", "
 
 [dev-dependencies]
 derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }
-
-[package.metadata.docs.rs]
-all-features = true
