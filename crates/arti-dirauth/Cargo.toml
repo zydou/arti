@@ -17,7 +17,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 experimental = []
-full = ["tor-dirauth/full", "tor-netdoc/full"]
+full = ["tor-dirauth/full", "tor-netdoc/full","tor-error/full"]
 __is_experimental = []
 
 [dependencies]

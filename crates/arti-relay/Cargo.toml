@@ -45,6 +45,8 @@ full = [
     "tor-key-forge/full",
     "tor-units/full",
     "web-time-compat/full",
+    "tor-cell/full",
+    "tor-dirserver/full",
 ]
 
 # This feature flag enables experimental features that are not supported. Turning it on may
