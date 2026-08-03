@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirauth"
-version = "0.44.0"
+version = "0.45.0"
 authors = [
     "The Tor Project, Inc.",
     "Ian Jackson <iwj@torproject.org>",
@@ -30,8 +30,8 @@ ipnet = "2.10"
 itertools = "0.15.0"
 rangemap = "1.7"
 thiserror = "2"
-tor-error = { path = "../tor-error", version = "0.44.0" }
-tor-netdoc = { version = "0.44.0", path = "../tor-netdoc", features = ["full", "experimental"] }
+tor-error = { path = "../tor-error", version = "0.45.0" }
+tor-netdoc = { version = "0.45.0", path = "../tor-netdoc", features = ["full", "experimental"] }
 
 [dev-dependencies]
 derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }

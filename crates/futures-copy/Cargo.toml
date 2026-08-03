@@ -22,9 +22,9 @@ pin-project = "1"
 
 [dev-dependencies]
 tokio = { version = "1.47.1", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
-tor-error = { path = "../tor-error", version = "0.44.0" }
-tor-rtcompat = { version = "0.44.0", path = "../tor-rtcompat" }
-tor-rtmock = { path = "../tor-rtmock", version = "0.44.0" }
+tor-error = { path = "../tor-error", version = "0.45.0" }
+tor-rtcompat = { version = "0.45.0", path = "../tor-rtcompat" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.45.0" }
 
 [package.metadata.docs.rs]
 all-features = true

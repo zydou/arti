@@ -1,6 +1,6 @@
 [package]
 name = "tor-consdiff"
-version = "0.44.0"
+version = "0.45.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.91"
@@ -26,14 +26,14 @@ hex = "0.4"
 imara-diff = "0.2.0"
 static_assertions = "1.1.0"
 thiserror = "2"
-tor-error = { path = "../tor-error", version = "0.44.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.44.0" }
+tor-error = { path = "../tor-error", version = "0.45.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.45.0" }
 # TODO: Ideally, we would be able to compile without ns-vote.
-tor-netdoc = { path = "../tor-netdoc", version = "0.44.0", features = ["incomplete"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.45.0", features = ["incomplete"] }
 
 [dev-dependencies]
 rand = "0.10.1"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.44.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.45.0" }
 
 [package.metadata.docs.rs]
 all-features = true

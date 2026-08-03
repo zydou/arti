@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirpublish"
-version = "0.44.0"
+version = "0.45.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.91"
@@ -35,13 +35,13 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.10.1"
 safelog = { path = "../safelog", version = "0.9.0" }
 thiserror = "2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.44.0" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.44.0", default-features = false }
-tor-error = { path = "../tor-error", version = "0.44.0", features = ["tracing"] }
-tor-linkspec = { path = "../tor-linkspec", version = "0.44.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.44.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.45.0" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.45.0", default-features = false }
+tor-error = { path = "../tor-error", version = "0.45.0", features = ["tracing"] }
+tor-linkspec = { path = "../tor-linkspec", version = "0.45.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.45.0" }
 tracing = "0.1.36"
 web-time-compat = { path = "../web-time-compat", version = "0.2.0" }
 
 [dev-dependencies]
-tor-rtmock = { path = "../tor-rtmock", version = "0.44.0" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.45.0" }
