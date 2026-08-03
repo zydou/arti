@@ -65,6 +65,14 @@ impl SupportedConsensusMethod {
     #[cfg(test)]
     pub(crate) const MAX: SupportedConsensusMethod =
         SupportedConsensusMethod(*SUPPORTED_METHODS.last().unwrap().end());
+
+    /// Make a `SupportedConsensusMethod` out of a possibly-unsupported `ConsensusMethod`
+    ///
+    /// Useful for test cases that don't use real method numbers.
+    #[cfg(test)]
+    pub(crate) fn new_unchecked(method: ConsensusMethod) -> SupportedConsensusMethod {
+        SupportedConsensusMethod(method)
+    }
 }
 
 #[cfg(test)]
