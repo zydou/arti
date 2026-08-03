@@ -241,9 +241,6 @@ impl Forward {
         info: Option<QueuedCellPaddingInfo>,
         early: bool,
     ) -> StdResult<(), ReactorError> {
-        // TODO(relay): remove this log once we add some tests
-        // and confirm relaying cells works as expected
-        // (in practice it will be too noisy to be useful, even at trace level).
         let Some(chan) = self.outbound.as_mut() else {
             // The client shouldn't try to send us any cells before it gets
             // an EXTENDED2 cell from us
@@ -253,6 +250,9 @@ impl Forward {
             .into());
         };
 
+        // TODO(relay): remove this log once we add some tests
+        // and confirm relaying cells works as expected
+        // (in practice it will be too noisy to be useful, even at trace level).
         trace!(
             circ_uniq_id = %self.unique_id,
             forward_circ_id = %chan.circ_id,
