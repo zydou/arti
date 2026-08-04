@@ -27,11 +27,6 @@
 //! TODO: There should be accessor functions for some or all of the
 //! fields in RouterDesc.  I'm deferring those until I know what they
 //! should be.
-//!
-//! # Availability
-//!
-//! Most of this module is only available when this crate is built with the
-//! `routerdesc` feature enabled.
 use crate::encode::{ItemEncoder, ItemValueEncodable};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
