@@ -8,6 +8,7 @@
 //! NOTE: Several of these modules may eventually move elsewhere,
 //! or become their own crates.
 
+pub mod descriptor;
 pub(crate) mod embedded_cert;
 pub mod family;
 pub(crate) mod misc;
@@ -37,8 +38,6 @@ pub use misc::{Curve25519Public, Ed25519AlgorithmString, Ed25519IdentityLine, Ed
 pub use misc::{DigestName, IdentifiedDigest};
 pub use misc::{F64Finite, F64FiniteParseError};
 pub use misc::{Iso8601TimeNoSp, Iso8601TimeSp};
-
-pub use misc::routerdesc;
 
 mod parse2_encode;
 pub use parse2_encode::raw_data_object;

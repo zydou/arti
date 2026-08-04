@@ -19,7 +19,7 @@
 
 use crate::encode::{NetdocEncodable, NetdocEncoder};
 use crate::parse2::{ParseInput, VerifyFailed, parse_netdoc};
-use crate::types::routerdesc::{RouterHashAccu, RouterSigEd25519};
+use crate::types::descriptor::{RouterHashAccu, RouterSigEd25519};
 use crate::types::{B64, EmbeddableCertObject, EmbeddedCert, RetainedOrderVec};
 use derive_deftly::Deftly;
 use std::time::{Duration, SystemTime};
