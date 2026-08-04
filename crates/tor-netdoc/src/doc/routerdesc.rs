@@ -45,7 +45,7 @@ use crate::types::routerdesc::*;
 use crate::types::version::TorVersion;
 use crate::types::{EmbeddedCert, misc::*};
 use crate::util::PeekableIterator;
-use crate::{AllowAnnotations, Error, KeywordEncodable, NetdocErrorKind as EK, Result};
+use crate::{AllowAnnotations, Error, KeywordEncodable, NetdocErrorKind as EK, NormalItemArgument, Result};
 
 use derive_deftly::Deftly;
 use ll::pk::ed25519::Ed25519Identity;
@@ -475,6 +475,115 @@ impl ItemValueEncodable for RelayPlatform {
         out.args_raw_string(&self);
         Ok(())
     }
+}
+
+/// Version argument found in an `overload-general` item.
+///
+/// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, strum::EnumString, strum::Display)]
+#[non_exhaustive]
+pub enum OverloadGeneralVersion {
+    /// Version 1, currently the only supported and specified one.
+    #[strum(serialize = "1")]
+    V1,
+}
+
+impl NormalItemArgument for OverloadGeneralVersion {}
+
+/// The overload general type found in router descriptors.
+///
+/// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deftly)]
+#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
+#[non_exhaustive]
+pub struct OverloadGeneral {
+    /// The version of the item.
+    pub version: OverloadGeneralVersion,
+    /// The timestamp since when the relay is overloaded.
+    pub since: Iso8601TimeSp,
+}
+
+/// Introduction line of a router descriptor.
+///
+/// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router>
+#[derive(Clone, Debug, PartialEq, Eq, Deftly)]
+#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
+#[non_exhaustive]
+pub struct RouterDescIntroItem {
+    /// A valid router [`Nickname`].
+    pub nickname: Nickname,
+
+    /// An IPv4 address in dotted-squad format.
+    pub address: std::net::Ipv4Addr,
+
+    /// The TCP port of the onion router.
+    pub orport: u16,
+
+    /// Legacy.
+    pub socksport: u16,
+
+    /// Legacy.
+    pub dirport: u16,
+}
+
+/// Digest identifying the extra-info document.
+///
+/// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:extra-info-digest>
+#[derive(Clone, Debug, PartialEq, Eq, Deftly)]
+#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
+#[non_exhaustive]
+pub struct ExtraInfoDigests {
+    /// Mandatory SHA-1 of the signed data in base 16.
+    pub sha1: FixedB16U<20>,
+
+    /// Optional SHA-256 of the entire extra-info in base 64.
+    pub sha2: Option<FixedB64<32>>,
+}
+
+/// Estimated bandwidth for a router.
+///
+/// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:bandwidth>
+// Does not derive Ord because it only makes sense to order on a single
+// field but not all.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Deftly)]
+#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
+#[non_exhaustive]
+pub struct Bandwidth {
+    /// The volume that the relay is willing to sustain over long periods.
+    pub average: u64,
+
+    /// The volume that the relay is willing to sustain in very short intervals.
+    pub burst: u64,
+
+    /// The estimate of the capacity this relay can handle.
+    pub observed: u64,
+}
+
+/// Ntor onion key cross-certificate.
+///
+/// This struct contains an [`Ed25519NtorCrossCert`] alongside the `bit`
+/// field required for converting the ntor X25519 key to an Ed25519 key.
+///
+/// # See Also
+///
+/// * [`Ed25519NtorCrossCert`]
+/// * <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:ntor-onion-key-crosscert>
+#[derive(Debug, Clone, Deftly, PartialEq)]
+#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
+#[deftly(netdoc(no_extra_args))]
+#[non_exhaustive]
+pub struct NtorOnionKeyCrossCert {
+    /// True if X coordinate of the ntor onion key is negative, false if
+    /// positive.
+    // TODO spec: This name is very unfortunate, how about we change it
+    // to `is_negative`.  Also, using a boolean for storing a sign bit feels
+    // wrong to me due to the zero edge case, which would not be negative,
+    // but also not positive either.
+    pub bit: NumericBoolean,
+
+    /// The actual embedded ntor onion key certificate.
+    #[deftly(netdoc(object))]
+    pub cert: EmbeddedCert<Ed25519NtorCrossCert, KeyUnknownCert>,
 }
 
 decl_keyword! {
@@ -1787,5 +1896,72 @@ mod test {
         rd.signing_key = different_rsa_id.to_public_key();
         rd.fingerprint = None;
         assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+    }
+
+    #[test]
+    fn ntor_onion_key_cross_cert() {
+        // Dummy helper for parsing a subset of a router desc.
+        #[derive(Debug, Deftly)]
+        #[derive_deftly(NetdocParseable)]
+        #[allow(unused)]
+        struct TestDoc {
+            /// Intro item.
+            router: RouterDescIntroItem,
+
+            /// Timestamp used for `now` in certificate validation.
+            #[deftly(netdoc(single_arg))]
+            published: Iso8601TimeSp,
+
+            /// Required to ensure certified key of the crosscert.
+            #[deftly(netdoc(single_arg))]
+            master_key_ed25519: Ed25519Public,
+
+            /// Required to obtain the key signing the crosscert.
+            #[deftly(netdoc(single_arg))]
+            ntor_onion_key: Curve25519Public,
+
+            /// The actual crosscert.
+            ntor_onion_key_crosscert: NtorOnionKeyCrossCert,
+        }
+
+        impl TestDoc {
+            // Quick verify helper.
+            fn verify(&self, now: time::SystemTime) {
+                Ed25519NtorCrossCert::verify(
+                    // Converts X25519 to Ed25519.
+                    tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public(
+                        &self.ntor_onion_key.0,
+                        self.ntor_onion_key_crosscert.bit.0.into(),
+                    )
+                    .unwrap()
+                    .into(),
+                    self.master_key_ed25519.0,
+                    self.ntor_onion_key_crosscert.cert.raw_unverified().clone(),
+                )
+                .unwrap()
+                .check_valid_at(&now)
+                .unwrap();
+            }
+        }
+
+        let descs = include_str!("../../testdata2/cached-descriptors.new");
+        let descs = parse2::parse_netdoc_multiple::<TestDoc>(&ParseInput::new(
+            descs,
+            "cached-descriptors.new",
+        ))
+        .unwrap();
+
+        // Find the first with negative and first with positive X coordinate.
+        let negative_rd = descs
+            .iter()
+            .find(|rd| rd.ntor_onion_key_crosscert.bit.0)
+            .unwrap();
+        let positive_rd = descs
+            .iter()
+            .find(|rd| !rd.ntor_onion_key_crosscert.bit.0)
+            .unwrap();
+
+        negative_rd.verify(negative_rd.published.0);
+        positive_rd.verify(positive_rd.published.0);
     }
 }
