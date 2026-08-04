@@ -119,8 +119,8 @@ pub struct RouterAnnotation {
 #[non_exhaustive]
 pub struct RouterDesc {
     /// `router` --- Introduce a router descriptor.
-    /// * `router <nickname> <address> <orport> <socksport> <dirport>`
-    /// * At start, exactly once.
+    ///
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router>
     pub router: RouterDescIntroItem,
 
     /// `identity-ed25519` --- Specify the router's ed25519 identity.
@@ -130,34 +130,29 @@ pub struct RouterDesc {
 
     /// `master-key-ed25519` --- Redundantly specify the router's ed25519 identity.
     ///
-    /// * `master-key-ed25519 <master key>`
-    /// * Exactly once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:master-key-ed25519>
     #[deftly(netdoc(single_arg))]
     pub master_key_ed25519: Ed25519Public,
 
     /// `bandwidth` --- Report router's network bandwidth.
     ///
-    /// * `bandwidth <average> <burst> <observed>`
-    /// * Exactly once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:bandwidth>
     pub bandwidth: Bandwidth,
 
     /// `platform` --- Describe the platform on which this relay is running.
     ///
-    /// * `platform <rest of line>`
-    /// * At most once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:platform>
     pub platform: Option<RelayPlatform>,
 
     /// `published` --- Time this descriptor (and extra-info) was generated.
     ///
-    /// * `published <date> <time>`
-    /// * Exactly once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:published>
     #[deftly(netdoc(single_arg))]
     pub published: Iso8601TimeSp,
 
     /// `fingerprint` --- Redundant hash of ASN-1 encoding of router identity key.
     ///
-    /// * `fingerprint <spaced fingerprint>`
-    /// * At most once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:fingerprint>
     #[deftly(netdoc(single_arg))]
     pub fingerprint: Option<SpFingerprint>,
 
@@ -169,15 +164,13 @@ pub struct RouterDesc {
 
     /// `uptime` --- How long this relay has been continously running
     ///
-    /// * `uptime <number>`
-    /// * At most once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:uptime>
     #[deftly(netdoc(single_arg))]
     pub uptime: Option<u64>,
 
     /// `ntor-onion-key` --- The circuit extension key.
     ///
-    /// * `ntor-onion-key <base64 padded key>`
-    /// * Exactly once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:ntor-onion-key>
     #[deftly(netdoc(single_arg))]
     pub ntor_onion_key: Curve25519Public,
 
@@ -188,14 +181,12 @@ pub struct RouterDesc {
 
     /// `signing-key` --- Obsolete RSA identity key.
     ///
-    /// * `signing-key\n<rsa public key>`
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:signing-key>
     pub signing_key: ll::pk::rsa::PublicKey,
 
     /// `accept, reject` --- Exit policy.
     ///
-    /// * `accept exitpattern`
-    /// * `reject exitpattern`
-    /// * Any number of times.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:accept>
     // TODO: these polices can get bulky too. Perhaps we should
     // de-duplicate them too.
     // Not skipping the default here is probably desirable, as this field should
@@ -206,15 +197,13 @@ pub struct RouterDesc {
 
     /// `ipv6-policy` --- Exit plicy summary for IPv6
     ///
-    /// * `ipv6-policy <accept/reject> PortList`
-    /// * At most once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:ipv6-policy>
     #[deftly(netdoc(default(skip)))]
     pub ipv6_policy: Intern<PortPolicy>,
 
     /// `overload-general` --- Relay is overloaded.
     ///
-    /// * `overload-general 1 <time>`
-    /// * At most once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
     // TODO in OverloadGeneral use ConstantString (from !3985) for version
     pub overload_general: Option<OverloadGeneral>,
 
@@ -225,23 +214,18 @@ pub struct RouterDesc {
 
     /// `family` --- Group relays for the purpose of path selection.
     ///
-    /// * `family <LongIdent> ...`
-    /// * One or more `LongIdent` arguments.
-    /// * At most once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:family>
     #[deftly(netdoc(default(skip)))]
     pub family: Intern<RelayFamily>,
 
     /// `family-cert` --- Prove membership in a relay family.
     ///
-    /// * `family-cert\n<object>`
-    /// * Any number of times.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:family-cert>
     pub family_cert: RetainedOrderVec<EmbeddedCert<Ed25519FamilyCert, KeyUnknownCert>>,
 
     /// `caches-extra-info` --- Router provides extra-info as a dirmirror.
     ///
-    /// * `caches-extra-info`
-    /// * At most once.
-    /// * No extra arguments.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#caches-extra-info>
     pub caches_extra_info: Option<ItemPresent<CachesExtraInfoToken>>,
 
     /// `extra-info-digest` --- Hash of the extra-info document.
@@ -262,15 +246,12 @@ pub struct RouterDesc {
 
     /// `tunnelled-dir-server` --- Accepts a `BEGIN_DIR` relay message.
     ///
-    /// * `tunnelled-dir-server`
-    /// * At most once.
-    /// * No extra arguments.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#tunnelled-dir-server>
     pub tunnelled_dir_server: Option<ItemPresent<TunnelledDirServerToken>>,
 
     /// `proto` --- Subprotocol capabilities supported.
     ///
-    /// * `proto <entries>`
-    /// * Exactly once.
+    /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:proto>
     pub proto: tor_protover::Protocols,
 }
 
