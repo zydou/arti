@@ -2560,9 +2560,7 @@ mod test {
         Pos, Result,
         encode::{NetdocEncodable, encode_netdoc_unsigned},
         parse2::{ErrorProblem, ParseInput, VerifyFailed},
-        types::{
-            EmbeddedCert,
-        },
+        types::EmbeddedCert,
     };
 
     /// Decode s as a multi-line base64 string, ignoring ascii whitespace.

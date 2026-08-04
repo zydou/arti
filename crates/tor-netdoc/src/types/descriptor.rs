@@ -7,7 +7,14 @@
 //! prefix because we want the type names to align with the item keyword,
 //! which is the same in both documents.
 
-use crate::{encode::NetdocEncoder, parse2::{ErrorProblem as EP, ItemArgumentParseable, SignatureHashInputs, SignatureItemParseable, UnparsedItem}, types::FixedB64};
+use crate::{
+    encode::NetdocEncoder,
+    parse2::{
+        ErrorProblem as EP, ItemArgumentParseable, SignatureHashInputs, SignatureItemParseable,
+        UnparsedItem,
+    },
+    types::FixedB64,
+};
 
 use derive_deftly::Deftly;
 
@@ -150,8 +157,7 @@ impl SignatureItemParseable for RouterSigEd25519 {
 #[derive_deftly(ItemValueEncodable)]
 #[allow(clippy::exhaustive_structs)]
 pub struct RouterSignature(
-    #[deftly(netdoc(object(label = "SIGNATURE"), with = crate::types::raw_data_object))]
-    pub  Vec<u8>,
+    #[deftly(netdoc(object(label = "SIGNATURE"), with = crate::types::raw_data_object))] pub Vec<u8>,
 );
 
 impl SignatureItemParseable for RouterSignature {

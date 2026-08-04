@@ -39,13 +39,15 @@ use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::parse2::{
     ArgumentError, ErrorProblem, ItemValueParseable, SignaturesData, UnparsedItem, VerifyFailed,
 };
+use crate::types::descriptor::*;
 use crate::types::family::{RelayFamily, RelayFamilyIds};
 use crate::types::policy::*;
-use crate::types::descriptor::*;
 use crate::types::version::TorVersion;
 use crate::types::{EmbeddedCert, misc::*};
 use crate::util::PeekableIterator;
-use crate::{AllowAnnotations, Error, KeywordEncodable, NetdocErrorKind as EK, NormalItemArgument, Result};
+use crate::{
+    AllowAnnotations, Error, KeywordEncodable, NetdocErrorKind as EK, NormalItemArgument, Result,
+};
 
 use derive_deftly::Deftly;
 use ll::pk::ed25519::Ed25519Identity;
