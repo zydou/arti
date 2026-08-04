@@ -320,8 +320,8 @@ impl CircMap {
     /// Called when we have sent a DESTROY on a circuit.  Configures
     /// a "HalfCirc" object to track how many cells we get on this
     /// circuit, and to prevent us from reusing it immediately.
-    pub(super) fn destroy_sent(&mut self, id: CircId, hs: HalfCirc) {
-        if let Some(replaced) = self.m.insert(id, CircEnt::DestroySent(hs)) {
+    pub(super) fn destroy_sent(&mut self, id: CircId, hc: HalfCirc) {
+        if let Some(replaced) = self.m.insert(id, CircEnt::DestroySent(hc)) {
             if !matches!(replaced, CircEnt::DestroySent(_)) {
                 // replaced an Open/Opening entry with DestroySent
                 self.open_count = self.open_count.saturating_sub(1);
@@ -343,9 +343,6 @@ impl CircMap {
     pub(super) fn open_ent_count(&self) -> usize {
         self.open_count
     }
-
-    // TODO: Eventually if we want relay support, we'll need to support
-    // circuit IDs chosen by somebody else. But for now, we don't need those.
 }
 
 #[cfg(test)]

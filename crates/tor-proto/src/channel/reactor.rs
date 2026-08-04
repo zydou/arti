@@ -663,7 +663,7 @@ impl<R: Runtime> Reactor<R> {
             CircEnt::Opening { .. } => Err(Error::ChanProto(
                 "Relay cell on pending circuit before CREATED* received".into(),
             )),
-            CircEnt::DestroySent(hs) => hs.receive_cell(),
+            CircEnt::DestroySent(hc) => hc.receive_cell(),
         }
     }
 
