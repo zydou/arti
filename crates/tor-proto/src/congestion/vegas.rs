@@ -158,17 +158,18 @@ impl CongestionControlAlgorithm for Vegas {
         signals: CongestionSignals,
         clock_stall: ClockStall,
     ) -> Result<()> {
-        // Do not update anything if we detected a clock stall or jump, as per [CLOCK_HEURISTICS].
+        // Update the countdown until we need to update the congestion window.
+        self.num_sendme_until_cwnd_update = self.num_sendme_until_cwnd_update.saturating_sub(1);
+        // We just got a SENDME so decrement the amount of expected SENDMEs for a cwnd.
+        self.num_sendme_per_cwnd = self.num_sendme_per_cwnd.saturating_sub(1);
+
+        // Do not update anything (other than `next_cc_event` and `next_cwnd_event` counters above)
+        // if we detected a clock stall or jump, as per [CLOCK_HEURISTICS].
         if clock_stall == ClockStall::Detected {
             // Update the inflight now that we have a SENDME and return early.
             self.num_inflight = self.num_inflight.saturating_sub(self.cwnd.sendme_inc());
             return Ok(());
         }
-
-        // Update the countdown until we need to update the congestion window.
-        self.num_sendme_until_cwnd_update = self.num_sendme_until_cwnd_update.saturating_sub(1);
-        // We just got a SENDME so decrement the amount of expected SENDMEs for a cwnd.
-        self.num_sendme_per_cwnd = self.num_sendme_per_cwnd.saturating_sub(1);
 
         // From here, C-tor proceeds to update the RTT and BDP (circuit estimates). The RTT is
         // updated before this is called and so the "rtt" object is up to date with the latest. As
