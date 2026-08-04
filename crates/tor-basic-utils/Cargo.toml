@@ -27,7 +27,7 @@ slab = "0.4.7"
 smallvec = "1.10"
 thiserror = "2"
 tracing = "0.1"
-weak-table = "0.3.0"
+weak-table = "0.4.0"
 web-time-compat = { version = "0.2.0", path = "../web-time-compat" }
 
 [dev-dependencies]
