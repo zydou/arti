@@ -4,6 +4,8 @@
 //!
 //! Contrast precise summaries, in `tor-netdoc/src/types/policy/summary.rs`.
 
+#![allow(unused)] // TODO DIRAUTH
+
 use super::*;
 
 // These are very specific to this area; let's not have them in the crate prelude.
@@ -311,7 +313,7 @@ impl ResolutionState {
 /// Only implemented for IPv4.
 pub(crate) fn summarise_policy_v4_approximate(
     policy: &AddrPolicy,
-    _method: &TrackedConsensusMethod,
+    _method: SupportedConsensusMethod,
 ) -> Result<PortPolicy, Bug> {
     let mut state = ResolutionState {
         port_map: RangeInclusiveMap::new(),
@@ -380,6 +382,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use derive_deftly::Deftly;
+    use itertools::Itertools;
     use tor_netdoc::parse_testcase_from_netdoc;
     use tor_netdoc::types::policy::PortSummaryThresholds;
 
@@ -400,10 +403,6 @@ mod test {
         full: AddrPolicy,
     }
 
-    fn method_for_testing() -> TrackedConsensusMethod {
-        TrackedConsensusMethod::new(SupportedConsensusMethod::MAX)
-    }
-
     /// Run one test case where the approx summary is, in fact, precise
     ///
     /// The expected output is calculated with [`AddrPolicy::summarise_precise`]
@@ -414,7 +413,7 @@ mod test {
         let approx = summarise_policy_v4_approximate(
             //
             &case.full,
-            &method_for_testing(),
+            SupportedConsensusMethod::MAX,
         )
         .unwrap();
 
@@ -473,7 +472,7 @@ mod test {
         let approx = summarise_policy_v4_approximate(
             //
             &case.full,
-            &method_for_testing(),
+            SupportedConsensusMethod::MAX,
         )
         .unwrap();
 
