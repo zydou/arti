@@ -58,7 +58,7 @@ tor-llcrypto = { version = "0.45.0", path = "../tor-llcrypto" }
 tor-netdoc = { version = "0.45.0", path = "../tor-netdoc", features = ["full", "experimental"] }
 tor-rtcompat = { version = "0.45.0", path = "../tor-rtcompat", features = [ "tokio", "native-tls", "rustls" ] }
 tracing = "0.1.41"
-weak-table = "0.3.2"
+weak-table = "0.4.0"
 zstd = "0.13.3"
 
 [dev-dependencies]

@@ -60,7 +60,7 @@ tor-rpcbase = { path = "../tor-rpcbase", version = "0.45.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.45.0" }
 tracing = "0.1.36"
 typetag = "0.2.7"
-weak-table = "0.3.0"
+weak-table = "0.4.0"
 zeroize = "1"
 
 [dev-dependencies]
