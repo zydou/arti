@@ -41,7 +41,7 @@ use crate::parse2::{
 };
 use crate::types::family::{RelayFamily, RelayFamilyIds};
 use crate::types::policy::*;
-use crate::types::routerdesc::*;
+use crate::types::descriptor::*;
 use crate::types::version::TorVersion;
 use crate::types::{EmbeddedCert, misc::*};
 use crate::util::PeekableIterator;
