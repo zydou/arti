@@ -887,7 +887,7 @@ pub(in crate::http) mod test {
             pool,
         );
 
-        let listener = TcpListener::bind("[::]:0").await.unwrap();
+        let listener = TcpListener::bind("[::1]:0").await.unwrap();
         let local_addr = listener.local_addr().unwrap();
         let listener = TcpListenerStream::new(listener);
 
