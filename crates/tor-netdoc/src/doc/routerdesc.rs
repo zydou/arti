@@ -110,23 +110,27 @@ pub struct RouterAnnotation {
 ///
 /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html>
 #[derive(Clone, Debug, Deftly, PartialEq)]
+#[derive_deftly(Constructor)]
 #[derive_deftly(NetdocParseableUnverified, NetdocEncodable)]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_structs)]
 pub struct RouterDesc {
     /// `router` --- Introduce a router descriptor.
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router>
+    #[deftly(constructor)]
     pub router: RouterDescIntroItem,
 
     /// `identity-ed25519` --- Specify the router's ed25519 identity.
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:identity-ed25519>
+    #[deftly(constructor)]
     pub identity_ed25519: EmbeddedCert<Ed25519IdentityCert, KeyUnknownCert>,
 
     /// `master-key-ed25519` --- Redundantly specify the router's ed25519 identity.
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:master-key-ed25519>
     #[deftly(netdoc(single_arg))]
+    #[deftly(constructor)]
     pub master_key_ed25519: Ed25519Public,
 
     /// `bandwidth` --- Report router's network bandwidth.
@@ -143,6 +147,7 @@ pub struct RouterDesc {
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:published>
     #[deftly(netdoc(single_arg))]
+    #[deftly(constructor)]
     pub published: Iso8601TimeSp,
 
     /// `fingerprint` --- Redundant hash of ASN-1 encoding of router identity key.
@@ -167,16 +172,19 @@ pub struct RouterDesc {
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:ntor-onion-key>
     #[deftly(netdoc(single_arg))]
+    #[deftly(constructor)]
     pub ntor_onion_key: Curve25519Public,
 
     /// `ntor-onion-key-crosscert` --- Reverse cert by K_ntor on KP_relayid_ed
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:ntor-onion-key-crosscert>
+    #[deftly(constructor)]
     pub ntor_onion_key_crosscert: NtorOnionKeyCrossCert,
 
     /// `signing-key` --- Obsolete RSA identity key.
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:signing-key>
+    #[deftly(constructor)]
     pub signing_key: ll::pk::rsa::PublicKey,
 
     /// `accept, reject` --- Exit policy.
@@ -248,6 +256,10 @@ pub struct RouterDesc {
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:proto>
     pub proto: tor_protover::Protocols,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// Signatures of a [`RouterDesc`].
@@ -1231,6 +1243,7 @@ impl RouterDesc {
             or_address: ipv6addr,
             tunnelled_dir_server: is_dircache,
             proto,
+            __non_exhaustive: (),
         };
 
         let time_gated = timed::TimeRangeBound::new(desc, start_time..expiry);
@@ -1736,6 +1749,7 @@ mod test {
         let expired = expiration + Duration::from_secs(60 * 60 * 24);
 
         // Very boilerplatey construction of a router descriptor.
+        // TODO: Probably best to use constructor logic here.
         let mut rd = RouterDesc {
             router: RouterDescIntroItem {
                 nickname: "foo".parse().unwrap(),
@@ -1784,6 +1798,7 @@ mod test {
             or_address: Default::default(),
             tunnelled_dir_server: Some(Default::default()),
             proto: tor_protover::Protocols::new(),
+            __non_exhaustive: (),
         };
         let rd_original = rd.clone();
 
