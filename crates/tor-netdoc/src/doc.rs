@@ -38,4 +38,6 @@ pub mod hsdesc;
 pub mod microdesc;
 pub mod netstatus;
 
+#[cfg(feature = "incomplete")]
+pub mod extra_info;
 pub mod routerdesc;
