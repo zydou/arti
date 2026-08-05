@@ -946,5 +946,22 @@ mod test {
         ));
     }
 
-    // TODO: test with bad utf-8
+    #[test]
+    fn test_bad_utf8() {
+        let req: request::MicrodescRequest = vec![[9; 32]].into_iter().collect();
+        let faulty_utf8 = vec![0, 159, 146, 150];
+
+        let mut response_text: Vec<u8> = b"HTTP/1.0 200 OK\r\n\r\n".into();
+        response_text.extend(faulty_utf8);
+
+        let (response, _request) = run_download_test(req, &response_text);
+
+        assert!(matches!(
+            response.unwrap().into_output_string().unwrap_err(),
+            RequestFailedError {
+                error: RequestError::Utf8Encoding(_),
+                ..
+            }
+        ));
+    }
 }
