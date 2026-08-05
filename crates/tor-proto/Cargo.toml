@@ -169,7 +169,7 @@ hex-literal = "1.0"
 humantime = "2"
 itertools = "0.15.0"
 regex = { version = "1", default-features = false, features = ["std"] }
-statrs = "0.18.0"
+statrs = { version = "0.19.0", default-features = false }
 tokio-crate = { package = "tokio", version = "1.47.1", features = ["full"] }
 tor-key-forge = { path = "../tor-key-forge", version = "0.45.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.45.0", features = ["testing"] }
