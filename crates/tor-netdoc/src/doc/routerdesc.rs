@@ -1618,7 +1618,6 @@ mod test {
             .unwrap()
             .into_iter()
             .map(|rd| {
-                #[cfg(feature = "incomplete")]
                 rd.clone().verify().unwrap();
                 rd.unwrap_unverified()
             })
@@ -1713,7 +1712,6 @@ mod test {
 
     /// Test for various succeeding and failing verifications.
     #[test]
-    #[cfg(feature = "incomplete")]
     fn test_verify() {
         // Generate keys we will use later.
         let rng = &mut testing_rng();
