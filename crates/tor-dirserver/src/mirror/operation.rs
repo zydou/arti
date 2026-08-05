@@ -924,7 +924,7 @@ mod test {
         .unwrap();
         assert_eq!(state, State::FetchConsensus);
 
-        let server = TcpListener::bind("[::]:0").await.unwrap();
+        let server = TcpListener::bind("[::1]:0").await.unwrap();
         let saddr = server.local_addr().unwrap();
         tokio::spawn(async move {
             let (mut stream, _) = server.accept().await.unwrap();
@@ -984,7 +984,7 @@ mod test {
             State::AuthCerts
         );
 
-        let server = TcpListener::bind("[::]:0").await.unwrap();
+        let server = TcpListener::bind("[::1]:0").await.unwrap();
         let saddr = server.local_addr().unwrap();
         tokio::spawn(async move {
             let mut buf = [0; 1024];
