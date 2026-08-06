@@ -160,6 +160,7 @@ The options I have considered are, in order of difficulty:
   2. Cross-circuit ("global") DNS cache (like C Tor)
   3. Per-circuit cache, no cross-circuit sharing
   4. Per-circuit cache + DNS preload cache
+  5. Per-circuit cache + global cache for popular domains w/ auto-refresh
 
 ### Option 1: No DNS caching in arti-relay
 
@@ -225,7 +226,7 @@ be getting from caching).
 
 -----
 
-On the [nothing to hide] blog, there's an interesting potential mitigation:
+On the [nothing to hide] blog, there's another interesting potential mitigation:
 
 > From the moment a domain is looked up once, the domain will be continuously
 > refreshed close to the end of their respective TTL cycle (ideally with a
@@ -234,9 +235,7 @@ On the [nothing to hide] blog, there's an interesting potential mitigation:
 > If a domain’s record has not been requested for the retention period, it gets
 > purged from the cache to not let it linger around indefinitely.
 
-But this could easily turn into a memory DoS vector, because an
-attacker could just filling up our cache with junk entries,
-or cause it to grow indefinitely. This doesn't seem trivial to solve.
+"Option 5" below is a variation of this idea.
 
 
 ### Option 3: per-circuit cache, no cross-circuit sharing
@@ -264,13 +263,53 @@ Pros:
     than option 3
 
 Cons:
-  * out of all options, this is the mostly costly to implement and maintain
+  * more costly to implement and maintain than the previous options
   * we would need to trust the organization/entity that generates
     the domain list
   * it is unclear who would be generating and maintaining the *extended* domain
     list (I suspect it would be the Network Health team,
     which makes this option a cross-team effort,
     which comes with additional operational and communication overhead)
+
+### Option 5: Per-circuit cache + global cache for popular domains
+
+This idea was [proposed by Mike][popularity-counters-with-auto-ref],
+and is essentially a combination of [nothing to hide]s auto-refresh idea
+mentioned above and the popularity counter idea from [tor#32678].
+Mike also suggests combining this with the probabilistic caching ideas
+from [tor#40674][TROVE-2021-009].
+
+I propose we implement a somewhat simplified version of this
+(credit goes to David for the TTL-based counter reset idea):
+
+  * all lookups are cached in a global cache;
+  * in addition to the response and associated TTL, each cache entry has a
+    popularity counter
+  * when a domain is looked up, its popularity counter is incremented by 1.
+    The domain becomes "popular" if its popularity counter has reached
+    the "popularity threshold" (this threshold would be sampled from
+    a configurable `[min, max]` range)
+  * unpopular items are removed from the cache as soon as their TTL expires
+  * unpopular items are *never* served from the cache
+  * each time a domain's TTL expires, its popularity counter is reset to 0.
+    This applies to all domains, regardless of popularity
+  * popular domains are given a long retention period (7-30 days),
+    during which they are continually refreshed by a background task
+    (they are refetched when their TTL is due to expire),
+    and are only purged from the cache if they become unpopular again.
+    A domain becomes unpopular if its popularity counter is below
+    the popularity threshold when its retention period elapses
+  * when we receive a lookup request, we will only serve the response from the
+    global cache if the lookup is for a popular domain.
+    Otherwise, if the domain is unpopular, we will perform the lookup again,
+    and update its entry with the new TTL
+
+Pros:
+  * maybe(?) mitigates the timeless side-channel;
+    concerns about the lack of false positives for unpopular domains
+
+Cons:
+  * complex implementation
 
 ----
 
@@ -651,6 +690,7 @@ Tentative plan:
 [!1997]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1997#note_2998981
 [tor#40942]: https://gitlab.torproject.org/tpo/core/tor/-/work_items/40942
 [tor#21989]: https://gitlab.torproject.org/tpo/core/tor/-/work_items/21989
+[tor#32678]: https://gitlab.torproject.org/tpo/core/tor/-/work_items/32678
 ["timeless timing attacks"]: https://www.usenix.org/conference/usenixsecurity23/presentation/dahlberg
 ["DefecTor"]: https://nymity.ch/tor-dns/tor-dns.pdf
 [TROVE-2021-009]: https://gitlab.torproject.org/tpo/core/tor/-/work_items/40674
@@ -660,3 +700,4 @@ Tentative plan:
 [prop-219]: https://spec.torproject.org/proposals/219-expanded-dns.html
 [exit-guide]: https://community.torproject.org/relay/setup/exit/
 [`recurse`]: https://github.com/hickory-dns/hickory-dns/blob/f1258042ad358273d7e6cabc0ebdd7fce8b7df69/util/src/bin/recurse.rs#L51-L98
+[popularity-counters-with-auto-ref]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4259#note_3444513
