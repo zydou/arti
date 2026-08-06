@@ -1097,7 +1097,7 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
 /// Existence of this value implies exclusive access to the instance.
 ///
 /// If you need to manage the lock, and the directory path, separately,
-/// [`raw_lock_guard`](ContainsInstanceStateGuard::raw_lock_guard)
+/// [`raw_lock_guard`](ContainsInstanceStateGuard::raw_lock_guard)
 ///  will help.
 #[derive(Deref, Clone, Debug, Deftly)]
 #[derive_deftly(ContainsInstanceStateGuard)]

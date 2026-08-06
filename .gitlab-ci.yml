@@ -29,7 +29,7 @@ variables:
   FF_TIMESTAMPS: "true"
   # Pinned CI image for most Rust tests
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  RECENT_RUST_IMAGE: "docker.io/amd64/rust:1.96.0-trixie"
+  RECENT_RUST_IMAGE: "docker.io/amd64/rust:1.97.1-trixie"
   # Profile to use when building the arti bins that we use for integration tests.
   # When changing this, also update ARTI_CI_PROFILE_PATH, below.
   ARTI_CI_PROFILE: quicktest
@@ -100,7 +100,7 @@ default:
 check-editorconfig:
   needs: []
   stage: build
-  image: docker.io/mstruebing/editorconfig-checker:v3.6.1
+  image: docker.io/mstruebing/editorconfig-checker:v3.9.0
   script:
     - ec
 
@@ -412,9 +412,7 @@ rust-clippy-nontest:
 rust-nightly:
   needs: []
   stage: test
-  # Temporarily pinned; see arti#2618.
-  #image: docker.io/rustlang/rust:nightly
-  image: rustlang/rust:nightly-2026-06-28
+  image: docker.io/rustlang/rust:nightly
 
   # In case there is a bug in rust:nightly, you can instead pin an older
   # version of the Docker image until that bug is fixed.  To find the
@@ -447,9 +445,11 @@ rust-nightly:
 check-api-surface:
   needs: []
   stage: test
-  # Temporarily pinned; see arti#2618.
-  #image: docker.io/rustlang/rust:nightly
-  image: rustlang/rust:nightly-2026-06-28
+  image: docker.io/rustlang/rust:nightly
+
+  # In case there is a bug in rust:nightly, you can instead pin an older
+  # version of the Docker image until that bug is fixed.
+  # See the 'rust-nightly' test for details.
 
   script:
     - maint/common/apt-install jq
@@ -529,8 +529,8 @@ cargo-miri:
   #  1. choose a new Nightly version, for example according to these instructions
   #      https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/blob/main/macros/HACKING.md?ref_type=heads#choose-which-nightly-rust-version-to-update-to
   #  2. insert the new image hash, and corresponding nightly date, above
-  image: rustlang/rust@sha256:26897f428c9e97bba6a734473115608461f3f01cb9ce7ed4c4b568ac83c769a1
-  # ^ this is from tags.2025-10-24T13:08+00:00.gz (see HACKING.md)
+  image: rustlang/rust@sha256:1e95f3ca6d6d55e4561d7863be0953db7424613cef6710b90e5eb6b6476f5f06
+  # ^ this is from tags.2026-08-04T13:08+00:00.gz (see HACKING.md)
   script:
     - rustup component add miri
     # TOOD use miri test more of our crates-containing-unsafe
@@ -578,7 +578,7 @@ minimal-versions:
     TARGET: UNDEFINED--BUG-IN-CI-YAML
   # If you upgrade this image, also change the one in maint/docker-reproducible-build.
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: docker.io/amd64/rust:1.96.0-alpine3.23
+  image: docker.io/amd64/rust:1.97.1-alpine3.24
   script:
     - apk add bash
     - ./maint/reproducible-build $TARGET
