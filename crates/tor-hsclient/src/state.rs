@@ -21,6 +21,7 @@ use tor_circmgr::isolation::Isolation;
 use tor_error::{Bug, ErrorReport as _, debug_report, error_report, internal};
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDir;
+use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::{Runtime, SpawnExt as _};
 use web_time_compat::{Duration, Instant};
 
@@ -193,9 +194,9 @@ enum ServiceState<D: MockableConnectorData> {
         /// We have a task that will close the circuit when required
         ///
         /// This field serves to require construction sites of Open
-        /// to demonstrate that there *is* an expiry task.
-        /// In the future, it may also serve to cancel old expiry tasks.
-        circuit_expiry_task: CircuitExpiryTask,
+        /// to demonstrate that there *is* an expiry task. It also serves
+        /// to cancel old expiry tasks.
+        circuit_expiry_task: TaskHandle,
     },
     /// We have a task trying to find the service and establish the circuit
     ///
@@ -224,18 +225,6 @@ impl<D: MockableConnectorData> ServiceState<D> {
 
 /// "Continuation" return type from `obtain_circuit_or_continuation_info`
 type Continuation = (Arc<Mutex<Option<ConnError>>>, postage::barrier::Receiver);
-
-/// Represents a task which is waiting to see when the circuit needs to be expired
-///
-/// TODO: Replace this with a task handle that cancels the task when dropped.
-/// Until then, if the circuit is closed before then, the expiry task will
-/// uselessly wake up some time later.
-#[derive(Debug)] // Not Clone
-struct CircuitExpiryTask {}
-// impl Drop already, partly to allow explicit drop(CircuitExpiryTask) without clippy complaint
-impl Drop for CircuitExpiryTask {
-    fn drop(&mut self) {}
-}
 
 /// Obtain a circuit from the `Services` table, or return a continuation
 ///
@@ -636,7 +625,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
         table_index: TableIndex,
         last_used: Instant,
         now: Instant,
-    ) -> Result<CircuitExpiryTask, SpawnError> {
+    ) -> Result<TaskHandle, SpawnError> {
         /// Returns the duration until expiry, or `None` if it should expire now
         fn calculate_expiry_wait(last_used: Instant, now: Instant) -> Option<Duration> {
             let expiry = last_used
@@ -653,6 +642,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
         }
 
         let mut maybe_wait = calculate_expiry_wait(last_used, now);
+        let (mut schedule, handle) = TaskSchedule::new(connector.runtime.clone());
         let () = connector.runtime.spawn({
             let connector = connector.clone();
             async move {
@@ -661,7 +651,10 @@ impl<D: MockableConnectorData> ServiceState<D> {
                 // or jumping into the middle of the loop.
                 loop {
                     if let Some(yes_wait) = maybe_wait {
-                        connector.runtime.sleep(yes_wait).await;
+                        if schedule.sleep(yes_wait).await.is_err() {
+                            // the circuit expiry task has already been canceled
+                            break;
+                        }
                     }
                     // If it's None, we can't rely on that to say we should expire it,
                     // since that information crossed a time when we didn't hold the lock.
@@ -690,7 +683,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
                             } => {
                                 debug!("HS connection expires: {hsid:?}");
                                 drop(circuit);
-                                drop(circuit_expiry_task); // that's us
+                                circuit_expiry_task.cancel();
                                 *state = ServiceState::Closed { data, last_used };
                                 break;
                             }
@@ -700,7 +693,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
                 }
             }
         })?;
-        Ok(CircuitExpiryTask {})
+        Ok(handle)
     }
 }
 

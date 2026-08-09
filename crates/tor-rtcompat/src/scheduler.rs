@@ -71,7 +71,7 @@ pub struct TaskSchedule<R: SleepProvider> {
 ///
 /// When the final handle is dropped, the computation governed by the
 /// `TaskSchedule` should terminate.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TaskHandle {
     /// Sender of scheduler commands to the corresponding schedule.
     tx: UnboundedSender<SchedulerCommand>,
