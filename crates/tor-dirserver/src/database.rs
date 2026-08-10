@@ -965,6 +965,8 @@ mod test {
     use tor_dircommon::config::DirToleranceBuilder;
     use tor_llcrypto::pk::rsa::RsaIdentity;
 
+    use crate::testdata2;
+
     use super::*;
 
     lazy_static! {
@@ -1500,9 +1502,14 @@ mod test {
         }
     }
 
+    /// Tests whether consensuses are queried properly from the database given
+    /// a pre-defined data.
+    ///
+    /// It also tests various constraints and edge-cases, including the use of
+    /// tolerances.
     #[test]
     fn recent_consensus() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let no_tolerance = DirToleranceBuilder::default()
             .pre_valid_tolerance(Duration::ZERO)
             .post_valid_tolerance(Duration::ZERO)
@@ -1514,6 +1521,10 @@ mod test {
             .build()
             .unwrap();
 
+        let docid = Sha256::digest(testdata2::current_consensus_ns().1.as_bytes());
+        let lifetime = testdata2::current_consensus_ns().0.preamble.lifetime;
+        let unsigned_sha3_256 = testdata2::consensus_sha3(testdata2::current_consensus_ns().1);
+
         read_tx(&pool, move |tx| {
             // Get None by being way before valid-after.
             assert!(
@@ -1521,7 +1532,7 @@ mod test {
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    SystemTime::UNIX_EPOCH.into(),
+                    (lifetime.valid_after.0 - Duration::from_secs(60 * 60 * 24 * 365)).into()
                 )
                 .unwrap()
                 .is_none()
@@ -1533,7 +1544,7 @@ mod test {
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    *VALID_UNTIL + Duration::from_secs(60 * 60 * 24 * 365),
+                    (lifetime.valid_until.0 + Duration::from_secs(60 * 60 * 24 * 365)).into(),
                 )
                 .unwrap()
                 .is_none()
@@ -1545,7 +1556,7 @@ mod test {
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    *VALID_AFTER - Duration::from_secs(1),
+                    (lifetime.valid_after.0 - Duration::from_secs(1)).into(),
                 )
                 .unwrap()
                 .is_none()
@@ -1557,7 +1568,7 @@ mod test {
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    *VALID_UNTIL + Duration::from_secs(1),
+                    (lifetime.valid_until.0 + Duration::from_secs(1)).into(),
                 )
                 .unwrap()
                 .is_none()
@@ -1568,7 +1579,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                *VALID_AFTER,
+                lifetime.valid_after.0.into(),
             )
             .unwrap()
             .unwrap();
@@ -1576,7 +1587,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                *VALID_UNTIL,
+                lifetime.valid_until.0.into(),
             )
             .unwrap()
             .unwrap();
@@ -1584,19 +1595,19 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                *VALID_AFTER + Duration::from_secs(60 * 30),
+                testdata2::valid_system_time().into(),
             )
             .unwrap()
             .unwrap();
             assert_eq!(
                 res1,
                 ConsensusMeta {
-                    docid: *CONSENSUS_DOCID,
-                    unsigned_sha3_256: Sha3_256::from([0; 32]),
+                    docid,
+                    unsigned_sha3_256,
                     flavor: ConsensusFlavor::Plain,
-                    valid_after: *VALID_AFTER,
-                    fresh_until: *FRESH_UNTIL,
-                    valid_until: *VALID_UNTIL,
+                    valid_after: lifetime.valid_after.0.into(),
+                    fresh_until: lifetime.fresh_until.0.into(),
+                    valid_until: lifetime.valid_until.0.into(),
                 }
             );
             assert_eq!(res1, res2);
@@ -1607,7 +1618,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
-                *VALID_AFTER - Duration::from_secs(60 * 30),
+                (lifetime.valid_after.0 - Duration::from_secs(60 * 30)).into(),
             )
             .unwrap()
             .unwrap();
@@ -1615,19 +1626,19 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
-                *VALID_UNTIL + Duration::from_secs(60 * 30),
+                (lifetime.valid_until.0 + Duration::from_secs(60 * 30)).into(),
             )
             .unwrap()
             .unwrap();
             assert_eq!(
                 res1,
                 ConsensusMeta {
-                    docid: *CONSENSUS_DOCID,
-                    unsigned_sha3_256: Sha3_256::from([0; 32]),
+                    docid,
+                    unsigned_sha3_256,
                     flavor: ConsensusFlavor::Plain,
-                    valid_after: *VALID_AFTER,
-                    fresh_until: *FRESH_UNTIL,
-                    valid_until: *VALID_UNTIL,
+                    valid_after: lifetime.valid_after.0.into(),
+                    fresh_until: lifetime.fresh_until.0.into(),
+                    valid_until: lifetime.valid_until.0.into(),
                 }
             );
             assert_eq!(res1, res2);
