@@ -633,11 +633,9 @@ impl<R: Runtime> Reactor<R> {
             return Err(Error::ChanProto("Relay cell without circuit ID".into()));
         };
 
-        let Some(mut ent) = self
-            .circs
-            .get_mut(circid) else {
-                trace!(channel_id = %self, "Relay cell for nonexistent circuit {}", circid);
-                return Ok(());
+        let Some(mut ent) = self.circs.get_mut(circid) else {
+            trace!(channel_id = %self, "Relay cell for nonexistent circuit {}", circid);
+            return Ok(());
         };
 
         match &mut *ent {
