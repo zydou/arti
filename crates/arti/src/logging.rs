@@ -9,6 +9,7 @@ use std::path::Path;
 use std::str::FromStr;
 use tor_basic_utils::PathExt as _;
 use tor_config::ConfigBuildError;
+#[cfg(feature = "opentelemetry")]
 use tor_config_shared::{OpentelemetryConfig, OpentelemetryConfigBuilder};
 use tor_config::derive::prelude::*;
 use tor_config_path::{CfgPath, CfgPathResolver};
@@ -56,6 +57,7 @@ pub(crate) struct LoggingConfig {
     syslog: Option<String>,
 
     /// Configuration for logging spans with OpenTelemetry.
+    #[cfg(feature = "opentelemetry")]
     #[deftly(tor_config(
         sub_builder,
         cfg = r#" feature = "opentelemetry" "#,
