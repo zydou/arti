@@ -743,120 +743,16 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::time::{Duration, SystemTime};
-
-    use rusqlite::{named_params, params};
+    use rusqlite::params;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
     };
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_netdoc::parse2::NetdocParseableUnverified;
 
     use crate::{database::sql, testdata2};
 
     use super::*;
-
-    fn create_dummy_db() -> Pool<SqliteConnectionManager> {
-        let pool = db::open("").unwrap();
-
-        let mut conn = pool.get().unwrap();
-        let tx = conn.transaction().unwrap();
-
-        let cons_docid = db::store_insert(
-            &tx,
-            include_bytes!("../../testdata/consensus-ns"),
-            std::iter::empty(),
-        )
-        .unwrap();
-        let ns1_docid = db::store_insert(
-            &tx,
-            include_bytes!("../../testdata/descriptor1-ns"),
-            std::iter::empty(),
-        )
-        .unwrap();
-        let extra1_docid = db::store_insert(
-            &tx,
-            include_bytes!("../../testdata/descriptor1-extra-info"),
-            std::iter::empty(),
-        )
-        .unwrap();
-
-        tx.execute(
-            sql!(
-                "
-                INSERT INTO router_extra_info (docid, unsigned_sha1, kp_relay_id_rsa_sha1)
-                VALUES
-                (:docid, :sha1, :fingerprint)
-                "
-            ),
-            named_params! {
-                ":docid": extra1_docid,
-                ":sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-extra-info-unsigned")),
-                ":fingerprint": "000004ACBB9D29BCBA17256BB35928DDBFC8ABA9"
-            },
-        )
-        .unwrap();
-        tx.execute(
-            sql!(
-                "
-                INSERT INTO router_descriptor
-                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor, extra_unsigned_sha1)
-                VALUES
-                (:docid, :sha1, :sha2, :fingerprint, 'ns', :extra)
-                "
-            ),
-            named_params! {
-                ":docid": ns1_docid,
-                ":sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
-                ":sha2": db::Sha256::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
-                ":fingerprint": "000004ACBB9D29BCBA17256BB35928DDBFC8ABA9",
-                ":extra": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-extra-info-unsigned")),
-            },
-        )
-        .unwrap();
-
-        tx.execute(
-            sql!(
-                "
-                INSERT INTO consensus
-                (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
-                VALUES
-                (:docid, :sha3, 'ns', :valid_after, :fresh_until, :valid_until)
-                "
-            ),
-            named_params! {
-                ":docid": cons_docid,
-                ":sha3": "0000000000000000000000000000000000000000000000000000000000000000",
-                ":valid_after": 1769698800,
-                ":fresh_until": 1769702400,
-                ":valid_until": 1769709600,
-            },
-        )
-        .unwrap();
-
-        tx.execute(
-            sql!(
-                "
-                INSERT INTO consensus_router_descriptor_member
-                (consensus_docid, unsigned_sha1, unsigned_sha2)
-                VALUES
-                (:cons_docid, :ns1_sha1, NULL),
-                (:cons_docid, :ns2_sha1, NULL)
-                "
-            ),
-            named_params! {
-                ":cons_docid": cons_docid,
-                ":ns1_sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
-                ":ns2_sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor2-ns-unsigned")),
-            },
-        )
-        .unwrap();
-
-        tx.commit().unwrap();
-
-        pool
-    }
 
     /// Tests whether the load consensus state computes missing descriptors
     /// properly.
