@@ -1104,30 +1104,22 @@ pub(crate) mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
 
-            // shouldn't get created2 cells for nonexistent circuits
+            // Created2 cells for nonexistent circuits are dropped
             let created2_cell = msg::Created2::new(*b"hihi").into();
             input
                 .send(Ok(AnyChanCell::new(CircId::new(7), created2_cell)))
                 .await
                 .unwrap();
 
-            let e = reactor.run_once().await.unwrap_err().unwrap_err();
-            assert_eq!(
-                format!("{}", e),
-                "Channel protocol violation: Unexpected CREATED* cell not on opening circuit"
-            );
+            reactor.run_once().await.unwrap();
 
-            // Can't get a relay cell on a circuit we've never heard of.
+            // Relay cells on a circuit we've never heard of are dropped
             let relay_cell = msg::Relay::new(b"abc").into();
             input
                 .send(Ok(AnyChanCell::new(CircId::new(4), relay_cell)))
                 .await
                 .unwrap();
-            let e = reactor.run_once().await.unwrap_err().unwrap_err();
-            assert_eq!(
-                format!("{}", e),
-                "Channel protocol violation: Relay cell on nonexistent circuit"
-            );
+            reactor.run_once().await.unwrap();
 
             // There used to be tests here for other types, but now that we only
             // accept OpenClientChanCell, we know that the codec can't even try
@@ -1194,16 +1186,12 @@ pub(crate) mod test {
                 "Channel protocol violation: Relay cell on pending circuit before CREATED* received"
             );
 
-            // If a relay cell is sent on a non-existent circuit, that's an error.
+            // If a relay cell is sent on a non-existent circuit, it will be dropped.
             input
                 .send(Ok(AnyChanCell::new(CircId::new(101), relaycell.clone())))
                 .await
                 .unwrap();
-            let e = reactor.run_once().await.unwrap_err().unwrap_err();
-            assert_eq!(
-                format!("{}", e),
-                "Channel protocol violation: Relay cell on nonexistent circuit"
-            );
+            reactor.run_once().await.unwrap();
 
             // It's fine to get a relay cell on a DestroySent channel: that happens
             // when the other side hasn't noticed the Destroy yet.
@@ -1294,16 +1282,12 @@ pub(crate) mod test {
                 .unwrap();
             reactor.run_once().await.unwrap();
 
-            // Destroying a nonexistent circuit is an error.
+            // Destroying a nonexistent circuit is not an error (the DESTROY is dropped).
             input
                 .send(Ok(AnyChanCell::new(CircId::new(101), destroycell.clone())))
                 .await
                 .unwrap();
-            let e = reactor.run_once().await.unwrap_err().unwrap_err();
-            assert_eq!(
-                format!("{}", e),
-                "Channel protocol violation: Destroy for nonexistent circuit"
-            );
+            reactor.run_once().await.unwrap();
         });
     }
 
