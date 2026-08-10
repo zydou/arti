@@ -1646,21 +1646,39 @@ mod test {
         .unwrap();
     }
 
+    /// Tests whether the timeout computation lies within the proper interval.
+    ///
+    /// Because this involves randomness, it performs the test several thousand
+    /// times.  This should be okay performance wise, as it takes about ~250ms
+    /// with a debug build on my machine.
     #[test]
     fn sync_timeout() {
         // We repeat the tests a few thousand times to go over many random values.
+        let docid = Sha256::digest(testdata2::current_consensus_ns().1.as_bytes());
+        let lifetime = testdata2::current_consensus_ns().0.preamble.lifetime;
+        let unsigned_sha3_256 = testdata2::consensus_sha3(testdata2::current_consensus_ns().1);
         let cons = ConsensusMeta {
-            docid: *CONSENSUS_DOCID,
-            unsigned_sha3_256: Sha3_256::from([0; 32]),
+            docid,
+            unsigned_sha3_256,
             flavor: ConsensusFlavor::Plain,
-            valid_after: *VALID_AFTER,
-            fresh_until: *FRESH_UNTIL,
-            valid_until: *VALID_UNTIL,
+            valid_after: lifetime.valid_after.0.into(),
+            fresh_until: lifetime.fresh_until.0.into(),
+            valid_until: lifetime.valid_until.0.into(),
         };
         for _ in 0..10000 {
             let when = cons.lifetime(&mut testing_rng());
-            assert!(when >= *FRESH_UNTIL);
-            assert!(when <= *FRESH_UNTIL_HALF);
+            assert!(when >= lifetime.fresh_until.0.into());
+            // Computes the half between fresh_until and valid_until.
+            assert!(
+                when <= (lifetime.fresh_until.0
+                    + (lifetime
+                        .valid_until
+                        .0
+                        .duration_since(lifetime.fresh_until.0)
+                        .unwrap()
+                        / 2))
+                    .into()
+            );
         }
     }
 
