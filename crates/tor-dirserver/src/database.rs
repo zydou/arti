@@ -1650,9 +1650,11 @@ mod test {
             .iter()
             .map(|x| Sha1::from(x.1.hashes.sha1.unwrap()))
             .collect::<HashSet<_>>();
-        assert!(missing_servers
-            .iter()
-            .all(|sha1| all_descriptors.contains(sha1)));
+        assert!(
+            missing_servers
+                .iter()
+                .all(|sha1| all_descriptors.contains(sha1))
+        );
     }
 
     /// Tests whether the missing extra-info documents are computed properly.
@@ -1754,8 +1756,10 @@ mod test {
             .iter()
             .map(|x| Sha256::digest(x.1.as_bytes()))
             .collect::<HashSet<_>>();
-        assert!(missing_micros
-            .iter()
-            .all(|sha2| all_descriptors.contains(sha2)));
+        assert!(
+            missing_micros
+                .iter()
+                .all(|sha2| all_descriptors.contains(sha2))
+        );
     }
 }

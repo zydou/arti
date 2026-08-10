@@ -772,8 +772,20 @@ mod test {
         };
 
         let time: Timestamp = testdata2::valid_system_time().into();
-        let fresh_until: Timestamp = testdata2::current_consensus_ns().0.preamble.lifetime.fresh_until.0.into();
-        let valid_until: Timestamp = testdata2::current_consensus_ns().0.preamble.lifetime.valid_until.0.into();
+        let fresh_until: Timestamp = testdata2::current_consensus_ns()
+            .0
+            .preamble
+            .lifetime
+            .fresh_until
+            .0
+            .into();
+        let valid_until: Timestamp = testdata2::current_consensus_ns()
+            .0
+            .preamble
+            .lifetime
+            .valid_until
+            .0
+            .into();
         // This is the middle of valid_until and fresh_until.
         let fresh_until_half = fresh_until + ((valid_until - fresh_until) / 2);
 
@@ -785,7 +797,7 @@ mod test {
             .unwrap()
             .execute(
                 sql!("DELETE FROM router_descriptor WHERE unsigned_sha1 = ?1"),
-                params![relay_to_remove]
+                params![relay_to_remove],
             )
             .unwrap();
 
@@ -877,11 +889,8 @@ mod test {
         let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::Unverified {
             consensus: FlavoredConsensusSigned::Plain(
-                parse2::parse_netdoc(&ParseInput::new(
-                    testdata2::current_consensus_ns().1,
-                    "",
-                ))
-                .unwrap(),
+                parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().1, ""))
+                    .unwrap(),
             ),
             raw: testdata2::current_consensus_ns().1.to_owned(),
         };
@@ -964,11 +973,8 @@ mod test {
             AuthCertMeta::query_recent(
                 tx,
                 &FlavoredConsensusSigned::Plain(
-                    parse2::parse_netdoc(&ParseInput::new(
-                        testdata2::current_consensus_ns().1,
-                        "",
-                    ))
-                    .unwrap(),
+                    parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().1, ""))
+                        .unwrap(),
                 )
                 .signatories(),
                 &DirTolerance::default(),
