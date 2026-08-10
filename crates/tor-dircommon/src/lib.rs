@@ -51,3 +51,6 @@ pub mod authority;
 pub mod config;
 pub mod fallback;
 pub mod retry;
+
+#[cfg(feature = "dir-plugin-backend")]
+pub mod dir_plugin_backend;
