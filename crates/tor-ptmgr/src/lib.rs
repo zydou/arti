@@ -217,6 +217,10 @@ impl<R: Runtime> PtMgr<R> {
         }
         // We don't have any way of propagating this sanely; the caller will find out the reactor
         // has died later on anyway.
+        // TODO(#2634):
+        // PT reactor doesn't appear to update its running list when Reconfigured.
+        // Change logic in PtReactor::run_one_step(...)
+        // to update the running list upon receiving a reconfigured message.
         #[cfg(feature = "managed-pts")]
         let _ = self.tx.unbounded_send(PtReactorMessage::Reconfigured);
         Ok(())
