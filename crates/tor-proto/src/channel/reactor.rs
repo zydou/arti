@@ -633,10 +633,12 @@ impl<R: Runtime> Reactor<R> {
             return Err(Error::ChanProto("Relay cell without circuit ID".into()));
         };
 
-        let mut ent = self
+        let Some(mut ent) = self
             .circs
-            .get_mut(circid)
-            .ok_or_else(|| Error::ChanProto("Relay cell on nonexistent circuit".into()))?;
+            .get_mut(circid) else {
+                trace!(channel_id = %self, "Relay cell for nonexistent circuit {}", circid);
+                return Ok(());
+        };
 
         match &mut *ent {
             CircEnt::OpenOrigin { cell_sender: s, .. } => {
@@ -806,7 +808,7 @@ impl<R: Runtime> Reactor<R> {
             // Got a DESTROY cell for a circuit we don't have.
             None => {
                 trace!(channel_id = %self, "Destroy for nonexistent circuit {}", circid);
-                Err(Error::ChanProto("Destroy for nonexistent circuit".into()))
+                Ok(())
             }
         }
     }
