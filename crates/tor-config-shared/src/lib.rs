@@ -1,3 +1,5 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![doc = include_str!("../README.md")]
 // @@ begin lint list maintained by maint/add_warning @@
 #![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
 #![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
