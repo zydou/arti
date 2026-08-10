@@ -782,6 +782,7 @@ mod test {
     use crate::channel::test_utils;
     use crate::circuit::CircParameters;
 
+    /// Test the CREATE_FAST handshake.
     #[test]
     fn create_fast() {
         test_with_one_runtime!(|rt| async move {
@@ -799,6 +800,7 @@ mod test {
                 .await
                 .unwrap();
 
+            // Client sent a CREATE_FAST, relay responded with a CREATED_FAST.
             assert_eq!(
                 conn_inspector.try_client_cell().unwrap().msg().cmd(),
                 ChanCmd::CREATE_FAST,
@@ -819,6 +821,8 @@ mod test {
         });
     }
 
+    /// Test the client with the "Relay=1" subprotocol (corresponds to the TAP handshake),
+    /// which Arti doesn't support.
     #[test]
     fn tap() {
         test_with_one_runtime!(|rt| async move {
@@ -856,6 +860,7 @@ mod test {
         });
     }
 
+    /// Test the CREATE2 ntor handshake.
     #[test]
     fn ntor() {
         test_with_one_runtime!(|rt| async move {
@@ -883,7 +888,7 @@ mod test {
                 let client_cell = conn_inspector.try_client_cell().unwrap().msg().clone();
                 let relay_cell = conn_inspector.try_relay_cell().unwrap().msg().clone();
 
-                // Check that we got CREATE2 and CREATED2.
+                // Client sent a CREATE2, relay responded with a CREATED2.
                 assert_eq!(client_cell.cmd(), ChanCmd::CREATE2);
                 assert_eq!(relay_cell.cmd(), ChanCmd::CREATED2);
 
@@ -905,6 +910,7 @@ mod test {
         });
     }
 
+    /// Test the CREATE2 ntor-v3 handshake.
     #[test]
     fn ntor_v3() {
         test_with_one_runtime!(|rt| async move {
@@ -933,7 +939,7 @@ mod test {
                 let client_cell = conn_inspector.try_client_cell().unwrap().msg().clone();
                 let relay_cell = conn_inspector.try_relay_cell().unwrap().msg().clone();
 
-                // Check that we got CREATE2 and CREATED2.
+                // Client sent a CREATE2, relay responded with a CREATED2.
                 assert_eq!(client_cell.cmd(), ChanCmd::CREATE2);
                 assert_eq!(relay_cell.cmd(), ChanCmd::CREATED2);
 
