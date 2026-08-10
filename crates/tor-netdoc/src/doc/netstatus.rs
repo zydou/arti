@@ -178,7 +178,7 @@ pub struct IgnoredPublicationTimeSp;
 /// consensus.
 ///
 /// Aggregate of three netdoc preamble fields.
-#[derive(Clone, Debug, Deftly)]
+#[derive(Clone, Debug, PartialEq, Eq, Deftly)]
 #[derive_deftly(Constructor, NetdocEncodableFields, NetdocParseableFields)]
 #[derive_deftly(Lifetime)]
 #[allow(clippy::exhaustive_structs)]
