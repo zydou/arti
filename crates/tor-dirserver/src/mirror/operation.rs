@@ -972,31 +972,52 @@ mod test {
         }
     }
 
+    /// Tests the download, verification, and insertion of authority certificates.
+    ///
+    /// For this, it starts by removing an existing one from the test database
+    /// to see it getting re-downloaded, re-verified, and re-inserted again.
     #[tokio::test]
     async fn state_auth_certs() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::Unverified {
             consensus: FlavoredConsensusSigned::Plain(
                 parse2::parse_netdoc(&ParseInput::new(
-                    include_str!("../../testdata/consensus-ns"),
+                    testdata2::current_consensus_ns().1,
                     "",
                 ))
                 .unwrap(),
             ),
-            raw: include_str!("../../testdata/consensus-ns").to_owned(),
+            raw: testdata2::current_consensus_ns().1.to_owned(),
         };
         let engine = StaticEngine {
             flavor: ConsensusFlavor::Plain,
-            authorities: AuthorityContacts::default(),
+            authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
         };
+
+        // We want to download authority certificates; for this, remove
+        // one of them from the database.
+        pool.get()
+            .unwrap()
+            .execute(
+                sql!(
+                    "
+                    DELETE FROM authority_key_certificate
+                    WHERE :kp_auth_id_rsa_sha1 = ?1
+                    "
+                ),
+                params![db::Sha1::from(
+                    testdata2::current_auth_cert_ids()[0].to_bytes()
+                )],
+            )
+            .unwrap();
 
         assert_eq!(
             db::read_tx(&pool, |tx| engine.determine_state(
                 tx,
                 &data,
-                SystemTime::UNIX_EPOCH.into()
+                testdata2::valid_system_time().into()
             ))
             .unwrap()
             .unwrap(),
@@ -1010,7 +1031,10 @@ mod test {
             let (mut stream, _) = server.accept().await.unwrap();
             let _ = stream.read(&mut buf).await.unwrap();
 
-            let authcerts = include_str!("../../testdata/authcert-all");
+            let authcerts = testdata2::current_auth_certs()
+                .into_iter()
+                .map(|x| x.1)
+                .collect::<String>();
 
             stream.write_all(format!(
                 "HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: {}\r\n\r\n{authcerts}",
@@ -1024,7 +1048,7 @@ mod test {
                 &pool,
                 &mut data,
                 &[saddr],
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+                testdata2::valid_system_time().into(),
             )
             .await
             .unwrap();
@@ -1034,7 +1058,7 @@ mod test {
             db::read_tx(&pool, |tx| engine.determine_state(
                 tx,
                 &data,
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+                testdata2::valid_system_time().into(),
             ))
             .unwrap()
             .unwrap(),
@@ -1045,14 +1069,14 @@ mod test {
                 tx,
                 &FlavoredConsensusSigned::Plain(
                     parse2::parse_netdoc(&ParseInput::new(
-                        include_str!("../../testdata/consensus-ns"),
+                        testdata2::current_consensus_ns().1,
                         "",
                     ))
                     .unwrap(),
                 )
                 .signatories(),
                 &DirTolerance::default(),
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+                testdata2::valid_system_time().into(),
             )
         })
         .unwrap()
