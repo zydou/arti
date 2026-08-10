@@ -7145,6 +7145,7 @@ dependencies = [
  "amplify",
  "derive-deftly",
  "humantime-serde",
+ "opentelemetry-otlp",
  "opentelemetry_sdk",
  "serde",
  "tor-config",

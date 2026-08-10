@@ -19,9 +19,13 @@ use std::sync::LazyLock;
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 use tor_circmgr::{CircuitTiming, PathConfig, PreemptiveCircuitConfig};
 use tor_config::derive::prelude::*;
-use tor_config::{ConfigBuildError, ExplicitOrAuto, extend_builder::extend_with_replace, mistrust::BuilderExt};
+use tor_config::{
+    ConfigBuildError, ExplicitOrAuto, extend_builder::extend_with_replace, mistrust::BuilderExt,
+};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
-use tor_config_shared::{MetricsConfig, MetricsConfigBuilder, OpentelemetryConfig, OpentelemetryConfigBuilder};
+use tor_config_shared::{
+    MetricsConfig, MetricsConfigBuilder, OpentelemetryConfig, OpentelemetryConfigBuilder,
+};
 use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
 use tor_dircommon::fallback::FallbackList;
 use tor_guardmgr::bridge::BridgeConfig;

@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 experimental = ["opentelemetry"]
-opentelemetry = ["opentelemetry_sdk", "__is_experimental"]
+opentelemetry = ["opentelemetry_sdk", "opentelemetry-otlp", "__is_experimental"]
 
 __is_experimental = []
 
@@ -25,6 +25,7 @@ humantime-serde = "1.1.1"
 tor-config = { path = "../tor-config", version = "0.45.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.45.0" }
 opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
+opentelemetry-otlp = { version = "0.32.0", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
 
 [package.metadata.docs.rs]

@@ -1,10 +1,10 @@
 //! Configuration for OpenTelemetry exporter
 
-use tor_config::derive::prelude::*;
 use amplify::Getters;
 use derive_deftly::Deftly;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tor_config::derive::prelude::*;
 use tor_config_path::CfgPath;
 
 /// Configuration for exporting spans with OpenTelemetry.
@@ -31,12 +31,12 @@ pub struct OpentelemetryHttpExporterConfig {
     /// Configuration for how to batch exports.
     #[deftly(tor_config(sub_builder))]
     batch: OpentelemetryBatchConfig,
+    // TODO: A different approach to this may be better, as getting the default in this way
+    // prevents the use of environment variables to override this, and also is inconsistent with
+    // other aspects of configuration.
     /// Timeout for sending data.
-    ///
-    /// If this is set to [`None`], it will be left at the OpenTelemetry default, which is
-    /// currently 10 seconds unless overrided with a environment variable.
-    #[deftly(tor_config(default, serde = r#"with = "humantime_serde::option" "#))]
-    timeout: Option<Duration>,
+    #[deftly(tor_config(default = "opentelemetry_otlp::OTEL_EXPORTER_OTLP_TIMEOUT_DEFAULT"))]
+    timeout: Duration,
     // TODO: Once opentelemetry-otlp supports more than one protocol over HTTP, add a config option
     // to choose protocol here.
 }
@@ -66,8 +66,8 @@ pub struct OpentelemetryBatchConfig {
     #[deftly(tor_config(default))]
     max_export_batch_size: Option<usize>,
     /// Scheduled delay. See [`opentelemetry_sdk::trace::BatchConfig::scheduled_delay`].
-    #[deftly(tor_config(default, serde = r#"with = "humantime_serde::option" "#))]
-    scheduled_delay: Option<Duration>,
+    #[deftly(tor_config(default = "Duration::from_secs(5)"))]
+    scheduled_delay: Duration,
 }
 
 #[cfg(feature = "opentelemetry")]
@@ -87,11 +87,7 @@ impl From<OpentelemetryBatchConfig> for opentelemetry_sdk::trace::BatchConfig {
             batch_config
         };
 
-        let batch_config = if let Some(scheduled_delay) = config.scheduled_delay {
-            batch_config.with_scheduled_delay(scheduled_delay)
-        } else {
-            batch_config
-        };
+        let batch_config = batch_config.with_scheduled_delay(config.scheduled_delay);
 
         batch_config.build()
     }

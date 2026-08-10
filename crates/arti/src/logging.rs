@@ -303,15 +303,9 @@ where
         }
         let exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
-            .with_endpoint(otel_http_config.endpoint().clone());
-
-        let exporter = if let Some(timeout) = otel_http_config.timeout() {
-            exporter.with_timeout(*timeout)
-        } else {
-            exporter
-        };
-
-        let exporter = exporter.build()?;
+            .with_endpoint(otel_http_config.endpoint().clone())
+            .with_timeout(*otel_http_config.timeout())
+            .build()?;
 
         opentelemetry_sdk::trace::BatchSpanProcessor::builder(exporter)
             .with_batch_config(otel_http_config.batch().clone().into())
