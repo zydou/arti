@@ -775,8 +775,8 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType};
-    use tor_cell::chancell::{ChanCmd, ChanMsg as _};
+    use tor_cell::chancell::msg::{AnyChanMsg, Create2, CreateFast, HandshakeType};
+    use tor_cell::chancell::{AnyChanCell, ChanCmd, ChanMsg as _};
     use tor_rtcompat::test_with_one_runtime;
 
     use crate::channel::test_utils;
@@ -811,6 +811,71 @@ mod test {
             );
 
             drop(tunnel);
+
+            assert_eq!(
+                conn_inspector.client_cell().await.unwrap().msg().cmd(),
+                ChanCmd::DESTROY,
+            );
+            // The relay shouldn't be sending a DESTROY back to the client
+            assert!(conn_inspector.try_relay_cell().is_none());
+        });
+    }
+
+    /// Test the CREATE_FAST handshake, but with a modified handshake payload.
+    #[test]
+    fn create_fast_fail() {
+        test_with_one_runtime!(|rt| async move {
+            let mut conn_inspector = test_utils::ConnInspector::new();
+
+            // Rewrite any client-sent CREATE_FAST messages to cause the client to fail the
+            // handshake when processing the CREATED_FAST.
+            conn_inspector.set_client_cell_modifier(|cell: &mut AnyChanCell| {
+                let circ_id = cell.circid();
+                if let AnyChanMsg::CreateFast(msg) = cell.msg() {
+                    let mut new_handshake = msg.handshake().to_vec();
+
+                    // Flip all bits.
+                    for byte in &mut new_handshake {
+                        *byte = !*byte;
+                    }
+
+                    // Reassemble the CREATE_FAST cell with the incorrect handshake body.
+                    let new_msg = CreateFast::new(new_handshake);
+                    *cell = AnyChanCell::new(circ_id, AnyChanMsg::CreateFast(new_msg));
+                }
+            });
+
+            let (client_chan, _relay_chan, _circuit_stream_rx, _target_builder) =
+                test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
+
+            let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
+
+            let circ_params = CircParameters::default();
+
+            // I don't think it's possible to modify the CREATE_FAST cell to make the relay fail the
+            // handshake (the CREATE_FAST payload consists of only random bytes),
+            // so the relay will respond successfully with a CREATED_FAST.
+            // But the client will fail since the CREATED_FAST will contain garbage bytes.
+
+            // The relay successfully processed the handshake,
+            // but the client fails to validate the handshake since the handshake data was modified.
+            assert!(matches!(
+                pending_tunnel.create_firsthop_fast(circ_params).await,
+                Err(crate::Error::BadCircHandshakeAuth),
+            ));
+
+            // Client sent a CREATE_FAST, relay responded with a CREATED_FAST.
+            assert_eq!(
+                conn_inspector.try_client_cell().unwrap().msg().cmd(),
+                ChanCmd::CREATE_FAST,
+            );
+            assert_eq!(
+                conn_inspector.try_relay_cell().unwrap().msg().cmd(),
+                ChanCmd::CREATED_FAST,
+            );
+
+            // Since the `create_firsthop_fast()` failed above,
+            // the client should have sent a DESTROY.
 
             assert_eq!(
                 conn_inspector.client_cell().await.unwrap().msg().cmd(),
@@ -910,6 +975,61 @@ mod test {
         });
     }
 
+    /// Test the CREATE2 ntor handshake, but with a modified handshake payload.
+    #[test]
+    fn ntor_fail() {
+        test_with_one_runtime!(|rt| async move {
+            let mut conn_inspector = test_utils::ConnInspector::new();
+
+            // Rewrite any client-sent CREATE2 messages to cause the relay to fail the handshake.
+            conn_inspector.set_client_cell_modifier(|cell: &mut AnyChanCell| {
+                let circ_id = cell.circid();
+                if let AnyChanMsg::Create2(msg) = cell.msg() {
+                    let mut new_body = msg.body().to_vec();
+
+                    // Flip some arbitrarily chosen byte.
+                    new_body[10] = !new_body[10];
+
+                    // Reassemble the CREATE2 cell with the incorrect handshake body.
+                    let new_msg = Create2::new(msg.handshake_type(), new_body);
+                    *cell = AnyChanCell::new(circ_id, AnyChanMsg::Create2(new_msg));
+                }
+            });
+
+            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+                test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
+
+            // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
+            // 2 = RELAY_NTOR
+            // 3 = RELAY_EXTEND_IPv6
+            for relay_version in [2, 3] {
+                let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
+
+                let circ_params = CircParameters::default();
+
+                let protocols = format!("Relay=2-{relay_version}").parse().unwrap();
+                let target = target_builder.protocols(protocols).build().unwrap();
+
+                // The relay refuses the circuit handshake since the CREATED2 cell had some
+                // intentional issue with the handshake body.
+                assert!(matches!(
+                    pending_tunnel.create_firsthop(&target, circ_params).await,
+                    Err(crate::Error::CircRefused(_)),
+                ));
+
+                // Client sent a CREATE2, relay responded with a DESTROY.
+                assert_eq!(
+                    conn_inspector.try_client_cell().unwrap().msg().cmd(),
+                    ChanCmd::CREATE2,
+                );
+                assert_eq!(
+                    conn_inspector.try_relay_cell().unwrap().msg().cmd(),
+                    ChanCmd::DESTROY,
+                );
+            }
+        });
+    }
+
     /// Test the CREATE2 ntor-v3 handshake.
     #[test]
     fn ntor_v3() {
@@ -960,6 +1080,62 @@ mod test {
                 );
                 // The relay shouldn't be sending a DESTROY back to the client
                 assert!(conn_inspector.try_relay_cell().is_none());
+            }
+        });
+    }
+
+    /// Test the CREATE2 ntor-v3 handshake, but with a modified handshake payload.
+    #[test]
+    fn ntor_v3_fail() {
+        test_with_one_runtime!(|rt| async move {
+            let mut conn_inspector = test_utils::ConnInspector::new();
+
+            // Rewrite any client-sent CREATE2 messages to cause the relay to fail the handshake.
+            conn_inspector.set_client_cell_modifier(|cell: &mut AnyChanCell| {
+                let circ_id = cell.circid();
+                if let AnyChanMsg::Create2(msg) = cell.msg() {
+                    let mut new_body = msg.body().to_vec();
+
+                    // Flip some arbitrarily chosen byte.
+                    new_body[10] = !new_body[10];
+
+                    // Reassemble the CREATE2 cell with the incorrect handshake body.
+                    let new_msg = Create2::new(msg.handshake_type(), new_body);
+                    *cell = AnyChanCell::new(circ_id, AnyChanMsg::Create2(new_msg));
+                }
+            });
+
+            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+                test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
+
+            // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
+            // 4 = RELAY_NTORV3
+            // 5 = RELAY_NEGOTIATE_SUBPROTO
+            // 6 = RELAY_CRYPT_CGO
+            for relay_version in [4, 5, 6] {
+                let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
+
+                let circ_params = CircParameters::default();
+
+                let protocols = format!("Relay=4-{relay_version}").parse().unwrap();
+                let target = target_builder.protocols(protocols).build().unwrap();
+
+                // The relay refuses the circuit handshake since the CREATED2 cell had some
+                // intentional issue with the handshake body.
+                assert!(matches!(
+                    pending_tunnel.create_firsthop(&target, circ_params).await,
+                    Err(crate::Error::CircRefused(_)),
+                ));
+
+                // Client sent a CREATE2, relay responded with a DESTROY.
+                assert_eq!(
+                    conn_inspector.try_client_cell().unwrap().msg().cmd(),
+                    ChanCmd::CREATE2,
+                );
+                assert_eq!(
+                    conn_inspector.try_relay_cell().unwrap().msg().cmd(),
+                    ChanCmd::DESTROY,
+                );
             }
         });
     }
