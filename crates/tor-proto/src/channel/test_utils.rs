@@ -349,6 +349,8 @@ impl ConnInspector {
     }
 
     /// Set a function that will be applied to all cells sent from the relay to client.
+    // We don't use this yet, but it complements `set_client_cell_modifier()`.
+    #[expect(unused)]
     pub(crate) fn set_relay_cell_modifier(
         &mut self,
         mod_fn: impl Fn(&mut AnyChanCell) + Send + Sync + 'static,
