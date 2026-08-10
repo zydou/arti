@@ -743,7 +743,11 @@ impl<R: Runtime> Reactor<R> {
             return Err(Error::ChanProto("'Created' cell without circuit ID".into()));
         };
 
-        let target = self.circs.advance_from_opening(circid)?;
+        let Some(target) = self.circs.advance_from_opening(circid) else {
+            trace!(channel_id = %self, "Unexpected CREATED* cell not on opening circuit {}", circid);
+            return Ok(());
+        };
+
         let created = msg.try_into()?;
         // TODO(nickm) I think that this one actually means the other side
         // is closed. See arti#269.
