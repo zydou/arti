@@ -56,17 +56,14 @@ needlessly hard to understand and improve.
 
 ## <a name="status"></a>Current status
 
-Arti can connect to the Tor network, bootstrap a
-view of the Tor directory, and make anonymized connections over the network.
-Now that Arti has reached version 1.0.0, we believe it is suitable for
-actual use to anonymize connections.
+Arti is a full-featured Tor client,
+with support for all the relevant security features.
+It can run and conneect to onion services.
+We believe that Arti is suitable for general client usage.
 
-There are a number of areas (especially at the lower layers) where APIs
-(especially internal APIs) are not stable,
-and we are likely to change them.
-Right now that includes the command line interface to the `arti` program.
-
-And of course it's still very new so there are likely to be bugs.
+Currently (as of August 2026) we're working on
+support for running Arti as a relay or directory authority.
+(See [README_relay.md](./README_relay.md) for more information.)
 
 ## Building and using Arti
 
