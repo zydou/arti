@@ -1194,7 +1194,7 @@ pub(crate) mod test {
                 "Channel protocol violation: Relay cell on pending circuit before CREATED* received"
             );
 
-            // If a relay cell is sent on a non-existent channel, that's an error.
+            // If a relay cell is sent on a non-existent circuit, that's an error.
             input
                 .send(Ok(AnyChanCell::new(CircId::new(101), relaycell.clone())))
                 .await
