@@ -1791,50 +1791,74 @@ mod test {
         );
     }
 
+    /// Tests whether the missing router descriptor queue is computed properly.
+    ///
+    /// For this, we remove existing router descriptors from the database and
+    /// see whether they are determined as missing properly.
     #[test]
     fn missing_server_descriptors() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
             ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &DirTolerance::default(),
-                *VALID_AFTER,
+                testdata2::valid_system_time().into(),
             )
         })
         .unwrap()
         .unwrap()
         .unwrap();
+        // Ensure that the returned consensus matches the one from testdata2.
+        assert_eq!(
+            meta.docid,
+            DocumentId::digest(testdata2::current_consensus_ns().1.as_bytes())
+        );
+
+        // Delete a single router descriptor, so we can determine a missing one
+        // using it.
+        let removed_descriptor = *testdata2::current_consensus_ns().0.routers[0].doc_digest();
+        let removed_descriptor = Sha1::from(removed_descriptor);
+        pool.get()
+            .unwrap()
+            .execute(
+                sql!(
+                    "
+                    DELETE FROM router_descriptor
+                    WHERE unsigned_sha1 = ?1
+                    "
+                ),
+                params![removed_descriptor],
+            )
+            .unwrap();
 
         // Only one should be returned.
         let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx))
             .unwrap()
             .unwrap();
-        assert_eq!(
-            missing_servers,
-            HashSet::from([Sha1::digest(include_bytes!(
-                "../testdata/descriptor2-ns-unsigned"
-            ))])
-        );
+        assert_eq!(missing_servers, HashSet::from([removed_descriptor]));
 
-        // If we delete all router descriptors we have, we should get both.
+        // If we delete all router descriptors we have, we should get all.
         rw_tx(&pool, |tx| {
             tx.execute(sql!("DELETE FROM router_descriptor"), params![])
         })
         .unwrap()
         .unwrap();
 
-        // Now both should be returned
+        // Now all should be returned; we verify this by checking that the
+        // result is present in all_descriptors, which is a superset.
         let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx))
             .unwrap()
             .unwrap();
-        assert_eq!(
-            missing_servers,
-            HashSet::from([
-                Sha1::digest(include_bytes!("../testdata/descriptor1-ns-unsigned")),
-                Sha1::digest(include_bytes!("../testdata/descriptor2-ns-unsigned"))
-            ])
-        );
+        // This is a superset of missing_servers because it includes router
+        // descriptors that are not a part of the current consensus.
+        let all_descriptors = testdata2::current_router_descs()
+            .iter()
+            .map(|x| Sha1::from(x.1.hashes.sha1.unwrap()))
+            .collect::<HashSet<_>>();
+        assert!(missing_servers
+            .iter()
+            .all(|sha1| all_descriptors.contains(sha1)));
     }
 
     #[test]
@@ -1878,47 +1902,73 @@ mod test {
         );
     }
 
+    /// Tests whether the missing micro descriptor queue is computed properly.
+    ///
+    /// For this, we remove existing micro descriptors from the database and
+    /// see whether they are determined as missing properly.
     #[test]
     fn missing_micro_descriptors() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
             ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Microdesc,
                 &DirTolerance::default(),
-                *VALID_AFTER,
+                testdata2::valid_system_time().into(),
             )
         })
         .unwrap()
         .unwrap()
         .unwrap();
+        // Ensure that the returned consensus matches the one from testdata2.
+        assert_eq!(
+            meta.docid,
+            DocumentId::digest(testdata2::current_consensus_md().1.as_bytes())
+        );
+
+        // Delete a single router descriptor, so we can determine a missing one
+        // using it.
+        let removed_descriptor = *testdata2::current_consensus_md().0.routers[0].doc_digest();
+        let removed_descriptor = Sha256::from(removed_descriptor);
+        pool.get()
+            .unwrap()
+            .execute(
+                sql!(
+                    "
+                    DELETE FROM router_descriptor
+                    WHERE unsigned_sha2 = ?1
+                    "
+                ),
+                params![removed_descriptor],
+            )
+            .unwrap();
 
         // Only one should be returned.
         let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx))
             .unwrap()
             .unwrap();
-        assert_eq!(
-            missing_micros,
-            HashSet::from([Sha256::digest(include_bytes!("../testdata/descriptor2-md"))])
-        );
+        assert_eq!(missing_micros, HashSet::from([removed_descriptor]));
 
-        // If we delete all router descriptors we have, we should get both.
+        // If we delete all micro descriptors we have, we should get all.
         rw_tx(&pool, |tx| {
             tx.execute(sql!("DELETE FROM router_descriptor"), params![])
         })
         .unwrap()
         .unwrap();
 
-        // Now both should be returned
+        // Now all should be returned; we verify this by checking that the
+        // result is present in all_descriptors, which is a superset.
         let missing_servers = read_tx(&pool, |tx| meta.missing_micros(tx))
             .unwrap()
             .unwrap();
-        assert_eq!(
-            missing_servers,
-            HashSet::from([
-                Sha256::digest(include_bytes!("../testdata/descriptor1-md")),
-                Sha256::digest(include_bytes!("../testdata/descriptor2-md"))
-            ])
-        );
+        // This is a superset of missing_servers because it includes router
+        // descriptors that are not a part of the current consensus.
+        let all_descriptors = testdata2::current_micro_descs()
+            .iter()
+            .map(|x| Sha256::digest(x.1.as_bytes()))
+            .collect::<HashSet<_>>();
+        assert!(missing_servers
+            .iter()
+            .all(|sha2| all_descriptors.contains(sha2)));
     }
 }
