@@ -1329,10 +1329,10 @@ pub(crate) mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, reactor, _output, mut input) = new_reactor(rt);
 
-            // force an error by sending created2 cell for nonexistent circuit
+            // force an error by sending created2 cell without a CircId
             let created2_cell = msg::Created2::new(*b"hihi").into();
             input
-                .send(Ok(AnyChanCell::new(CircId::new(7), created2_cell)))
+                .send(Ok(AnyChanCell::new(None, created2_cell)))
                 .await
                 .unwrap();
 
