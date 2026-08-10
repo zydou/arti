@@ -745,7 +745,7 @@ mod test {
 
     use std::time::{Duration, SystemTime};
 
-    use rusqlite::named_params;
+    use rusqlite::{named_params, params};
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
@@ -753,7 +753,7 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_netdoc::parse2::NetdocParseableUnverified;
 
-    use crate::database::sql;
+    use crate::{database::sql, testdata2};
 
     use super::*;
 
@@ -858,21 +858,40 @@ mod test {
         pool
     }
 
+    /// Tests whether the load consensus state computes missing descriptors
+    /// properly.
+    ///
+    /// For this, the test removes a present router descriptor from the storage
+    /// to verify that it is detected as missing and added to the download
+    /// queue.
     #[tokio::test]
     async fn state_load_consensus() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::None;
         let engine = StaticEngine {
             flavor: ConsensusFlavor::Plain,
-            authorities: AuthorityContacts::default(),
+            authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
         };
 
-        let time = SystemTime::UNIX_EPOCH + Duration::from_secs(1769700600); // 2026-01-29 15:30:00
-        let time: Timestamp = time.into();
-        let fresh_until = time + Duration::from_secs(60 * 30);
-        let fresh_until_half = fresh_until + Duration::from_secs(60 * 60);
+        let time: Timestamp = testdata2::valid_system_time().into();
+        let fresh_until: Timestamp = testdata2::current_consensus_ns().0.preamble.lifetime.fresh_until.0.into();
+        let valid_until: Timestamp = testdata2::current_consensus_ns().0.preamble.lifetime.valid_until.0.into();
+        // This is the middle of valid_until and fresh_until.
+        let fresh_until_half = fresh_until + ((valid_until - fresh_until) / 2);
+
+        // Remove a single router descriptor from our storage to see whether it
+        // appears in the download queue as expected.
+        let relay_to_remove = &testdata2::current_consensus_ns().0.routers[0];
+        let relay_to_remove = db::Sha1::from(*relay_to_remove.doc_digest());
+        pool.get()
+            .unwrap()
+            .execute(
+                sql!("DELETE FROM router_descriptor WHERE unsigned_sha1 = ?1"),
+                params![relay_to_remove]
+            )
+            .unwrap();
 
         engine
             .load_consensus(&pool, &mut data, time, &mut testing_rng())
@@ -891,12 +910,9 @@ mod test {
                     FlavoredConsensus::Plain(_) => {}
                     _ => panic!("consensus not ns"),
                 }
-                assert_eq!(
-                    server_queue,
-                    HashSet::from([db::Sha1::digest(include_bytes!(
-                        "../../testdata/descriptor2-ns-unsigned"
-                    ))])
-                );
+                // If everything worked properly, then the queue should only
+                // contain the relay we removed, because that is missing now.
+                assert_eq!(server_queue, HashSet::from([relay_to_remove]));
                 assert!(lifetime >= fresh_until);
                 assert!(lifetime <= fresh_until_half);
                 assert!(extra_queue.is_empty());
