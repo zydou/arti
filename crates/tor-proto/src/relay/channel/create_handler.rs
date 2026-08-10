@@ -1139,4 +1139,57 @@ mod test {
             }
         });
     }
+
+    /// Test the CREATE2 handshake, but with an invalid handshake type.
+    #[test]
+    fn create2_invalid_handshake_fail() {
+        test_with_one_runtime!(|rt| async move {
+            let mut conn_inspector = test_utils::ConnInspector::new();
+
+            // Rewrite any client-sent CREATE2 messages to cause the relay to fail the handshake.
+            conn_inspector.set_client_cell_modifier(|cell: &mut AnyChanCell| {
+                let circ_id = cell.circid();
+                if let AnyChanMsg::Create2(msg) = cell.msg() {
+                    // Reassemble the CREATE2 cell with the incorrect handshake type.
+                    let new_msg = tor_cell::chancell::msg::Create2::new(99.into(), msg.body());
+                    *cell = AnyChanCell::new(circ_id, AnyChanMsg::Create2(new_msg));
+                }
+            });
+
+            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+                test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
+
+            // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
+            // 2 = RELAY_NTOR
+            // 3 = RELAY_EXTEND_IPv6
+            // 4 = RELAY_NTORV3
+            // 5 = RELAY_NEGOTIATE_SUBPROTO
+            // 6 = RELAY_CRYPT_CGO
+            for relay_version in [2, 6] {
+                let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
+
+                let circ_params = CircParameters::default();
+
+                let protocols = format!("Relay=2-{relay_version}").parse().unwrap();
+                let target = target_builder.protocols(protocols).build().unwrap();
+
+                // The relay refuses the circuit handshake since the CREATED2 cell had some
+                // unrecognized handshake type.
+                assert!(matches!(
+                    pending_tunnel.create_firsthop(&target, circ_params).await,
+                    Err(crate::Error::CircRefused(_)),
+                ));
+
+                // Client sent a CREATE2, relay responded with a DESTROY.
+                assert_eq!(
+                    conn_inspector.try_client_cell().unwrap().msg().cmd(),
+                    ChanCmd::CREATE2,
+                );
+                assert_eq!(
+                    conn_inspector.try_relay_cell().unwrap().msg().cmd(),
+                    ChanCmd::DESTROY,
+                );
+            }
+        });
+    }
 }
