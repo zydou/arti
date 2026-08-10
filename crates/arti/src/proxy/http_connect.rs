@@ -446,7 +446,7 @@ fn find_conn_target<R: Runtime>(
 fn find_conn_target<R: Runtime>(
     context: &ProxyContext<R>,
     rpc_target: Option<&str>,
-) -> Result<arti_client::TorClient<R>, HttpConnectError> {
+) -> Result<Arc<arti_client::TorClient<R>>, HttpConnectError> {
     if rpc_target.is_some() {
         Err(HttpConnectError::NoRpcSupport)
     } else {
