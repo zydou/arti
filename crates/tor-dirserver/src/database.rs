@@ -1958,16 +1958,16 @@ mod test {
 
         // Now all should be returned; we verify this by checking that the
         // result is present in all_descriptors, which is a superset.
-        let missing_servers = read_tx(&pool, |tx| meta.missing_micros(tx))
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx))
             .unwrap()
             .unwrap();
-        // This is a superset of missing_servers because it includes router
+        // This is a superset of missing_micros because it includes micro
         // descriptors that are not a part of the current consensus.
         let all_descriptors = testdata2::current_micro_descs()
             .iter()
             .map(|x| Sha256::digest(x.1.as_bytes()))
             .collect::<HashSet<_>>();
-        assert!(missing_servers
+        assert!(missing_micros
             .iter()
             .all(|sha2| all_descriptors.contains(sha2)));
     }
