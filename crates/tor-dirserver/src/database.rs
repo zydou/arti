@@ -1682,9 +1682,10 @@ mod test {
         }
     }
 
+    /// Tests whether authority certificates are properly queried from the database.
     #[test]
     fn get_auth_cert() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
 
         // Empty.
         let (found, missing) = read_tx(&pool, |tx| {
@@ -1692,7 +1693,7 @@ mod test {
                 tx,
                 &[],
                 &DirTolerance::default(),
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
+                testdata2::valid_system_time().into(),
             )
         })
         .unwrap()
@@ -1707,14 +1708,11 @@ mod test {
                 &[
                     // Found one.
                     AuthCertKeyIds {
-                        id_fingerprint: RsaIdentity::from_hex(
-                            "49015F787433103580E3B66A1707A00E60F2D15B",
-                        )
-                        .unwrap(),
-                        sk_fingerprint: RsaIdentity::from_hex(
-                            "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
-                        )
-                        .unwrap(),
+                        id_fingerprint: *testdata2::current_auth_certs()[0].0.id_fingerprint(),
+                        sk_fingerprint: testdata2::current_auth_certs()[0]
+                            .0
+                            .signing_key()
+                            .to_rsa_identity(),
                     },
                     // Missing.
                     AuthCertKeyIds {
@@ -1740,7 +1738,7 @@ mod test {
                     },
                 ],
                 &DirTolerance::default(),
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
+                testdata2::valid_system_time().into(),
             )
         })
         .unwrap()
@@ -1748,18 +1746,22 @@ mod test {
         assert_eq!(
             found,
             vec![AuthCertMeta {
-                docid: DocumentId::digest(CERT_CONTENT),
-                kp_auth_id_rsa_sha1: Sha1::from([
-                    73, 1, 95, 120, 116, 51, 16, 53, 128, 227, 182, 106, 23, 7, 160, 14, 96, 242,
-                    209, 91
-                ]),
-                kp_auth_sign_rsa_sha1: Sha1::from([
-                    197, 209, 83, 166, 240, 218, 124, 194, 34, 119, 210, 41, 220, 187, 249, 41,
-                    208, 88, 159, 224
-                ]),
-                dir_key_published: (SystemTime::UNIX_EPOCH + Duration::from_secs(1764543578))
-                    .into(),
-                dir_key_expires: (SystemTime::UNIX_EPOCH + Duration::from_secs(1772492378)).into()
+                docid: DocumentId::digest(testdata2::current_auth_certs()[0].1.as_bytes()),
+                kp_auth_id_rsa_sha1: Sha1::from(
+                    testdata2::current_auth_certs()[0]
+                        .0
+                        .id_fingerprint()
+                        .to_bytes()
+                ),
+                kp_auth_sign_rsa_sha1: Sha1::from(
+                    testdata2::current_auth_certs()[0]
+                        .0
+                        .signing_key()
+                        .to_rsa_identity()
+                        .to_bytes()
+                ),
+                dir_key_published: testdata2::current_auth_certs()[0].0.published().into(),
+                dir_key_expires: testdata2::current_auth_certs()[0].0.expires().into(),
             }]
         );
         assert_eq!(
