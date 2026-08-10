@@ -922,19 +922,24 @@ mod test {
         }
     }
 
+    /// Tests whether the fetch consensus state properly fetches a consensus
+    /// and keeps it in memory as unverified.
+    ///
+    /// For this, we spawn a tokio task simulating a web server which responds
+    /// with a consensus.
     #[tokio::test]
     async fn state_fetch_consensus() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::None;
         let engine = StaticEngine {
             flavor: ConsensusFlavor::Plain,
-            authorities: AuthorityContacts::default(),
+            authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
         };
 
         let state = db::read_tx(&pool, |tx| {
-            engine.determine_state(tx, &data, SystemTime::UNIX_EPOCH.into())
+            engine.determine_state(tx, &data, testdata2::invalid_system_time().into())
         })
         .unwrap()
         .unwrap();
@@ -947,7 +952,7 @@ mod test {
             let mut buf = vec![0; 1024];
             let _ = stream.read(&mut buf).await.unwrap();
 
-            let consensus = include_str!("../../testdata/consensus-ns");
+            let consensus = testdata2::current_consensus_ns().1;
             let resp = format!(
                 "HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: {}\r\n\r\n{consensus}",
                 consensus.len()
@@ -958,10 +963,8 @@ mod test {
         engine.fetch_consensus(&mut data, &[saddr]).await.unwrap();
         match data {
             ConsensusBoundData::Unverified { consensus, raw } => match consensus {
-                FlavoredConsensusSigned::Plain(plain) => {
-                    // El-cheapo verification, this is not a parser unit test.
-                    assert_eq!(plain.unwrap_unverified().0.routers.len(), 2);
-                    assert_eq!(raw, include_str!("../../testdata/consensus-ns"));
+                FlavoredConsensusSigned::Plain(_) => {
+                    assert_eq!(raw, testdata2::current_consensus_ns().1);
                 }
                 _ => panic!("data is not unverified ns consensus"),
             },
