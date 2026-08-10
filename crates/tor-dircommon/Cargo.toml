@@ -15,6 +15,24 @@ keywords = ["tor", "arti", "download", "async"]
 categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+full = [
+    "tor-basic-utils/full",
+    "tor-checkable/full",
+    "tor-config/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-netdoc/full",
+]
+
+experimental = ["dir-plugin-backend"]
+
+dir-plugin-backend = ["__is_experimental", "dep:http", "dep:thiserror", "dep:tor-error"]
+__is_experimental = []
+
 [dependencies]
 base64ct = "1.8.0"
 derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }
@@ -35,21 +53,3 @@ tracing = "0.1.41"
 
 [dev-dependencies]
 toml = "1.0.3"
-
-[features]
-full = [
-    "tor-basic-utils/full",
-    "tor-checkable/full",
-    "tor-config/full",
-    "tor-linkspec/full",
-    "tor-llcrypto/full",
-    "tor-netdoc/full",
-]
-
-experimental = ["dir-plugin-backend"]
-
-dir-plugin-backend = ["__is_experimental", "dep:http", "dep:thiserror", "dep:tor-error"]
-__is_experimental = []
-
-[package.metadata.docs.rs]
-all-features = true
