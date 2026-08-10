@@ -1861,45 +1861,38 @@ mod test {
             .all(|sha1| all_descriptors.contains(sha1)));
     }
 
+    /// Tests whether the missing extra-info documents are computed properly.
+    // TODO DIRMIRROR: Expand on this once we have proper extra-info support.
     #[test]
     fn missing_extra_infos() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
             ConsensusMeta::query_recent(
                 tx,
                 ConsensusFlavor::Plain,
                 &DirTolerance::default(),
-                *VALID_AFTER,
+                testdata2::valid_system_time().into(),
             )
         })
         .unwrap()
         .unwrap()
         .unwrap();
+        // Ensure that the returned consensus matches the one from testdata2.
+        assert_eq!(
+            meta.docid,
+            DocumentId::digest(testdata2::current_consensus_ns().1.as_bytes())
+        );
 
         // We should have no missing extra-infos.
-        // Technically extra-info of the second relay is missing too, but we
-        // cannot know that.
         let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx))
             .unwrap()
             .unwrap();
         assert!(missing_extras.is_empty());
 
-        // Now delete the record of router_extra_info.
-        pool.get()
-            .unwrap()
-            .execute(sql!("DELETE FROM router_extra_info"), params![])
-            .unwrap();
-
-        // Now we should get a single missing extra-info.
-        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx))
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            missing_extras,
-            HashSet::from([Sha1::digest(include_bytes!(
-                "../testdata/descriptor1-extra-info-unsigned"
-            ))])
-        );
+        // TODO DIRMIRROR: Once we have support for extra-info's, add a test
+        // for this here.  Right now, testing this is pretty useless as we
+        // cannot add it nicely to the testdata2 module if there isn't even
+        // an ExtraInfo struct from tor-netdoc.
     }
 
     /// Tests whether the missing micro descriptor queue is computed properly.
