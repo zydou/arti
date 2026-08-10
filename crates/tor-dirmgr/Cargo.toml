@@ -44,12 +44,13 @@ full = [
     "web-time-compat/full",
     "fslock-guard/full",
 ]
-experimental = ["experimental-api", "dirfilter", "geoip"]
+experimental = ["experimental-api", "dirfilter", "dir-plugin", "geoip"]
 bridge-client = ["tor-circmgr/specific-relay", "tor-guardmgr/bridge-client", "routerdesc"]
 
 mmap = ["memmap2"]
 static = ["rusqlite/bundled", "__is_nonadditive"]
 compression = ["tor-dirclient/xz", "tor-dirclient/zstd"]
+dir-plugin = ["__is_experimental", "httpdate", "tor-dircommon/dir-plugin-backend"]
 # (Incomplete) support for downloading and storing router descriptors
 routerdesc = ["tor-dirclient/routerdesc"]
 dirfilter = ["__is_experimental"]
@@ -76,6 +77,7 @@ fs-mistrust = { path = "../fs-mistrust", version = "0.15.0" }
 fslock-guard = { path = "../fslock-guard", version = "0.8.0" }
 futures = "0.3.14"
 hex = "0.4"
+httpdate = { version = "1", optional = true }
 humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.15.0"

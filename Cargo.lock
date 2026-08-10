@@ -7217,6 +7217,7 @@ dependencies = [
  "futures",
  "hex",
  "hex-literal",
+ "httpdate",
  "humantime",
  "humantime-serde",
  "itertools 0.15.0",

@@ -62,6 +62,8 @@ mod shared_ref;
 mod state;
 mod storage;
 
+#[cfg(feature = "dir-plugin")]
+mod as_plugin;
 #[cfg(feature = "bridge-client")]
 pub mod bridgedesc;
 #[cfg(feature = "dirfilter")]
@@ -109,6 +111,9 @@ pub use event::{DirBlockage, DirBootstrapEvents, DirBootstrapStatus};
 pub use storage::DocumentText;
 pub use tor_dircommon::fallback::{FallbackDir, FallbackDirBuilder};
 pub use tor_netdir::Timeliness;
+
+#[cfg(feature = "dir-plugin")]
+pub use as_plugin::DirPlugin;
 
 /// Re-export of `strum` crate for use by an internal macro
 use strum;
@@ -1124,6 +1129,15 @@ impl<R: Runtime> DirMgr<R> {
             }
         } else {
             Ok(())
+        }
+    }
+
+    /// Experimental; temporary: Return a directory plugin to be used while tor-dirserver is a work
+    /// in progress.
+    #[cfg(feature = "dir-plugin")]
+    pub fn get_plugin(&self) -> as_plugin::DirPlugin {
+        as_plugin::DirPlugin {
+            store: Arc::clone(&self.store),
         }
     }
 }
