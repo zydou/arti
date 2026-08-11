@@ -373,6 +373,9 @@ struct PendingQueries {
     /// and for us, that value is going to be None
     /// (it's always discarded, and we never actually send None ourselves,
     /// so this is a bit of a kludge)
+    //
+    // TODO: we will probably want to use the oneshot broadcast
+    // channel from tor_proto::util instead
     pending_response: HashMap<DnsQuery, watch::Sender<Option<DnsResponse>>>,
     /// DNS queries we're currently waiting a response for.
     ///
