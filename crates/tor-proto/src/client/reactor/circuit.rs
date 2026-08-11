@@ -749,7 +749,7 @@ impl Circuit {
                     return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum, leg);
                 } else {
                     return Err(
-                        Error::CircProto(format!("Cannot handle {} cells on this circuit", msg.cmd())).into(),
+                        Error::CircProto(format!("Cannot handle {} cells on this circuit", msg.cmd())),
                     );
                 }
             }
