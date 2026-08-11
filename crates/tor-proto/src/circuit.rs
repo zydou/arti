@@ -107,17 +107,20 @@ tor_protover::subprotocol_restricted_set! {
     }
 }
 
-/// If the [`SubprotocolRequest`] contains subprotocols that
-/// aren't supported by [`HandshakeSubprotocols`],
-/// this returns an error containing the original `SubprotocolRequest`.
-impl TryFrom<SubprotocolRequest> for HandshakeSubprotocols {
-    /// A copy of the original requested subprotocols.
+impl HandshakeSubprotocols {
+    /// Build a [`HandshakeSubprotocols`] from a [`SubprotocolRequest`]
+    /// provided during a circuit handshake.
+    ///
+    /// If the `SubprotocolRequest` contains subprotocols that aren't
+    /// allowed to be requested through a subprotocol request,
+    /// this returns an error containing the original `SubprotocolRequest`.
+    //
     // It would be nice to return a list of only the invalid subprotocols,
     // but it seems a bit expensive to compute on the error path when we probably
     // want to fail quickly.
-    type Error = InvalidHandshakeSubprotocolError;
-
-    fn try_from(protos: SubprotocolRequest) -> Result<Self, Self::Error> {
+    pub(crate) fn try_from_request(
+        protos: SubprotocolRequest,
+    ) -> Result<Self, InvalidHandshakeSubprotocolError> {
         use std::sync::LazyLock;
         static ALL: LazyLock<Protocols> =
             LazyLock::new(|| Protocols::from(HandshakeSubprotocols::ALL));
@@ -169,7 +172,7 @@ pub(crate) mod test {
         let empty_iter: [tor_protover::NumberedSubver; 0] = [];
         let request = SubprotocolRequest::from_iter(empty_iter);
         assert_eq!(
-            request.try_into(),
+            HandshakeSubprotocols::try_from_request(request),
             Ok(HandshakeSubprotocols {
                 relay_crypt_cgo: false,
             }),
@@ -177,7 +180,7 @@ pub(crate) mod test {
 
         let request = SubprotocolRequest::from_iter([tor_protover::named::RELAY_CRYPT_CGO]);
         assert_eq!(
-            request.try_into(),
+            HandshakeSubprotocols::try_from_request(request),
             Ok(HandshakeSubprotocols {
                 relay_crypt_cgo: true,
             }),
@@ -185,12 +188,12 @@ pub(crate) mod test {
 
         let request =
             SubprotocolRequest::from_iter([tor_protover::named::RELAY_NEGOTIATE_SUBPROTO]);
-        assert!(HandshakeSubprotocols::try_from(request).is_err());
+        assert!(HandshakeSubprotocols::try_from_request(request).is_err());
 
         let request = SubprotocolRequest::from_iter([
             tor_protover::named::RELAY_NEGOTIATE_SUBPROTO,
             tor_protover::named::RELAY_CRYPT_CGO,
         ]);
-        assert!(HandshakeSubprotocols::try_from(request).is_err());
+        assert!(HandshakeSubprotocols::try_from_request(request).is_err());
     }
 }

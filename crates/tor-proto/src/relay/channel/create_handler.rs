@@ -512,7 +512,7 @@ impl CreateRequestHandler {
         )?;
 
         // Ensure that the client did not request invalid/unsupported subprotocols.
-        let subprotos = HandshakeSubprotocols::try_from(subprotos)?;
+        let subprotos = HandshakeSubprotocols::try_from_request(subprotos)?;
 
         let hop_settings =
             HopSettings::from_handshake_params(circ_net_params, cc_algorithm, subprotos)?;
