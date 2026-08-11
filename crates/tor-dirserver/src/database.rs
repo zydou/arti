@@ -53,7 +53,6 @@ use std::{
 
 use digest::Digest;
 use flate2::write::{DeflateEncoder, GzEncoder};
-use getset::CopyGetters;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
@@ -289,26 +288,25 @@ impl ToSql for Timestamp {
 }
 
 /// Representation of consensus metadata from the database.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, CopyGetters)]
-#[get_copy = "pub(crate)"]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ConsensusMeta {
     /// The document id uniquely identifying the consensus.
-    docid: DocumentId,
+    pub docid: DocumentId,
 
     /// The SHA3 of the unsigned part of the consensus.
-    unsigned_sha3_256: Sha3_256,
+    pub unsigned_sha3_256: Sha3_256,
 
     /// The flavor of the consensus.
-    flavor: ConsensusFlavor,
+    pub flavor: ConsensusFlavor,
 
     /// The time after which this consensus is valid.
-    valid_after: Timestamp,
+    pub valid_after: Timestamp,
 
     /// The time after which this consensus stops being fresh.
-    fresh_until: Timestamp,
+    pub fresh_until: Timestamp,
 
     /// The time after which this consensus stops being valid.
-    valid_until: Timestamp,
+    pub valid_until: Timestamp,
 }
 
 impl ConsensusMeta {
@@ -530,25 +528,24 @@ impl ConsensusMeta {
 }
 
 /// Representation of authority certificate metadata from the database.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, CopyGetters)]
-#[get_copy = "pub(crate)"]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AuthCertMeta {
     /// The document id uniquely identifying the consensus.
-    docid: DocumentId,
+    pub docid: DocumentId,
 
     /// The SHA-1 fingerprint of the identity key.
     // TODO DIRMIRROR: Change this to RsaIdentity.
-    kp_auth_id_rsa_sha1: Sha1,
+    pub kp_auth_id_rsa_sha1: Sha1,
 
     /// The SHA-1 fingerprint of the signign key.
     // TODO DIRMIRROR: Change this to RsaIdentity.
-    kp_auth_sign_rsa_sha1: Sha1,
+    pub kp_auth_sign_rsa_sha1: Sha1,
 
     /// The timestamp after which this certificate will be valid.
-    dir_key_published: Timestamp,
+    pub dir_key_published: Timestamp,
 
     /// The timestamp until this certificate will be valid.
-    dir_key_expires: Timestamp,
+    pub dir_key_expires: Timestamp,
 }
 
 impl AuthCertMeta {
