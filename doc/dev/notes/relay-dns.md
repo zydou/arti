@@ -44,6 +44,16 @@ This seems wasteful in terms of memory usage,
 especially if the resolver is only used by a single exit relay
 (but it beats the centralization/info leak that would result from instructing
 relays to use any one particular third-party resolver).
+
+> Note: the status quo is considered suboptimal,
+> and running a recursive resolver on the exit is not a good idea:
+> even with QNAME minimisation, we'd still be leaking the lookup to multiple ASes.
+> IIUC, the Tor exit relay guide says one local recursive resolver
+> is helpful for working around DNS-based censorship (by the ISP, for example),
+> but it is unclear how big of an issue this is.
+>
+> For more context, see [this thread](https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4259#note_3444638)
+
 I suppose this setup makes most sense if the resolver is shared by
 multiple different exits.
 
@@ -110,37 +120,13 @@ because a lock can easily become a bottleneck here.
 
 ## Part 1: the resolver
 
-In terms of the actual DNS resolution, we have a couple of options:
+In terms of the actual DNS resolution, we plan to
 
-  * continue instructing exit operators to run `unbound`.
-    Internally, `arti-relay` will use a caching stub resolver. Or
-  * `arti-relay` runs an in-process recursive resolver (like `hickory-resolver`).
-    We stop recommending running `unbound` alongside tor (unless the `unbound`
-    server is shared by multiple different exits).
-
-The first option suffers from the double-caching issue mentioned under "The
-status quo" above (i.e. we'll have two caches, one in `unbound` and
-a second one in Arti).
-
-Running an in-process recursive resolver in arti-relay would be nice,
-because it removes one layer of caching (which is redundant IMO),
-and it's operationally simpler to deal with
-(exit operators don't need to run the extra recursive resolver service).
-
-Since some DNS servers may block Tor exits, the in-process recursive resolver
-would need to be bound to a different IP Address than the exit's advertised ORPort.
-
-So, I think we should give exit operators two options:
-
-  * if they have a spare IP address (v4 or v6), they can configure arti-relay to
-    run an internal recursive resolver that binds to that address
-    (this would be equivalent to `unbound`'s `interface`/`outgoing-interface` setting)
-  * if they don't have a spare address, they can configure arti-relay to use the
-    system's resolver. Internally, `arti-relay` will use a stub resolver
-
-Essentially, this is the same as the status quo, except exit operators wouldn't
-need to spin up an `unbound` (or similar) service anymore (they'd only need to
-tweak some options in the relay's config).
+  * stop instructing exit operators to run `unbound` or other local recursive
+    resolvers; instead, we will recommend using the ISP's resolver
+    (the ISP already sees all outgoing connections, so we wouldn't be leaking any
+    additional information by doing this)
+  * internally, `arti-relay` will use a caching stub resolver
 
 ### Implementation
 
@@ -155,9 +141,6 @@ but I don't think we're going to want to use its internal cache:
 
 The `hickory-resolver` maintainers seem open to making `moka` an optional dependency though,
 so we could submit a patch to gate it behind a feature flag.
-
-Setting up a basic recursive resolver with hickory doesn't seem *too* complicated at first glance.
-See for example the [`recurse`] util from the `hickory-dns` repo.
 
 
 ## Part 2: the cache
