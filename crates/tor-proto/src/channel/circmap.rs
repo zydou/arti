@@ -269,6 +269,24 @@ impl CircMap {
         })
     }
 
+    /// Returns `true` if the circuit with the specified `id`
+    /// is open or opening.
+    ///
+    /// Returns `false` if the circuit is not in the circuit map,
+    /// or if we have already sent a DESTROY on it.
+    pub(super) fn is_open(&self, id: CircId) -> bool {
+        let Some(entry) = self.m.get(&id) else {
+            return false;
+        };
+
+        match entry {
+            CircEnt::Opening { .. } | CircEnt::OpenOrigin { .. } => true,
+            #[cfg(feature = "relay")]
+            CircEnt::OpenRelay { .. } => true,
+            CircEnt::DestroySent(..) => false,
+        }
+    }
+
     /// Inform the relevant circuit's padding subsystem that a given cell has been flushed.
     pub(super) fn note_cell_flushed(&mut self, id: CircId, info: QueuedCellPaddingInfo) {
         let padding_ctrl = match self.m.get(&id) {
