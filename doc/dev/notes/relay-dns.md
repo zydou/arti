@@ -378,6 +378,11 @@ struct PendingQueries {
     ///
     // TODO: we may want to prevent this from growing too large
     // (for example, by limiting the max number of inflight queries)
+    //
+    // TODO: we should probably use tokio's JoinSet instead;
+    // unlike FuturesUnordered, JoinSet allows the tasks in the set
+    // to execute on different threads, so it would likely
+    // be better for performance
     inflight: FuturesUnordered<BoxFuture<'static, DnsResponse>>,
 }
 
