@@ -58,7 +58,7 @@ needlessly hard to understand and improve.
 
 Arti is a full-featured Tor client,
 with support for all the relevant security features.
-It can run and conneect to onion services.
+It can run and connect to onion services.
 We believe that Arti is suitable for general client usage.
 
 Currently (as of August 2026) we're working on
