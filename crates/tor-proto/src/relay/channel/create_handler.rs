@@ -14,7 +14,9 @@ use crate::circuit::{
 use crate::client::circuit::padding::PaddingController;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::CryptInit as _;
-use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer, RelayLayer, cgo, tor1};
+use crate::crypto::cell::{
+    CgoRelayCrypto, InboundRelayLayer, OutboundRelayLayer, RelayLayer, Tor1RelayCrypto,
+};
 use crate::crypto::handshake::RelayHandshakeError;
 use crate::crypto::handshake::ServerHandshake as _;
 use crate::crypto::handshake::fast::CreateFastServer;
@@ -26,7 +28,6 @@ use crate::relay::channel_provider::ChannelProvider;
 use crate::relay::reactor::Reactor;
 use crate::relay::{IncomingStreamRequestFilter, RelayCirc};
 use crate::stream::IncomingStream;
-use aes::Aes128Enc;
 use futures::channel::mpsc;
 use futures::{SinkExt, Stream};
 use smallvec::SmallVec;
@@ -42,8 +43,6 @@ use tor_cell::relaycell::extend::{
 };
 use tor_error::{ErrorKind, HasKind, debug_report, internal, into_internal, warn_report};
 use tor_linkspec::OwnedChanTarget;
-use tor_llcrypto::cipher::aes::Aes128Ctr;
-use tor_llcrypto::d::Sha1;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_memquota::mq_queue::ChannelSpec as _;
@@ -334,7 +333,7 @@ impl CreateRequestHandler {
             subprotos,
         )?;
 
-        let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
+        let crypt = Tor1RelayCrypto::construct(keygen)
             .map_err(into_internal!("Circuit crypt state construction failed"))?;
 
         let (crypto_out, crypto_in, _binding) = split_relay_layer(crypt);
@@ -388,7 +387,7 @@ impl CreateRequestHandler {
             subprotos,
         )?;
 
-        let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
+        let crypt = Tor1RelayCrypto::construct(keygen)
             .map_err(into_internal!("Circuit crypt state construction failed"))?;
 
         let (crypto_out, crypto_in, _binding) = split_relay_layer(crypt);
@@ -518,11 +517,11 @@ impl CreateRequestHandler {
             HopSettings::from_handshake_params(circ_net_params, cc_algorithm, subprotos)?;
 
         let (crypto_out, crypto_in, _binding) = if subprotos.relay_crypt_cgo {
-            let crypt = cgo::CryptStatePair::<Aes128Enc, Aes128Enc>::construct(keygen)
+            let crypt = CgoRelayCrypto::construct(keygen)
                 .map_err(into_internal!("Circuit crypt state construction failed"))?;
             split_relay_layer(crypt)
         } else {
-            let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
+            let crypt = Tor1RelayCrypto::construct(keygen)
                 .map_err(into_internal!("Circuit crypt state construction failed"))?;
             split_relay_layer(crypt)
         };
