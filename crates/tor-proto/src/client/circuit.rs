@@ -1550,6 +1550,8 @@ pub(crate) mod test {
         // Do the path accessors report a reasonable outcome?
         {
             let path = circ.single_path().unwrap();
+            // Without the 'hs-common' feature, clippy would prefer a `map()`.
+            #[allow(clippy::unnecessary_filter_map)]
             let path = path
                 .all_hops()
                 .filter_map(|hop| match hop {
