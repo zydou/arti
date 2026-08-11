@@ -1418,7 +1418,7 @@ pub(crate) mod test {
                     fwd_lasthop: idx == last_hop_num,
                     rev_lasthop: idx == u8::from(next_msg_from),
                     peer_id,
-                    params: params.clone(),
+                    params: Box::new(params.clone()),
                     done: tx,
                 })
                 .unwrap();
