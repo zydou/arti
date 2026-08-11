@@ -24,8 +24,6 @@ use tor_config::{
 };
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_config_shared::{MetricsConfig, MetricsConfigBuilder};
-#[cfg(feature = "opentelemetry")]
-use tor_config_shared::{OpentelemetryConfig, OpentelemetryConfigBuilder};
 use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
 use tor_dircommon::fallback::FallbackList;
 use tor_guardmgr::bridge::BridgeConfig;
