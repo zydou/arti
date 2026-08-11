@@ -97,6 +97,9 @@ pub struct CreateRequestHandler {
     circuit_stream_tx: mpsc::Sender<Box<dyn Stream<Item = IncomingStream> + Send + Sync + Unpin>>,
 }
 
+// We make the CREATE-handling methods of `CreateRequestHandler` async
+// since we expect that in the future we may want to offload the crypto to a worker thread.
+#[expect(clippy::unused_async)]
 impl CreateRequestHandler {
     /// Build a new [`CreateRequestHandler`], and a [`CircuitIncomingStreamReceiver`]
     /// for receiving new streams that are opened on any incoming circuits.
@@ -156,7 +159,7 @@ impl CreateRequestHandler {
     /// relay. This is especially important here since we're handling data that is controllable from
     /// the other end of the circuit.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn handle_create<R: Runtime>(
+    pub(crate) async fn handle_create<R: Runtime>(
         &self,
         runtime: &R,
         channel: &Arc<Channel>,
@@ -167,16 +170,18 @@ impl CreateRequestHandler {
         memquota: &ChannelAccount,
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), Destroy> {
-        let result = self.handle_create_inner(
-            runtime,
-            channel,
-            our_ed25519_id,
-            our_rsa_id,
-            circ_id,
-            msg,
-            memquota,
-            circ_unique_id,
-        );
+        let result = self
+            .handle_create_inner(
+                runtime,
+                channel,
+                our_ed25519_id,
+                our_rsa_id,
+                circ_id,
+                msg,
+                memquota,
+                circ_unique_id,
+            )
+            .await;
 
         match result {
             Ok(x) => Ok(x),
@@ -195,7 +200,7 @@ impl CreateRequestHandler {
 
     /// See [`Self::handle_create`].
     #[allow(clippy::too_many_arguments)]
-    fn handle_create_inner<R: Runtime>(
+    async fn handle_create_inner<R: Runtime>(
         &self,
         runtime: &R,
         channel: &Arc<Channel>,
@@ -208,10 +213,13 @@ impl CreateRequestHandler {
     ) -> Result<(CreateResponse, RelayCircComponents), HandleCreateError> {
         // Perform the handshake crypto and build the response.
         let handshake_components = match msg {
-            CreateRequest::CreateFast(msg) => self.handle_create_fast(msg)?,
+            CreateRequest::CreateFast(msg) => self.handle_create_fast(msg).await?,
             CreateRequest::Create2(msg) => match msg.handshake_type() {
-                HandshakeType::NTOR_V3 => self.handle_create2_ntorv3(msg.body(), our_ed25519_id)?,
-                HandshakeType::NTOR => self.handle_create2_ntor(msg.body(), our_rsa_id)?,
+                HandshakeType::NTOR_V3 => {
+                    self.handle_create2_ntorv3(msg.body(), our_ed25519_id)
+                        .await?
+                }
+                HandshakeType::NTOR => self.handle_create2_ntor(msg.body(), our_rsa_id).await?,
                 x @ HandshakeType::TAP | x => {
                     return Err(HandleCreateError::Create2HandshakeType(x));
                 }
@@ -302,7 +310,7 @@ impl CreateRequestHandler {
     }
 
     /// The handshake code for a CREATE_FAST request.
-    fn handle_create_fast(
+    async fn handle_create_fast(
         &self,
         msg: &CreateFast,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
@@ -352,7 +360,7 @@ impl CreateRequestHandler {
     }
 
     /// The handshake code for a CREATE2 ntor (non-v3) request.
-    fn handle_create2_ntor(
+    async fn handle_create2_ntor(
         &self,
         msg_body: &[u8],
         our_rsa_id: &RsaIdentity,
@@ -406,7 +414,7 @@ impl CreateRequestHandler {
     }
 
     /// The handshake code for a CREATE2 ntor-v3 request.
-    fn handle_create2_ntorv3(
+    async fn handle_create2_ntorv3(
         &self,
         msg_body: &[u8],
         our_ed25519_id: &Ed25519Identity,

@@ -702,16 +702,19 @@ impl<R: Runtime> Reactor<R> {
         let circ_uniq_id = self.circ_unique_id_ctx.next(self.unique_id);
 
         // Build the relay circuit.
-        let create_result = create_request_handler.handler.handle_create(
-            &self.runtime,
-            &chan,
-            &create_request_handler.our_ed25519_id,
-            &create_request_handler.our_rsa_id,
-            circid,
-            &msg,
-            &self.details.memquota,
-            circ_uniq_id,
-        );
+        let create_result = create_request_handler
+            .handler
+            .handle_create(
+                &self.runtime,
+                &chan,
+                &create_request_handler.our_ed25519_id,
+                &create_request_handler.our_rsa_id,
+                circid,
+                &msg,
+                &self.details.memquota,
+                circ_uniq_id,
+            )
+            .await;
 
         // Add the circuit to the circuit map.
         let response = match create_result {
