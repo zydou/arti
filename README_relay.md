@@ -1,5 +1,9 @@
 # Relay and directory authority support in Arti
 
+## ⚠️ WARNING ⚠️
+
+Don't run the `arti-relay` code now.
+
 As of August 2026, relay support is a work in progress.
 Internally, we've tested out some of the features we've built,
 but it's not at all ready for general deployment.
@@ -7,8 +11,14 @@ but it's not at all ready for general deployment.
 Relay support is currently experimental!
 Please do not try to run an Arti relay on the public Tor network.
 
-Here is a rough guide to which pieces of relay support are done
+Below is a rough guide to which pieces of relay support are done
 and which remain to be built.
+This is an informative guide;
+it is _not_ a substitute for our actual
+[issue tracker](https://gitlab.torproject.org/tpo/core/arti/-/issues/).
+
+As of 11 August 2026, this list below has not yet been edited by the team
+to check things off, or add missing items.
 
 ## Relay
 
