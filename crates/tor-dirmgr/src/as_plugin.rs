@@ -9,10 +9,16 @@
 // where this implementation falls short of the specified standard.  We are NOT planning
 // to fix these, since this is throw-away code.
 
-use base64ct::{Base64Unpadded, Encoding as _};
 use std::sync::{Arc, Mutex};
 use tor_llcrypto::pk::rsa::RsaIdentity;
-use tor_netdoc::doc::{authcert::AuthCertKeyIds, microdesc::MdDigest, netstatus::ConsensusFlavor};
+use tor_netdoc::{
+    doc::{
+        authcert::AuthCertKeyIds,
+        microdesc::{self, MdDigest},
+        netstatus::ConsensusFlavor,
+    },
+    types::FixedB64,
+};
 
 use crate::storage::DynStore;
 use tor_dircommon::dir_plugin_backend::{DirBackendPlugin, DirBackendPluginError, http};
@@ -197,12 +203,8 @@ impl UriInterpretation {
 
 /// Try to parse a base64 MD digest as it appears in URIs.
 fn decode_md_digest(s: &str) -> Result<MdDigest, &'static str> {
-    let mut d: MdDigest = [0_u8; _];
-    let r = Base64Unpadded::decode(s, &mut d[..]).map_err(|_| "Invalid MD base64")?;
-    if r.len() != d.len() {
-        return Err("Invalid MD digest len");
-    }
-    Ok(d)
+    let d: FixedB64<{ microdesc::DOC_DIGEST_LEN }> = s.parse().map_err(|_| "Invalid MD base64")?;
+    Ok(d.0)
 }
 
 /// Try to parse an authority fingerprint pair as it appears in URIs.
