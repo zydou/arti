@@ -634,7 +634,7 @@ These checks can be disabled using the `ServerDNSDetectHijacking` option.
 
 We may want something similar in Arti ([#2644]).
 
-## Short-to-medium-term implementation plan
+## Short-to-medium-term implementation plan 1: **rejected**
 
 For the purposes of p141, I see see two possible options here,
 both of which have tradeoffs:
@@ -681,6 +681,28 @@ Tentative plan:
   * [ ] If time permits, patch hickory-resolver to make its cache impl
     conditionally compiled
 
+## Short-to-medium-term implementation plan 2
+
+  * [ ] Implement the resolver APIs described above
+  * [ ] Add an `IncomingStream::resolved()` API for sending RESOLVED ([#2572])
+  * [ ] Make the `DnsResolverReactor` operate as a stub resolver,
+    with a custom global cache on top
+  * [ ] Implement option 2 above (global cache)
+  * [ ] Design and implement the necessary memquota APIs for evicting entries
+    when we're under memory pressure
+  * [ ] If time permits, patch hickory-resolver to make its cache impl
+    conditionally compiled
+
+## Medium-to-long-term plan
+
+  * [ ] Introduce randomized delays in the cached responses. These will need to
+    be based on our previously observed lookup timings, to avoid delaying by too
+    much or too little (if we consistently delay too much, or too little, the
+    cached responses will still be distinguishable from the non-cached ones,
+    so we need to be careful here)
+  * [ ] Run experiments to determine how vulnerable we are to the timing attacks
+    that were/are possible in C Tor
+  * [ ] Obtain grant to implement a more sophisticated solution
 
 [#1448]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1448
 [#2643]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2643
