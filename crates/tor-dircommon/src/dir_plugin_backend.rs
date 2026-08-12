@@ -9,7 +9,7 @@
 pub use http;
 
 /// An object that knows how to handle one or more kinds of directory requests.
-pub trait DirBackendPlugin {
+pub trait DirBackendPlugin: Send + Sync + 'static {
     /// Handle a GET request.
     ///
     /// Returns an http Response if the request is recognized,
