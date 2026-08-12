@@ -152,7 +152,6 @@ impl DirMirror {
     // the stream over to DirMirror::serve().
     //
     // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4222#note_3437135
-    #[allow(clippy::unused_async)] // TODO
     pub async fn serve<S, T, E>(self, mut listener: S) -> Result<(), Infallible>
     where
         S: Stream<Item = Result<T, E>> + Unpin,
