@@ -44,12 +44,18 @@ impl AtomicTokenBucket {
 
     /// Claim all `tokens` from the bucket or nothing if not enough available.
     ///
-    /// Returns true if the bucket held at least `tokens` which indicates that they are now granted
-    /// to the caller.
+    /// The request is first clamped to the capacity because the bucket can never hold
+    /// more than its burst.
     ///
-    /// Returns false otherwise, nothing is taken.
+    /// Returns `Some(claimed)` if the bucket held at least the clamped request which indicates
+    /// that they are now granted to the caller. Note that `claimed` can be lower than `tokens`
+    /// hence why the caller needs to use that value and not what it asked for.
+    ///
+    /// Returns `None` otherwise, nothing is taken.
     #[must_use]
-    pub(super) fn claim(&self, tokens: u64) -> bool {
+    pub(super) fn claim(&self, tokens: u64) -> Option<u64> {
+        let tokens = tokens.min(self.capacity);
+
         // NOTE: fetch_update() is deprecated in 1.99.0 and replaced by try_update()
         // starting in 1.95.0. Our current MSRV is 1.89.0.
         //
@@ -59,6 +65,7 @@ impl AtomicTokenBucket {
                 cur.checked_sub(tokens)
             })
             .is_ok()
+            .then_some(tokens)
     }
 
     /// Add `tokens` to the bucket which is capped at the capacity.
@@ -143,12 +150,12 @@ mod test {
         assert_eq!(b.available(), 100);
         assert_eq!(b.capacity(), 100);
 
-        assert!(b.claim(60));
+        assert_eq!(b.claim(60), Some(60));
         // Only 40 left. All or nothing.
-        assert!(!b.claim(50));
+        assert_eq!(b.claim(50), None);
         assert_eq!(b.available(), 40);
-        assert!(b.claim(40));
-        assert!(!b.claim(1));
+        assert_eq!(b.claim(40), Some(40));
+        assert_eq!(b.claim(1), None);
 
         // Refill is capped at capacity.
         b.refill(1000);
@@ -156,9 +163,23 @@ mod test {
     }
 
     #[test]
+    fn claim_above_capacity() {
+        let b = AtomicTokenBucket::new(100);
+
+        // A claim above the burst is clamped to it and not refused.
+        assert_eq!(b.claim(1000), Some(100));
+        assert_eq!(b.available(), 0);
+
+        // Even clamped, it is all or nothing.
+        b.refill(50);
+        assert_eq!(b.claim(1000), None);
+        assert_eq!(b.available(), 50);
+    }
+
+    #[test]
     fn drain() {
         let b = AtomicTokenBucket::new(100);
-        assert!(b.claim(90)); // 10 tokens left
+        assert_eq!(b.claim(90), Some(90)); // 10 tokens left
 
         assert_eq!(b.drain(), 10);
         assert_eq!(b.available(), 0);

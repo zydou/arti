@@ -189,6 +189,10 @@ impl BandwidthAcquirer {
     /// requested amount is used. Only when a [`Permit`] is emitted that a new `tokens`
     /// value can be used.
     ///
+    /// A request above the pool capacity is clamped to it rather than refused. The
+    /// emitted [`Permit`] then holds less than what was asked and so the caller must use
+    /// [`Permit::granted`] rather than assume it got `tokens`.
+    ///
     /// Returns a [`BwPoolError::PoolClosed`] error if the [`BandwidthRefiller`] has been
     /// dropped.
     pub fn poll_acquire(
@@ -197,9 +201,6 @@ impl BandwidthAcquirer {
         tokens: u64,
     ) -> Poll<Result<Permit, BwPoolError>> {
         if !self.in_flight {
-            // Cap to the pool capacity as the refiller can never go beyond the burst.
-            let tokens = tokens.min(self.pool.capacity());
-
             // No request in flight. This is the fast path! The thundering herd is allowed,
             // that is, all tasks race to this and their fairness is sub-contracted to their
             // task scheduler.
@@ -268,6 +269,10 @@ impl BandwidthAcquirer {
     }
 
     /// Enqueue a request for `tokens` tokens that is NOT in flight.
+    ///
+    /// The amount is sent as it was asked. Clamping it to the pool capacity is the
+    /// refiller's job as it is the one holding the tokens by the time this is served.
+    /// The clamping is localized to the refiller for correctness.
     ///
     /// Return a [`BwPoolError::PoolClosed`] error if the refiller is gone.
     fn enqueue_request(&mut self, cx: &mut Context<'_>, tokens: u64) -> Result<(), BwPoolError> {
@@ -353,6 +358,10 @@ impl BandwidthPool {
 
     /// Try to take `tokens` from the pool without waiting.
     ///
+    /// A request above the pool capacity is clamped to it by the bucket it self so the
+    /// permit can hold less than what was asked. The caller learns what it got with
+    /// [`Permit::granted`].
+    ///
     /// Returns `Some(permit)` if there were enough tokens available right now, or `None`
     /// if the pool is closed.
     ///
@@ -362,11 +371,8 @@ impl BandwidthPool {
         if self.is_closed() {
             return None;
         }
-        if self.bucket.claim(tokens) {
-            Some(Permit::new(Arc::clone(&self.bucket), tokens))
-        } else {
-            None
-        }
+        let granted = self.bucket.claim(tokens)?;
+        Some(Permit::new(Arc::clone(&self.bucket), granted))
     }
 
     /// Unit tests helper: async acquire wrapping a throwaway [`BandwidthAcquirer`].

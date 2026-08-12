@@ -347,9 +347,12 @@ impl BandwidthRefiller {
         // Serve the request queue with the token we are holding.
         self.serve(capacity);
 
-        // If we still have a head, report its deficit, else publish the remaining
-        // tokens in the pool's fast path. We use the snapshot capacity here so it is the
-        // same value used for the serve.
+        // If we still have a head, report its deficit, else publish the remaining tokens
+        // in the pool's fast path. We use the snapshot capacity here so it is the same
+        // value used for the serve.
+        //
+        // The clamp matters as an unclamped deficit could be above the burst and our
+        // caller would then never be able to wait for it.
         match &self.head {
             Some((needed, _)) => Some((*needed).min(capacity).saturating_sub(self.held)),
             None => {
@@ -376,6 +379,11 @@ impl BandwidthRefiller {
                 },
             };
 
+            // DO NOT REMOVE THIS
+            //
+            // A queued request is sent as asked so this clamp is the only thing capping
+            // the slow path. We can never hold more than the burst and so a larger
+            // request would sit in the queue forever.
             let needed = wanted.min(capacity);
             if needed > self.held {
                 // Unable to permit this request, keep it for next round.
@@ -386,7 +394,7 @@ impl BandwidthRefiller {
             // Commit the permit first and then wake. If the waker (acquirer) was torn
             // down, the grant is forfeited but that is a documented limitation.
             self.held -= needed;
-            // Just in case it was clamped.
+            // Grant what we took which could be a clamped value.
             waiter.grant(needed);
         }
     }
@@ -443,7 +451,7 @@ mod test {
     fn drained_refiller(capacity: u64) -> (mpsc::UnboundedSender<BwRequest>, BandwidthRefiller) {
         let (tx, rx) = mpsc::unbounded();
         let bucket = Arc::new(AtomicTokenBucket::new(capacity));
-        assert!(bucket.claim(capacity)); // the bucket starts full; empty it
+        assert_eq!(bucket.claim(capacity), Some(capacity)); // the bucket starts full; empty it
         (tx, BandwidthRefiller::new(bucket, rx))
     }
 
@@ -505,7 +513,7 @@ mod test {
         // The bucket holds 40 tokens that a failed fast-path attempt for 50 could not claim.
         let (tx, rx) = mpsc::unbounded();
         let bucket = Arc::new(AtomicTokenBucket::new(100));
-        assert!(bucket.claim(60));
+        assert_eq!(bucket.claim(60), Some(60));
         // Pool has 40 now. Enqueue a request for 50.
         let mut r = BandwidthRefiller::new(Arc::clone(&bucket), rx);
         let w = enqueue(&tx, 50);
