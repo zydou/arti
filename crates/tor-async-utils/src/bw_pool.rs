@@ -299,11 +299,15 @@ impl BandwidthAcquirer {
 
 /// A shareable bandwidth pool.
 ///
-/// This can be cloned and given to each task requiring bandwidth limitation.
+/// Use [`Self::share`] to give it to each task requiring bandwidth limitation.
 ///
-/// Each task needs to hold a [`BandwidthAcquirer`] in order to request bandwidth
-/// permits from this pool.
-#[derive(Clone, Debug)]
+/// [`Clone`] is deliberately not implemented so that handing this around can not be
+/// mistaken for creating a second pool with its own bandwidth. There is exactly one pool
+/// per [`Self::new`] call.
+///
+/// Each task needs to hold a [`BandwidthAcquirer`] in order to request bandwidth permits
+/// from this pool.
+#[derive(Debug)]
 pub struct BandwidthPool {
     /// The shared token bucket the fast path claims from.
     bucket: Arc<AtomicTokenBucket>,
@@ -334,6 +338,17 @@ impl BandwidthPool {
         (pool, refiller)
     }
 
+    /// Return another [`BandwidthPool`] that is the same as this one.
+    ///
+    /// The tokens are not duplicated, this is so you can share the pool with other
+    /// tasks/objects.
+    pub fn share(&self) -> BandwidthPool {
+        BandwidthPool {
+            bucket: Arc::clone(&self.bucket),
+            requests: self.requests.clone(),
+        }
+    }
+
     /// Return a new [`BandwidthAcquirer`] associated to this pool.
     ///
     /// The number of tokens to acquire is chosen per
@@ -343,7 +358,7 @@ impl BandwidthPool {
     /// It is through an acquirer that one can get permission to use bandwidth. See
     /// [`BandwidthAcquirer::poll_acquire`].
     pub fn new_acquirer(&self) -> BandwidthAcquirer {
-        BandwidthAcquirer::new(self.clone())
+        BandwidthAcquirer::new(self.share())
     }
 
     /// The maximum number of tokens this pool can hold (its burst).
@@ -381,7 +396,7 @@ impl BandwidthPool {
         if let Some(permit) = self.try_acquire(tokens) {
             return Ok(permit);
         }
-        let mut acquirer = BandwidthAcquirer::new(self.clone());
+        let mut acquirer = BandwidthAcquirer::new(self.share());
         std::future::poll_fn(|cx| acquirer.poll_acquire(cx, tokens)).await
     }
 
@@ -482,7 +497,7 @@ mod test {
 
         // Dummy context so we can poll without a wakeup.
         let mut cx = noop_cx();
-        let mut acquirer = BandwidthAcquirer::new(pool.clone());
+        let mut acquirer = BandwidthAcquirer::new(pool.share());
 
         // First blocked acquire through the acquirer.
         assert!(acquirer.poll_acquire(&mut cx, 30).is_pending());
