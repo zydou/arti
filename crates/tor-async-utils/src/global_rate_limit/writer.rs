@@ -101,20 +101,18 @@ pub(super) fn poll_write_limited<W: AsyncWrite>(
         return inner.poll_write(cx, buf);
     }
 
-    // Acquire (or reuse) a permit and learn how many bytes we are cleared to write.
-    let available = ready!(state.poll_acquire(cx, buf.len()))?;
-    let buf = &buf[..available];
+    // Acquire a permit and get the permit granted tokens worth of bytes from the buffer.
+    let permit = ready!(state.poll_acquire(cx, buf.len()))?;
+    let buf = &buf[..super::to_usize(permit.granted())];
 
     match inner.poll_write(cx, buf) {
+        // The inner is not ready, refund the permit by dropping it.
         Poll::Pending => Poll::Pending,
-        // The inner had an error, drop the permit to refund.
-        Poll::Ready(Err(e)) => {
-            state.refund();
-            Poll::Ready(Err(e))
-        }
+        // The inner had an error, refund the permit by dropping it.
+        Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
         // Claim what was sent and refund the rest.
         Poll::Ready(Ok(written)) => {
-            state.commit(written);
+            DirectionState::commit(permit, written);
             Poll::Ready(Ok(written))
         }
     }
@@ -142,6 +140,43 @@ mod test {
     use futures::{AsyncWriteExt as _, FutureExt as _};
 
     use crate::bw_pool::BandwidthPool;
+
+    /// An [`AsyncWrite`] that is never ready to take bytes. Needed to test a stalled
+    /// connection as to test the refund of dropping permit when pending.
+    struct NeverReady;
+
+    impl AsyncWrite for NeverReady {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            _buf: &[u8],
+        ) -> Poll<Result<usize, Error>> {
+            Poll::Pending
+        }
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+            Poll::Ready(Ok(()))
+        }
+        fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[test]
+    fn inner_pending_refunds() {
+        let (pool, _refiller) = BandwidthPool::new(100);
+        let mut writer = GlobalRateLimitedWriter::new(NeverReady, pool.new_acquirer());
+
+        // The permit is acquired but the inner can't take the bytes.
+        assert!(writer.write(&[0; 30]).now_or_never().is_none());
+
+        // The permit was dropped rather than parked so every token is back in the pool
+        // for a connection that can actually use it.
+        assert_eq!(pool.available(), 100);
+
+        // Same on the next poll, nothing accumulates.
+        assert!(writer.write(&[0; 30]).now_or_never().is_none());
+        assert_eq!(pool.available(), 100);
+    }
 
     #[test]
     fn fast_path() {

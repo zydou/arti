@@ -32,10 +32,15 @@ fn to_u64(x: usize) -> u64 {
     x.try_into().expect("failed usize to u64 conversion")
 }
 
+/// Convert a `u64` to `usize`. Infallible on every platform we support.
+fn to_usize(x: u64) -> usize {
+    x.try_into().expect("failed u64 to usize conversion")
+}
+
 /// Rate-limiting state for a single direction.
 ///
-/// It has everything needed to rate limit one direction that is a [`BandwidthAcquirer`],
-/// the in-flight [`Permit`] and an optional maximum chunk.
+/// It has everything needed to rate limit one direction that is a [`BandwidthAcquirer`]
+/// and an optional maximum chunk.
 ///
 /// This is used by the [`GlobalRateLimitedReader`] and [`GlobalRateLimitedWriter`] as
 /// they share that same behavior for each direction (read and write).
@@ -43,12 +48,6 @@ fn to_u64(x: usize) -> u64 {
 struct DirectionState {
     /// Acquirer used to get a [`Permit`] from the pool for each poll.
     acquirer: BandwidthAcquirer,
-    /// The permit for the in-flight IO.
-    ///
-    /// It is kept here across polls so we never request a grant twice for the same
-    /// pending IO. Once the IO completes, the claimed bytes are committed and any tokens
-    /// left are refunded into the pool.
-    permit: Option<Permit>,
     /// Optional cap on how many tokens a single IO can request.
     ///
     /// If set, an IO requests at most this many tokens as long as the buffer is bigger.
@@ -61,7 +60,6 @@ impl DirectionState {
     fn new(acquirer: BandwidthAcquirer) -> Self {
         Self {
             acquirer,
-            permit: None,
             max_chunk: None,
         }
     }
@@ -74,51 +72,38 @@ impl DirectionState {
         self.max_chunk = Some(max_chunk);
     }
 
-    /// Acquire or reuse a permit for an IO for the given amount of `tokens`.
+    /// Acquire a permit for an IO of the given amount of `tokens`.
     ///
-    /// Returns the number of tokens the caller is cleared for. This is always capped to
-    /// the state's max chunk. The grant itself is capped to the pool capacity.
+    /// The request is capped to the state's max chunk if any. The grant itself is capped
+    /// to the pool capacity so the returned [`Permit`] can hold less than `tokens`.
     ///
-    /// A granted [`Permit`] is kept until [`Self::commit`] is called to indicate how
-    /// many tokens were used. It is also dropped when [`Self::refund`] is called.
+    /// The [`Permit`] is handed to the caller rather than kept here so that it lives
+    /// exactly as long as the IO attempt it is for. If the underlying IO turns out to be
+    /// [`Poll::Pending`], the caller drops it and the tokens are refunded to the pool
+    /// instead of being parked for as long as the connection is not ready. That matters
+    /// with many connections as we don't want to hold off ready connections on already
+    /// allocated permits for non ready connections.
     ///
-    /// This makes it that calling [`Self::poll_acquire`] multiple times is safe and
-    /// won't request multiple [`Permit`].
-    fn poll_acquire(&mut self, cx: &mut Context<'_>, tokens: usize) -> Poll<Result<usize, Error>> {
-        if self.permit.is_none() {
-            let want = match self.max_chunk {
-                Some(max) => tokens.min(max.get()),
-                None => tokens,
-            };
-            let permit =
-                ready!(self.acquirer.poll_acquire(cx, to_u64(want))).map_err(Error::other)?;
-            self.permit = Some(permit);
-        }
-        let permit = self.permit.as_mut().expect("permit just set");
-
-        // Make sure we don't exceed the buffer size. Extra safety measure.
-        let available = permit
-            .granted()
-            .try_into()
-            .unwrap_or(usize::MAX)
-            .min(tokens);
-        Poll::Ready(Ok(available))
+    /// The cost is that the caller re-acquires on the next poll rather than resuming
+    /// with what it already had. It is by design.
+    fn poll_acquire(&mut self, cx: &mut Context<'_>, tokens: usize) -> Poll<Result<Permit, Error>> {
+        let want = match self.max_chunk {
+            Some(max) => tokens.min(max.get()),
+            None => tokens,
+        };
+        let permit = ready!(self.acquirer.poll_acquire(cx, to_u64(want))).map_err(Error::other)?;
+        Poll::Ready(Ok(permit))
     }
 
-    /// Commit `tokens` after a successful IO and refund any leftover tokens.
-    fn commit(&mut self, tokens: usize) {
-        // Dropped at the end of this function which refunds the leftover.
-        let mut permit = self.permit.take().expect("permit disappeared");
+    /// Claim `tokens` on `permit` after a successful IO.
+    ///
+    /// The permit is consumed so whatever is left unclaimed is refunded on drop.
+    fn commit(mut permit: Permit, tokens: usize) {
         // The claim should always succeed but if the inner misbehaves and reports a bigger
         // value than was granted, we claim it all to avoid refunding what was actually used.
         if permit.claim(to_u64(tokens)).is_ok() {
             permit.claim_all();
         }
-    }
-
-    /// Simply drop the [`Permit`] we hold (if any) to refund it.
-    fn refund(&mut self) {
-        self.permit = None;
     }
 }
 

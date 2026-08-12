@@ -92,20 +92,20 @@ pub(super) fn poll_read_limited<R: AsyncRead>(
         return inner.poll_read(cx, buf);
     }
 
-    // Acquire or reuse a permit and learn how many bytes we are cleared to read.
-    let available = ready!(state.poll_acquire(cx, buf.len()))?;
-    let buf = &mut buf[..available];
+    // Acquire a permit and learn how many bytes we are cleared to read.
+    let permit = ready!(state.poll_acquire(cx, buf.len()))?;
+    let buf = &mut buf[..super::to_usize(permit.granted())];
 
     match inner.poll_read(cx, buf) {
+        // The inner is not ready. Drop the permit so the tokens go back to the pool for
+        // someone else to use rather than being parked here until this read works. We
+        // acquire again on the next poll.
         Poll::Pending => Poll::Pending,
         // The inner had an error, drop the permit to refund.
-        Poll::Ready(Err(e)) => {
-            state.refund();
-            Poll::Ready(Err(e))
-        }
+        Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
         // Claim what was read and refund the rest.
         Poll::Ready(Ok(read)) => {
-            state.commit(read);
+            DirectionState::commit(permit, read);
             Poll::Ready(Ok(read))
         }
     }
