@@ -191,6 +191,11 @@ impl HttpServer {
                         let service = service_fn(move |requ: Request<Incoming>| {
                             let backend = backend.clone();
                             async move {
+                                if requ.method() != Method::GET {
+                                    warn!("Unsupported method: {}", requ.method());
+                                    // dir-spec does not allow StatusCode::METHOD_NOT_ALLOWED.
+                                    return Ok(failure(StatusCode::BAD_REQUEST));
+                                }
                                 if !requ.body().is_end_stream() {
                                     warn!("HTTP GET with non-empty body?");
                                     return Ok(failure(StatusCode::BAD_REQUEST));
