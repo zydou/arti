@@ -2,8 +2,6 @@
 //!
 //! There are some types that are pretty common, like "ISOTime",
 //! "base64-encoded data", and so on.
-//!
-//! These types shouldn't be exposed outside of the netdoc crate.
 
 pub use b16impl::*;
 pub use b64impl::*;
