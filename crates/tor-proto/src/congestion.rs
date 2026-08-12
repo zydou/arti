@@ -248,7 +248,7 @@ impl CongestionWindow {
 
     /// Return the SENDME increment value.
     pub(crate) fn sendme_inc(&self) -> u32 {
-        self.params.sendme_inc()
+        self.params.sendme_inc().into()
     }
 
     /// Return the congestion window params.
@@ -450,7 +450,7 @@ mod test {
         assert_eq!(cwnd.min(), cwnd.params().cwnd_min());
         assert_eq!(cwnd.increment(), cwnd.params().cwnd_inc());
         assert_eq!(cwnd.increment_rate(), cwnd.params().cwnd_inc_rate());
-        assert_eq!(cwnd.sendme_inc(), cwnd.params().sendme_inc());
+        assert_eq!(cwnd.sendme_inc(), u32::from(cwnd.params().sendme_inc()));
         assert!(!cwnd.is_full());
 
         // Validate changes.

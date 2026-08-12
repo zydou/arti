@@ -8,15 +8,20 @@ use crate::ccparams::{
 use crate::channel::Channel;
 use crate::circuit::celltypes::{CreateRequest, CreateResponse};
 use crate::circuit::circhop::{HandshakeParamsError, HopSettings};
-use crate::circuit::{CircuitRxSender, HandshakeSubprotocols, UniqId};
+use crate::circuit::{
+    CircuitRxSender, HandshakeSubprotocols, InvalidHandshakeSubprotocolError, UniqId,
+};
 use crate::client::circuit::padding::PaddingController;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::CryptInit as _;
-use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer, RelayLayer, tor1};
+use crate::crypto::cell::{
+    CgoRelayCrypto, InboundRelayLayer, OutboundRelayLayer, RelayLayer, Tor1RelayCrypto,
+};
 use crate::crypto::handshake::RelayHandshakeError;
 use crate::crypto::handshake::ServerHandshake as _;
 use crate::crypto::handshake::fast::CreateFastServer;
 use crate::crypto::handshake::ntor::{NtorSecretKey, NtorServer};
+use crate::crypto::handshake::ntor_v3::{NtorV3SecretKey, NtorV3Server};
 use crate::memquota::SpecificAccount as _;
 use crate::memquota::{ChannelAccount, CircuitAccount};
 use crate::relay::channel_provider::ChannelProvider;
@@ -33,10 +38,11 @@ use tor_cell::chancell::msg::{
     CreateFast, Created2, CreatedFast, Destroy, DestroyReason, HandshakeType,
 };
 use tor_cell::relaycell::RelayCmd;
+use tor_cell::relaycell::extend::{
+    CcRequest, CcResponse, CircRequestExt, CircResponseExt, SubprotocolRequest,
+};
 use tor_error::{ErrorKind, HasKind, debug_report, internal, into_internal, warn_report};
 use tor_linkspec::OwnedChanTarget;
-use tor_llcrypto::cipher::aes::Aes128Ctr;
-use tor_llcrypto::d::Sha1;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_memquota::mq_queue::ChannelSpec as _;
@@ -44,7 +50,7 @@ use tor_memquota::mq_queue::MpscSpec;
 use tor_relay_crypto::pk::{RelayNtorKeypair, RelayNtorKeys};
 use tor_rtcompat::SpawnExt as _;
 use tor_rtcompat::{DynTimeProvider, Runtime};
-use tracing::trace;
+use tracing::{debug, trace};
 
 /// Everything needed to handle CREATE* messages on channels.
 #[derive(derive_more::Debug)]
@@ -91,6 +97,9 @@ pub struct CreateRequestHandler {
     circuit_stream_tx: mpsc::Sender<Box<dyn Stream<Item = IncomingStream> + Send + Sync + Unpin>>,
 }
 
+// We make the CREATE-handling methods of `CreateRequestHandler` async
+// since we expect that in the future we may want to offload the crypto to a worker thread.
+#[expect(clippy::unused_async)]
 impl CreateRequestHandler {
     /// Build a new [`CreateRequestHandler`], and a [`CircuitIncomingStreamReceiver`]
     /// for receiving new streams that are opened on any incoming circuits.
@@ -150,7 +159,7 @@ impl CreateRequestHandler {
     /// relay. This is especially important here since we're handling data that is controllable from
     /// the other end of the circuit.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn handle_create<R: Runtime>(
+    pub(crate) async fn handle_create<R: Runtime>(
         &self,
         runtime: &R,
         channel: &Arc<Channel>,
@@ -161,16 +170,18 @@ impl CreateRequestHandler {
         memquota: &ChannelAccount,
         circ_unique_id: UniqId,
     ) -> Result<(CreateResponse, RelayCircComponents), Destroy> {
-        let result = self.handle_create_inner(
-            runtime,
-            channel,
-            our_ed25519_id,
-            our_rsa_id,
-            circ_id,
-            msg,
-            memquota,
-            circ_unique_id,
-        );
+        let result = self
+            .handle_create_inner(
+                runtime,
+                channel,
+                our_ed25519_id,
+                our_rsa_id,
+                circ_id,
+                msg,
+                memquota,
+                circ_unique_id,
+            )
+            .await;
 
         match result {
             Ok(x) => Ok(x),
@@ -189,7 +200,7 @@ impl CreateRequestHandler {
 
     /// See [`Self::handle_create`].
     #[allow(clippy::too_many_arguments)]
-    fn handle_create_inner<R: Runtime>(
+    async fn handle_create_inner<R: Runtime>(
         &self,
         runtime: &R,
         channel: &Arc<Channel>,
@@ -202,10 +213,13 @@ impl CreateRequestHandler {
     ) -> Result<(CreateResponse, RelayCircComponents), HandleCreateError> {
         // Perform the handshake crypto and build the response.
         let handshake_components = match msg {
-            CreateRequest::CreateFast(msg) => self.handle_create_fast(msg)?,
+            CreateRequest::CreateFast(msg) => self.handle_create_fast(msg).await?,
             CreateRequest::Create2(msg) => match msg.handshake_type() {
-                HandshakeType::NTOR_V3 => self.handle_create2_ntorv3(msg.body(), our_ed25519_id)?,
-                HandshakeType::NTOR => self.handle_create2_ntor(msg.body(), our_rsa_id)?,
+                HandshakeType::NTOR_V3 => {
+                    self.handle_create2_ntorv3(msg.body(), our_ed25519_id)
+                        .await?
+                }
+                HandshakeType::NTOR => self.handle_create2_ntor(msg.body(), our_rsa_id).await?,
                 x @ HandshakeType::TAP | x => {
                     return Err(HandleCreateError::Create2HandshakeType(x));
                 }
@@ -296,7 +310,7 @@ impl CreateRequestHandler {
     }
 
     /// The handshake code for a CREATE_FAST request.
-    fn handle_create_fast(
+    async fn handle_create_fast(
         &self,
         msg: &CreateFast,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
@@ -327,7 +341,7 @@ impl CreateRequestHandler {
             subprotos,
         )?;
 
-        let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
+        let crypt = Tor1RelayCrypto::construct(keygen)
             .map_err(into_internal!("Circuit crypt state construction failed"))?;
 
         let (crypto_out, crypto_in, _binding) = split_relay_layer(crypt);
@@ -346,7 +360,7 @@ impl CreateRequestHandler {
     }
 
     /// The handshake code for a CREATE2 ntor (non-v3) request.
-    fn handle_create2_ntor(
+    async fn handle_create2_ntor(
         &self,
         msg_body: &[u8],
         our_rsa_id: &RsaIdentity,
@@ -381,7 +395,7 @@ impl CreateRequestHandler {
             subprotos,
         )?;
 
-        let crypt = tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct(keygen)
+        let crypt = Tor1RelayCrypto::construct(keygen)
             .map_err(into_internal!("Circuit crypt state construction failed"))?;
 
         let (crypto_out, crypto_in, _binding) = split_relay_layer(crypt);
@@ -400,14 +414,137 @@ impl CreateRequestHandler {
     }
 
     /// The handshake code for a CREATE2 ntor-v3 request.
-    fn handle_create2_ntorv3(
+    async fn handle_create2_ntorv3(
         &self,
-        _msg_body: &[u8],
-        _our_ed25519_id: &Ed25519Identity,
+        msg_body: &[u8],
+        our_ed25519_id: &Ed25519Identity,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
-        Err(HandleCreateError::Create2HandshakeType(
-            HandshakeType::NTOR_V3,
-        ))
+        let ntor_keys = self.ntor_keys(|k| {
+            NtorV3SecretKey::new(k.secret().clone(), *k.public().inner(), *our_ed25519_id)
+        });
+
+        let circ_net_params = self
+            .circ_net_params
+            .read()
+            .expect("rwlock poisoned")
+            .clone();
+
+        // These extensions can be negotiated during the handshake.
+        let mut cc_algorithm = AlgorithmDiscriminants::FixedWindow;
+
+        // These subprotocols were requested during the handshake.
+        // They are not validated.
+        let mut subprotos = SubprotocolRequest::default();
+
+        // Helper which processes extension requests and returns any responses.
+        // Returns `None` if the handshake should fail.
+        let mut ext_reply_fn = |client_exts: &[CircRequestExt]| {
+            let mut response_exts = Vec::new();
+
+            // https://spec.torproject.org/tor-spec/create-created-cells.html#additional-data
+            //
+            // > Unless otherwise specified in the documentation for an extension type:
+            // > - [...]
+            // > - Parties MUST ignore any occurrence of an extension with a given type after the first such occurrence.
+            //
+            // TODO: Is there something nicer that we can do here?
+            // We could use accessors like `ExtList::get_cc_request()`
+            // which iterate over the extension list for each extension,
+            // but using an enum match like we do below is kind of nice.
+            let mut handled_cc_request = false;
+            let mut handled_subproto_request = false;
+
+            for ext in client_exts {
+                match ext {
+                    CircRequestExt::CcRequest(CcRequest { .. }) => {
+                        if handled_cc_request {
+                            continue;
+                        }
+                        handled_cc_request = true;
+
+                        cc_algorithm = AlgorithmDiscriminants::Vegas;
+
+                        let sendme_inc: u8 = circ_net_params.cc.cwnd.sendme_inc();
+                        let response = CcResponse::new(sendme_inc);
+                        response_exts.push(CircResponseExt::CcResponse(response));
+                    }
+                    // The given `SubprotocolRequest` stores a list of `NumberedSubver`,
+                    // but a circuit extension request is limited to 255 bytes (127 subprotocols).
+                    // So while a malicious client could send us a lot of invalid subprotocols,
+                    // this limit prevents this list from being excessively large.
+                    CircRequestExt::SubprotocolRequest(subproto_request) => {
+                        if handled_subproto_request {
+                            continue;
+                        }
+                        handled_subproto_request = true;
+
+                        // We don't check the requested subprotocols here.
+                        subprotos = subproto_request.clone();
+                    }
+                    CircRequestExt::Unrecognized(ext) => {
+                        // https://spec.torproject.org/tor-spec/create-created-cells.html#additional-data
+                        //
+                        // > Parties MUST ignore extensions with `EXT_FIELD_TYPE` bodies they do not recognize.
+                        debug!(
+                            ?ext,
+                            "CREATE2 ntor-v3 handshake requested unrecognized extension",
+                        );
+                    }
+                    ext => {
+                        // https://spec.torproject.org/tor-spec/create-created-cells.html#additional-data
+                        //
+                        // > Parties MUST ignore extensions with `EXT_FIELD_TYPE` bodies they do not recognize.
+                        //
+                        // We recognize this but don't know what to do with it.
+                        // We haven't implemented it, or it doesn't make sense
+                        // (for example `CircRequestExt::ProofOfWork`).
+                        // So we'll just behave as if we don't recognize it.
+                        debug!(
+                            ?ext,
+                            "CREATE2 ntor-v3 handshake requested unsupported extension",
+                        );
+                    }
+                }
+            }
+
+            Some(response_exts)
+        };
+
+        // TODO(relay): We might want to offload this to a CPU worker in the future.
+        let (keygen, handshake_msg) = NtorV3Server::server(
+            &mut rand::rng(),
+            &mut ext_reply_fn,
+            ntor_keys.as_ref(),
+            msg_body,
+        )?;
+
+        // Ensure that the client did not request invalid/unsupported subprotocols.
+        let subprotos = HandshakeSubprotocols::try_from_request(subprotos)?;
+
+        let hop_settings =
+            HopSettings::from_handshake_params(circ_net_params, cc_algorithm, subprotos)?;
+
+        let (crypto_out, crypto_in, _binding) = if subprotos.relay_crypt_cgo {
+            let crypt = CgoRelayCrypto::construct(keygen)
+                .map_err(into_internal!("Circuit crypt state construction failed"))?;
+            split_relay_layer(crypt)
+        } else {
+            let crypt = Tor1RelayCrypto::construct(keygen)
+                .map_err(into_internal!("Circuit crypt state construction failed"))?;
+            split_relay_layer(crypt)
+        };
+
+        let response = Created2::new(handshake_msg);
+        let response = CreateResponse::Created2(response);
+
+        trace!(?cc_algorithm, ?subprotos, "Completed ntor-v3 handshake");
+
+        Ok(CompletedHandshakeComponents {
+            response,
+            hop_settings,
+            crypto_out,
+            crypto_in,
+        })
     }
 
     /// Helper to get the ntor keypairs after some transformation `map`.
@@ -494,6 +631,9 @@ enum HandleCreateError {
     /// Circuit relay handshake failed.
     #[error("Failed to process the circuit relay handshake parameters")]
     HandshakeParameters(#[from] HandshakeParamsError),
+    /// Requested subprotocols which aren't supported.
+    #[error("Client requested subprotocol(s) which aren't supported")]
+    HandshakeSubprotocols(#[from] InvalidHandshakeSubprotocolError),
     /// The requested handshake type is unsupported.
     #[error("Unsupported handshake type {0}")]
     Create2HandshakeType(HandshakeType),
@@ -516,6 +656,7 @@ impl HasKind for HandleCreateError {
         match self {
             Self::Handshake(e) => e.kind(),
             Self::HandshakeParameters(e) => e.kind(),
+            Self::HandshakeSubprotocols(e) => e.kind(),
             Self::Create2HandshakeType(_) => ErrorKind::NotImplemented,
             Self::Memquota(e) => e.kind(),
             Self::Spawn(e) => e.kind(),
@@ -634,6 +775,7 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType};
     use tor_cell::chancell::{ChanCmd, ChanMsg as _};
     use tor_rtcompat::test_with_one_runtime;
 
@@ -742,14 +884,18 @@ mod test {
                     .await
                     .unwrap();
 
-                assert_eq!(
-                    conn_inspector.try_client_cell().unwrap().msg().cmd(),
-                    ChanCmd::CREATE2,
-                );
-                assert_eq!(
-                    conn_inspector.try_relay_cell().unwrap().msg().cmd(),
-                    ChanCmd::CREATED2,
-                );
+                let client_cell = conn_inspector.try_client_cell().unwrap().msg().clone();
+                let relay_cell = conn_inspector.try_relay_cell().unwrap().msg().clone();
+
+                // Check that we got CREATE2 and CREATED2.
+                assert_eq!(client_cell.cmd(), ChanCmd::CREATE2);
+                assert_eq!(relay_cell.cmd(), ChanCmd::CREATED2);
+
+                // Check that it was an ntor handshake.
+                let AnyChanMsg::Create2(client_cell) = client_cell else {
+                    unreachable!("CREATE2 checked above");
+                };
+                assert_eq!(client_cell.handshake_type(), HandshakeType::NTOR);
 
                 drop(tunnel);
 
@@ -767,5 +913,60 @@ mod test {
         });
     }
 
-    // TODO(relay): Test ntor-v3 handshake once implemented.
+    #[test]
+    fn ntor_v3() {
+        test_with_one_runtime!(|rt| async move {
+            let mut conn_inspector = test_utils::ConnInspector::new();
+
+            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+                test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
+
+            // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
+            // 4 = RELAY_NTORV3
+            // 5 = RELAY_NEGOTIATE_SUBPROTO
+            // 6 = RELAY_CRYPT_CGO
+            for relay_version in [4, 5, 6] {
+                let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
+
+                let circ_params = CircParameters::default();
+
+                let protocols = format!("Relay=4-{relay_version}").parse().unwrap();
+                let target = target_builder.protocols(protocols).build().unwrap();
+
+                let tunnel = pending_tunnel
+                    .create_firsthop(&target, circ_params)
+                    .await
+                    .unwrap();
+
+                let client_cell = conn_inspector.try_client_cell().unwrap().msg().clone();
+                let relay_cell = conn_inspector.try_relay_cell().unwrap().msg().clone();
+
+                // Check that we got CREATE2 and CREATED2.
+                assert_eq!(client_cell.cmd(), ChanCmd::CREATE2);
+                assert_eq!(relay_cell.cmd(), ChanCmd::CREATED2);
+
+                // Check that it was an ntor-v3 handshake.
+                let AnyChanMsg::Create2(client_cell) = client_cell else {
+                    unreachable!("CREATE2 checked above");
+                };
+                assert_eq!(client_cell.handshake_type(), HandshakeType::NTOR_V3);
+
+                // TODO: It would be nice if we had a way to check that CGO was in use when
+                // `relay_version` is >=6, but I don't see a nice way to do that.
+
+                drop(tunnel);
+
+                assert_eq!(
+                    conn_inspector.client_cell().await.unwrap().msg().cmd(),
+                    ChanCmd::DESTROY,
+                );
+                // TODO(relay): I think the relay shouldn't be sending a DESTROY back to the client.
+                // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2648
+                assert_eq!(
+                    conn_inspector.relay_cell().await.unwrap().msg().cmd(),
+                    ChanCmd::DESTROY,
+                );
+            }
+        });
+    }
 }

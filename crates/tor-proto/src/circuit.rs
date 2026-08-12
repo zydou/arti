@@ -18,6 +18,9 @@ pub use unique_id::UniqId;
 
 use crate::ccparams::CongestionControlParams;
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
+use tor_cell::relaycell::extend::SubprotocolRequest;
+use tor_error::ErrorKind;
+use tor_protover::Protocols;
 
 pub(crate) use circ_sender::{CircuitRxReceiver, CircuitRxSender};
 
@@ -98,14 +101,57 @@ tor_protover::subprotocol_restricted_set! {
     ///
     /// The allowed subprotocols are defined in:
     /// <https://spec.torproject.org/tor-spec/create-created-cells.html#subproto-request>
-    #[derive(Copy, Clone, Debug, Default)]
+    #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
     pub(crate) struct HandshakeSubprotocols {
         RELAY_CRYPT_CGO,
     }
 }
 
+impl HandshakeSubprotocols {
+    /// Build a [`HandshakeSubprotocols`] from a [`SubprotocolRequest`]
+    /// provided during a circuit handshake.
+    ///
+    /// If the `SubprotocolRequest` contains subprotocols that aren't
+    /// allowed to be requested through a subprotocol request,
+    /// this returns an error containing the original `SubprotocolRequest`.
+    //
+    // It would be nice to return a list of only the invalid subprotocols,
+    // but it seems a bit expensive to compute on the error path when we probably
+    // want to fail quickly.
+    pub(crate) fn try_from_request(
+        protos: SubprotocolRequest,
+    ) -> Result<Self, InvalidHandshakeSubprotocolError> {
+        use std::sync::LazyLock;
+        static ALL: LazyLock<Protocols> =
+            LazyLock::new(|| Protocols::from(HandshakeSubprotocols::ALL));
+
+        if !protos.contains_only(&ALL) {
+            return Err(InvalidHandshakeSubprotocolError(protos));
+        }
+
+        Ok(Self {
+            relay_crypt_cgo: protos.contains(tor_protover::named::RELAY_CRYPT_CGO),
+        })
+    }
+}
+
+/// The subprotocol request had subprotocols that are not all supported in circuit handshakes.
+///
+/// Contains the requested subprotocols (both valid and invalid).
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("Request included subprotocols that we do not support in circuit handshakes: {0:?}")]
+pub(crate) struct InvalidHandshakeSubprotocolError(SubprotocolRequest);
+
+impl tor_error::HasKind for InvalidHandshakeSubprotocolError {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::TorProtocolViolation
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test {
+    use super::*;
+
     #[cfg(feature = "relay")]
     use crate::relay::{CircNetParameters, CongestionControlNetParams};
 
@@ -119,5 +165,35 @@ pub(crate) mod test {
         CircNetParameters {
             cc: CongestionControlNetParams::defaults_for_tests(),
         }
+    }
+
+    #[test]
+    fn handshake_subprotocols() {
+        let empty_iter: [tor_protover::NumberedSubver; 0] = [];
+        let request = SubprotocolRequest::from_iter(empty_iter);
+        assert_eq!(
+            HandshakeSubprotocols::try_from_request(request),
+            Ok(HandshakeSubprotocols {
+                relay_crypt_cgo: false,
+            }),
+        );
+
+        let request = SubprotocolRequest::from_iter([tor_protover::named::RELAY_CRYPT_CGO]);
+        assert_eq!(
+            HandshakeSubprotocols::try_from_request(request),
+            Ok(HandshakeSubprotocols {
+                relay_crypt_cgo: true,
+            }),
+        );
+
+        let request =
+            SubprotocolRequest::from_iter([tor_protover::named::RELAY_NEGOTIATE_SUBPROTO]);
+        assert!(HandshakeSubprotocols::try_from_request(request).is_err());
+
+        let request = SubprotocolRequest::from_iter([
+            tor_protover::named::RELAY_NEGOTIATE_SUBPROTO,
+            tor_protover::named::RELAY_CRYPT_CGO,
+        ]);
+        assert!(HandshakeSubprotocols::try_from_request(request).is_err());
     }
 }

@@ -386,7 +386,7 @@ impl ConfluxSet {
 
                 // If data is in progress on the leg (inflight > cc_sendme_inc),
                 // then all legs must be closed
-                if inflight >= cwnd.params().sendme_inc() {
+                if inflight >= u32::from(cwnd.params().sendme_inc()) {
                     return Err(ReactorError::Shutdown);
                 }
 
