@@ -635,6 +635,14 @@ impl<R: Runtime> Reactor<R> {
 
         let Some(mut ent) = self.circs.get_mut(circid) else {
             trace!(channel_id = %self, "Relay cell for nonexistent circuit {}", circid);
+            // Silently drop the RELAY cell, as per the spec:
+            //
+            // > When a node receives a RELAY or RELAY_EARLY cell, it checks the cell’s circID and
+            // > determines whether it has a corresponding circuit along that connection.
+            // > If not, the node drops the cell.
+            //
+            // See https://spec.torproject.org/tor-spec/routing-relay-cells.html#circuit-id-checks
+            drop(msg);
             return Ok(());
         };
 
@@ -745,6 +753,12 @@ impl<R: Runtime> Reactor<R> {
 
         let Some(target) = self.circs.advance_from_opening(circid) else {
             trace!(channel_id = %self, "Unexpected CREATED* cell not on opening circuit {}", circid);
+            // Silently drop the cell: we can't easily distinguish cells with bogus CircIds
+            // from cells arriving on already-closed circuits,
+            // so we err on the side of keeping the channel open.
+            //
+            // See https://gitlab.torproject.org/tpo/core/arti/-/work_items/2655#note_3447841
+            drop(msg);
             return Ok(());
         };
 
@@ -810,6 +824,12 @@ impl<R: Runtime> Reactor<R> {
             // Got a DESTROY cell for a circuit we don't have.
             None => {
                 trace!(channel_id = %self, "Destroy for nonexistent circuit {}", circid);
+                // Silently drop the cell: we can't easily distinguish cells with bogus CircIds
+                // from cells arriving on already-closed circuits,
+                // so we err on the side of keeping the channel open:
+                //
+                // See https://gitlab.torproject.org/tpo/core/arti/-/work_items/2655#note_3447841
+                drop(msg);
                 Ok(())
             }
         }
