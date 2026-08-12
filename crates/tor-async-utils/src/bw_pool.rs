@@ -46,7 +46,7 @@
 //!
 //! There is deliberately no cancellation mechanism for a queued request. If a
 //! [`BandwidthAcquirer`] is torn down while its request is queued, the refiller will
-//! eventually fund that request anyway, set its grant flag, and wake a task that no
+//! eventually fund that request anyway, record the grant, and wake a task that no
 //! longer exists. The granted tokens are simply forfeited.
 //!
 //! This is a considered trade-off and we believe in the context of a Tor relay, losing a
@@ -61,7 +61,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::bw_pool::bucket::AtomicTokenBucket;
-use crate::bw_pool::refiller::RefillWaiter;
+use crate::bw_pool::refiller::{BwRequest, RefillWaiter};
 
 // Public export as the outside world needs this.
 pub use crate::bw_pool::refiller::BandwidthRefiller;
@@ -172,7 +172,8 @@ impl BandwidthAcquirer {
 
     /// Build the [`Permit`].
     ///
-    /// This sets the `in-flight` to false and reset `needed` as we now grant the permit.
+    /// This sets the `in-flight` to false and takes the granted tokens out of the waiter,
+    /// resetting it, as we now hand them to the permit.
     fn grant_permit(&mut self) -> Permit {
         let granted = self.waiter.take_granted();
         self.in_flight = false;
@@ -271,13 +272,16 @@ impl BandwidthAcquirer {
     /// Return a [`BwPoolError::PoolClosed`] error if the refiller is gone.
     fn enqueue_request(&mut self, cx: &mut Context<'_>, tokens: u64) -> Result<(), BwPoolError> {
         // Prepare the waiter for this new request.
-        self.waiter.prepare(cx.waker(), tokens);
-        // Send the waiter. Notice, this is the only dynamic allocation in this path
-        // because it is sent on an unbounded MPSC queue.
+        self.waiter.prepare(cx.waker());
+        // Send the requested amount along with the waiter. The amount never changes for
+        // the lifetime of the request so it doesn't need to live in the shared waiter.
+        //
+        // Notice, this is the only dynamic allocation in this path because it is sent on
+        // an unbounded MPSC queue.
         if self
             .pool
             .requests
-            .unbounded_send(Arc::clone(&self.waiter))
+            .unbounded_send((tokens, Arc::clone(&self.waiter)))
             .is_err()
         {
             // The refiller is gone, the pool is closed.
@@ -300,12 +304,12 @@ pub struct BandwidthPool {
     bucket: Arc<AtomicTokenBucket>,
     /// Ingress for acquirers that failed the fast path.
     ///
-    /// Sending a [`RefillWaiter`] here both enqueues it and wakes the
+    /// Sending a [`BwRequest`] here both enqueues it and wakes the
     /// [`BandwidthRefiller`]
     ///
     /// Unbounded because we never want an acquirer's enqueue to block. the number of
     /// in-flight requests is bounded by the number of acquirers.
-    requests: mpsc::UnboundedSender<Arc<RefillWaiter>>,
+    requests: mpsc::UnboundedSender<BwRequest>,
 }
 
 impl BandwidthPool {
