@@ -163,6 +163,14 @@ impl HttpServer {
         E: std::error::Error,
         B: DirBackendPlugin,
     {
+        // Creates a failing HTTP resposne while satisfying the hyper requirements.
+        let failure = |code| -> _ {
+            Response::builder()
+                .status(code)
+                .body(Default::default())
+                .expect("response builder should not fail")
+        };
+
         // We need to wrap the backend as an Arc, as the value would otherwise
         // not live long enough.
         let backend = Arc::new(backend);
@@ -184,7 +192,8 @@ impl HttpServer {
                             let backend = backend.clone();
                             async move {
                                 if !requ.body().is_end_stream() {
-                                    warn!("HTTP GET with empty body?");
+                                    warn!("HTTP GET with non-empty body?");
+                                    return Ok(failure(StatusCode::BAD_REQUEST));
                                 }
                                 // Convert Request::<Incoming> to Request::<()>.
                                 let requ = requ.map(|_| ());
