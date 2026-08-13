@@ -136,10 +136,13 @@ enum State {
 ///
 /// This data structure itself is static and contains no state, but merely
 /// configuration primitives that stay constant throughout the runtime of the
-/// program, such as the [`ConsensusFlavor`], the [`AuthorityContacts`], and the
+/// program, such as the [`AuthorityContacts`], and the
 /// [`DirTolerance`].  It can be kept throughout the entire runtime and only
 /// consists for convenience in order to not give each state machine related
 /// (then static) method a super long signature containing these fields.
+///
+/// Besides these dynamic fields, there is also a generic parameter specifying
+/// the consensus flavor that is being used.
 ///
 /// The state itself is computed fully deterministically from the data found
 /// within the database and [`ConsensusBoundData`].
@@ -210,8 +213,8 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
         ///
         /// This field is technically mutually exclusive to server_queue and
         /// extra_queue because micro descriptors are only found in
-        /// [`ConsensusFlavor::Microdesc`] and server plus extra-info
-        /// descriptors only in [`ConsensusFlavor::Plain`].  However, because
+        /// microdescriptor consensuses  and server plus extra-info
+        /// descriptors only in plain consensuses.  However, because
         /// we used a queue based design, we just leave the queue empty instead
         /// of wrapping this behind an enum variant for true mutual exclusivity.
         /// This makes coding much easier with less boilerplate and neglectable
