@@ -35,7 +35,7 @@ use tor_error::{internal, into_internal};
 use tor_netdoc::{
     doc::{
         authcert::{AuthCertKeyIds, AuthCertUnverified},
-        netstatus::{ConsensusFlavor, md, plain},
+        netstatus::{md, plain},
     },
     parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput},
 };
@@ -153,10 +153,6 @@ enum State {
 /// See [`StaticEngine::determine_state()`] for more details.
 #[derive(Debug)]
 struct StaticEngine<T> {
-    /// The flavor of the consensus we are serving.
-    // XXX: Remove.
-    flavor: ConsensusFlavor,
-
     /// The authorities we are acknowledging.
     authorities: AuthorityContacts,
 
@@ -292,7 +288,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // is very fast and having to maintain two different queries,
                 // one for checking and one for selecting, is prone to get
                 // out-of-sync.
-                match ConsensusMeta::query_recent(tx, self.flavor, &self.tolerance, now)? {
+                match ConsensusMeta::query_recent(tx, T::flavor(), &self.tolerance, now)? {
                     // Some consensus means we can load it.
                     Some(_) => State::LoadConsensus,
 
@@ -420,7 +416,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // leaves too much room for wrong/weird behavior.
         let (server_queue, extra_queue, micro_queue, lifetime, consensus) =
             db::read_tx(pool, |tx| {
-                let meta = ConsensusMeta::query_recent(tx, self.flavor, &self.tolerance, now)?
+                let meta = ConsensusMeta::query_recent(tx, T::flavor(), &self.tolerance, now)?
                     .ok_or(internal!("database externally modified?"))?;
                 let server_queue = meta.missing_servers(tx)?;
                 let extra_queue = meta.missing_extras(tx)?;
@@ -478,7 +474,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     ) -> Result<(), AuthorityRequestError> {
         // Obtain the consensus.
         let (raw, consensus) = self
-            .send_request(endpoint, ConsensusRequest::new(self.flavor))
+            .send_request(endpoint, ConsensusRequest::new(T::flavor()))
             .await?;
         let mut consensus = consensus
             .into_iter()
@@ -743,7 +739,6 @@ mod test {
         let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::<Plain>::None;
         let engine = StaticEngine {
-            flavor: ConsensusFlavor::Plain,
             authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
@@ -815,7 +810,6 @@ mod test {
         let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::<Plain>::None;
         let engine = StaticEngine {
-            flavor: ConsensusFlavor::Plain,
             authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
@@ -867,7 +861,6 @@ mod test {
             raw: testdata2::current_consensus_ns().1.to_owned(),
         };
         let engine = StaticEngine {
-            flavor: ConsensusFlavor::Plain,
             authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),

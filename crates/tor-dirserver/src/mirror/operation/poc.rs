@@ -7,13 +7,13 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rand::{Rng, seq::SliceRandom};
 use tor_basic_utils::retry::RetryDelay;
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
-use tor_netdoc::doc::netstatus::{ConsensusFlavor, plain};
 use tor_rtcompat::PreferredRuntime;
 
 use crate::{
     database::Timestamp,
     err::IsFatal,
     mirror::operation::{ConsensusBoundData, StaticEngine},
+    types::FlavoredConsensusUnverified,
 };
 
 /// Proof-of-concept main execution function for this module
@@ -26,18 +26,15 @@ use crate::{
 //   eg that it could reach `expect("attempted all authorities")`.
 //   At the very least it is confusing.  See
 //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3664#note_3352738
-async fn serve<R: Rng, F: Fn() -> Timestamp>(
+async fn serve<T: FlavoredConsensusUnverified, R: Rng, F: Fn() -> Timestamp>(
     pool: &Pool<SqliteConnectionManager>,
-    flavor: ConsensusFlavor,
     authorities: AuthorityContacts,
     tolerance: DirTolerance,
     rng: &mut R,
     now_fn: F,
 ) {
-    // XXX: Once we got rid of `flavor`, make this even more generic.
-    let mut data = ConsensusBoundData::<plain::NetworkStatusUnverified>::None;
+    let mut data = ConsensusBoundData::<T>::None;
     let engine = StaticEngine {
-        flavor,
         authorities,
         tolerance,
         rt: PreferredRuntime::current().expect("unable to get runtime"),
