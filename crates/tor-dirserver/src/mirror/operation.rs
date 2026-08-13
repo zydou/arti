@@ -33,9 +33,7 @@ use tor_dirclient::request::{AuthCertRequest, ConsensusRequest, Requestable};
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::{internal, into_internal};
 use tor_netdoc::{
-    doc::{
-        authcert::{AuthCertKeyIds, AuthCertUnverified},
-    },
+    doc::authcert::{AuthCertKeyIds, AuthCertUnverified},
     parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput},
 };
 use tor_rtcompat::PreferredRuntime;
@@ -807,9 +805,11 @@ mod test {
     async fn state_auth_certs() {
         let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::<Plain>::Unverified {
-            consensus:
-                parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().1, ""))
-                    .unwrap(),
+            consensus: parse2::parse_netdoc(&ParseInput::new(
+                testdata2::current_consensus_ns().1,
+                "",
+            ))
+            .unwrap(),
             raw: testdata2::current_consensus_ns().1.to_owned(),
         };
         let engine = StaticEngine {
@@ -890,9 +890,11 @@ mod test {
         let recent_authcerts = db::read_tx(&pool, |tx| {
             AuthCertMeta::query_recent(
                 tx,
-                &
-                    parse2::parse_netdoc::<Plain>(&ParseInput::new(testdata2::current_consensus_ns().1, ""))
-                        .unwrap()
+                &parse2::parse_netdoc::<Plain>(&ParseInput::new(
+                    testdata2::current_consensus_ns().1,
+                    "",
+                ))
+                .unwrap()
                 .signatories(),
                 &DirTolerance::default(),
                 testdata2::valid_system_time().into(),
