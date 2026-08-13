@@ -89,7 +89,7 @@ impl RefillWaiter {
     pub(super) fn prepare(&self, waker: &Waker) {
         // Reset the waiter with this new waker.
         self.set_granted(0);
-        self.set_waker(waker);
+        self.waker.register(waker);
     }
 
     /// Grant a number of tokens for this waiter.
@@ -135,7 +135,7 @@ impl RefillWaiter {
         //
         // That new waker is never woken up because the grant was done just before hence
         // why we re-check the granted tokens.
-        self.set_waker(waker);
+        self.waker.register(waker);
         self.is_granted()
     }
 
@@ -158,21 +158,16 @@ impl RefillWaiter {
     /// ```text
     ///     refiller:  set_granted(n)         // grant
     ///     refiller:  waker.wake()           // no waker registered yet => wakes nobody
-    ///     acquirer:  set_waker(cx)          // register, too late for the wake above
+    ///     acquirer:  waker.register(cx)     // register, too late for the wake above
     ///     acquirer:  is_granted() -> ???    // must observe the grant or stuck forever
     /// ```
     ///
-    /// The acquirer's re-check after `set_waker` must be forced to observe the grant.
+    /// The acquirer's re-check after `waker.register` must be forced to observe the grant.
     /// That happens-before is actually provided by the [`AtomicWaker`].
     ///
     /// [`Ordering::Relaxed`] suffices because the counter gates no other memory.
     fn set_granted(&self, val: u64) {
         self.granted.store(val, Ordering::Relaxed);
-    }
-
-    /// Register the given `waker` into our atomic waker.
-    fn set_waker(&self, waker: &Waker) {
-        self.waker.register(waker);
     }
 
     /// Wake the waker.
@@ -534,7 +529,7 @@ mod test {
         let (tx, mut r) = drained_refiller(100);
         let w = enqueue(&tx, 50);
         let wake_counter = Arc::new(WakeCount::default());
-        w.set_waker(&waker(Arc::clone(&wake_counter)));
+        w.waker.register(&waker(Arc::clone(&wake_counter)));
 
         // Not enough to wake the waiter. Request wants 50 so deficit is now 30.
         assert_eq!(r.refill_and_serve(20), Some(30));
