@@ -56,6 +56,7 @@ cfg_if::cfg_if! {
 ///
 /// [^1]: See <https://github.com/notify-rs/notify/issues/644>
 #[derive(Getters)]
+#[must_use = "A dropped FileWatcher exits immediately"]
 pub struct FileWatcher {
     /// An underlying `notify` watcher that tells us about directory changes.
     // this field is kept only so the watcher is not dropped
