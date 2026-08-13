@@ -2,7 +2,10 @@
 
 use tor_error::{bad_api_usage, into_internal};
 
-use crate::{Error, Readable, Result};
+use crate::{
+    Error::{self},
+    Readable, Result,
+};
 use std::num::NonZeroUsize;
 
 /// A type for reading messages from a slice of bytes.
@@ -295,15 +298,52 @@ impl<'a> Reader<'a> {
     /// # Result::Ok(())
     /// ```
     pub fn take_until(&mut self, term: u8) -> Result<&'a [u8]> {
-        let pos =
-            self.b[self.off..]
-                .iter()
-                .position(|b| *b == term)
-                .ok_or(self.incomplete_error(
-                    //
-                    1.try_into().expect("1 == 0"),
-                ))?;
-        let result = self.take(pos)?;
+        self.take_until_with_limit(term, usize::MAX)
+        // Since take_until_with_limit used if max_len > self.remaining()
+        // So when max_len is usize::MAX, it will always be greater than self.remaining(),
+        // and thus we will always return the error from incomplete_error
+    }
+    /// Try to consume and return bytes from this buffer until we
+    /// encounter a terminating byte equal to `term`.
+    /// Or we have read `max_len` bytes without finding the terminator.
+    /// The maximum value that will be returned is max_len - 1,
+    /// because we need to remove the terminator.
+    /// If we didn't find the terminator within the first `max_len` bytes,
+    /// we will return an error.
+    ///     
+    /// # Example
+    /// ```rust
+    /// use tor_bytes::{Reader,Result};
+    /// let m = b"Hello\0wrld";
+    /// let mut b = Reader::from_slice(m);
+    /// assert_eq!(b.take_until_with_limit(0, 10)?, b"Hello");
+    /// assert_eq!(b.into_rest(), b"wrld");
+    /// # Result::Ok(())
+    /// ```
+    pub fn take_until_with_limit(&mut self, term: u8, max_len: usize) -> Result<&'a [u8]> {
+        let limit: usize = std::cmp::min(max_len, self.remaining());
+        let pos = match self.b[self.off..limit + self.off]
+            .iter()
+            .position(|b| *b == term)
+        {
+            Some(p) => p,
+            None => {
+                if max_len > self.remaining() {
+                    // since user asked for more than we have, we should return Incomplete, not LimitExceeded
+                    return Err(self.incomplete_error(
+                        //
+                        1.try_into().expect("1 == 0"),
+                    ));
+                } else {
+                    return Err(Error::LimitExceeded {
+                        limit,
+                        terminator: term,
+                    });
+                }
+            }
+        };
+
+        let result: &[u8] = self.take(pos)?;
         self.advance(1)?;
         Ok(result)
     }
@@ -677,6 +717,37 @@ mod tests {
         assert_eq!(b.take_until(b' ').unwrap(), &b"si"[..]);
         assert_eq!(b.take_until(b' ').unwrap(), &b"vales"[..]);
         assert_eq!(b.take_until(b' '), Err(Error::new_incomplete_for_test(1)));
+    }
+
+    #[test]
+    fn take_until_with_limit() {
+        let mut b = Reader::from_slice_for_test(&b"si vales valeo"[..]);
+        assert_eq!(b.take_until_with_limit(b' ', 10).unwrap(), &b"si"[..]);
+        assert_eq!(b.take_until_with_limit(b' ', 10).unwrap(), &b"vales"[..]);
+        assert_eq!(
+            b.take_until_with_limit(b' ', 100),
+            Err(Error::new_incomplete_for_test(1)),
+        );
+        let mut b = Reader::from_slice_for_test(&b"Hello\0World"[..]);
+        assert_eq!(
+            b.take_until_with_limit(b'\0', 1),
+            Err(Error::LimitExceeded {
+                limit: 1,
+                terminator: b'\0'
+            })
+        );
+
+        // Test the case where the terminator is exactly at the max_len
+        let mut b = Reader::from_slice_for_test(&b"si vales valeo"[..]);
+        assert_eq!(b.take_until_with_limit(b' ', 3).unwrap(), &b"si"[..]);
+        // Test the case where the terminator is exactly one more than the limit
+        assert_eq!(
+            b.take_until_with_limit(b' ', 5),
+            Err(Error::LimitExceeded {
+                limit: 5,
+                terminator: b' '
+            })
+        );
     }
 
     #[test]

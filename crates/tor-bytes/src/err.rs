@@ -111,6 +111,15 @@ pub enum Error {
     #[error("Internal error")]
     #[deftly(never_eq)] // an internal error is equal to nothing, not even itself.
     Bug(#[from] tor_error::Bug),
+    /// Using for reader.rs::take_until_with_limit
+    /// If we reach the limit before finding the terminator, we return this error.
+    #[error("Reached limit of {limit} bytes while searching for terminator 0x{terminator:02x}")]
+    LimitExceeded {
+        /// Maximum number of bytes that were allowed to read
+        limit: usize,
+        /// The terminator byte we were looking for
+        terminator: u8,
+    },
 }
 
 impl Error {
