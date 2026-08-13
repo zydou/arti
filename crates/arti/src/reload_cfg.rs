@@ -72,65 +72,64 @@ struct CfgMgrInner {
     watcher: Option<FileWatcher>,
 }
 
-#[rustfmt::skip] // XXXX remove this line and reindent.
 impl<R: Runtime> CfgMgr<R> {
-/// Construct a new CfgMgr, and launch a task to watch for any events
-/// that mean we have to reload our configuration.
-///
-/// If the provided configuration requires it, watch for changes in `sources`
-/// and try to reload our configuration. On unix platforms, also watch
-/// for SIGHUP and reload configuration then.
-///
-/// The modules are `Weak` references to prevent this background task
-/// from keeping them alive.
-///
-/// See the [`FileWatcher`](FileWatcher#Limitations) docs for limitations.
-#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[instrument(level = "trace", skip_all)]
-pub(crate) fn launch(
-    runtime: R,
-    sources: ConfigurationSources,
-    config: &ArtiConfig,
-    modules: Vec<Weak<dyn ReconfigurableModule>>,
-) -> anyhow::Result<Arc<Self>> {
-    let (tx, rx) = file_watcher::channel();
-    let mgr = Arc::new(CfgMgr {
-        runtime,
-        sources,
-        tx,
-        modules,
-        inner: Mutex::new(CfgMgrInner { watcher: None }),
-    });
+    /// Construct a new CfgMgr, and launch a task to watch for any events
+    /// that mean we have to reload our configuration.
+    ///
+    /// If the provided configuration requires it, watch for changes in `sources`
+    /// and try to reload our configuration. On unix platforms, also watch
+    /// for SIGHUP and reload configuration then.
+    ///
+    /// The modules are `Weak` references to prevent this background task
+    /// from keeping them alive.
+    ///
+    /// See the [`FileWatcher`](FileWatcher#Limitations) docs for limitations.
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    #[instrument(level = "trace", skip_all)]
+    pub(crate) fn launch(
+        runtime: R,
+        sources: ConfigurationSources,
+        config: &ArtiConfig,
+        modules: Vec<Weak<dyn ReconfigurableModule>>,
+    ) -> anyhow::Result<Arc<Self>> {
+        let (tx, rx) = file_watcher::channel();
+        let mgr = Arc::new(CfgMgr {
+            runtime,
+            sources,
+            tx,
+            modules,
+            inner: Mutex::new(CfgMgrInner { watcher: None }),
+        });
 
-    cfg_if::cfg_if! {
-        if #[cfg(target_family = "unix")] {
-            let sighup_stream = sighup_stream()?;
-        } else {
-            let sighup_stream = stream::pending();
-        }
-    }
-
-    let rt = mgr.runtime.clone();
-    let weak_mgr = Arc::downgrade(&mgr);
-    mgr.runtime
-        .spawn(async move {
-            let res: anyhow::Result<()> =
-                run_watcher(rt, rx, sighup_stream, weak_mgr, Some(DEBOUNCE_INTERVAL)).await;
-            match res {
-                Ok(()) => debug!("Config watcher task exiting"),
-                // TODO: warn_report does not work on anyhow::Error.
-                Err(e) => error!("Config watcher task exiting: {}", tor_error::Report(e)),
+        cfg_if::cfg_if! {
+            if #[cfg(target_family = "unix")] {
+                let sighup_stream = sighup_stream()?;
+            } else {
+                let sighup_stream = stream::pending();
             }
-        })
-        .context("failed to spawn task")?;
+        }
 
-    if config.application().watch_configuration {
-        let (watcher, _files) = mgr.launch_file_watcher()?;
-        mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
+        let rt = mgr.runtime.clone();
+        let weak_mgr = Arc::downgrade(&mgr);
+        mgr.runtime
+            .spawn(async move {
+                let res: anyhow::Result<()> =
+                    run_watcher(rt, rx, sighup_stream, weak_mgr, Some(DEBOUNCE_INTERVAL)).await;
+                match res {
+                    Ok(()) => debug!("Config watcher task exiting"),
+                    // TODO: warn_report does not work on anyhow::Error.
+                    Err(e) => error!("Config watcher task exiting: {}", tor_error::Report(e)),
+                }
+            })
+            .context("failed to spawn task")?;
+
+        if config.application().watch_configuration {
+            let (watcher, _files) = mgr.launch_file_watcher()?;
+            mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
+        }
+
+        Ok(mgr)
     }
-
-    Ok(mgr)
-}
 
     /// Create a new [`FileWatcher`] for the files in this configuration.
     ///
@@ -145,42 +144,44 @@ pub(crate) fn launch(
         Ok((watcher, found_files))
     }
 
-/// Reload the configuration.
-#[instrument(level = "trace", skip_all)]
-fn reload_configuration(
-    &self,
-) -> anyhow::Result<()> {
-    let mut inner = self.inner.lock().expect("Lock poisoned");
+    /// Reload the configuration.
+    #[instrument(level = "trace", skip_all)]
+    fn reload_configuration(&self) -> anyhow::Result<()> {
+        let mut inner = self.inner.lock().expect("Lock poisoned");
 
-    // TODO RPC: Take 'how' as an argument.
-    let found_files = if inner.watcher.is_some() {
-        let (watcher, files) = self.launch_file_watcher().context("Failed to re-scan config")?;
-        inner.watcher = Some(watcher);
-        files
-    } else {
-        self.sources
-            .scan()
-            .context("FS watch: failed to rescan config")?
-    };
+        // TODO RPC: Take 'how' as an argument.
+        let found_files = if inner.watcher.is_some() {
+            let (watcher, files) = self
+                .launch_file_watcher()
+                .context("Failed to re-scan config")?;
+            inner.watcher = Some(watcher);
+            files
+        } else {
+            self.sources
+                .scan()
+                .context("FS watch: failed to rescan config")?
+        };
 
-    match reconfigure(found_files, &self.modules) {
-        Ok(watch) => {
-            info!("Successfully reloaded configuration.");
-            if watch && inner.watcher.is_none() {
-                info!("Starting watching over configuration.");
-                let (watcher, _files) = self.launch_file_watcher().context("Starting to watch over config")?;
-                inner.watcher = Some(watcher);
-            } else if !watch && inner.watcher.is_some() {
-                info!("Stopped watching over configuration.");
-                inner.watcher = None;
+        match reconfigure(found_files, &self.modules) {
+            Ok(watch) => {
+                info!("Successfully reloaded configuration.");
+                if watch && inner.watcher.is_none() {
+                    info!("Starting watching over configuration.");
+                    let (watcher, _files) = self
+                        .launch_file_watcher()
+                        .context("Starting to watch over config")?;
+                    inner.watcher = Some(watcher);
+                } else if !watch && inner.watcher.is_some() {
+                    info!("Stopped watching over configuration.");
+                    inner.watcher = None;
+                }
             }
+            // TODO: warn_report does not work on anyhow::Error.
+            Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
         }
-        // TODO: warn_report does not work on anyhow::Error.
-        Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
-    }
 
-    Ok(())
-}
+        Ok(())
+    }
 }
 
 /// Start watching for configuration changes.
