@@ -267,7 +267,8 @@ pub(crate) enum CtrlCmd {
         fwd_lasthop: bool,
         rev_lasthop: bool,
         peer_id: path::HopDetail,
-        params: CircParameters,
+        // `CircParameters` is large and this command is test-only, so we box it.
+        params: Box<CircParameters>,
         done: ReactorResultChannel<()>,
     },
     /// (tests only) Get the send window and expected tags for a given hop.

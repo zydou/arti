@@ -1418,7 +1418,7 @@ pub(crate) mod test {
                     fwd_lasthop: idx == last_hop_num,
                     rev_lasthop: idx == u8::from(next_msg_from),
                     peer_id,
-                    params: params.clone(),
+                    params: Box::new(params.clone()),
                     done: tx,
                 })
                 .unwrap();
@@ -1550,6 +1550,8 @@ pub(crate) mod test {
         // Do the path accessors report a reasonable outcome?
         {
             let path = circ.single_path().unwrap();
+            // Without the 'hs-common' feature, clippy would prefer a `map()`.
+            #[allow(clippy::unnecessary_filter_map)]
             let path = path
                 .all_hops()
                 .filter_map(|hop| match hop {

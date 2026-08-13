@@ -273,10 +273,10 @@ pub(crate) struct CircReactorHandle<F: ForwardHandler, B: BackwardHandler> {
     #[debug(skip)]
     pub(crate) command: mpsc::UnboundedSender<CtrlCmd<F::CtrlCmd, B::CtrlCmd>>,
     /// The time provider.
-    #[expect(unused)] // TODO(relay)
+    #[allow(unused)] // TODO(relay)
     pub(crate) time_provider: DynTimeProvider,
     /// Memory quota account
-    #[expect(unused)] // TODO(relay)
+    #[allow(unused)] // TODO(relay)
     pub(crate) memquota: CircuitAccount,
 }
 
