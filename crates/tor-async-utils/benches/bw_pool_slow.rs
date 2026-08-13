@@ -50,7 +50,7 @@ fn slow_path_roundtrip(
 
     // The refiller serves the queue and grants it. No deficit.
     assert!(
-        refiller.refill(black_box(CLAIM)).is_none(),
+        refiller.refill_and_serve(black_box(CLAIM)).is_none(),
         "refill should serve the only queued request",
     );
 

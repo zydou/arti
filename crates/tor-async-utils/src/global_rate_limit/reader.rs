@@ -181,7 +181,7 @@ mod test {
         // Pool is empty so the next read is Pending until a refill.
         let mut read = reader.read(&mut buf);
         assert!((&mut read).now_or_never().is_none());
-        assert_eq!(refiller.refill(30), None);
+        assert_eq!(refiller.refill_and_serve(30), None);
         assert_eq!((&mut read).now_or_never().unwrap().unwrap(), 30);
     }
 

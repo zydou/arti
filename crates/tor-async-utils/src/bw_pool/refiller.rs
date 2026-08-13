@@ -202,7 +202,7 @@ pub struct BandwidthRefiller {
     /// This is populated by the [`Self::wait`] function
     head: Option<BwRequest>,
     /// Tokens that have been drained out of the fast-path bucket or handed in via
-    /// [`Self::refill`] but not yet distributed.
+    /// [`Self::refill_and_serve`] but not yet distributed.
     ///
     /// If anything is left at the end of the refill loop, it is published back in the
     /// main pool fast path.
@@ -272,7 +272,7 @@ impl BandwidthRefiller {
                 //
                 // If everyone is served and we still have tokens, they are put back
                 // in the fast path.
-                match self.refill(bucket.drain_all()) {
+                match self.refill_and_serve(bucket.drain_all()) {
                     // We served everyone, fast-path has the surplus if any. Go back to
                     // the doorbell.
                     None => break,
@@ -333,7 +333,7 @@ impl BandwidthRefiller {
     /// many more tokens are needed before it can be served. The caller can use this to
     /// decide how long to wait before the next refill.
     #[cfg_attr(feature = "bench", visibility::make(pub))]
-    pub(crate) fn refill(&mut self, tokens: u64) -> Option<u64> {
+    pub(crate) fn refill_and_serve(&mut self, tokens: u64) -> Option<u64> {
         let capacity = self.bucket.capacity();
 
         // Reclaim tokens sitting in the fast path.
@@ -481,12 +481,12 @@ mod test {
 
         // Partial refills which report the shrinking deficit. No grant as we don't have
         // enough.
-        assert_eq!(r.refill(20), Some(30));
-        assert_eq!(r.refill(20), Some(10));
+        assert_eq!(r.refill_and_serve(20), Some(30));
+        assert_eq!(r.refill_and_serve(20), Some(10));
         assert!(!w.is_granted());
 
         // Last refill before reaching what is needed.
-        assert_eq!(r.refill(10), None);
+        assert_eq!(r.refill_and_serve(10), None);
         assert!(w.is_granted());
     }
 
@@ -498,13 +498,13 @@ mod test {
         let b = enqueue(&tx, 30);
 
         // Refill with 40 tokens, A should be granted wanting 30.
-        assert_eq!(r.refill(40), Some(20));
+        assert_eq!(r.refill_and_serve(40), Some(20));
         assert!(a.is_granted());
         // Not granted, 10 remains for B with a 20 deficit.
         assert!(!b.is_granted());
         assert_eq!(r.bucket.available(), 0);
         // Refill the deficit and B should be granted.
-        assert_eq!(r.refill(20), None);
+        assert_eq!(r.refill_and_serve(20), None);
         assert!(b.is_granted());
     }
 
@@ -520,11 +520,11 @@ mod test {
 
         // A refill of 0 should take those 40 from the fast path and put them in the
         // refiller held reserve returning a deficit of 10 to grant the request of 50.
-        assert_eq!(r.refill(0), Some(10));
+        assert_eq!(r.refill_and_serve(0), Some(10));
         assert_eq!(bucket.available(), 0);
         // Refill 20 more, the request should be granted and 10 should be put in the fast
         // path.
-        assert_eq!(r.refill(20), None);
+        assert_eq!(r.refill_and_serve(20), None);
         assert!(w.is_granted());
         assert_eq!(bucket.available(), 10);
     }
@@ -537,10 +537,10 @@ mod test {
         w.set_waker(&waker(Arc::clone(&wake_counter)));
 
         // Not enough to wake the waiter. Request wants 50 so deficit is now 30.
-        assert_eq!(r.refill(20), Some(30));
+        assert_eq!(r.refill_and_serve(20), Some(30));
         assert_eq!(wake_counter.0.load(Ordering::SeqCst), 0);
         // Refills with the deficit, the waker should wake up and be granted.
-        assert_eq!(r.refill(30), None);
+        assert_eq!(r.refill_and_serve(30), None);
         assert_eq!(wake_counter.0.load(Ordering::SeqCst), 1);
         assert!(w.is_granted());
     }
@@ -556,7 +556,7 @@ mod test {
         // the following refill.
         let w = enqueue(&tx, 10);
         assert_eq!(r.wait().now_or_never(), Some(true));
-        assert_eq!(r.refill(10), None);
+        assert_eq!(r.refill_and_serve(10), None);
         assert!(w.is_granted());
         // All senders gone, wait() should report that nothing is there.
         drop(tx);

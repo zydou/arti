@@ -432,7 +432,7 @@ mod test {
     /// A `Context` backed by a no-op waker, for deterministic manual polling.
     ///
     /// This is a trick so we don't rely on wakeups as grants are committed by a call to
-    /// refill() into the waiter's grant flag. So a second poll observes it.
+    /// refill_and_serve() into the waiter's grant flag. So a second poll observes it.
     fn noop_cx() -> Context<'static> {
         Context::from_waker(noop_waker_ref())
     }
@@ -484,7 +484,7 @@ mod test {
         assert!(a.as_mut().poll(&mut cx).is_pending());
 
         // Refill to serve it fully.
-        assert_eq!(refiller.refill(30), None);
+        assert_eq!(refiller.refill_and_serve(30), None);
         expect_granted(a.as_mut().poll(&mut cx));
     }
 
@@ -498,12 +498,12 @@ mod test {
 
         // First blocked acquire through the acquirer.
         assert!(acquirer.poll_acquire(&mut cx, 30).is_pending());
-        assert_eq!(refiller.refill(30), None);
+        assert_eq!(refiller.refill_and_serve(30), None);
         expect_granted(acquirer.poll_acquire(&mut cx, 30));
 
         // The same acquirer is reusable with a different amount. No new allocation.
         assert!(acquirer.poll_acquire(&mut cx, 50).is_pending());
-        assert_eq!(refiller.refill(50), None);
+        assert_eq!(refiller.refill_and_serve(50), None);
         expect_granted(acquirer.poll_acquire(&mut cx, 50));
     }
 
@@ -520,7 +520,7 @@ mod test {
         assert!(b.as_mut().poll(&mut cx).is_pending());
 
         // Refill of 40: serves A and keeps 10 reserved for B meaning a deficit of 40.
-        assert_eq!(refiller.refill(40), Some(40));
+        assert_eq!(refiller.refill_and_serve(40), Some(40));
         expect_granted(a.as_mut().poll(&mut cx));
         assert!(b.as_mut().poll(&mut cx).is_pending());
 
@@ -531,12 +531,12 @@ mod test {
         assert!(c.as_mut().poll(&mut cx).is_pending());
 
         // Second refill of 40 plus held was 10 which is 50 that B needs.
-        assert_eq!(refiller.refill(40), Some(5)); // C is the head and 5 is the deficit.
+        assert_eq!(refiller.refill_and_serve(40), Some(5)); // C is the head and 5 is the deficit.
         expect_granted(b.as_mut().poll(&mut cx));
         assert!(c.as_mut().poll(&mut cx).is_pending());
 
         // And finally C.
-        assert_eq!(refiller.refill(5), None);
+        assert_eq!(refiller.refill_and_serve(5), None);
         expect_granted(c.as_mut().poll(&mut cx));
     }
 
@@ -545,7 +545,7 @@ mod test {
         let (pool, mut refiller) = drained_pool(100);
 
         // No acquirers. Refill with a large value keeps it cap to the pool capacity.
-        assert_eq!(refiller.refill(1000), None);
+        assert_eq!(refiller.refill_and_serve(1000), None);
         assert_eq!(pool.available(), 100);
         assert_eq!(pool.capacity(), 100);
 
@@ -605,7 +605,7 @@ mod test {
         }
 
         // And refilling serves the head.
-        assert_eq!(refiller.refill(10), None);
+        assert_eq!(refiller.refill_and_serve(10), None);
         expect_granted(a.as_mut().poll(&mut cx));
     }
 
@@ -674,9 +674,9 @@ mod test {
         assert_eq!(pool.available(), 0);
 
         // A remains queued and is served by subsequent refills.
-        assert_eq!(refiller.refill(10), Some(40));
+        assert_eq!(refiller.refill_and_serve(10), Some(40));
         assert!(a.as_mut().poll(&mut cx).is_pending());
-        assert_eq!(refiller.refill(40), None);
+        assert_eq!(refiller.refill_and_serve(40), None);
         expect_granted(a.as_mut().poll(&mut cx));
         assert_eq!(pool.available(), 0);
     }

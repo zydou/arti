@@ -220,7 +220,7 @@ mod test {
         // Pool is empty so the next write is Pending until a refill.
         let mut write = writer.write(&[0; 30]);
         assert!((&mut write).now_or_never().is_none());
-        assert_eq!(refiller.refill(30), None);
+        assert_eq!(refiller.refill_and_serve(30), None);
         // Pool is refilled, 30 is written.
         assert_eq!((&mut write).now_or_never().unwrap().unwrap(), 30);
     }

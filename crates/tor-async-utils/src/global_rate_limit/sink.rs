@@ -178,7 +178,7 @@ mod test {
         // Pool is empty. The send is Pending until refill.
         let mut send2 = sink.send(2);
         assert!((&mut send2).now_or_never().is_none());
-        assert_eq!(refiller.refill(30), None);
+        assert_eq!(refiller.refill_and_serve(30), None);
         assert!(matches!((&mut send2).now_or_never(), Some(Ok(()))));
         drop(send2);
 
