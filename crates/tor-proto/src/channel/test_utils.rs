@@ -314,6 +314,7 @@ impl ConnInspector {
     }
 
     /// Wait for the next message sent by the relay.
+    #[expect(dead_code)]
     pub(crate) async fn relay_cell(&mut self) -> Option<AnyChanCell> {
         self.relay_inspector_rx.recv().await.ok()
     }
