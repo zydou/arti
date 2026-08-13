@@ -178,8 +178,8 @@ async fn run_proxy<R: ToplevelRuntime>(
     // NOTE: reconfigurable_modules stores the only strong references to these modules,
     // so we must keep the variable alive until the end of the function
     let weak_modules = reconfigurable_modules.iter().map(Arc::downgrade).collect();
-    reload_cfg::watch_for_config_changes(
-        client.runtime(),
+    let _cfg_mgr = reload_cfg::CfgMgr::launch(
+        client.runtime().clone(),
         config_sources,
         &arti_config,
         weak_modules,

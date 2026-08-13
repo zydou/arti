@@ -8,7 +8,9 @@ use arti_client::TorClient;
 use arti_client::config::Reconfigure;
 use futures::StreamExt;
 use futures::{FutureExt as _, Stream, select_biased};
-use tor_config::file_watcher::{self, FileEventSender, FileWatcher, FileWatcherBuilder};
+use tor_config::file_watcher::{
+    self, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
+};
 use tor_config::{ConfigurationSource, ConfigurationSources, sources::FoundConfigFiles};
 use tor_rtcompat::Runtime;
 use tor_rtcompat::SpawnExt;
@@ -44,9 +46,38 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
     fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()>;
 }
 
-/// Launch a thread to reload our configuration files.
+/// Structure to reload configuration as necessary.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) struct CfgMgr<R> {
+    /// A runtime that we use when constructing [`FileWatcher`]s.
+    runtime: R,
+
+    /// The sources from which we read our configuration.
+    sources: ConfigurationSources,
+
+    /// A sender to use when constructing new [`FileWatcher`]s.
+    tx: FileEventSender,
+
+    /// A list of modules to alert whenever the configuration has changed.
+    modules: Vec<Weak<dyn ReconfigurableModule>>,
+
+    /// Mutable state.
+    inner: Mutex<CfgMgrInner>,
+}
+
+/// Mutable part of a CfgMgr.
+struct CfgMgrInner {
+    /// If present, a [`FileWatcher`] that is currently watching for changes
+    /// in the configuration files and directories.
+    watcher: Option<FileWatcher>,
+}
+
+#[rustfmt::skip] // XXXX remove this line and reindent.
+impl<R: Runtime> CfgMgr<R> {
+/// Construct a new CfgMgr, and launch a task to watch for any events
+/// that mean we have to reload our configuration.
 ///
-/// If current configuration requires it, watch for changes in `sources`
+/// If the provided configuration requires it, watch for changes in `sources`
 /// and try to reload our configuration. On unix platforms, also watch
 /// for SIGHUP and reload configuration then.
 ///
@@ -56,13 +87,20 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
 /// See the [`FileWatcher`](FileWatcher#Limitations) docs for limitations.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[instrument(level = "trace", skip_all)]
-pub(crate) fn watch_for_config_changes<R: Runtime>(
-    runtime: &R,
+pub(crate) fn launch(
+    runtime: R,
     sources: ConfigurationSources,
     config: &ArtiConfig,
     modules: Vec<Weak<dyn ReconfigurableModule>>,
-) -> anyhow::Result<()> {
-    let watch_file = config.application().watch_configuration;
+) -> anyhow::Result<Arc<Self>> {
+    let (tx, rx) = file_watcher::channel();
+    let mgr = Arc::new(CfgMgr {
+        runtime,
+        sources,
+        tx,
+        modules,
+        inner: Mutex::new(CfgMgrInner { watcher: None }),
+    });
 
     cfg_if::cfg_if! {
         if #[cfg(target_family = "unix")] {
@@ -72,20 +110,12 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         }
     }
 
-    let rt = runtime.clone();
-    let () = runtime
-        .clone()
+    let rt = mgr.runtime.clone();
+    let weak_mgr = Arc::downgrade(&mgr);
+    mgr.runtime
         .spawn(async move {
-            let res: anyhow::Result<()> = run_watcher(
-                rt,
-                sources,
-                modules,
-                watch_file,
-                sighup_stream,
-                Some(DEBOUNCE_INTERVAL),
-            )
-            .await;
-
+            let res: anyhow::Result<()> =
+                run_watcher(rt, rx, sighup_stream, weak_mgr, Some(DEBOUNCE_INTERVAL)).await;
             match res {
                 Ok(()) => debug!("Config watcher task exiting"),
                 // TODO: warn_report does not work on anyhow::Error.
@@ -94,7 +124,26 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         })
         .context("failed to spawn task")?;
 
-    Ok(())
+    if config.application().watch_configuration {
+        let (watcher, _files) = mgr.launch_file_watcher()?;
+        mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
+    }
+
+    Ok(mgr)
+}
+
+    /// Create a new [`FileWatcher`] for the files in this configuration.
+    ///
+    /// Return it, along with the set of files we found.
+    ///
+    /// The caller is responsible for storing the `FileWatcher`; when it is dropped,
+    /// it stops watching.
+    fn launch_file_watcher(&self) -> anyhow::Result<(FileWatcher, FoundConfigFiles<'_>)> {
+        let mut watcher = FileWatcher::builder(self.runtime.clone());
+        let found_files = prepare(&mut watcher, &self.sources)?;
+        let watcher = watcher.start_watching(self.tx.clone())?;
+        Ok((watcher, found_files))
+    }
 }
 
 /// Start watching for configuration changes.
@@ -103,21 +152,11 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 #[instrument(level = "trace", skip_all)]
 async fn run_watcher<R: Runtime>(
     runtime: R,
-    sources: ConfigurationSources,
-    modules: Vec<Weak<dyn ReconfigurableModule>>,
-    watch_file: bool,
+    mut rx: FileEventReceiver,
     mut sighup_stream: impl Stream<Item = ()> + Unpin,
+    weak_mgr: Weak<CfgMgr<R>>,
     debounce_interval: Option<Duration>,
 ) -> anyhow::Result<()> {
-    let (tx, mut rx) = file_watcher::channel();
-    let mut watcher = if watch_file {
-        let mut watcher = FileWatcher::builder(runtime.clone());
-        prepare(&mut watcher, &sources)?;
-        Some(watcher.start_watching(tx.clone())?)
-    } else {
-        None
-    };
-
     debug!("Entering FS event loop");
 
     loop {
@@ -146,60 +185,56 @@ async fn run_watcher<R: Runtime>(
             },
         }
 
-        watcher =
-            reload_configuration(runtime.clone(), watcher, &sources, &modules, tx.clone()).await?;
+        if let Some(mgr) = weak_mgr.upgrade() {
+            mgr.reload_configuration()?;
+            drop(mgr);
+        } else {
+            debug!("Configuration mgr disappeared; exiting loop");
+            break;
+        }
     }
 
     Ok(())
 }
 
+#[rustfmt::skip] // XXXX remove this line, move the method, and reindent.
+impl<R:Runtime> CfgMgr<R> {
 /// Reload the configuration.
 #[instrument(level = "trace", skip_all)]
-async fn reload_configuration<R: Runtime>(
-    runtime: R,
-    mut watcher: Option<FileWatcher>,
-    sources: &ConfigurationSources,
-    modules: &[Weak<dyn ReconfigurableModule>],
-    tx: FileEventSender,
-) -> anyhow::Result<Option<FileWatcher>> {
+fn reload_configuration(
+    &self,
+) -> anyhow::Result<()> {
+    let mut inner = self.inner.lock().expect("Lock poisoned");
+
     // TODO RPC: Take 'how' as an argument.
-    let found_files = if watcher.is_some() {
-        let mut new_watcher = FileWatcher::builder(runtime.clone());
-        let found_files = prepare(&mut new_watcher, sources)
-            .context("FS watch: failed to rescan config and re-establish watch")?;
-        let new_watcher = new_watcher
-            .start_watching(tx.clone())
-            .context("FS watch: failed to start watching config")?;
-        watcher = Some(new_watcher);
-        found_files
+    let found_files = if inner.watcher.is_some() {
+        let (watcher, files) = self.launch_file_watcher().context("Failed to re-scan config")?;
+        inner.watcher = Some(watcher);
+        files
     } else {
-        sources
+        self.sources
             .scan()
             .context("FS watch: failed to rescan config")?
     };
 
-    match reconfigure(found_files, modules) {
+    match reconfigure(found_files, &self.modules) {
         Ok(watch) => {
             info!("Successfully reloaded configuration.");
-            if watch && watcher.is_none() {
+            if watch && inner.watcher.is_none() {
                 info!("Starting watching over configuration.");
-                let mut new_watcher = FileWatcher::builder(runtime.clone());
-                let _found_files = prepare(&mut new_watcher, sources)
-                    .context("FS watch: failed to rescan config and re-establish watch: {}")?;
-                let new_watcher = new_watcher
-                    .start_watching(tx.clone())
-                    .context("FS watch: failed to rescan config and re-establish watch: {}")?;
-                watcher = Some(new_watcher);
-            } else if !watch && watcher.is_some() {
+                let (watcher, _files) = self.launch_file_watcher().context("Starting to watch over config")?;
+                inner.watcher = Some(watcher);
+            } else if !watch && inner.watcher.is_some() {
                 info!("Stopped watching over configuration.");
-                watcher = None;
+                inner.watcher = None;
             }
         }
         // TODO: warn_report does not work on anyhow::Error.
         Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
     }
 
-    Ok(watcher)
+    Ok(())
+}
 }
 
 /// A TorClient that we may or may not have told to start bootstrapping.
@@ -471,22 +506,28 @@ mod test {
             config_builder.logging().log_sensitive_information(true);
             let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
 
+            let (fw_tx, fw_rx) = file_watcher::channel();
+            let mgr = Arc::new(CfgMgr {
+                runtime: rt.clone(),
+                sources: cfg_sources,
+                tx: fw_tx,
+                modules: vec![Arc::downgrade(&module)],
+                inner: Mutex::new(CfgMgrInner { watcher: None }),
+            });
+
+            let (watcher, _) = mgr.launch_file_watcher().unwrap();
+            mgr.inner.lock().unwrap().watcher = Some(watcher);
+            let weak_mgr = Arc::downgrade(&mgr);
+
             // Use a fake sighup stream to wait until run_watcher()'s select_biased!
             // loop is entered
             let (mut sighup_tx, sighup_rx) = mpsc::unbounded();
             let runtime = rt.clone();
             let () = rt
                 .spawn(async move {
-                    run_watcher(
-                        runtime,
-                        cfg_sources,
-                        vec![Arc::downgrade(&module)],
-                        true,
-                        sighup_rx,
-                        None,
-                    )
-                    .await
-                    .unwrap();
+                    run_watcher(runtime.clone(), fw_rx, sighup_rx, weak_mgr, None)
+                        .await
+                        .unwrap();
                 })
                 .unwrap();
 
@@ -494,7 +535,6 @@ mod test {
 
             // The reconfigurable modules should've been reloaded in response to sighup
             let config = rx.next().await.unwrap();
-
             assert_eq!(config.0, config_builder.build().unwrap());
 
             // Overwrite the config
@@ -523,22 +563,29 @@ mod test {
             );
 
             let (module, mut rx) = create_module().await;
+
+            let (fw_tx, fw_rx) = file_watcher::channel();
+            let mgr = Arc::new(CfgMgr {
+                runtime: rt.clone(),
+                sources: cfg_sources,
+                tx: fw_tx,
+                modules: vec![Arc::downgrade(&module)],
+                inner: Mutex::new(CfgMgrInner { watcher: None }),
+            });
+
+            let (watcher, _) = mgr.launch_file_watcher().unwrap();
+            mgr.inner.lock().unwrap().watcher = Some(watcher);
+            let weak_mgr = Arc::downgrade(&mgr);
+
             // Use a fake sighup stream to wait until run_watcher()'s select_biased!
             // loop is entered
             let (mut sighup_tx, sighup_rx) = mpsc::unbounded();
             let runtime = rt.clone();
             let () = rt
                 .spawn(async move {
-                    run_watcher(
-                        runtime,
-                        cfg_sources,
-                        vec![Arc::downgrade(&module)],
-                        true,
-                        sighup_rx,
-                        None,
-                    )
-                    .await
-                    .unwrap();
+                    run_watcher(runtime.clone(), fw_rx, sighup_rx, weak_mgr, None)
+                        .await
+                        .unwrap();
                 })
                 .unwrap();
 
