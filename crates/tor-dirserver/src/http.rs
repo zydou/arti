@@ -6,6 +6,8 @@
 use cache::StoreCache;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+#[cfg(feature = "dir-plugin-backend")]
+use tor_dircommon::dir_plugin_backend::DirBackendPlugin;
 use tor_error::internal;
 
 use std::{
@@ -35,6 +37,11 @@ use tokio::{
     time,
 };
 use tracing::warn;
+
+#[cfg(feature = "dir-plugin-backend")]
+use http_body_util::Full;
+#[cfg(feature = "dir-plugin-backend")]
+use std::io::Cursor;
 
 use crate::database::{self, ContentEncoding, DocumentId, sql};
 
@@ -138,6 +145,92 @@ impl HttpServer {
     /// alongside access to the database [`Pool`].
     pub(crate) fn new(endpoints: Vec<Endpoint>, pool: Pool<SqliteConnectionManager>) -> Self {
         Self { endpoints, pool }
+    }
+
+    /// Bluntly launches an HTTP server only serving from the given backend.
+    ///
+    /// Absolutely not suited for anything in production as it comes with
+    /// various limitations.  Primarily intended as an intermediate abstraction
+    /// for relay development.
+    #[cfg(feature = "dir-plugin-backend")]
+    pub(crate) async fn serve_backend<I, S, E, B>(
+        mut listener: I,
+        backend: B,
+    ) -> Result<(), tor_error::Bug>
+    where
+        I: Stream<Item = Result<S, E>> + Unpin,
+        S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        E: std::error::Error,
+        B: DirBackendPlugin,
+    {
+        // Creates a failing HTTP resposne while satisfying the hyper requirements.
+        let failure = |code| -> _ {
+            Response::builder()
+                .status(code)
+                .body(Default::default())
+                .expect("response builder should not fail")
+        };
+
+        // We need to wrap the backend as an Arc, as the value would otherwise
+        // not live long enough.
+        let backend = Arc::new(backend);
+        let mut tasks: JoinSet<Result<(), hyper::Error>> = JoinSet::new();
+        loop {
+            tokio::select! {
+                res = listener.next() => match res {
+                    // Connection successfully accepted.
+                    Some(Ok(s)) => {
+                        let stream = TokioIo::new(s);
+
+                        // Two Arc clones required.  First is to be able to run
+                        // this in an endless loop and second one is required
+                        // because hyper requires the function to be Fn, i.e.
+                        // meaning it may not capture from it's surrounding
+                        // state.
+                        let backend = backend.clone();
+                        let service = service_fn(move |requ: Request<Incoming>| {
+                            let backend = backend.clone();
+                            async move {
+                                if requ.method() != Method::GET {
+                                    warn!("Unsupported method: {}", requ.method());
+                                    // dir-spec does not allow StatusCode::METHOD_NOT_ALLOWED.
+                                    return Ok(failure(StatusCode::BAD_REQUEST));
+                                }
+                                if !requ.body().is_end_stream() {
+                                    warn!("HTTP GET with non-empty body?");
+                                    return Ok(failure(StatusCode::BAD_REQUEST));
+                                }
+                                // Convert Request::<Incoming> to Request::<()>.
+                                let requ = requ.map(|_| ());
+
+                                // Convert the Box<[u8]> to something hyper accepts.
+                                backend
+                                    .get(&requ)
+                                    .map(|resp| resp.map(|body| Full::new(Cursor::new(body))))
+                            }
+                        });
+                        tasks.spawn(http1::Builder::new().serve_connection(stream, service));
+                    },
+
+                    // There has been an error in accepting the connection.
+                    Some(Err(e)) => {
+                        warn!("listener accept failure: {e}");
+                        continue;
+                    }
+
+                    // This should not happen due to ownership.
+                    None => return Err(internal!("listener was closed externally?")),
+                },
+
+                // A hyper task we monitored in our tasks has exiteed.
+                Some(res) = tasks.join_next() => match res {
+                    Ok(Ok(())) => {},
+                    Ok(Err(e)) => warn!("client task encountered an error: {e}"),
+                    Err(e) => warn!("client task exited ungracefully: {e}"),
+                },
+
+            }
+        }
     }
 
     /// Runs the server endlessly in the current task.

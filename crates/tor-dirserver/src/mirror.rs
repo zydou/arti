@@ -52,6 +52,9 @@ use tor_dircommon::{
     config::{DirTolerance, DownloadScheduleConfig},
 };
 
+#[cfg(feature = "dir-plugin-backend")]
+use tor_dircommon::dir_plugin_backend::DirBackendPlugin;
+
 mod operation;
 
 /// Core data type of a directory mirror.
@@ -85,6 +88,43 @@ pub struct DirMirror {
     schedule: DownloadScheduleConfig,
     /// The [`DirTolerance`] to tolerate clock skews.
     tolerance: DirTolerance,
+}
+
+/// Insecure [`DirMirror`] abstraction providing a custom backend.
+///
+/// Intended for relay development as a medium-term abstraction.
+#[cfg(feature = "dir-plugin-backend")]
+#[non_exhaustive]
+pub struct DirMirrorWithBackend<B> {
+    /// The original [`DirMirror`].
+    mirror: DirMirror,
+    /// The backend to use for handling requests instead.
+    backend: B,
+}
+
+#[cfg(feature = "dir-plugin-backend")]
+impl<B: DirBackendPlugin> DirMirrorWithBackend<B> {
+    /// Creates a new [`DirMirrorWithBackend`] from a given [`DirMirror`] and
+    /// a given [`DirBackendPlugin`].
+    pub fn new(mirror: DirMirror, backend: B) -> Self {
+        Self { mirror, backend }
+    }
+
+    /// Consumes this [`DirMirror`] by running endlessly in the current task.
+    ///
+    /// Be aware of the limitations and also see [`DirMirror::serve()`].
+    pub async fn serve<S, T, E>(self, listener: S) -> Result<(), Infallible>
+    where
+        S: Stream<Item = Result<T, E>> + Unpin,
+        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        E: std::error::Error,
+    {
+        let res = crate::http::HttpServer::serve_backend(listener, self.backend).await;
+        if let Err(e) = res {
+            tracing::error!("HTTP backend failed unexpectedly: {e}");
+        }
+        Ok(())
+    }
 }
 
 impl DirMirror {
@@ -152,7 +192,6 @@ impl DirMirror {
     // the stream over to DirMirror::serve().
     //
     // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4222#note_3437135
-    #[allow(clippy::unused_async)] // TODO
     pub async fn serve<S, T, E>(self, mut listener: S) -> Result<(), Infallible>
     where
         S: Stream<Item = Result<T, E>> + Unpin,
