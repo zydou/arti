@@ -221,45 +221,6 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     },
 }
 
-/// A [`ConsensusFlavor`]-like wrapper for verified network statuses.
-///
-/// This is required because we need to obtain, at least partial, data from
-/// each consensus, such as the signature (although not this type), the router
-/// descriptors, validity, and other information.
-///
-/// At the current moment, [`tor_netdoc`] itself does not offer things such as
-/// a common trait for retrieving the common fields, making this structure
-/// necessary, or alternatively lots of macro magic similar to [`tor_netdoc`].
-///
-/// TODO DIRMIRROR: Either add a trait for [`tor_netdoc`] or figure out if the
-/// fields we require are all of the same type in both, so we can only store
-/// the fields we are interested in, though this is probably only possible once
-/// we reached later stages of code.
-///
-/// And no, [`std::any::Any`] is not an alternative I am willing to do.
-// XXX: Remove.
-#[derive(Debug, Clone)]
-enum FlavoredConsensus {
-    /// For plain consensuses.
-    Plain(plain::NetworkStatus),
-
-    /// For microdescriptor consensuses.
-    Md(md::NetworkStatus),
-}
-
-/// A [`ConsensusFlavor`]-like wrapper for unverified network statuses.
-///
-/// TODO DIRMIRROR: See the [`FlavoredConsensus`] trait comment.
-// XXX: Remove
-#[derive(Debug, Clone)]
-enum FlavoredConsensusSigned {
-    /// For plain consensuses.
-    Plain(plain::NetworkStatusUnverified),
-
-    /// For microdescriptor consensus.
-    Md(md::NetworkStatusUnverified),
-}
-
 impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     /// Determines the [`State`] only from the database and [`ConsensusBoundData`].
     ///
@@ -683,17 +644,6 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         let parsed = parse2::parse_netdoc_multiple_with_offsets(&ParseInput::new(&resp, ""))?;
 
         Ok((resp, parsed))
-    }
-}
-
-impl FlavoredConsensusSigned {
-    /// Wrapper to obtain the signatories of a flavored consensus.
-    fn signatories(&self) -> Vec<AuthCertKeyIds> {
-        let sigs = match &self {
-            Self::Plain(plain) => &plain.sigs.sigs.directory_signature,
-            Self::Md(md) => &md.sigs.sigs.directory_signature,
-        };
-        sigs.iter().map(|sig| sig.key_ids).collect()
     }
 }
 
