@@ -17,6 +17,7 @@
 
 use std::{
     collections::{HashSet, VecDeque},
+    marker::PhantomData,
     net::SocketAddr,
 };
 
@@ -44,6 +45,7 @@ use tracing::{debug, warn};
 use crate::{
     database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Timestamp},
     err::{AuthorityRequestError, DatabaseError, OperationError},
+    types::FlavoredConsensusUnverified,
 };
 
 mod poc;
@@ -150,8 +152,9 @@ enum State {
 ///
 /// See [`StaticEngine::determine_state()`] for more details.
 #[derive(Debug)]
-struct StaticEngine {
+struct StaticEngine<T> {
     /// The flavor of the consensus we are serving.
+    // XXX: Remove.
     flavor: ConsensusFlavor,
 
     /// The authorities we are acknowledging.
@@ -164,6 +167,9 @@ struct StaticEngine {
     ///
     /// Generally obtained through [`PreferredRuntime::current()`].
     rt: PreferredRuntime,
+
+    /// Utilizes the generic type parameter.
+    _phantom: PhantomData<T>,
 }
 
 /// Additional state machine data concerning a single consensus.
@@ -172,7 +178,7 @@ struct StaticEngine {
 /// which ✨state✨ it is currently in, such as whether it is verified or not,
 /// or if we even have a state loaded in memory in the first place.
 #[derive(Debug, Clone)]
-enum ConsensusBoundData {
+enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// No state is loaded in memory at the moment.
     None,
 
@@ -181,7 +187,7 @@ enum ConsensusBoundData {
         /// The unverified parsed consensus we have.
         // TODO DIRMIRROR: Make this optional, see comment in
         // StaticEngine::execute.
-        consensus: FlavoredConsensusSigned,
+        consensus: T,
 
         /// The unparsed raw consensus we have.
         raw: String,
@@ -190,7 +196,7 @@ enum ConsensusBoundData {
     /// We have downloaded and verified a consensus.
     Verified {
         /// The verified consensus we have.
-        consensus: FlavoredConsensus,
+        consensus: T::Body,
 
         /// When to stop dealing with this consensus and fetching a new one.
         lifetime: Timestamp,
@@ -258,7 +264,7 @@ enum FlavoredConsensusSigned {
     Md(md::NetworkStatusUnverified),
 }
 
-impl StaticEngine {
+impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     /// Determines the [`State`] only from the database and [`ConsensusBoundData`].
     ///
     /// This method is fully idempotent, meaning it only depends upon the data
@@ -267,7 +273,7 @@ impl StaticEngine {
     fn determine_state(
         &self,
         tx: &Transaction<'_>,
-        data: &ConsensusBoundData,
+        data: &ConsensusBoundData<T>,
         now: Timestamp,
     ) -> Result<State, DatabaseError> {
         // Determine the state primarily upon ConsensusBoundData combined with
@@ -371,7 +377,7 @@ impl StaticEngine {
     async fn execute<R: Rng>(
         &self,
         pool: &Pool<SqliteConnectionManager>,
-        data: &mut ConsensusBoundData,
+        data: &mut ConsensusBoundData<T>,
         endpoint: &[SocketAddr],
         now: Timestamp,
         rng: &mut R,
@@ -401,7 +407,7 @@ impl StaticEngine {
     fn load_consensus<R: Rng>(
         &self,
         pool: &Pool<SqliteConnectionManager>,
-        data: &mut ConsensusBoundData,
+        data: &mut ConsensusBoundData<T>,
         now: Timestamp,
         rng: &mut R,
     ) -> Result<(), OperationError> {
@@ -446,26 +452,11 @@ impl StaticEngine {
         //
         // See also the relevant MR discussion:
         // <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3664#note_3352723>
-        let consensus = match self.flavor {
-            ConsensusFlavor::Plain => FlavoredConsensus::Plain(
-                parse2::parse_netdoc::<plain::NetworkStatusUnverified>(&ParseInput::new(
-                    &consensus, "",
-                ))
-                .map_err(into_internal!("invalid netdoc in database?"))?
-                // TODO DIRMIRROR: explain why this is OK, or re-verify the signatures
-                .unwrap_unverified()
-                .0,
-            ),
-            ConsensusFlavor::Microdesc => FlavoredConsensus::Md(
-                parse2::parse_netdoc::<md::NetworkStatusUnverified>(&ParseInput::new(
-                    &consensus, "",
-                ))
-                .map_err(into_internal!("invalid netdoc in database?"))?
-                // TODO DIRMIRROR: explain why this is OK, or re-verify the signatures
-                .unwrap_unverified()
-                .0,
-            ),
-        };
+        let consensus = parse2::parse_netdoc::<T>(&ParseInput::new(&consensus, ""))
+            .map_err(into_internal!("invalid netdoc in database?"))?
+            // TODO DIRMIRROR: explain why this is OK, or re-verify the signatures
+            .unwrap_unverified()
+            .0;
 
         *data = ConsensusBoundData::Verified {
             consensus,
@@ -482,35 +473,17 @@ impl StaticEngine {
     #[allow(clippy::string_slice)] // TODO
     async fn fetch_consensus(
         &self,
-        data: &mut ConsensusBoundData,
+        data: &mut ConsensusBoundData<T>,
         endpoint: &[SocketAddr],
     ) -> Result<(), AuthorityRequestError> {
         // Obtain the consensus.
-        let mut consensus: VecDeque<_> = match self.flavor {
-            ConsensusFlavor::Plain => self
-                .send_request(endpoint, ConsensusRequest::new(self.flavor))
-                .await
-                .map(|(raw, doc)| {
-                    doc.into_iter()
-                        .map(|(doc, start, end)| {
-                            (
-                                raw[start..end].to_owned(),
-                                FlavoredConsensusSigned::Plain(doc),
-                            )
-                        })
-                        .collect()
-                }),
-            ConsensusFlavor::Microdesc => self
-                .send_request(endpoint, ConsensusRequest::new(self.flavor))
-                .await
-                .map(|(raw, doc)| {
-                    doc.into_iter()
-                        .map(|(doc, start, end)| {
-                            (raw[start..end].to_owned(), FlavoredConsensusSigned::Md(doc))
-                        })
-                        .collect()
-                }),
-        }?;
+        let (raw, consensus) = self
+            .send_request(endpoint, ConsensusRequest::new(self.flavor))
+            .await?;
+        let mut consensus = consensus
+            .into_iter()
+            .map(|(doc, start, end)| (raw[start..end].to_owned(), doc))
+            .collect::<VecDeque<_>>();
 
         // Check for the correct number of results.
         if consensus.len() != 1 {
@@ -542,7 +515,7 @@ impl StaticEngine {
     async fn auth_certs(
         &self,
         pool: &Pool<SqliteConnectionManager>,
-        data: &mut ConsensusBoundData,
+        data: &mut ConsensusBoundData<T>,
         endpoint: &[SocketAddr],
         now: Timestamp,
     ) -> Result<(), OperationError> {
@@ -641,7 +614,7 @@ impl StaticEngine {
     /// Hibernates for the remaining lifetime of the consensus.
     async fn hibernate(
         &self,
-        data: &mut ConsensusBoundData,
+        data: &mut ConsensusBoundData<T>,
         now: Timestamp,
     ) -> Result<(), OperationError> {
         match data {
@@ -670,11 +643,11 @@ impl StaticEngine {
     /// The output is required because we need the raw document alongside the
     /// offsets to have the actual data we will insert into the database later
     /// on.
-    async fn send_request<R: Requestable, T: NetdocParseable>(
+    async fn send_request<R: Requestable, D: NetdocParseable>(
         &self,
         endpoint: &[SocketAddr],
         requ: R,
-    ) -> Result<(String, Vec<(T, usize, usize)>), AuthorityRequestError> {
+    ) -> Result<(String, Vec<(D, usize, usize)>), AuthorityRequestError> {
         // The check is required to not let Tokio panic.
         if endpoint.is_empty() {
             return Err(AuthorityRequestError::Bug(internal!("empty endpoint?")));
@@ -756,6 +729,9 @@ mod test {
 
     use super::*;
 
+    type Plain = tor_netdoc::doc::netstatus::plain::NetworkStatusUnverified;
+    type Md = tor_netdoc::doc::netstatus::md::NetworkStatusUnverified;
+
     /// Tests whether the load consensus state computes missing descriptors
     /// properly.
     ///
@@ -765,12 +741,13 @@ mod test {
     #[tokio::test]
     async fn state_load_consensus() {
         let pool = testdata2::test_db();
-        let mut data = ConsensusBoundData::None;
+        let mut data = ConsensusBoundData::<Plain>::None;
         let engine = StaticEngine {
             flavor: ConsensusFlavor::Plain,
             authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
+            _phantom: Default::default(),
         };
 
         let time: Timestamp = testdata2::valid_system_time().into();
@@ -816,10 +793,6 @@ mod test {
                 extra_queue,
                 micro_queue,
             } => {
-                match consensus {
-                    FlavoredConsensus::Plain(_) => {}
-                    _ => panic!("consensus not ns"),
-                }
                 // If everything worked properly, then the queue should only
                 // contain the relay we removed, because that is missing now.
                 assert_eq!(server_queue, HashSet::from([relay_to_remove]));
@@ -840,12 +813,13 @@ mod test {
     #[tokio::test]
     async fn state_fetch_consensus() {
         let pool = testdata2::test_db();
-        let mut data = ConsensusBoundData::None;
+        let mut data = ConsensusBoundData::<Plain>::None;
         let engine = StaticEngine {
             flavor: ConsensusFlavor::Plain,
             authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
+            _phantom: Default::default(),
         };
 
         let state = db::read_tx(&pool, |tx| {
@@ -872,12 +846,9 @@ mod test {
 
         engine.fetch_consensus(&mut data, &[saddr]).await.unwrap();
         match data {
-            ConsensusBoundData::Unverified { consensus, raw } => match consensus {
-                FlavoredConsensusSigned::Plain(_) => {
-                    assert_eq!(raw, testdata2::current_consensus_ns().1);
-                }
-                _ => panic!("data is not unverified ns consensus"),
-            },
+            ConsensusBoundData::Unverified { consensus, raw } => {
+                assert_eq!(raw, testdata2::current_consensus_ns().1);
+            }
             _ => panic!("data is not unverified"),
         }
     }
@@ -889,11 +860,10 @@ mod test {
     #[tokio::test]
     async fn state_auth_certs() {
         let pool = testdata2::test_db();
-        let mut data = ConsensusBoundData::Unverified {
-            consensus: FlavoredConsensusSigned::Plain(
+        let mut data = ConsensusBoundData::<Plain>::Unverified {
+            consensus:
                 parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().1, ""))
                     .unwrap(),
-            ),
             raw: testdata2::current_consensus_ns().1.to_owned(),
         };
         let engine = StaticEngine {
@@ -901,6 +871,7 @@ mod test {
             authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
+            _phantom: Default::default(),
         };
 
         // We want to download authority certificates; for this, remove
@@ -974,10 +945,9 @@ mod test {
         let recent_authcerts = db::read_tx(&pool, |tx| {
             AuthCertMeta::query_recent(
                 tx,
-                &FlavoredConsensusSigned::Plain(
-                    parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().1, ""))
-                        .unwrap(),
-                )
+                &
+                    parse2::parse_netdoc::<Plain>(&ParseInput::new(testdata2::current_consensus_ns().1, ""))
+                        .unwrap()
                 .signatories(),
                 &DirTolerance::default(),
                 testdata2::valid_system_time().into(),
