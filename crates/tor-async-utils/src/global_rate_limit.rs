@@ -48,33 +48,24 @@ fn to_usize(x: u64) -> usize {
 struct DirectionState {
     /// Acquirer used to get a [`Permit`] from the pool for each poll.
     acquirer: BandwidthAcquirer,
-    /// Optional cap on how many tokens a single IO can request.
+    /// Cap on how many tokens a single IO can request.
     ///
-    /// If set, an IO requests at most this many tokens as long as the buffer is bigger.
-    /// `None` bounds the request to the buffer size.
-    max_chunk: Option<NonZero<usize>>,
+    /// An IO requests at most this many tokens as long as the buffer is bigger.
+    max_chunk: NonZero<usize>,
 }
 
 impl DirectionState {
     /// Constructor.
-    fn new(acquirer: BandwidthAcquirer) -> Self {
+    fn new(acquirer: BandwidthAcquirer, max_chunk: NonZero<usize>) -> Self {
         Self {
             acquirer,
-            max_chunk: None,
+            max_chunk,
         }
-    }
-
-    /// Cap each IO request at most `max_chunk` tokens.
-    ///
-    /// Without this, a single poll can request the buffer length of tokens which can be
-    /// arbitrarily large compared to the actual IO.
-    fn set_max_chunk(&mut self, max_chunk: NonZero<usize>) {
-        self.max_chunk = Some(max_chunk);
     }
 
     /// Acquire a permit for an IO of the given amount of `tokens`.
     ///
-    /// The request is capped to the state's max chunk if any. The grant itself is capped
+    /// The request is capped to the state's max chunk. The grant itself is capped
     /// to the pool capacity so the returned [`Permit`] can hold less than `tokens`.
     ///
     /// The [`Permit`] is handed to the caller rather than kept here so that it lives
@@ -87,10 +78,7 @@ impl DirectionState {
     /// The cost is that the caller re-acquires on the next poll rather than resuming
     /// with what it already had. It is by design.
     fn poll_acquire(&mut self, cx: &mut Context<'_>, tokens: usize) -> Poll<Result<Permit, Error>> {
-        let want = match self.max_chunk {
-            Some(max) => tokens.min(max.get()),
-            None => tokens,
-        };
+        let want = tokens.min(self.max_chunk.get());
         let permit = ready!(self.acquirer.poll_acquire(cx, to_u64(want))).map_err(Error::other)?;
         Poll::Ready(Ok(permit))
     }

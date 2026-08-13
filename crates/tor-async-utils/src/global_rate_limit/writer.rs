@@ -6,13 +6,15 @@
 //! # Example
 //!
 //! ```
+//! use std::num::NonZero;
 //! use futures::AsyncWriteExt as _;
 //! use tor_async_utils::global_rate_limit::GlobalRateLimitedWriter;
 //! use tor_async_utils::bw_pool::BandwidthPool;
 //!
 //! futures::executor::block_on(async {
 //!     let (pool, _refiller) = BandwidthPool::new(64 * 1024);
-//!     let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer());
+//!     let max_chunk = NonZero::new(1024).unwrap();
+//!     let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer(), max_chunk);
 //!
 //!     // The pool starts full so this is served from the fast path.
 //!     writer.write_all(&[0; 512]).await.unwrap();
@@ -48,21 +50,13 @@ impl<W> GlobalRateLimitedWriter<W> {
     /// Constructor.
     ///
     /// This writer is rate limited as 1 byte per token.
-    pub fn new(inner: W, acquirer: BandwidthAcquirer) -> Self {
+    ///
+    /// Each write requests at most `max_chunk` tokens.
+    pub fn new(inner: W, acquirer: BandwidthAcquirer, max_chunk: NonZero<usize>) -> Self {
         Self {
             inner,
-            state: DirectionState::new(acquirer),
+            state: DirectionState::new(acquirer, max_chunk),
         }
-    }
-
-    /// Cap each write to request at most `max_chunk` tokens.
-    ///
-    /// Without this, a single write can request the buffer length of tokens which can be
-    /// arbitrarily large compared to the actual write. Yes the
-    /// [`crate::bw_pool::Permit`] would refund but it could starve other requests.
-    pub fn with_max_chunk(mut self, max_chunk: NonZero<usize>) -> Self {
-        self.state.set_max_chunk(max_chunk);
-        self
     }
 }
 
@@ -141,6 +135,9 @@ mod test {
 
     use crate::bw_pool::BandwidthPool;
 
+    /// Max chunk used by the tests that don't exercise the cap itself.
+    const MAX_CHUNK: NonZero<usize> = NonZero::new(1024).unwrap();
+
     /// An [`AsyncWrite`] that is never ready to take bytes. Needed to test a stalled
     /// connection as to test the refund of dropping permit when pending.
     struct NeverReady;
@@ -164,7 +161,7 @@ mod test {
     #[test]
     fn inner_pending_refunds() {
         let (pool, _refiller) = BandwidthPool::new(100);
-        let mut writer = GlobalRateLimitedWriter::new(NeverReady, pool.new_acquirer());
+        let mut writer = GlobalRateLimitedWriter::new(NeverReady, pool.new_acquirer(), MAX_CHUNK);
 
         // The permit is acquired but the inner can't take the bytes.
         assert!(writer.write(&[0; 30]).now_or_never().is_none());
@@ -181,7 +178,7 @@ mod test {
     #[test]
     fn fast_path() {
         let (pool, _refiller) = BandwidthPool::new(100);
-        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer());
+        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer(), MAX_CHUNK);
 
         // Writing 30 bytes hits the fast path.
         assert_eq!(writer.write(&[0; 30]).now_or_never().unwrap().unwrap(), 30);
@@ -191,7 +188,7 @@ mod test {
     #[test]
     fn capped_pool_capacity() {
         let (pool, _refiller) = BandwidthPool::new(30);
-        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer());
+        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer(), MAX_CHUNK);
 
         // Writing 100 in a pool of capacity 30 means only 30 is written.
         assert_eq!(writer.write(&[0; 100]).now_or_never().unwrap().unwrap(), 30);
@@ -201,8 +198,8 @@ mod test {
     #[test]
     fn max_chunk() {
         let (pool, _refiller) = BandwidthPool::new(100);
-        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer())
-            .with_max_chunk(NonZero::new(10).unwrap());
+        let cap = NonZero::new(10).unwrap();
+        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer(), cap);
 
         // Buffer is 30 but max_chunk caps the request to 10 tokens.
         assert_eq!(writer.write(&[0; 30]).now_or_never().unwrap().unwrap(), 10);
@@ -212,7 +209,7 @@ mod test {
     #[test]
     fn pending() {
         let (pool, mut refiller) = BandwidthPool::new(30);
-        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer());
+        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer(), MAX_CHUNK);
 
         // Empty the pool with a write of 30.
         assert_eq!(writer.write(&[0; 30]).now_or_never().unwrap().unwrap(), 30);
@@ -228,7 +225,7 @@ mod test {
     #[test]
     fn pool_closed() {
         let (pool, refiller) = BandwidthPool::new(30);
-        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer());
+        let mut writer = GlobalRateLimitedWriter::new(Vec::new(), pool.new_acquirer(), MAX_CHUNK);
 
         // Write 10.
         assert_eq!(writer.write(&[0; 10]).now_or_never().unwrap().unwrap(), 10);

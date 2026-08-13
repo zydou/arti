@@ -39,23 +39,19 @@ impl<S> GlobalRateLimitedConn<S> {
     /// We recommend that the `read_acquirer` and `write_acquirer` comme from different
     /// bandwidth pools so one direction doesn't starve the other side. In a
     /// bidirectional setup, this could be equivalent to unidirectionnal.
+    ///
+    /// Each IO requests at most `max_chunk` tokens in either direction.
     pub fn new(
         inner: S,
         read_acquirer: BandwidthAcquirer,
         write_acquirer: BandwidthAcquirer,
+        max_chunk: NonZero<usize>,
     ) -> Self {
         Self {
             inner,
-            read_state: DirectionState::new(read_acquirer),
-            write_state: DirectionState::new(write_acquirer),
+            read_state: DirectionState::new(read_acquirer, max_chunk),
+            write_state: DirectionState::new(write_acquirer, max_chunk),
         }
-    }
-
-    /// Cap each IO request direction at most `max_chunk` tokens.
-    pub fn with_max_chunk(mut self, max_chunk: NonZero<usize>) -> Self {
-        self.read_state.set_max_chunk(max_chunk);
-        self.write_state.set_max_chunk(max_chunk);
-        self
     }
 }
 
@@ -134,6 +130,9 @@ mod test {
 
     use crate::bw_pool::BandwidthPool;
 
+    /// Max chunk used by the tests that don't exercise the cap itself.
+    const MAX_CHUNK: NonZero<usize> = NonZero::new(1024).unwrap();
+
     /// Build a conn over a [`Cursor`] with a 100 bytes length vector.
     fn new_conn(
         read_pool: &BandwidthPool,
@@ -143,6 +142,7 @@ mod test {
             Cursor::new(vec![1_u8; 100]),
             read_pool.new_acquirer(),
             write_pool.new_acquirer(),
+            MAX_CHUNK,
         )
     }
 
