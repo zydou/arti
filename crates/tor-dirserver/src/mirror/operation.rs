@@ -35,7 +35,6 @@ use tor_error::{internal, into_internal};
 use tor_netdoc::{
     doc::{
         authcert::{AuthCertKeyIds, AuthCertUnverified},
-        netstatus::{md, plain},
     },
     parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput},
 };
@@ -732,11 +731,11 @@ mod test {
         // El-cheapo assert_eq due to lack of PartialEq for tor-netdoc poc.
         match data {
             ConsensusBoundData::Verified {
-                consensus,
                 lifetime,
                 server_queue,
                 extra_queue,
                 micro_queue,
+                ..
             } => {
                 // If everything worked properly, then the queue should only
                 // contain the relay we removed, because that is missing now.
@@ -790,7 +789,7 @@ mod test {
 
         engine.fetch_consensus(&mut data, &[saddr]).await.unwrap();
         match data {
-            ConsensusBoundData::Unverified { consensus, raw } => {
+            ConsensusBoundData::Unverified { raw, .. } => {
                 assert_eq!(raw, testdata2::current_consensus_ns().1);
             }
             _ => panic!("data is not unverified"),
