@@ -144,6 +144,43 @@ pub(crate) fn launch(
         let watcher = watcher.start_watching(self.tx.clone())?;
         Ok((watcher, found_files))
     }
+
+/// Reload the configuration.
+#[instrument(level = "trace", skip_all)]
+fn reload_configuration(
+    &self,
+) -> anyhow::Result<()> {
+    let mut inner = self.inner.lock().expect("Lock poisoned");
+
+    // TODO RPC: Take 'how' as an argument.
+    let found_files = if inner.watcher.is_some() {
+        let (watcher, files) = self.launch_file_watcher().context("Failed to re-scan config")?;
+        inner.watcher = Some(watcher);
+        files
+    } else {
+        self.sources
+            .scan()
+            .context("FS watch: failed to rescan config")?
+    };
+
+    match reconfigure(found_files, &self.modules) {
+        Ok(watch) => {
+            info!("Successfully reloaded configuration.");
+            if watch && inner.watcher.is_none() {
+                info!("Starting watching over configuration.");
+                let (watcher, _files) = self.launch_file_watcher().context("Starting to watch over config")?;
+                inner.watcher = Some(watcher);
+            } else if !watch && inner.watcher.is_some() {
+                info!("Stopped watching over configuration.");
+                inner.watcher = None;
+            }
+        }
+        // TODO: warn_report does not work on anyhow::Error.
+        Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
+    }
+
+    Ok(())
+}
 }
 
 /// Start watching for configuration changes.
@@ -195,46 +232,6 @@ async fn run_watcher<R: Runtime>(
     }
 
     Ok(())
-}
-
-#[rustfmt::skip] // XXXX remove this line, move the method, and reindent.
-impl<R:Runtime> CfgMgr<R> {
-/// Reload the configuration.
-#[instrument(level = "trace", skip_all)]
-fn reload_configuration(
-    &self,
-) -> anyhow::Result<()> {
-    let mut inner = self.inner.lock().expect("Lock poisoned");
-
-    // TODO RPC: Take 'how' as an argument.
-    let found_files = if inner.watcher.is_some() {
-        let (watcher, files) = self.launch_file_watcher().context("Failed to re-scan config")?;
-        inner.watcher = Some(watcher);
-        files
-    } else {
-        self.sources
-            .scan()
-            .context("FS watch: failed to rescan config")?
-    };
-
-    match reconfigure(found_files, &self.modules) {
-        Ok(watch) => {
-            info!("Successfully reloaded configuration.");
-            if watch && inner.watcher.is_none() {
-                info!("Starting watching over configuration.");
-                let (watcher, _files) = self.launch_file_watcher().context("Starting to watch over config")?;
-                inner.watcher = Some(watcher);
-            } else if !watch && inner.watcher.is_some() {
-                info!("Stopped watching over configuration.");
-                inner.watcher = None;
-            }
-        }
-        // TODO: warn_report does not work on anyhow::Error.
-        Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
-    }
-
-    Ok(())
-}
 }
 
 /// A TorClient that we may or may not have told to start bootstrapping.
