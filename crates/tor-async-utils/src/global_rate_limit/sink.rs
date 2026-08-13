@@ -214,13 +214,15 @@ mod test {
 
     #[test]
     fn pool_closed() {
-        let (pool, refiller) = BandwidthPool::new(100);
+        let (pool, refiller) = BandwidthPool::new(10);
         let (tx, _rx) = mpsc::channel::<u64>(4);
         let mut sink = GlobalRateLimitedSink::new(tx, pool.new_acquirer(), 10);
 
+        // Drains the pool.
         sink.send(1).now_or_never().unwrap().unwrap();
+        assert_eq!(pool.available(), 0);
 
-        // Without a refiller, the pool is closed and the sink errors.
+        // Without a refiller and no tokens left, the pool is closed and the sink errors.
         drop(refiller);
         assert!(matches!(
             sink.send(2).now_or_never(),

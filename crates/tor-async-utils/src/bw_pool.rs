@@ -377,15 +377,12 @@ impl BandwidthPool {
     /// permit can hold less than what was asked. The caller learns what it got with
     /// [`Permit::granted`].
     ///
-    /// Returns `Some(permit)` if there were enough tokens available right now, or `None`
-    /// if the pool is closed.
+    /// Returns `Some(permit)` if there were tokens available right now, or `None` if the
+    /// bucket is empty.
     ///
     /// This never blocks and never enqueues. It is the fast path that the other
     /// acquisition methods use first.
     fn try_acquire(&self, tokens: u64) -> Option<Permit> {
-        if self.is_closed() {
-            return None;
-        }
         let granted = self.bucket.claim(tokens)?;
         Some(Permit::new(Arc::clone(&self.bucket), granted))
     }
@@ -558,8 +555,8 @@ mod test {
 
     #[test]
     fn close_pool() {
-        // Fast path / acquire fail once closed.
-        let (pool, refiller) = BandwidthPool::new(0);
+        // Acquire fails once closed and the bucket is dry.
+        let (pool, refiller) = drained_pool(100);
         drop(refiller);
         assert!(pool.try_acquire(1).is_none());
         assert!(matches!(
