@@ -877,7 +877,7 @@ pub(crate) mod test {
             assert!(logs_contain("Extended circuit to the next hop"));
             assert!(ctrl.outbound_chan_launched());
 
-            // Simulate the client sending us a DESTROY cell
+            // Simulate the next hop sending us a DESTROY cell
             let destroy = Destroy::new(DestroyReason::PROTOCOL);
             ctrl.write_outbound(circid, destroy.into());
             rt.advance_until_stalled().await;
