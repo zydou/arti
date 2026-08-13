@@ -107,11 +107,6 @@ impl AtomicTokenBucket {
         self.available.swap(0, Ordering::Relaxed)
     }
 
-    /// Refund `tokens` back to the pool.
-    pub(super) fn refund(&self, tokens: u64) {
-        self.refill(tokens);
-    }
-
     /// Return the capacity.
     pub(super) fn capacity(&self) -> u64 {
         self.capacity

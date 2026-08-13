@@ -135,7 +135,7 @@ impl Drop for Permit {
     fn drop(&mut self) {
         // Refund into the shared pool. Note that the refund will have a no-op on the
         // shared counters if the granted value is zero.
-        self.bucket.refund(self.granted);
+        self.bucket.refill(self.granted);
     }
 }
 
