@@ -705,6 +705,7 @@ impl Channel {
 
     /// Send a control message
     #[instrument(level = "trace", skip_all)]
+    #[cfg_attr(test, visibility::make(pub(crate)))]
     fn send_control(&self, msg: CtrlMsg) -> StdResult<(), ChannelClosed> {
         self.control
             .unbounded_send(msg)
