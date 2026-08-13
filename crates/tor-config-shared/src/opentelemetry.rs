@@ -22,6 +22,7 @@ pub struct OpentelemetryConfig {
 /// Configuration for the OpenTelemetry HTTP exporter.
 #[derive(Debug, Clone, Deftly, Eq, PartialEq, Serialize, Deserialize, Getters)]
 #[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 pub struct OpentelemetryHttpExporterConfig {
     /// HTTP(S) endpoint to send spans to.
     ///
@@ -44,6 +45,7 @@ pub struct OpentelemetryHttpExporterConfig {
 /// Configuration for the OpenTelemetry File exporter.
 #[derive(Debug, Clone, Deftly, Eq, PartialEq, Serialize, Deserialize, Getters)]
 #[derive_deftly(TorConfig)]
+#[deftly(tor_config(no_default_trait))]
 pub struct OpentelemetryFileExporterConfig {
     /// The path to write the JSON file to.
     #[deftly(tor_config(no_default))]
@@ -70,7 +72,6 @@ pub struct OpentelemetryBatchConfig {
     scheduled_delay: Duration,
 }
 
-#[cfg(feature = "opentelemetry")]
 impl From<OpentelemetryBatchConfig> for opentelemetry_sdk::trace::BatchConfig {
     fn from(config: OpentelemetryBatchConfig) -> opentelemetry_sdk::trace::BatchConfig {
         let batch_config = opentelemetry_sdk::trace::BatchConfigBuilder::default();
