@@ -235,6 +235,7 @@ enum ConsensusBoundData {
 /// we reached later stages of code.
 ///
 /// And no, [`std::any::Any`] is not an alternative I am willing to do.
+// XXX: Remove.
 #[derive(Debug, Clone)]
 enum FlavoredConsensus {
     /// For plain consensuses.
@@ -247,6 +248,7 @@ enum FlavoredConsensus {
 /// A [`ConsensusFlavor`]-like wrapper for unverified network statuses.
 ///
 /// TODO DIRMIRROR: See the [`FlavoredConsensus`] trait comment.
+// XXX: Remove
 #[derive(Debug, Clone)]
 enum FlavoredConsensusSigned {
     /// For plain consensuses.

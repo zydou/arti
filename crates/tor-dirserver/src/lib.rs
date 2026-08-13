@@ -54,6 +54,7 @@ mod database;
 pub mod err;
 mod http;
 pub mod mirror;
+mod types;
 
 #[cfg(test)]
 pub(crate) mod testdata2;
