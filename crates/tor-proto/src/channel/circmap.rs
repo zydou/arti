@@ -283,10 +283,13 @@ impl CircMap {
 
     /// See whether 'id' is an opening circuit.  If so, mark it "open" and
     /// return a oneshot::Sender that is waiting for its create cell.
+    ///
+    /// Returns `None` if `id` is not in our circuit map,
+    /// or if it is not an opening circuit.
     pub(super) fn advance_from_opening(
         &mut self,
         id: CircId,
-    ) -> Result<oneshot::Sender<CreateResponse>> {
+    ) -> Option<oneshot::Sender<CreateResponse>> {
         // TODO: there should be a better way to do
         // this. hash_map::Entry seems like it could be better, but
         // there seems to be no way to replace the object in-place as
@@ -306,14 +309,12 @@ impl CircMap {
                         padding_ctrl,
                     },
                 );
-                Ok(oneshot)
+                Some(oneshot)
             } else {
                 panic!("internal error: inconsistent circuit state");
             }
         } else {
-            Err(Error::ChanProto(
-                "Unexpected CREATED* cell not on opening circuit".into(),
-            ))
+            None
         }
     }
 
@@ -428,7 +429,7 @@ mod test {
                 CircEnt::Opening { .. }
             ));
             let adv = map_high.advance_from_opening(ids_high[0]);
-            assert!(adv.is_ok());
+            assert!(adv.is_some());
             assert!(matches!(
                 *map_high.get_mut(ids_high[0]).unwrap(),
                 CircEnt::OpenOrigin { .. }
@@ -436,13 +437,13 @@ mod test {
 
             // Can't double-advance.
             let adv = map_high.advance_from_opening(ids_high[0]);
-            assert!(adv.is_err());
+            assert!(adv.is_none());
 
             // Can't advance an entry that is not there.  We know "77"
             // can't be in map_high, since we only added high circids to
             // it.
             let adv = map_high.advance_from_opening(CircId::new(77).unwrap());
-            assert!(adv.is_err());
+            assert!(adv.is_none());
         });
     }
 }
