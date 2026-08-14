@@ -29,8 +29,9 @@
 //! |                   |             |            | outgoing_chan_rx receiver              |
 //! |                   |             |            | (**not yet implemented**)              |
 //! |-------------------|-------------|------------|----------------------------------------|
-//! | TRUNCATE          | F           | F          | (**not yet implemented**)              |
-//! |                   |             |            |                                        |
+//! | TRUNCATE          | F           | F          | Not supported: TRUNCATE is considered  |
+//! |                   |             |            | a protocol violation, because none of  |
+//! |                   |             |            | of our implementations send it.        |
 //! |-------------------|-------------|------------|----------------------------------------|
 //! | TODO              |             |            |                                        |
 //! |                   |             |            |                                        |
