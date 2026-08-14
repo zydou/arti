@@ -23,11 +23,8 @@
 //! | DROP              | F           | F          | Passed to PaddingController for        |
 //! |                   |             |            | validation                             |
 //! |-------------------|-------------|------------|----------------------------------------|
-//! | EXTEND2           | F           |            | Handled by instructing the channel     |
-//! |                   |             |            | provider to launch a new channel, and  |
-//! |                   |             |            | waiting for the new channel on its     |
-//! |                   |             |            | outgoing_chan_rx receiver              |
-//! |                   |             |            | (**not yet implemented**)              |
+//! | EXTEND2           | F           | F          | Handled by the ExtendRequestHandler    |
+//! |                   |             |            | See [forward::extend_handler].         |
 //! |-------------------|-------------|------------|----------------------------------------|
 //! | TRUNCATE          | F           | F          | Not supported: TRUNCATE is considered  |
 //! |                   |             |            | a protocol violation, because none of  |
