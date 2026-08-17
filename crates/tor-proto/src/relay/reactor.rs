@@ -4,7 +4,8 @@
 //!
 //! #### `ForwardReactor`
 //!
-//! It handles
+//! All cells moving in the forward direction (i.e. away from the client)
+//! are handled by the forward reactor, which deals with
 //!
 //!  * unrecognized RELAY* cells, by moving them in the forward direction (towards the exit)
 //!  * recognized RELAY* cells, by splitting each cell into messages, and handling
