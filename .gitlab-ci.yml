@@ -293,13 +293,14 @@ rust-dev-recent:
     - section_start "build docs"
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
     - section_end
-
-    - section_start "preserve artifacts"
-    - ./maint/preserve target/doc/
-    - section_end
+    # We want to archive the rustdoc build, but it will be deleted
+    # by the 'cargo clean' in the after_script.
+    # We move it to a temporary location so that it's not deleted,
+    # and we can upload it as an artifact.
+    - mv target/doc/ rustdoc-build/
   artifacts:
     paths:
-      - artifacts
+      - rustdoc-build/
     expire_in: 1 week
 
 rust-dev-latest:
@@ -436,10 +437,14 @@ rust-nightly:
     - ./maint/add_warning --ci-nightly
     - cargo clippy --all-features --tests -- -D clippy::dbg_macro
     - RUSTDOCFLAGS="-Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
-    - ./maint/preserve target/doc/
+    # We want to archive the rustdoc build, but it will be deleted
+    # by the 'cargo clean' in the after_script.
+    # We move it to a temporary location so that it's not deleted,
+    # and we can upload it as an artifact.
+    - mv target/doc/ rustdoc-build/
   artifacts:
     paths:
-      - artifacts
+      - rustdoc-build/
     expire_in: 1 week
 
 check-api-surface:
