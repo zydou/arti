@@ -32,8 +32,14 @@
 //! |            |             |                       | a protocol violation, because none of  |
 //! |            |             |                       | of our implementations send it.        |
 //! |------------|-------------|-----------------------|----------------------------------------|
-//! | TODO       |             |                       |                                        |
-//! |            |             |                       |                                        |
+//! | SENDME     | F           | B                     | Sent to BackwardReactor for handling.  |
+//! | (sid = 0)  |             |                       | See the [crate::circuit::reactor] docs |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | Other      | F           | FH::handle_meta_msg() | Rejected as unrecognized               |
+//! | (sid = 0)  |             |                       |                                        |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | Other      | F           | S                     | Handled in the `StreamReactor`         |
+//! | (sid != 0) |             |                       |                                        |
 //! ```
 
 pub(crate) mod backward;
