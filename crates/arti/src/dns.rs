@@ -266,6 +266,7 @@ pub(crate) async fn bind_dns_resolver<R: Runtime>(
     match listen.ip_addrs() {
         Ok(addrgroups) => {
             for addrgroup in addrgroups {
+                let mut any_success: bool = false;
                 for addr in addrgroup {
                     // NOTE: Our logs here displays the local address. We allow this, since
                     // knowing the address is basically essential for diagnostics.
@@ -274,6 +275,7 @@ pub(crate) async fn bind_dns_resolver<R: Runtime>(
                             let bound_addr = listener.local_addr()?;
                             info!("Listening on {:?}.", bound_addr);
                             listeners.push(listener);
+                            any_success = true;
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -284,7 +286,10 @@ pub(crate) async fn bind_dns_resolver<R: Runtime>(
                         }
                     }
                 }
-                // TODO: We are supposed to fail if all addresses in a group fail.
+
+                if !any_success {
+                    return Err(anyhow!("All addresses failed to bind in a group"));
+                }
             }
         }
         Err(e) => warn_report!(e, "Invalid listen spec"),
