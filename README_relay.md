@@ -25,8 +25,8 @@ to check things off, or add missing items.
 - [ ] **Basic operations**
   - [x] Refactor `tor-proto`
   - [x] Update TLSProvider with server support
-  - [ ] Handle incoming channels
-  - [ ] Bidirectional channel authentication
+  - [x] Handle incoming channels
+  - [x] Bidirectional channel authentication
   - [ ] Manage list of client channels
   - [ ] Limit channels per IP
   - [ ] Discard unused channels
