@@ -137,6 +137,15 @@ impl IncomingStream {
         }
     }
 
+    /// Respond to a DNS stream by sending the specified `message` to the client.
+    ///
+    /// This closes the stream.
+    #[cfg(feature = "relay")]
+    pub async fn resolve(mut self, message: msg::Resolved) -> Result<()> {
+        // XXX implement
+        todo!()
+    }
+
     /// Reject this request and send an error message to the client.
     pub async fn reject(mut self, message: msg::End) -> Result<()> {
         let rx = self.reject_inner(CloseStreamBehavior::SendEnd(message))?;
