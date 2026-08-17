@@ -299,8 +299,11 @@ pub(crate) struct LoggingConfig {
     pub(crate) log_sensitive_information: bool,
 
     /// Configuration for logging spans with OpenTelemetry.
-    #[cfg(feature = "opentelemetry")]
-    #[deftly(tor_config(sub_builder))]
+    #[deftly(tor_config(
+        sub_builder,
+        cfg = r#" feature = "opentelemetry" "#,
+        cfg_desc = "with opentelemetry support"
+    ))]
     opentelemetry: tor_config_shared::opentelemetry::OpentelemetryConfig,
 }
 

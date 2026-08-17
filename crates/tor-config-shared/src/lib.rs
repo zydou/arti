@@ -48,5 +48,5 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod metrics;
-#[cfg(feature = "opentelemetry")]
+#[cfg_attr(not(feature = "opentelemetry"), path = "opentelemetry_stub.rs")]
 pub mod opentelemetry;
