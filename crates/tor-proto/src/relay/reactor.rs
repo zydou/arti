@@ -11,7 +11,8 @@
 //!  * recognized RELAY* cells, by splitting each cell into messages, and handling
 //!    each message individually as described in the table below
 //!    (Note: since prop340 is not yet implemented, in practice there is only 1 message per cell).
-//!  * DESTROY cells (**not yet implemented**)
+//!  * DESTROY cells, by tearing down the circuit, and causing a DESTROY to be sent forward,
+//!    to the next hop, if there is one
 //!  * PADDING_NEGOTIATE cells (**not yet implemented**)
 //!
 //! ```text
