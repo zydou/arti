@@ -186,7 +186,7 @@ impl<R: Runtime> CfgMgr<R> {
 
 /// Start watching for configuration changes.
 ///
-/// Spawned from `watch_for_config_changes`.
+/// Spawned from [`CfgMgr::launch`].
 #[instrument(level = "trace", skip_all)]
 async fn run_watcher<R: Runtime>(
     runtime: R,
