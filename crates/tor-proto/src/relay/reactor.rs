@@ -6,11 +6,10 @@
 //!
 //! It handles
 //!
-//!  * unrecognized RELAY cells, by moving them in the forward direction (towards the exit)
-//!  * recognized RELAY cells, by splitting each cell into messages, and handling
+//!  * unrecognized RELAY* cells, by moving them in the forward direction (towards the exit)
+//!  * recognized RELAY* cells, by splitting each cell into messages, and handling
 //!    each message individually as described in the table below
 //!    (Note: since prop340 is not yet implemented, in practice there is only 1 message per cell).
-//!  * RELAY_EARLY cells (**not yet implemented**)
 //!  * DESTROY cells (**not yet implemented**)
 //!  * PADDING_NEGOTIATE cells (**not yet implemented**)
 //!
