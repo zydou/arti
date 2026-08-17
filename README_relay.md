@@ -32,7 +32,7 @@ to check things off, or add missing items.
   - [ ] Discard unused channels
   - [x] Process and deliver relay cells
   - [x] Handle CREATE2 cells
-  - [x] Handle CREATE_FAST cells
+  - [x] Handle CREATE\_FAST cells
   - [x] Handle EXTEND2 messages
   - [ ] Create router keys
   - [ ] Rotate keys as needed
