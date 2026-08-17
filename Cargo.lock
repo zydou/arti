@@ -389,8 +389,6 @@ dependencies = [
  "directories",
  "fs-mistrust",
  "futures",
- "humantime",
- "humantime-serde",
  "libc",
  "metrics-exporter-prometheus",
  "opentelemetry",
@@ -7143,7 +7141,6 @@ version = "0.45.0"
 dependencies = [
  "amplify",
  "derive-deftly",
- "humantime-serde",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "serde",

@@ -22,7 +22,7 @@ use arti_client::TorClientConfig;
 use tor_config::define_list_builder_accessors;
 use tor_config::derive::prelude::*;
 pub(crate) use tor_config::{ConfigBuildError, Listen};
-pub(crate) use tor_config_shared::{MetricsConfig, MetricsConfigBuilder};
+pub(crate) use tor_config_shared::metrics::{MetricsConfig, MetricsConfigBuilder};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 

@@ -16,8 +16,6 @@ all-features = true
 
 [features]
 full = [
-    "metrics",
-    "opentelemetry",
     "fs-mistrust/full",
     "safelog/full",
     "tor-async-utils/full",
@@ -57,13 +55,13 @@ experimental = ["metrics", "opentelemetry"]
 
 metrics = ["tor-chanmgr/metrics", "dep:metrics-exporter-prometheus", "__is_experimental"]
 opentelemetry = [
-    "tracing-opentelemetry",
+    "dep:tracing-opentelemetry",
     "dep:opentelemetry",
-    "otlp-file-exporter",
-    "opentelemetry_sdk",
-    "opentelemetry-otlp",
-    "opentelemetry-appender-tracing",
-    "opentelemetry-proto",
+    "dep:otlp-file-exporter",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-otlp",
+    "dep:opentelemetry-appender-tracing",
+    "dep:opentelemetry-proto",
     "__is_experimental",
 ]
 __is_experimental = []
@@ -79,8 +77,6 @@ derive_more = { version = "2.0.1", features = ["full"] }
 directories = "6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.15.0", features = ["serde"] }
 futures = "0.3.14"
-humantime = "2"
-humantime-serde = "1.1.1"
 libc = "0.2"
 metrics-exporter-prometheus = { version = "0.18.0", optional = true, default-features = false, features = [
     "http-listener",
@@ -89,7 +85,8 @@ opentelemetry = { version = "0.32.0", optional = true }
 opentelemetry-appender-tracing = { version = "0.32.0", optional = true }
 opentelemetry-otlp = { version = "0.32.0", optional = true }
 opentelemetry-proto = { version = "0.32.0", optional = true }
-opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
+# TODO: Figure out why this feature is needed, and how it interacts with non-tokio runtimes.
+opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"], optional = true }
 otlp-file-exporter = { path = "../otlp-file-exporter", version = "0.1.0", optional = true }
 rand = "0.10.1"
 rustls = { version = "0.23.5", default-features = false, features = ["logging", "aws_lc_rs"] }

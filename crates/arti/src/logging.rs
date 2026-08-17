@@ -10,7 +10,7 @@ use std::str::FromStr;
 use tor_basic_utils::PathExt as _;
 use tor_config::ConfigBuildError;
 #[cfg(feature = "opentelemetry")]
-use tor_config_shared::{OpentelemetryConfig, OpentelemetryConfigBuilder};
+use tor_config_shared::opentelemetry::{OpentelemetryConfig, OpentelemetryConfigBuilder};
 use tor_config::derive::prelude::*;
 use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_error::warn_report;

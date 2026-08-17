@@ -1,6 +1,6 @@
 # otlp-file-exporter
 
-This crate implements a OpenTelemetry exporter for writing [OTLP] JSON files to disk.
+This crate implements an OpenTelemetry exporter for writing [OTLP] JSON files to disk.
 
 This at some point will be [implemented upstream],
 at which point this crate will be deprecated,

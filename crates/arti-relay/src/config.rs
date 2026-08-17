@@ -23,7 +23,7 @@ use tor_config::{
     ConfigBuildError, ExplicitOrAuto, extend_builder::extend_with_replace, mistrust::BuilderExt,
 };
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
-use tor_config_shared::{MetricsConfig, MetricsConfigBuilder};
+use tor_config_shared::metrics::{MetricsConfig, MetricsConfigBuilder};
 use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
 use tor_dircommon::fallback::FallbackList;
 use tor_guardmgr::bridge::BridgeConfig;
@@ -301,7 +301,7 @@ pub(crate) struct LoggingConfig {
     /// Configuration for logging spans with OpenTelemetry.
     #[cfg(feature = "opentelemetry")]
     #[deftly(tor_config(sub_builder))]
-    opentelemetry: tor_config_shared::OpentelemetryConfig,
+    opentelemetry: tor_config_shared::opentelemetry::OpentelemetryConfig,
 }
 
 impl LoggingConfigBuilder {

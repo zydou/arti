@@ -125,7 +125,7 @@ syslog = ["syslog-tracing"]
 opentelemetry = [
     "tracing-opentelemetry",
     "dep:opentelemetry",
-    "otlp-file-exporter",
+    "dep:otlp-file-exporter",
     "opentelemetry_sdk",
     "opentelemetry-otlp",
     "opentelemetry-appender-tracing",
