@@ -146,8 +146,18 @@ impl IncomingStream {
     /// Returns an error this is not a DNS stream.
     #[cfg(feature = "relay")]
     pub async fn resolve(mut self, message: msg::Resolved) -> Result<()> {
-        // XXX implement
-        todo!()
+        match self.request {
+            IncomingStreamRequest::Begin(_) | IncomingStreamRequest::BeginDir(_) => {
+                Err(internal!("Cannot send RESOLVED on a data or directory stream").into())
+            }
+            IncomingStreamRequest::Resolve(_) => {
+                // XXX we're not really rejecting the stream, we're only closing it
+                // (with a RESOLVED). I think it's time to rename reject_inner
+                let rx = self.reject_inner(CloseStreamBehavior::SendResolved(message))?;
+
+                rx.await.map_err(|_| Error::CircuitClosed)?
+            }
+        }
     }
 
     /// Reject this request and send an error message to the client.
