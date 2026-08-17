@@ -126,7 +126,8 @@ In terms of the actual DNS resolution, we plan to
     resolvers; instead, we will recommend using the ISP's resolver
     (the ISP already sees all outgoing connections, so we wouldn't be leaking any
     additional information by doing this)
-  * internally, `arti-relay` will use a caching stub resolver
+  * internally, `arti-relay` will use a caching stub resolver,
+    ideally one that supports DoE and DNSSEC
 
 ### Implementation
 
@@ -141,6 +142,9 @@ but I don't think we're going to want to use its internal cache:
 
 The `hickory-resolver` maintainers seem open to making `moka` an optional dependency though,
 so we could submit a patch to gate it behind a feature flag.
+
+In terms of extra security features, `hickory-resolver` supports both DoE
+(in the form of DoT or DoH) and DNSSEC (we will likely enable both).
 
 
 ## Part 2: the cache
