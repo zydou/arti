@@ -30,10 +30,10 @@ to check things off, or add missing items.
   - [ ] Manage list of client channels
   - [ ] Limit channels per IP
   - [ ] Discard unused channels
-  - [ ] Process and deliver relay cells
+  - [x] Process and deliver relay cells
   - [ ] Handle CREATE2 cells
   - [ ] Handle CREATE_FAST cells
-  - [ ] Handle EXTEND2 messages
+  - [x] Handle EXTEND2 messages
   - [ ] Create router keys
   - [ ] Rotate keys as needed
   - [ ] Publish router descriptors

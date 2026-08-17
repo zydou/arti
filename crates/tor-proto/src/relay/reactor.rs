@@ -2,38 +2,42 @@
 //!
 //! See [`reactor`](crate::circuit::reactor) for a description of the overall architecture.
 //!
-//! #### `ForwardReactor`
+//! All cells moving in the forward direction (i.e. away from the client)
+//! are handled by the forward reactor, which deals with
 //!
-//! It handles
-//!
-//!  * unrecognized RELAY cells, by moving them in the forward direction (towards the exit)
-//!  * recognized RELAY cells, by splitting each cell into messages, and handling
+//!  * unrecognized RELAY* cells, by moving them in the forward direction (towards the exit)
+//!  * recognized RELAY* cells, by splitting each cell into messages, and handling
 //!    each message individually as described in the table below
 //!    (Note: since prop340 is not yet implemented, in practice there is only 1 message per cell).
-//!  * RELAY_EARLY cells (**not yet implemented**)
-//!  * DESTROY cells (**not yet implemented**)
+//!  * DESTROY cells, by tearing down the circuit, and causing a DESTROY to be sent forward,
+//!    to the next hop, if there is one
 //!  * PADDING_NEGOTIATE cells (**not yet implemented**)
 //!
 //! ```text
 //!
 //! Legend: `F` = "forward reactor", `B` = "backward reactor", `S` = "stream reactor"
+//! `FH` = `ForwardHandler`
 //!
-//! | RELAY cmd         | Received in | Handled in | Description                            |
-//! |-------------------|-------------|------------|----------------------------------------|
-//! | DROP              | F           | F          | Passed to PaddingController for        |
-//! |                   |             |            | validation                             |
-//! |-------------------|-------------|------------|----------------------------------------|
-//! | EXTEND2           | F           |            | Handled by instructing the channel     |
-//! |                   |             |            | provider to launch a new channel, and  |
-//! |                   |             |            | waiting for the new channel on its     |
-//! |                   |             |            | outgoing_chan_rx receiver              |
-//! |                   |             |            | (**not yet implemented**)              |
-//! |-------------------|-------------|------------|----------------------------------------|
-//! | TRUNCATE          | F           | F          | (**not yet implemented**)              |
-//! |                   |             |            |                                        |
-//! |-------------------|-------------|------------|----------------------------------------|
-//! | TODO              |             |            |                                        |
-//! |                   |             |            |                                        |
+//! | RELAY cmd  | Received in | Handled in            | Description                            |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | DROP       | F           | FH::handle_meta_msg() | Passed to PaddingController for        |
+//! |            |             |                       | validation                             |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | EXTEND2    | F           | FH::handle_meta_msg() | Handled by the ExtendRequestHandler    |
+//! |            |             |                       | See [forward::extend_handler].         |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | TRUNCATE   | F           | FH::handle_meta_msg() | Not supported: TRUNCATE is considered  |
+//! |            |             |                       | a protocol violation, because none of  |
+//! |            |             |                       | of our implementations send it.        |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | SENDME     | F           | B                     | Sent to BackwardReactor for handling.  |
+//! | (sid = 0)  |             |                       | See the [crate::circuit::reactor] docs |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | Other      | F           | FH::handle_meta_msg() | Rejected as unrecognized               |
+//! | (sid = 0)  |             |                       |                                        |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | Other      | F           | S                     | Handled in the `StreamReactor`         |
+//! | (sid != 0) |             |                       |                                        |
 //! ```
 
 pub(crate) mod backward;
