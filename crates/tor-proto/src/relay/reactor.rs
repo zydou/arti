@@ -18,21 +18,22 @@
 //! ```text
 //!
 //! Legend: `F` = "forward reactor", `B` = "backward reactor", `S` = "stream reactor"
+//! `FH` = `ForwardHandler`
 //!
-//! | RELAY cmd         | Received in | Handled in | Description                            |
-//! |-------------------|-------------|------------|----------------------------------------|
-//! | DROP              | F           | F          | Passed to PaddingController for        |
-//! |                   |             |            | validation                             |
-//! |-------------------|-------------|------------|----------------------------------------|
-//! | EXTEND2           | F           | F          | Handled by the ExtendRequestHandler    |
-//! |                   |             |            | See [forward::extend_handler].         |
-//! |-------------------|-------------|------------|----------------------------------------|
-//! | TRUNCATE          | F           | F          | Not supported: TRUNCATE is considered  |
-//! |                   |             |            | a protocol violation, because none of  |
-//! |                   |             |            | of our implementations send it.        |
-//! |-------------------|-------------|------------|----------------------------------------|
-//! | TODO              |             |            |                                        |
-//! |                   |             |            |                                        |
+//! | RELAY cmd  | Received in | Handled in            | Description                            |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | DROP       | F           | FH::handle_meta_msg() | Passed to PaddingController for        |
+//! |            |             |                       | validation                             |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | EXTEND2    | F           | FH::handle_meta_msg() | Handled by the ExtendRequestHandler    |
+//! |            |             |                       | See [forward::extend_handler].         |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | TRUNCATE   | F           | FH::handle_meta_msg() | Not supported: TRUNCATE is considered  |
+//! |            |             |                       | a protocol violation, because none of  |
+//! |            |             |                       | of our implementations send it.        |
+//! |------------|-------------|-----------------------|----------------------------------------|
+//! | TODO       |             |                       |                                        |
+//! |            |             |                       |                                        |
 //! ```
 
 pub(crate) mod backward;
