@@ -65,6 +65,7 @@ pub(crate) type StreamMpscReceiver<T> = mq_queue::Receiver<T, MpscSpec>;
 ///
 /// We don't use `Option<End>` here, since the behavior of `SendNothing` is so surprising
 /// that we shouldn't let it pass unremarked.
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Debug)]
 pub(crate) enum CloseStreamBehavior {
     /// Send nothing at all, so that the other side will not realize we have
