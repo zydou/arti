@@ -96,6 +96,10 @@ default:
     # our target directory before we exit.  (Leaving big hunks of data
     # on the builders make our admins sad.)
     - if command -v cargo && test -d ./target; then cargo clean; fi
+    # Output some information about disk usage of the project directory,
+    # which can be helpful when debugging high disk usage issues.
+    # The short (rather than long) flags are needed by some of our container images.
+    - du -d 1 -h "${CI_PROJECT_DIR}"
 
 check-editorconfig:
   needs: []
