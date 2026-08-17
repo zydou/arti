@@ -593,6 +593,9 @@ impl CircHopOutbound {
 
             return Ok(Some(cell));
         }
+
+        // XXX: handle CloseStreamBehavior::Resolved
+
         Ok(None)
     }
 

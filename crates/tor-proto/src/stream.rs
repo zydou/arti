@@ -19,7 +19,7 @@ use safelog::sensitive;
 
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
-use tor_cell::relaycell::msg::{AnyRelayMsg, End};
+use tor_cell::relaycell::msg::{AnyRelayMsg, End, Resolved};
 use tor_cell::relaycell::{RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_memquota::mq_queue::{self, MpscSpec};
 
@@ -75,6 +75,8 @@ pub(crate) enum CloseStreamBehavior {
     SendNothing,
     /// Send an End cell, if we haven't already sent one.
     SendEnd(End),
+    /// Send a Resolved cell, if we haven't already sent one.
+    SendResolved(Resolved),
 }
 
 impl Default for CloseStreamBehavior {
