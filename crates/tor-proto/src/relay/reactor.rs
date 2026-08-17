@@ -2,8 +2,6 @@
 //!
 //! See [`reactor`](crate::circuit::reactor) for a description of the overall architecture.
 //!
-//! #### `ForwardReactor`
-//!
 //! All cells moving in the forward direction (i.e. away from the client)
 //! are handled by the forward reactor, which deals with
 //!
