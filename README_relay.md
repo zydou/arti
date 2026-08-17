@@ -38,7 +38,7 @@ to check things off, or add missing items.
   - [ ] Rotate keys as needed
   - [ ] Publish router descriptors
   - [ ] Congestion control
-  - [ ] Listen on ORPort
+  - [x] Listen on ORPort
   - [ ] Cap overall bandwidth usage
 
 - [ ] **Exit support**
