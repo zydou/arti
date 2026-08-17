@@ -31,8 +31,8 @@ to check things off, or add missing items.
   - [ ] Limit channels per IP
   - [ ] Discard unused channels
   - [x] Process and deliver relay cells
-  - [ ] Handle CREATE2 cells
-  - [ ] Handle CREATE_FAST cells
+  - [x] Handle CREATE2 cells
+  - [x] Handle CREATE_FAST cells
   - [x] Handle EXTEND2 messages
   - [ ] Create router keys
   - [ ] Rotate keys as needed
