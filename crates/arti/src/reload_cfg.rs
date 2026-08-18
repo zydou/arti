@@ -59,15 +59,15 @@ pub(crate) struct CfgMgr<R> {
     /// A sender to use when constructing new [`FileWatcher`]s.
     tx: FileEventSender,
 
-    /// A list of modules to alert whenever the configuration has changed.
-    modules: Vec<Weak<dyn ReconfigurableModule>>,
-
     /// Mutable state.
     inner: Mutex<CfgMgrInner>,
 }
 
 /// Mutable part of a CfgMgr.
 struct CfgMgrInner {
+    /// A list of modules to alert whenever the configuration has changed.
+    modules: Vec<Weak<dyn ReconfigurableModule>>,
+
     /// If present, a [`FileWatcher`] that is currently watching for changes
     /// in the configuration files and directories.
     watcher: Option<FileWatcher>,
@@ -118,8 +118,10 @@ impl<R: Runtime> CfgMgr<R> {
             runtime,
             sources,
             tx,
-            modules,
-            inner: Mutex::new(CfgMgrInner { watcher: None }),
+            inner: Mutex::new(CfgMgrInner {
+                watcher: None,
+                modules,
+            }),
         });
 
         cfg_if::cfg_if! {
@@ -173,7 +175,7 @@ impl<R: Runtime> CfgMgr<R> {
                 .context("FS watch: failed to rescan config")?
         };
 
-        match reconfigure(found_files, &self.modules) {
+        match reconfigure(found_files, &inner.modules) {
             Ok(watch) => {
                 info!("Successfully reloaded configuration.");
                 if watch && inner.watcher.is_none() {
@@ -232,6 +234,25 @@ impl<R: Runtime> UnlaunchedWatcher<R> {
             mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
         }
 
+        Ok(())
+    }
+
+    /// Add `module` to the set of modules that need to be reconfigured when the configuration changes.
+    ///
+    /// This method is on the [`UnlaunchedWatcher`] because is not (yet) meant to be called after
+    /// the watcher task is launched.
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn add_module(&self, module: &Arc<dyn ReconfigurableModule>) -> anyhow::Result<()> {
+        let weak_module = Arc::downgrade(module);
+
+        let Some(mgr) = self.weak_mgr.upgrade() else {
+            return Err(anyhow::anyhow!(
+                "CfgMgr disappeared before launching watcher task."
+            ));
+        };
+
+        let mut inner = mgr.inner.lock().expect("poisoned lock");
+        inner.modules.push(weak_module);
         Ok(())
     }
 }
@@ -561,8 +582,10 @@ mod test {
                 runtime: rt.clone(),
                 sources: cfg_sources,
                 tx: fw_tx,
-                modules: vec![Arc::downgrade(&module)],
-                inner: Mutex::new(CfgMgrInner { watcher: None }),
+                inner: Mutex::new(CfgMgrInner {
+                    watcher: None,
+                    modules: vec![Arc::downgrade(&module)],
+                }),
             });
 
             let (watcher, _) = mgr.launch_file_watcher().unwrap();
@@ -619,8 +642,10 @@ mod test {
                 runtime: rt.clone(),
                 sources: cfg_sources,
                 tx: fw_tx,
-                modules: vec![Arc::downgrade(&module)],
-                inner: Mutex::new(CfgMgrInner { watcher: None }),
+                inner: Mutex::new(CfgMgrInner {
+                    watcher: None,
+                    modules: vec![Arc::downgrade(&module)],
+                }),
             });
 
             let (watcher, _) = mgr.launch_file_watcher().unwrap();
