@@ -141,51 +141,7 @@ impl<R: Runtime> CfgMgr<R> {
 
         Ok((mgr, watcher))
     }
-}
 
-// XXXX: Move this block in a subsequent commit.
-impl<R: Runtime> UnlaunchedWatcher<R> {
-    /// Begin running the file watcher task for a given configuration manager.
-    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-    #[instrument(level = "trace", skip_all)]
-    pub(crate) fn launch(self) -> anyhow::Result<()> {
-        let UnlaunchedWatcher {
-            weak_mgr,
-            sighup_stream,
-            watcher_rx,
-            debounce_interval,
-            watch_files_at_start,
-        } = self;
-        let Some(mgr) = weak_mgr.upgrade() else {
-            return Err(anyhow::anyhow!(
-                "CfgMgr disappeared before we could launch the monitor task"
-            ));
-        };
-
-        let rt = mgr.runtime.clone();
-        let weak_mgr = Arc::downgrade(&mgr);
-        mgr.runtime
-            .spawn(async move {
-                let res: anyhow::Result<()> =
-                    run_watcher(rt, watcher_rx, sighup_stream, weak_mgr, debounce_interval).await;
-                match res {
-                    Ok(()) => debug!("Config watcher task exiting"),
-                    // TODO: warn_report does not work on anyhow::Error.
-                    Err(e) => error!("Config watcher task exiting: {}", tor_error::Report(e)),
-                }
-            })
-            .context("failed to spawn task")?;
-
-        if watch_files_at_start {
-            let (watcher, _files) = mgr.launch_file_watcher()?;
-            mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
-        }
-
-        Ok(())
-    }
-}
-
-impl<R: Runtime> CfgMgr<R> {
     /// Create a new [`FileWatcher`] for the files in this configuration.
     ///
     /// Return it, along with the set of files we found.
@@ -233,6 +189,47 @@ impl<R: Runtime> CfgMgr<R> {
             }
             // TODO: warn_report does not work on anyhow::Error.
             Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
+        }
+
+        Ok(())
+    }
+}
+
+impl<R: Runtime> UnlaunchedWatcher<R> {
+    /// Begin running the file watcher task for a given configuration manager.
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    #[instrument(level = "trace", skip_all)]
+    pub(crate) fn launch(self) -> anyhow::Result<()> {
+        let UnlaunchedWatcher {
+            weak_mgr,
+            sighup_stream,
+            watcher_rx,
+            debounce_interval,
+            watch_files_at_start,
+        } = self;
+        let Some(mgr) = weak_mgr.upgrade() else {
+            return Err(anyhow::anyhow!(
+                "CfgMgr disappeared before we could launch the monitor task"
+            ));
+        };
+
+        let rt = mgr.runtime.clone();
+        let weak_mgr = Arc::downgrade(&mgr);
+        mgr.runtime
+            .spawn(async move {
+                let res: anyhow::Result<()> =
+                    run_watcher(rt, watcher_rx, sighup_stream, weak_mgr, debounce_interval).await;
+                match res {
+                    Ok(()) => debug!("Config watcher task exiting"),
+                    // TODO: warn_report does not work on anyhow::Error.
+                    Err(e) => error!("Config watcher task exiting: {}", tor_error::Report(e)),
+                }
+            })
+            .context("failed to spawn task")?;
+
+        if watch_files_at_start {
+            let (watcher, _files) = mgr.launch_file_watcher()?;
+            mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
         }
 
         Ok(())
