@@ -163,6 +163,9 @@ impl<R: Runtime> CfgMgr<R> {
         let mut inner = self.inner.lock().expect("Lock poisoned");
 
         // TODO RPC: Take 'how' as an argument.
+        //
+        // Question: I do not understand why we are making a new file watcher unconditionally
+        // at this point. -nm
         let found_files = if inner.watcher.is_some() {
             let (watcher, files) = self
                 .launch_file_watcher()
@@ -230,6 +233,12 @@ impl<R: Runtime> UnlaunchedWatcher<R> {
             .context("failed to spawn task")?;
 
         if watch_files_at_start {
+            // Note: You might think that there was a race condition here, where launching the
+            // watcher _now_ would fail to catch any file changes that had happened between
+            // reading the configuration initially and now.
+            //
+            // You'd be right, except that the [`FileWatcher`] code starts every new FileWatcher
+            // with a pending `rescan` event.
             let (watcher, _files) = mgr.launch_file_watcher()?;
             mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
         }
