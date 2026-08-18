@@ -178,12 +178,13 @@ async fn run_proxy<R: ToplevelRuntime>(
     // NOTE: reconfigurable_modules stores the only strong references to these modules,
     // so we must keep the variable alive until the end of the function
     let weak_modules = reconfigurable_modules.iter().map(Arc::downgrade).collect();
-    let _cfg_mgr = reload_cfg::CfgMgr::launch(
+    let (_cfg_mgr, watcher_task) = reload_cfg::CfgMgr::new(
         client.runtime().clone(),
         config_sources,
         &arti_config,
         weak_modules,
     )?;
+    watcher_task.launch()?;
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "rpc")] {

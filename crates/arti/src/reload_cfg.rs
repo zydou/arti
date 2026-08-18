@@ -7,6 +7,7 @@ use anyhow::Context;
 use arti_client::TorClient;
 use arti_client::config::Reconfigure;
 use futures::StreamExt;
+use futures::stream::BoxStream;
 use futures::{FutureExt as _, Stream, select_biased};
 use tor_config::file_watcher::{
     self, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
@@ -72,6 +73,26 @@ struct CfgMgrInner {
     watcher: Option<FileWatcher>,
 }
 
+/// A watcher process that we have not yet launched.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[must_use = "UnlaunchedWatcher does nothing unless you launch it."]
+pub(crate) struct UnlaunchedWatcher<R> {
+    /// The related [`CfgMgr`] that we should tell about reconfiguration events.
+    weak_mgr: Weak<CfgMgr<R>>,
+
+    /// A stream on which we will get alerts about SIGHUP events.
+    sighup_stream: BoxStream<'static, ()>,
+
+    /// A stream that will tell us when our files are changed.
+    watcher_rx: FileEventReceiver,
+
+    /// An interval that we wait to debounce events from watcher_rx or sighup_stream.
+    debounce_interval: Option<Duration>,
+
+    /// If true, we start watching for file changes immediately at launch.
+    watch_files_at_start: bool,
+}
+
 impl<R: Runtime> CfgMgr<R> {
     /// Construct a new CfgMgr, and launch a task to watch for any events
     /// that mean we have to reload our configuration.
@@ -86,12 +107,12 @@ impl<R: Runtime> CfgMgr<R> {
     /// See the [`FileWatcher`](FileWatcher#Limitations) docs for limitations.
     #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn launch(
+    pub(crate) fn new(
         runtime: R,
         sources: ConfigurationSources,
         config: &ArtiConfig,
         modules: Vec<Weak<dyn ReconfigurableModule>>,
-    ) -> anyhow::Result<Arc<Self>> {
+    ) -> anyhow::Result<(Arc<Self>, UnlaunchedWatcher<R>)> {
         let (tx, rx) = file_watcher::channel();
         let mgr = Arc::new(CfgMgr {
             runtime,
@@ -108,13 +129,45 @@ impl<R: Runtime> CfgMgr<R> {
                 let sighup_stream = stream::pending();
             }
         }
+        let sighup_stream = sighup_stream.boxed();
+
+        let watcher = UnlaunchedWatcher {
+            weak_mgr: Arc::downgrade(&mgr),
+            sighup_stream,
+            watcher_rx: rx,
+            debounce_interval: Some(DEBOUNCE_INTERVAL),
+            watch_files_at_start: config.application().watch_configuration,
+        };
+
+        Ok((mgr, watcher))
+    }
+}
+
+// XXXX: Move this block in a subsequent commit.
+impl<R: Runtime> UnlaunchedWatcher<R> {
+    /// Begin running the file watcher task for a given configuration manager.
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    #[instrument(level = "trace", skip_all)]
+    pub(crate) fn launch(self) -> anyhow::Result<()> {
+        let UnlaunchedWatcher {
+            weak_mgr,
+            sighup_stream,
+            watcher_rx,
+            debounce_interval,
+            watch_files_at_start,
+        } = self;
+        let Some(mgr) = weak_mgr.upgrade() else {
+            return Err(anyhow::anyhow!(
+                "CfgMgr disappeared before we could launch the monitor task"
+            ));
+        };
 
         let rt = mgr.runtime.clone();
         let weak_mgr = Arc::downgrade(&mgr);
         mgr.runtime
             .spawn(async move {
                 let res: anyhow::Result<()> =
-                    run_watcher(rt, rx, sighup_stream, weak_mgr, Some(DEBOUNCE_INTERVAL)).await;
+                    run_watcher(rt, watcher_rx, sighup_stream, weak_mgr, debounce_interval).await;
                 match res {
                     Ok(()) => debug!("Config watcher task exiting"),
                     // TODO: warn_report does not work on anyhow::Error.
@@ -123,14 +176,16 @@ impl<R: Runtime> CfgMgr<R> {
             })
             .context("failed to spawn task")?;
 
-        if config.application().watch_configuration {
+        if watch_files_at_start {
             let (watcher, _files) = mgr.launch_file_watcher()?;
             mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
         }
 
-        Ok(mgr)
+        Ok(())
     }
+}
 
+impl<R: Runtime> CfgMgr<R> {
     /// Create a new [`FileWatcher`] for the files in this configuration.
     ///
     /// Return it, along with the set of files we found.
@@ -186,7 +241,7 @@ impl<R: Runtime> CfgMgr<R> {
 
 /// Start watching for configuration changes.
 ///
-/// Spawned from [`CfgMgr::launch`].
+/// Spawned from [`UnlaunchedWatcher::launch`].
 #[instrument(level = "trace", skip_all)]
 async fn run_watcher<R: Runtime>(
     runtime: R,
