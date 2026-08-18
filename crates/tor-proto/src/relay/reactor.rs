@@ -936,6 +936,16 @@ pub(crate) mod test {
                 ReactorTestCtrl::spawn_reactor(&rt, &[RelayCmd::BEGIN]).await;
             rt.advance_until_stalled().await;
 
+            // Extend the circuit by another hop
+            let linkspecs = dummy_linkspecs();
+            let handshake_type = HandshakeType::NTOR_V3;
+            let extend2 = relaymsg::Extend2::new(linkspecs, handshake_type, vec![]).into();
+            ctrl.send_fwd(None, extend2, Recognized::Yes, true).await;
+            rt.advance_until_stalled().await;
+            let _circid = ctrl.do_create2_handshake(&rt, handshake_type).await;
+            assert!(logs_contain("Extended circuit to the next hop"));
+            assert!(ctrl.outbound_chan_launched());
+
             // Simulate the client sending us a DESTROY cell
             let destroy = Destroy::new(DestroyReason::PROTOCOL);
             ctrl.send_fwd_cmsg(destroy.into()).await;
@@ -958,6 +968,12 @@ pub(crate) mod test {
             // the circmsg_send/circmsg_recv MPSC with an MPSC that is actually
             // connected to the channel reactor
             //assert!(!logs_contain("sending DESTROY"));
+            //assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Backward);
+
+            // Since this is a circuit of the form A -> B -> C,
+            // and A sent us a DESTROY, we expect our relay (B) to forward
+            // the DESTROY to C.
+            assert_cell_is_destroy!(ctrl.read_outbound(), DestroyReason::NONE);
         });
     }
 
