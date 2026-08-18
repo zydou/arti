@@ -886,11 +886,10 @@ pub(crate) mod test {
 
             // Send an arbitrary unrecognized cell. The reactor should flag this as
             // a protocol violation, because we don't have an outbound channel to forward it on.
-            let extend2 = relaymsg::End::new_misc().into();
-            ctrl.send_fwd(None, extend2, Recognized::No, true).await;
+            let end = relaymsg::End::new_misc().into();
+            ctrl.send_fwd(None, end, Recognized::No, true).await;
             rt.advance_until_stalled().await;
 
-            // The reactor handled the EXTEND2 and launched an outbound channel
             assert!(logs_contain(
                 "Asked to forward cell before the circuit was extended?!"
             ));
