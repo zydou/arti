@@ -633,6 +633,8 @@ pub(crate) mod test {
         /// Read a cell from the inbound channel
         /// (moving towards the client).
         ///
+        /// See [`try_read_inbound`](Self::try_read_inbound).
+        ///
         /// Panics if there are no ready cells on the inbound MPSC channel.
         fn read_inbound(&mut self) -> ChanCell<AnyChanMsg> {
             self.try_read_inbound().unwrap()
@@ -640,6 +642,11 @@ pub(crate) mod test {
 
         /// Try to read a cell from the inbound channel
         /// (moving towards the client).
+        ///
+        /// For example, for a circuit of the form A -> B -> C,
+        /// where B is the relay whose circuit reactor we're testing,
+        /// this function reads a channel message on the A <-> B channel,
+        /// from the perspective of A (i.e. it reads a channel message sent by B).
         ///
         /// Returns None if there are no ready cells on the inbound MPSC channel.
         fn try_read_inbound(&mut self) -> Option<ChanCell<AnyChanMsg>> {
@@ -650,6 +657,8 @@ pub(crate) mod test {
         /// Read a cell from the outbound channel
         /// (moving towards the next hop).
         ///
+        /// See [`try_read_outbound`](Self::try_read_outbound).
+        ///
         /// Panics if there are no ready cells on the outbound MPSC channel,
         /// or if there is no outbound channel.
         fn read_outbound(&mut self) -> ChanCell<AnyChanMsg> {
@@ -658,6 +667,11 @@ pub(crate) mod test {
 
         /// Read a cell from the outbound channel
         /// (moving towards the next hop).
+        ///
+        /// For example, for a circuit of the form A -> B -> C,
+        /// where B is the relay whose circuit reactor we're testing,
+        /// this function reads a channel message on the B <-> C channel,
+        /// from the perspective of C (i.e. it reads a channel message sent by B).
         ///
         /// Returns None if there are no ready cells on the outbound MPSC channel,
         /// or if there is no outbound channel.
