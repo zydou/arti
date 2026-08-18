@@ -706,6 +706,17 @@ pub(crate) mod test {
         ]
     }
 
+    macro_rules! assert_cell_is_destroy {
+        ($cell:expr, $reason:expr) => {{
+            match $cell.msg() {
+                chanmsg::AnyChanMsg::Destroy(d) => {
+                    assert_eq!(d.reason(), $reason);
+                }
+                _ => panic!("unexpected ending {:?}", $cell),
+            }
+        }};
+    }
+
     /// Assert that we have sent a DESTROY cell with the specified `reason`
     /// towards the "client" and/or the "next hop".
     ///
@@ -718,29 +729,18 @@ pub(crate) mod test {
     ) {
         assert!(ctrl.is_closing());
 
-        macro_rules! assert_cell_is_destroy {
-            ($cell:expr) => {{
-                match $cell.msg() {
-                    chanmsg::AnyChanMsg::Destroy(d) => {
-                        assert_eq!(d.reason(), reason);
-                    }
-                    _ => panic!("unexpected ending {:?}", $cell),
-                }
-            }};
-        }
-
         match direction {
             DestroyDirection::Backward => {
-                assert_cell_is_destroy!(ctrl.read_inbound());
+                assert_cell_is_destroy!(ctrl.read_inbound(), reason);
                 assert!(ctrl.try_read_outbound().is_none());
             }
             DestroyDirection::Forward => {
-                assert_cell_is_destroy!(ctrl.read_outbound());
+                assert_cell_is_destroy!(ctrl.read_outbound(), reason);
                 assert!(ctrl.try_read_inbound().is_none());
             }
             DestroyDirection::Both => {
-                assert_cell_is_destroy!(ctrl.read_inbound());
-                assert_cell_is_destroy!(ctrl.read_outbound());
+                assert_cell_is_destroy!(ctrl.read_inbound(), reason);
+                assert_cell_is_destroy!(ctrl.read_outbound(), reason);
             }
         }
     }
