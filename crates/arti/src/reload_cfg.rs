@@ -1,5 +1,6 @@
 //! Code to watch configuration files for any changes.
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
@@ -9,9 +10,12 @@ use arti_client::config::Reconfigure;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use futures::{FutureExt as _, Stream, select_biased};
+#[cfg(feature = "rpc")]
+use tor_config::ConfigurationTree;
 use tor_config::file_watcher::{
     self, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
+use tor_config::load::{ConfigResolveOptions, DisfavouredKey};
 use tor_config::{ConfigurationSource, ConfigurationSources, sources::FoundConfigFiles};
 use tor_rtcompat::Runtime;
 use tor_rtcompat::SpawnExt;
@@ -64,6 +68,7 @@ pub(crate) struct CfgMgr<R> {
 }
 
 /// Mutable part of a CfgMgr.
+#[derive(Default)]
 struct CfgMgrInner {
     /// A list of modules to alert whenever the configuration has changed.
     modules: Vec<Weak<dyn ReconfigurableModule>>,
@@ -71,6 +76,19 @@ struct CfgMgrInner {
     /// If present, a [`FileWatcher`] that is currently watching for changes
     /// in the configuration files and directories.
     watcher: Option<FileWatcher>,
+
+    /// RPC only: a fully populated, normalized configuration tree, based on the most recent time
+    /// that we called [`CfgMgr::reload_configuration`].
+    #[cfg(feature = "rpc")]
+    normalized_cfg: ConfigurationTree,
+
+    /// RPC only: a set of unrecognized options from the configuration.
+    #[cfg(feature = "rpc")]
+    unrecognized_keys: HashSet<DisfavouredKey>,
+
+    /// RPC only: a set of deprecated options from the configuration
+    #[cfg(feature = "rpc")]
+    deprecated_keys: HashSet<DisfavouredKey>,
 }
 
 /// A watcher process that we have not yet launched.
@@ -119,8 +137,8 @@ impl<R: Runtime> CfgMgr<R> {
             sources,
             tx,
             inner: Mutex::new(CfgMgrInner {
-                watcher: None,
                 modules,
+                ..Default::default()
             }),
         });
 
@@ -159,7 +177,8 @@ impl<R: Runtime> CfgMgr<R> {
 
     /// Reload the configuration.
     #[instrument(level = "trace", skip_all)]
-    fn reload_configuration(&self) -> anyhow::Result<()> {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn reload_configuration(&self) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().expect("Lock poisoned");
 
         // TODO RPC: Take 'how' as an argument.
@@ -178,7 +197,7 @@ impl<R: Runtime> CfgMgr<R> {
                 .context("FS watch: failed to rescan config")?
         };
 
-        match reconfigure(found_files, &inner.modules) {
+        match reconfigure(found_files, &mut inner) {
             Ok(watch) => {
                 info!("Successfully reloaded configuration.");
                 if watch && inner.watcher.is_none() {
@@ -465,14 +484,29 @@ fn prepare<'a, R: Runtime>(
 #[instrument(level = "trace", skip_all)]
 fn reconfigure(
     found_files: FoundConfigFiles<'_>,
-    reconfigurable: &[Weak<dyn ReconfigurableModule>],
+    mgr_inner: &mut CfgMgrInner,
 ) -> anyhow::Result<bool> {
-    let _ = reconfigurable;
     let config = found_files.load()?;
-    let config = tor_config::resolve::<ArtiCombinedConfig>(config)?;
+    #[allow(unused_mut)]
+    let mut resolve_options = ConfigResolveOptions::default();
+    #[cfg(feature = "rpc")]
+    {
+        resolve_options.want_output_tree = true;
+    }
+
+    let rs = tor_config::resolve_return_results::<ArtiCombinedConfig>(config, &resolve_options)?;
+    let config = rs.value;
+    #[cfg(feature = "rpc")]
+    {
+        mgr_inner.normalized_cfg = rs
+            .output_tree
+            .expect("normalized cfg not exposed as expected!?");
+        mgr_inner.deprecated_keys = rs.deprecated.into_iter().collect();
+        mgr_inner.unrecognized_keys = rs.unrecognized.into_iter().collect();
+    }
 
     // Filter out the modules that have been dropped
-    let reconfigurable = reconfigurable.iter().flat_map(Weak::upgrade);
+    let reconfigurable = mgr_inner.modules.iter().flat_map(Weak::upgrade);
     // If there are no more modules, we should exit.
     let mut has_modules = false;
 
@@ -592,8 +626,8 @@ mod test {
                 sources: cfg_sources,
                 tx: fw_tx,
                 inner: Mutex::new(CfgMgrInner {
-                    watcher: None,
                     modules: vec![Arc::downgrade(&module)],
+                    ..Default::default()
                 }),
             });
 
@@ -652,8 +686,8 @@ mod test {
                 sources: cfg_sources,
                 tx: fw_tx,
                 inner: Mutex::new(CfgMgrInner {
-                    watcher: None,
                     modules: vec![Arc::downgrade(&module)],
+                    ..Default::default()
                 }),
             });
 
