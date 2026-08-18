@@ -92,10 +92,21 @@ default:
     # Get some load stats as a crude debugging aid.
     - cat /proc/loadavg
     - for x in cpu io memory ; do echo /proc/pressure/$x; cat /proc/pressure/$x || true; done
-    # In every case, if we have a working `cargo` we should clean up
-    # our target directory before we exit.  (Leaving big hunks of data
-    # on the builders make our admins sad.)
+    # In every case, we should clean up our target directory before we exit.
+    # (Leaving big hunks of data on the builders make our admins sad.)
+    # If the directory exists, we clean it with cargo first,
+    # which tells us how much data was cleaned up.
+    # But we may have copied the build artifacts from an artifact and
+    # don't have cargo installed, so we also try to delete it manually.
     - if command -v cargo && test -d ./target; then cargo clean; fi
+    - if command -v cargo && test -d ./debian/target; then CARGO_TARGET_DIR=debian/target/ cargo clean; fi
+    - if test -d ./target; then rm -r ./target; fi
+    - if test -d ./debian/target; then rm -r ./debian/target; fi
+    - if test -d ./debian/cargo_home; then rm -r ./debian/cargo_home; fi
+    # Output some information about disk usage of the project directory,
+    # which can be helpful when debugging high disk usage issues.
+    # The short (rather than long) flags are needed by some of our container images.
+    - du -d 1 -h "${CI_PROJECT_DIR}"
 
 check-editorconfig:
   needs: []
