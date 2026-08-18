@@ -777,6 +777,9 @@ pub(crate) mod test {
 
             assert!(logs_contain("got EXTEND2 in a RELAY cell?!"));
             assert!(!ctrl.outbound_chan_launched());
+
+            // There is no next hop because we haven't extended the circuit,
+            // so only expect the DESTROY to be sent toward the client (Backward).
             assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Backward);
         });
     }
@@ -893,6 +896,9 @@ pub(crate) mod test {
             assert!(logs_contain(
                 "Asked to forward cell before the circuit was extended?!"
             ));
+
+            // There is no next hop because we haven't extended the circuit,
+            // so only expect the DESTROY to be sent toward the client (Backward).
             assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Backward);
         });
     }
@@ -915,6 +921,9 @@ pub(crate) mod test {
             assert!(logs_contain(
                 "Invalid stream ID [scrubbed] for relay command BEGIN"
             ));
+
+            // There is no next hop because we haven't extended the circuit,
+            // so only expect the DESTROY to be sent toward the client (Backward).
             assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Backward);
         });
     }
@@ -985,8 +994,9 @@ pub(crate) mod test {
                 "Received inbound DESTROY, circuit shutting down"
             ));
 
-            // Ensure the destroy reason (PROTOCOL) is not propagated,
-            // and that we only send DESTROY towards the client
+            // There is no next hop because we haven't extended the circuit,
+            // so only expect the DESTROY to be sent toward the client (Backward).
+            // This also ensures the destroy reason (PROTOCOL) is not propagated.
             assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Backward);
         });
     }
@@ -1008,6 +1018,8 @@ pub(crate) mod test {
                 "Circuit protocol violation: TRUNCATE not allowed"
             ));
 
+            // There is no next hop because we haven't extended the circuit,
+            // so only expect the DESTROY to be sent toward the client (Backward).
             assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Backward);
         });
     }
