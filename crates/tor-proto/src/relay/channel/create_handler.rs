@@ -814,12 +814,8 @@ mod test {
                 conn_inspector.client_cell().await.unwrap().msg().cmd(),
                 ChanCmd::DESTROY,
             );
-            // TODO(relay): I think the relay shouldn't be sending a DESTROY back to the client.
-            // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2648
-            assert_eq!(
-                conn_inspector.relay_cell().await.unwrap().msg().cmd(),
-                ChanCmd::DESTROY,
-            );
+            // The relay shouldn't be sending a DESTROY back to the client
+            assert!(conn_inspector.try_relay_cell().is_none());
         });
     }
 
@@ -903,12 +899,8 @@ mod test {
                     conn_inspector.client_cell().await.unwrap().msg().cmd(),
                     ChanCmd::DESTROY,
                 );
-                // TODO(relay): I think the relay shouldn't be sending a DESTROY back to the client.
-                // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2648
-                assert_eq!(
-                    conn_inspector.relay_cell().await.unwrap().msg().cmd(),
-                    ChanCmd::DESTROY,
-                );
+                // The relay shouldn't be sending a DESTROY back to the client
+                assert!(conn_inspector.try_relay_cell().is_none());
             }
         });
     }
@@ -960,12 +952,8 @@ mod test {
                     conn_inspector.client_cell().await.unwrap().msg().cmd(),
                     ChanCmd::DESTROY,
                 );
-                // TODO(relay): I think the relay shouldn't be sending a DESTROY back to the client.
-                // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2648
-                assert_eq!(
-                    conn_inspector.relay_cell().await.unwrap().msg().cmd(),
-                    ChanCmd::DESTROY,
-                );
+                // The relay shouldn't be sending a DESTROY back to the client
+                assert!(conn_inspector.try_relay_cell().is_none());
             }
         });
     }

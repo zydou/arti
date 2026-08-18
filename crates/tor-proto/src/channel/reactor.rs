@@ -846,7 +846,14 @@ impl<R: Runtime> Reactor<R> {
 
     /// Called when a circuit goes away: sends a DESTROY cell and removes
     /// the circuit.
+    ///
+    /// No-op if the circuit has already gone away,
+    /// (for example if we have already received DESTROY).
     async fn outbound_destroy_circ(&mut self, id: CircId) -> Result<()> {
+        if !self.circs.is_open(id) {
+            return Ok(());
+        }
+
         trace!(channel_id = %self, "Circuit {} is gone; sending DESTROY", id);
         // Remove the circuit's entry from the map: nothing more
         // can be done with it.
