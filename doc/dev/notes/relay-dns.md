@@ -71,6 +71,12 @@ C Tor's internal cache uses fuzzy (randomized) clipped TTLs:
 uint32_t
 clip_dns_fuzzy_ttl(uint32_t ttl)
 {
+  // NOTE: clip_dns_ttls clips the TTL to be
+  //
+  //   * 5 minutes, if ttl < 5 minutes
+  //   * 60 minutes, if ttl >= 5 minutes
+  //
+  // In arti, we might want to make this tunable
   return clip_dns_ttl(ttl) +
     crypto_rand_uint(1 + 2*FUZZY_DNS_TTL) - FUZZY_DNS_TTL;
 }
