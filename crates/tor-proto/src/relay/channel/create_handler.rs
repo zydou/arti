@@ -788,7 +788,7 @@ mod test {
         test_with_one_runtime!(|rt| async move {
             let mut conn_inspector = test_utils::ConnInspector::new();
 
-            let (client_chan, _relay_chan, _circuit_stream_rx, _target_builder) =
+            let (client_chan, relay_chan, _circuit_stream_rx, _target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
@@ -816,7 +816,15 @@ mod test {
                 conn_inspector.client_cell().await.unwrap().msg().cmd(),
                 ChanCmd::DESTROY,
             );
-            // The relay shouldn't be sending a DESTROY back to the client
+
+            // Wait for both channels to close (ignoring any channel errors).
+            let wait_fut =
+                futures::future::join(client_chan.wait_for_close(), relay_chan.wait_for_close());
+            drop((client_chan, relay_chan));
+            let _ = wait_fut.await;
+
+            // We don't expect any other messages to have been sent.
+            assert!(conn_inspector.try_client_cell().is_none());
             assert!(conn_inspector.try_relay_cell().is_none());
         });
     }
@@ -845,7 +853,7 @@ mod test {
                 }
             });
 
-            let (client_chan, _relay_chan, _circuit_stream_rx, _target_builder) =
+            let (client_chan, relay_chan, _circuit_stream_rx, _target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             let pending_tunnel = test_utils::new_pending_tunnel(&rt, &client_chan).await;
@@ -876,12 +884,19 @@ mod test {
 
             // Since the `create_firsthop_fast()` failed above,
             // the client should have sent a DESTROY.
-
             assert_eq!(
                 conn_inspector.client_cell().await.unwrap().msg().cmd(),
                 ChanCmd::DESTROY,
             );
-            // The relay shouldn't be sending a DESTROY back to the client
+
+            // Wait for both channels to close (ignoring any channel errors).
+            let wait_fut =
+                futures::future::join(client_chan.wait_for_close(), relay_chan.wait_for_close());
+            drop((client_chan, relay_chan));
+            let _ = wait_fut.await;
+
+            // We don't expect any other messages to have been sent.
+            assert!(conn_inspector.try_client_cell().is_none());
             assert!(conn_inspector.try_relay_cell().is_none());
         });
     }
@@ -931,7 +946,7 @@ mod test {
         test_with_one_runtime!(|rt| async move {
             let mut conn_inspector = test_utils::ConnInspector::new();
 
-            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+            let (client_chan, relay_chan, _circuit_stream_rx, mut target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
@@ -969,9 +984,21 @@ mod test {
                     conn_inspector.client_cell().await.unwrap().msg().cmd(),
                     ChanCmd::DESTROY,
                 );
-                // The relay shouldn't be sending a DESTROY back to the client
+
+                // We don't expect any other messages to have been sent.
+                assert!(conn_inspector.try_client_cell().is_none());
                 assert!(conn_inspector.try_relay_cell().is_none());
             }
+
+            // Wait for both channels to close (ignoring any channel errors).
+            let wait_fut =
+                futures::future::join(client_chan.wait_for_close(), relay_chan.wait_for_close());
+            drop((client_chan, relay_chan));
+            let _ = wait_fut.await;
+
+            // We don't expect any other messages to have been sent.
+            assert!(conn_inspector.try_client_cell().is_none());
+            assert!(conn_inspector.try_relay_cell().is_none());
         });
     }
 
@@ -996,7 +1023,7 @@ mod test {
                 }
             });
 
-            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+            let (client_chan, relay_chan, _circuit_stream_rx, mut target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
@@ -1026,7 +1053,21 @@ mod test {
                     conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                     ChanCmd::DESTROY,
                 );
+
+                // We don't expect any other messages to have been sent.
+                assert!(conn_inspector.try_client_cell().is_none());
+                assert!(conn_inspector.try_relay_cell().is_none());
             }
+
+            // Wait for both channels to close (ignoring any channel errors).
+            let wait_fut =
+                futures::future::join(client_chan.wait_for_close(), relay_chan.wait_for_close());
+            drop((client_chan, relay_chan));
+            let _ = wait_fut.await;
+
+            // We don't expect any other messages to have been sent.
+            assert!(conn_inspector.try_client_cell().is_none());
+            assert!(conn_inspector.try_relay_cell().is_none());
         });
     }
 
@@ -1036,7 +1077,7 @@ mod test {
         test_with_one_runtime!(|rt| async move {
             let mut conn_inspector = test_utils::ConnInspector::new();
 
-            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+            let (client_chan, relay_chan, _circuit_stream_rx, mut target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
@@ -1078,9 +1119,21 @@ mod test {
                     conn_inspector.client_cell().await.unwrap().msg().cmd(),
                     ChanCmd::DESTROY,
                 );
-                // The relay shouldn't be sending a DESTROY back to the client
+
+                // We don't expect any other messages to have been sent.
+                assert!(conn_inspector.try_client_cell().is_none());
                 assert!(conn_inspector.try_relay_cell().is_none());
             }
+
+            // Wait for both channels to close (ignoring any channel errors).
+            let wait_fut =
+                futures::future::join(client_chan.wait_for_close(), relay_chan.wait_for_close());
+            drop((client_chan, relay_chan));
+            let _ = wait_fut.await;
+
+            // We don't expect any other messages to have been sent.
+            assert!(conn_inspector.try_client_cell().is_none());
+            assert!(conn_inspector.try_relay_cell().is_none());
         });
     }
 
@@ -1105,7 +1158,7 @@ mod test {
                 }
             });
 
-            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+            let (client_chan, relay_chan, _circuit_stream_rx, mut target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
@@ -1136,7 +1189,21 @@ mod test {
                     conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                     ChanCmd::DESTROY,
                 );
+
+                // We don't expect any other messages to have been sent.
+                assert!(conn_inspector.try_client_cell().is_none());
+                assert!(conn_inspector.try_relay_cell().is_none());
             }
+
+            // Wait for both channels to close (ignoring any channel errors).
+            let wait_fut =
+                futures::future::join(client_chan.wait_for_close(), relay_chan.wait_for_close());
+            drop((client_chan, relay_chan));
+            let _ = wait_fut.await;
+
+            // We don't expect any other messages to have been sent.
+            assert!(conn_inspector.try_client_cell().is_none());
+            assert!(conn_inspector.try_relay_cell().is_none());
         });
     }
 
@@ -1156,7 +1223,7 @@ mod test {
                 }
             });
 
-            let (client_chan, _relay_chan, _circuit_stream_rx, mut target_builder) =
+            let (client_chan, relay_chan, _circuit_stream_rx, mut target_builder) =
                 test_utils::new_channel_pair_with_keys(&rt, &conn_inspector);
 
             // https://spec.torproject.org/tor-spec/subprotocol-versioning.html
@@ -1189,7 +1256,21 @@ mod test {
                     conn_inspector.try_relay_cell().unwrap().msg().cmd(),
                     ChanCmd::DESTROY,
                 );
+
+                // We don't expect any other messages to have been sent.
+                assert!(conn_inspector.try_client_cell().is_none());
+                assert!(conn_inspector.try_relay_cell().is_none());
             }
+
+            // Wait for both channels to close (ignoring any channel errors).
+            let wait_fut =
+                futures::future::join(client_chan.wait_for_close(), relay_chan.wait_for_close());
+            drop((client_chan, relay_chan));
+            let _ = wait_fut.await;
+
+            // We don't expect any other messages to have been sent.
+            assert!(conn_inspector.try_client_cell().is_none());
+            assert!(conn_inspector.try_relay_cell().is_none());
         });
     }
 }
