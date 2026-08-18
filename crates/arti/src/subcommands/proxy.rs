@@ -138,6 +138,9 @@ async fn run_proxy<R: ToplevelRuntime>(
         false => BootstrapBehavior::OnDemand,
     };
 
+    let (_cfg_mgr, cfg_watcher_task) =
+        reload_cfg::CfgMgr::new(runtime.clone(), config_sources, &arti_config, vec![])?;
+
     let client_builder = TorClient::with_runtime(runtime.clone())
         .config(client_config)
         .bootstrap_behavior(bootstrap_behavior);
@@ -172,19 +175,17 @@ async fn run_proxy<R: ToplevelRuntime>(
         }
     };
 
-    // We weak references here to prevent the thread spawned by watch_for_config_changes from
+    // The add_module function will use references here
+    // to prevent the task spawned by watch_for_config_changes from
     // keeping these modules alive after this function exits.
     //
     // NOTE: reconfigurable_modules stores the only strong references to these modules,
-    // so we must keep the variable alive until the end of the function
-    let weak_modules = reconfigurable_modules.iter().map(Arc::downgrade).collect();
-    let (_cfg_mgr, watcher_task) = reload_cfg::CfgMgr::new(
-        client.runtime().clone(),
-        config_sources,
-        &arti_config,
-        weak_modules,
-    )?;
-    watcher_task.launch()?;
+    // so we must keep that variable alive until the end of the function
+    reconfigurable_modules
+        .iter()
+        .try_for_each(|m| cfg_watcher_task.add_module(m))?;
+
+    cfg_watcher_task.launch()?;
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "rpc")] {
