@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tor_rpcbase::{self as rpc};
 use tor_rtcompat::Runtime;
 
-use crate::reload_cfg::LaunchableTorClient;
+use crate::reload_cfg::{CfgMgr, LaunchableTorClient};
 
 /// An object representing superuser access to Arti over an RPC session.
 ///
@@ -27,6 +27,10 @@ pub(super) struct RpcSuperuser<R: Runtime> {
 
     /// A wrapper around `tor_client` with the ability to launch a deferred-bootstrap client.
     launchable: Arc<LaunchableTorClient<R>>,
+
+    /// A handle to the manager for configuration information.
+    #[allow(unused)] // TODO(rpc) remove
+    cfg_mgr: Arc<CfgMgr<R>>,
 }
 
 impl<R: Runtime> RpcSuperuser<R> {
@@ -34,10 +38,12 @@ impl<R: Runtime> RpcSuperuser<R> {
     pub(super) fn new(
         tor_client: Arc<TorClient<R>>,
         launchable: Arc<LaunchableTorClient<R>>,
+        cfg_mgr: Arc<CfgMgr<R>>,
     ) -> Self {
         RpcSuperuser {
             tor_client,
             launchable,
+            cfg_mgr,
         }
     }
 

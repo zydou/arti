@@ -138,7 +138,7 @@ async fn run_proxy<R: ToplevelRuntime>(
         false => BootstrapBehavior::OnDemand,
     };
 
-    let (_cfg_mgr, cfg_watcher_task) =
+    let (cfg_mgr, cfg_watcher_task) =
         reload_cfg::CfgMgr::new(runtime.clone(), config_sources, &arti_config, vec![])?;
 
     let client_builder = TorClient::with_runtime(runtime.clone())
@@ -171,6 +171,7 @@ async fn run_proxy<R: ToplevelRuntime>(
                 have_onion_svc
             };
         } else {
+            let _cfg_mgr = cfg_mgr;
             let have_onion_svc = false;
         }
     };
@@ -196,6 +197,7 @@ async fn run_proxy<R: ToplevelRuntime>(
                 &fs_mistrust,
                 client.clone(),
                 launchable_client.clone(),
+                cfg_mgr.clone(),
             )
             .await?;
             let (rpc_mgr, mut rpc_state_sender) = rpc_data
