@@ -585,7 +585,6 @@ mod test {
             ],
         );
 
-        #[cfg(feature = "opentelemetry")]
         declare_exceptions(
             None,
             None,
