@@ -13,6 +13,7 @@ use std::path::Path;
 
 use fs_mistrust::CheckedDir;
 use serde::{Serialize, de::DeserializeOwned};
+use tor_basic_utils::PathExt;
 use tor_error::ErrorReport as _;
 use tracing::trace;
 
@@ -20,7 +21,7 @@ use crate::err::ErrorSource;
 
 /// Common arguments to load/store operations
 #[derive(derive_more::Display)]
-#[display("{:?}/{:?}", dir.as_path(), rel_fname)]
+#[display("{:?}", dir.as_path().join(rel_fname).as_path().display_lossy())]
 pub(crate) struct Target<'r> {
     /// Directory
     pub(crate) dir: &'r CheckedDir,
