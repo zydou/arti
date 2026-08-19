@@ -171,7 +171,6 @@ async fn run_proxy<R: ToplevelRuntime>(
                 have_onion_svc
             };
         } else {
-            let _cfg_mgr = cfg_mgr;
             let have_onion_svc = false;
         }
     };
@@ -326,8 +325,11 @@ async fn run_proxy<R: ToplevelRuntime>(
             => r.context("bootstrap"),
     )?;
 
-    // The modules can be dropped now, because we are exiting.
+    // The modules and CfgMgr can be dropped now, because we are exiting.
+    // (We drop them explicitly to make sure that they were not dropped
+    // accidentally before.)
     drop(reconfigurable_modules);
+    drop(cfg_mgr);
 
     Ok(())
 }
