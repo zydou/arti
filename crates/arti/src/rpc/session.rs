@@ -12,7 +12,7 @@ use tor_rtcompat::Runtime;
 
 use crate::{
     proxy::port_info,
-    reload_cfg::LaunchableTorClient,
+    reload_cfg::{CfgMgr, LaunchableTorClient},
     rpc::{listener::RpcConnInfo, superuser::RpcSuperuser},
 };
 
@@ -82,6 +82,7 @@ impl ArtiRpcSession {
         client_root: &Arc<TorClient<R>>,
         launchable_client: &Arc<LaunchableTorClient<R>>,
         arti_state: &Arc<RpcVisibleArtiState>,
+        cfg_mgr: &Arc<CfgMgr<R>>,
         listener_info: &RpcConnInfo,
     ) -> Arc<Self> {
         let _ = auth; // This is currently unused; any authentication gives the same result.
@@ -91,6 +92,7 @@ impl ArtiRpcSession {
             session.provide_superuser_permission(Arc::new(RpcSuperuser::new(
                 client_root.clone(),
                 launchable_client.clone(),
+                cfg_mgr.clone(),
             )) as _);
         }
         Arc::new(ArtiRpcSession {

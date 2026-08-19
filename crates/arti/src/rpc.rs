@@ -24,7 +24,7 @@ mod superuser;
 use listener::RpcListenerSetConfig;
 pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
 
-use crate::reload_cfg::LaunchableTorClient;
+use crate::reload_cfg::{CfgMgr, LaunchableTorClient};
 use crate::rpc::superuser::RpcSuperuser;
 
 /// Configuration for Arti's RPC subsystem.
@@ -135,6 +135,7 @@ pub(crate) async fn launch_rpc_mgr<R: Runtime>(
     mistrust: &Mistrust,
     client: Arc<TorClient<R>>,
     launchable: Arc<LaunchableTorClient<R>>,
+    cfg_mgr: Arc<CfgMgr<R>>,
 ) -> Result<Option<RpcProxySupport>> {
     if !cfg.enable {
         return Ok(None);
@@ -164,6 +165,7 @@ pub(crate) async fn launch_rpc_mgr<R: Runtime>(
             rpc_mgr_clone,
             client,
             launchable,
+            cfg_mgr,
             rpc_state,
         )
         .await;
@@ -185,6 +187,7 @@ async fn run_rpc_listener<R: Runtime>(
     rpc_mgr: Arc<RpcMgr>,
     client: Arc<TorClient<R>>,
     launchable: Arc<LaunchableTorClient<R>>,
+    cfg_mgr: Arc<CfgMgr<R>>,
     rpc_state: Arc<RpcVisibleArtiState>,
 ) -> Result<()> {
     while let Some((stream, _addr, info)) = incoming.next().await.transpose()? {
@@ -193,8 +196,16 @@ async fn run_rpc_listener<R: Runtime>(
         let client_clone = client.clone();
         let rpc_state_clone = rpc_state.clone();
         let launchable = launchable.clone();
+        let cfg_mgr_clone = cfg_mgr.clone();
         let connection = rpc_mgr.new_connection(info.auth.clone(), move |auth| {
-            ArtiRpcSession::new(auth, &client_clone, &launchable, &rpc_state_clone, &info) as _
+            ArtiRpcSession::new(
+                auth,
+                &client_clone,
+                &launchable,
+                &rpc_state_clone,
+                &cfg_mgr_clone,
+                &info,
+            ) as _
         });
         let (input, output) = stream.split();
 

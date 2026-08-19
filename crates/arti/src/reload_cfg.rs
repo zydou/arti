@@ -1,5 +1,6 @@
 //! Code to watch configuration files for any changes.
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
@@ -7,10 +8,14 @@ use anyhow::Context;
 use arti_client::TorClient;
 use arti_client::config::Reconfigure;
 use futures::StreamExt;
+use futures::stream::BoxStream;
 use futures::{FutureExt as _, Stream, select_biased};
+#[cfg(feature = "rpc")]
+use tor_config::ConfigurationTree;
 use tor_config::file_watcher::{
     self, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
+use tor_config::load::{ConfigResolveOptions, DisfavouredKey};
 use tor_config::{ConfigurationSource, ConfigurationSources, sources::FoundConfigFiles};
 use tor_rtcompat::Runtime;
 use tor_rtcompat::SpawnExt;
@@ -58,18 +63,52 @@ pub(crate) struct CfgMgr<R> {
     /// A sender to use when constructing new [`FileWatcher`]s.
     tx: FileEventSender,
 
-    /// A list of modules to alert whenever the configuration has changed.
-    modules: Vec<Weak<dyn ReconfigurableModule>>,
-
     /// Mutable state.
     inner: Mutex<CfgMgrInner>,
 }
 
 /// Mutable part of a CfgMgr.
+#[derive(Default)]
 struct CfgMgrInner {
+    /// A list of modules to alert whenever the configuration has changed.
+    modules: Vec<Weak<dyn ReconfigurableModule>>,
+
     /// If present, a [`FileWatcher`] that is currently watching for changes
     /// in the configuration files and directories.
     watcher: Option<FileWatcher>,
+
+    /// RPC only: a fully populated, normalized configuration tree, based on the most recent time
+    /// that we called [`CfgMgr::reload_configuration`].
+    #[cfg(feature = "rpc")]
+    normalized_cfg: ConfigurationTree,
+
+    /// RPC only: a set of unrecognized options from the configuration.
+    #[cfg(feature = "rpc")]
+    unrecognized_keys: HashSet<DisfavouredKey>,
+
+    /// RPC only: a set of deprecated options from the configuration
+    #[cfg(feature = "rpc")]
+    deprecated_keys: HashSet<DisfavouredKey>,
+}
+
+/// A watcher process that we have not yet launched.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[must_use = "UnlaunchedWatcher does nothing unless you launch it."]
+pub(crate) struct UnlaunchedWatcher<R> {
+    /// The related [`CfgMgr`] that we should tell about reconfiguration events.
+    weak_mgr: Weak<CfgMgr<R>>,
+
+    /// A stream on which we will get alerts about SIGHUP events.
+    sighup_stream: BoxStream<'static, ()>,
+
+    /// A stream that will tell us when our files are changed.
+    watcher_rx: FileEventReceiver,
+
+    /// An interval that we wait to debounce events from watcher_rx or sighup_stream.
+    debounce_interval: Option<Duration>,
+
+    /// If true, we start watching for file changes immediately at launch.
+    watch_files_at_start: bool,
 }
 
 impl<R: Runtime> CfgMgr<R> {
@@ -86,19 +125,21 @@ impl<R: Runtime> CfgMgr<R> {
     /// See the [`FileWatcher`](FileWatcher#Limitations) docs for limitations.
     #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn launch(
+    pub(crate) fn new(
         runtime: R,
         sources: ConfigurationSources,
         config: &ArtiConfig,
         modules: Vec<Weak<dyn ReconfigurableModule>>,
-    ) -> anyhow::Result<Arc<Self>> {
+    ) -> anyhow::Result<(Arc<Self>, UnlaunchedWatcher<R>)> {
         let (tx, rx) = file_watcher::channel();
         let mgr = Arc::new(CfgMgr {
             runtime,
             sources,
             tx,
-            modules,
-            inner: Mutex::new(CfgMgrInner { watcher: None }),
+            inner: Mutex::new(CfgMgrInner {
+                modules,
+                ..Default::default()
+            }),
         });
 
         cfg_if::cfg_if! {
@@ -108,27 +149,17 @@ impl<R: Runtime> CfgMgr<R> {
                 let sighup_stream = stream::pending();
             }
         }
+        let sighup_stream = sighup_stream.boxed();
 
-        let rt = mgr.runtime.clone();
-        let weak_mgr = Arc::downgrade(&mgr);
-        mgr.runtime
-            .spawn(async move {
-                let res: anyhow::Result<()> =
-                    run_watcher(rt, rx, sighup_stream, weak_mgr, Some(DEBOUNCE_INTERVAL)).await;
-                match res {
-                    Ok(()) => debug!("Config watcher task exiting"),
-                    // TODO: warn_report does not work on anyhow::Error.
-                    Err(e) => error!("Config watcher task exiting: {}", tor_error::Report(e)),
-                }
-            })
-            .context("failed to spawn task")?;
+        let watcher = UnlaunchedWatcher {
+            weak_mgr: Arc::downgrade(&mgr),
+            sighup_stream,
+            watcher_rx: rx,
+            debounce_interval: Some(DEBOUNCE_INTERVAL),
+            watch_files_at_start: config.application().watch_configuration,
+        };
 
-        if config.application().watch_configuration {
-            let (watcher, _files) = mgr.launch_file_watcher()?;
-            mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
-        }
-
-        Ok(mgr)
+        Ok((mgr, watcher))
     }
 
     /// Create a new [`FileWatcher`] for the files in this configuration.
@@ -146,10 +177,14 @@ impl<R: Runtime> CfgMgr<R> {
 
     /// Reload the configuration.
     #[instrument(level = "trace", skip_all)]
-    fn reload_configuration(&self) -> anyhow::Result<()> {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn reload_configuration(&self) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().expect("Lock poisoned");
 
         // TODO RPC: Take 'how' as an argument.
+        //
+        // Question: I do not understand why we are making a new file watcher unconditionally
+        // at this point. -nm
         let found_files = if inner.watcher.is_some() {
             let (watcher, files) = self
                 .launch_file_watcher()
@@ -162,7 +197,7 @@ impl<R: Runtime> CfgMgr<R> {
                 .context("FS watch: failed to rescan config")?
         };
 
-        match reconfigure(found_files, &self.modules) {
+        match reconfigure(found_files, &mut inner) {
             Ok(watch) => {
                 info!("Successfully reloaded configuration.");
                 if watch && inner.watcher.is_none() {
@@ -184,9 +219,75 @@ impl<R: Runtime> CfgMgr<R> {
     }
 }
 
+impl<R: Runtime> UnlaunchedWatcher<R> {
+    /// Begin running the file watcher task for a given configuration manager.
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    #[instrument(level = "trace", skip_all)]
+    pub(crate) fn launch(self) -> anyhow::Result<()> {
+        let UnlaunchedWatcher {
+            weak_mgr,
+            sighup_stream,
+            watcher_rx,
+            debounce_interval,
+            watch_files_at_start,
+        } = self;
+        let Some(mgr) = weak_mgr.upgrade() else {
+            return Err(anyhow::anyhow!(
+                "CfgMgr disappeared before we could launch the monitor task"
+            ));
+        };
+
+        let rt = mgr.runtime.clone();
+        let weak_mgr = Arc::downgrade(&mgr);
+        mgr.runtime
+            .spawn(async move {
+                let res: anyhow::Result<()> =
+                    run_watcher(rt, watcher_rx, sighup_stream, weak_mgr, debounce_interval).await;
+                match res {
+                    Ok(()) => debug!("Config watcher task exiting"),
+                    // TODO: warn_report does not work on anyhow::Error.
+                    Err(e) => error!("Config watcher task exiting: {}", tor_error::Report(e)),
+                }
+            })
+            .context("failed to spawn task")?;
+
+        if watch_files_at_start {
+            // Note: You might think that there was a race condition here, where launching the
+            // watcher _now_ would fail to catch any file changes that had happened between
+            // reading the configuration initially and now.
+            //
+            // You'd be right, except that the [`FileWatcher`] code starts every new FileWatcher
+            // with a pending `rescan` event.
+            let (watcher, _files) = mgr.launch_file_watcher()?;
+            mgr.inner.lock().expect("lock poisoned").watcher = Some(watcher);
+        }
+
+        Ok(())
+    }
+
+    /// Add `module` to the set of modules that need to be reconfigured when the configuration changes.
+    ///
+    /// This method is on the [`UnlaunchedWatcher`] because is not (yet) meant to be called after
+    /// the watcher task is launched.
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn add_module(&self, module: &Arc<dyn ReconfigurableModule>) -> anyhow::Result<()> {
+        let weak_module = Arc::downgrade(module);
+
+        let Some(mgr) = self.weak_mgr.upgrade() else {
+            return Err(anyhow::anyhow!(
+                "CfgMgr disappeared before launching watcher task."
+            ));
+        };
+
+        let mut inner = mgr.inner.lock().expect("poisoned lock");
+        inner.modules.push(weak_module);
+        Ok(())
+    }
+}
+
 /// Start watching for configuration changes.
 ///
-/// Spawned from [`CfgMgr::launch`].
+/// Spawned from [`UnlaunchedWatcher::launch`].
 #[instrument(level = "trace", skip_all)]
 async fn run_watcher<R: Runtime>(
     runtime: R,
@@ -383,14 +484,29 @@ fn prepare<'a, R: Runtime>(
 #[instrument(level = "trace", skip_all)]
 fn reconfigure(
     found_files: FoundConfigFiles<'_>,
-    reconfigurable: &[Weak<dyn ReconfigurableModule>],
+    mgr_inner: &mut CfgMgrInner,
 ) -> anyhow::Result<bool> {
-    let _ = reconfigurable;
     let config = found_files.load()?;
-    let config = tor_config::resolve::<ArtiCombinedConfig>(config)?;
+    #[allow(unused_mut)]
+    let mut resolve_options = ConfigResolveOptions::default();
+    #[cfg(feature = "rpc")]
+    {
+        resolve_options.want_output_tree = true;
+    }
+
+    let rs = tor_config::resolve_return_results::<ArtiCombinedConfig>(config, &resolve_options)?;
+    let config = rs.value;
+    #[cfg(feature = "rpc")]
+    {
+        mgr_inner.normalized_cfg = rs
+            .output_tree
+            .expect("normalized cfg not exposed as expected!?");
+        mgr_inner.deprecated_keys = rs.deprecated.into_iter().collect();
+        mgr_inner.unrecognized_keys = rs.unrecognized.into_iter().collect();
+    }
 
     // Filter out the modules that have been dropped
-    let reconfigurable = reconfigurable.iter().flat_map(Weak::upgrade);
+    let reconfigurable = mgr_inner.modules.iter().flat_map(Weak::upgrade);
     // If there are no more modules, we should exit.
     let mut has_modules = false;
 
@@ -509,8 +625,10 @@ mod test {
                 runtime: rt.clone(),
                 sources: cfg_sources,
                 tx: fw_tx,
-                modules: vec![Arc::downgrade(&module)],
-                inner: Mutex::new(CfgMgrInner { watcher: None }),
+                inner: Mutex::new(CfgMgrInner {
+                    modules: vec![Arc::downgrade(&module)],
+                    ..Default::default()
+                }),
             });
 
             let (watcher, _) = mgr.launch_file_watcher().unwrap();
@@ -567,8 +685,10 @@ mod test {
                 runtime: rt.clone(),
                 sources: cfg_sources,
                 tx: fw_tx,
-                modules: vec![Arc::downgrade(&module)],
-                inner: Mutex::new(CfgMgrInner { watcher: None }),
+                inner: Mutex::new(CfgMgrInner {
+                    modules: vec![Arc::downgrade(&module)],
+                    ..Default::default()
+                }),
             });
 
             let (watcher, _) = mgr.launch_file_watcher().unwrap();
