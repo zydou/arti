@@ -382,7 +382,9 @@ impl<R: Runtime> ProxySet<R> {
 }
 
 impl<R: Runtime> crate::reload_cfg::ReconfigurableModule for ProxySet<R> {
-    fn reconfigure(&self, new: &crate::ArtiCombinedConfig) -> anyhow::Result<()> {
+    fn reconfigure(&self, new: &crate::ArtiCombinedConfig, how: Reconfigure) -> anyhow::Result<()> {
+        let _ = how; // XXXX obey "how";
+
         if new.0.application().defer_bootstrap {
             // Do not actually launch any onion services unless we are trying
             // to bootstrap the client.

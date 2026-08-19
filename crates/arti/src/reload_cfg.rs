@@ -43,12 +43,8 @@ const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
 pub(crate) trait ReconfigurableModule: Send + Sync {
     /// Try to reconfigure this module according to a newly loaded configuration.
     ///
-    /// By convention, this should only return fatal errors; any such error
-    /// should cause the program to exit.  For other cases, we should just warn.
-    //
-    // TODO: This should probably take "how: Reconfigure" as an argument, and
-    // pass it down as appropriate. See issue #1156.
-    fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()>;
+    /// See [`Reconfigure`] for a description of error-handling behavior.
+    fn reconfigure(&self, new: &ArtiCombinedConfig, how: Reconfigure) -> anyhow::Result<()>;
 }
 
 /// Structure to reload configuration as necessary.
@@ -178,11 +174,10 @@ impl<R: Runtime> CfgMgr<R> {
     /// Reload the configuration.
     #[instrument(level = "trace", skip_all)]
     #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-    pub(crate) fn reload_configuration(&self) -> anyhow::Result<()> {
+    pub(crate) fn reload_configuration(&self, how: Reconfigure) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().expect("Lock poisoned");
+        let _ = how; // XXXX Actually use how.
 
-        // TODO RPC: Take 'how' as an argument.
-        //
         // Question: I do not understand why we are making a new file watcher unconditionally
         // at this point. -nm
         let found_files = if inner.watcher.is_some() {
@@ -197,7 +192,8 @@ impl<R: Runtime> CfgMgr<R> {
                 .context("FS watch: failed to rescan config")?
         };
 
-        match reconfigure(found_files, &mut inner) {
+        // XXXX: Use `how` more sensibly here; pick a better how.
+        match reconfigure(found_files, &mut inner, Reconfigure::WarnOnFailures) {
             Ok(watch) => {
                 info!("Successfully reloaded configuration.");
                 if watch && inner.watcher.is_none() {
@@ -325,7 +321,7 @@ async fn run_watcher<R: Runtime>(
         }
 
         if let Some(mgr) = weak_mgr.upgrade() {
-            mgr.reload_configuration()?;
+            mgr.reload_configuration(Reconfigure::WarnOnFailures)?;
             drop(mgr);
         } else {
             debug!("Configuration mgr disappeared; exiting loop");
@@ -350,8 +346,8 @@ pub(crate) struct LaunchableTorClient<R: Runtime> {
 
 impl<R: Runtime> ReconfigurableModule for LaunchableTorClient<R> {
     #[instrument(level = "trace", skip_all)]
-    fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
-        // TODO RPC: Take 'how' as an argument.
+    fn reconfigure(&self, new: &ArtiCombinedConfig, how: Reconfigure) -> anyhow::Result<()> {
+        let _ = how; // XXXX obey "how";
 
         if new.0.application().defer_bootstrap && !self.orig_defer_bootstrap {
             warn!("Cannot enable defer_bootstrap while arti is running.");
@@ -431,7 +427,9 @@ impl ReconfigurableModule for Application {
     // TODO: This should probably take "how: Reconfigure" as an argument, and
     // pass it down as appropriate. See issue #1156.
     #[instrument(level = "trace", skip_all)]
-    fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
+    fn reconfigure(&self, new: &ArtiCombinedConfig, how: Reconfigure) -> anyhow::Result<()> {
+        let _ = how; // XXXX obey "how";
+
         let original = &self.original_config;
         let config = &new.0;
 
@@ -485,7 +483,9 @@ fn prepare<'a, R: Runtime>(
 fn reconfigure(
     found_files: FoundConfigFiles<'_>,
     mgr_inner: &mut CfgMgrInner,
+    how: Reconfigure,
 ) -> anyhow::Result<bool> {
+    let _ = how; // XXXX use this.
     let config = found_files.load()?;
     #[allow(unused_mut)]
     let mut resolve_options = ConfigResolveOptions::default();
@@ -512,7 +512,8 @@ fn reconfigure(
 
     for module in reconfigurable {
         has_modules = true;
-        module.reconfigure(&config)?;
+        // XXXX take a how argument, and behave intelligently with it.
+        module.reconfigure(&config, Reconfigure::WarnOnFailures)?;
     }
 
     Ok(has_modules && config.0.application().watch_configuration)
@@ -560,7 +561,7 @@ mod test {
     }
 
     impl ReconfigurableModule for TestModule {
-        fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
+        fn reconfigure(&self, new: &ArtiCombinedConfig, _how: Reconfigure) -> anyhow::Result<()> {
             let config = new.clone();
             self.tx.lock().unwrap().maybe_send(|_| config);
 
