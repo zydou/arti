@@ -186,6 +186,33 @@ impl Reconfigure {
             }
         }
     }
+
+    /// As `cannot_change`, but return a [`ReconfigureError::CannotChangeToValue`] variant.
+    ///
+    /// `manner` should be an adverbial preprositional phrase,
+    /// like "from on to off" or "while arti is running".
+    pub fn cannot_change_specific<S, T>(self, field: S, manner: T) -> Result<(), ReconfigureError>
+    where
+        S: AsRef<str>,
+        T: AsRef<str>,
+    {
+        match self {
+            Reconfigure::AllOrNothing | Reconfigure::CheckAllOrNothing => {
+                Err(ReconfigureError::CannotChangeToValue {
+                    field: field.as_ref().to_owned(),
+                    manner: manner.as_ref().to_owned(),
+                })
+            }
+            Reconfigure::WarnOnFailures => {
+                tracing::warn!(
+                    "Cannot change {} {} on a running client.",
+                    field.as_ref(),
+                    manner.as_ref()
+                );
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Resolves an `Option<Option<T>>` (in a builder) into an `Option<T>`

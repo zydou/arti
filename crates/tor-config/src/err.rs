@@ -131,6 +131,18 @@ pub enum ReconfigureError {
         field: String,
     },
 
+    /// Tried to change a field in an unsupported way in a running client.
+    ///
+    /// `manner` should be an adverbial preprositional phrase,
+    /// like "from on to off".
+    #[error("Cannot change {field} {manner} on a running client.")]
+    CannotChangeToValue {
+        /// The field (or fields) that we tried to change.
+        field: String,
+        /// The way in which we tried to change them.
+        manner: String,
+    },
+
     /// The requested configuration is not supported in this situation
     ///
     /// Something, probably discovered at runtime, is not compatible with
