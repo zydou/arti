@@ -33,7 +33,7 @@ pub(crate) fn use_max_file_limit(config: &ArtiConfig) {
 /// only makes these attacks _harder_.  It can interfere with debugging.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[cfg(feature = "harden")]
-pub(crate) fn enable_process_hardening() -> anyhow::Result<()> {
+pub(crate) fn enable_process_hardening() -> secmem_proc::Result {
     use anyhow::Context as _;
     use std::sync::atomic::{AtomicBool, Ordering};
     /// Have we called this method before?

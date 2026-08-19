@@ -10,13 +10,17 @@ use arti_client::config::Reconfigure;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use futures::{FutureExt as _, Stream, select_biased};
+use tor_basic_utils::error_sources::ErrorSources;
 #[cfg(feature = "rpc")]
 use tor_config::ConfigurationTree;
+use tor_config::ReconfigureError;
 use tor_config::file_watcher::{
     self, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
 use tor_config::load::{ConfigResolveOptions, DisfavouredKey};
 use tor_config::{ConfigurationSource, ConfigurationSources, sources::FoundConfigFiles};
+#[cfg(feature = "harden")]
+use tor_error::into_internal;
 use tor_rtcompat::Runtime;
 use tor_rtcompat::SpawnExt;
 use tracing::{debug, error, info, instrument, warn};
@@ -44,7 +48,11 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
     /// Try to reconfigure this module according to a newly loaded configuration.
     ///
     /// See [`Reconfigure`] for a description of error-handling behavior.
-    fn reconfigure(&self, new: &ArtiCombinedConfig, how: Reconfigure) -> anyhow::Result<()>;
+    fn reconfigure(
+        &self,
+        new: &ArtiCombinedConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError>;
 }
 
 /// Structure to reload configuration as necessary.
@@ -346,19 +354,40 @@ pub(crate) struct LaunchableTorClient<R: Runtime> {
 
 impl<R: Runtime> ReconfigurableModule for LaunchableTorClient<R> {
     #[instrument(level = "trace", skip_all)]
-    fn reconfigure(&self, new: &ArtiCombinedConfig, how: Reconfigure) -> anyhow::Result<()> {
+    fn reconfigure(
+        &self,
+        new: &ArtiCombinedConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError> {
         let _ = how; // XXXX obey "how";
 
         if new.0.application().defer_bootstrap && !self.orig_defer_bootstrap {
             warn!("Cannot enable defer_bootstrap while arti is running.");
         }
         if !new.0.application().defer_bootstrap {
-            self.ensure_bootstrap_launched()?;
+            self.ensure_bootstrap_launched()
+                .map_err(into_internal!("Unable to launch client bootstrap"))?;
         }
 
-        TorClient::reconfigure(&self.client, &new.1, Reconfigure::WarnOnFailures)?;
+        TorClient::reconfigure(&self.client, &new.1, Reconfigure::WarnOnFailures)
+            .map_err(extract_reconfigure_error)?;
         Ok(())
     }
+}
+
+/// If possible, extract the ReconfigureError from `err`.  Otherwise,
+/// return `err` as an internal ReconfigureError.
+//
+// (We could get rid of this function if arti_client::Error were not opaque,
+// or if arti_client::reconfigure were to return a ReconfigureError.
+// But  now is not the time to revisit those decisions.)
+fn extract_reconfigure_error(err: arti_client::Error) -> ReconfigureError {
+    for e in ErrorSources::new(&err) {
+        if let Some(reconfig_error) = e.downcast_ref::<ReconfigureError>() {
+            return reconfig_error.clone();
+        };
+    }
+    (into_internal!("Foo")(err)).into()
 }
 
 impl<R: Runtime> LaunchableTorClient<R> {
@@ -374,7 +403,7 @@ impl<R: Runtime> LaunchableTorClient<R> {
     }
 
     /// If we have not already told this LaunchableTorClient to bootstrap itself, do so.
-    fn ensure_bootstrap_launched(&self) -> anyhow::Result<()> {
+    fn ensure_bootstrap_launched(&self) -> Result<(), futures::task::SpawnError> {
         let mut have_launched = self.have_launched.lock().expect("lock poisoned");
 
         if *have_launched {
@@ -384,12 +413,9 @@ impl<R: Runtime> LaunchableTorClient<R> {
         let client = Arc::clone(&self.client);
         // We spawn this as a new task since `bootstrap` is very much async,
         // but this needs to be called from `reconfigure`, which is not.
-        self.client
-            .runtime()
-            .spawn(async move {
-                let _outcome = client.bootstrap().await;
-            })
-            .context("Launching bootstrap")?;
+        self.client.runtime().spawn(async move {
+            let _outcome = client.bootstrap().await;
+        })?;
 
         *have_launched = true;
         Ok(())
@@ -427,7 +453,11 @@ impl ReconfigurableModule for Application {
     // TODO: This should probably take "how: Reconfigure" as an argument, and
     // pass it down as appropriate. See issue #1156.
     #[instrument(level = "trace", skip_all)]
-    fn reconfigure(&self, new: &ArtiCombinedConfig, how: Reconfigure) -> anyhow::Result<()> {
+    fn reconfigure(
+        &self,
+        new: &ArtiCombinedConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError> {
         let _ = how; // XXXX obey "how";
 
         let original = &self.original_config;
@@ -449,7 +479,8 @@ impl ReconfigurableModule for Application {
         // Note that this is the only config transition we actually perform so far.
         if !config.application().permit_debugging {
             #[cfg(feature = "harden")]
-            crate::process::enable_process_hardening()?;
+            crate::process::enable_process_hardening()
+                .map_err(into_internal!("can't disable debugging"))?;
         }
 
         Ok(())
@@ -561,7 +592,11 @@ mod test {
     }
 
     impl ReconfigurableModule for TestModule {
-        fn reconfigure(&self, new: &ArtiCombinedConfig, _how: Reconfigure) -> anyhow::Result<()> {
+        fn reconfigure(
+            &self,
+            new: &ArtiCombinedConfig,
+            _how: Reconfigure,
+        ) -> Result<(), ReconfigureError> {
             let config = new.clone();
             self.tx.lock().unwrap().maybe_send(|_| config);
 

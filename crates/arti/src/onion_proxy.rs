@@ -319,9 +319,9 @@ impl<R: Runtime> ProxySet<R> {
     pub(crate) fn reconfigure(
         &self,
         new_config: OnionServiceProxyConfigMap,
-        // TODO: this should probably take `how: Reconfigure` and implement an all-or-nothing mode.
-        // See #1156.
-    ) -> Result<(), anyhow::Error> {
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError> {
+        let _ = how; // XXXX implement.
         let mut proxy_map = self.proxies.lock().expect("lock poisoned");
 
         // Set of the nicknames of defunct proxies.
@@ -382,7 +382,11 @@ impl<R: Runtime> ProxySet<R> {
 }
 
 impl<R: Runtime> crate::reload_cfg::ReconfigurableModule for ProxySet<R> {
-    fn reconfigure(&self, new: &crate::ArtiCombinedConfig, how: Reconfigure) -> anyhow::Result<()> {
+    fn reconfigure(
+        &self,
+        new: &crate::ArtiCombinedConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError> {
         let _ = how; // XXXX obey "how";
 
         if new.0.application().defer_bootstrap {
@@ -391,7 +395,12 @@ impl<R: Runtime> crate::reload_cfg::ReconfigurableModule for ProxySet<R> {
             return Ok(());
         }
 
-        ProxySet::reconfigure(self, new.0.onion_services.clone())?;
+        // XXXX set how
+        ProxySet::reconfigure(
+            self,
+            new.0.onion_services.clone(),
+            Reconfigure::WarnOnFailures,
+        )?;
         Ok(())
     }
 }
