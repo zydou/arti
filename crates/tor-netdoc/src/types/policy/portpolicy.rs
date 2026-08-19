@@ -37,6 +37,8 @@ use derive_deftly::Deftly;
 /// assert!(! policy.allows_port(1024));
 /// assert!(! policy.allows_port(9000));
 /// ```
+///
+/// `Default` is the all-reject policy, also constructible with [`PortPolicy::new_reject_all`].
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Deftly)]
 #[derive_deftly(GloballyInternable)]
 pub struct PortPolicy {
@@ -278,6 +280,15 @@ mod test {
             "reject 1-65535",
             &[],
             &[1, 300, 301, 500, 10001, 65535],
+        );
+    }
+
+    #[test]
+    fn test_default() {
+        assert_eq!(
+            //
+            PortPolicy::default().to_string(),
+            "reject 1-65535",
         );
     }
 
