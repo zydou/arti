@@ -49,6 +49,8 @@ use super::{PolicyError, PortRange, RuleKind};
 ///  accept *:9000-65535
 ///  reject *:*
 /// ```
+///
+/// `Default` is the all-reject policy, also constructible with [`AddrPolicy::new`].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AddrPolicy {
     /// A list of rules to apply to find out whether an address is
@@ -577,6 +579,7 @@ mod test {
             (accept_all.clone(), "accept *:*"), // do not add default deny to existing
             (reject_all.clone(), "reject *:*"), // do not add default deny to existing
             (AddrPolicy::new(), "reject *:*"),  // add default deny to empty
+            (AddrPolicy::default(), "reject *:*"), // default policy is all-reject
         ];
         for (input, expected_tail) in tests {
             let mut enc = NetdocEncoder::default();
