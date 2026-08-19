@@ -204,7 +204,9 @@ mod test {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use crate::stream::flow_ctrl::params::FlowCtrlParameters;
-    use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamRateLimit};
+    use crate::stream::flow_ctrl::state::{
+        FlowCtrlHooks, StreamRateLimit, WithSidechannelMitigations,
+    };
     use crate::stream::flow_ctrl::xon_xoff::state::XonXoffFlowCtrl;
     use crate::util::notify::NotifySender;
 
@@ -345,7 +347,7 @@ mod test {
     /// 4. The flow control logic.
     #[allow(clippy::type_complexity)]
     fn init_flow_ctrl(
-        use_sidechannel_mitigations: bool,
+        with_sidechannel_mitigations: WithSidechannelMitigations,
     ) -> (
         WriterWithLength<Compat<DuplexStream>>,
         XonXoffReader<ReaderWithLength<Compat<DuplexStream>>, TestingDrainRateUpdates>,
@@ -365,7 +367,7 @@ mod test {
         // The flow control logic.
         let flow_ctrl = XonXoffFlowCtrl::new(
             Arc::new(params),
-            use_sidechannel_mitigations,
+            with_sidechannel_mitigations,
             rate_limit_tx,
             drain_rate_request_tx,
         );
@@ -443,7 +445,7 @@ mod test {
             // This is the stream queue for incoming data.
             // So the `reader` is the stream reader and the `writer` would be within the reactor.
             let (mut writer, mut reader, mut drain_rate_receiver, mut flow_ctrl) =
-                init_flow_ctrl(/* use_sidechannel_mitigations= */ true);
+                init_flow_ctrl(WithSidechannelMitigations::Enabled);
 
             // Data has arrived on the stream.
             // We always consider sending an XOFF when a stream has received data.
@@ -528,7 +530,7 @@ mod test {
             // This is the stream queue for incoming data.
             // So the `reader` is the stream reader and the `writer` would be within the reactor.
             let (mut writer, mut reader, mut drain_rate_receiver, mut flow_ctrl) =
-                init_flow_ctrl(/* use_sidechannel_mitigations= */ true);
+                init_flow_ctrl(WithSidechannelMitigations::Enabled);
 
             // Data has arrived on the stream.
             // We always consider sending an XOFF when a stream has received data.

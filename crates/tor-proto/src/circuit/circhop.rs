@@ -12,7 +12,9 @@ use crate::stream::SEND_WINDOW_INIT;
 use crate::stream::StreamMpscSender;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
-use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl, StreamRateLimit};
+use crate::stream::flow_ctrl::state::{
+    FlowCtrlHooks, StreamFlowCtrl, StreamRateLimit, WithSidechannelMitigations,
+};
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::{StreamQueueReceiver, stream_queue};
 use crate::streammap::{
@@ -785,11 +787,11 @@ impl CircHopOutbound {
                     // to onion services while using congestion control, so we hardcode this. In the
                     // future we will need to somehow tell the `CircHop` this so that we can set it
                     // correctly, since we don't want to enable this at exits.
-                    let use_sidechannel_mitigations = true;
+                    let with_sidechannel_mitigations = WithSidechannelMitigations::Enabled;
 
                     Ok(StreamFlowCtrl::new_xon_xoff(
                         params,
-                        use_sidechannel_mitigations,
+                        with_sidechannel_mitigations,
                         rate_limit_updater,
                         drain_rate_requester,
                     ))
