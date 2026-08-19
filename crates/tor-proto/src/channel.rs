@@ -114,7 +114,7 @@ mod testing_exports {
 #[cfg(feature = "testing")]
 pub use testing_exports::*;
 #[cfg(not(feature = "testing"))]
-use testing_exports::*;
+pub(crate) use testing_exports::*;
 
 use asynchronous_codec;
 use futures::channel::mpsc;
