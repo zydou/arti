@@ -69,6 +69,7 @@ use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
 use crate::relay::reactor::backward::Backward;
 use crate::relay::reactor::forward::Forward;
+use crate::stream::flow_ctrl::state::WithSidechannelMitigations;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::stream::incoming::{
     IncomingCmdChecker, IncomingStream, IncomingStreamRequestFilter, IncomingStreamRequestHandler,
@@ -111,6 +112,11 @@ impl stream::StreamHandler for StreamHandler {
             // TODO(relay): we should fallback to a non-zero default here
             // if we don't have any RTT measurements yet
             .unwrap_or_default()
+    }
+
+    fn flowctrl_sidechannel_mitigations(&self) -> WithSidechannelMitigations {
+        // We're a relay, so we don't want sidechannel mitigations for flow control.
+        WithSidechannelMitigations::Disabled
     }
 }
 
