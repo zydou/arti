@@ -9,6 +9,7 @@ use crate::congestion::CongestionControl;
 use crate::crypto::cell::HopNum;
 use crate::memquota::StreamAccount;
 use crate::stream::cmdcheck::AnyCmdChecker;
+use crate::stream::flow_ctrl::state::WithSidechannelMitigations;
 use crate::streammap::{self, StreamEntMut, StreamMap};
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::tunnel_activity::TunnelActivity;
@@ -354,10 +355,16 @@ impl CircHop {
         time_prov: &DynTimeProvider,
         stream_id: StreamId,
         cmd_checker: AnyCmdChecker,
+        with_sidechannel_mitigations: WithSidechannelMitigations,
         memquota: &StreamAccount,
     ) -> Result<ReactorStreamComponents> {
-        self.outbound
-            .add_ent_with_id(time_prov, stream_id, cmd_checker, memquota)
+        self.outbound.add_ent_with_id(
+            time_prov,
+            stream_id,
+            cmd_checker,
+            with_sidechannel_mitigations,
+            memquota,
+        )
     }
 
     /// Note that we received an END message (or other message indicating the end of

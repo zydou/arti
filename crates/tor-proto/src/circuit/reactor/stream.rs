@@ -440,9 +440,13 @@ impl StreamReactor {
             StreamAccount::new(&self.memquota).map_err(|e| ReactorError::Err(e.into()))?;
 
         let cmd_checker = InboundDataCmdChecker::new_connected();
-        let stream_components =
-            self.hop
-                .add_ent_with_id(&self.time_provider, sid, cmd_checker, &memquota)?;
+        let stream_components = self.hop.add_ent_with_id(
+            &self.time_provider,
+            sid,
+            cmd_checker,
+            self.inner.flowctrl_sidechannel_mitigations(),
+            &memquota,
+        )?;
 
         let outcome = Pin::new(&mut handler.incoming_sender).try_send(StreamReqInfo {
             req,
