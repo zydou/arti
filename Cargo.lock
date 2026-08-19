@@ -218,6 +218,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry-proto",
  "opentelemetry_sdk",
+ "otlp-file-exporter",
  "paste",
  "pin-project",
  "postage",
@@ -241,6 +242,7 @@ dependencies = [
  "tor-cell",
  "tor-config",
  "tor-config-path",
+ "tor-config-shared",
  "tor-error",
  "tor-general-addr",
  "tor-hsclient",
@@ -389,6 +391,12 @@ dependencies = [
  "futures",
  "libc",
  "metrics-exporter-prometheus",
+ "opentelemetry",
+ "opentelemetry-appender-tracing",
+ "opentelemetry-otlp",
+ "opentelemetry-proto",
+ "opentelemetry_sdk",
+ "otlp-file-exporter",
  "rand 0.10.2",
  "rustls",
  "safelog",
@@ -405,6 +413,7 @@ dependencies = [
  "tor-circmgr",
  "tor-config",
  "tor-config-path",
+ "tor-config-shared",
  "tor-dirclient",
  "tor-dircommon",
  "tor-dirmgr",
@@ -427,6 +436,7 @@ dependencies = [
  "tor-rtmock",
  "tor-units",
  "tracing",
+ "tracing-opentelemetry",
  "tracing-subscriber",
  "void",
  "web-time-compat",
@@ -4436,6 +4446,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "otlp-file-exporter"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "opentelemetry-proto",
+ "opentelemetry_sdk",
+ "serde_json",
+]
+
+[[package]]
 name = "p256"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7113,6 +7133,19 @@ dependencies = [
  "tor-config",
  "tor-error",
  "tor-general-addr",
+]
+
+[[package]]
+name = "tor-config-shared"
+version = "0.45.0"
+dependencies = [
+ "amplify",
+ "derive-deftly",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "serde",
+ "tor-config",
+ "tor-config-path",
 ]
 
 [[package]]

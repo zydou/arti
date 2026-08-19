@@ -2,8 +2,8 @@
 
 use derive_deftly::Deftly;
 
-use crate::Listen;
-use crate::derive::prelude::*;
+use tor_config::Listen;
+use tor_config::derive::prelude::*;
 
 /// Configuration for exporting metrics (eg, perf data)
 #[derive(Debug, Clone, Deftly, Eq, PartialEq)]
