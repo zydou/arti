@@ -465,10 +465,12 @@ pub(crate) mod test {
                 msg => panic!("unexpected forwarded {msg:?}"),
             };
 
-            match rmsg.msg() {
+            let msg = match rmsg.msg() {
                 relaymsg::AnyRelayMsg::$expect_msg(inner) => inner.clone(),
                 _ => panic!("unexpected relay message {rmsg:?}"),
-            }
+            };
+
+            (rmsg.stream_id(), msg)
         }};
     }
 
@@ -626,7 +628,7 @@ pub(crate) mod test {
             // Make sure we actually did send an EXTENDED2 towards the client
             let msg = self.read_inbound();
 
-            let e = decode_relay_cell!(msg, Extended2);
+            let (_sid, e) = decode_relay_cell!(msg, Extended2);
             assert_eq!(e.clone().into_body(), handshake);
 
             circid
