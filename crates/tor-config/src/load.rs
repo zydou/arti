@@ -107,7 +107,7 @@ use tracing::warn;
 use crate::{ConfigBuildError, ConfigurationTree};
 
 /// Error resolving a configuration (during deserialize, or build)
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum ConfigResolveError {
     /// Deserialize failed
