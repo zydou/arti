@@ -37,6 +37,9 @@ use crate::relay::reactor::backward::Backward;
 use crate::relay::reactor::forward::Forward;
 use crate::stream::incoming::IncomingStreamRequestFilter;
 
+#[cfg(doc)]
+use crate::stream::StreamTarget;
+
 /// A subclass of ChanMsg that can correctly arrive on a live relay
 /// circuit (one where a CREATE* has been received).
 #[derive(Debug, Deftly)]
@@ -83,17 +86,7 @@ impl RelayCirc {
 
     /// Inform the circuit reactor that there has been a change in the drain rate for this stream.
     ///
-    /// Typically the circuit reactor would send this new rate in an XON message to the other end of
-    /// the stream.
-    /// But it may decide not to, and may discard this update.
-    /// For example the stream may have a large amount of buffered data, and the reactor may not
-    /// want to send an XON while the buffer is large.
-    ///
-    /// This sends a message to inform the circuit reactor of the new drain rate,
-    /// but it does not block or wait for a response from the reactor.
-    /// An error is only returned if we are unable to send the update.
-    //
-    // TODO(relay): this duplicates the ClientTunnel API and docs. Do we care?
+    /// See [`StreamTarget::drain_rate_update`].
     pub(crate) fn drain_rate_update(
         &self,
         _stream_id: StreamId,
@@ -104,13 +97,7 @@ impl RelayCirc {
 
     /// Request to send a SENDME cell for this stream.
     ///
-    /// This sends a request to the circuit reactor to send a stream-level SENDME, but it does not
-    /// block or wait for a response from the circuit reactor.
-    /// An error is only returned if we are unable to send the request.
-    /// This means that if the circuit reactor is unable to send the SENDME, we are not notified of
-    /// this here and an error will not be returned.
-    //
-    // TODO(relay): this duplicates the ClientTunnel API and docs. Do we care?
+    /// See [`StreamTarget::send_sendme`].
     pub(crate) fn send_sendme(&self, _stream_id: StreamId) -> crate::Result<()> {
         todo!()
     }
