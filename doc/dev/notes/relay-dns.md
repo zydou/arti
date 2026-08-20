@@ -590,6 +590,7 @@ Tentative plan:
   * [ ] Run experiments to determine how vulnerable we are to the timing attacks
     that were/are possible in C Tor
   * [ ] Obtain grant to implement a more sophisticated solution
+    (such as a preload cache)
 
 [#1448]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1448
 [#2643]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2643
