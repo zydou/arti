@@ -151,9 +151,7 @@ impl IncomingStream {
                 Err(internal!("Cannot send RESOLVED on a data or directory stream").into())
             }
             IncomingStreamRequest::Resolve(_) => {
-                // XXX we're not really rejecting the stream, we're only closing it
-                // (with a RESOLVED). I think it's time to rename reject_inner
-                let rx = self.reject_inner(CloseStreamBehavior::SendResolved(message))?;
+                let rx = self.close(CloseStreamBehavior::SendResolved(message))?;
 
                 rx.await.map_err(|_| Error::CircuitClosed)?
             }
@@ -162,15 +160,15 @@ impl IncomingStream {
 
     /// Reject this request and send an error message to the client.
     pub async fn reject(mut self, message: msg::End) -> Result<()> {
-        let rx = self.reject_inner(CloseStreamBehavior::SendEnd(message))?;
+        let rx = self.close(CloseStreamBehavior::SendEnd(message))?;
 
         rx.await.map_err(|_| Error::CircuitClosed)?
     }
 
-    /// Reject this request and possibly send an error message to the client.
+    /// Close this stream, and possibly send a message (END or RESOLVED) to the client.
     ///
     /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
-    fn reject_inner(
+    fn close(
         &mut self,
         message: CloseStreamBehavior,
     ) -> Result<oneshot::Receiver<Result<()>>> {
@@ -183,7 +181,7 @@ impl IncomingStream {
     /// `reject`, or this method, the drop handler will cause it to be
     /// rejected.)
     pub async fn discard(mut self) -> Result<()> {
-        let rx = self.reject_inner(CloseStreamBehavior::SendNothing)?;
+        let rx = self.close(CloseStreamBehavior::SendNothing)?;
 
         rx.await.map_err(|_| Error::CircuitClosed)?.map(|_| ())
     }
