@@ -246,6 +246,30 @@ pub fn parse_netdoc_multiple<D: NetdocParseable>(
     })
 }
 
+/// Error from `multi_push_doc`
+#[derive(Debug, Error)]
+#[error("out of bounds bug")]
+struct OutOfBoundsBug;
+
+/// Add `(doc, start_pos, end_pos)` to `docs`, checking bounds
+///
+/// Helper function for use by `parse_netdoc_ multiple_*` functions that return offsets.
+fn multi_push_doc<T>(
+    docs: &mut Vec<(T, usize, usize)>,
+    input: &ParseInput<'_>,
+    doc: T,
+    start_pos: usize,
+    end_pos: usize,
+) -> Result<(), OutOfBoundsBug> {
+    // Check start_pos and end_pos are in range.
+    if input.input.get(start_pos..end_pos).is_none() {
+        return Err(OutOfBoundsBug);
+    }
+
+    docs.push((doc, start_pos, end_pos));
+    Ok(())
+}
+
 /// Parse multiple network documents, also returning their offsets  - **toplevel entrypoint**
 ///
 /// Each returned document is accompanied by the byte offsets of its start and end.
@@ -271,12 +295,8 @@ pub fn parse_netdoc_multiple_with_offsets<D: NetdocParseable>(
             let doc = D::from_items(items, StopAt(false))?;
             let end_pos = items.byte_position();
 
-            // Check start_pos and end_pos are in range.
-            if input.input.get(start_pos..end_pos).is_none() {
-                return Err(ErrorProblem::Internal("out-of-bounds bug?"));
-            }
-
-            docs.push((doc, start_pos, end_pos));
+            multi_push_doc(&mut docs, input, doc, start_pos, end_pos)
+                .map_err(|OutOfBoundsBug| ErrorProblem::Internal("out-of-bounds bug?"))?;
         }
         Ok(docs)
     })
