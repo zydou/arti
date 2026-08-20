@@ -188,16 +188,17 @@ impl<R: Runtime> CfgMgr<R> {
 
         // Question: I do not understand why we are making a new file watcher unconditionally
         // at this point. -nm
-        let found_files = if inner.watcher.is_some() {
+        let (found_files, new_watcher) = if inner.watcher.is_some() {
             let (watcher, files) = self
                 .launch_file_watcher()
                 .context("Failed to re-scan config")?;
-            inner.watcher = Some(watcher);
-            files
+            (files, Some(watcher))
         } else {
-            self.sources
+            let files = self
+                .sources
                 .scan()
-                .context("FS watch: failed to rescan config")?
+                .context("FS watch: failed to rescan config")?;
+            (files, None)
         };
 
         // XXXX: Use `how` more sensibly here; pick a better how.
@@ -213,6 +214,8 @@ impl<R: Runtime> CfgMgr<R> {
                 } else if !watch && inner.watcher.is_some() {
                     info!("Stopped watching over configuration.");
                     inner.watcher = None;
+                } else {
+                    inner.watcher = new_watcher;
                 }
             }
             // TODO: warn_report does not work on anyhow::Error.
