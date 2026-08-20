@@ -21,6 +21,7 @@ use tor_config::load::{ConfigResolveOptions, DisfavouredKey};
 use tor_config::{ConfigurationSource, ConfigurationSources, sources::FoundConfigFiles};
 #[cfg(feature = "harden")]
 use tor_error::into_internal;
+use tor_error::warn_report;
 use tor_rtcompat::Runtime;
 use tor_rtcompat::SpawnExt;
 use tracing::{debug, error, info, instrument, warn};
@@ -220,8 +221,7 @@ impl<R: Runtime> CfgMgr<R> {
                     inner.watcher = new_watcher;
                 }
             }
-            // TODO: warn_report does not work on anyhow::Error.
-            Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
+            Err(e) => warn_report!(e, "Couldn't reload configuration"),
         }
 
         Ok(())
@@ -517,16 +517,12 @@ fn prepare<'a, R: Runtime>(
 /// reconfigure the client as much as we can.
 ///
 /// Return true if we should be watching for configuration changes.
-//
-// TODO: This should probably take "how: Reconfigure" as an argument, and
-// pass it down as appropriate. See issue #1156.
 #[instrument(level = "trace", skip_all)]
 fn reconfigure(
     config: ConfigurationTree,
     mgr_inner: &mut CfgMgrInner,
     how: Reconfigure,
-) -> anyhow::Result<bool> {
-    let _ = how; // XXXX use this.
+) -> Result<bool, ChangeConfigurationError> {
     #[allow(unused_mut)]
     let mut resolve_options = ConfigResolveOptions::default();
     #[cfg(feature = "rpc")]
@@ -536,6 +532,20 @@ fn reconfigure(
 
     let rs = tor_config::resolve_return_results::<ArtiCombinedConfig>(config, &resolve_options)?;
     let config = rs.value;
+
+    // Filter out the modules that have been dropped
+    let reconfigurable: Vec<_> = mgr_inner.modules.iter().flat_map(Weak::upgrade).collect();
+    let has_modules = !reconfigurable.is_empty();
+
+    if how == Reconfigure::AllOrNothing {
+        for module in &reconfigurable {
+            module.reconfigure(&config, Reconfigure::CheckAllOrNothing)?;
+        }
+    }
+    for module in &reconfigurable {
+        module.reconfigure(&config, how)?;
+    }
+
     #[cfg(feature = "rpc")]
     {
         mgr_inner.normalized_cfg = rs
@@ -545,18 +555,19 @@ fn reconfigure(
         mgr_inner.unrecognized_keys = rs.unrecognized.into_iter().collect();
     }
 
-    // Filter out the modules that have been dropped
-    let reconfigurable = mgr_inner.modules.iter().flat_map(Weak::upgrade);
-    // If there are no more modules, we should exit.
-    let mut has_modules = false;
-
-    for module in reconfigurable {
-        has_modules = true;
-        // XXXX take a how argument, and behave intelligently with it.
-        module.reconfigure(&config, Reconfigure::WarnOnFailures)?;
-    }
-
     Ok(has_modules && config.0.application().watch_configuration)
+}
+
+/// An error that occurred while trying to reload and/or replace our configuration
+#[derive(thiserror::Error, Clone, Debug)]
+pub(crate) enum ChangeConfigurationError {
+    /// We couldn't turn the configuration tree into the appropriate set of data structures.
+    #[error("Invalid configuration")]
+    Resolve(#[from] tor_config::load::ConfigResolveError),
+
+    /// One of the transitions we tried to make was not allowed, or failed as we tried to apply it.
+    #[error("Configuration transition failed")]
+    Transition(#[from] ReconfigureError),
 }
 
 #[cfg(test)]
