@@ -30,6 +30,11 @@ The trickiest part of this work is going to be the DNS cache.
 >     details on the sort of attack this design aims to prevent
 >   * correlation attacks by adversaries that are able to monitor some of the
 >     traffic going in and out of the Tor network
+>
+> Additional factors to consider: in the very worst case, the attacker controls
+> the target DNS domain, and controls which addresses the client connects to
+> (e.g., by embedding them in a website).
+
 
 ## The status quo
 
