@@ -201,8 +201,10 @@ impl<R: Runtime> CfgMgr<R> {
             (files, None)
         };
 
+        let config = found_files.load()?;
+
         // XXXX: Use `how` more sensibly here; pick a better how.
-        match reconfigure(found_files, &mut inner, Reconfigure::WarnOnFailures) {
+        match reconfigure(config, &mut inner, Reconfigure::WarnOnFailures) {
             Ok(watch) => {
                 info!("Successfully reloaded configuration.");
                 if watch && inner.watcher.is_none() {
@@ -520,12 +522,11 @@ fn prepare<'a, R: Runtime>(
 // pass it down as appropriate. See issue #1156.
 #[instrument(level = "trace", skip_all)]
 fn reconfigure(
-    found_files: FoundConfigFiles<'_>,
+    config: ConfigurationTree,
     mgr_inner: &mut CfgMgrInner,
     how: Reconfigure,
 ) -> anyhow::Result<bool> {
     let _ = how; // XXXX use this.
-    let config = found_files.load()?;
     #[allow(unused_mut)]
     let mut resolve_options = ConfigResolveOptions::default();
     #[cfg(feature = "rpc")]
