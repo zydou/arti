@@ -200,13 +200,25 @@ fn parse_internal<T, D: NetdocParseable>(
     parse_completely: impl FnOnce(&mut ItemStream) -> Result<T, ErrorProblem>,
 ) -> Result<T, ParseError> {
     let mut items = ItemStream::new(input)?;
-    parse_completely(&mut items).map_err(|problem| ParseError {
+    parse_completely(&mut items).map_err(error_handler::<D>(input, &items))
+}
+
+/// Return a function for converting `ErrorProblem` to `ParseError`
+///
+/// For use in `.map_err()`.
+//
+// Returning a closure means the usual kind of call site doesn't need to name `problem`.
+fn error_handler<D: NetdocParseable>(
+    input: &ParseInput<'_>,
+    items: &ItemStream<'_>,
+) -> impl Fn(ErrorProblem) -> ParseError {
+    |problem| ParseError {
         problem,
         doctype: D::doctype_for_error(),
         file: input.file.to_owned(),
         lno: items.lno_for_error(),
         column: problem.column(),
-    })
+    }
 }
 
 /// Parse a network document - **toplevel entrypoint**
