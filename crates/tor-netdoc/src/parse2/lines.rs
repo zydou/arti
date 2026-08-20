@@ -84,6 +84,26 @@ impl<'s> Lines<'s> {
         self.rest
     }
 
+    /// Return a `Lines` like `self` but which always yields `None`
+    ///
+    /// Useful for certain error handling cases.
+    ///
+    /// The returned `Lines`:
+    ///  * Reports the same line number as `self` would now
+    ///  * Returns `None` from `peek` and `next`
+    ///  * Returns `""` from `remaining` (the returned slice is the end of the real input,
+    ///    not a fresh empty slice).
+    pub fn clone_entirely_consumed(&self) -> Lines<'s> {
+        Lines {
+            lno: self.lno,
+            rest: self
+                .rest
+                .rsplit_once("")
+                .expect("all strings contain the empty string")
+                .1,
+        }
+    }
+
     /// After `peek`, advance to the next line, consuming the one that was peeked
     ///
     /// # Correctness
