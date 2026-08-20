@@ -314,7 +314,13 @@ impl<'s> ItemStream<'s> {
         let args = ArgumentStream::new(args, line.len(), options);
 
         let object = if self.lines.remaining().starts_with('-') {
-            let lines = &mut self.lines;
+            // Swap out self.lines, so that if we do not find matching delimiters, we don't
+            // ever yield any more items.  Otherwise, if we continue reading after an error, we
+            // might get a framing mismatch where we treat base64 contents as if it were item
+            // keyword lines.
+            let leave_if_error = self.lines.clone_entirely_consumed();
+            let mut lines = mem::replace(&mut self.lines, leave_if_error);
+            let self_lines_prevent = &mut self.lines;
 
             fn pem_delimiter<'s>(lines: &mut Lines<'s>, start: &str) -> Result<&'s str, EP> {
                 let line = lines.next().ok_or(
@@ -330,21 +336,21 @@ impl<'s> ItemStream<'s> {
                 Ok(label)
             }
 
-            let label1 = pem_delimiter(lines, PEM_HEADER_START)?;
+            let label1 = pem_delimiter(&mut lines, PEM_HEADER_START)?;
             let base64_start_remaining = lines.remaining();
             while !lines.remaining().starts_with('-') {
                 let _: &str = lines.next().ok_or(EP::ObjectMissingFooter)?;
             }
             let data_b64 = base64_start_remaining.strip_end_counted(lines.remaining().len());
-            let label2 = pem_delimiter(lines, PEM_FOOTER_START)?;
+            let label2 = pem_delimiter(&mut lines, PEM_FOOTER_START)?;
             let label = [label1, label2]
                 .into_iter()
                 .all_equal_value()
                 .map_err(|_| EP::ObjectMismatchedLabels)?;
 
-            // Proof that self.lines isn't used between `let lines = ` and here:
-            // we have it borrowed.
-            let _: &mut Lines = lines;
+            // Proves that self.lines isn't used between setup and here: we have it borrowed.
+            let _: &mut Lines = self_lines_prevent;
+            self.lines = lines;
 
             Some(UnparsedObject {
                 label,
