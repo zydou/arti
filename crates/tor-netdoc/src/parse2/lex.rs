@@ -126,15 +126,15 @@ pub struct UnparsedObject<'s> {
 
 impl<'s> ItemStream<'s> {
     /// Start reading a network document as a series of Items
-    pub fn new(input: &'s ParseInput<'s>) -> Result<Self, ParseError> {
-        Ok(ItemStream {
+    pub fn new(input: &'s ParseInput<'s>) -> Self {
+        ItemStream {
             whole_input: input.input,
             lines: Lines::new(input.input),
             peeked: PeekState::None {
                 yielded_item_lno: 0,
             },
             options: &input.options,
-        })
+        }
     }
 
     /// Line number for reporting an error we have just discovered

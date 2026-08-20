@@ -143,7 +143,7 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
 /// Splits `input` at the first `directory-signature`.
 fn split_directory_signatures(input: &str) -> Result<(&str, &str)> {
     let parse_input = ParseInput::new(input, "");
-    let mut items = ItemStream::new(&parse_input)?;
+    let mut items = ItemStream::new(&parse_input);
 
     // Parse the consensus item by item until the first `directory-signature`.
     loop {

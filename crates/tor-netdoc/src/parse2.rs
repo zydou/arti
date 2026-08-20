@@ -199,7 +199,7 @@ fn parse_internal<T, D: NetdocParseable>(
     input: &ParseInput<'_>,
     parse_completely: impl FnOnce(&mut ItemStream) -> Result<T, ErrorProblem>,
 ) -> Result<T, ParseError> {
-    let mut items = ItemStream::new(input)?;
+    let mut items = ItemStream::new(input);
     parse_completely(&mut items).map_err(error_handler::<D>(input, &items))
 }
 

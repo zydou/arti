@@ -325,7 +325,7 @@ impl<T> ItemSetMethods for &'_ MultiplicitySelector<T> {
 /// use tor_netdoc::parse2::{ItemArgumentParseable, ItemStream, ParseInput};
 /// let doc = "intro-item 12 66\n";
 /// let input = ParseInput::new(doc, "<literal>");
-/// let mut items = ItemStream::new(&input).unwrap();
+/// let mut items = ItemStream::new(&input);
 /// let mut item = items.next().unwrap().unwrap();
 ///
 /// let args = MultiplicitySelector::<Vec<i32>>::default()
@@ -460,7 +460,7 @@ impl<T> ArgumentSetMethods for &MultiplicitySelector<T> {
 /// use tor_netdoc::parse2::{ItemStream, ParseInput};
 /// let doc = "intro-item\n-----BEGIN OBJECT-----\naGVsbG8=\n-----END OBJECT-----\n";
 /// let input = ParseInput::new(doc, "<literal>");
-/// let mut items = ItemStream::new(&input).unwrap();
+/// let mut items = ItemStream::new(&input);
 /// let mut item = items.next().unwrap().unwrap();
 ///
 /// let selector = MultiplicitySelector::<Option<String>>::default();
