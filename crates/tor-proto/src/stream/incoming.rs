@@ -168,10 +168,7 @@ impl IncomingStream {
     /// Close this stream, and possibly send a message (END or RESOLVED) to the client.
     ///
     /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
-    fn close(
-        &mut self,
-        message: CloseStreamBehavior,
-    ) -> Result<oneshot::Receiver<Result<()>>> {
+    fn close(&mut self, message: CloseStreamBehavior) -> Result<oneshot::Receiver<Result<()>>> {
         self.components.target.close_pending(message)
     }
 
