@@ -453,6 +453,25 @@ pub(crate) mod test {
         Both,
     }
 
+    /// Decode a cell, extracting the underlying message of type `expect_msg`
+    macro_rules! decode_relay_cell {
+        ($cell:expr, $expect_msg:tt) => {{
+            let rmsg = match $cell.msg() {
+                chanmsg::AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode_singleton(
+                    RelayCellFormat::V0,
+                    r.clone().into_relay_body(),
+                )
+                .unwrap(),
+                msg => panic!("unexpected forwarded {msg:?}"),
+            };
+
+            match rmsg.msg() {
+                relaymsg::AnyRelayMsg::$expect_msg(inner) => inner.clone(),
+                _ => panic!("unexpected relay message {rmsg:?}"),
+            }
+        }};
+    }
+
     impl ReactorTestCtrl {
         /// Spawn a relay circuit reactor, returning a `ReactorTestCtrl` for
         /// controlling it.
@@ -606,21 +625,9 @@ pub(crate) mod test {
 
             // Make sure we actually did send an EXTENDED2 towards the client
             let msg = self.read_inbound();
-            let rmsg = match msg.msg() {
-                chanmsg::AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode_singleton(
-                    RelayCellFormat::V0,
-                    r.clone().into_relay_body(),
-                )
-                .unwrap(),
-                _ => panic!("unexpected forwarded {msg:?}"),
-            };
 
-            match rmsg.msg() {
-                relaymsg::AnyRelayMsg::Extended2(e) => {
-                    assert_eq!(e.clone().into_body(), handshake);
-                }
-                _ => panic!("unexpected relay message {rmsg:?}"),
-            }
+            let e = decode_relay_cell!(msg, Extended2);
+            assert_eq!(e.clone().into_body(), handshake);
 
             circid
         }
