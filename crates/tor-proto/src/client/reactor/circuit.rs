@@ -29,6 +29,7 @@ use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
+use crate::stream::flow_ctrl::state::WithSidechannelMitigations;
 use crate::stream::msg_streamid;
 use crate::streammap;
 use crate::tunnel::TunnelScopedCircId;
@@ -746,7 +747,16 @@ impl Circuit {
         if let Some(msg) = res {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "hs-service")] {
-                    return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum, leg);
+                    return self.handle_incoming_stream_request(
+                        handlers,
+                        msg,
+                        streamid,
+                        hopnum,
+                        leg,
+                        // This is an onion service stream,
+                        // so we want sidechannel mitigations for flow control.
+                        WithSidechannelMitigations::Enabled,
+                    );
                 } else {
                     return Err(
                         Error::CircProto(format!("Cannot handle {} cells on this circuit", msg.cmd())),
@@ -846,6 +856,7 @@ impl Circuit {
         stream_id: StreamId,
         hop_num: HopNum,
         leg: UniqId,
+        with_sidechannel_mitigations: WithSidechannelMitigations,
     ) -> Result<Option<CircuitCmd>> {
         use tor_cell::relaycell::msg::EndReason;
         use tor_error::into_internal;
@@ -937,6 +948,7 @@ impl Circuit {
             self.chan_sender.time_provider(),
             stream_id,
             cmd_checker,
+            with_sidechannel_mitigations,
             &memquota,
         )?;
 

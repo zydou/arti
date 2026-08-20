@@ -43,7 +43,9 @@ use tracing::trace;
 use super::reader::DrainRateRequest;
 
 use crate::stream::flow_ctrl::params::{CellCount, FlowCtrlParameters};
-use crate::stream::flow_ctrl::state::{FlowCtrlHooks, HalfStreamFlowCtrlHooks, StreamRateLimit};
+use crate::stream::flow_ctrl::state::{
+    FlowCtrlHooks, HalfStreamFlowCtrlHooks, StreamRateLimit, WithSidechannelMitigations,
+};
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
@@ -83,12 +85,14 @@ impl XonXoffFlowCtrl {
     /// Returns a new xon/xoff-based state.
     pub(crate) fn new(
         params: Arc<FlowCtrlParameters>,
-        use_sidechannel_mitigations: bool,
+        with_sidechannel_mitigations: WithSidechannelMitigations,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
-        let sidechannel_mitigation =
-            use_sidechannel_mitigations.then_some(SidechannelMitigation::new());
+        let sidechannel_mitigation = match with_sidechannel_mitigations {
+            WithSidechannelMitigations::Enabled => Some(SidechannelMitigation::new()),
+            WithSidechannelMitigations::Disabled => None,
+        };
 
         // We use the same XOFF limit regardless of if we're a client or exit.
         // See https://gitlab.torproject.org/tpo/core/torspec/-/issues/371#note_3260658

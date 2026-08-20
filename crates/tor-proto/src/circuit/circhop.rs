@@ -12,7 +12,9 @@ use crate::stream::SEND_WINDOW_INIT;
 use crate::stream::StreamMpscSender;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
-use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl, StreamRateLimit};
+use crate::stream::flow_ctrl::state::{
+    FlowCtrlHooks, StreamFlowCtrl, StreamRateLimit, WithSidechannelMitigations,
+};
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::{StreamQueueReceiver, stream_queue};
 use crate::streammap::{
@@ -509,7 +511,13 @@ impl CircHopOutbound {
         let mut drain_rate_request_tx = NotifySender::new_typed();
         let drain_rate_request_rx = drain_rate_request_tx.subscribe();
 
-        let flow_ctrl = self.build_flow_ctrl(rate_limit_tx, drain_rate_request_tx)?;
+        let flow_ctrl = self.build_flow_ctrl(
+            // We are starting the stream,
+            // so we're a client and want flow control sidechannel mitigations.
+            WithSidechannelMitigations::Enabled,
+            rate_limit_tx,
+            drain_rate_request_tx,
+        )?;
 
         let stream_queue_max_len = flow_ctrl.inbound_queue_max_len();
 
@@ -725,6 +733,7 @@ impl CircHopOutbound {
         time_prov: &DynTimeProvider,
         stream_id: StreamId,
         cmd_checker: AnyCmdChecker,
+        with_sidechannel_mitigations: WithSidechannelMitigations,
         memquota: &StreamAccount,
     ) -> Result<ReactorStreamComponents> {
         // TODO: This has a lot of duplicated code with `Self::begin_stream()`.
@@ -738,7 +747,11 @@ impl CircHopOutbound {
         let mut drain_rate_request_tx = NotifySender::new_typed();
         let drain_rate_request_rx = drain_rate_request_tx.subscribe();
 
-        let flow_ctrl = self.build_flow_ctrl(rate_limit_tx, drain_rate_request_tx)?;
+        let flow_ctrl = self.build_flow_ctrl(
+            with_sidechannel_mitigations,
+            rate_limit_tx,
+            drain_rate_request_tx,
+        )?;
 
         let stream_queue_max_len = flow_ctrl.inbound_queue_max_len();
 
@@ -765,6 +778,7 @@ impl CircHopOutbound {
     #[cfg_attr(feature = "flowctl-cc", expect(clippy::unnecessary_wraps))]
     fn build_flow_ctrl(
         &self,
+        with_sidechannel_mitigations: WithSidechannelMitigations,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Result<StreamFlowCtrl> {
@@ -781,15 +795,9 @@ impl CircHopOutbound {
         } else {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
-                    // TODO: Currently arti only supports clients, and we don't support connecting
-                    // to onion services while using congestion control, so we hardcode this. In the
-                    // future we will need to somehow tell the `CircHop` this so that we can set it
-                    // correctly, since we don't want to enable this at exits.
-                    let use_sidechannel_mitigations = true;
-
                     Ok(StreamFlowCtrl::new_xon_xoff(
                         params,
-                        use_sidechannel_mitigations,
+                        with_sidechannel_mitigations,
                         rate_limit_updater,
                         drain_rate_requester,
                     ))

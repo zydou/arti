@@ -7,6 +7,7 @@ use crate::congestion::{CongestionControl, sendme};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::CloseStreamBehavior;
 use crate::stream::cmdcheck::StreamStatus;
+use crate::stream::flow_ctrl::state::WithSidechannelMitigations;
 use crate::streammap;
 use crate::util::err::ReactorError;
 use crate::{Error, HopNum};
@@ -50,6 +51,9 @@ pub(crate) trait StreamHandler: Send + Sync + 'static {
     /// This is the amount of time we are willing to wait for
     /// an END ack before removing the half-stream from the map.
     fn halfstream_expiry(&self, hop: &CircHopOutbound) -> Duration;
+
+    /// Whether sidechannel mitigations should be enabled for incoming streams.
+    fn flowctrl_sidechannel_mitigations(&self) -> WithSidechannelMitigations;
 }
 
 /// The stream reactor for a given hop.
@@ -436,9 +440,13 @@ impl StreamReactor {
             StreamAccount::new(&self.memquota).map_err(|e| ReactorError::Err(e.into()))?;
 
         let cmd_checker = InboundDataCmdChecker::new_connected();
-        let stream_components =
-            self.hop
-                .add_ent_with_id(&self.time_provider, sid, cmd_checker, &memquota)?;
+        let stream_components = self.hop.add_ent_with_id(
+            &self.time_provider,
+            sid,
+            cmd_checker,
+            self.inner.flowctrl_sidechannel_mitigations(),
+            &memquota,
+        )?;
 
         let outcome = Pin::new(&mut handler.incoming_sender).try_send(StreamReqInfo {
             req,
