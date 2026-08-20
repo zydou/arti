@@ -359,18 +359,21 @@ impl<R: Runtime> ReconfigurableModule for LaunchableTorClient<R> {
         new: &ArtiCombinedConfig,
         how: Reconfigure,
     ) -> Result<(), ReconfigureError> {
-        let _ = how; // XXXX obey "how";
+        if how == Reconfigure::AllOrNothing {
+            // If we're in all-or-nothing mode, we check it first.
+            self.reconfigure(new, Reconfigure::CheckAllOrNothing)?;
+        }
+        let dry_run = how == Reconfigure::CheckAllOrNothing;
 
         if new.0.application().defer_bootstrap && !self.orig_defer_bootstrap {
-            warn!("Cannot enable defer_bootstrap while arti is running.");
+            how.cannot_change_specific("defer_bootstrap", "from off to on")?;
         }
-        if !new.0.application().defer_bootstrap {
+        if !dry_run && !new.0.application().defer_bootstrap {
             self.ensure_bootstrap_launched()
                 .map_err(into_internal!("Unable to launch client bootstrap"))?;
         }
 
-        TorClient::reconfigure(&self.client, &new.1, Reconfigure::WarnOnFailures)
-            .map_err(extract_reconfigure_error)?;
+        TorClient::reconfigure(&self.client, &new.1, how).map_err(extract_reconfigure_error)?;
         Ok(())
     }
 }
@@ -450,34 +453,36 @@ impl Application {
 }
 
 impl ReconfigurableModule for Application {
-    // TODO: This should probably take "how: Reconfigure" as an argument, and
-    // pass it down as appropriate. See issue #1156.
     #[instrument(level = "trace", skip_all)]
     fn reconfigure(
         &self,
         new: &ArtiCombinedConfig,
         how: Reconfigure,
     ) -> Result<(), ReconfigureError> {
-        let _ = how; // XXXX obey "how";
+        if how == Reconfigure::AllOrNothing {
+            // If we're in all-or-nothing mode, we check it first.
+            self.reconfigure(new, Reconfigure::CheckAllOrNothing)?;
+        }
+        let dry_run = how == Reconfigure::CheckAllOrNothing;
 
         let original = &self.original_config;
         let config = &new.0;
 
         if config.proxy() != original.proxy() {
-            warn!("Can't (yet) reconfigure proxy settings while arti is running.");
+            how.cannot_change("proxy settings")?;
         }
         if config.logging() != original.logging() {
-            warn!("Can't (yet) reconfigure logging settings while arti is running.");
+            how.cannot_change("logging")?;
         }
         #[cfg(feature = "rpc")]
         if config.rpc != original.rpc {
-            warn!("Can't (yet) change RPC settings while arti is running.");
+            how.cannot_change("RPC settings")?;
         }
         if config.application().permit_debugging && !original.application().permit_debugging {
-            warn!("Cannot disable application hardening when it has already been enabled.");
+            how.cannot_change_specific("application hardening", "from on to off")?;
         }
         // Note that this is the only config transition we actually perform so far.
-        if !config.application().permit_debugging {
+        if !dry_run && !config.application().permit_debugging {
             #[cfg(feature = "harden")]
             crate::process::enable_process_hardening()
                 .map_err(into_internal!("can't disable debugging"))?;

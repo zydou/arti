@@ -17,6 +17,8 @@ use tor_hsservice::{HsNickname, RunningOnionService};
 use tor_rtcompat::{Runtime, SpawnExt};
 use tracing::debug;
 
+use crate::reload_cfg::ReconfigurableModule;
+
 /// Configuration for running an onion service from `arti`.
 ///
 /// This onion service will forward incoming connections to one or more local
@@ -321,7 +323,11 @@ impl<R: Runtime> ProxySet<R> {
         new_config: OnionServiceProxyConfigMap,
         how: Reconfigure,
     ) -> Result<(), ReconfigureError> {
-        let _ = how; // XXXX implement.
+        if how == Reconfigure::AllOrNothing {
+            self.reconfigure(new_config.clone(), Reconfigure::CheckAllOrNothing)?;
+        }
+        let dry_run = how == Reconfigure::CheckAllOrNothing;
+
         let mut proxy_map = self.proxies.lock().expect("lock poisoned");
 
         // Set of the nicknames of defunct proxies.
@@ -337,39 +343,41 @@ impl<R: Runtime> ProxySet<R> {
                 Entry::Occupied(mut existing_proxy) => {
                     // We already have a proxy by this name, so we try to
                     // reconfigure it.
-                    existing_proxy
-                        .get_mut()
-                        .reconfigure(cfg, Reconfigure::WarnOnFailures)?;
+                    existing_proxy.get_mut().reconfigure(cfg, how)?;
                 }
                 Entry::Vacant(ent) => {
                     // We do not have a proxy by this name, so we try to launch
                     // one.
-                    match Proxy::launch_new(&self.client, cfg) {
-                        Ok(Some(new_proxy)) => {
-                            ent.insert(new_proxy);
-                        }
-                        Ok(None) => {
-                            debug!(
-                                "Onion service {} didn't start (disabled in config)",
-                                ent.key()
-                            );
-                        }
-                        Err(err) => {
-                            warn_report!(err, "Unable to launch onion service {}", ent.key());
+                    if !dry_run {
+                        match Proxy::launch_new(&self.client, cfg) {
+                            Ok(Some(new_proxy)) => {
+                                ent.insert(new_proxy);
+                            }
+                            Ok(None) => {
+                                debug!(
+                                    "Onion service {} didn't start (disabled in config)",
+                                    ent.key()
+                                );
+                            }
+                            Err(err) => {
+                                warn_report!(err, "Unable to launch onion service {}", ent.key());
+                            }
                         }
                     }
                 }
             }
         }
 
-        for nickname in defunct_nicknames {
-            // We no longer have any configuration for this proxy, so we remove
-            // it from our map.
-            let defunct_proxy = proxy_map
-                .remove(&nickname)
-                .expect("Somehow a proxy disappeared from the map");
-            // This "drop" should shut down the proxy.
-            drop(defunct_proxy);
+        if !dry_run {
+            for nickname in defunct_nicknames {
+                // We no longer have any configuration for this proxy, so we remove
+                // it from our map.
+                let defunct_proxy = proxy_map
+                    .remove(&nickname)
+                    .expect("Somehow a proxy disappeared from the map");
+                // This "drop" should shut down the proxy.
+                drop(defunct_proxy);
+            }
         }
 
         Ok(())
@@ -381,26 +389,19 @@ impl<R: Runtime> ProxySet<R> {
     }
 }
 
-impl<R: Runtime> crate::reload_cfg::ReconfigurableModule for ProxySet<R> {
+impl<R: Runtime> ReconfigurableModule for ProxySet<R> {
     fn reconfigure(
         &self,
         new: &crate::ArtiCombinedConfig,
         how: Reconfigure,
     ) -> Result<(), ReconfigureError> {
-        let _ = how; // XXXX obey "how";
-
         if new.0.application().defer_bootstrap {
             // Do not actually launch any onion services unless we are trying
             // to bootstrap the client.
             return Ok(());
         }
 
-        // XXXX set how
-        ProxySet::reconfigure(
-            self,
-            new.0.onion_services.clone(),
-            Reconfigure::WarnOnFailures,
-        )?;
+        ProxySet::reconfigure(self, new.0.onion_services.clone(), how)?;
         Ok(())
     }
 }
