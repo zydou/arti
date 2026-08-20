@@ -135,10 +135,9 @@ In terms of the actual DNS resolution, we plan to
 
   * stop instructing exit operators to run `unbound` or other local recursive
     resolvers; instead, we will recommend using the ISP's resolver
-    (the ISP already sees all outgoing connections, so we wouldn't be leaking any
-    additional information by doing this)
   * internally, `arti-relay` will use a caching stub resolver,
     ideally one that supports DoE and DNSSEC
+
 
 ### Implementation
 
