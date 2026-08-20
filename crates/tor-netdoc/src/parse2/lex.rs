@@ -314,6 +314,8 @@ impl<'s> ItemStream<'s> {
         let args = ArgumentStream::new(args, line.len(), options);
 
         let object = if self.lines.remaining().starts_with('-') {
+            let lines = &mut self.lines;
+
             fn pem_delimiter<'s>(lines: &mut Lines<'s>, start: &str) -> Result<&'s str, EP> {
                 let line = lines.next().ok_or(
                     // If this is the *header*, we already know there's a line,
@@ -328,17 +330,22 @@ impl<'s> ItemStream<'s> {
                 Ok(label)
             }
 
-            let label1 = pem_delimiter(&mut self.lines, PEM_HEADER_START)?;
-            let base64_start_remaining = self.lines.remaining();
-            while !self.lines.remaining().starts_with('-') {
-                let _: &str = self.lines.next().ok_or(EP::ObjectMissingFooter)?;
+            let label1 = pem_delimiter(lines, PEM_HEADER_START)?;
+            let base64_start_remaining = lines.remaining();
+            while !lines.remaining().starts_with('-') {
+                let _: &str = lines.next().ok_or(EP::ObjectMissingFooter)?;
             }
-            let data_b64 = base64_start_remaining.strip_end_counted(self.lines.remaining().len());
-            let label2 = pem_delimiter(&mut self.lines, PEM_FOOTER_START)?;
+            let data_b64 = base64_start_remaining.strip_end_counted(lines.remaining().len());
+            let label2 = pem_delimiter(lines, PEM_FOOTER_START)?;
             let label = [label1, label2]
                 .into_iter()
                 .all_equal_value()
                 .map_err(|_| EP::ObjectMismatchedLabels)?;
+
+            // Proof that self.lines isn't used between `let lines = ` and here:
+            // we have it borrowed.
+            let _: &mut Lines = lines;
+
             Some(UnparsedObject {
                 label,
                 data_b64,
