@@ -107,6 +107,8 @@ impl IncomingStream {
 
     /// Accept this stream as a new [`DataStream`], and send the client a
     /// message letting them know the stream was accepted.
+    ///
+    /// Returns an error if this is not a data or directory stream.
     pub async fn accept_data(self, message: msg::Connected) -> Result<DataStream> {
         let Self {
             time_provider,
@@ -140,6 +142,8 @@ impl IncomingStream {
     /// Respond to a DNS stream by sending the specified `message` to the client.
     ///
     /// This closes the stream.
+    ///
+    /// Returns an error this is not a DNS stream.
     #[cfg(feature = "relay")]
     pub async fn resolve(mut self, message: msg::Resolved) -> Result<()> {
         // XXX implement
