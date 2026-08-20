@@ -337,16 +337,23 @@ each of which  gets a clone of the `DnsResolver`.
 In `TorRelay::run()`:
 
 ```rust
+    // Use the host's /etc/resolv.conf
+    //
+    // TODO: enable DNSSEC and DoT, disable hickory's internal cache
+    let resolver = Arc::new(Resolver::builder_tokio()?.build()?);
+
     // Spin up a new DNS resolver for this relay.
     //
     // There is only one resolver per arti-relay process,
     // shared by all circuits. IOW, all circuits share the same cache
     // (this is Option 2 from above).
-    let (mut reactor, resolver) = DnsResolverReactor::new();
+    let (reactor, resolver) = DnsResolverReactor::new(resolver);
 
     // Note: if we want per-circuit caches instead,
     // we will need to spawn a new DnsResolverReactor
-    // for each circuit, in `handle_circuit_incoming_streams()`
+    // for each circuit, in `handle_circuit_incoming_streams()`,
+    /// all of them sharing an Arc::clone of the same underlying
+    /// hickory Resolver
     runtime.spawn(async move { reactor.run().await });
 
 ```
@@ -367,11 +374,10 @@ pub(crate) async fn handle_resolve(
     // 1. extract the Resolve relay msg from incoming
     let resolve = ...
 
-    // 2. Build a DnsQuery for the DnsResolver
-    let query = ...
-
-    // 3. Perform the lookup
-    let ans = resolver.resolve(query).await?;
+    // 2. Pass the RESOLVE to the resolver
+    // (note: we may want to pass a different type here),
+    // and perform the lookup
+    let ans = resolver.resolve(resolve).await?;
 
     let resolved = Resolved::new_empty();
     // 3. push the answers into resolved
@@ -387,18 +393,22 @@ we implement a simple cache (options 2 and 3),
 or a popularity-based cache (option 5).
 
 But in either case, the handle to the reactor, the `DnsResolver`,
-will have the same API:
+will have same API, and roughly the same implementation:
 
 ```rust
 /// A handle to the [`DnsResolverReactor`].
 #[derive(Clone)]
 pub(crate) struct DnsResolver {
     /// Sender for sending DNS queries to the reactor
+    ///
+    /// The reactor sends back each response over a DnsResponseReceiver.
     query_tx: mpsc::Sender<DnsRequest>,
 }
 
 struct DnsResponseReceiver {
-    res: Either<DnsResponse, watch::Receiver<Option<DnsResponse>>>,
+    /// The response is either from cache (Left),
+    /// or from a lookup that needs to be .awaited (Right).
+    res: Either<DnsResponse, oneshot_broadcast::Receiver<DnsResponse>>,
 }
 
 impl DnsResponseReceiver {
@@ -408,29 +418,34 @@ impl DnsResponseReceiver {
         }
     }
 
-    fn from_watch(watch_rx: watch::Receiver<Option<DnsResponse>>) -> Self {
+    fn from_watch(watch_rx: oneshot_broadcast::Receiver<DnsResponse>) -> Self {
         Self {
             res: Either::Right(watch_rx),
         }
     }
 
-    async fn recv(mut self) -> Result<DnsResponse> {
+    async fn recv(self) -> DnsResponse {
         match self.res {
-            Either::Left(res) => Ok(res),
-            Either::Right(mut watch_rx) => {
-                // the first read on the watch channel is
-                // the initial value (None), which we need to discard
-                watch_rx.borrow_and_update();
-
-                if watch_rx.changed().await.is_err() {
-                    //...
-                }
-
-                watch_rx
-                    .borrow_and_update()
-                    .clone()
-                    .ok_or_else(|| internal!("our implementation sent None?!"))
+            Either::Left(res) => {
+                // TIMELESS-SIDE-CHANNEL-MITIGATION:
+                //
+                // (this is not needed if we're implementing per-circuit caches)
+                //
+                // Insert a randomized delay here to create FP for attackers
+                // probing for cached domains.
+                //
+                // This delay will need to be based on past DNS lookup timings,
+                // so as not to make the cached responses stand out too much.
+                // But we don't want to make this delay too high,
+                // because we'd lose out on any UX/perf improvement that
+                // we were hoping to get out of caching.
+                //
+                // Question: how to pick an appropriate delay here?
+                // One possibility would be to sample non-uniformly
+                // from [0, rolling_avg_lookup_time].
+                res
             }
+            Either::Right(watch_rx) => watch_rx.await.unwrap(),
         }
     }
 }
@@ -440,19 +455,20 @@ impl DnsResolver {
         Self { query_tx }
     }
 
-    async fn resolve(&mut self, query: DnsQuery) -> Result<DnsResponse> {
+    async fn resolve(&mut self, query: Resolve) -> Result<DnsResponse> {
         let (tx, rx) = oneshot::channel();
 
         let req = DnsRequest { query, tx };
         // Send the query to the reactor,
         // which handles the actual DNS resolution,
         // and then wait for it to respond
-        self.query_tx.send(req).await.unwrap();
+        self.query_tx.send(req).await?;
 
         let response_rx = rx.await?;
         response_rx.recv().await
     }
 }
+
 ```
 
 And the proposed reactor implementations are
