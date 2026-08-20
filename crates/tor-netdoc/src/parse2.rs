@@ -301,3 +301,72 @@ pub fn parse_netdoc_multiple_with_offsets<D: NetdocParseable>(
         Ok(docs)
     })
 }
+
+/// Parse multiple network documents, with error recovery  - **toplevel entrypoint**
+///
+/// Parses multiple documents.  If an error is encountered, it is returned,
+/// and parsing continues with the next document (if possible).
+///
+/// Each document or error is accompanied by the applicable byte offsets in the input document,
+/// as with [`parse_netdoc_multiple_with_offsets`].
+#[allow(clippy::type_complexity)] // Yes, the return type is complicated
+pub fn parse_netdoc_multiple_sophisticated<D: NetdocParseable>(
+    input: &ParseInput<'_>,
+) -> Result<Vec<(Result<D, ParseError>, usize, usize)>, Bug> {
+    // Largely separate from parse_netdoc_multiple_with_offsets because the differences
+    // are control flow; attempts at unifying these led to very confusing code.
+
+    let mut items = ItemStream::new(input);
+    let mut docs = vec![];
+    let mut push_doc = |doc, start, end| {
+        multi_push_doc(&mut docs, input, doc, start, end)
+            .map_err(into_internal!("while parsing netdoc sequence"))
+    };
+
+    'docs: loop {
+        let start_pos = items.byte_position();
+
+        // Insisting on a KeywordRef prevents mistaken omission of code in match arms.
+        let _intro_kw: KeywordRef = match items.peek_keyword() {
+            Ok(Some(kw)) => kw,
+            Ok(None) => break 'docs,
+            Err(e) => {
+                push_doc(
+                    Err(error_handler::<D>(input, &items)(e)),
+                    start_pos,
+                    items.whole_input().len(),
+                )?;
+                // can't continue
+                break 'docs;
+            }
+        };
+
+        let doc = D::from_items(&mut items, StopAt(false)) //
+            .map_err(error_handler::<D>(input, &items));
+
+        let is_err = doc.is_err();
+        let end_pos = items.byte_position();
+        push_doc(doc, start_pos, end_pos)?;
+
+        if is_err {
+            // Skip the rest of the erroneous document until we find the next intro item.
+            //
+            // If we get lexical errors during error recovery, we don't *also* report them
+            // and instead, just stop processing the input; hence the `.unwrap_or(None)`.
+            // (And this is why we insist on `break 'docs`, rather than just break.)
+            //
+            // Insisting on KeywordRef and UnparsedItem helps prevent mistakes.
+            let _next_intro_kw: KeywordRef = 'skip: loop {
+                let _discard_item: UnparsedItem = match items.peek_keyword().unwrap_or(None) {
+                    None => break 'docs,
+                    Some(kw) if D::is_intro_item_keyword(kw) => break 'skip kw,
+                    Some(_other_kw) => match items.next().transpose().unwrap_or(None) {
+                        Some(item) => item,
+                        None => break 'docs,
+                    },
+                };
+            };
+        }
+    }
+    Ok(docs)
+}
