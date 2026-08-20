@@ -185,7 +185,6 @@ impl<R: Runtime> CfgMgr<R> {
     #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
     pub(crate) fn reload_configuration(&self, how: Reconfigure) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().expect("Lock poisoned");
-        let _ = how; // XXXX Actually use how.
 
         // Question: I do not understand why we are making a new file watcher unconditionally
         // at this point. -nm
@@ -204,21 +203,22 @@ impl<R: Runtime> CfgMgr<R> {
 
         let config = found_files.load()?;
 
-        // XXXX: Use `how` more sensibly here; pick a better how.
-        match reconfigure(config, &mut inner, Reconfigure::WarnOnFailures) {
+        match reconfigure(config, &mut inner, how) {
             Ok(watch) => {
                 info!("Successfully reloaded configuration.");
-                if watch && inner.watcher.is_none() {
-                    info!("Starting watching over configuration.");
-                    let (watcher, _files) = self
-                        .launch_file_watcher()
-                        .context("Starting to watch over config")?;
-                    inner.watcher = Some(watcher);
-                } else if !watch && inner.watcher.is_some() {
-                    info!("Stopped watching over configuration.");
-                    inner.watcher = None;
-                } else {
-                    inner.watcher = new_watcher;
+                if how != Reconfigure::CheckAllOrNothing {
+                    if watch && inner.watcher.is_none() {
+                        info!("Starting watching over configuration.");
+                        let (watcher, _files) = self
+                            .launch_file_watcher()
+                            .context("Starting to watch over config")?;
+                        inner.watcher = Some(watcher);
+                    } else if !watch && inner.watcher.is_some() {
+                        info!("Stopped watching over configuration.");
+                        inner.watcher = None;
+                    } else {
+                        inner.watcher = new_watcher;
+                    }
                 }
             }
             Err(e) => warn_report!(e, "Couldn't reload configuration"),
