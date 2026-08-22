@@ -18,7 +18,6 @@ use tor_config::file_watcher::{
 };
 use tor_config::load::{ConfigResolveOptions, DisfavouredKey};
 use tor_config::{ConfigurationSource, ConfigurationSources, sources::FoundConfigFiles};
-#[cfg(feature = "harden")]
 use tor_error::into_internal;
 use tor_error::warn_report;
 use tor_rtcompat::Runtime;
