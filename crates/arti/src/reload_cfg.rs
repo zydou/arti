@@ -11,7 +11,6 @@ use futures::StreamExt;
 use futures::stream::BoxStream;
 use futures::{FutureExt as _, Stream, select_biased};
 use tor_basic_utils::error_sources::ErrorSources;
-#[cfg(feature = "rpc")]
 use tor_config::ConfigurationTree;
 use tor_config::ReconfigureError;
 use tor_config::file_watcher::{
