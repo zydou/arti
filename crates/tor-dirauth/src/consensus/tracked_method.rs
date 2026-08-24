@@ -83,7 +83,8 @@ impl TrackedConsensusMethod {
             // is below the recorded value, so we don't need to adjust `boundary`.
             //
             // (chain! .max() rather than cmp::max for consistency with the other arm, below)
-            equiv.closed_start = chain!(Some(equiv.closed_start), Some(boundary)).max()
+            equiv.closed_start = chain!(Some(equiv.closed_start), Some(boundary))
+                .max()
                 .expect("boundaries on input so must be on output");
         } else {
             // This test was for values above the actual method.
