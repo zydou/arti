@@ -38,9 +38,9 @@ pub struct TrackedConsensusMethod {
 pub struct ConsensusMethodRange {
     /// Methods `>=` this
     ///
-    /// `None` and `Some(0)` here have the same meaning.
+    /// Does not need to be `Option` since `>= 0` means there is no lower bound.
     #[getter(as_copy)]
-    closed_start: Option<ConsensusMethod>,
+    closed_start: ConsensusMethod,
 
     /// Methods `<` this
     #[getter(as_copy)]
@@ -81,7 +81,10 @@ impl TrackedConsensusMethod {
             //
             // The range being inclusive at the start means that the implied start boundary
             // is below the recorded value, so we don't need to adjust `boundary`.
-            equiv.closed_start = chain!(equiv.closed_start, Some(boundary)).max();
+            //
+            // (chain! .max() rather than cmp::max for consistency with the other arm, below)
+            equiv.closed_start = chain!(Some(equiv.closed_start), Some(boundary)).max()
+                .expect("boundaries on input so must be on output");
         } else {
             // This test was for values above the actual method.
             // It narrows the top end of the range.
@@ -121,15 +124,27 @@ impl ConsensusMethodRange {
     /// Return a new `ConsensusMethodRange` representing all consensus methods
     pub fn new_all() -> Self {
         ConsensusMethodRange {
-            closed_start: None,
+            closed_start: ConsensusMethod(0),
             open_end: None,
+        }
+    }
+
+    /// Returns the (inclusive) start bound, if it's nontrivial
+    ///
+    /// Used for providing a faithful implementation of `RangeBounds`,
+    /// and nicer `Debug` output.
+    fn start_bound_option(&self) -> Option<&ConsensusMethod> {
+        if self.closed_start.0 == 0 {
+            None
+        } else {
+            Some(&self.closed_start)
         }
     }
 }
 
 impl RangeBounds<ConsensusMethod> for ConsensusMethodRange {
     fn start_bound(&self) -> Bound<&ConsensusMethod> {
-        match &self.closed_start {
+        match &self.start_bound_option() {
             None => Bound::Unbounded,
             Some(s) => Bound::Included(s),
         }
@@ -201,9 +216,9 @@ impl Debug for ConsensusMethodRange {
             }
         };
         write!(f, "ConsensusMethodRange(")?;
-        write_bound(f, self.closed_start)?;
+        write_bound(f, self.start_bound_option())?;
         write!(f, "..")?;
-        write_bound(f, self.open_end)?;
+        write_bound(f, self.open_end.as_ref())?;
         write!(f, ")")?;
         Ok(())
     }
@@ -260,7 +275,7 @@ pub(crate) mod test {
         let duplicates = results.values().duplicates().collect_vec();
         // The ==50 and ==60 tests means 40..50, 51..60, 61.. are all the same
         let expected_duplicates = [&results[&ConsensusMethodRange {
-            closed_start: Some(40.into()),
+            closed_start: 40.into(),
             open_end: Some(50.into()),
         }]];
         assert_eq!(duplicates, expected_duplicates);
