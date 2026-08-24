@@ -217,7 +217,7 @@ pub(crate) fn invalid_system_time() -> SystemTime {
     valid_system_time() + Duration::from_secs(60 * 60 * 24 * 365 * 2)
 }
 
-/// Creates a test vector database.
+/// Creates a database based on data from test vectors.
 ///
 /// The database is initialized with the following data:
 /// * The database schema.
