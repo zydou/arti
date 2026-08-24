@@ -9,9 +9,10 @@ use anyhow::Context as _;
 
 use tor_dirauth::consensus;
 use tor_error::{Bug, ErrorReport as _};
+use tor_netdoc::parse2::{self, NetdocParseable};
 
 mod utils;
-use utils::FilenameOrStdio;
+use utils::{CTorAnnotated, FilenameOrStdio};
 
 /// Options and arguments to plugin invocation
 #[derive(Debug, clap::Parser)]

@@ -4,9 +4,9 @@ use std::fs::{self, File};
 use std::io::{self, BufReader, BufWriter, Read as _, Write as _};
 use std::str::FromStr;
 
-use anyhow::{Context as _, anyhow};
+use anyhow::anyhow;
 
-use super::CliError;
+use super::*;
 
 /// Command line filename argument, allowing `-` for stdin/stdout
 ///
@@ -247,4 +247,41 @@ impl Writing {
 /// Helper to convert an error encountered while writing to CliError
 fn convert_output_error(e: anyhow::Error) -> CliError {
     CliError::OperationalError(e.context("write output"))
+}
+
+/// A network document, but possibly preceded by C Tor `@`-annotation(s)
+///
+/// Parsing adapter wrapper.
+///
+/// Implements `NetdocParseable`: discards any annotations,
+/// and then parses `D`.
+pub(crate) struct CTorAnnotated<D>(pub(crate) D);
+
+impl<D: NetdocParseable> NetdocParseable for CTorAnnotated<D> {
+    fn doctype_for_error() -> &'static str {
+        D::doctype_for_error()
+    }
+    fn is_intro_item_keyword(kw: tor_netdoc::parse2::KeywordRef<'_>) -> bool {
+        D::is_intro_item_keyword(kw)
+    }
+    fn is_structural_keyword(
+        kw: tor_netdoc::parse2::KeywordRef<'_>,
+    ) -> Option<parse2::IsStructural> {
+        D::is_structural_keyword(kw)
+    }
+    fn from_items(
+        input: &mut parse2::ItemStream<'_>,
+        stop_at: tor_netdoc::stop_at!(),
+    ) -> Result<Self, parse2::ErrorProblem> {
+        input.with_inner_lines_mut(|lines| {
+            while let Some(peeked) = lines.peek() {
+                let line = lines.peeked_line(&peeked);
+                if !line.starts_with('@') {
+                    break;
+                }
+                let _: &str = lines.next().expect("just peeked");
+            }
+        });
+        D::from_items(input, stop_at).map(CTorAnnotated)
+    }
 }
