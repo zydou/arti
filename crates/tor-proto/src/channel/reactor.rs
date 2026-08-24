@@ -1040,7 +1040,8 @@ pub(crate) mod test {
     #[test]
     fn new_circ_closed() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, mut reactor, mut output, _input) = new_reactor(rt.clone(), ChannelMode::Client);
+            let (chan, mut reactor, mut output, _input) =
+                new_reactor(rt.clone(), ChannelMode::Client);
             assert!(chan.duration_unused().is_some()); // unused yet
 
             let (ret, reac) = futures::join!(
@@ -1082,7 +1083,8 @@ pub(crate) mod test {
         use tor_rtcompat::SleepProvider;
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, mut reactor, mut output, mut input) = new_reactor(rt.clone(), ChannelMode::Client);
+            let (chan, mut reactor, mut output, mut input) =
+                new_reactor(rt.clone(), ChannelMode::Client);
 
             let (ret, reac) = futures::join!(
                 chan.new_tunnel(Arc::new(DummyTimeoutEstimator)),
@@ -1163,7 +1165,8 @@ pub(crate) mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use oneshot_fused_workaround as oneshot;
 
-            let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone(), ChannelMode::Client);
+            let (_chan, mut reactor, _output, mut input) =
+                new_reactor(rt.clone(), ChannelMode::Client);
 
             let (padding_ctrl, _padding_stream) = new_padding(DynTimeProvider::new(rt));
 
@@ -1255,7 +1258,8 @@ pub(crate) mod test {
             use crate::circuit::celltypes::*;
             use oneshot_fused_workaround as oneshot;
 
-            let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone(), ChannelMode::Client);
+            let (_chan, mut reactor, _output, mut input) =
+                new_reactor(rt.clone(), ChannelMode::Client);
 
             let (padding_ctrl, _padding_stream) = new_padding(DynTimeProvider::new(rt));
 
