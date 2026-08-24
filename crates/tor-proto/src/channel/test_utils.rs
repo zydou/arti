@@ -18,7 +18,7 @@ use tor_rtcompat::{NoOpStreamOpsHandle, Runtime, SpawnExt as _};
 
 use crate::ClockSkew;
 use crate::channel::circmap::CircIdRange;
-use crate::channel::reactor::test::{CodecResult, new_reactor};
+use crate::channel::reactor::test::new_reactor;
 use crate::channel::{
     BoxedChannelSink, BoxedChannelStream, Canonicity, Channel, ChannelMode, Reactor, UniqId,
 };
@@ -34,6 +34,8 @@ use {
     crate::stream::incoming::NoOpRequestFilter,
     tor_relay_crypto::pk::RelayNtorKeys,
 };
+
+pub(crate) use crate::channel::reactor::test::CodecResult;
 
 /// Construct a new channel and its reactor.
 pub(crate) fn new_channel<R: Runtime>(
