@@ -1195,9 +1195,31 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     pub(crate) use crate::channel::reactor::test::{CodecResult, new_reactor};
+    use futures::channel::mpsc::{Receiver, Sender};
     use tor_cell::chancell::msg::HandshakeType;
     use tor_cell::chancell::{AnyChanCell, msg};
-    use tor_rtcompat::test_with_one_runtime;
+    use tor_rtcompat::{Runtime, SpawnExt as _, test_with_one_runtime};
+
+    /// Dummy channel, returned by [`working_fake_channel`].
+    pub(crate) struct DummyChan {
+        /// Tor channel output
+        pub(crate) rx: Receiver<AnyChanCell>,
+        /// Tor channel input
+        pub(crate) tx: Sender<CodecResult>,
+        /// A handle to the Channel object, to prevent the channel reactor
+        /// from shutting down prematurely.
+        pub(crate) channel: Arc<Channel>,
+    }
+
+    pub(crate) fn working_dummy_channel<R: Runtime>(rt: &R) -> DummyChan {
+        let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
+        rt.spawn(async {
+            let _ignore = chan_reactor.run().await;
+        })
+        .unwrap();
+
+        DummyChan { tx, rx, channel }
+    }
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     pub(crate) fn fake_channel(

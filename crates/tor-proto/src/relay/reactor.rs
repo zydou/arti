@@ -354,6 +354,7 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use crate::channel::test::{DummyChan, working_dummy_channel};
     use crate::circuit::reactor::test::{AllowAllStreamsFilter, rmsg_to_ccmsg};
     use crate::circuit::test::fake_mpsc;
     use crate::circuit::{CircParameters, CircuitRxSender};
@@ -361,7 +362,7 @@ pub(crate) mod test {
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
-    use crate::relay::channel::test::{DummyChan, DummyChanProvider, working_dummy_channel};
+    use crate::relay::channel::test::DummyChanProvider;
     use crate::stream::flow_ctrl::params::FlowCtrlParameters;
     use crate::stream::incoming::{IncomingStream, IncomingStreamRequest};
 
