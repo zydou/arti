@@ -355,25 +355,35 @@ pub(crate) mod test {
 
     use super::*;
     use crate::channel::ChannelMode;
+    use crate::channel::circmap::CircIdRange;
     use crate::channel::test_utils::DummyChan;
     use crate::circuit::reactor::test::{AllowAllStreamsFilter, rmsg_to_ccmsg};
     use crate::circuit::test::fake_mpsc;
+    use crate::circuit::test::new_circ_net_params;
     use crate::circuit::{CircParameters, CircuitRxSender};
     use crate::client::circuit::padding::new_padding;
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
+    use crate::relay::CreateRequestHandler;
     use crate::relay::channel::test::DummyChanProvider;
     use crate::stream::flow_ctrl::params::FlowCtrlParameters;
-    use crate::stream::incoming::{IncomingStream, IncomingStreamRequest};
+    use crate::stream::incoming::{IncomingStream, IncomingStreamRequest, NoOpRequestFilter};
 
     use futures::AsyncReadExt as _;
     use tracing_test::traced_test;
 
+    use tor_basic_utils::test_rng::{TestingRng, testing_rng};
     use tor_cell::chancell::{ChanCell, ChanCmd, msg as chanmsg};
     use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, msg as relaymsg};
+    use tor_key_forge::Keygen;
     use tor_linkspec::{EncodedLinkSpec, HasRelayIds, LinkSpec};
+    use tor_llcrypto::pk::curve25519::StaticKeypair;
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
+    use tor_llcrypto::pk::rsa::RsaIdentity;
+    use tor_llcrypto::rng::FakeEntropicRng;
     use tor_protover::{Protocols, named};
+    use tor_relay_crypto::pk::RelayNtorKeys;
     use tor_rtcompat::SpawnExt;
     use tor_rtcompat::{DynTimeProvider, Runtime};
     use tor_rtmock::MockRuntime;
@@ -382,7 +392,7 @@ pub(crate) mod test {
     use relaymsg::SendmeTag;
 
     use std::net::IpAddr;
-    use std::sync::{Arc, Mutex, mpsc};
+    use std::sync::{Arc, Mutex, Weak, mpsc};
     use std::task::{Context, Poll, Waker};
 
     // An inbound encryption layer that doesn't do any crypto.
@@ -482,6 +492,49 @@ pub(crate) mod test {
         }};
     }
 
+    const DUMMY_ED25519_KEY: [u8; 32] = *b"32 bytes pretending to be a key!";
+    const DUMMY_RSA_KEY: [u8; 20] = *b"not really an RSA ky";
+
+    /// Helper for building a [`ChannelMode::Relay`] for our test reactor
+    fn build_channel_mode<R: Runtime>(
+        chan_provider: Arc<DummyChanProvider<R>>,
+        allowed_stream_cmds: &[RelayCmd],
+    ) -> ChannelMode {
+        let our_ed25519_id = Ed25519Identity::from_bytes(&DUMMY_ED25519_KEY).unwrap();
+        let our_rsa_id = RsaIdentity::from_bytes(&DUMMY_RSA_KEY).unwrap();
+
+        let mut rng = FakeEntropicRng::<TestingRng>(testing_rng());
+        let relay_ntor_keys = StaticKeypair::generate(&mut rng).unwrap();
+
+        // A handler that will process CREATE* requests on channels
+        //
+        // Note: in practice, this won't actually be used at all,
+        // because for the purposes of these tests, the circuit reactor is spawned manually,
+        // by ReactorTestCtrl::new(), which also hackily initializes the channel's circuit map
+        // with a circuit entry for it.
+        //
+        // This should be fine for now, but we might want to rethink it in the future
+        // (i.e. we might want to let the channel reactor spawn the circuit reactor under test,
+        // in response to CREATE*).
+        let (create_request_handler, _circuit_stream_rx) = CreateRequestHandler::new(
+            Arc::downgrade(&chan_provider) as Weak<_>,
+            new_circ_net_params(),
+            RelayNtorKeys::new(relay_ntor_keys.into()),
+            // Don't filter any stream requests.
+            Box::new(|| Box::new(NoOpRequestFilter) as Box<_>),
+            allowed_stream_cmds,
+        );
+        let create_request_handler = Arc::new(create_request_handler);
+
+        ChannelMode::Relay {
+            create_request_handler,
+            our_ed25519_id,
+            our_rsa_id,
+            // This doesn't actually matter for these tests
+            circ_id_range: CircIdRange::Low,
+        }
+    }
+
     impl ReactorTestCtrl {
         /// Spawn a relay circuit reactor, returning a `ReactorTestCtrl` for
         /// controlling it.
@@ -493,8 +546,13 @@ pub(crate) mod test {
             use crate::circuit::circ_sender;
             use oneshot_fused_workaround as oneshot;
 
-            // XXX use the Relay mode
-            let mode = ChannelMode::Client;
+            let outbound_chan = Arc::new(Mutex::new(None));
+            let chan_provider = Arc::new(DummyChanProvider::new(
+                rt.clone(),
+                Arc::clone(&outbound_chan),
+            ));
+
+            let mode = build_channel_mode(Arc::clone(&chan_provider), allowed_stream_cmds);
             let inbound_chan = DummyChan::run(rt, mode);
 
             let memquota = CircuitAccount::new_noop();
@@ -541,13 +599,7 @@ pub(crate) mod test {
             )
             .unwrap();
 
-            let outbound_chan = Arc::new(Mutex::new(None));
             let (recognized_tx, recognized_rx) = mpsc::channel();
-            let chan_provider = Arc::new(DummyChanProvider::new(
-                rt.clone(),
-                Arc::clone(&outbound_chan),
-            ));
-
             let (reactor, relay_circ, incoming_streams) = Reactor::new(
                 rt.clone(),
                 &Arc::clone(&inbound_chan.channel),
