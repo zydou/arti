@@ -354,7 +354,7 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::channel::test_utils::{DummyChan, working_dummy_channel};
+    use crate::channel::test_utils::DummyChan;
     use crate::circuit::reactor::test::{AllowAllStreamsFilter, rmsg_to_ccmsg};
     use crate::circuit::test::fake_mpsc;
     use crate::circuit::{CircParameters, CircuitRxSender};
@@ -471,7 +471,7 @@ pub(crate) mod test {
             use crate::circuit::circ_sender;
             use oneshot_fused_workaround as oneshot;
 
-            let inbound_chan = working_dummy_channel(rt);
+            let inbound_chan = DummyChan::run(rt);
 
             let memquota = CircuitAccount::new_noop();
             let time_provider = DynTimeProvider::new(rt.clone());

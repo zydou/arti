@@ -467,7 +467,7 @@ pub(crate) mod test {
     use web_time_compat::SystemTimeExt;
 
     use crate::channel::handler::test::MsgBuf;
-    use crate::channel::test_utils::{DummyChan, working_dummy_channel};
+    use crate::channel::test_utils::DummyChan;
     use crate::circuit::UniqId;
     use crate::relay::channel::RelayChannelAuthMaterial;
     use crate::relay::channel_provider::{ChannelProvider, OutboundChanSender};
@@ -561,7 +561,7 @@ pub(crate) mod test {
             _target: Self::BuildSpec,
             tx: OutboundChanSender,
         ) -> crate::Result<()> {
-            let dummy_chan = working_dummy_channel(&self.runtime);
+            let dummy_chan = DummyChan::run(&self.runtime);
             let chan = Arc::clone(&dummy_chan.channel);
             {
                 let mut lock = self.outbound.lock().unwrap();
