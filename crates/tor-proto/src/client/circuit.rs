@@ -1014,7 +1014,8 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::channel::test::{CodecResult, DummyChan, working_dummy_channel};
+    use crate::channel::test::CodecResult;
+    use crate::channel::test_utils::{DummyChan, working_dummy_channel};
     use crate::circuit::CircuitRxSender;
     use crate::circuit::reactor::test::rmsg_to_ccmsg;
     use crate::circuit::test::fake_mpsc;

@@ -467,7 +467,7 @@ pub(crate) mod test {
     use web_time_compat::SystemTimeExt;
 
     use crate::channel::handler::test::MsgBuf;
-    use crate::channel::test::{DummyChan, working_dummy_channel};
+    use crate::channel::test_utils::{DummyChan, working_dummy_channel};
     use crate::circuit::UniqId;
     use crate::relay::channel::RelayChannelAuthMaterial;
     use crate::relay::channel_provider::{ChannelProvider, OutboundChanSender};

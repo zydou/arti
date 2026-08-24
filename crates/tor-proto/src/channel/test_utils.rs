@@ -18,6 +18,7 @@ use tor_rtcompat::{NoOpStreamOpsHandle, Runtime, SpawnExt as _};
 
 use crate::ClockSkew;
 use crate::channel::circmap::CircIdRange;
+use crate::channel::reactor::test::{CodecResult, new_reactor};
 use crate::channel::{
     BoxedChannelSink, BoxedChannelStream, Canonicity, Channel, ChannelMode, Reactor, UniqId,
 };
@@ -255,6 +256,28 @@ pub(crate) async fn new_pending_tunnel<R: Runtime>(
     .unwrap();
 
     pending_tunnel
+}
+
+/// Dummy channel, returned by [`working_dummy_channel`].
+pub(crate) struct DummyChan {
+    /// Tor channel output
+    pub(crate) rx: mpsc::Receiver<AnyChanCell>,
+    /// Tor channel input
+    pub(crate) tx: mpsc::Sender<CodecResult>,
+    /// A handle to the Channel object, to prevent the channel reactor
+    /// from shutting down prematurely.
+    pub(crate) channel: Arc<Channel>,
+}
+
+/// Create a dummy client channel, and spawn a task for its eactor.
+pub(crate) fn working_dummy_channel<R: Runtime>(rt: &R) -> DummyChan {
+    let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
+    rt.spawn(async {
+        let _ignore = chan_reactor.run().await;
+    })
+    .unwrap();
+
+    DummyChan { tx, rx, channel }
 }
 
 /// Clone a `ChanCell`.

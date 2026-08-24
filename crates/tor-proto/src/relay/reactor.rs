@@ -354,7 +354,7 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::channel::test::{DummyChan, working_dummy_channel};
+    use crate::channel::test_utils::{DummyChan, working_dummy_channel};
     use crate::circuit::reactor::test::{AllowAllStreamsFilter, rmsg_to_ccmsg};
     use crate::circuit::test::fake_mpsc;
     use crate::circuit::{CircParameters, CircuitRxSender};
