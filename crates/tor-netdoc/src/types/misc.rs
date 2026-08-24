@@ -328,7 +328,7 @@ mod b64impl {
 
     /// A byte array encoded in base64 with a fixed length.
     ///
-    /// As with [`B64`], padding is optional when paring, but omitted when encoding.
+    /// As with [`B64`], padding is optional when parsing, but omitted when encoding.
     #[derive(Clone, Hash, Deftly)]
     #[derive_deftly(BytesTransparent)]
     #[allow(clippy::derived_hash_with_manual_eq)]
