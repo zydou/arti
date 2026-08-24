@@ -35,9 +35,8 @@ pub(crate) trait FlavoredConsensusUnverified:
     }
 
     /// Returns the [`AuthCertKeyIds`] of all authority certificates in the signatures.
-    // TODO DIRMIRROR: We should extend NetworkStatusUnverified::can_verify() to
-    // return the missing ones, rather than a Result and/or create a new function
-    // for this inside there.
+    // TODO DIRMIRROR: Obtain this from the respective error variant returned by
+    // .can_verify().
     fn signatories(&self) -> Vec<AuthCertKeyIds>;
 }
 
