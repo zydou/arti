@@ -40,7 +40,7 @@ pub struct ConsensusMethodRange {
     ///
     /// `None` and `Some(0)` here have the same meaning.
     #[getter(as_copy)]
-    half_open_start: Option<ConsensusMethod>,
+    closed_start: Option<ConsensusMethod>,
 
     /// Methods `<` this
     #[getter(as_copy)]
@@ -81,7 +81,7 @@ impl TrackedConsensusMethod {
             //
             // The range being inclusive at the start means that the implied start boundary
             // is below the recorded value, so we don't need to adjust `boundary`.
-            equiv.half_open_start = chain!(equiv.half_open_start, Some(boundary)).max();
+            equiv.closed_start = chain!(equiv.closed_start, Some(boundary)).max();
         } else {
             // This test was for values above the actual method.
             // It narrows the top end of the range.
@@ -121,7 +121,7 @@ impl ConsensusMethodRange {
     /// Return a new `ConsensusMethodRange` representing all consensus methods
     pub fn new_all() -> Self {
         ConsensusMethodRange {
-            half_open_start: None,
+            closed_start: None,
             half_open_end: None,
         }
     }
@@ -129,7 +129,7 @@ impl ConsensusMethodRange {
 
 impl RangeBounds<ConsensusMethod> for ConsensusMethodRange {
     fn start_bound(&self) -> Bound<&ConsensusMethod> {
-        match &self.half_open_start {
+        match &self.closed_start {
             None => Bound::Unbounded,
             Some(s) => Bound::Included(s),
         }
@@ -201,7 +201,7 @@ impl Debug for ConsensusMethodRange {
             }
         };
         write!(f, "ConsensusMethodRange(")?;
-        write_bound(f, self.half_open_start)?;
+        write_bound(f, self.closed_start)?;
         write!(f, "..")?;
         write_bound(f, self.half_open_end)?;
         write!(f, ")")?;
@@ -260,7 +260,7 @@ pub(crate) mod test {
         let duplicates = results.values().duplicates().collect_vec();
         // The ==50 and ==60 tests means 40..50, 51..60, 61.. are all the same
         let expected_duplicates = [&results[&ConsensusMethodRange {
-            half_open_start: Some(40.into()),
+            closed_start: Some(40.into()),
             half_open_end: Some(50.into()),
         }]];
         assert_eq!(duplicates, expected_duplicates);
