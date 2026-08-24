@@ -21,7 +21,7 @@ pub(crate) use tor_netdoc::{
     doc::routerdesc::RouterDesc,
     encode::encode_netdoc_unsigned,
     rangemap_mutate_range,
-    types::family::{RelayFamily, RelayFamilyId, RelayFamilyIds},
+    types::family::{RelayFamily, RelayFamilyIds},
 };
 
 pub(crate) use crate::utils::*;
