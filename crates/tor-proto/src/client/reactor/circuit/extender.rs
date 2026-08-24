@@ -246,6 +246,9 @@ impl HandshakeAuxDataHandler for NtorV3Client {
         settings: &mut HopSettings,
         data: &Vec<CircResponseExt>,
     ) -> Result<()> {
+        // Did we get a `CcResponse` extension?
+        let mut cc_response = false;
+
         // Process all extensions.
         // If "flowctl-cc" is not enabled, this loop will always return an error, so tell clippy
         // that it's okay.
@@ -253,6 +256,8 @@ impl HandshakeAuxDataHandler for NtorV3Client {
         for ext in data {
             match ext {
                 CircResponseExt::CcResponse(ack_ext) => {
+                    cc_response = true;
+
                     cfg_if::cfg_if! {
                         if #[cfg(feature = "flowctl-cc")] {
                             // Unexpected ACK extension as in if CC is disabled on our side, we would never have
@@ -290,6 +295,20 @@ impl HandshakeAuxDataHandler for NtorV3Client {
                 }
             }
         }
+
+        // If we requested congestion control but did not receive a congestion control response.
+        if settings.ccontrol.is_enabled() && !cc_response {
+            // The exact behaviour here isn't yet decided:
+            // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2670
+            //
+            // But regardless we need to do something since the client and relay are not in
+            // agreement about the circuit options, and the circuit will not work properly.
+            // So for now we just close the circuit.
+            return Err(Error::HandshakeProto(
+                "Requested congestion control but did not receive an ntor-v3 cc response".into(),
+            ));
+        }
+
         Ok(())
     }
 }
