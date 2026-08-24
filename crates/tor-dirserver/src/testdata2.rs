@@ -41,7 +41,7 @@ use tor_netdoc::{
         netstatus::{ConsensusFlavor, md, plain},
         routerdesc::{RouterDesc, RouterDescUnverified},
     },
-    parse2::{self, NetdocParseableUnverified, ParseInput, SignaturesData},
+    parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput, SignaturesData},
 };
 
 use crate::database::{
@@ -61,23 +61,21 @@ const POST_TOLERANCE: Duration = Duration::from_secs(60 * 60 * 24);
 /// to test tor-netdoc itself.
 pub(crate) fn current_consensus_ns() -> (plain::NetworkStatus, &'static str) {
     let raw = include_str!("../testdata2/cached-consensus");
-    let consensus = parse2::parse_netdoc::<plain::NetworkStatusUnverified>(&ParseInput::new(
-        raw,
-        "cached-consensus",
-    ))
-    .unwrap();
-    (consensus.unwrap_unverified().0, raw)
+    current_consensus::<plain::NetworkStatusUnverified>(raw)
 }
 
 /// [`current_consensus_ns()`] but for microdescriptor consensuses.
 // TODO: Merge with current_consensus_ns() because it is repetitive.
 pub(crate) fn current_consensus_md() -> (md::NetworkStatus, &'static str) {
     let raw = include_str!("../testdata2/cached-microdesc-consensus");
-    let consensus = parse2::parse_netdoc::<md::NetworkStatusUnverified>(&ParseInput::new(
-        raw,
-        "cached-microdesc-consensus",
-    ))
-    .unwrap();
+    current_consensus::<md::NetworkStatusUnverified>(raw)
+}
+
+/// Internal function for obtaining a consensus from a text file.
+fn current_consensus<T: NetdocParseableUnverified + NetdocParseable>(
+    raw: &'static str,
+) -> (T::Body, &'static str) {
+    let consensus = parse2::parse_netdoc::<T>(&ParseInput::new(raw, "consensus")).unwrap();
     (consensus.unwrap_unverified().0, raw)
 }
 
