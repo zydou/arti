@@ -589,19 +589,23 @@ impl CircHopOutbound {
         );
         // TODO: I am about 80% sure that we only send an END cell if
         // we didn't already get an END cell.  But I should double-check!
-        if let (ShouldSendEnd::Send, CloseStreamBehavior::SendEnd(end_message)) =
-            (should_send_end, message)
-        {
-            let end_cell = AnyRelayMsgOuter::new(Some(id), end_message.into());
-            let cell = SendRelayCell {
-                hop,
-                early: false,
-                cell: end_cell,
-            };
+        let end_message = match should_send_end {
+            ShouldSendEnd::Send => match message {
+                CloseStreamBehavior::SendEnd(end_message) => end_message.into(),
+                CloseStreamBehavior::SendResolved(resolved_message) => resolved_message.into(),
+                CloseStreamBehavior::SendNothing => return Ok(None),
+            },
+            ShouldSendEnd::DontSend => return Ok(None),
+        };
 
-            return Ok(Some(cell));
-        }
-        Ok(None)
+        let end_cell = AnyRelayMsgOuter::new(Some(id), end_message);
+        let cell = SendRelayCell {
+            hop,
+            early: false,
+            cell: end_cell,
+        };
+
+        Ok(Some(cell))
     }
 
     /// Check if we should send an XON message.

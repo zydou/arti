@@ -460,6 +460,27 @@ pub(crate) mod test {
         Both,
     }
 
+    /// Decode a cell, extracting the underlying message of type `expect_msg`
+    macro_rules! decode_relay_cell {
+        ($cell:expr, $expect_msg:tt) => {{
+            let rmsg = match $cell.msg() {
+                chanmsg::AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode_singleton(
+                    RelayCellFormat::V0,
+                    r.clone().into_relay_body(),
+                )
+                .unwrap(),
+                msg => panic!("unexpected forwarded {msg:?}"),
+            };
+
+            let msg = match rmsg.msg() {
+                relaymsg::AnyRelayMsg::$expect_msg(inner) => inner.clone(),
+                _ => panic!("unexpected relay message {rmsg:?}"),
+            };
+
+            (rmsg.stream_id(), msg)
+        }};
+    }
+
     impl ReactorTestCtrl {
         /// Spawn a relay circuit reactor, returning a `ReactorTestCtrl` for
         /// controlling it.
@@ -613,21 +634,9 @@ pub(crate) mod test {
 
             // Make sure we actually did send an EXTENDED2 towards the client
             let msg = self.read_inbound();
-            let rmsg = match msg.msg() {
-                chanmsg::AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode_singleton(
-                    RelayCellFormat::V0,
-                    r.clone().into_relay_body(),
-                )
-                .unwrap(),
-                _ => panic!("unexpected forwarded {msg:?}"),
-            };
 
-            match rmsg.msg() {
-                relaymsg::AnyRelayMsg::Extended2(e) => {
-                    assert_eq!(e.clone().into_body(), handshake);
-                }
-                _ => panic!("unexpected relay message {rmsg:?}"),
-            }
+            let (_sid, e) = decode_relay_cell!(msg, Extended2);
+            assert_eq!(e.clone().into_body(), handshake);
 
             circid
         }
@@ -1164,6 +1173,44 @@ pub(crate) mod test {
                 incoming_streams.poll_next_unpin(&mut noop_cx).map(|_| ()),
                 Poll::Pending
             );
+        });
+    }
+
+    #[traced_test]
+    #[test]
+    fn resolve_stream() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let (mut ctrl, mut incoming_streams) =
+                ReactorTestCtrl::spawn_reactor(&rt, &[RelayCmd::RESOLVE]).await;
+            rt.advance_until_stalled().await;
+
+            let resolve = relaymsg::Resolve::new("example.com");
+            let resolve_sid = StreamId::new(1337);
+            ctrl.send_fwd(resolve_sid, resolve.into(), Recognized::Yes, false)
+                .await;
+            rt.advance_until_stalled().await;
+
+            // We should have a pending incoming stream
+            let pending = incoming_streams.next().await.unwrap();
+
+            let mut resolved = relaymsg::Resolved::new_empty();
+            let resolved_val = relaymsg::ResolvedVal::Ip(IpAddr::from([1, 2, 3, 4]));
+            resolved.add_answer(resolved_val.clone(), 1337);
+
+            // We expect the client to receive this cell
+            let expected_resolved = resolved.clone();
+
+            // Respond with RESOLVED
+            pending.resolve(resolved).await.unwrap();
+
+            rt.advance_until_stalled().await;
+            let (sid, resolved) = decode_relay_cell!(ctrl.read_inbound(), Resolved);
+
+            // Make sure the RESOLVED cell sent towards the client
+            // matches what we sent via the IncomingStream::resolve() call above
+            assert_eq!(resolved.into_answers(), expected_resolved.into_answers());
+            assert_eq!(sid, resolve_sid);
+            assert!(logs_contain("Ending stream"));
         });
     }
 }

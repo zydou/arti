@@ -107,6 +107,8 @@ impl IncomingStream {
 
     /// Accept this stream as a new [`DataStream`], and send the client a
     /// message letting them know the stream was accepted.
+    ///
+    /// Returns an error if this is not a data or directory stream.
     pub async fn accept_data(self, message: msg::Connected) -> Result<DataStream> {
         let Self {
             time_provider,
@@ -137,20 +139,36 @@ impl IncomingStream {
         }
     }
 
+    /// Respond to a DNS stream by sending the specified `message` to the client.
+    ///
+    /// This closes the stream.
+    ///
+    /// Returns an error this is not a DNS stream.
+    #[cfg(feature = "relay")]
+    pub async fn resolve(mut self, message: msg::Resolved) -> Result<()> {
+        match self.request {
+            IncomingStreamRequest::Begin(_) | IncomingStreamRequest::BeginDir(_) => {
+                Err(internal!("Cannot send RESOLVED on a data or directory stream").into())
+            }
+            IncomingStreamRequest::Resolve(_) => {
+                let rx = self.close(CloseStreamBehavior::SendResolved(message))?;
+
+                rx.await.map_err(|_| Error::CircuitClosed)?
+            }
+        }
+    }
+
     /// Reject this request and send an error message to the client.
     pub async fn reject(mut self, message: msg::End) -> Result<()> {
-        let rx = self.reject_inner(CloseStreamBehavior::SendEnd(message))?;
+        let rx = self.close(CloseStreamBehavior::SendEnd(message))?;
 
         rx.await.map_err(|_| Error::CircuitClosed)?
     }
 
-    /// Reject this request and possibly send an error message to the client.
+    /// Close this stream, and possibly send a message (END or RESOLVED) to the client.
     ///
     /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
-    fn reject_inner(
-        &mut self,
-        message: CloseStreamBehavior,
-    ) -> Result<oneshot::Receiver<Result<()>>> {
+    fn close(&mut self, message: CloseStreamBehavior) -> Result<oneshot::Receiver<Result<()>>> {
         self.components.target.close_pending(message)
     }
 
@@ -160,7 +178,7 @@ impl IncomingStream {
     /// `reject`, or this method, the drop handler will cause it to be
     /// rejected.)
     pub async fn discard(mut self) -> Result<()> {
-        let rx = self.reject_inner(CloseStreamBehavior::SendNothing)?;
+        let rx = self.close(CloseStreamBehavior::SendNothing)?;
 
         rx.await.map_err(|_| Error::CircuitClosed)?.map(|_| ())
     }
