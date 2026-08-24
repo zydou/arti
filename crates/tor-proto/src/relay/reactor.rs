@@ -1058,25 +1058,12 @@ pub(crate) mod test {
                 "Received outbound DESTROY, circuit shutting down"
             ));
 
-            // If we received a DESTROY, we shouldn't send one back.
-            // However, in this test, the reactor does in fact send a DESTROY
-            // back to the mock "client", because the DESTROY we "received" from
-            // the it was sent via a mock channel -> circuit reactor MPSC,
-            // instead of going through the channel reactor like it would normally.
-            // Because of this, the channel reactor doesn't get a chance to actually
-            // remove the circuit from the circmap, which would normally suppress
-            // the *sending* of a DESTROY on drop.
-            //
-            // TODO(relay): we need to update the test harness here to replace
-            // the circmsg_send/circmsg_recv MPSC with an MPSC that is actually
-            // connected to the channel reactor
-            //assert!(!logs_contain("sending DESTROY"));
-            //assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Backward);
+            assert!(!logs_contain("sending DESTROY"));
 
             // Since this is a circuit of the form A -> B -> C,
             // and A sent us a DESTROY, we expect our relay (B) to forward
             // the DESTROY to C.
-            assert_cell_is_destroy!(ctrl.read_outbound(), DestroyReason::NONE);
+            assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Backward);
         });
     }
 
