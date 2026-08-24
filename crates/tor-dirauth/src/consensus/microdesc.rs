@@ -27,10 +27,7 @@ pub fn compute_microdesc(
     let family_ids: RelayFamilyIds = rd
         .family_cert
         .iter()
-        .map(|cert| {
-            let id = cert.get()?.family_ed25519;
-            Ok::<_, Bug>(RelayFamilyId::Ed25519(id))
-        })
+        .map(|cert| Ok::<_, Bug>(cert.get()?.family_ed25519.into()))
         .try_collect()?;
 
     let ipv4_policy =
