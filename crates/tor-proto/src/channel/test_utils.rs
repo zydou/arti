@@ -270,18 +270,16 @@ pub(crate) struct DummyChan {
 }
 
 impl DummyChan {
-/// Create a dummy client channel, and spawn a task for its reactor.
-//
-// XXX fix indentation
-pub(crate) fn run<R: Runtime>(rt: &R) -> DummyChan {
-    let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
-    rt.spawn(async {
-        let _ignore = chan_reactor.run().await;
-    })
-    .unwrap();
+    /// Create a dummy client channel, and spawn a task for its reactor.
+    pub(crate) fn run<R: Runtime>(rt: &R) -> DummyChan {
+        let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
+        rt.spawn(async {
+            let _ignore = chan_reactor.run().await;
+        })
+        .unwrap();
 
-    DummyChan { tx, rx, channel }
-}
+        DummyChan { tx, rx, channel }
+    }
 }
 
 /// Clone a `ChanCell`.
