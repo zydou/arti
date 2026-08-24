@@ -453,7 +453,7 @@ where
             error!(
                 "Encountered a problem while enabling hardening. To disable this feature, set application.permit_debugging to true."
             );
-            return Err(e);
+            return Err(e.into());
         }
     }
 

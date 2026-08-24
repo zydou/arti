@@ -10,13 +10,16 @@ use arti_client::config::Reconfigure;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use futures::{FutureExt as _, Stream, select_biased};
-#[cfg(feature = "rpc")]
+use tor_basic_utils::error_sources::ErrorSources;
 use tor_config::ConfigurationTree;
+use tor_config::ReconfigureError;
 use tor_config::file_watcher::{
     self, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
 use tor_config::load::{ConfigResolveOptions, DisfavouredKey};
 use tor_config::{ConfigurationSource, ConfigurationSources, sources::FoundConfigFiles};
+use tor_error::into_internal;
+use tor_error::warn_report;
 use tor_rtcompat::Runtime;
 use tor_rtcompat::SpawnExt;
 use tracing::{debug, error, info, instrument, warn};
@@ -43,12 +46,12 @@ const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
 pub(crate) trait ReconfigurableModule: Send + Sync {
     /// Try to reconfigure this module according to a newly loaded configuration.
     ///
-    /// By convention, this should only return fatal errors; any such error
-    /// should cause the program to exit.  For other cases, we should just warn.
-    //
-    // TODO: This should probably take "how: Reconfigure" as an argument, and
-    // pass it down as appropriate. See issue #1156.
-    fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()>;
+    /// See [`Reconfigure`] for a description of error-handling behavior.
+    fn reconfigure(
+        &self,
+        new: &ArtiCombinedConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError>;
 }
 
 /// Structure to reload configuration as necessary.
@@ -178,41 +181,45 @@ impl<R: Runtime> CfgMgr<R> {
     /// Reload the configuration.
     #[instrument(level = "trace", skip_all)]
     #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-    pub(crate) fn reload_configuration(&self) -> anyhow::Result<()> {
+    pub(crate) fn reload_configuration(&self, how: Reconfigure) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().expect("Lock poisoned");
 
-        // TODO RPC: Take 'how' as an argument.
-        //
         // Question: I do not understand why we are making a new file watcher unconditionally
         // at this point. -nm
-        let found_files = if inner.watcher.is_some() {
+        let (found_files, new_watcher) = if inner.watcher.is_some() {
             let (watcher, files) = self
                 .launch_file_watcher()
                 .context("Failed to re-scan config")?;
-            inner.watcher = Some(watcher);
-            files
+            (files, Some(watcher))
         } else {
-            self.sources
+            let files = self
+                .sources
                 .scan()
-                .context("FS watch: failed to rescan config")?
+                .context("FS watch: failed to rescan config")?;
+            (files, None)
         };
 
-        match reconfigure(found_files, &mut inner) {
+        let config = found_files.load()?;
+
+        match reconfigure(config, &mut inner, how) {
             Ok(watch) => {
                 info!("Successfully reloaded configuration.");
-                if watch && inner.watcher.is_none() {
-                    info!("Starting watching over configuration.");
-                    let (watcher, _files) = self
-                        .launch_file_watcher()
-                        .context("Starting to watch over config")?;
-                    inner.watcher = Some(watcher);
-                } else if !watch && inner.watcher.is_some() {
-                    info!("Stopped watching over configuration.");
-                    inner.watcher = None;
+                if how != Reconfigure::CheckAllOrNothing {
+                    if watch && inner.watcher.is_none() {
+                        info!("Starting watching over configuration.");
+                        let (watcher, _files) = self
+                            .launch_file_watcher()
+                            .context("Starting to watch over config")?;
+                        inner.watcher = Some(watcher);
+                    } else if !watch && inner.watcher.is_some() {
+                        info!("Stopped watching over configuration.");
+                        inner.watcher = None;
+                    } else {
+                        inner.watcher = new_watcher;
+                    }
                 }
             }
-            // TODO: warn_report does not work on anyhow::Error.
-            Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
+            Err(e) => warn_report!(e, "Couldn't reload configuration"),
         }
 
         Ok(())
@@ -325,7 +332,7 @@ async fn run_watcher<R: Runtime>(
         }
 
         if let Some(mgr) = weak_mgr.upgrade() {
-            mgr.reload_configuration()?;
+            mgr.reload_configuration(Reconfigure::WarnOnFailures)?;
             drop(mgr);
         } else {
             debug!("Configuration mgr disappeared; exiting loop");
@@ -350,19 +357,43 @@ pub(crate) struct LaunchableTorClient<R: Runtime> {
 
 impl<R: Runtime> ReconfigurableModule for LaunchableTorClient<R> {
     #[instrument(level = "trace", skip_all)]
-    fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
-        // TODO RPC: Take 'how' as an argument.
+    fn reconfigure(
+        &self,
+        new: &ArtiCombinedConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError> {
+        if how == Reconfigure::AllOrNothing {
+            // If we're in all-or-nothing mode, we check it first.
+            self.reconfigure(new, Reconfigure::CheckAllOrNothing)?;
+        }
+        let dry_run = how == Reconfigure::CheckAllOrNothing;
 
         if new.0.application().defer_bootstrap && !self.orig_defer_bootstrap {
-            warn!("Cannot enable defer_bootstrap while arti is running.");
+            how.cannot_change_specific("defer_bootstrap", "from off to on")?;
         }
-        if !new.0.application().defer_bootstrap {
-            self.ensure_bootstrap_launched()?;
+        if !dry_run && !new.0.application().defer_bootstrap {
+            self.ensure_bootstrap_launched()
+                .map_err(into_internal!("Unable to launch client bootstrap"))?;
         }
 
-        TorClient::reconfigure(&self.client, &new.1, Reconfigure::WarnOnFailures)?;
+        TorClient::reconfigure(&self.client, &new.1, how).map_err(extract_reconfigure_error)?;
         Ok(())
     }
+}
+
+/// If possible, extract the ReconfigureError from `err`.  Otherwise,
+/// return `err` as an internal ReconfigureError.
+//
+// (We could get rid of this function if arti_client::Error were not opaque,
+// or if arti_client::reconfigure were to return a ReconfigureError.
+// But  now is not the time to revisit those decisions.)
+fn extract_reconfigure_error(err: arti_client::Error) -> ReconfigureError {
+    for e in ErrorSources::new(&err) {
+        if let Some(reconfig_error) = e.downcast_ref::<ReconfigureError>() {
+            return reconfig_error.clone();
+        };
+    }
+    (into_internal!("Failure while reconfiguring")(err)).into()
 }
 
 impl<R: Runtime> LaunchableTorClient<R> {
@@ -378,7 +409,7 @@ impl<R: Runtime> LaunchableTorClient<R> {
     }
 
     /// If we have not already told this LaunchableTorClient to bootstrap itself, do so.
-    fn ensure_bootstrap_launched(&self) -> anyhow::Result<()> {
+    fn ensure_bootstrap_launched(&self) -> Result<(), futures::task::SpawnError> {
         let mut have_launched = self.have_launched.lock().expect("lock poisoned");
 
         if *have_launched {
@@ -388,12 +419,9 @@ impl<R: Runtime> LaunchableTorClient<R> {
         let client = Arc::clone(&self.client);
         // We spawn this as a new task since `bootstrap` is very much async,
         // but this needs to be called from `reconfigure`, which is not.
-        self.client
-            .runtime()
-            .spawn(async move {
-                let _outcome = client.bootstrap().await;
-            })
-            .context("Launching bootstrap")?;
+        self.client.runtime().spawn(async move {
+            let _outcome = client.bootstrap().await;
+        })?;
 
         *have_launched = true;
         Ok(())
@@ -428,30 +456,39 @@ impl Application {
 }
 
 impl ReconfigurableModule for Application {
-    // TODO: This should probably take "how: Reconfigure" as an argument, and
-    // pass it down as appropriate. See issue #1156.
     #[instrument(level = "trace", skip_all)]
-    fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
+    fn reconfigure(
+        &self,
+        new: &ArtiCombinedConfig,
+        how: Reconfigure,
+    ) -> Result<(), ReconfigureError> {
+        if how == Reconfigure::AllOrNothing {
+            // If we're in all-or-nothing mode, we check it first.
+            self.reconfigure(new, Reconfigure::CheckAllOrNothing)?;
+        }
+        let dry_run = how == Reconfigure::CheckAllOrNothing;
+
         let original = &self.original_config;
         let config = &new.0;
 
         if config.proxy() != original.proxy() {
-            warn!("Can't (yet) reconfigure proxy settings while arti is running.");
+            how.cannot_change("proxy settings")?;
         }
         if config.logging() != original.logging() {
-            warn!("Can't (yet) reconfigure logging settings while arti is running.");
+            how.cannot_change("logging")?;
         }
         #[cfg(feature = "rpc")]
         if config.rpc != original.rpc {
-            warn!("Can't (yet) change RPC settings while arti is running.");
+            how.cannot_change("RPC settings")?;
         }
         if config.application().permit_debugging && !original.application().permit_debugging {
-            warn!("Cannot disable application hardening when it has already been enabled.");
+            how.cannot_change_specific("application hardening", "from on to off")?;
         }
         // Note that this is the only config transition we actually perform so far.
-        if !config.application().permit_debugging {
+        if !dry_run && !config.application().permit_debugging {
             #[cfg(feature = "harden")]
-            crate::process::enable_process_hardening()?;
+            crate::process::enable_process_hardening()
+                .map_err(into_internal!("can't disable debugging"))?;
         }
 
         Ok(())
@@ -478,15 +515,12 @@ fn prepare<'a, R: Runtime>(
 /// reconfigure the client as much as we can.
 ///
 /// Return true if we should be watching for configuration changes.
-//
-// TODO: This should probably take "how: Reconfigure" as an argument, and
-// pass it down as appropriate. See issue #1156.
 #[instrument(level = "trace", skip_all)]
 fn reconfigure(
-    found_files: FoundConfigFiles<'_>,
+    config: ConfigurationTree,
     mgr_inner: &mut CfgMgrInner,
-) -> anyhow::Result<bool> {
-    let config = found_files.load()?;
+    how: Reconfigure,
+) -> Result<bool, ChangeConfigurationError> {
     #[allow(unused_mut)]
     let mut resolve_options = ConfigResolveOptions::default();
     #[cfg(feature = "rpc")]
@@ -496,6 +530,20 @@ fn reconfigure(
 
     let rs = tor_config::resolve_return_results::<ArtiCombinedConfig>(config, &resolve_options)?;
     let config = rs.value;
+
+    // Filter out the modules that have been dropped
+    let reconfigurable: Vec<_> = mgr_inner.modules.iter().flat_map(Weak::upgrade).collect();
+    let has_modules = !reconfigurable.is_empty();
+
+    if how == Reconfigure::AllOrNothing {
+        for module in &reconfigurable {
+            module.reconfigure(&config, Reconfigure::CheckAllOrNothing)?;
+        }
+    }
+    for module in &reconfigurable {
+        module.reconfigure(&config, how)?;
+    }
+
     #[cfg(feature = "rpc")]
     {
         mgr_inner.normalized_cfg = rs
@@ -505,17 +553,19 @@ fn reconfigure(
         mgr_inner.unrecognized_keys = rs.unrecognized.into_iter().collect();
     }
 
-    // Filter out the modules that have been dropped
-    let reconfigurable = mgr_inner.modules.iter().flat_map(Weak::upgrade);
-    // If there are no more modules, we should exit.
-    let mut has_modules = false;
-
-    for module in reconfigurable {
-        has_modules = true;
-        module.reconfigure(&config)?;
-    }
-
     Ok(has_modules && config.0.application().watch_configuration)
+}
+
+/// An error that occurred while trying to reload and/or replace our configuration
+#[derive(thiserror::Error, Clone, Debug)]
+pub(crate) enum ChangeConfigurationError {
+    /// We couldn't turn the configuration tree into the appropriate set of data structures.
+    #[error("Invalid configuration")]
+    Resolve(#[from] tor_config::load::ConfigResolveError),
+
+    /// One of the transitions we tried to make was not allowed, or failed as we tried to apply it.
+    #[error("Configuration transition failed")]
+    Transition(#[from] ReconfigureError),
 }
 
 #[cfg(test)]
@@ -560,7 +610,11 @@ mod test {
     }
 
     impl ReconfigurableModule for TestModule {
-        fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
+        fn reconfigure(
+            &self,
+            new: &ArtiCombinedConfig,
+            _how: Reconfigure,
+        ) -> Result<(), ReconfigureError> {
             let config = new.clone();
             self.tx.lock().unwrap().maybe_send(|_| config);
 
