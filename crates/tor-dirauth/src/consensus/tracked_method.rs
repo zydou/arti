@@ -44,7 +44,7 @@ pub struct ConsensusMethodRange {
 
     /// Methods `<` this
     #[getter(as_copy)]
-    half_open_end: Option<ConsensusMethod>,
+    open_end: Option<ConsensusMethod>,
 }
 
 impl TrackedConsensusMethod {
@@ -88,7 +88,7 @@ impl TrackedConsensusMethod {
             //
             // The range being exclusive at the end means that the implied end boundary
             // is below the recorded value, so we don't need to adjust `boundary`.
-            equiv.half_open_end = chain!(equiv.half_open_end, Some(boundary)).min();
+            equiv.open_end = chain!(equiv.open_end, Some(boundary)).min();
         }
         self.equivalent.set(equiv);
     }
@@ -122,7 +122,7 @@ impl ConsensusMethodRange {
     pub fn new_all() -> Self {
         ConsensusMethodRange {
             closed_start: None,
-            half_open_end: None,
+            open_end: None,
         }
     }
 }
@@ -135,7 +135,7 @@ impl RangeBounds<ConsensusMethod> for ConsensusMethodRange {
         }
     }
     fn end_bound(&self) -> Bound<&ConsensusMethod> {
-        match &self.half_open_end {
+        match &self.open_end {
             None => Bound::Unbounded,
             Some(s) => Bound::Excluded(s),
         }
@@ -203,7 +203,7 @@ impl Debug for ConsensusMethodRange {
         write!(f, "ConsensusMethodRange(")?;
         write_bound(f, self.closed_start)?;
         write!(f, "..")?;
-        write_bound(f, self.half_open_end)?;
+        write_bound(f, self.open_end)?;
         write!(f, ")")?;
         Ok(())
     }
@@ -261,7 +261,7 @@ pub(crate) mod test {
         // The ==50 and ==60 tests means 40..50, 51..60, 61.. are all the same
         let expected_duplicates = [&results[&ConsensusMethodRange {
             closed_start: Some(40.into()),
-            half_open_end: Some(50.into()),
+            open_end: Some(50.into()),
         }]];
         assert_eq!(duplicates, expected_duplicates);
     }
