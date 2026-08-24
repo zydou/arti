@@ -1200,7 +1200,7 @@ pub(crate) mod test {
     use tor_cell::chancell::{AnyChanCell, msg};
     use tor_rtcompat::{Runtime, SpawnExt as _, test_with_one_runtime};
 
-    /// Dummy channel, returned by [`working_fake_channel`].
+    /// Dummy channel, returned by [`working_dummy_channel`].
     pub(crate) struct DummyChan {
         /// Tor channel output
         pub(crate) rx: Receiver<AnyChanCell>,
