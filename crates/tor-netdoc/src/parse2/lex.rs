@@ -126,15 +126,15 @@ pub struct UnparsedObject<'s> {
 
 impl<'s> ItemStream<'s> {
     /// Start reading a network document as a series of Items
-    pub fn new(input: &'s ParseInput<'s>) -> Result<Self, ParseError> {
-        Ok(ItemStream {
+    pub fn new(input: &'s ParseInput<'s>) -> Self {
+        ItemStream {
             whole_input: input.input,
             lines: Lines::new(input.input),
             peeked: PeekState::None {
                 yielded_item_lno: 0,
             },
             options: &input.options,
-        })
+        }
     }
 
     /// Line number for reporting an error we have just discovered
@@ -314,6 +314,14 @@ impl<'s> ItemStream<'s> {
         let args = ArgumentStream::new(args, line.len(), options);
 
         let object = if self.lines.remaining().starts_with('-') {
+            // Swap out self.lines, so that if we do not find matching delimiters, we don't
+            // ever yield any more items.  Otherwise, if we continue reading after an error, we
+            // might get a framing mismatch where we treat base64 contents as if it were item
+            // keyword lines.
+            let leave_if_error = self.lines.clone_entirely_consumed();
+            let mut lines = mem::replace(&mut self.lines, leave_if_error);
+            let self_lines_prevent = &mut self.lines;
+
             fn pem_delimiter<'s>(lines: &mut Lines<'s>, start: &str) -> Result<&'s str, EP> {
                 let line = lines.next().ok_or(
                     // If this is the *header*, we already know there's a line,
@@ -328,17 +336,22 @@ impl<'s> ItemStream<'s> {
                 Ok(label)
             }
 
-            let label1 = pem_delimiter(&mut self.lines, PEM_HEADER_START)?;
-            let base64_start_remaining = self.lines.remaining();
-            while !self.lines.remaining().starts_with('-') {
-                let _: &str = self.lines.next().ok_or(EP::ObjectMissingFooter)?;
+            let label1 = pem_delimiter(&mut lines, PEM_HEADER_START)?;
+            let base64_start_remaining = lines.remaining();
+            while !lines.remaining().starts_with('-') {
+                let _: &str = lines.next().ok_or(EP::ObjectMissingFooter)?;
             }
-            let data_b64 = base64_start_remaining.strip_end_counted(self.lines.remaining().len());
-            let label2 = pem_delimiter(&mut self.lines, PEM_FOOTER_START)?;
+            let data_b64 = base64_start_remaining.strip_end_counted(lines.remaining().len());
+            let label2 = pem_delimiter(&mut lines, PEM_FOOTER_START)?;
             let label = [label1, label2]
                 .into_iter()
                 .all_equal_value()
                 .map_err(|_| EP::ObjectMismatchedLabels)?;
+
+            // Proves that self.lines isn't used between setup and here: we have it borrowed.
+            let _: &mut Lines = self_lines_prevent;
+            self.lines = lines;
+
             Some(UnparsedObject {
                 label,
                 data_b64,

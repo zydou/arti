@@ -189,7 +189,7 @@ fn check(s: &str) -> Result<(), EP> {
 
     // Structural checks
     let input = ParseInput::new(s, "<authcert string>");
-    let mut lex = ItemStream::new(&input).map_err(|e| e.problem)?;
+    let mut lex = ItemStream::new(&input);
     let mut seq = ItemSequenceChecker::start();
     while let Some(item) = lex.next_item()? {
         seq.keyword(item.keyword())?;

@@ -23,6 +23,7 @@ pub use thiserror::Error;
 pub use void::Void;
 
 pub use tor_basic_utils::{assert_not_impl, intern::*};
+pub use tor_error::{Bug, into_internal};
 pub use tor_llcrypto::pk;
 
 pub const PEM_HEADER_START: &str = crate::parse::tokenize::object::BEGIN_STR;

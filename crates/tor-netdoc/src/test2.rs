@@ -20,6 +20,7 @@ use std::slice;
 
 use anyhow::Context as _;
 use derive_deftly::Deftly;
+use itertools::izip;
 use testresult::TestResult;
 use tor_error::{Bug, ErrorReport as _};
 
@@ -27,7 +28,7 @@ use crate::encode::{ItemEncoder, ItemObjectEncodable, NetdocEncodable, NetdocEnc
 use crate::parse2::{
     ArgumentError as P2AE, ArgumentStream, ErrorProblem as P2EP, ItemObjectParseable,
     NetdocParseable, ParseError, ParseInput, UnparsedItem, parse_netdoc, parse_netdoc_multiple,
-    parse_netdoc_multiple_with_offsets,
+    parse_netdoc_multiple_sophisticated, parse_netdoc_multiple_with_offsets,
 };
 use crate::types::{Ignored, NotPresent};
 
@@ -990,4 +991,69 @@ sub3-field s3f
     )?;
 
     Ok(())
+}
+
+#[test]
+fn multi_sophisticated() {
+    #[derive(Debug, PartialEq, Deftly)]
+    #[derive_deftly(NetdocParseable)]
+    struct Doc {
+        intro: (i32,),
+        body: (i32,),
+    }
+
+    let text = r#"intro 0
+body 0
+intro 10
+intro 20
+body garbage
+intro 30
+body 30
+ignored
+intro 40
+body garbage
+ignored
+intro 50
+ignored-item-with-object
+-----BEGIN THING-----
+base64
+-----END THING-----
+body 50
+intro 60
+body 60
+--BROKEN--
+intro 999
+body 999
+"#;
+    let expecteds = [
+        Ok(0),
+        Err("missing item body"),            // 10
+        Err("invalid value for argument 0"), // 20
+        Ok(30),
+        Err("invalid value for argument 0"), // 40
+        Ok(50),
+        Err("incorrectly formatted delimiter lines"), // 60
+                                                      // 999 is not read at all
+    ];
+
+    let input = ParseInput::new(text, "<test data>");
+
+    for ((got, _, _), exp) in izip!(
+        parse_netdoc_multiple_sophisticated::<Doc>(&input).unwrap(),
+        expecteds,
+    ) {
+        match exp {
+            Ok(n) => {
+                let exp_doc = Doc {
+                    intro: (n,),
+                    body: (n,),
+                };
+                assert_eq!(got.unwrap(), exp_doc, "exp={exp:?}");
+            }
+            Err(e) => {
+                let m = got.unwrap_err().report().to_string();
+                assert!(m.contains(e), "exp={exp:?} got=Err({m:?})");
+            }
+        }
+    }
 }
