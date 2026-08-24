@@ -393,7 +393,7 @@ fn extract_reconfigure_error(err: arti_client::Error) -> ReconfigureError {
             return reconfig_error.clone();
         };
     }
-    (into_internal!("Foo")(err)).into()
+    (into_internal!("Failure while reconfiguring")(err)).into()
 }
 
 impl<R: Runtime> LaunchableTorClient<R> {
