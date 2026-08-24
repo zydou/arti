@@ -1014,6 +1014,7 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use crate::channel::ChannelMode;
     use crate::channel::test_utils::{CodecResult, DummyChan};
     use crate::circuit::CircuitRxSender;
     use crate::circuit::reactor::test::rmsg_to_ccmsg;
@@ -1151,7 +1152,7 @@ pub(crate) mod test {
             channel,
             mut rx,
             tx: _sink,
-        } = DummyChan::run(rt);
+        } = DummyChan::run(rt, ChannelMode::Client);
         let circid = CircId::new(128).unwrap();
         let (created_send, created_recv) = oneshot::channel();
         let (_circmsg_send, circmsg_recv) = fake_mpsc(64);
@@ -1476,7 +1477,7 @@ pub(crate) mod test {
             channel,
             mut rx,
             tx: _sink,
-        } = DummyChan::run(rt);
+        } = DummyChan::run(rt, ChannelMode::Client);
         let (tunnel, mut sink) = newtunnel(rt, channel).await;
         let circ = Arc::new(tunnel.as_single_circ().unwrap());
         let circid = circ.peek_circid();
@@ -1604,7 +1605,7 @@ pub(crate) mod test {
             channel,
             mut rx,
             tx: _sink,
-        } = DummyChan::run(rt);
+        } = DummyChan::run(rt, ChannelMode::Client);
         let hops = std::iter::repeat_with(|| {
             let peer_id = tor_linkspec::OwnedChanTarget::builder()
                 .ed_identity([4; 32].into())
@@ -1730,7 +1731,7 @@ pub(crate) mod test {
                 channel,
                 mut rx,
                 tx: _sink,
-            } = DummyChan::run(&rt);
+            } = DummyChan::run(&rt, ChannelMode::Client);
             let (tunnel, mut sink) = newtunnel(&rt, channel).await;
             let circ = tunnel.as_single_circ().unwrap();
             let circid = circ.peek_circid();
@@ -1815,7 +1816,7 @@ pub(crate) mod test {
                 channel,
                 mut rx,
                 tx: _sink,
-            } = DummyChan::run(&rt);
+            } = DummyChan::run(&rt, ChannelMode::Client);
             let (tunnel, mut sink) = newtunnel(&rt, channel).await;
 
             let stream_fut = async move {
@@ -1895,7 +1896,7 @@ pub(crate) mod test {
                 channel,
                 mut rx,
                 tx: _sink,
-            } = DummyChan::run(&rt);
+            } = DummyChan::run(&rt, ChannelMode::Client);
             let (tunnel, mut sink) = newtunnel(&rt, channel).await;
 
             let client_fut = async move {
@@ -1990,7 +1991,7 @@ pub(crate) mod test {
             channel,
             mut rx,
             tx: sink2,
-        } = DummyChan::run(rt);
+        } = DummyChan::run(rt, ChannelMode::Client);
         let (tunnel, mut sink) = newtunnel(rt, channel).await;
         let circid = tunnel.as_single_circ().unwrap().peek_circid();
 
@@ -2197,7 +2198,7 @@ pub(crate) mod test {
                 channel,
                 mut rx,
                 tx: _sink,
-            } = DummyChan::run(&rt);
+            } = DummyChan::run(&rt, ChannelMode::Client);
             let (tunnel, mut sink) = newtunnel(&rt, channel).await;
 
             // Run clients in a single task, doing our own round-robin
@@ -2327,7 +2328,7 @@ pub(crate) mod test {
                 channel,
                 rx: _rx,
                 tx: _sink,
-            } = DummyChan::run(&rt);
+            } = DummyChan::run(&rt, ChannelMode::Client);
             let (tunnel, _send) = newtunnel(&rt, channel).await;
 
             let _incoming = tunnel
@@ -2365,7 +2366,7 @@ pub(crate) mod test {
                 channel,
                 rx: _rx,
                 tx: _sink,
-            } = DummyChan::run(&rt);
+            } = DummyChan::run(&rt, ChannelMode::Client);
             let (tunnel, mut send) = newtunnel(&rt, channel).await;
 
             let rfmt = RelayCellFormat::V0;
@@ -2448,7 +2449,7 @@ pub(crate) mod test {
                 channel,
                 rx: _rx,
                 tx: _sink,
-            } = DummyChan::run(&rt);
+            } = DummyChan::run(&rt, ChannelMode::Client);
             let (tunnel, mut send) = newtunnel(&rt, channel).await;
 
             // A helper channel for coordinating the "client"/"service" interaction
@@ -2545,7 +2546,7 @@ pub(crate) mod test {
                 channel,
                 rx: _rx,
                 tx: _sink,
-            } = DummyChan::run(&rt);
+            } = DummyChan::run(&rt, ChannelMode::Client);
             let (tunnel, mut send) = newtunnel(&rt, channel).await;
 
             // Expect to receive incoming streams from hop EXPECTED_HOP
@@ -2684,7 +2685,7 @@ pub(crate) mod test {
             channel: chan1,
             rx: rx1,
             tx: chan_sink1,
-        } = DummyChan::run(rt);
+        } = DummyChan::run(rt, ChannelMode::Client);
         let (mut tunnel1, sink1) = newtunnel_ext(
             rt,
             UniqId::new(1, 3),
@@ -2699,7 +2700,7 @@ pub(crate) mod test {
             channel: chan2,
             rx: rx2,
             tx: chan_sink2,
-        } = DummyChan::run(rt);
+        } = DummyChan::run(rt, ChannelMode::Client);
 
         let (tunnel2, sink2) =
             newtunnel_ext(rt, UniqId::new(2, 4), chan2, hops2, 2.into(), params).await;
@@ -2792,7 +2793,7 @@ pub(crate) mod test {
                 channel,
                 rx: _,
                 tx: _sink,
-            } = DummyChan::run(&rt);
+            } = DummyChan::run(&rt, ChannelMode::Client);
             let (tunnel, mut sink) = newtunnel(&rt, channel).await;
 
             let nonce = V1Nonce::new(&mut testing_rng());
@@ -2944,7 +2945,7 @@ pub(crate) mod test {
                     channel,
                     rx: _rx,
                     tx: _sink,
-                } = DummyChan::run(&rt);
+                } = DummyChan::run(&rt, ChannelMode::Client);
                 let (tunnel, mut sink) = newtunnel(&rt, channel).await;
 
                 sink.send(bad_cell).await.unwrap();

@@ -354,6 +354,7 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use crate::channel::ChannelMode;
     use crate::channel::test_utils::DummyChan;
     use crate::circuit::reactor::test::{AllowAllStreamsFilter, rmsg_to_ccmsg};
     use crate::circuit::test::fake_mpsc;
@@ -492,7 +493,9 @@ pub(crate) mod test {
             use crate::circuit::circ_sender;
             use oneshot_fused_workaround as oneshot;
 
-            let inbound_chan = DummyChan::run(rt);
+            // XXX use the Relay mode
+            let mode = ChannelMode::Client;
+            let inbound_chan = DummyChan::run(rt, mode);
 
             let memquota = CircuitAccount::new_noop();
             let time_provider = DynTimeProvider::new(rt.clone());
