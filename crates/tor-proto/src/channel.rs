@@ -1189,18 +1189,17 @@ pub(crate) fn fake_mpsc() -> (CellTx, CellRx) {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+mod test {
     // Most of this module is tested via tests that also check on the
     // reactor code; there are just a few more cases to examine here.
     #![allow(clippy::unwrap_used)]
     use super::*;
-    pub(crate) use crate::channel::reactor::test::{CodecResult, new_reactor};
     use tor_cell::chancell::msg::HandshakeType;
     use tor_cell::chancell::{AnyChanCell, msg};
     use tor_rtcompat::test_with_one_runtime;
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
-    pub(crate) fn fake_channel(
+    fn fake_channel(
         rt: impl SleepProvider + CoarseTimeProvider,
         _channel_type: ChannelType,
     ) -> Channel {
