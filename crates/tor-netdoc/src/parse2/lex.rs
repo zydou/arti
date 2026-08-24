@@ -212,6 +212,28 @@ impl<'s> ItemStream<'s> {
         self.whole_input
     }
 
+    /// Access the inner lines reader, mutably
+    ///
+    /// For special-purpose parsing situations (including unpleasant hacks).
+    /// For example, this can be used to skip `@`-annotations in C Tor document files.
+    ///
+    /// Pre- and post-condition: the `Lines` points at the next item to read.
+    pub fn with_inner_lines_mut<F, R>(&mut self, call: F) -> R
+    where
+        F: FnOnce(&mut Lines<'s>) -> R + std::panic::UnwindSafe,
+    {
+        use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
+
+        // The peeked state might be invalidated by `call`, so we must clear it.
+        // Let's take care to do this even if `call` panics.
+
+        let r = catch_unwind(AssertUnwindSafe(|| call(&mut self.lines)));
+        self.peeked = PeekState::None {
+            yielded_item_lno: self.lines.peek_lno(),
+        };
+        r.unwrap_or_else(|e| resume_unwind(e))
+    }
+
     /// Parse a (sub-)document with its own signatures
     ///
     /// Used (mostly) by the
