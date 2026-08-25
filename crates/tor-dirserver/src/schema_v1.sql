@@ -1,3 +1,7 @@
+-- TODO DIRMIRROR: Optimize the schema by using rowid and indices more.
+-- This required the operation to be more or less complete as we will only then
+-- have a working schema we can use and optimize.
+
 -- Meta table to store the current schema version.
 CREATE TABLE arti_dirserver_schema_version(
     version TEXT NOT NULL -- currently, always `1`
@@ -35,11 +39,12 @@ CREATE TABLE consensus(
 CREATE TABLE consensus_diff(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
-    old_consensus_rowid     INTEGER NOT NULL,
-    new_consensus_rowid     INTEGER NOT NULL,
+    base_consensus_docid    TEXT NOT NULL,
+    target_consensus_docid  TEXT NOT NULL,
+    UNIQUE(base_consensus_docid, target_consensus_docid),
     FOREIGN KEY(docid) REFERENCES store(docid),
-    FOREIGN KEY(old_consensus_rowid) REFERENCES consensus(rowid),
-    FOREIGN KEY(new_consensus_rowid) REFERENCES consensus(rowid)
+    FOREIGN KEY(base_consensus_docid) REFERENCES consensus(docid),
+    FOREIGN KEY(target_consensus_docid) REFERENCES consensus(docid)
 ) STRICT;
 
 -- Stores the router descriptors.
