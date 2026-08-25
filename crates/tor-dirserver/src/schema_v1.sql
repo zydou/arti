@@ -41,6 +41,7 @@ CREATE TABLE consensus_diff(
     docid                   TEXT NOT NULL UNIQUE,
     base_consensus_docid    TEXT NOT NULL,
     target_consensus_docid  TEXT NOT NULL,
+    UNIQUE(base_consensus_docid, target_consensus_docid),
     FOREIGN KEY(docid) REFERENCES store(docid),
     FOREIGN KEY(base_consensus_docid) REFERENCES consensus(docid),
     FOREIGN KEY(target_consensus_docid) REFERENCES consensus(docid)
