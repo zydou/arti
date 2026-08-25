@@ -321,7 +321,7 @@ impl ConsensusMeta {
     /// The [`None`] case implies that no valid consensus has been found, that
     /// is, no consensus at all or no consensus whose `valid-before` or
     /// `valid-after` lies within the range composed by `now` and `tolerance`.
-    pub(crate) fn query_recent(
+    pub(crate) fn query(
         tx: &Transaction,
         flavor: ConsensusFlavor,
         tolerance: &DirTolerance,
@@ -561,7 +561,7 @@ impl AuthCertMeta {
     /// database query potentially taking something between `O(log n)` to
     /// `O(n)` to execute.  However, given that this respective value is
     /// oftentimes fairly small, it should not be much of a big concern.
-    pub(crate) fn query_recent(
+    pub(crate) fn query(
         tx: &Transaction,
         signatories: &[AuthCertKeyIds],
         tolerance: &DirTolerance,
@@ -1322,7 +1322,7 @@ mod test {
         read_tx(&pool, move |tx| {
             // Get None by being way before valid-after.
             assert!(
-                ConsensusMeta::query_recent(
+                ConsensusMeta::query(
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
@@ -1334,7 +1334,7 @@ mod test {
 
             // Get None by being way behind valid-until.
             assert!(
-                ConsensusMeta::query_recent(
+                ConsensusMeta::query(
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
@@ -1346,7 +1346,7 @@ mod test {
 
             // Get None by being minimally before valid-after.
             assert!(
-                ConsensusMeta::query_recent(
+                ConsensusMeta::query(
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
@@ -1358,7 +1358,7 @@ mod test {
 
             // Get None by being minimally behind valid-until.
             assert!(
-                ConsensusMeta::query_recent(
+                ConsensusMeta::query(
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
@@ -1369,7 +1369,7 @@ mod test {
             );
 
             // Get a valid consensus by being in the interval.
-            let res1 = ConsensusMeta::query_recent(
+            let res1 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1377,7 +1377,7 @@ mod test {
             )
             .unwrap()
             .unwrap();
-            let res2 = ConsensusMeta::query_recent(
+            let res2 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1385,7 +1385,7 @@ mod test {
             )
             .unwrap()
             .unwrap();
-            let res3 = ConsensusMeta::query_recent(
+            let res3 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
@@ -1408,7 +1408,7 @@ mod test {
             assert_eq!(res2, res3);
 
             // Get a valid consensus using a liberal dir tolerance.
-            let res1 = ConsensusMeta::query_recent(
+            let res1 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
@@ -1416,7 +1416,7 @@ mod test {
             )
             .unwrap()
             .unwrap();
-            let res2 = ConsensusMeta::query_recent(
+            let res2 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
@@ -1483,7 +1483,7 @@ mod test {
 
         // Empty.
         let (found, missing) = read_tx(&pool, |tx| {
-            AuthCertMeta::query_recent(
+            AuthCertMeta::query(
                 tx,
                 &[],
                 &DirTolerance::default(),
@@ -1497,7 +1497,7 @@ mod test {
 
         // Find one and two missing ones.
         let (found, missing) = read_tx(&pool, |tx| {
-            AuthCertMeta::query_recent(
+            AuthCertMeta::query(
                 tx,
                 &[
                     // Found one.
@@ -1593,7 +1593,7 @@ mod test {
     fn missing_server_descriptors() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::query_recent(
+            ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &DirTolerance::default(),
@@ -1663,7 +1663,7 @@ mod test {
     fn missing_extra_infos() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::query_recent(
+            ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &DirTolerance::default(),
@@ -1699,7 +1699,7 @@ mod test {
     fn missing_micro_descriptors() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::query_recent(
+            ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Microdesc,
                 &DirTolerance::default(),
