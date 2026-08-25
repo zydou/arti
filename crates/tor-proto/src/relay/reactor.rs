@@ -1061,7 +1061,7 @@ pub(crate) mod test {
             // Since this is a circuit of the form A -> B -> C,
             // and A sent us a DESTROY, we expect our relay (B) to forward
             // the DESTROY to C.
-            assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Backward);
+            assert_destroy_sent(&mut ctrl, DestroyReason::NONE, DestroyDirection::Forward);
         });
     }
 
