@@ -9,6 +9,9 @@ use anyhow::{Context as _, anyhow};
 use super::CliError;
 
 /// Command line filename argument, allowing `-` for stdin/stdout
+///
+/// Doesn't implement `Display`; for content error reporting prefer
+/// [`Reading::description`].
 //
 // TODO DIRAUTH currently this can only be used for output file arguments,
 // but we will implement using this for an input file argument too.
@@ -183,6 +186,11 @@ impl Reading {
             .read_to_string(&mut s)
             .map_err(self.handle_read_error())?;
         Ok(s)
+    }
+
+    /// Provide a human-readable description of what this is (eg for error reporting)
+    pub(crate) fn description(&self) -> &str {
+        &self.description
     }
 
     /// Returns an error handler for IO errors from this input file
