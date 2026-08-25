@@ -266,7 +266,7 @@ pub(crate) async fn new_pending_tunnel<R: Runtime>(
     pending_tunnel
 }
 
-/// Dummy channel (currently client-only).
+/// Dummy channel, for testing.
 pub(crate) struct DummyChan {
     /// Tor channel output
     pub(crate) rx: mpsc::Receiver<AnyChanCell>,
@@ -278,9 +278,9 @@ pub(crate) struct DummyChan {
 }
 
 impl DummyChan {
-    /// Create a dummy client channel, and spawn a task for its reactor.
-    pub(crate) fn run<R: Runtime>(rt: &R) -> DummyChan {
-        let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
+    /// Create a dummy channel, and spawn a task for its reactor.
+    pub(crate) fn run<R: Runtime>(rt: &R, mode: ChannelMode) -> DummyChan {
+        let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone(), mode);
         rt.spawn(async {
             let _ignore = chan_reactor.run().await;
         })

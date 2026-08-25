@@ -466,6 +466,7 @@ pub(crate) mod test {
     use tor_rtcompat::{CertifiedConn, Runtime, StreamOps};
     use web_time_compat::SystemTimeExt;
 
+    use crate::channel::ChannelMode;
     use crate::channel::handler::test::MsgBuf;
     use crate::channel::test_utils::DummyChan;
     use crate::circuit::UniqId;
@@ -561,7 +562,13 @@ pub(crate) mod test {
             _target: Self::BuildSpec,
             tx: OutboundChanSender,
         ) -> crate::Result<()> {
-            let dummy_chan = DummyChan::run(&self.runtime);
+            // Note: this will create channels in Client mode, which isn't strictly right,
+            // but our relay circuit reactor tests don't currently require Relay-mode
+            // for the channels they initiate. If this becomes a problem, we should
+            // update the DummyChanProvider constructor to take all the pieces it
+            // needs for building a ChannelMode::Relay here
+            let mode = ChannelMode::Client;
+            let dummy_chan = DummyChan::run(&self.runtime, mode);
             let chan = Arc::clone(&dummy_chan.channel);
             {
                 let mut lock = self.outbound.lock().unwrap();

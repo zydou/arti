@@ -949,6 +949,7 @@ pub(crate) mod test {
 
     pub(crate) fn new_reactor<R: Runtime>(
         runtime: R,
+        mode: ChannelMode,
     ) -> (
         Arc<crate::channel::Channel>,
         Reactor<R>,
@@ -979,7 +980,7 @@ pub(crate) mod test {
         });
         let stream_ops = NoOpStreamOpsHandle::default();
         let (chan, reactor) = crate::channel::Channel::new(
-            ChannelMode::Client,
+            mode,
             link_protocol,
             Box::new(send1),
             Box::new(recv2),
@@ -1000,7 +1001,7 @@ pub(crate) mod test {
     #[test]
     fn shutdown() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, mut reactor, _output, _input) = new_reactor(rt);
+            let (chan, mut reactor, _output, _input) = new_reactor(rt, ChannelMode::Client);
 
             chan.terminate();
             let r = reactor.run_once().await;
@@ -1017,7 +1018,7 @@ pub(crate) mod test {
             use futures::future::FutureExt;
             use futures::join;
 
-            let (chan, reactor, _output, _input) = new_reactor(rt);
+            let (chan, reactor, _output, _input) = new_reactor(rt, ChannelMode::Client);
             // Let's get the reactor running...
             let run_reactor = reactor.run().map(|x| x.is_ok()).shared();
 
@@ -1039,7 +1040,8 @@ pub(crate) mod test {
     #[test]
     fn new_circ_closed() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, mut reactor, mut output, _input) = new_reactor(rt.clone());
+            let (chan, mut reactor, mut output, _input) =
+                new_reactor(rt.clone(), ChannelMode::Client);
             assert!(chan.duration_unused().is_some()); // unused yet
 
             let (ret, reac) = futures::join!(
@@ -1081,7 +1083,8 @@ pub(crate) mod test {
         use tor_rtcompat::SleepProvider;
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, mut reactor, mut output, mut input) = new_reactor(rt.clone());
+            let (chan, mut reactor, mut output, mut input) =
+                new_reactor(rt.clone(), ChannelMode::Client);
 
             let (ret, reac) = futures::join!(
                 chan.new_tunnel(Arc::new(DummyTimeoutEstimator)),
@@ -1132,7 +1135,7 @@ pub(crate) mod test {
     #[test]
     fn bad_cells() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
+            let (_chan, mut reactor, _output, mut input) = new_reactor(rt, ChannelMode::Client);
 
             // Created2 cells for nonexistent circuits are dropped
             let created2_cell = msg::Created2::new(*b"hihi").into();
@@ -1162,7 +1165,8 @@ pub(crate) mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use oneshot_fused_workaround as oneshot;
 
-            let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone());
+            let (_chan, mut reactor, _output, mut input) =
+                new_reactor(rt.clone(), ChannelMode::Client);
 
             let (padding_ctrl, _padding_stream) = new_padding(DynTimeProvider::new(rt));
 
@@ -1254,7 +1258,8 @@ pub(crate) mod test {
             use crate::circuit::celltypes::*;
             use oneshot_fused_workaround as oneshot;
 
-            let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone());
+            let (_chan, mut reactor, _output, mut input) =
+                new_reactor(rt.clone(), ChannelMode::Client);
 
             let (padding_ctrl, _padding_stream) = new_padding(DynTimeProvider::new(rt));
 
@@ -1324,7 +1329,7 @@ pub(crate) mod test {
     #[test]
     fn closing_if_reactor_dropped() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, reactor, _output, _input) = new_reactor(rt);
+            let (chan, reactor, _output, _input) = new_reactor(rt, ChannelMode::Client);
 
             assert!(!chan.is_closing());
             drop(reactor);
@@ -1340,7 +1345,7 @@ pub(crate) mod test {
     #[test]
     fn closing_if_reactor_shutdown() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, reactor, _output, _input) = new_reactor(rt);
+            let (chan, reactor, _output, _input) = new_reactor(rt, ChannelMode::Client);
 
             assert!(!chan.is_closing());
             chan.terminate();
@@ -1357,7 +1362,7 @@ pub(crate) mod test {
     #[test]
     fn reactor_error_wait_for_close() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, reactor, _output, mut input) = new_reactor(rt);
+            let (chan, reactor, _output, mut input) = new_reactor(rt, ChannelMode::Client);
 
             // force an error by sending created2 cell without a CircId
             let created2_cell = msg::Created2::new(*b"hihi").into();
