@@ -678,6 +678,7 @@ impl AuthCertMeta {
             (docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1, dir_key_published, dir_key_expires)
             VALUES
             (:docid, :id_rsa, :sign_rsa, :published, :expires)
+            ON CONFLICT DO NOTHING
             "
         ))?;
 
