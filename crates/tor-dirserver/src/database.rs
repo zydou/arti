@@ -1392,13 +1392,8 @@ mod test {
                 Some(testdata2::valid_system_time().into()),
             )
             .unwrap()[0];
-            let res4 = ConsensusMeta::query(
-                tx,
-                ConsensusFlavor::Plain,
-                &no_tolerance,
-                None,
-            )
-            .unwrap()[0];
+            let res4 =
+                ConsensusMeta::query(tx, ConsensusFlavor::Plain, &no_tolerance, None).unwrap()[0];
             assert_eq!(
                 res1,
                 ConsensusMeta {

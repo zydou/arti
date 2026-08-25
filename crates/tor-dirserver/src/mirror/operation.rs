@@ -249,7 +249,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // is very fast and having to maintain two different queries,
                 // one for checking and one for selecting, is prone to get
                 // out-of-sync.
-                match ConsensusMeta::query(tx, T::flavor(), &self.tolerance, Some(now))?.as_slice() {
+                match ConsensusMeta::query(tx, T::flavor(), &self.tolerance, Some(now))?.as_slice()
+                {
                     // Some consensus means we can load it.
                     [_, ..] => State::LoadConsensus,
 
@@ -265,14 +266,10 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             ConsensusBoundData::Unverified { consensus, .. } => {
                 // Check whether there any missing authority certificates that
                 // have signed the consensus.
-                let missing_certs = !AuthCertMeta::query(
-                    tx,
-                    &consensus.signatories(),
-                    &self.tolerance,
-                    now,
-                )?
-                .1
-                .is_empty();
+                let missing_certs =
+                    !AuthCertMeta::query(tx, &consensus.signatories(), &self.tolerance, now)?
+                        .1
+                        .is_empty();
 
                 if missing_certs {
                     // Missing authority certificates means we must download
