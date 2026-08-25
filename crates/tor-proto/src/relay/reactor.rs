@@ -436,18 +436,38 @@ pub(crate) mod test {
         }
     }
 
+    /// A circuit reactor handle, for building circuits of the form
+    /// A -> B, and A -> B -> C, where the circuit reactor under test
+    /// "thinks" it is B.
+    ///
+    /// [`ReactorTestCtrl::new`] builds and spawns:
+    ///
+    ///   * a channel reactor for the A - B "Tor Channel"
+    ///   * a circuit reactor for B's view of the circuit
+    ///
+    /// Some of the tests in this module extend the circuit by another dummy hop,
+    /// to obtain an A -> B -> C circuit. This involves sending an EXTEND2
+    /// cell over the A -> B channel, and calling [`ReactorTestCtrl::do_create2_handshake`]
+    /// to finalize the handshake.
     struct ReactorTestCtrl {
         /// The relay circuit handle.
         relay_circ: Arc<RelayCirc>,
         /// The circuit id on our `inbound_chan`.
         circid: CircId,
         /// The inbound channel ("towards the client").
+        ///
+        /// This is the "Tor channel" between A and B in
+        /// a circuit of the form A -> B or A -> B -> C.
         inbound_chan: DummyChan,
         /// The outbound channel ("away from the client"), if any.
         ///
         /// Shared with the DummyChanProvider, which initializes this
         /// when the relay reactor launches a channel to the next hop
         /// via `get_or_launch()`.
+        ///
+        /// This is the "Tor channel" between B and C,
+        /// if our test circuit is of the form A -> B -> C
+        /// (i.e. if we have extended the "base" circuit by another mock hop, to C).
         outbound_chan: Arc<Mutex<Option<DummyChan>>>,
         /// MPSC channel for telling the DummyOutboundCrypto that the next
         /// cell we're about to send to the reactor should be "recognized".
