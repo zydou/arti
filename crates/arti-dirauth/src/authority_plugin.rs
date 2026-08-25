@@ -6,6 +6,7 @@
 #![allow(unused)] // XXXX
 
 use anyhow::Context as _;
+use derive_deftly::{Deftly, define_derive_deftly};
 
 use tor_dirauth::consensus;
 use tor_error::{Bug, ErrorReport as _};

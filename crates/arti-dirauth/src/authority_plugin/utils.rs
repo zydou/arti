@@ -8,6 +8,41 @@ use anyhow::anyhow;
 
 use super::*;
 
+define_derive_deftly! {
+    /// Define `fn new`
+    ///
+    /// # Field attributes
+    ///
+    ///  * `#[deftly(new(arg))]`: this field should be an argument to `new`.
+    ///    If not specified, `Default` is used.
+    //
+    // TODO enhance documentation and promote somewhere?
+    // tor_netdoc::Constructor is not suitable because all the fields would have to be pub(crate)
+    // derive_more::Constructor is not suitable because it can't Default fields
+    New beta_deftly:
+
+    ${defcond ARG fmeta(new(arg))}
+
+    $impl {
+        $/// Make a new `$tname`
+        $tvis fn new(
+            $(
+                ${when ARG}
+                $fname: $ftype,
+            )
+        ) -> Self {
+            $tname {
+                $(
+                    $fname
+                    ${if not(ARG) {
+                        : Default::default()
+                    }},
+                )
+            }
+        }
+    }
+}
+
 /// Command line filename argument, allowing `-` for stdin/stdout
 ///
 /// Doesn't implement `Display`; for content error reporting prefer

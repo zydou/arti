@@ -369,6 +369,7 @@ version = "0.45.0"
 dependencies = [
  "anyhow",
  "clap",
+ "derive-deftly",
  "thiserror 2.0.19",
  "tor-dirauth",
  "tor-error",

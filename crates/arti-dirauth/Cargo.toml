@@ -32,6 +32,7 @@ __is_experimental = []
 [dependencies]
 anyhow = "1.0.72"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
+derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }
 thiserror = "2"
 tor-dirauth = { path = "../tor-dirauth", version = "0.45.0" }
 tor-error = { path = "../tor-error", version = "0.45.0" }
