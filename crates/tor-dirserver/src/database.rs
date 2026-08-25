@@ -318,6 +318,10 @@ impl ConsensusMeta {
     /// plus a [`DirTolerance`] are supplied, which will be used for querying
     /// the database in a time-constrained fashion.
     ///
+    /// Supplying [`None`] as the [`Timestamp`] simply returns the consensus
+    /// with the highest valid-after value, regardless of the current system
+    /// time.
+    ///
     /// The [`None`] case implies that no valid consensus has been found, that
     /// is, no consensus at all or no consensus whose `valid-before` or
     /// `valid-after` lies within the range composed by `now` and `tolerance`.
@@ -325,7 +329,7 @@ impl ConsensusMeta {
         tx: &Transaction,
         flavor: ConsensusFlavor,
         tolerance: &DirTolerance,
-        now: Timestamp,
+        now: Option<Timestamp>,
     ) -> Result<Option<Self>, DatabaseError> {
         // Select the most recent flavored consensus document from the database.
         //
@@ -338,8 +342,12 @@ impl ConsensusMeta {
             FROM consensus
             WHERE
               flavor = :flavor
-              AND :now >= valid_after - :pre_valid
-              AND :now <= valid_until + :post_valid
+              AND
+              (
+                (:now IS NULL)
+                OR
+                (:now >= valid_after - :pre_valid AND :now <= valid_until + :post_valid)
+              )
             ORDER BY valid_after DESC
             LIMIT 1
             "
@@ -1326,7 +1334,7 @@ mod test {
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    (lifetime.valid_after.0 - Duration::from_secs(60 * 60 * 24 * 365)).into()
+                    Some((lifetime.valid_after.0 - Duration::from_secs(60 * 60 * 24 * 365)).into())
                 )
                 .unwrap()
                 .is_none()
@@ -1338,7 +1346,7 @@ mod test {
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    (lifetime.valid_until.0 + Duration::from_secs(60 * 60 * 24 * 365)).into(),
+                    Some((lifetime.valid_until.0 + Duration::from_secs(60 * 60 * 24 * 365)).into()),
                 )
                 .unwrap()
                 .is_none()
@@ -1350,7 +1358,7 @@ mod test {
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    (lifetime.valid_after.0 - Duration::from_secs(1)).into(),
+                    Some((lifetime.valid_after.0 - Duration::from_secs(1)).into()),
                 )
                 .unwrap()
                 .is_none()
@@ -1362,7 +1370,7 @@ mod test {
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    (lifetime.valid_until.0 + Duration::from_secs(1)).into(),
+                    Some((lifetime.valid_until.0 + Duration::from_secs(1)).into()),
                 )
                 .unwrap()
                 .is_none()
@@ -1373,7 +1381,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                lifetime.valid_after.0.into(),
+                Some(lifetime.valid_after.0.into()),
             )
             .unwrap()
             .unwrap();
@@ -1381,7 +1389,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                lifetime.valid_until.0.into(),
+                Some(lifetime.valid_until.0.into()),
             )
             .unwrap()
             .unwrap();
@@ -1389,7 +1397,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                testdata2::valid_system_time().into(),
+                Some(testdata2::valid_system_time().into()),
             )
             .unwrap()
             .unwrap();
@@ -1412,7 +1420,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
-                (lifetime.valid_after.0 - Duration::from_secs(60 * 30)).into(),
+                Some((lifetime.valid_after.0 - Duration::from_secs(60 * 30)).into()),
             )
             .unwrap()
             .unwrap();
@@ -1420,7 +1428,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
-                (lifetime.valid_until.0 + Duration::from_secs(60 * 30)).into(),
+                Some((lifetime.valid_until.0 + Duration::from_secs(60 * 30)).into()),
             )
             .unwrap()
             .unwrap();
@@ -1597,7 +1605,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &DirTolerance::default(),
-                testdata2::valid_system_time().into(),
+                Some(testdata2::valid_system_time().into()),
             )
         })
         .unwrap()
@@ -1667,7 +1675,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &DirTolerance::default(),
-                testdata2::valid_system_time().into(),
+                Some(testdata2::valid_system_time().into()),
             )
         })
         .unwrap()
@@ -1703,7 +1711,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Microdesc,
                 &DirTolerance::default(),
-                testdata2::valid_system_time().into(),
+                Some(testdata2::valid_system_time().into()),
             )
         })
         .unwrap()

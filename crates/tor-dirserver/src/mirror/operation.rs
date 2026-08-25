@@ -249,7 +249,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // is very fast and having to maintain two different queries,
                 // one for checking and one for selecting, is prone to get
                 // out-of-sync.
-                match ConsensusMeta::query(tx, T::flavor(), &self.tolerance, now)? {
+                match ConsensusMeta::query(tx, T::flavor(), &self.tolerance, Some(now))? {
                     // Some consensus means we can load it.
                     Some(_) => State::LoadConsensus,
 
@@ -377,7 +377,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // leaves too much room for wrong/weird behavior.
         let (server_queue, extra_queue, micro_queue, lifetime, consensus) =
             db::read_tx(pool, |tx| {
-                let meta = ConsensusMeta::query(tx, T::flavor(), &self.tolerance, now)?
+                let meta = ConsensusMeta::query(tx, T::flavor(), &self.tolerance, Some(now))?
                     .ok_or(internal!("database externally modified?"))?;
                 let server_queue = meta.missing_servers(tx)?;
                 let extra_queue = meta.missing_extras(tx)?;
