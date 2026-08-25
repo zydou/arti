@@ -54,3 +54,6 @@ mod database;
 pub mod err;
 mod http;
 pub mod mirror;
+
+#[cfg(test)]
+pub(crate) mod testdata2;

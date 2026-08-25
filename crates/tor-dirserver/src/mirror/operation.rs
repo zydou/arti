@@ -743,136 +743,63 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::time::{Duration, SystemTime};
-
-    use rusqlite::named_params;
+    use rusqlite::params;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
     };
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_netdoc::parse2::NetdocParseableUnverified;
 
-    use crate::database::sql;
+    use crate::{database::sql, testdata2};
 
     use super::*;
 
-    fn create_dummy_db() -> Pool<SqliteConnectionManager> {
-        let pool = db::open("").unwrap();
-
-        let mut conn = pool.get().unwrap();
-        let tx = conn.transaction().unwrap();
-
-        let cons_docid = db::store_insert(
-            &tx,
-            include_bytes!("../../testdata/consensus-ns"),
-            std::iter::empty(),
-        )
-        .unwrap();
-        let ns1_docid = db::store_insert(
-            &tx,
-            include_bytes!("../../testdata/descriptor1-ns"),
-            std::iter::empty(),
-        )
-        .unwrap();
-        let extra1_docid = db::store_insert(
-            &tx,
-            include_bytes!("../../testdata/descriptor1-extra-info"),
-            std::iter::empty(),
-        )
-        .unwrap();
-
-        tx.execute(
-            sql!(
-                "
-                INSERT INTO router_extra_info (docid, unsigned_sha1, kp_relay_id_rsa_sha1)
-                VALUES
-                (:docid, :sha1, :fingerprint)
-                "
-            ),
-            named_params! {
-                ":docid": extra1_docid,
-                ":sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-extra-info-unsigned")),
-                ":fingerprint": "000004ACBB9D29BCBA17256BB35928DDBFC8ABA9"
-            },
-        )
-        .unwrap();
-        tx.execute(
-            sql!(
-                "
-                INSERT INTO router_descriptor
-                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor, extra_unsigned_sha1)
-                VALUES
-                (:docid, :sha1, :sha2, :fingerprint, 'ns', :extra)
-                "
-            ),
-            named_params! {
-                ":docid": ns1_docid,
-                ":sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
-                ":sha2": db::Sha256::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
-                ":fingerprint": "000004ACBB9D29BCBA17256BB35928DDBFC8ABA9",
-                ":extra": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-extra-info-unsigned")),
-            },
-        )
-        .unwrap();
-
-        tx.execute(
-            sql!(
-                "
-                INSERT INTO consensus
-                (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
-                VALUES
-                (:docid, :sha3, 'ns', :valid_after, :fresh_until, :valid_until)
-                "
-            ),
-            named_params! {
-                ":docid": cons_docid,
-                ":sha3": "0000000000000000000000000000000000000000000000000000000000000000",
-                ":valid_after": 1769698800,
-                ":fresh_until": 1769702400,
-                ":valid_until": 1769709600,
-            },
-        )
-        .unwrap();
-
-        tx.execute(
-            sql!(
-                "
-                INSERT INTO consensus_router_descriptor_member
-                (consensus_docid, unsigned_sha1, unsigned_sha2)
-                VALUES
-                (:cons_docid, :ns1_sha1, NULL),
-                (:cons_docid, :ns2_sha1, NULL)
-                "
-            ),
-            named_params! {
-                ":cons_docid": cons_docid,
-                ":ns1_sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor1-ns-unsigned")),
-                ":ns2_sha1": db::Sha1::digest(include_bytes!("../../testdata/descriptor2-ns-unsigned")),
-            },
-        )
-        .unwrap();
-
-        tx.commit().unwrap();
-
-        pool
-    }
-
+    /// Tests whether the load consensus state computes missing descriptors
+    /// properly.
+    ///
+    /// For this, the test removes a present router descriptor from the storage
+    /// to verify that it is detected as missing and added to the download
+    /// queue.
     #[tokio::test]
     async fn state_load_consensus() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::None;
         let engine = StaticEngine {
             flavor: ConsensusFlavor::Plain,
-            authorities: AuthorityContacts::default(),
+            authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
         };
 
-        let time = SystemTime::UNIX_EPOCH + Duration::from_secs(1769700600); // 2026-01-29 15:30:00
-        let time: Timestamp = time.into();
-        let fresh_until = time + Duration::from_secs(60 * 30);
-        let fresh_until_half = fresh_until + Duration::from_secs(60 * 60);
+        let time: Timestamp = testdata2::valid_system_time().into();
+        let fresh_until: Timestamp = testdata2::current_consensus_ns()
+            .0
+            .preamble
+            .lifetime
+            .fresh_until
+            .0
+            .into();
+        let valid_until: Timestamp = testdata2::current_consensus_ns()
+            .0
+            .preamble
+            .lifetime
+            .valid_until
+            .0
+            .into();
+        // This is the middle of valid_until and fresh_until.
+        let fresh_until_half = fresh_until + ((valid_until - fresh_until) / 2);
+
+        // Remove a single router descriptor from our storage to see whether it
+        // appears in the download queue as expected.
+        let relay_to_remove = &testdata2::current_consensus_ns().0.routers[0];
+        let relay_to_remove = db::Sha1::from(*relay_to_remove.doc_digest());
+        pool.get()
+            .unwrap()
+            .execute(
+                sql!("DELETE FROM router_descriptor WHERE unsigned_sha1 = ?1"),
+                params![relay_to_remove],
+            )
+            .unwrap();
 
         engine
             .load_consensus(&pool, &mut data, time, &mut testing_rng())
@@ -891,12 +818,9 @@ mod test {
                     FlavoredConsensus::Plain(_) => {}
                     _ => panic!("consensus not ns"),
                 }
-                assert_eq!(
-                    server_queue,
-                    HashSet::from([db::Sha1::digest(include_bytes!(
-                        "../../testdata/descriptor2-ns-unsigned"
-                    ))])
-                );
+                // If everything worked properly, then the queue should only
+                // contain the relay we removed, because that is missing now.
+                assert_eq!(server_queue, HashSet::from([relay_to_remove]));
                 assert!(lifetime >= fresh_until);
                 assert!(lifetime <= fresh_until_half);
                 assert!(extra_queue.is_empty());
@@ -906,19 +830,24 @@ mod test {
         }
     }
 
+    /// Tests whether the fetch consensus state properly fetches a consensus
+    /// and keeps it in memory as unverified.
+    ///
+    /// For this, we spawn a tokio task simulating a web server which responds
+    /// with a consensus.
     #[tokio::test]
     async fn state_fetch_consensus() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::None;
         let engine = StaticEngine {
             flavor: ConsensusFlavor::Plain,
-            authorities: AuthorityContacts::default(),
+            authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
         };
 
         let state = db::read_tx(&pool, |tx| {
-            engine.determine_state(tx, &data, SystemTime::UNIX_EPOCH.into())
+            engine.determine_state(tx, &data, testdata2::invalid_system_time().into())
         })
         .unwrap()
         .unwrap();
@@ -931,7 +860,7 @@ mod test {
             let mut buf = vec![0; 1024];
             let _ = stream.read(&mut buf).await.unwrap();
 
-            let consensus = include_str!("../../testdata/consensus-ns");
+            let consensus = testdata2::current_consensus_ns().1;
             let resp = format!(
                 "HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: {}\r\n\r\n{consensus}",
                 consensus.len()
@@ -942,10 +871,8 @@ mod test {
         engine.fetch_consensus(&mut data, &[saddr]).await.unwrap();
         match data {
             ConsensusBoundData::Unverified { consensus, raw } => match consensus {
-                FlavoredConsensusSigned::Plain(plain) => {
-                    // El-cheapo verification, this is not a parser unit test.
-                    assert_eq!(plain.unwrap_unverified().0.routers.len(), 2);
-                    assert_eq!(raw, include_str!("../../testdata/consensus-ns"));
+                FlavoredConsensusSigned::Plain(_) => {
+                    assert_eq!(raw, testdata2::current_consensus_ns().1);
                 }
                 _ => panic!("data is not unverified ns consensus"),
             },
@@ -953,31 +880,49 @@ mod test {
         }
     }
 
+    /// Tests the download, verification, and insertion of authority certificates.
+    ///
+    /// For this, it starts by removing an existing one from the test database
+    /// to see it getting re-downloaded, re-verified, and re-inserted again.
     #[tokio::test]
     async fn state_auth_certs() {
-        let pool = create_dummy_db();
+        let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::Unverified {
             consensus: FlavoredConsensusSigned::Plain(
-                parse2::parse_netdoc(&ParseInput::new(
-                    include_str!("../../testdata/consensus-ns"),
-                    "",
-                ))
-                .unwrap(),
+                parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().1, ""))
+                    .unwrap(),
             ),
-            raw: include_str!("../../testdata/consensus-ns").to_owned(),
+            raw: testdata2::current_consensus_ns().1.to_owned(),
         };
         let engine = StaticEngine {
             flavor: ConsensusFlavor::Plain,
-            authorities: AuthorityContacts::default(),
+            authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
         };
+
+        // We want to download authority certificates; for this, remove
+        // one of them from the database.
+        pool.get()
+            .unwrap()
+            .execute(
+                sql!(
+                    "
+                    DELETE FROM authority_key_certificate
+                    WHERE :kp_auth_id_rsa_sha1 = ?1
+                    "
+                ),
+                params![db::Sha1::from(
+                    testdata2::current_auth_cert_ids()[0].to_bytes()
+                )],
+            )
+            .unwrap();
 
         assert_eq!(
             db::read_tx(&pool, |tx| engine.determine_state(
                 tx,
                 &data,
-                SystemTime::UNIX_EPOCH.into()
+                testdata2::valid_system_time().into()
             ))
             .unwrap()
             .unwrap(),
@@ -991,7 +936,10 @@ mod test {
             let (mut stream, _) = server.accept().await.unwrap();
             let _ = stream.read(&mut buf).await.unwrap();
 
-            let authcerts = include_str!("../../testdata/authcert-all");
+            let authcerts = testdata2::current_auth_certs()
+                .into_iter()
+                .map(|x| x.1)
+                .collect::<String>();
 
             stream.write_all(format!(
                 "HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: {}\r\n\r\n{authcerts}",
@@ -1005,7 +953,7 @@ mod test {
                 &pool,
                 &mut data,
                 &[saddr],
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+                testdata2::valid_system_time().into(),
             )
             .await
             .unwrap();
@@ -1015,7 +963,7 @@ mod test {
             db::read_tx(&pool, |tx| engine.determine_state(
                 tx,
                 &data,
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+                testdata2::valid_system_time().into(),
             ))
             .unwrap()
             .unwrap(),
@@ -1025,15 +973,12 @@ mod test {
             AuthCertMeta::query_recent(
                 tx,
                 &FlavoredConsensusSigned::Plain(
-                    parse2::parse_netdoc(&ParseInput::new(
-                        include_str!("../../testdata/consensus-ns"),
-                        "",
-                    ))
-                    .unwrap(),
+                    parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().1, ""))
+                        .unwrap(),
                 )
                 .signatories(),
                 &DirTolerance::default(),
-                (SystemTime::UNIX_EPOCH + Duration::from_secs(1770639454)).into(), // Mon Feb  9 12:17:34 UTC 2026
+                testdata2::valid_system_time().into(),
             )
         })
         .unwrap()
