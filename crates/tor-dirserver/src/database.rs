@@ -1370,7 +1370,7 @@ mod test {
                 .is_empty()
             );
 
-            // Get a valid consensus by being in the interval.
+            // Get a valid consensus by being in the interval (or None).
             let res1 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
@@ -1392,6 +1392,13 @@ mod test {
                 Some(testdata2::valid_system_time().into()),
             )
             .unwrap()[0];
+            let res4 = ConsensusMeta::query(
+                tx,
+                ConsensusFlavor::Plain,
+                &no_tolerance,
+                None,
+            )
+            .unwrap()[0];
             assert_eq!(
                 res1,
                 ConsensusMeta {
@@ -1405,6 +1412,7 @@ mod test {
             );
             assert_eq!(res1, res2);
             assert_eq!(res2, res3);
+            assert_eq!(res3, res4);
 
             // Get a valid consensus using a liberal dir tolerance.
             let res1 = ConsensusMeta::query(
