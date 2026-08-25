@@ -7,7 +7,14 @@
 //! in dirserver unit tests.
 //!
 //! These helpers assume that [`tor_netdoc`] works properly.
-
+//!
+//! TODO DIRMIRROR Remove the symlink into `crates/tor-netdoc`
+//! instead use constants exported by `tor-netdoc` with `testing` feature,
+//! adding consts to tor-netdoc as needed.
+//!
+//! TODO DIRMIRROR consider moving many of these "get the test ..." functions to tor-netdoc
+//! (exposed only with `testing` feature enabled)
+//! and maybe unify with existing code there, as applicable.
 // @@ begin test lint list maintained by maint/add_warning @@
 #![allow(clippy::bool_assert_comparison)]
 #![allow(clippy::clone_on_copy)]
