@@ -355,12 +355,13 @@ pub(crate) mod test {
 
     use super::*;
     use crate::channel::ChannelMode;
+    use crate::channel::CtrlMsg;
     use crate::channel::circmap::CircIdRange;
     use crate::channel::test_utils::DummyChan;
+    use crate::circuit::CircParameters;
+    use crate::circuit::circ_sender;
     use crate::circuit::reactor::test::{AllowAllStreamsFilter, rmsg_to_ccmsg};
-    use crate::circuit::test::fake_mpsc;
     use crate::circuit::test::new_circ_net_params;
-    use crate::circuit::{CircParameters, CircuitRxSender};
     use crate::client::circuit::padding::new_padding;
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
@@ -371,6 +372,8 @@ pub(crate) mod test {
     use crate::stream::incoming::{IncomingStream, IncomingStreamRequest, NoOpRequestFilter};
 
     use futures::AsyncReadExt as _;
+    use futures::SinkExt as _;
+    use oneshot_fused_workaround as oneshot;
     use tracing_test::traced_test;
 
     use tor_basic_utils::test_rng::{TestingRng, testing_rng};
@@ -436,8 +439,8 @@ pub(crate) mod test {
     struct ReactorTestCtrl {
         /// The relay circuit handle.
         relay_circ: Arc<RelayCirc>,
-        /// Mock channel -> circuit reactor MPSC channel.
-        circmsg_send: CircuitRxSender,
+        /// The circuit id on our `inbound_chan`.
+        circid: CircId,
         /// The inbound channel ("towards the client").
         inbound_chan: DummyChan,
         /// The outbound channel ("away from the client"), if any.
@@ -535,6 +538,71 @@ pub(crate) mod test {
         }
     }
 
+    /// Prepare our "inbound" channel,
+    ///
+    /// > Note: the concept of an "inbound" channel only really makes sense
+    /// > if you think about it from a circuit perspective:
+    /// > these tests essentially simulate circuits of the form A -> B
+    /// > and A -> B -> C. The relay circuit reactor under test "thinks" it's relay B,
+    /// > and its "inbound" and "outbound" channels are the A -> B and B -> C channels,
+    /// > respectively.
+    ///
+    /// This spawns a channel reactor and creates a fake circuit entry in it,
+    /// which is wired up to the circuit Reactor under test by [`ReactorTestCtrl::new`].
+    async fn prepare_inbound_chan<R: Runtime>(
+        rt: &R,
+        mode: ChannelMode,
+    ) -> (CircId, CircuitRxReceiver, DummyChan) {
+        let mut inbound_chan = DummyChan::run(rt, mode);
+
+        let memquota = CircuitAccount::new_noop();
+        let time_provider = DynTimeProvider::new(rt.clone());
+
+        let (sender, receiver) = MpscSpec::new(128)
+            .new_mq(time_provider, memquota.as_raw_account())
+            .unwrap();
+        let (sender, receiver) = circ_sender::channel(sender, receiver);
+        let (created_sender, created_receiver) = oneshot::channel();
+
+        let (tx, rx) = oneshot::channel();
+
+        // Note: we need to make sure the circuit is in the channel reactor's
+        // circuit map, because otherwise we can't test the DESTROY behavior,
+        // (the channel reactor conditionally sends DESTROY based on whether
+        // the circuit entry is still in the circmap or not;
+        // the presence of a circuit in the circmap is a proxy for
+        // whether we have sent a DESTROY ourselves or not).
+        inbound_chan
+            .channel
+            .send_control(CtrlMsg::AllocateCircuit {
+                created_sender,
+                sender,
+                tx,
+            })
+            .unwrap();
+        let (circid, _circ_unique_id, _padding_ctrl, _padding_stream) = rx.await.unwrap().unwrap();
+
+        // Hack: AllocateCircuit puts the circuit in the "Opening" state,
+        // but in order to actually be able to send anything on this channel,
+        // we need to advance it to "Open". We do that by sending a CREATED2 cell on the channel,
+        // which is nonsensical from the perspective of the relay-specific test setup
+        // (it would make sense if this was a client channel, however).
+        // Alas, it is the only way we can advance the circuit's state to "Open"
+        // in the channel's circmap without introducing a test-only CtrlMsg for this,
+        // or without surrendering the circuit Reactor setup to the channel impl
+        // (the latter might not be so bad actually, because it would be closer to what
+        // happens in reality).
+        let handshake = vec![];
+        let created2 = chanmsg::Created2::new(handshake.clone());
+        let cell = ChanCell::new(Some(circid), created2.into());
+        inbound_chan.tx.try_send(Ok(cell)).unwrap();
+
+        // We **have** to read the CREATED2 (otherwise the channel reactor shuts down with an error)
+        let _ = created_receiver.await;
+
+        (circid, receiver, inbound_chan)
+    }
+
     impl ReactorTestCtrl {
         /// Spawn a relay circuit reactor, returning a `ReactorTestCtrl` for
         /// controlling it.
@@ -542,10 +610,6 @@ pub(crate) mod test {
             rt: &R,
             allowed_stream_cmds: &[RelayCmd],
         ) -> (Self, impl futures::Stream<Item = IncomingStream>) {
-            use crate::channel::CtrlMsg;
-            use crate::circuit::circ_sender;
-            use oneshot_fused_workaround as oneshot;
-
             let outbound_chan = Arc::new(Mutex::new(None));
             let chan_provider = Arc::new(DummyChanProvider::new(
                 rt.clone(),
@@ -553,40 +617,10 @@ pub(crate) mod test {
             ));
 
             let mode = build_channel_mode(Arc::clone(&chan_provider), allowed_stream_cmds);
-            let inbound_chan = DummyChan::run(rt, mode);
-
-            let memquota = CircuitAccount::new_noop();
-            let time_provider = DynTimeProvider::new(rt.clone());
-
-            let (sender, receiver) = MpscSpec::new(128)
-                .new_mq(time_provider, memquota.as_raw_account())
-                .unwrap();
-            let (sender, _receiver) = circ_sender::channel(sender, receiver);
-            let (created_sender, _created_receiver) = oneshot::channel();
-
-            let (tx, rx) = oneshot::channel();
-
-            // Note: we need to make sure the circuit is in the channel reactor's
-            // circuit map, because otherwise we can't test the DESTROY behavior,
-            // (the channel reactor conditionally sends DESTROY based on whether
-            // the circuit entry is still in the circmap or not;
-            // the presence of a circuit in the circmap is a proxy for
-            // whether we have sent a DESTROY ourselves or not).
-            inbound_chan
-                .channel
-                .send_control(CtrlMsg::AllocateCircuit {
-                    created_sender,
-                    sender,
-                    tx,
-                })
-                .unwrap();
-
-            let (circid, _circ_unique_id, _padding_ctrl, _padding_stream) =
-                rx.await.unwrap().unwrap();
+            let (circid, receiver, inbound_chan) = prepare_inbound_chan(rt, mode).await;
 
             let unique_id = UniqId::new(8, 17);
             let (padding_ctrl, padding_stream) = new_padding(DynTimeProvider::new(rt.clone()));
-            let (circmsg_send, circmsg_recv) = fake_mpsc(64);
             let params = CircParameters::new(
                 true,
                 build_cc_vegas_params(),
@@ -605,7 +639,7 @@ pub(crate) mod test {
                 &Arc::clone(&inbound_chan.channel),
                 circid,
                 unique_id,
-                circmsg_recv,
+                receiver,
                 Box::new(DummyInboundCrypto {}),
                 Box::new(DummyOutboundCrypto { recognized_rx }),
                 &settings,
@@ -625,7 +659,7 @@ pub(crate) mod test {
 
             let ctrl = Self {
                 relay_circ,
-                circmsg_send,
+                circid,
                 recognized_tx,
                 inbound_chan,
                 outbound_chan,
@@ -652,7 +686,8 @@ pub(crate) mod test {
 
         /// Simulate the sending of a forward channel message through our relay.
         async fn send_fwd_cmsg(&mut self, msg: chanmsg::AnyChanMsg) {
-            self.circmsg_send.send(msg).await.unwrap();
+            let cell = ChanCell::new(Some(self.circid), msg);
+            self.inbound_chan.tx.send(Ok(cell)).await.unwrap();
         }
 
         /// Whether the reactor opened an outbound channel
