@@ -7,7 +7,7 @@
 use anyhow::Context as _;
 
 use tor_dirauth::consensus;
-use tor_error::ErrorReport as _;
+use tor_error::{Bug, ErrorReport as _};
 
 mod utils;
 use utils::FilenameOrStdio;
@@ -114,5 +114,11 @@ impl CliError {
             E::UnsupportedConsensusMethod { .. } => 10,
             E::OperationalError { .. } => 32,
         }
+    }
+}
+
+impl From<Bug> for CliError {
+    fn from(bug: Bug) -> Self {
+        CliError::OperationalError(bug.into())
     }
 }
