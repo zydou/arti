@@ -1441,6 +1441,9 @@ mod test {
                 }
             );
             assert_eq!(res1, res2);
+
+            // TODO DIRMIRROR: Test retrieval of multiple consensuses, which
+            // requires the test database to contain more than one.
         })
         .unwrap();
     }
