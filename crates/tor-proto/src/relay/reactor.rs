@@ -647,10 +647,7 @@ pub(crate) mod test {
             // specifying whether the cell should be treated as recognized
             // or unrecognized
             self.recognized_tx.send(recognized).unwrap();
-            self.circmsg_send
-                .send(rmsg_to_ccmsg(id, msg, early))
-                .await
-                .unwrap();
+            self.send_fwd_cmsg(rmsg_to_ccmsg(id, msg, early)).await;
         }
 
         /// Simulate the sending of a forward channel message through our relay.
