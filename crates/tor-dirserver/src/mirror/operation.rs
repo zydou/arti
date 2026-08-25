@@ -249,8 +249,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // is very fast and having to maintain two different queries,
                 // one for checking and one for selecting, is prone to get
                 // out-of-sync.
-                match ConsensusMeta::<T>::query(tx, &self.tolerance, Some(now))?.as_slice()
-                {
+                match ConsensusMeta::<T>::query(tx, &self.tolerance, Some(now))?.as_slice() {
                     // Some consensus means we can load it.
                     [_, ..] => State::LoadConsensus,
 
