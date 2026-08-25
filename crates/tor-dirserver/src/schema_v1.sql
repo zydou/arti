@@ -35,11 +35,11 @@ CREATE TABLE consensus(
 CREATE TABLE consensus_diff(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
-    base_consensus_rowid    INTEGER NOT NULL,
-    target_consensus_rowid  INTEGER NOT NULL,
+    base_consensus_docid    TEXT NOT NULL,
+    target_consensus_docid  TEXT NOT NULL,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    FOREIGN KEY(base_consensus_rowid) REFERENCES consensus(rowid),
-    FOREIGN KEY(target_consensus_rowid) REFERENCES consensus(rowid)
+    FOREIGN KEY(base_consensus_docid) REFERENCES consensus(docid),
+    FOREIGN KEY(target_consensus_docid) REFERENCES consensus(docid)
 ) STRICT;
 
 -- Stores the router descriptors.
