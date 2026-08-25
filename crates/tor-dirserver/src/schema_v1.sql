@@ -1,3 +1,7 @@
+-- TODO DIRMIRROR: Optimize the schema by using rowid and indices more.
+-- This required the operation to be more or less complete as we will only then
+-- have a working schema we can use and optimize.
+
 -- Meta table to store the current schema version.
 CREATE TABLE arti_dirserver_schema_version(
     version TEXT NOT NULL -- currently, always `1`
