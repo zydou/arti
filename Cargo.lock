@@ -370,9 +370,12 @@ dependencies = [
  "anyhow",
  "clap",
  "derive-deftly",
+ "digest 0.10.7",
  "thiserror 2.0.19",
+ "tor-checkable",
  "tor-dirauth",
  "tor-error",
+ "tor-llcrypto",
  "tor-netdoc",
 ]
 
