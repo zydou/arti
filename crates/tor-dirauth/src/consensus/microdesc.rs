@@ -132,6 +132,16 @@ fn compute_supported_generic<O: Clone + Eq + Hash, E: From<Bug>>(
     }
 }
 
+impl tor_error::HasKind for MicrodescError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use MicrodescError as ME;
+        use tor_error::ErrorKind as EK;
+        match self {
+            ME::Internal { .. } => EK::Internal,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
