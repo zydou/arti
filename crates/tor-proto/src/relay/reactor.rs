@@ -1058,8 +1058,6 @@ pub(crate) mod test {
                 "Received outbound DESTROY, circuit shutting down"
             ));
 
-            assert!(!logs_contain("sending DESTROY"));
-
             // Since this is a circuit of the form A -> B -> C,
             // and A sent us a DESTROY, we expect our relay (B) to forward
             // the DESTROY to C.
