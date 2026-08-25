@@ -45,6 +45,7 @@ use std::{
     collections::HashSet,
     fmt::Display,
     io::{Cursor, Write},
+    marker::PhantomData,
     num::NonZero,
     ops::{Add, Sub},
     path::Path,
@@ -52,6 +53,7 @@ use std::{
 };
 
 use digest::Digest;
+use educe::Educe;
 use flate2::write::{DeflateEncoder, GzEncoder};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -69,7 +71,7 @@ use tor_netdoc::doc::{
     netstatus::ConsensusFlavor,
 };
 
-use crate::err::DatabaseError;
+use crate::{err::DatabaseError, types::FlavoredConsensusUnverified};
 
 /// Version 1 of the database schema.
 ///
@@ -288,16 +290,14 @@ impl ToSql for Timestamp {
 }
 
 /// Representation of consensus metadata from the database.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ConsensusMeta {
+#[derive(Educe)]
+#[educe(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ConsensusMeta<T> {
     /// The document id uniquely identifying the consensus.
     pub docid: DocumentId,
 
     /// The SHA3 of the unsigned part of the consensus.
     pub unsigned_sha3_256: Sha3_256,
-
-    /// The flavor of the consensus.
-    pub flavor: ConsensusFlavor,
 
     /// The time after which this consensus is valid.
     pub valid_after: Timestamp,
@@ -307,9 +307,12 @@ pub(crate) struct ConsensusMeta {
 
     /// The time after which this consensus stops being valid.
     pub valid_until: Timestamp,
+
+    /// The flavor of the consensus; determined at compile time.
+    flavor: PhantomData<T>,
 }
 
-impl ConsensusMeta {
+impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     /// Obtains the (valid) consensuses from the database.
     ///
     /// This function queries the database using a [`Transaction`] in order to
@@ -323,7 +326,6 @@ impl ConsensusMeta {
     /// time.
     pub(crate) fn query(
         tx: &Transaction,
-        flavor: ConsensusFlavor,
         tolerance: &DirTolerance,
         now: Option<Timestamp>,
     ) -> Result<Vec<Self>, DatabaseError> {
@@ -350,7 +352,7 @@ impl ConsensusMeta {
 
         // Actually execute the query.
         let rows = meta_stmt.query_map(named_params! {
-            ":flavor": flavor.name(),
+            ":flavor": T::flavor().name(),
             ":now": now,
             ":pre_valid": tolerance.pre_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
             ":post_valid": tolerance.post_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
@@ -358,10 +360,10 @@ impl ConsensusMeta {
             Ok(Self {
                 docid: row.get(0)?,
                 unsigned_sha3_256: row.get(1)?,
-                flavor,
                 valid_after: row.get(2)?,
                 fresh_until: row.get(3)?,
                 valid_until: row.get(4)?,
+                flavor: Default::default(),
             })
         })?;
 
@@ -405,7 +407,7 @@ impl ConsensusMeta {
         &self,
         tx: &Transaction<'_>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
-        if self.flavor != ConsensusFlavor::Plain {
+        if T::flavor() != ConsensusFlavor::Plain {
             return Ok(HashSet::new());
         }
 
@@ -448,7 +450,7 @@ impl ConsensusMeta {
         &self,
         tx: &Transaction<'_>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
-        if self.flavor != ConsensusFlavor::Plain {
+        if T::flavor() != ConsensusFlavor::Plain {
             return Ok(HashSet::new());
         }
 
@@ -493,7 +495,7 @@ impl ConsensusMeta {
         &self,
         tx: &Transaction<'_>,
     ) -> Result<HashSet<Sha256>, DatabaseError> {
-        if self.flavor != ConsensusFlavor::Microdesc {
+        if T::flavor() != ConsensusFlavor::Microdesc {
             return Ok(HashSet::new());
         }
 
@@ -968,10 +970,14 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_dircommon::config::DirToleranceBuilder;
     use tor_llcrypto::pk::rsa::RsaIdentity;
+    use tor_netdoc::doc::netstatus::{md, plain};
 
     use crate::testdata2;
 
     use super::*;
+
+    type Plain = plain::NetworkStatusUnverified;
+    type Md = md::NetworkStatusUnverified;
 
     #[test]
     fn open_test() {
@@ -1327,9 +1333,8 @@ mod test {
         read_tx(&pool, move |tx| {
             // Get None by being way before valid-after.
             assert!(
-                ConsensusMeta::query(
+                ConsensusMeta::<Plain>::query(
                     tx,
-                    ConsensusFlavor::Plain,
                     &no_tolerance,
                     Some((lifetime.valid_after.0 - Duration::from_secs(60 * 60 * 24 * 365)).into())
                 )
@@ -1339,9 +1344,8 @@ mod test {
 
             // Get None by being way behind valid-until.
             assert!(
-                ConsensusMeta::query(
+                ConsensusMeta::<Plain>::query(
                     tx,
-                    ConsensusFlavor::Plain,
                     &no_tolerance,
                     Some((lifetime.valid_until.0 + Duration::from_secs(60 * 60 * 24 * 365)).into()),
                 )
@@ -1351,9 +1355,8 @@ mod test {
 
             // Get None by being minimally before valid-after.
             assert!(
-                ConsensusMeta::query(
+                ConsensusMeta::<Plain>::query(
                     tx,
-                    ConsensusFlavor::Plain,
                     &no_tolerance,
                     Some((lifetime.valid_after.0 - Duration::from_secs(1)).into()),
                 )
@@ -1363,9 +1366,8 @@ mod test {
 
             // Get None by being minimally behind valid-until.
             assert!(
-                ConsensusMeta::query(
+                ConsensusMeta::<Plain>::query(
                     tx,
-                    ConsensusFlavor::Plain,
                     &no_tolerance,
                     Some((lifetime.valid_until.0 + Duration::from_secs(1)).into()),
                 )
@@ -1374,38 +1376,35 @@ mod test {
             );
 
             // Get a valid consensus by being in the interval (or None).
-            let res1 = ConsensusMeta::query(
+            let res1 = ConsensusMeta::<Plain>::query(
                 tx,
-                ConsensusFlavor::Plain,
                 &no_tolerance,
                 Some(lifetime.valid_after.0.into()),
             )
             .unwrap()[0];
-            let res2 = ConsensusMeta::query(
+            let res2 = ConsensusMeta::<Plain>::query(
                 tx,
-                ConsensusFlavor::Plain,
                 &no_tolerance,
                 Some(lifetime.valid_until.0.into()),
             )
             .unwrap()[0];
-            let res3 = ConsensusMeta::query(
+            let res3 = ConsensusMeta::<Plain>::query(
                 tx,
-                ConsensusFlavor::Plain,
                 &no_tolerance,
                 Some(testdata2::valid_system_time().into()),
             )
             .unwrap()[0];
             let res4 =
-                ConsensusMeta::query(tx, ConsensusFlavor::Plain, &no_tolerance, None).unwrap()[0];
+                ConsensusMeta::<Plain>::query(tx, &no_tolerance, None).unwrap()[0];
             assert_eq!(
                 res1,
                 ConsensusMeta {
                     docid,
                     unsigned_sha3_256,
-                    flavor: ConsensusFlavor::Plain,
                     valid_after: lifetime.valid_after.0.into(),
                     fresh_until: lifetime.fresh_until.0.into(),
                     valid_until: lifetime.valid_until.0.into(),
+                    flavor: Default::default(),
                 }
             );
             assert_eq!(res1, res2);
@@ -1413,16 +1412,14 @@ mod test {
             assert_eq!(res3, res4);
 
             // Get a valid consensus using a liberal dir tolerance.
-            let res1 = ConsensusMeta::query(
+            let res1 = ConsensusMeta::<Plain>::query(
                 tx,
-                ConsensusFlavor::Plain,
                 &liberal_tolerance,
                 Some((lifetime.valid_after.0 - Duration::from_secs(60 * 30)).into()),
             )
             .unwrap()[0];
-            let res2 = ConsensusMeta::query(
+            let res2 = ConsensusMeta::<Plain>::query(
                 tx,
-                ConsensusFlavor::Plain,
                 &liberal_tolerance,
                 Some((lifetime.valid_until.0 + Duration::from_secs(60 * 30)).into()),
             )
@@ -1432,10 +1429,10 @@ mod test {
                 ConsensusMeta {
                     docid,
                     unsigned_sha3_256,
-                    flavor: ConsensusFlavor::Plain,
                     valid_after: lifetime.valid_after.0.into(),
                     fresh_until: lifetime.fresh_until.0.into(),
                     valid_until: lifetime.valid_until.0.into(),
+                    flavor: Default::default(),
                 }
             );
             assert_eq!(res1, res2);
@@ -1457,13 +1454,13 @@ mod test {
         let docid = Sha256::digest(testdata2::current_consensus_ns().1.as_bytes());
         let lifetime = testdata2::current_consensus_ns().0.preamble.lifetime;
         let unsigned_sha3_256 = testdata2::consensus_sha3(testdata2::current_consensus_ns().1);
-        let cons = ConsensusMeta {
+        let cons = ConsensusMeta::<Plain> {
             docid,
             unsigned_sha3_256,
-            flavor: ConsensusFlavor::Plain,
             valid_after: lifetime.valid_after.0.into(),
             fresh_until: lifetime.fresh_until.0.into(),
             valid_until: lifetime.valid_until.0.into(),
+            flavor: Default::default(),
         };
         for _ in 0..10000 {
             let when = cons.lifetime(&mut testing_rng());
@@ -1599,9 +1596,8 @@ mod test {
     fn missing_server_descriptors() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::query(
+            ConsensusMeta::<Plain>::query(
                 tx,
-                ConsensusFlavor::Plain,
                 &DirTolerance::default(),
                 Some(testdata2::valid_system_time().into()),
             )
@@ -1668,9 +1664,8 @@ mod test {
     fn missing_extra_infos() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::query(
+            ConsensusMeta::<Plain>::query(
                 tx,
-                ConsensusFlavor::Plain,
                 &DirTolerance::default(),
                 Some(testdata2::valid_system_time().into()),
             )
@@ -1703,9 +1698,8 @@ mod test {
     fn missing_micro_descriptors() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::query(
+            ConsensusMeta::<Md>::query(
                 tx,
-                ConsensusFlavor::Microdesc,
                 &DirTolerance::default(),
                 Some(testdata2::valid_system_time().into()),
             )
