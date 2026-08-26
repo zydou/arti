@@ -1295,7 +1295,15 @@ mod timeimpl {
     ///
     /// The timezone is not included in the string representation; `+0000` is implicit.
     ///
-    /// (Example: "2020-10-09T17:38:12")
+    /// # Example
+    ///
+    /// ```
+    /// use tor_netdoc::types::Iso8601TimeNoSp;
+    ///
+    /// let s = "2020-10-09T17:38:12";
+    /// let t: Iso8601TimeNoSp = s.parse().unwrap();
+    /// assert_eq!(t.to_string(), s);
+    /// ```
     #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Deftly)]
     #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]

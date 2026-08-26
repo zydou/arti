@@ -84,7 +84,7 @@ This method should write every consensus method supported by the plugin to
 Invocation:
 
 ```
-plugin compute-mds -i <FILENAME> [-i <FILENAME>...] --mds-out <MDFILE> --meta-out <METAFILE>
+plugin compute-mds -t <TIME> -i <FILENAME> [-i <FILENAME>...] --mds-out <MDFILE> --meta-out <METAFILE>
 ```
 
 Every input file will contain a set of zero or more server descriptors.
@@ -100,6 +100,11 @@ If they do,
 the plugins SHOULD ignore all but the first instance of each descriptor.
 The files MAY contain multiple distinct descriptors for each router.
 The plugin SHOULD process all distinct descriptors.
+The plugin SHOULD verify signatures on routerdescs and and check timeliness
+with respect to `<TIME>`.
+
+`<TIME>` is in the same format as the timestamp in a
+`shared-rand-current-value` item in a network status (eg `2020-09-29T13:36:33`).
 
 > In practice, the authority is likely to use its `cached-descriptors` and
 > `cached-descriptors.new` files as the inputs.
