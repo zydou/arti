@@ -168,19 +168,14 @@ impl HopSettings {
                 }
             }
             HopNegotiationType::Full => {
+                #[allow(clippy::overly_complex_bool_expr)]
+                if ccontrol.alg().compatible_with_cgo()
+                    && caps.supports_named_subver(named::RELAY_NEGOTIATE_SUBPROTO)
+                    && caps.supports_named_subver(named::RELAY_CRYPT_CGO)
                 {
-                    {
-                        // XXXX dedent
-                        #[allow(clippy::overly_complex_bool_expr)]
-                        if ccontrol.alg().compatible_with_cgo()
-                            && caps.supports_named_subver(named::RELAY_NEGOTIATE_SUBPROTO)
-                            && caps.supports_named_subver(named::RELAY_CRYPT_CGO)
-                        {
-                            RelayCryptLayerProtocol::Cgo
-                        } else {
-                            RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0)
-                        }
-                    }
+                    RelayCryptLayerProtocol::Cgo
+                } else {
+                    RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0)
                 }
             }
         };
@@ -781,17 +776,12 @@ impl CircHopOutbound {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
             Ok(StreamFlowCtrl::new_window(window))
         } else {
-            {
-                {
-                    // XXXX dedent
-                    Ok(StreamFlowCtrl::new_xon_xoff(
-                        params,
-                        with_sidechannel_mitigations,
-                        rate_limit_updater,
-                        drain_rate_requester,
-                    ))
-                }
-            }
+            Ok(StreamFlowCtrl::new_xon_xoff(
+                params,
+                with_sidechannel_mitigations,
+                rate_limit_updater,
+                drain_rate_requester,
+            ))
         }
     }
 
@@ -829,16 +819,11 @@ impl CircHopOutbound {
 
         if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
             if e.is_full() {
-                {
-                    {
-                        // XXXX dedent
-                        return Err(internal!(
-                            "Stream (ID {}) uses an unbounded queue, but apparently it's full?",
-                            sv(streamid),
-                        )
-                        .into());
-                    }
-                }
+                return Err(internal!(
+                    "Stream (ID {}) uses an unbounded queue, but apparently it's full?",
+                    sv(streamid),
+                )
+                .into());
             }
             if e.is_disconnected() && cell_counts_toward_windows {
                 // the other side of the stream has gone away; remember

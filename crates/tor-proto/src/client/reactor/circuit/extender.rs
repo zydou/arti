@@ -241,7 +241,6 @@ pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
     ) -> Result<()>;
 }
 
-#[rustfmt::skip] // XXXX remove and reformat
 impl HandshakeAuxDataHandler for NtorV3Client {
     fn handle_server_aux_data(
         settings: &mut HopSettings,
@@ -256,30 +255,25 @@ impl HandshakeAuxDataHandler for NtorV3Client {
                 CircResponseExt::CcResponse(ack_ext) => {
                     cc_response = true;
 
-                    {
-                        {
-                            // XXXX dedent
-                            // Unexpected ACK extension as in if CC is disabled on our side, we would never have
-                            // requested it. Reject and circuit must be closed.
-                            if !settings.ccontrol.is_enabled() {
-                                return Err(Error::HandshakeProto(
-                                    "Received unexpected ntorv3 CC ack extension".into(),
-                                ));
-                            }
-                            let sendme_inc = ack_ext.sendme_inc();
-                            // Invalid increment, reject and circuit must be closed.
-                            if !congestion::params::is_sendme_inc_valid(sendme_inc, &settings.ccontrol) {
-                                return Err(Error::HandshakeProto(
-                                    "Received invalid sendme increment in CC ntorv3 extension".into(),
-                                ));
-                            }
-                            // Excellent, we have a negotiated sendme increment. Set it for this circuit.
-                            settings
-                                .ccontrol
-                                .cwnd_params_mut()
-                                .set_sendme_inc(sendme_inc);
-                        }
+                    // Unexpected ACK extension as in if CC is disabled on our side, we would never have
+                    // requested it. Reject and circuit must be closed.
+                    if !settings.ccontrol.is_enabled() {
+                        return Err(Error::HandshakeProto(
+                            "Received unexpected ntorv3 CC ack extension".into(),
+                        ));
                     }
+                    let sendme_inc = ack_ext.sendme_inc();
+                    // Invalid increment, reject and circuit must be closed.
+                    if !congestion::params::is_sendme_inc_valid(sendme_inc, &settings.ccontrol) {
+                        return Err(Error::HandshakeProto(
+                            "Received invalid sendme increment in CC ntorv3 extension".into(),
+                        ));
+                    }
+                    // Excellent, we have a negotiated sendme increment. Set it for this circuit.
+                    settings
+                        .ccontrol
+                        .cwnd_params_mut()
+                        .set_sendme_inc(sendme_inc);
                 }
                 // Any other extensions is not expected. Reject and circuit must be closed.
                 _ => {
