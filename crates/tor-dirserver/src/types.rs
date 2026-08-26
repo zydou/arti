@@ -15,7 +15,7 @@ use tor_netdoc::{
 /// Generic trait representing a flavored verified consensus.
 ///
 /// Similar to [`FlavoredConsensusUnverified`] and obtained from it.
-pub(crate) trait FlavoredConsensus: Clone {
+pub(crate) trait FlavoredConsensusBody: Clone {
     /// Returns the [`ConsensusFlavor`] of this type.
     fn flavor() -> ConsensusFlavor;
 }
@@ -25,9 +25,9 @@ pub(crate) trait FlavoredConsensus: Clone {
 /// Required because in certain parts of the code, the exact flavor of the
 /// consensus does not matter.
 ///
-/// See [`FlavoredConsensus`] for the verified variant of it.
+/// See [`FlavoredConsensusBody`] for the verified variant of it.
 pub(crate) trait FlavoredConsensusUnverified:
-    NetdocParseableUnverified<Body: FlavoredConsensus> + NetdocParseable + Clone
+    NetdocParseableUnverified<Body: FlavoredConsensusBody> + NetdocParseable + Clone
 {
     /// Returns the [`ConsensusFlavor`] of this type.
     fn flavor() -> ConsensusFlavor {
@@ -40,13 +40,13 @@ pub(crate) trait FlavoredConsensusUnverified:
     fn signatories(&self) -> Vec<AuthCertKeyIds>;
 }
 
-impl FlavoredConsensus for plain::NetworkStatus {
+impl FlavoredConsensusBody for plain::NetworkStatus {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Plain
     }
 }
 
-impl FlavoredConsensus for md::NetworkStatus {
+impl FlavoredConsensusBody for md::NetworkStatus {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Microdesc
     }
