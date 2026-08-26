@@ -103,7 +103,8 @@ The plugin SHOULD process all distinct descriptors.
 The plugin SHOULD verify signatures on routerdescs and and check timeliness
 with respect to `<TIME>`.
 
-`<TIME>` is a decimal integer representing a Unix timestamp.
+`<TIME>` is in the same format as the timestamp in a
+`shared-rand-current-value` item in a network status (eg `2020-09-29T13:36:33`).
 
 > In practice, the authority is likely to use its `cached-descriptors` and
 > `cached-descriptors.new` files as the inputs.
