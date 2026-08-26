@@ -310,7 +310,7 @@ pub(crate) struct ConsensusMeta {
 }
 
 impl ConsensusMeta {
-    /// Obtains the most recent valid consensus from the database.
+    /// Obtains the (valid) consensuses from the database.
     ///
     /// This function queries the database using a [`Transaction`] in order to
     /// have a consistent view upon it.  It will return an [`Option`] containing
@@ -318,15 +318,15 @@ impl ConsensusMeta {
     /// plus a [`DirTolerance`] are supplied, which will be used for querying
     /// the database in a time-constrained fashion.
     ///
-    /// The [`None`] case implies that no valid consensus has been found, that
-    /// is, no consensus at all or no consensus whose `valid-before` or
-    /// `valid-after` lies within the range composed by `now` and `tolerance`.
-    pub(crate) fn query_recent(
+    /// Supplying [`None`] as the [`Timestamp`] simply returns the consensus
+    /// with the highest valid-after value, regardless of the current system
+    /// time.
+    pub(crate) fn query(
         tx: &Transaction,
         flavor: ConsensusFlavor,
         tolerance: &DirTolerance,
-        now: Timestamp,
-    ) -> Result<Option<Self>, DatabaseError> {
+        now: Option<Timestamp>,
+    ) -> Result<Vec<Self>, DatabaseError> {
         // Select the most recent flavored consensus document from the database.
         //
         // The `valid_after` and `valid_until` cells must be a member of the range:
@@ -338,16 +338,18 @@ impl ConsensusMeta {
             FROM consensus
             WHERE
               flavor = :flavor
-              AND :now >= valid_after - :pre_valid
-              AND :now <= valid_until + :post_valid
+              AND
+              (
+                (:now IS NULL)
+                OR
+                (:now >= valid_after - :pre_valid AND :now <= valid_until + :post_valid)
+              )
             ORDER BY valid_after DESC
-            LIMIT 1
             "
         ))?;
 
-        // Actually execute the query; a None is totally valid and considered as
-        // no consensus being present in the current database.
-        let res = meta_stmt.query_one(named_params! {
+        // Actually execute the query.
+        let rows = meta_stmt.query_map(named_params! {
             ":flavor": flavor.name(),
             ":now": now,
             ":pre_valid": tolerance.pre_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
@@ -361,9 +363,9 @@ impl ConsensusMeta {
                 fresh_until: row.get(3)?,
                 valid_until: row.get(4)?,
             })
-        }).optional()?;
+        })?;
 
-        Ok(res)
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
     /// Queries the raw data of a [`ConsensusMeta`].
@@ -561,7 +563,7 @@ impl AuthCertMeta {
     /// database query potentially taking something between `O(log n)` to
     /// `O(n)` to execute.  However, given that this respective value is
     /// oftentimes fairly small, it should not be much of a big concern.
-    pub(crate) fn query_recent(
+    pub(crate) fn query(
         tx: &Transaction,
         signatories: &[AuthCertKeyIds],
         tolerance: &DirTolerance,
@@ -1325,77 +1327,76 @@ mod test {
         read_tx(&pool, move |tx| {
             // Get None by being way before valid-after.
             assert!(
-                ConsensusMeta::query_recent(
+                ConsensusMeta::query(
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    (lifetime.valid_after.0 - Duration::from_secs(60 * 60 * 24 * 365)).into()
+                    Some((lifetime.valid_after.0 - Duration::from_secs(60 * 60 * 24 * 365)).into())
                 )
                 .unwrap()
-                .is_none()
+                .is_empty()
             );
 
             // Get None by being way behind valid-until.
             assert!(
-                ConsensusMeta::query_recent(
+                ConsensusMeta::query(
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    (lifetime.valid_until.0 + Duration::from_secs(60 * 60 * 24 * 365)).into(),
+                    Some((lifetime.valid_until.0 + Duration::from_secs(60 * 60 * 24 * 365)).into()),
                 )
                 .unwrap()
-                .is_none()
+                .is_empty()
             );
 
             // Get None by being minimally before valid-after.
             assert!(
-                ConsensusMeta::query_recent(
+                ConsensusMeta::query(
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    (lifetime.valid_after.0 - Duration::from_secs(1)).into(),
+                    Some((lifetime.valid_after.0 - Duration::from_secs(1)).into()),
                 )
                 .unwrap()
-                .is_none()
+                .is_empty()
             );
 
             // Get None by being minimally behind valid-until.
             assert!(
-                ConsensusMeta::query_recent(
+                ConsensusMeta::query(
                     tx,
                     ConsensusFlavor::Plain,
                     &no_tolerance,
-                    (lifetime.valid_until.0 + Duration::from_secs(1)).into(),
+                    Some((lifetime.valid_until.0 + Duration::from_secs(1)).into()),
                 )
                 .unwrap()
-                .is_none()
+                .is_empty()
             );
 
-            // Get a valid consensus by being in the interval.
-            let res1 = ConsensusMeta::query_recent(
+            // Get a valid consensus by being in the interval (or None).
+            let res1 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                lifetime.valid_after.0.into(),
+                Some(lifetime.valid_after.0.into()),
             )
-            .unwrap()
-            .unwrap();
-            let res2 = ConsensusMeta::query_recent(
+            .unwrap()[0];
+            let res2 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                lifetime.valid_until.0.into(),
+                Some(lifetime.valid_until.0.into()),
             )
-            .unwrap()
-            .unwrap();
-            let res3 = ConsensusMeta::query_recent(
+            .unwrap()[0];
+            let res3 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                testdata2::valid_system_time().into(),
+                Some(testdata2::valid_system_time().into()),
             )
-            .unwrap()
-            .unwrap();
+            .unwrap()[0];
+            let res4 =
+                ConsensusMeta::query(tx, ConsensusFlavor::Plain, &no_tolerance, None).unwrap()[0];
             assert_eq!(
                 res1,
                 ConsensusMeta {
@@ -1409,24 +1410,23 @@ mod test {
             );
             assert_eq!(res1, res2);
             assert_eq!(res2, res3);
+            assert_eq!(res3, res4);
 
             // Get a valid consensus using a liberal dir tolerance.
-            let res1 = ConsensusMeta::query_recent(
+            let res1 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
-                (lifetime.valid_after.0 - Duration::from_secs(60 * 30)).into(),
+                Some((lifetime.valid_after.0 - Duration::from_secs(60 * 30)).into()),
             )
-            .unwrap()
-            .unwrap();
-            let res2 = ConsensusMeta::query_recent(
+            .unwrap()[0];
+            let res2 = ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
-                (lifetime.valid_until.0 + Duration::from_secs(60 * 30)).into(),
+                Some((lifetime.valid_until.0 + Duration::from_secs(60 * 30)).into()),
             )
-            .unwrap()
-            .unwrap();
+            .unwrap()[0];
             assert_eq!(
                 res1,
                 ConsensusMeta {
@@ -1439,6 +1439,9 @@ mod test {
                 }
             );
             assert_eq!(res1, res2);
+
+            // TODO DIRMIRROR: Test retrieval of multiple consensuses, which
+            // requires the test database to contain more than one.
         })
         .unwrap();
     }
@@ -1486,7 +1489,7 @@ mod test {
 
         // Empty.
         let (found, missing) = read_tx(&pool, |tx| {
-            AuthCertMeta::query_recent(
+            AuthCertMeta::query(
                 tx,
                 &[],
                 &DirTolerance::default(),
@@ -1500,7 +1503,7 @@ mod test {
 
         // Find one and two missing ones.
         let (found, missing) = read_tx(&pool, |tx| {
-            AuthCertMeta::query_recent(
+            AuthCertMeta::query(
                 tx,
                 &[
                     // Found one.
@@ -1596,16 +1599,15 @@ mod test {
     fn missing_server_descriptors() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::query_recent(
+            ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &DirTolerance::default(),
-                testdata2::valid_system_time().into(),
+                Some(testdata2::valid_system_time().into()),
             )
         })
         .unwrap()
-        .unwrap()
-        .unwrap();
+        .unwrap()[0];
         // Ensure that the returned consensus matches the one from testdata2.
         assert_eq!(
             meta.docid,
@@ -1666,16 +1668,15 @@ mod test {
     fn missing_extra_infos() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::query_recent(
+            ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Plain,
                 &DirTolerance::default(),
-                testdata2::valid_system_time().into(),
+                Some(testdata2::valid_system_time().into()),
             )
         })
         .unwrap()
-        .unwrap()
-        .unwrap();
+        .unwrap()[0];
         // Ensure that the returned consensus matches the one from testdata2.
         assert_eq!(
             meta.docid,
@@ -1702,16 +1703,15 @@ mod test {
     fn missing_micro_descriptors() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::query_recent(
+            ConsensusMeta::query(
                 tx,
                 ConsensusFlavor::Microdesc,
                 &DirTolerance::default(),
-                testdata2::valid_system_time().into(),
+                Some(testdata2::valid_system_time().into()),
             )
         })
         .unwrap()
-        .unwrap()
-        .unwrap();
+        .unwrap()[0];
         // Ensure that the returned consensus matches the one from testdata2.
         assert_eq!(
             meta.docid,

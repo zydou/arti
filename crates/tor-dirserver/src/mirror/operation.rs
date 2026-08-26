@@ -249,12 +249,13 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // is very fast and having to maintain two different queries,
                 // one for checking and one for selecting, is prone to get
                 // out-of-sync.
-                match ConsensusMeta::query_recent(tx, T::flavor(), &self.tolerance, now)? {
+                match ConsensusMeta::query(tx, T::flavor(), &self.tolerance, Some(now))?.as_slice()
+                {
                     // Some consensus means we can load it.
-                    Some(_) => State::LoadConsensus,
+                    [_, ..] => State::LoadConsensus,
 
                     // None means we must download it.
-                    None => State::FetchConsensus,
+                    [] => State::FetchConsensus,
                 }
             }
 
@@ -265,14 +266,10 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             ConsensusBoundData::Unverified { consensus, .. } => {
                 // Check whether there any missing authority certificates that
                 // have signed the consensus.
-                let missing_certs = !AuthCertMeta::query_recent(
-                    tx,
-                    &consensus.signatories(),
-                    &self.tolerance,
-                    now,
-                )?
-                .1
-                .is_empty();
+                let missing_certs =
+                    !AuthCertMeta::query(tx, &consensus.signatories(), &self.tolerance, now)?
+                        .1
+                        .is_empty();
 
                 if missing_certs {
                     // Missing authority certificates means we must download
@@ -377,7 +374,9 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // leaves too much room for wrong/weird behavior.
         let (server_queue, extra_queue, micro_queue, lifetime, consensus) =
             db::read_tx(pool, |tx| {
-                let meta = ConsensusMeta::query_recent(tx, T::flavor(), &self.tolerance, now)?
+                let meta = ConsensusMeta::query(tx, T::flavor(), &self.tolerance, Some(now))?;
+                let meta = meta
+                    .first()
                     .ok_or(internal!("database externally modified?"))?;
                 let server_queue = meta.missing_servers(tx)?;
                 let extra_queue = meta.missing_extras(tx)?;
@@ -484,7 +483,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
 
         // Obtain the missing certificate identifiers.
         let (_, missing) = db::read_tx(pool, |tx| {
-            AuthCertMeta::query_recent(tx, &signatories, &self.tolerance, now)
+            AuthCertMeta::query(tx, &signatories, &self.tolerance, now)
         })??;
         if missing.is_empty() {
             // Although not technically fatal, retrying when the database was
@@ -888,7 +887,7 @@ mod test {
             State::StoreConsensus
         );
         let recent_authcerts = db::read_tx(&pool, |tx| {
-            AuthCertMeta::query_recent(
+            AuthCertMeta::query(
                 tx,
                 &parse2::parse_netdoc::<Plain>(&ParseInput::new(
                     testdata2::current_consensus_ns().1,
