@@ -42,6 +42,18 @@ pub(crate) trait FlavoredConsensusUnverified:
 
     /// XXX: To remove.
     fn signatories(&self) -> Vec<AuthCertKeyIds>;
+
+    /// Returns the signatures contained inside.
+    ///
+    /// It corresponds to accessing the publicly available T::sigs which is
+    /// guaranteed to be present due to derive logic.
+    ///
+    /// Functionally equivalent to accessing the signatures through
+    /// [`NetdocParseableUnverified::inspect_unverified()`], yet it tries to
+    /// provide a safer semantic around it.
+    fn sigs(&self) -> &Self::Signatures {
+        &self.inspect_unverified().1.sigs
+    }
 }
 
 impl FlavoredConsensusBody for plain::NetworkStatus {
