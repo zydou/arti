@@ -150,6 +150,28 @@ impl LockFileGuard {
     }
 }
 
+impl Drop for LockFileGuard {
+    // We pro-actively unlock the file rather than relying on drop of the File closing it.
+    //
+    // This is necessary on Unix because otherwise the following scenario is possible:
+    //   0. The process has multiple threads
+    //   1. Thread A executes fork (eg as part of spawn), and the child gets a copy of the fd,
+    //   2. Thread B drops the `LockFileGuard` and calls close() on its copy of the fd
+    //   3. Thread B tries to re-acquire the same lock with try_lock and fails
+    //   4. Thread A closes the fd (via exec, or otherwise)
+    // We want to prevent the error in step 3, which arises from a race which is possible
+    // due to us violating the expected semantics of a guard (namely, that the lock is
+    // synchronously released when the guard is dropped).
+    #[allow(clippy::unnecessary_lazy_evaluations)] // we want to write the discarded error type
+    fn drop(&mut self) {
+        self.locked_file
+            .unlock()
+            // Ignore errors from unlock.  There shouldn't be any, but if there are we
+            // don't have anything sensible we could do with them.
+            .unwrap_or_else(|_: std::io::Error| ());
+    }
+}
+
 /// Try to lock `f`, blocking if need be.
 ///
 /// On non-android, this just calls [`fs::File::lock`].
