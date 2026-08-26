@@ -481,6 +481,8 @@ mod tests {
     fn tight_loop() {
         let tmp = std::sync::Arc::new(test_temp_dir!());
 
+        // We make several threads in case there are any cross-thread interactions
+        // that we're not aware of.  There shouldn't be.
         let threads = (0..10)
             .map(|i| {
                 let tmp = tmp.clone();
