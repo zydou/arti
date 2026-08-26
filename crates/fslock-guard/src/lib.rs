@@ -476,4 +476,28 @@ mod tests {
             assert!(!file.try_exists().unwrap());
         });
     }
+
+    #[test]
+    fn tight_loop() {
+        let tmp = std::sync::Arc::new(test_temp_dir!());
+
+        let threads = (0..10)
+            .map(|i| {
+                let tmp = tmp.clone();
+                std::thread::spawn(move || {
+                    tmp.used_by(|dir| {
+                        let file = dir.join(format!("{i}"));
+                        for _ in 0..1000 {
+                            let lock = LockFileGuard::lock(&file).unwrap();
+                            drop(lock);
+                        }
+                    });
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for t in threads {
+            t.join().unwrap_or_else(|e| std::panic::resume_unwind(e));
+        }
+    }
 }
