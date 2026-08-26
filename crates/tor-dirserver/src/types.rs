@@ -25,6 +25,7 @@ pub(crate) trait FlavoredConsensusSignatures: Clone {
     /// Returns the [`AuthCertKeyIds`] of all authority certificates in the signatures.
     // TODO DIRMIRROR: Obtain this from the respective error variant returned by
     // .can_verify().
+    // TODO: The respective implementations are repetitive, can we do better?
     fn signatories(&self) -> Vec<AuthCertKeyIds>;
 }
 
