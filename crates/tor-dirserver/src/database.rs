@@ -678,6 +678,7 @@ impl AuthCertMeta {
             (docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1, dir_key_published, dir_key_expires)
             VALUES
             (:docid, :id_rsa, :sign_rsa, :published, :expires)
+            ON CONFLICT DO NOTHING
             "
         ))?;
 
@@ -855,9 +856,10 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     // :content - The binary data.
     let mut store_stmt = tx.prepare_cached(sql!(
         "
-        INSERT OR REPLACE INTO store (docid, content)
+        INSERT INTO store (docid, content)
         VALUES
         (:docid, :content)
+        ON CONFLICT DO NOTHING
         "
     ))?;
 
@@ -869,9 +871,10 @@ pub(crate) fn store_insert<I: Iterator<Item = ContentEncoding>>(
     // :compressed_docid - The docid of the encoded document in the store.
     let mut compressed_stmt = tx.prepare_cached(sql!(
         "
-        INSERT OR REPLACE INTO compressed_document (algorithm, identity_docid, compressed_docid)
+        INSERT INTO compressed_document (algorithm, identity_docid, compressed_docid)
         VALUES
         (:algorithm, :identity_docid, :compressed_docid)
+        ON CONFLICT DO NOTHING
         "
     ))?;
 
