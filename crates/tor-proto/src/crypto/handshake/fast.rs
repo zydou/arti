@@ -83,7 +83,7 @@ impl super::ServerHandshake for CreateFastServer {
     fn server<R: Rng + CryptoRng, REPLY: super::AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,
-        _key: &[Self::KeyType],
+        _keys: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
         let _reply_extensions: () = reply_fn

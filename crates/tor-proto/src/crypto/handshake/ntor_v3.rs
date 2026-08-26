@@ -285,7 +285,7 @@ impl super::ServerHandshake for NtorV3Server {
     fn server<R: Rng + CryptoRng, REPLY: super::AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,
-        key: &[Self::KeyType],
+        keys: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
         let mut bytes_reply_fn = |bytes: &[u8]| -> Option<Vec<u8>> {
@@ -300,7 +300,7 @@ impl super::ServerHandshake for NtorV3Server {
             rng,
             &mut bytes_reply_fn,
             msg.as_ref(),
-            key,
+            keys,
             NTOR3_CIRC_VERIFICATION,
         )?;
         Ok((NtorV3KeyGenerator { reader }, res))

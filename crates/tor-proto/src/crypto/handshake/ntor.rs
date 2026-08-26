@@ -52,14 +52,14 @@ impl super::ServerHandshake for NtorServer {
     fn server<R: Rng + CryptoRng, REPLY: AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,
-        key: &[Self::KeyType],
+        keys: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
         let _reply_msg = reply_fn
             .reply(&())
             .ok_or(RelayHandshakeError::BadClientHandshake)?;
 
-        server_handshake_ntor_v1(rng, msg, key)
+        server_handshake_ntor_v1(rng, msg, keys)
     }
 }
 

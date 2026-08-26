@@ -105,7 +105,7 @@ pub(crate) trait ServerHandshake {
     fn server<R: Rng + CryptoRng, REPLY: AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,
-        key: &[Self::KeyType],
+        keys: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)>;
 }
