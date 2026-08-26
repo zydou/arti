@@ -329,7 +329,7 @@ impl<R: Runtime> Reactor<R> {
     ///
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
-    pub(crate) async fn run(mut self) -> crate::Result<()> {
+    pub(crate) async fn run(self) -> crate::Result<()> {
         self.0.run().await
     }
 }
