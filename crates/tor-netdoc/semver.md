@@ -7,3 +7,4 @@ ADDED: `parse2::parse_netdoc_multiple_sophisticated`
 ADDED: `test_support::parse_test_document`
 ADDED: `testdata_live`: parsed document functions (eg `netstatus_plain`)
 ADDED: `testdata_live::relay_document_by_nick`
+ADDED: `Nickname::as_str` and `AsRef<str>`
