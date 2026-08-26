@@ -161,8 +161,7 @@ CREATE TABLE consensus_router_descriptor_member(
 
 -- Stores which authority key signed which consensuses.
 --
--- Required to implement the consensus retrieval by authority fingerprints as
--- well as the garbage collection of authority key certificates.
+-- Required to implement the consensus retrieval by authority fingerprints.
 --
 -- http://<hostname>/tor/status-vote/current/consensus-<FLAVOR>/<F1>+<F2>+<F3>
 CREATE TABLE consensus_authority_voter(
