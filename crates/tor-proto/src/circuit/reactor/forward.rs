@@ -112,7 +112,7 @@ pub(crate) enum CtrlCmd<C> {
     // TODO(DEDUP): this is very similar to its client-side counterpart,
     // except the hop is a Option<HopNum> instead of a TargetHop.
     #[cfg(any(feature = "hs-service", feature = "relay"))]
-    #[expect(unused)] // TODO(dedup): this will be used by hs services
+    #[allow(unused)] // TODO(dedup): this will be used by hs services
     AwaitStreamRequests {
         /// A channel for sending information about an incoming stream request.
         incoming_sender: StreamReqSender,
