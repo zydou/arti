@@ -528,4 +528,41 @@ mod tests {
             t.join().unwrap_or_else(|e| std::panic::resume_unwind(e));
         }
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn fork_leak_fds() {
+        use std::ffi::c_int;
+
+        let tmp = test_temp_dir!();
+
+        tmp.used_by(|tmp| {
+            let file = tmp.join("lock");
+            let lock = LockFileGuard::lock(&file).unwrap();
+
+            let child = unsafe {
+                // It would be nicer to do this with std's Command, but
+                // we'd have to use the unsafe pre-exec hook for synchronisation
+                // and anyway that runs after Command's impl has closed "unwanted" fds.
+                match libc::fork() {
+                    -1 => panic!("fork failed"),
+                    0 => {
+                        libc::usleep(10_000);
+                        libc::_exit(0);
+                    }
+                    child => child,
+                }
+            };
+
+            drop(lock);
+            let _lock: LockFileGuard = LockFileGuard::try_lock(&file).unwrap().unwrap();
+
+            unsafe {
+                let mut status: c_int = 0;
+                let got = libc::waitpid(child, (&mut status) as *mut _, 0);
+                assert_eq!(got, child);
+                assert_eq!(status, 0, "{status}");
+            }
+        });
+    }
 }
