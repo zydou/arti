@@ -16,8 +16,6 @@ use tor_netdoc::{
 ///
 /// Similar to [`FlavoredConsensusUnverified`] and obtained from it.
 pub(crate) trait FlavoredConsensusBody: Clone {
-    /// Returns the [`ConsensusFlavor`] of this type.
-    fn flavor() -> ConsensusFlavor;
 }
 
 /// Generic trait representing a flavored unverified consensus.
@@ -30,9 +28,7 @@ pub(crate) trait FlavoredConsensusUnverified:
     NetdocParseableUnverified<Body: FlavoredConsensusBody> + NetdocParseable + Clone
 {
     /// Returns the [`ConsensusFlavor`] of this type.
-    fn flavor() -> ConsensusFlavor {
-        Self::Body::flavor()
-    }
+    fn flavor() -> ConsensusFlavor;
 
     /// Returns the [`AuthCertKeyIds`] of all authority certificates in the signatures.
     // TODO DIRMIRROR: Obtain this from the respective error variant returned by
@@ -41,18 +37,16 @@ pub(crate) trait FlavoredConsensusUnverified:
 }
 
 impl FlavoredConsensusBody for plain::NetworkStatus {
-    fn flavor() -> ConsensusFlavor {
-        ConsensusFlavor::Plain
-    }
 }
 
 impl FlavoredConsensusBody for md::NetworkStatus {
-    fn flavor() -> ConsensusFlavor {
-        ConsensusFlavor::Microdesc
-    }
 }
 
 impl FlavoredConsensusUnverified for plain::NetworkStatusUnverified {
+    fn flavor() -> ConsensusFlavor {
+        ConsensusFlavor::Plain
+    }
+
     fn signatories(&self) -> Vec<AuthCertKeyIds> {
         self.sigs
             .sigs
@@ -64,6 +58,10 @@ impl FlavoredConsensusUnverified for plain::NetworkStatusUnverified {
 }
 
 impl FlavoredConsensusUnverified for md::NetworkStatusUnverified {
+    fn flavor() -> ConsensusFlavor {
+        ConsensusFlavor::Microdesc
+    }
+
     fn signatories(&self) -> Vec<AuthCertKeyIds> {
         self.sigs
             .sigs
