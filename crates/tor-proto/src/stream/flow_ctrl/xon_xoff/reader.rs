@@ -177,9 +177,6 @@ pub(crate) trait BufferIsEmpty {
 pub(crate) struct DrainRateRequest;
 
 #[cfg(test)]
-// This module (and `XonXoffReader`) are always available,
-// but the flow control code logic that it uses requires the "flowctl-cc" feature.
-#[cfg(feature = "flowctl-cc")]
 // We use some tokio-specific types here to make the test easier to write.
 #[cfg(feature = "tokio")]
 mod test {

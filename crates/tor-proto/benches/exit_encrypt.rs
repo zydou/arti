@@ -6,14 +6,12 @@ use criterion::measurement::WallTime as Meas;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use criterion_cycles_per_byte::CyclesPerByte as Meas;
 
-#[cfg(feature = "counter-galois-onion")]
 use aes::{Aes128Enc, Aes256Enc};
 use tor_bytes::SecretBuf;
 use tor_llcrypto::{
     cipher::aes::{Aes128Ctr, Aes256Ctr},
     d::{Sha1, Sha3_256},
 };
-#[cfg(feature = "counter-galois-onion")]
 use tor_proto::bench_utils::cgo;
 use tor_proto::bench_utils::{
     BENCH_CHAN_CMD, CryptInit, InboundRelayLayer, KGen, RelayCellBody, RelayLayer, tor1,
@@ -65,7 +63,6 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.finish();
 
-    #[cfg(feature = "counter-galois-onion")]
     {
         // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per relay cell.
         let mut group = c.benchmark_group("exit_encrypt");

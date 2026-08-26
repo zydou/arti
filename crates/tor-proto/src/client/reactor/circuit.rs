@@ -81,9 +81,6 @@ use {
     crate::tunnel::TunnelId,
 };
 
-#[cfg(not(feature = "flowctl-cc"))]
-use crate::stream::STREAM_READER_BUFFER;
-
 pub(super) use circhop::{CircHop, CircHopList};
 
 /// A circuit "leg" from a tunnel.

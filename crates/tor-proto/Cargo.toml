@@ -24,8 +24,6 @@ full = [
     "rpc",
     "send-control-msg",
     "stream-ctrl",
-    "flowctl-cc",
-    "counter-galois-onion",
     "safelog/full",
     "tor-async-utils/full",
     "tor-basic-utils/full",
@@ -63,7 +61,6 @@ experimental = [
     "circ-padding-manual",
 ]
 conflux = ["tor-cell/conflux", "__is_experimental"]
-flowctl-cc = []
 pt-client = ["tor-linkspec/pt-client"]
 
 hs-client = ["hs-common"]
@@ -73,7 +70,6 @@ experimental-api = ["__is_experimental"]
 # start_conversation etc.; TODO HS should be renamed
 send-control-msg = []
 stream-ctrl = []
-counter-galois-onion = ["aes", "ctr", "polyval", "flowctl-cc"]
 circ-padding = ["__is_experimental", "maybenot", "rand09"]
 circ-padding-manual = ["__is_experimental", "circ-padding"]
 relay = [
@@ -81,8 +77,6 @@ relay = [
     "tor-linkspec/decode",
     "tor-relay-crypto",
     "__is_experimental",
-    "flowctl-cc",
-    "counter-galois-onion",
 ]
 rpc = ["stream-ctrl", "dep:tor-rpcbase", "dep:serde"]
 
@@ -94,7 +88,7 @@ bench = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
-aes = { version = "0.9", optional = true }
+aes = { version = "0.9" }
 amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
 asynchronous-codec = "0.7.0"
@@ -104,7 +98,7 @@ caret = { path = "../caret", version = "0.10.0" }
 cfg-if = "1.0.0"
 cipher = { version = "0.5.2", features = ["zeroize"] }
 coarsetime = "0.1.20"
-ctr = { version = "0.10", optional = true, features = ["zeroize"] }
+ctr = { version = "0.10", features = ["zeroize"] }
 derive-deftly = "~1.11.4"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
@@ -120,7 +114,7 @@ maybenot = { version = "2.2.1", optional = true }
 nonany = "0.3"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.7.0" }
 pin-project = "1"
-polyval = { version = "0.7", optional = true }
+polyval = { version = "0.7" }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.10.1"
 rand09 = { package = "rand", version = "0.9", optional = true }

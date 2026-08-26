@@ -47,7 +47,7 @@ full = [
 ]
 specific-relay = []
 vanguards = ["tor-guardmgr/vanguards"]
-flowctl-cc = ["tor-proto/flowctl-cc"]
+flowctl-cc = []
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.

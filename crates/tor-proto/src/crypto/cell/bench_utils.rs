@@ -9,7 +9,6 @@ pub use super::OutboundClientLayer;
 pub use super::OutboundRelayLayer;
 pub use super::RelayCellBody;
 pub use super::RelayLayer;
-#[cfg(feature = "counter-galois-onion")]
 pub use super::cgo::bench_utils as cgo;
 pub use super::tor1::bench_utils as tor1;
 use super::*;

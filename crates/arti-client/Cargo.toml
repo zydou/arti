@@ -159,7 +159,7 @@ ephemeral-keystore = ["tor-keymgr/ephemeral-keystore", "__is_experimental"]
 ctor-keystore = ["tor-keymgr/ctor-keystore", "__is_experimental"]
 error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
-counter-galois-onion = ["tor-proto/counter-galois-onion", "flowctl-cc"]
+counter-galois-onion = ["flowctl-cc"]
 hsc-negotiate-extensions = ["tor-hsclient?/negotiate-extensions", "__is_experimental"]
 hss-negotiate-extensions = ["tor-hsservice?/negotiate-extensions", "__is_experimental"]
 

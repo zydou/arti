@@ -10,7 +10,6 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 use super::params::FlowCtrlParameters;
 use super::window::state::{HalfStreamWindowFlowCtrl, WindowFlowCtrl};
 use super::xon_xoff::reader::DrainRateRequest;
-#[cfg(feature = "flowctl-cc")]
 use super::xon_xoff::state::{HalfStreamXonXoffFlowCtrl, XonXoffFlowCtrl};
 
 use crate::Result;
@@ -24,7 +23,6 @@ enum StreamFlowCtrlInner {
     /// "legacy" sendme-window-based flow control.
     Window(WindowFlowCtrl),
     /// XON/XOFF flow control.
-    #[cfg(feature = "flowctl-cc")]
     XonXoff(XonXoffFlowCtrl),
 }
 
@@ -49,7 +47,6 @@ impl StreamFlowCtrl {
     }
 
     /// Returns a new xon/xoff-based [`StreamFlowCtrl`].
-    #[cfg(feature = "flowctl-cc")]
     pub(crate) fn new_xon_xoff(
         params: Arc<FlowCtrlParameters>,
         with_sidechannel_mitigations: WithSidechannelMitigations,
@@ -75,7 +72,6 @@ impl StreamFlowCtrl {
             StreamFlowCtrlInner::Window(x) => {
                 HalfStreamFlowCtrlInner::Window(HalfStreamWindowFlowCtrl::new(x))
             }
-            #[cfg(feature = "flowctl-cc")]
             StreamFlowCtrlInner::XonXoff(x) => {
                 HalfStreamFlowCtrlInner::XonXoff(HalfStreamXonXoffFlowCtrl::new(x))
             }
@@ -196,7 +192,6 @@ enum HalfStreamFlowCtrlInner {
     /// "legacy" sendme-window-based flow control.
     Window(HalfStreamWindowFlowCtrl),
     /// XON/XOFF flow control.
-    #[cfg(feature = "flowctl-cc")]
     XonXoff(HalfStreamXonXoffFlowCtrl),
 }
 

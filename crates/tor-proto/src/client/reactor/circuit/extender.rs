@@ -241,6 +241,7 @@ pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
     ) -> Result<()>;
 }
 
+#[rustfmt::skip] // XXXX remove and reformat
 impl HandshakeAuxDataHandler for NtorV3Client {
     fn handle_server_aux_data(
         settings: &mut HopSettings,
@@ -250,16 +251,14 @@ impl HandshakeAuxDataHandler for NtorV3Client {
         let mut cc_response = false;
 
         // Process all extensions.
-        // If "flowctl-cc" is not enabled, this loop will always return an error, so tell clippy
-        // that it's okay.
-        #[cfg_attr(not(feature = "flowctl-cc"), allow(clippy::never_loop))]
         for ext in data {
             match ext {
                 CircResponseExt::CcResponse(ack_ext) => {
                     cc_response = true;
 
-                    cfg_if::cfg_if! {
-                        if #[cfg(feature = "flowctl-cc")] {
+                    {
+                        {
+                            // XXXX dedent
                             // Unexpected ACK extension as in if CC is disabled on our side, we would never have
                             // requested it. Reject and circuit must be closed.
                             if !settings.ccontrol.is_enabled() {
@@ -279,11 +278,6 @@ impl HandshakeAuxDataHandler for NtorV3Client {
                                 .ccontrol
                                 .cwnd_params_mut()
                                 .set_sendme_inc(sendme_inc);
-                        } else {
-                            let _ = ack_ext;
-                            return Err(Error::HandshakeProto(
-                                "Received unexpected `AckCongestionControl` ntorv3 extension".into(),
-                            ));
                         }
                     }
                 }
