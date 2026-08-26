@@ -117,7 +117,7 @@ onion-service-service = ["tor-hsservice", "tor-hscrypto", "tor-persist/state-dir
 keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr"]
 vanguards = ["tor-guardmgr/vanguards", "tor-circmgr/vanguards"]
 
-flowctl-cc = ["tor-circmgr/flowctl-cc"]
+flowctl-cc = []
 
 rpc = ["dyn-clone", "dep:tor-rpcbase"]
 

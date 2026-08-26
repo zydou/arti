@@ -101,7 +101,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.45.0" }
 tor-cell = { path = "../tor-cell", version = "0.45.0", features = ["relay"] }
 tor-cert = { path = "../tor-cert", version = "0.45.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.45.0", features = ["relay"] }
-tor-circmgr = { version = "0.45.0", path = "../tor-circmgr", features = ["flowctl-cc"] }
+tor-circmgr = { version = "0.45.0", path = "../tor-circmgr" }
 tor-config = { path = "../tor-config", version = "0.45.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.45.0" }
 tor-config-shared = { path = "../tor-config-shared", version = "0.45.0" }
