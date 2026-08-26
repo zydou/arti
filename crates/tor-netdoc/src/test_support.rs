@@ -22,7 +22,6 @@ use std::fmt::Display;
 /// Assert that `$a = $b`; if not, panic with a unidiff
 //
 // implementation is in fn assert_eq_or_diff, at the bottom of the file
-#[cfg(any(test, feature = "testing"))]
 #[macro_export]
 macro_rules! assert_eq_or_diff {
     { $a:expr, $b:expr $(,)? } => {
@@ -42,7 +41,6 @@ macro_rules! assert_eq_or_diff {
 /// Assert that `a = b`; if not, panic with a unidiff mentioning `a_what`, `b_what` and `message`
 ///
 /// Normally it is more convenient to use the [`assert_eq_or_diff!`] macro.
-#[cfg(any(test, feature = "testing"))]
 pub fn assert_eq_or_diff(a: &str, a_what: &str, b: &str, b_what: &str, message: &dyn Display) {
     use imara_diff::{Algorithm, BasicLineDiffPrinter, Diff, InternedInput, UnifiedDiffConfig};
 
