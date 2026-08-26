@@ -14,10 +14,13 @@
 #![allow(clippy::string_slice)] // See arti#2571
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-use crate::parse2::{NetdocParseableFields, ParseInput, parse_netdoc};
+use crate::parse2::{NetdocParseable, NetdocParseableFields, ParseInput, parse_netdoc};
 use derive_deftly::Deftly;
 use itertools::chain;
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::fmt::Display;
+use std::sync::Mutex;
 
 /// Assert that `$a = $b`; if not, panic with a unidiff
 //
@@ -128,4 +131,45 @@ pub fn parse_testcase_from_netdoc<T: NetdocParseableFields>(input_doc: &str) -> 
     let case: Document<T> = parse_netdoc(&pinput).expect("parse failed");
 
     case.fields
+}
+
+/// Parse `text` as document type `D`, for use in testing
+///
+/// Parses with retain unknown values enabled, iff the corresponding cargo feature is enabled.
+///
+/// Memoises the parsing (so, leaking the parsed document),
+/// so that we don't reparse these documents once for each test case that uses them.
+///
+/// # Panics
+///
+/// Panics if the parsing fails.
+pub fn parse_test_document<D>(text: &'static str) -> &'static D
+where
+    D: NetdocParseable + Sync,
+{
+    /// Keys in the memo table
+    type MemoKey = (&'static str, TypeId);
+
+    /// Memo table
+    static MEMO: Mutex<Option<HashMap<MemoKey, &'static (dyn Any + Sync)>>> = Mutex::new(None);
+
+    // With this locking strategy, we can run only one actual parser at once.
+    // That seems fine for testing.
+    let mut memo = MEMO.lock().unwrap_or_else(|poison| poison.into_inner());
+    let key = (text, TypeId::of::<D>());
+
+    let map_entry = memo.get_or_insert_default().entry(key).or_insert_with(|| {
+        let mut input = ParseInput::new(text, "<test document>");
+
+        #[cfg(feature = "retain-unknown")]
+        input.retain_unknown_values();
+
+        let doc = parse_netdoc::<D>(&input).expect(text);
+
+        Box::leak(Box::new(doc))
+    });
+
+    (*map_entry as &dyn Any)
+        .downcast_ref::<D>()
+        .expect("wrong type is impossible")
 }
