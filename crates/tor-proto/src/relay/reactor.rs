@@ -85,7 +85,6 @@ use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 type RelayBaseReactor<R> = BaseReactor<R, Forward, Backward>;
 
 /// The entry point of the circuit reactor subsystem.
-#[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
 pub(crate) struct Reactor<R: Runtime>(RelayBaseReactor<R>);
 
@@ -120,7 +119,6 @@ impl stream::StreamHandler for StreamHandler {
     }
 }
 
-#[allow(unused)] // TODO(relay)
 impl<R: Runtime> Reactor<R> {
     /// Create a new circuit reactor.
     ///
