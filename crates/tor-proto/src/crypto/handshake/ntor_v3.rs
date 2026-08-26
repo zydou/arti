@@ -6,11 +6,8 @@
 //! message.
 
 // TODO:
-//    Remove the "allow" item for dead_code.
+//    Remove any "allow" attributes for dead_code.
 //    Make terminology and variable names consistent with spec.
-
-// This module is still unused: so allow some dead code for now.
-#![allow(dead_code)]
 
 use std::borrow::Borrow;
 
@@ -40,12 +37,14 @@ const ENC_KEY_LEN: usize = 32;
 /// The size of a MAC key in bytes.
 const MAC_KEY_LEN: usize = 32;
 /// The size of a curve25519 public key in bytes.
+#[allow(dead_code)] // TODO #1467
 const PUB_KEY_LEN: usize = 32;
 /// The size of a digest output in bytes.
 const DIGEST_LEN: usize = 32;
 /// The length of a MAC output in bytes.
 const MAC_LEN: usize = 32;
 /// The length of a node identity in bytes.
+#[allow(dead_code)] // TODO #1467
 const ID_LEN: usize = 32;
 
 /// The output of the digest, as an array.
@@ -57,6 +56,7 @@ type MacVal = [u8; MAC_LEN];
 // TODO (nickm): Any move operations applied to this key could subvert the zeroizing.
 type EncKey = Zeroizing<[u8; ENC_KEY_LEN]>;
 /// A key for message authentication codes.
+#[allow(dead_code)] // TODO #1467
 type MacKey = [u8; MAC_KEY_LEN];
 
 /// Opaque wrapper type for NtorV3's hash reader.

@@ -72,7 +72,6 @@ impl super::ClientHandshake for CreateFastClient {
 /// Relay-handshake for CREATE_FAST.
 ///
 /// See module documentation; you probably don't want to use this.
-#[allow(dead_code)] // TODO #1467
 pub(crate) struct CreateFastServer;
 
 impl super::ServerHandshake for CreateFastServer {
