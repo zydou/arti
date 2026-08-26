@@ -475,6 +475,8 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use crate::LockFileGuard;
+    use std::sync::Arc;
+    use std::thread;
     use test_temp_dir::test_temp_dir;
 
     #[test]
@@ -501,14 +503,14 @@ mod tests {
 
     #[test]
     fn tight_loop() {
-        let tmp = std::sync::Arc::new(test_temp_dir!());
+        let tmp = Arc::new(test_temp_dir!());
 
         // We make several threads in case there are any cross-thread interactions
         // that we're not aware of.  There shouldn't be.
         let threads = (0..10)
             .map(|i| {
                 let tmp = tmp.clone();
-                std::thread::spawn(move || {
+                thread::spawn(move || {
                     tmp.used_by(|dir| {
                         let file = dir.join(format!("{i}"));
                         for _ in 0..1000 {
