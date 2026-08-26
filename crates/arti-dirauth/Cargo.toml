@@ -42,3 +42,5 @@ tor-llcrypto = { version = "0.45.0", path = "../tor-llcrypto" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.45.0", features = ["full", "retain-unknown"] }
 
 [dev-dependencies]
+test-temp-dir = { version = "0.8.0", path = "../test-temp-dir" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.45.0", features = ["testing"] }
