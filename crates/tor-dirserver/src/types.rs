@@ -40,9 +40,6 @@ pub(crate) trait FlavoredConsensusUnverified:
     /// Returns the [`ConsensusFlavor`] of this type.
     fn flavor() -> ConsensusFlavor;
 
-    /// XXX: To remove.
-    fn signatories(&self) -> Vec<AuthCertKeyIds>;
-
     /// Returns the signatures contained inside.
     ///
     /// It corresponds to accessing the publicly available T::sigs which is
@@ -84,22 +81,10 @@ impl FlavoredConsensusUnverified for plain::NetworkStatusUnverified {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Plain
     }
-
-    fn signatories(&self) -> Vec<AuthCertKeyIds> {
-        self.sigs
-            .sigs
-            .signatories()
-    }
 }
 
 impl FlavoredConsensusUnverified for md::NetworkStatusUnverified {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Microdesc
-    }
-
-    fn signatories(&self) -> Vec<AuthCertKeyIds> {
-        self.sigs
-            .sigs
-            .signatories()
     }
 }

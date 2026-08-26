@@ -42,7 +42,10 @@ use tracing::{debug, warn};
 use crate::{
     database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Timestamp},
     err::{AuthorityRequestError, DatabaseError, OperationError},
-    types::FlavoredConsensusUnverified,
+    types::{
+        FlavoredConsensusSignatures,
+        FlavoredConsensusUnverified,
+    },
 };
 
 mod poc;
@@ -267,7 +270,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // Check whether there any missing authority certificates that
                 // have signed the consensus.
                 let missing_certs =
-                    !AuthCertMeta::query(tx, &consensus.signatories(), &self.tolerance, now)?
+                    !AuthCertMeta::query(tx, &consensus.sigs().signatories(), &self.tolerance, now)?
                         .1
                         .is_empty();
 
@@ -477,7 +480,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     ) -> Result<(), OperationError> {
         // Obtain the signatories of the current unverified consensus.
         let signatories = match data {
-            ConsensusBoundData::Unverified { consensus, .. } => consensus.signatories(),
+            ConsensusBoundData::Unverified { consensus, .. } => consensus.sigs().signatories(),
             _ => return Err(OperationError::Bug(internal!("data is not unverified"))),
         };
 
@@ -894,6 +897,7 @@ mod test {
                     "",
                 ))
                 .unwrap()
+                .sigs()
                 .signatories(),
                 &DirTolerance::default(),
                 testdata2::valid_system_time().into(),
