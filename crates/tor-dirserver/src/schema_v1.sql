@@ -161,16 +161,16 @@ CREATE TABLE consensus_router_descriptor_member(
 
 -- Stores which authority key signed which consensuses.
 --
--- Required to implement the consensus retrieval by authority fingerprints as
--- well as the garbage collection of authority key certificates.
+-- Required to implement the consensus retrieval by authority fingerprints.
 --
 -- http://<hostname>/tor/status-vote/current/consensus-<FLAVOR>/<F1>+<F2>+<F3>
 CREATE TABLE consensus_authority_voter(
-    consensus_docid TEXT,
-    authority_docid TEXT,
-    PRIMARY KEY(consensus_docid, authority_docid),
+    consensus_docid     TEXT,
+    kp_auth_id_rsa_sha1 TEXT,
+    PRIMARY KEY(consensus_docid, kp_auth_id_rsa_sha1),
     FOREIGN KEY(consensus_docid) REFERENCES consensus(docid),
-    FOREIGN KEY(authority_docid) REFERENCES authority_key_certificate(docid)
+    CHECK(GLOB('*[^0-9A-F]*', kp_auth_id_rsa_sha1) == 0),
+    CHECK(LENGTH(kp_auth_id_rsa_sha1) == 40)
 ) STRICT;
 
 INSERT INTO arti_dirserver_schema_version VALUES ('1');
