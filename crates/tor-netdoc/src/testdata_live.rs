@@ -132,6 +132,23 @@ pub fn relay_microdescs() -> Vec<RelayDocument<Microdesc>> {
     relay_documents(RELAY_DESCRIPTORS, |relay| relay.md)
 }
 
+/// Find a particular relay's document, given the relay's nickname
+///
+/// This is sound for `testdata_live` data, because we only have a small curated
+/// subset of of relays, all of which have distinct nicks.
+///
+/// # Example
+///
+/// ```
+/// use tor_netdoc::doc::microdesc::Microdesc;
+/// use tor_netdoc::testdata_live::{relay_document_by_nick, relay_microdescs};
+///
+/// let _: &'static Microdesc = relay_document_by_nick("lisdex", &relay_microdescs());
+/// ```
+pub fn relay_document_by_nick<D>(nick: &str, docs: &[RelayDocument<D>]) -> &'static D {
+    docs.iter().find(|d| d.nick == nick).expect(nick).doc
+}
+
 #[test]
 fn test_all() {
     netstatus_plain();
