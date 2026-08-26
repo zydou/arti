@@ -488,7 +488,9 @@ mod tests {
                     tmp.used_by(|dir| {
                         let file = dir.join(format!("{i}"));
                         for _ in 0..1000 {
-                            let lock = LockFileGuard::lock(&file).unwrap();
+                            // Test that the lock is immediately re-requirable after drop.
+                            let lock: LockFileGuard =
+                                LockFileGuard::try_lock(&file).unwrap().unwrap();
                             drop(lock);
                         }
                     });
