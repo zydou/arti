@@ -143,12 +143,12 @@ include_relay () {
 	desc_file_tmp=.tmp."$f--desc--$nick.${digest//\//_}"
         run-curl "$url/$digest" "$desc_file_tmp"
         cp "$desc_file_tmp" "$f--desc--$nick"
-
-	rust_per_relay_data[ROUTERSTATUSES]+="$(rust_per_relay entry)
-"
-	rust_per_relay_data[DESCRIPTORS]+="$(rust_per_relay desc)
-"
     done
+
+    rust_per_relay_data[ROUTERSTATUSES]+="$(rust_per_relay entry)
+"
+    rust_per_relay_data[DESCRIPTORS]+="$(rust_per_relay desc)
+"
 }
 
 rust_relay_list () {

@@ -21,38 +21,6 @@ pub const RELAY_ROUTERSTATUSES: &[PerRelay] = &[
         }
     },
     PerRelay {
-        nick: "lisdex",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--lisdex"),
-            vote:  include_str!("authority--entry--lisdex"),
-            md:    include_str!("consensus-microdesc--entry--lisdex"),
-        }
-    },
-    PerRelay {
-        nick: "lisdex",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--lisdex"),
-            vote:  include_str!("authority--entry--lisdex"),
-            md:    include_str!("consensus-microdesc--entry--lisdex"),
-        }
-    },
-    PerRelay {
-        nick: "moria1",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--moria1"),
-            vote:  include_str!("authority--entry--moria1"),
-            md:    include_str!("consensus-microdesc--entry--moria1"),
-        }
-    },
-    PerRelay {
-        nick: "moria1",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--moria1"),
-            vote:  include_str!("authority--entry--moria1"),
-            md:    include_str!("consensus-microdesc--entry--moria1"),
-        }
-    },
-    PerRelay {
         nick: "moria1",
         data: PerVariety {
             plain: include_str!("consensus--entry--moria1"),
@@ -69,59 +37,11 @@ pub const RELAY_ROUTERSTATUSES: &[PerRelay] = &[
         }
     },
     PerRelay {
-        nick: "Ukko",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--Ukko"),
-            vote:  include_str!("authority--entry--Ukko"),
-            md:    include_str!("consensus-microdesc--entry--Ukko"),
-        }
-    },
-    PerRelay {
-        nick: "Ukko",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--Ukko"),
-            vote:  include_str!("authority--entry--Ukko"),
-            md:    include_str!("consensus-microdesc--entry--Ukko"),
-        }
-    },
-    PerRelay {
         nick: "d2d4",
         data: PerVariety {
             plain: include_str!("consensus--entry--d2d4"),
             vote:  include_str!("authority--entry--d2d4"),
             md:    include_str!("consensus-microdesc--entry--d2d4"),
-        }
-    },
-    PerRelay {
-        nick: "d2d4",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--d2d4"),
-            vote:  include_str!("authority--entry--d2d4"),
-            md:    include_str!("consensus-microdesc--entry--d2d4"),
-        }
-    },
-    PerRelay {
-        nick: "d2d4",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--d2d4"),
-            vote:  include_str!("authority--entry--d2d4"),
-            md:    include_str!("consensus-microdesc--entry--d2d4"),
-        }
-    },
-    PerRelay {
-        nick: "Akka",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--Akka"),
-            vote:  include_str!("authority--entry--Akka"),
-            md:    include_str!("consensus-microdesc--entry--Akka"),
-        }
-    },
-    PerRelay {
-        nick: "Akka",
-        data: PerVariety {
-            plain: include_str!("consensus--entry--Akka"),
-            vote:  include_str!("authority--entry--Akka"),
-            md:    include_str!("consensus-microdesc--entry--Akka"),
         }
     },
     PerRelay {
@@ -145,38 +65,6 @@ pub const RELAY_DESCRIPTORS: &[PerRelay] = &[
         }
     },
     PerRelay {
-        nick: "lisdex",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--lisdex"),
-            vote:  include_str!("authority--desc--lisdex"),
-            md:    include_str!("consensus-microdesc--desc--lisdex"),
-        }
-    },
-    PerRelay {
-        nick: "lisdex",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--lisdex"),
-            vote:  include_str!("authority--desc--lisdex"),
-            md:    include_str!("consensus-microdesc--desc--lisdex"),
-        }
-    },
-    PerRelay {
-        nick: "moria1",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--moria1"),
-            vote:  include_str!("authority--desc--moria1"),
-            md:    include_str!("consensus-microdesc--desc--moria1"),
-        }
-    },
-    PerRelay {
-        nick: "moria1",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--moria1"),
-            vote:  include_str!("authority--desc--moria1"),
-            md:    include_str!("consensus-microdesc--desc--moria1"),
-        }
-    },
-    PerRelay {
         nick: "moria1",
         data: PerVariety {
             plain: include_str!("consensus--desc--moria1"),
@@ -193,59 +81,11 @@ pub const RELAY_DESCRIPTORS: &[PerRelay] = &[
         }
     },
     PerRelay {
-        nick: "Ukko",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--Ukko"),
-            vote:  include_str!("authority--desc--Ukko"),
-            md:    include_str!("consensus-microdesc--desc--Ukko"),
-        }
-    },
-    PerRelay {
-        nick: "Ukko",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--Ukko"),
-            vote:  include_str!("authority--desc--Ukko"),
-            md:    include_str!("consensus-microdesc--desc--Ukko"),
-        }
-    },
-    PerRelay {
         nick: "d2d4",
         data: PerVariety {
             plain: include_str!("consensus--desc--d2d4"),
             vote:  include_str!("authority--desc--d2d4"),
             md:    include_str!("consensus-microdesc--desc--d2d4"),
-        }
-    },
-    PerRelay {
-        nick: "d2d4",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--d2d4"),
-            vote:  include_str!("authority--desc--d2d4"),
-            md:    include_str!("consensus-microdesc--desc--d2d4"),
-        }
-    },
-    PerRelay {
-        nick: "d2d4",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--d2d4"),
-            vote:  include_str!("authority--desc--d2d4"),
-            md:    include_str!("consensus-microdesc--desc--d2d4"),
-        }
-    },
-    PerRelay {
-        nick: "Akka",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--Akka"),
-            vote:  include_str!("authority--desc--Akka"),
-            md:    include_str!("consensus-microdesc--desc--Akka"),
-        }
-    },
-    PerRelay {
-        nick: "Akka",
-        data: PerVariety {
-            plain: include_str!("consensus--desc--Akka"),
-            vote:  include_str!("authority--desc--Akka"),
-            md:    include_str!("consensus-microdesc--desc--Akka"),
         }
     },
     PerRelay {
