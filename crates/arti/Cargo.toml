@@ -103,8 +103,8 @@ vanguards = ["arti-client/vanguards"]
 hs-pow-full = ["arti-client/hs-pow-full", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
-flowctl-cc = ["arti-client/flowctl-cc"]
-counter-galois-onion = ["arti-client/counter-galois-onion", "flowctl-cc"]
+flowctl-cc = []
+counter-galois-onion = ["flowctl-cc"]
 
 rpc = ["dep:arti-rpcserver", "dep:tor-rpcbase", "dep:tor-rpc-connect", "arti-client/rpc", "derive-deftly"]
 
