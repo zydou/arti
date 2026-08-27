@@ -137,6 +137,10 @@ pub fn relay_microdescs() -> Vec<RelayDocument<Microdesc>> {
 /// This is sound for `testdata_live` data, because we only have a small curated
 /// subset of of relays, all of which have distinct nicks.
 ///
+/// # Panics
+///
+/// Panics if no relay with the given name is found.
+///
 /// # Example
 ///
 /// ```
