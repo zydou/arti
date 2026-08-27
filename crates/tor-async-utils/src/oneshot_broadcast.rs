@@ -6,9 +6,6 @@
 //!
 //! See [`channel()`].
 
-// NOTE: If we decide to make this public in the future (for example through `tor-async-utils`),
-// we should enable the doc tests.
-
 use std::future::{Future, IntoFuture};
 use std::ops::Drop;
 use std::pin::Pin;
@@ -31,17 +28,25 @@ pub struct Sender<T> {
 /// The `Receiver` offers two methods for receiving the message:
 ///
 /// 1. [`Receiver::into_future`]
-///     ```rust,ignore
+///     ```rust
+///     # use tor_async_utils::oneshot_broadcast::{channel, SenderDropped};
+///     # async fn x() -> Result<(), SenderDropped> {
 ///     let (tx, rx) = channel();
 ///     tx.send(0);
 ///     let message: u32 = rx.await.unwrap();
+///     # Ok(())
+///     # }
 ///     ```
 ///
 /// 2. [`Receiver::borrowed`]
-///     ```rust,ignore
+///     ```rust
+///     # use tor_async_utils::oneshot_broadcast::{channel, SenderDropped};
+///     # async fn x() -> Result<(), SenderDropped> {
 ///     let (tx, rx) = channel();
 ///     tx.send(0);
 ///     let message: &u32 = rx.borrowed().await.unwrap();
+///     # Ok(())
+///     # }
 ///     ```
 #[derive(Clone, Debug)]
 pub struct Receiver<T> {
@@ -134,12 +139,16 @@ pub struct SenderDropped;
 
 /// Create a new oneshot broadcast channel.
 ///
-/// ```rust,ignore
+/// ```rust
+/// # use tor_async_utils::oneshot_broadcast::{channel, SenderDropped};
+/// # async fn x() -> Result<(), SenderDropped> {
 /// let (tx, rx) = channel();
 /// let rx_clone = rx.clone();
 /// tx.send(0_u8);
 /// assert_eq!(rx.await, Ok(0));
 /// assert_eq!(rx_clone.await, Ok(0));
+/// # Ok(())
+/// # }
 /// ```
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let shared = Arc::new(Shared {
