@@ -56,6 +56,7 @@ define_derive_deftly! {
 // If we do that:
 //   - consider whether we should preserve file permissions
 //   - see the comment about leftover `.tmp` files in `write`, below
+//   - fix the locking problem (see the two TODO locking/hang)
 #[derive(Debug, Clone)]
 pub(super) enum FilenameOrStdio {
     /// Filename
@@ -157,6 +158,17 @@ impl FilenameOrStdio {
             FilenameOrStdio::Stdio => {
                 //
                 Ok(Writing {
+                    // TODO locking/hang
+                    //
+                    // If multiple `FilenameOrStdio`s referring to stdin/stdout are
+                    // used simultaneously (rather than sequentially), this will hang.
+                    //
+                    // Eg, `compute-mds --mds-out - --meta-out -` will hang.
+                    //
+                    // Unfortunately there is no `.try_lock()`.  We could have a private
+                    // global lock to detect this situation.  That seems overkill for
+                    // the dirauth plugin, but ought to be done before these routines
+                    // are promoted to general utilities.
                     handle: BufWriter::new(Box::new(io::stdout().lock())),
                     files: None,
                 })
@@ -182,6 +194,7 @@ impl FilenameOrStdio {
         let (handle, description);
         match self {
             FilenameOrStdio::Stdio => {
+                // TODO locking/hang, see above
                 handle = Box::new(io::stdin().lock()) as _;
                 description = "<stdin>".into();
             }
