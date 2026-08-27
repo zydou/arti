@@ -16,14 +16,14 @@ use slotmap_careful::DenseSlotMap;
 
 slotmap_careful::new_key_type! { struct WakerKey; }
 
-/// A [oneshot broadcast][crate::util::oneshot_broadcast] sender.
+/// A [oneshot broadcast][crate::oneshot_broadcast] sender.
 #[derive(Debug)]
 pub struct Sender<T> {
     /// State shared with all [`Receiver`]s.
     shared: Weak<Shared<T>>,
 }
 
-/// A [oneshot broadcast][crate::util::oneshot_broadcast] receiver.
+/// A [oneshot broadcast][crate::oneshot_broadcast] receiver.
 ///
 /// The `Receiver` offers two methods for receiving the message:
 ///
