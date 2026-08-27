@@ -1,10 +1,12 @@
+use tor_consdiff::DiffSizeStrictness::None as NoSizeCheck;
+
 #[test]
 fn apply_tricky() {
     let pre = include_str!("../testdata/consensus1.txt");
     let diff = include_str!("../testdata/diff1.txt");
     let post = include_str!("../testdata/consensus2.txt");
 
-    let result = tor_consdiff::apply_diff(pre, diff, None).unwrap();
+    let result = tor_consdiff::apply_diff(pre, diff, None, NoSizeCheck).unwrap();
     assert_eq!(result.to_string(), post);
 }
 
@@ -12,7 +14,7 @@ fn apply_tricky() {
 fn gen_tricky() {
     let base = include_str!("../testdata/consensus1.txt");
     let target = include_str!("../testdata/consensus2.txt");
-    let diff = tor_consdiff::gen_cons_diff(base, target).unwrap();
+    let diff = tor_consdiff::gen_cons_diff(base, target, NoSizeCheck).unwrap();
 
     assert_eq!(
         diff.lines().take(2).collect::<Vec<_>>(),
@@ -23,6 +25,6 @@ fn gen_tricky() {
     );
 
     // Should not be necessary because gen_cons_diff already does that.
-    let result = tor_consdiff::apply_diff(base, &diff, None).unwrap();
+    let result = tor_consdiff::apply_diff(base, &diff, None, NoSizeCheck).unwrap();
     assert_eq!(result.to_string(), target);
 }

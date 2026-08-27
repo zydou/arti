@@ -1038,6 +1038,7 @@ impl<R: Runtime> DirMgr<R> {
                             old_consensus.as_str()?,
                             &text,
                             Some(*meta.sha3_256_of_signed()),
+                            tor_consdiff::DiffSizeStrictness::Apply,
                         )?;
                         new_consensus.check_digest()?;
                         return Ok(new_consensus.to_string());

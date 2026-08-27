@@ -55,7 +55,7 @@ mod err;
 use digest::Digest;
 pub use err::Error;
 use imara_diff::{Algorithm, Diff, Hunk, InternedInput};
-use tor_error::internal;
+use tor_error::{internal, into_internal};
 use tor_netdoc::parse2::{ErrorProblem, ItemStream, KeywordRef, ParseError, ParseInput};
 
 use crate::err::GenEdDiffError;
@@ -91,7 +91,11 @@ static_assertions::const_assert!(std::mem::size_of::<usize>() >= std::mem::size_
 /// All outputs of this function are guaranteed to work with this
 /// [`apply_diff()`] implementation as a check is performed before returning,
 /// because returning an unusable diff would be terrible.
-pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
+pub fn gen_cons_diff(
+    base: &str,
+    target: &str,
+    size_strictness: DiffSizeStrictness,
+) -> Result<String> {
     // Throw away the signatures.
     let (base_signed, _) = split_directory_signatures(base)?;
     let base_lines = base_signed.chars().filter(|c| *c == '\n').count() + 1;
@@ -132,7 +136,12 @@ pub fn gen_cons_diff(base: &str, target: &str) -> Result<String> {
     );
 
     // Ensure it is valid, refuse to emit an invalid diff.
-    let check = apply_diff(base, &result, None).map_err(|_| internal!("apply call failed"))?;
+    let check = match apply_diff(base, &result, None, size_strictness) {
+        Ok(v) => v,
+        Err(Error::DiffTooLarge) => return Err(Error::DiffTooLarge),
+        Err(e) => return Err(into_internal!("unable to apply generated diff")(e).into()),
+    };
+
     if check.to_string() != target {
         Err(internal!("result does not match?"))?;
     }
@@ -325,8 +334,17 @@ pub fn apply_diff<'a>(
     input: &'a str,
     diff: &'a str,
     check_digest_in: Option<[u8; 32]>,
+    size_strictness: DiffSizeStrictness,
 ) -> Result<DiffResult<'a>> {
+    let input_bytes = input.len();
+    let diff_bytes = diff.len();
+    // This actually counts newlines, and can be off-by-one, but that's okay.
+    let diff_lines = count_nl(diff);
+
     let mut input = DiffResult::from_str(input, [0; 32]);
+    let input_lines = input.lines.len();
+
+    size_strictness.check(input_bytes, input_lines, diff_bytes, diff_lines)?;
 
     let mut diff_lines = diff.lines();
     let (d1, d2) = parse_diff_header(&mut diff_lines)?;
@@ -346,6 +364,62 @@ pub fn apply_diff<'a>(
 
     output.lines.reverse();
     Ok(output)
+}
+
+/// A degree of strictness to apply when checking the size of a diff versus
+/// the size of the associated consensus.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub enum DiffSizeStrictness {
+    /// Do not perform any checks.
+    None,
+
+    /// Check whether the diff is reasonable to apply to the input.
+    Apply,
+
+    /// Check whether the diff is reasonable to serve as a diff against the input.
+    Generate,
+}
+
+impl DiffSizeStrictness {
+    /// Check whether a given diff is implausibly or uselessly large in comparison with
+    /// the input, and return an error if so.
+    fn check(
+        &self,
+        input_bytes: usize,
+        input_lines: usize,
+        diff_bytes: usize,
+        diff_lines: usize,
+    ) -> Result<()> {
+        use DiffSizeStrictness as S;
+        use Error::DiffTooLarge;
+
+        match self {
+            S::None => {}
+            S::Generate => {
+                // If we just generated a diff that isn't smaller than the consensus we started with,
+                // there is no point in serving it. It wouldn't save size.
+                if diff_bytes >= input_bytes {
+                    return Err(DiffTooLarge);
+                }
+
+                // Also, check whether the client would reject this diff when trying to apply it.
+                S::Apply.check(input_bytes, input_lines, diff_bytes, diff_lines)?;
+            }
+            S::Apply => {
+                const BYTE_THRESHOLD: usize = 64 * 1024;
+                const LINE_THRESHOLD: usize = 1024;
+                if diff_bytes >= BYTE_THRESHOLD && diff_bytes >= input_bytes.saturating_mul(2) {
+                    return Err(DiffTooLarge);
+                }
+                if diff_lines >= LINE_THRESHOLD && diff_lines >= input_lines.saturating_mul(3) {
+                    return Err(DiffTooLarge);
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// Given a line iterator, check to make sure the first two lines are
@@ -794,6 +868,14 @@ impl<'a> Display for DiffResult<'a> {
     }
 }
 
+/// Count the number of newlines that appear in s.
+///
+/// This is potentially one less than the number of lines in s, if the final line is not terminated,
+///but that's okay for our uses here.
+fn count_nl(s: &str) -> usize {
+    s.bytes().filter(|b| *b == b'\n').count()
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -814,6 +896,7 @@ mod test {
     use rand::seq::IndexedRandom;
     use tor_basic_utils::test_rng::testing_rng;
 
+    use super::DiffSizeStrictness as DSS;
     use super::*;
 
     #[test]
@@ -1184,8 +1267,10 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
             .collect::<String>();
         right += "directory-signature foo baz\n";
 
-        let diff = gen_cons_diff(&left, &right).unwrap();
-        let check = apply_diff(&left, &diff, None).unwrap().to_string();
+        let diff = gen_cons_diff(&left, &right, DSS::None).unwrap();
+        let check = apply_diff(&left, &diff, None, DSS::None)
+            .unwrap()
+            .to_string();
         assert_eq!(right, check);
     }
 
@@ -1213,7 +1298,7 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         let base = "directory-signature foo baz\n";
         let target = ".foo bar\n. bar\ndirectory-signature foo baz\n";
         assert_eq!(
-            gen_cons_diff(base, target).unwrap(),
+            gen_cons_diff(base, target, DSS::None).unwrap(),
             "network-status-diff-version 1\n\
             hash D8138DC27D9A66F5760058A6BCB71B755462B9D26B811828F124D036DE329A58 \
             506AC3A4407BC5305DD0D08FED3F09C2FE69847541F642A8FD13D3BD06FFE432\n\
