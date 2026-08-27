@@ -10,6 +10,7 @@ use std::time::SystemTime;
 use anyhow::{Context as _, anyhow};
 use derive_deftly::{Deftly, define_derive_deftly};
 use digest::Digest as _;
+use educe::Educe;
 
 use tor_checkable::TimeBound as _;
 use tor_dirauth::consensus;

@@ -67,8 +67,11 @@ pub(super) enum FilenameOrStdio {
 /// Output file currently being read from
 ///
 /// See [`FilenameOrStdio::start_reading`].
+#[derive(Educe)]
+#[educe(Debug)]
 pub(super) struct Reading {
     /// Actual open-file
+    #[educe(Debug(ignore))]
     handle: io::BufReader<Box<dyn io::Read>>,
     /// Description (for error messages), already quoted
     description: String,
@@ -77,14 +80,18 @@ pub(super) struct Reading {
 /// Output file currently being written to
 ///
 /// See [`FilenameOrStdio::start_writing`].
+#[derive(Educe)]
+#[educe(Debug)]
 pub(super) struct Writing {
     /// Actual open-file
+    #[educe(Debug(ignore))]
     handle: io::BufWriter<Box<dyn io::Write>>,
     /// Filenames
     files: Option<WritingFiles>,
 }
 
 /// Filenames when writing an output file
+#[derive(Debug)]
 struct WritingFiles {
     /// The `.tmp` file
     tmp: String,
