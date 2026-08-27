@@ -15,9 +15,17 @@ use tor_netdoc::{
 /// Generic trait representing a flavored verified consensus.
 ///
 /// Similar to [`FlavoredConsensusUnverified`] and obtained from it.
-pub(crate) trait FlavoredConsensus: Clone {
-    /// Returns the [`ConsensusFlavor`] of this type.
-    fn flavor() -> ConsensusFlavor;
+pub(crate) trait FlavoredConsensusBody: Clone {}
+
+/// Generic trait representing the signatures of a consensus.
+///
+/// Similar to [`FlavoredConsensusUnverified`] and obtained from it.
+pub(crate) trait FlavoredConsensusSignatures: Clone {
+    /// Returns the [`AuthCertKeyIds`] of all authority certificates in the signatures.
+    // TODO DIRMIRROR: Obtain this from the respective error variant returned by
+    // .can_verify().
+    // TODO: The respective implementations are repetitive, can we do better?
+    fn signatories(&self) -> Vec<AuthCertKeyIds>;
 }
 
 /// Generic trait representing a flavored unverified consensus.
@@ -25,51 +33,58 @@ pub(crate) trait FlavoredConsensus: Clone {
 /// Required because in certain parts of the code, the exact flavor of the
 /// consensus does not matter.
 ///
-/// See [`FlavoredConsensus`] for the verified variant of it.
+/// See [`FlavoredConsensusBody`] for the verified variant of it.
 pub(crate) trait FlavoredConsensusUnverified:
-    NetdocParseableUnverified<Body: FlavoredConsensus> + NetdocParseable + Clone
+    NetdocParseableUnverified<Body: FlavoredConsensusBody, Signatures: FlavoredConsensusSignatures>
+    + NetdocParseable
+    + Clone
 {
     /// Returns the [`ConsensusFlavor`] of this type.
-    fn flavor() -> ConsensusFlavor {
-        Self::Body::flavor()
-    }
+    fn flavor() -> ConsensusFlavor;
 
-    /// Returns the [`AuthCertKeyIds`] of all authority certificates in the signatures.
-    // TODO DIRMIRROR: Obtain this from the respective error variant returned by
-    // .can_verify().
-    fn signatories(&self) -> Vec<AuthCertKeyIds>;
+    /// Returns the signatures contained inside.
+    ///
+    /// It corresponds to accessing the publicly available T::sigs which is
+    /// guaranteed to be present due to derive logic.
+    ///
+    /// Functionally equivalent to accessing the signatures through
+    /// [`NetdocParseableUnverified::inspect_unverified()`], yet it tries to
+    /// provide a safer semantic around it.
+    fn sigs(&self) -> &Self::Signatures {
+        &self.inspect_unverified().1.sigs
+    }
 }
 
-impl FlavoredConsensus for plain::NetworkStatus {
+impl FlavoredConsensusBody for plain::NetworkStatus {}
+
+impl FlavoredConsensusBody for md::NetworkStatus {}
+
+impl FlavoredConsensusSignatures for plain::NetworkStatusSignatures {
+    fn signatories(&self) -> Vec<AuthCertKeyIds> {
+        self.directory_signature
+            .iter()
+            .map(|sig| sig.key_ids)
+            .collect()
+    }
+}
+
+impl FlavoredConsensusSignatures for md::NetworkStatusSignatures {
+    fn signatories(&self) -> Vec<AuthCertKeyIds> {
+        self.directory_signature
+            .iter()
+            .map(|sig| sig.key_ids)
+            .collect()
+    }
+}
+
+impl FlavoredConsensusUnverified for plain::NetworkStatusUnverified {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Plain
     }
 }
 
-impl FlavoredConsensus for md::NetworkStatus {
+impl FlavoredConsensusUnverified for md::NetworkStatusUnverified {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Microdesc
-    }
-}
-
-impl FlavoredConsensusUnverified for plain::NetworkStatusUnverified {
-    fn signatories(&self) -> Vec<AuthCertKeyIds> {
-        self.sigs
-            .sigs
-            .directory_signature
-            .iter()
-            .map(|sig| sig.key_ids)
-            .collect()
-    }
-}
-
-impl FlavoredConsensusUnverified for md::NetworkStatusUnverified {
-    fn signatories(&self) -> Vec<AuthCertKeyIds> {
-        self.sigs
-            .sigs
-            .directory_signature
-            .iter()
-            .map(|sig| sig.key_ids)
-            .collect()
     }
 }
