@@ -1,23 +1,59 @@
 //! Utilities
 
 use std::fs::{self, File};
-use std::io::{self, BufWriter, Write as _};
+use std::io::{self, BufReader, BufWriter, Read as _, Write as _};
 use std::str::FromStr;
 
-use anyhow::{Context as _, anyhow};
+use anyhow::anyhow;
 
-use super::CliError;
+use super::*;
+
+define_derive_deftly! {
+    /// Define `fn new`
+    ///
+    /// # Field attributes
+    ///
+    ///  * `#[deftly(new(arg))]`: this field should be an argument to `new`.
+    ///    If not specified, `Default` is used.
+    //
+    // TODO enhance documentation and promote somewhere?
+    // tor_netdoc::Constructor is not suitable because all the fields would have to be pub(crate)
+    // derive_more::Constructor is not suitable because it can't Default fields
+    New beta_deftly:
+
+    ${defcond ARG fmeta(new(arg))}
+
+    $impl {
+        $/// Make a new `$tname`
+        $tvis fn new(
+            $(
+                ${when ARG}
+                $fname: $ftype,
+            )
+        ) -> Self {
+            $tname {
+                $(
+                    $fname
+                    ${if not(ARG) {
+                        : Default::default()
+                    }},
+                )
+            }
+        }
+    }
+}
 
 /// Command line filename argument, allowing `-` for stdin/stdout
-//
-// TODO DIRAUTH currently this can only be used for output file arguments,
-// but we will implement using this for an input file argument too.
+///
+/// Doesn't implement `Display`; for content error reporting prefer
+/// [`Reading::description`].
 //
 // TODO move this somewhere deeper in the stack (tor-basic-utils even maybe?)
 // and replace open-coding in eg crates/arti/src/subcommands/hsc.rs display_service_discovery_key
 // If we do that:
 //   - consider whether we should preserve file permissions
 //   - see the comment about leftover `.tmp` files in `write`, below
+//   - fix the locking problem (see the two TODO locking/hang)
 #[derive(Debug, Clone)]
 pub(super) enum FilenameOrStdio {
     /// Filename
@@ -26,17 +62,34 @@ pub(super) enum FilenameOrStdio {
     Stdio,
 }
 
+/// Output file currently being read from
+///
+/// See [`FilenameOrStdio::start_reading`].
+#[derive(Educe)]
+#[educe(Debug)]
+pub(super) struct Reading {
+    /// Actual open-file
+    #[educe(Debug(ignore))]
+    handle: io::BufReader<Box<dyn io::Read>>,
+    /// Description (for error messages), already quoted
+    description: String,
+}
+
 /// Output file currently being written to
 ///
 /// See [`FilenameOrStdio::start_writing`].
+#[derive(Educe)]
+#[educe(Debug)]
 pub(super) struct Writing {
     /// Actual open-file
+    #[educe(Debug(ignore))]
     handle: io::BufWriter<Box<dyn io::Write>>,
     /// Filenames
     files: Option<WritingFiles>,
 }
 
 /// Filenames when writing an output file
+#[derive(Debug)]
 struct WritingFiles {
     /// The `.tmp` file
     tmp: String,
@@ -102,6 +155,17 @@ impl FilenameOrStdio {
             FilenameOrStdio::Stdio => {
                 //
                 Ok(Writing {
+                    // TODO locking/hang
+                    //
+                    // If multiple `FilenameOrStdio`s referring to stdin/stdout are
+                    // used simultaneously (rather than sequentially), this will hang.
+                    //
+                    // Eg, `compute-mds --mds-out - --meta-out -` will hang.
+                    //
+                    // Unfortunately there is no `.try_lock()`.  We could have a private
+                    // global lock to detect this situation.  That seems overkill for
+                    // the dirauth plugin, but ought to be done before these routines
+                    // are promoted to general utilities.
                     handle: BufWriter::new(Box::new(io::stdout().lock())),
                     files: None,
                 })
@@ -120,6 +184,71 @@ impl FilenameOrStdio {
                 })
             }
         }
+    }
+
+    /// Start reading this input file
+    pub(super) fn start_reading(&self) -> Result<Reading, CliError> {
+        let (handle, description);
+        match self {
+            FilenameOrStdio::Stdio => {
+                // TODO locking/hang, see above
+                handle = Box::new(io::stdin().lock()) as _;
+                description = "<stdin>".into();
+            }
+            FilenameOrStdio::Path(path) => {
+                handle = Box::new(
+                    File::open(path)
+                        .with_context(|| format!("open input file {path:?}"))
+                        .map_err(CliError::OperationalError)?,
+                ) as _;
+                description = format!("{path:?}");
+            }
+        }
+        let handle = BufReader::new(handle);
+        Ok(Reading {
+            handle,
+            description,
+        })
+    }
+}
+
+impl io::Read for Reading {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.handle.read(buf)
+    }
+}
+
+impl io::BufRead for Reading {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        self.handle.fill_buf()
+    }
+    #[allow(clippy::semicolon_if_nothing_returned)] // more consistent without the ;
+    fn consume(&mut self, n: usize) {
+        self.handle.consume(n)
+    }
+}
+
+impl Reading {
+    /// Reads the whole file into memory as a `String`
+    ///
+    /// Non-UTF-8 input is treated as an operational error, just like an io error.
+    pub(crate) fn read_entire_string(mut self) -> Result<String, CliError> {
+        let mut s = String::new();
+        self.handle
+            .read_to_string(&mut s)
+            .map_err(self.handle_read_error())?;
+        Ok(s)
+    }
+
+    /// Provide a human-readable description of what this is (eg for error reporting)
+    pub(crate) fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// Returns an error handler for IO errors from this input file
+    pub(crate) fn handle_read_error(&self) -> impl FnOnce(io::Error) -> CliError {
+        let m = format!("error reading {}", self.description);
+        move |e| CliError::OperationalError(anyhow::Error::from(e).context(m))
     }
 }
 
@@ -170,4 +299,41 @@ impl Writing {
 /// Helper to convert an error encountered while writing to CliError
 fn convert_output_error(e: anyhow::Error) -> CliError {
     CliError::OperationalError(e.context("write output"))
+}
+
+/// A network document, but possibly preceded by C Tor `@`-annotation(s)
+///
+/// Parsing adapter wrapper.
+///
+/// Implements `NetdocParseable`: discards any annotations,
+/// and then parses `D`.
+pub(crate) struct CTorAnnotated<D>(pub(crate) D);
+
+impl<D: NetdocParseable> NetdocParseable for CTorAnnotated<D> {
+    fn doctype_for_error() -> &'static str {
+        D::doctype_for_error()
+    }
+    fn is_intro_item_keyword(kw: tor_netdoc::parse2::KeywordRef<'_>) -> bool {
+        D::is_intro_item_keyword(kw)
+    }
+    fn is_structural_keyword(
+        kw: tor_netdoc::parse2::KeywordRef<'_>,
+    ) -> Option<parse2::IsStructural> {
+        D::is_structural_keyword(kw)
+    }
+    fn from_items(
+        input: &mut parse2::ItemStream<'_>,
+        stop_at: tor_netdoc::stop_at!(),
+    ) -> Result<Self, parse2::ErrorProblem> {
+        input.with_inner_lines_mut(|lines| {
+            while let Some(peeked) = lines.peek() {
+                let line = lines.peeked_line(&peeked);
+                if !line.starts_with('@') {
+                    break;
+                }
+                let _: &str = lines.next().expect("just peeked");
+            }
+        });
+        D::from_items(input, stop_at).map(CTorAnnotated)
+    }
 }

@@ -2289,7 +2289,7 @@ mod nickname {
 
     impl Nickname {
         /// Return a view of this nickname as a string slice.
-        pub(crate) fn as_str(&self) -> &str {
+        pub fn as_str(&self) -> &str {
             self.0.as_str()
         }
     }
@@ -2311,6 +2311,12 @@ mod nickname {
             } else {
                 Err(InvalidNickname {})
             }
+        }
+    }
+
+    impl AsRef<str> for Nickname {
+        fn as_ref(&self) -> &str {
+            self.as_str()
         }
     }
 
