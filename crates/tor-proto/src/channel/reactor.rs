@@ -13,9 +13,9 @@ use crate::client::circuit::padding::{
     PaddingController, PaddingEvent, PaddingEventStream, SendPadding, StartBlocking,
 };
 use crate::util::err::ReactorError;
-use crate::util::oneshot_broadcast;
 use crate::{Error, HopNum, Result};
 use tor_async_utils::SinkPrepareExt as _;
+use tor_async_utils::oneshot_broadcast;
 use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::msg::{Destroy, DestroyReason, Padding, PaddingNegotiate};
 use tor_cell::chancell::{AnyChanCell, CircId, msg::AnyChanMsg};
