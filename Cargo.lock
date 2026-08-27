@@ -7335,6 +7335,7 @@ version = "0.45.0"
 dependencies = [
  "bytes",
  "digest 0.10.7",
+ "educe",
  "flate2",
  "futures",
  "hex",
