@@ -7,14 +7,12 @@ use criterion_cycles_per_byte::CyclesPerByte as Meas;
 
 use rand::prelude::*;
 
-#[cfg(feature = "counter-galois-onion")]
 use aes::{Aes128Dec, Aes128Enc, Aes256Dec, Aes256Enc};
 use tor_bytes::SecretBuf;
 use tor_llcrypto::{
     cipher::aes::{Aes128Ctr, Aes256Ctr},
     d::{Sha1, Sha3_256},
 };
-#[cfg(feature = "counter-galois-onion")]
 use tor_proto::bench_utils::cgo;
 use tor_proto::bench_utils::{
     BENCH_CHAN_CMD, CryptInit, KGen, OutboundClientCrypt, OutboundRelayLayer, RelayCellBody,
@@ -86,7 +84,6 @@ pub fn exit_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.finish();
 
-    #[cfg(feature = "counter-galois-onion")]
     {
         // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per relay cell.
         let mut group = c.benchmark_group("exit_decrypt");

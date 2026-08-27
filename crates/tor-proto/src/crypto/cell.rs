@@ -32,7 +32,6 @@
 
 #[cfg(feature = "bench")]
 pub(crate) mod bench_utils;
-#[cfg(feature = "counter-galois-onion")]
 pub(crate) mod cgo;
 pub(crate) mod tor1;
 
@@ -331,7 +330,6 @@ pub(crate) type Tor1Hsv3RelayCrypto =
 // We use `aes` directly here instead of tor_llcrypto::aes, which may or may not be OpenSSL:
 // the OpenSSL implementations have bad performance when it comes to re-keying
 // or changing IVs.
-#[cfg(feature = "counter-galois-onion")]
 pub(crate) type CgoRelayCrypto = cgo::CryptStatePair<aes::Aes128, aes::Aes128Enc>;
 
 #[cfg(test)]
@@ -662,14 +660,12 @@ mod test {
     #[cfg(feature = "hs-common")]
     integration_tests! { tor1_hs(RelayCellFormat::V0, Tor1Hsv3RelayCrypto, Tor1Hsv3RelayCrypto) }
 
-    #[cfg(feature = "counter-galois-onion")]
     integration_tests! {
         cgo_aes128(RelayCellFormat::V1,
             cgo::CryptStatePair<aes::Aes128Dec, aes::Aes128Enc>,// client
             cgo::CryptStatePair<aes::Aes128Enc, aes::Aes128Enc> // relay
         )
     }
-    #[cfg(feature = "counter-galois-onion")]
     integration_tests! {
         cgo_aes256(RelayCellFormat::V1,
             cgo::CryptStatePair<aes::Aes256Dec, aes::Aes256Enc>,// client

@@ -531,7 +531,6 @@ impl<R: Runtime> TunnelBuilder<R> {
 }
 
 /// Return the congestion control Vegas algorithm using the given network parameters.
-#[cfg(feature = "flowctl-cc")]
 fn build_cc_vegas(
     inp: &NetParameters,
     vegas_queue_params: ccparams::VegasQueueParams,
@@ -623,7 +622,6 @@ fn circparameters_from_netparameters(
 /// single onion service (when implemented).
 pub fn exit_circparams_from_netparams(inp: &NetParameters) -> Result<CircParameters> {
     let alg = match AlgorithmType::from(inp.cc_alg.get()) {
-        #[cfg(feature = "flowctl-cc")]
         AlgorithmType::VEGAS => build_cc_vegas(
             inp,
             (
@@ -645,7 +643,6 @@ pub fn exit_circparams_from_netparams(inp: &NetParameters) -> Result<CircParamet
 /// which also includes an onion service with Vanguard.
 pub fn onion_circparams_from_netparams(inp: &NetParameters) -> Result<CircParameters> {
     let alg = match AlgorithmType::from(inp.cc_alg.get()) {
-        #[cfg(feature = "flowctl-cc")]
         // Note: As with other CircParams, we will fall back to fixed-window
         // if we find that the target does not support the FLOWCTRL_CC capability.
         AlgorithmType::VEGAS => build_cc_vegas(

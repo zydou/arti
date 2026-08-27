@@ -101,7 +101,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.45.0" }
 tor-cell = { path = "../tor-cell", version = "0.45.0", features = ["relay"] }
 tor-cert = { path = "../tor-cert", version = "0.45.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.45.0", features = ["relay"] }
-tor-circmgr = { version = "0.45.0", path = "../tor-circmgr", features = ["flowctl-cc"] }
+tor-circmgr = { version = "0.45.0", path = "../tor-circmgr" }
 tor-config = { path = "../tor-config", version = "0.45.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.45.0" }
 tor-config-shared = { path = "../tor-config-shared", version = "0.45.0" }
@@ -121,7 +121,7 @@ tor-memquota = { version = "0.45.0", path = "../tor-memquota" }
 tor-netdir = { path = "../tor-netdir", version = "0.45.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.45.0" }
 tor-persist = { path = "../tor-persist", version = "0.45.0", features = ["state-dir"] }
-tor-proto = { path = "../tor-proto", version = "0.45.0", features = ["counter-galois-onion", "tokio", "flowctl-cc"] }
+tor-proto = { path = "../tor-proto", version = "0.45.0", features = ["tokio"] }
 tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.45.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.45.0", features = ["rustls", "tokio", "tls-server"] }
 tor-units = { path = "../tor-units", version = "0.45.0" }

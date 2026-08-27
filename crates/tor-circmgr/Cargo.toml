@@ -19,7 +19,6 @@ full = [
     "hs-service",
     "specific-relay",
     "vanguards",
-    "flowctl-cc",
     "retry-error/full",
     "safelog/full",
     "send-control-msg",
@@ -47,7 +46,6 @@ full = [
 ]
 specific-relay = []
 vanguards = ["tor-guardmgr/vanguards"]
-flowctl-cc = ["tor-proto/flowctl-cc"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
