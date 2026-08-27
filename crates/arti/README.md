@@ -193,7 +193,8 @@ implementation with another.
 work reliably. To be explicit, if you want `cargo update` to _only_ make
 correct changes, then you cannot enable these features.
 
-<--
+[#1795]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1795
+
 ### Deprecated features
 
 These features are either not recommended, or are no-op features.
@@ -201,11 +202,10 @@ They are included for backwards compatibility.
 Note that these features will still be enabled if you build with the
 `--all-features` cargo flag.
 
-* `derive-deftly`
-
--->
-
-[#1795]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1795
+* `flowctl-cc`: This functionality is now always-on;
+  the feature flag does nothing.
+* `counter-galois-onion`: This functionality is now always-on;
+  the feature flag does nothing.
 
 ## Limitations
 
