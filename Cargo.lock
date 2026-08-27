@@ -6840,6 +6840,7 @@ dependencies = [
  "oneshot-fused-workaround",
  "pin-project",
  "postage",
+ "slotmap-careful",
  "sync_wrapper",
  "thiserror 2.0.19",
  "tokio",
