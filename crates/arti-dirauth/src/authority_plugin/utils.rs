@@ -48,9 +48,6 @@ define_derive_deftly! {
 /// Doesn't implement `Display`; for content error reporting prefer
 /// [`Reading::description`].
 //
-// TODO DIRAUTH currently this can only be used for output file arguments,
-// but we will implement using this for an input file argument too.
-//
 // TODO move this somewhere deeper in the stack (tor-basic-utils even maybe?)
 // and replace open-coding in eg crates/arti/src/subcommands/hsc.rs display_service_discovery_key
 // If we do that:
