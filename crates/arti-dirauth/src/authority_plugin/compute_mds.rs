@@ -126,7 +126,7 @@ impl<'o> Processor<'o> {
             rd.sigs
                 .hashes
                 .sha1
-                .ok_or_else(|| anyhow!("not hashed with SHAH-1, wrong kind of signature?"))?,
+                .ok_or_else(|| anyhow!("not hashed with SHA-1, wrong kind of signature?"))?,
         );
 
         let rd = rd
