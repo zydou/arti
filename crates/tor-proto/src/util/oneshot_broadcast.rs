@@ -21,7 +21,7 @@ slotmap_careful::new_key_type! { struct WakerKey; }
 
 /// A [oneshot broadcast][crate::util::oneshot_broadcast] sender.
 #[derive(Debug)]
-pub(crate) struct Sender<T> {
+pub struct Sender<T> {
     /// State shared with all [`Receiver`]s.
     shared: Weak<Shared<T>>,
 }
@@ -44,7 +44,7 @@ pub(crate) struct Sender<T> {
 ///     let message: &u32 = rx.borrowed().await.unwrap();
 ///     ```
 #[derive(Clone, Debug)]
-pub(crate) struct Receiver<T> {
+pub struct Receiver<T> {
     /// State shared with the sender and all other receivers.
     shared: Arc<Shared<T>>,
 }
@@ -88,7 +88,7 @@ struct Shared<T> {
 /// Will be ready, yielding `&'a T`,
 /// when the sender sends a message or is dropped.
 #[derive(Debug)]
-pub(crate) struct BorrowedReceiverFuture<'a, T> {
+pub struct BorrowedReceiverFuture<'a, T> {
     /// State shared with the sender and all other receivers.
     shared: &'a Shared<T>,
     /// The key for any waker that we've added to [`Shared::wakers`].
@@ -106,7 +106,7 @@ pub(crate) struct BorrowedReceiverFuture<'a, T> {
 // but that would be a self-referential struct,
 // so we need to duplicate the fields here instead.
 #[derive(Debug)]
-pub(crate) struct ReceiverFuture<T> {
+pub struct ReceiverFuture<T> {
     /// State shared with the sender and all other receivers.
     shared: Arc<Shared<T>>,
     /// The key for any waker that we've added to [`Shared::wakers`].
@@ -130,7 +130,7 @@ struct MessageAlreadySet;
 /// The sender was dropped, so the channel is closed.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("the sender was dropped")]
-pub(crate) struct SenderDropped;
+pub struct SenderDropped;
 
 /// Create a new oneshot broadcast channel.
 ///
@@ -141,7 +141,7 @@ pub(crate) struct SenderDropped;
 /// assert_eq!(rx.await, Ok(0));
 /// assert_eq!(rx_clone.await, Ok(0));
 /// ```
-pub(crate) fn channel<T>() -> (Sender<T>, Receiver<T>) {
+pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let shared = Arc::new(Shared {
         msg: OnceLock::new(),
         wakers: Mutex::new(Ok(DenseSlotMap::with_key())),
@@ -160,8 +160,7 @@ impl<T> Sender<T> {
     /// Send the message to the [`Receiver`]s.
     ///
     /// The message may be lost if all receivers have been dropped.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn send(self, msg: T) {
+    pub fn send(self, msg: T) {
         // set the message and inform the wakers
         Self::send_and_wake(&self.shared, Ok(msg))
             // this 'send()` method takes an owned self,
@@ -230,8 +229,7 @@ impl<T> Sender<T> {
     // It is not always valid to call this internally.
     // For example when we've done a `Weak::upgrade` internally, like in `send_and_wake`,
     // this won't return the correct value.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn is_cancelled(&self) -> bool {
+    pub fn is_cancelled(&self) -> bool {
         self.shared.strong_count() == 0
     }
 }
@@ -252,8 +250,7 @@ impl<T> Receiver<T> {
     /// and doesn't require `T: Clone`.
     ///
     /// This is cancellation-safe.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn borrowed(&self) -> BorrowedReceiverFuture<'_, T> {
+    pub fn borrowed(&self) -> BorrowedReceiverFuture<'_, T> {
         BorrowedReceiverFuture {
             shared: &self.shared,
             waker_key: None,
@@ -263,7 +260,7 @@ impl<T> Receiver<T> {
     /// The receiver is ready.
     ///
     /// If `true`, the [`Sender`] has either sent its message or been dropped.
-    pub(crate) fn is_ready(&self) -> bool {
+    pub fn is_ready(&self) -> bool {
         self.shared.msg.get().is_some()
     }
 }
