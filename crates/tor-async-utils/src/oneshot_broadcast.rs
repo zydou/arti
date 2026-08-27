@@ -135,6 +135,7 @@ struct MessageAlreadySet;
 /// The sender was dropped, so the channel is closed.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("the sender was dropped")]
+#[allow(clippy::exhaustive_structs)]
 pub struct SenderDropped;
 
 /// Create a new oneshot broadcast channel.
