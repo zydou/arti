@@ -1,0 +1,1 @@
+ADDED: `ErrorKind` implements `Hash`

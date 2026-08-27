@@ -128,7 +128,7 @@ mod http;
 //
 // ErrorKinds should not relate to particular code paths in the Arti codebase.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Hash)]
 #[non_exhaustive]
 pub enum ErrorKind {
     /// Error connecting to the Tor network
