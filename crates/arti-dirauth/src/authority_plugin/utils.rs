@@ -31,7 +31,7 @@ pub(super) enum FilenameOrStdio {
 /// See [`FilenameOrStdio::start_writing`].
 pub(super) struct Writing {
     /// Actual open-file
-    handle: Box<dyn io::Write>,
+    handle: io::BufWriter<Box<dyn io::Write>>,
     /// Filenames
     files: Option<WritingFiles>,
 }
@@ -102,7 +102,7 @@ impl FilenameOrStdio {
             FilenameOrStdio::Stdio => {
                 //
                 Ok(Writing {
-                    handle: Box::new(io::stdout().lock()),
+                    handle: BufWriter::new(Box::new(io::stdout().lock())),
                     files: None,
                 })
             }
@@ -111,9 +111,8 @@ impl FilenameOrStdio {
                 let f = File::create(&tmp)
                     .with_context(|| format!("create {tmp:?}"))
                     .map_err(convert_output_error)?;
-                let f = BufWriter::new(f);
                 Ok(Writing {
-                    handle: Box::new(f),
+                    handle: BufWriter::new(Box::new(f)),
                     files: Some(WritingFiles {
                         tmp,
                         main: main.clone(),
