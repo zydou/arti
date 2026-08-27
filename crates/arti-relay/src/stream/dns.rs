@@ -1,5 +1,7 @@
 //! DNS streams
 
+pub(crate) mod resolver;
+
 use tor_proto::stream::IncomingStream;
 
 /// Handle an incoming DNS stream
