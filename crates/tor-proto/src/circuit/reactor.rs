@@ -297,6 +297,7 @@ pub(crate) enum CtrlCmd<F, B> {
 
 /// A control message.
 #[allow(unused)] // TODO(relay)
+#[derive(derive_more::From)]
 pub(crate) enum CtrlMsg<F, B> {
     /// A control message for the forward reactor.
     Forward(forward::CtrlMsg<F>),
