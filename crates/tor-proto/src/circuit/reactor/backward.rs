@@ -139,14 +139,14 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     padding_block: Option<padding::StartBlocking>,
 }
 
-/// A control message aimed at the generic forward reactor.
+/// A control message aimed at the generic backward reactor.
 pub(crate) enum CtrlMsg<M> {
     /// An implementation-dependent control message.
     #[allow(unused)] // TODO(relay)
     Custom(M),
 }
 
-/// A control command aimed at the generic forward reactor.
+/// A control command aimed at the generic backward reactor.
 pub(crate) enum CtrlCmd<C> {
     /// An implementation-dependent control command.
     #[allow(unused)] // TODO(relay)
@@ -834,12 +834,12 @@ impl<B: BackwardHandler> Drop for BackwardReactor<B> {
 enum CircuitEvent<M> {
     /// We received a cell that needs to be handled.
     ///
-    /// The cell is client-bound if we are a relay, or exit-bound if we are a client).
+    /// (The cell is client-bound if we are a relay, or exit-bound if we are a client).
     Cell(M),
     /// We received a RELAY cell from the stream reactor that needs
     /// to be packaged and written to our Tor channel.
     ///
-    /// The message is client-bound if we are a relay, or exit-bound if we are a client).
+    /// (The message is client-bound if we are a relay, or exit-bound if we are a client).
     Send(ReadyStreamMsg),
     /// We received a cell from the ForwardReactor that we need to handle.
     ///
