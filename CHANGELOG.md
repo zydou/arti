@@ -3,6 +3,192 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 2.6.0 — 1 September 2026
+
+Arti 2.6.0 continues our steady progress on relay and directory authority development,
+including on document parsing, directory mirror support, and DNS stream handling.
+
+Additionally, this release makes
+[Congestion control](https://blog.torproject.org/congestion-contrl-047/)
+[Counter Galois Onion cryptography](https://blog.torproject.org/introducing-cgo/)
+always on in `arti`.
+
+As usual, there are also many under-the-hood improvements and bug fixes,
+which are documented below.
+
+### Major features
+
+- [Congestion control](https://blog.torproject.org/congestion-contrl-047/)
+  and
+- [Counter Galois Onion cryptography](https://blog.torproject.org/introducing-cgo/)
+  is now always on in `arti`. ([#2667], [!4341])
+
+### Breaking changes in lower-level crates
+
+- In `arti-client` and `tor-proto`, the `flowctl-cc` and `counter-galois-onion`
+  flags are removed (the corresponding code is now always-on).
+  ([#2667], [!4341])
+- In `tor-circmgr`, the `flowctl-cc` flag is removed
+  (the corresponding code is now always-on). ([#2667], [!4341])
+- In `tor-config`, the `metrics` and `telemetry` modules were moved to the
+  `tor-config-shared` crate. ([!4297])
+- In `tor-netdoc`, the `types::routerdesc` module was moved into
+  `doc::routerdesc` and `types::descriptor`. ([#2555], [!4276])
+- In `tor-netdoc`, `parse2::ItemStream::new` is now fallible.
+
+### Relay development
+
+- Added support for CREATE2 with `ntor-v3` handshakes. ([!4176])
+- Unrecognized circuit IDs are no longer treated as a channel protocol violation.
+  ([#2655], [!4301])
+- Relays and clients no longer send DESTROY on channels they have received
+  DESTROY on. ([#2646], [#2648], [!4312])
+- New crate exposing an OpenTelemetry exporter for writing OTLP JSON files to
+  disk. ([!4297])
+- Moved the metrics and telemetry configuration into a new crate,
+  allowing it to be shared between the `arti` and `arti-relay` crates.
+  ([!4297])
+- Flow control side channel mitigations are no longer enabled in the relay
+  implementation. ([#2579], [!4324])
+- New `IncomingStream` API for sending RESOLVED responses on a stream.
+  ([#2572], [!4326])
+- Initial design for the relay DNS resolver and cache. ([#1448], [!4259])
+- Moved the `oneshot_broadcast` utility from `tor-proto` to `tor-async-utils`,
+  in preparation for using it in the relay DNS resolver implementation.
+  ([!4353])
+
+### Directory authority development
+
+- `tor-netdoc` now uses `TimeRangeBoundBuilder` for the verification
+  of router descriptors. ([!4265])
+- Added support for computing microdescriptors. ([!4321])
+- `Lifetime` now implements `PartialEq` and `Eq`. ([!4294])
+- Implemented a temporary workaround to allow the use of `DirMgr`
+  as a backend  for `DirServer`. ([#2657], [!4298], [!4306])
+- Initial support for Extra Info documents. ([!4284])
+- `RouterDesc` now provides construction logic instead of `#[non_exhaustive]`.
+  ([!4285])
+- Added the new `Lines::clone_entirely_consumed` and
+  `parse2::parse_netdoc_multiple_sophisticated` parsing APIs,
+  which can skip some erroneous documents. ([!4325])
+- Replaced `FlavoredConsensus(Signed)` with traits and generics.
+  ([!4308])
+- Schema improvements for the `consensus_diff` table.
+  ([!4331])
+- Improved the handling of `INSERT` conflicts in `tor-dirserver`. ([!4330])
+- Updated the authority plugin API docs to say how routerdesc signatures
+  will be verified. ([!4335])
+- Refactored the `ConsensusMeta::query` function in preparation for extending it
+  for obtaining consensuses for consensus diff generation. ([!4334])
+- Reworked the schema for authority/consensus table. ([!4342])
+- Reworked an internal type to use a buffered writer. ([!4345])
+- Implemented the `compute-mds` method for the dirauth plugin. ([!4344])
+- Reworked `ConsensusMeta` to have a generic parameter specifying the consensus flavor.
+  ([!4337])
+- Implemented the "consensus flavor" traits for the various consensus types.
+  ([!4343])
+
+### RPC development
+
+- Refactored the `reload_cfg` module in preparation for RPC work. ([!4310])
+- Reworked how the configuration is initialized and handled internally,
+  in preparation for the RPC integration. ([!4322])
+- Implemented "how" for various reconfiguration functions. ([#1156], [!4327])
+
+### Testing
+
+- New test for the handling of non-UTF-8 response bodies in `tor-dirclient`.
+  ([!4277])
+- Made the `tor-dirserver` tests pass on OpenBSD too. ([#2656], [!4286])
+- Fixed compilation when building the `tor-proto` tests without
+  the `testing` feature. ([!4319])
+- Added tests and documentation for the `AddrPolicy` defaults. ([!4323])
+- New unit tests for CREATE_FAST and CREATE2 handshake failures.
+  ([!4300])
+- Overhauled the `tor-dirserver` test suite. ([!4302])
+- New test for the relay DESTROY-handling behavior. ([!4336])
+- Removed duplicated test data from `tor-netdoc`. ([!4338])
+- New `fslock-guard` test case for tight acquire/drop loop. ([!4348])
+- New parsed document test helpers. ([!4340])
+
+### Documentation
+
+- Updated the `RouterDesc` documentation to link to the relevant sections
+  in the specification. ([!4279])
+- Removed an outdated comment about the `tor_netdoc::routerdesc` module.
+  ([!4274])
+- New `README_relay.md` containing a checklist of features we plan to implement.
+  ([!4295], [!4314])
+- Removed an outdated comment about the types from the `tor_netdoc::misc` module.
+  ([!4307])
+- Updated the relay circuit reactor documentation to better reflect the current
+  status. ([!4313])
+- Fixed incorrect documentation for `FixedB64`. ([!4251])
+
+### Infrastructure
+
+- Bumped docker images. ([#2618], [!4280])
+- Updated the our CI `after_script`s to clean up various build artifacts,
+  reducing disk usage on the runners. ([!4316], [#2669], [#2672])
+- Rustdoc builds are now uploaded as artifacts, and are no longer preserved
+  between jobs ([!4315])
+
+### Cleanups, minor features, and bugfixes
+
+- Removed an outdated TODO from `tor-proto`. ([!4275])
+- Fixed a bug where arti would fail to update its `next_cc_event`
+  and `next_cwnd_event` congestion control counters if a clock stall
+  was detected. ([#2651], [!4256])
+- Bumped `weak-table` to 0.4.0, which uses a new `hashbrown`-based backend
+  for improved performance and correctness. ([!4278])
+- Removed some no-longer-needed feature-gating in `tor-netdoc`. ([!4273])
+- Bumped the `statrs` dev-dependency to the latest version. ([!4283])
+- Added a TODO about handling reconfiguration in `tor-ptmgr`. ([!4293])
+- Fixed the compilation of `arti` builds that have the `http-connect`
+  feature enabled and the `rpc` feature disabled. ([#2653], [!4296])
+- In `tor-dirserver`, the `ConsensusMeta` and `AuthCertMeta` now
+  have public fields instead of getters. ([!4303])
+- `arti` now responds with `FORMERR` to any incoming DNS request
+  that does not have exactly one query, to comply with [RFC 9619].
+  ([!4281])
+- Fixed a number of clippy warnings in `tor-proto` affecting builds
+  that do not enable all features. ([!4304])
+- `tor-hsclient` now uses `TaskHandle` for representing circuit expiry tasks.
+   ([!4290])
+- New `Reader::take_until_with_limit` method for bounding the number of bytes
+  to consume before giving up on finding the terminator. ([!4082])
+- `arti` now exits with an error if it fails to bind to one of the configured
+  DNS ports. ([!4309])
+- Upgraded to the latest version of `h2`, in response to [RUSTSEC-2026-0258].
+  Note, however, that arti itself was not affected by this security issue.
+  ([!4318])
+- Adjusted the `Display` implementation of `Target` to avoid inserting double
+  quotes within the displayed path. ([!4317])
+- Reworked some of the circuit reactor test helpers to deduplicate code.
+  ([!4328])
+- Clients now close the circuit if congestion control was requested but there
+  was no response. ([#2670], [!4320])
+- Removed no-longer-necessary dead code `allow`s from the relay circuit reactor.
+  ([!4346])
+- Replaced an `expect` with an `allow` to worked around a cfg-dependent error.
+  ([!4347])
+- `fslock-guard` now defends against forks in other threads. ([#2610], [!4349])
+- `ErrorKind` now implements `Hash`. ([!4333])
+- Bumped `chacha20` to the latest version, to resolve the `cargo-audit` warning
+  triggered by its previous version being yanked. ([!4355])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Andrew Kloet, Steven Masnada, iqdecay, pryty26, steven.
+
+Also, our deep thanks to
+the [Bureau of Democracy, Human Rights, and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+<!-- links go here -->
+
 # Arti 2.5.1 - 3 August 2026
 
 Arti 2.5.1 continues development on relays and directory authorities.
