@@ -86,12 +86,6 @@ enum State {
     /// Transitions into:
     /// * [`State::AuthCerts`], if we still miss authority certificates.
     /// * [`State::StoreConsensus`], if we got all authority certificates.
-    // TODO DIRMIRROR: What to do in the case of a MITM attack where an attacker
-    // adds lots of invalid signature items at the bottom, leading to lots of
-    // queries for directory authority certificates, which may succeed or not?
-    // Best idea is probably to only download authcerts whose id fingerprints
-    // are configured in our AuthorityContacts, because then we have an upper
-    // limit.
     AuthCerts,
 
     /// Validates and stores the downloaded unvalidated consensus into the
@@ -461,15 +455,6 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 
     /// Fetches, validates, and stores authority certificates.
-    //
-    // TODO DIRMIRROR: Right now, there is a torspec DoS issue.
-    // An attacker may add lots of garbage signatures and we will fetch them
-    // Even checking the ID PK against v3idents is not useful because an
-    // attacker may still use the same ID PK dozens of times with various
-    // SK PKs.  A good fix would include checking that no ID PK is duplicate
-    // AND to ignore all ID PKs we do not recognize.  Also, it would probably
-    // be best to move the v3idents structure to a HashMap based implementation,
-    // as well as the signatories result.
     #[allow(clippy::string_slice)] // TODO
     async fn auth_certs(
         &self,
