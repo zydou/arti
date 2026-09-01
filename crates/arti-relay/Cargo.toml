@@ -47,6 +47,8 @@ full = [
     "web-time-compat/full",
     "tor-cell/full",
     "tor-dirserver/full",
+    "otlp-file-exporter?/full",
+    "tor-config-shared/full",
 ]
 
 # This feature flag enables experimental features that are not supported. Turning it on may

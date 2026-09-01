@@ -26,6 +26,7 @@ full = [
     "tor-linkspec/full",
     "tor-llcrypto/full",
     "tor-netdoc/full",
+    "tor-error?/full",
 ]
 
 experimental = ["dir-plugin-backend"]

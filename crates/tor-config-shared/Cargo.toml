@@ -17,6 +17,9 @@ experimental = ["opentelemetry"]
 opentelemetry = ["dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "__is_experimental"]
 
 __is_experimental = []
+full = [
+    "tor-config/full",
+    "tor-config-path/full"]
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
