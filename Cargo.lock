@@ -2664,7 +2664,7 @@ checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
 name = "fslock-guard"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "libc",
  "test-temp-dir",

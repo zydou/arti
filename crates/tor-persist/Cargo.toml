@@ -38,7 +38,7 @@ derive_more = { version = "2.0.1", features = ["full"] }
 extend = "1.2.0"
 filetime = { version = "0.2", default-features = false }
 fs-mistrust = { path = "../fs-mistrust", version = "0.15.0", features = ["walkdir"] }
-fslock-guard = { path = "../fslock-guard", version = "0.8.0" }
+fslock-guard = { path = "../fslock-guard", version = "0.8.2" }
 futures = "0.3.14"
 itertools = "0.15.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.7.0" }

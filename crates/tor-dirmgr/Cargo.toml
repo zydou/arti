@@ -74,7 +74,7 @@ digest = "0.10.0"
 educe = "0.4.22"
 event-listener = "5"
 fs-mistrust = { path = "../fs-mistrust", version = "0.15.0" }
-fslock-guard = { path = "../fslock-guard", version = "0.8.0" }
+fslock-guard = { path = "../fslock-guard", version = "0.8.2" }
 futures = "0.3.14"
 hex = "0.4"
 httpdate = { version = "1", optional = true }
