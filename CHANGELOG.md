@@ -272,11 +272,11 @@ As usual, there are also many small changes and improvements which are detailed 
 
 ### Major features
 
-- [Congestion control](https://blog.torproject.org/congestion-contrl-047/) 
+- [Congestion control](https://blog.torproject.org/congestion-contrl-047/)
   (alias `flowctl-cc`) is now enabled by default in `arti`. ([!4042])
 - [Counter Galois Onion cryptography](https://blog.torproject.org/introducing-cgo/)
-  is now stable in `arti`.  
-  To enable it, build arti with the `counter-galois-onion` feature, 
+  is now stable in `arti`.
+  To enable it, build arti with the `counter-galois-onion` feature,
   or use `full` to enable all stable reatures. ([!4069])
 - Reworked the output of the `arti keys list` subcommand. ([!4015], [!4125], [!4126])
 
