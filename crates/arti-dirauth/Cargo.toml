@@ -1,6 +1,6 @@
 [package]
 name = "arti-dirauth"
-version = "0.45.0"
+version = "0.46.0"
 authors = [
     "The Tor Project, Inc.",
     "Ian Jackson <iwj@torproject.org>",
@@ -42,12 +42,12 @@ derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }
 digest = "0.10.0"
 educe = "0.4.22"
 thiserror = "2"
-tor-checkable = { path = "../tor-checkable", version = "0.45.0" }
-tor-dirauth = { path = "../tor-dirauth", version = "0.45.0" }
-tor-error = { path = "../tor-error", version = "0.45.0" }
-tor-llcrypto = { version = "0.45.0", path = "../tor-llcrypto" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.45.0", features = ["full", "retain-unknown"] }
+tor-checkable = { path = "../tor-checkable", version = "0.46.0" }
+tor-dirauth = { path = "../tor-dirauth", version = "0.46.0" }
+tor-error = { path = "../tor-error", version = "0.46.0" }
+tor-llcrypto = { version = "0.46.0", path = "../tor-llcrypto" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.46.0", features = ["full", "retain-unknown"] }
 
 [dev-dependencies]
 test-temp-dir = { version = "0.8.0", path = "../test-temp-dir" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.45.0", features = ["testing"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.46.0", features = ["testing"] }
