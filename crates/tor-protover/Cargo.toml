@@ -1,6 +1,6 @@
 [package]
 name = "tor-protover"
-version = "0.45.0"
+version = "0.46.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.91"
@@ -17,8 +17,8 @@ derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }
 paste = "1.0.3"
 serde_with = { version = "3.0.0", optional = true }
 thiserror = "2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.45.0" }
-tor-bytes = { path = "../tor-bytes", version = "0.45.0", optional = true }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.46.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.46.0", optional = true }
 
 [features]
 default = []

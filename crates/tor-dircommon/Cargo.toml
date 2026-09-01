@@ -1,6 +1,6 @@
 [package]
 name = "tor-dircommon"
-version = "0.45.0"
+version = "0.46.0"
 authors = [
     "The Tor Project, Inc.",
     "Nick Mathewson <nickm@torproject.org>",
@@ -42,13 +42,13 @@ humantime = "2"
 humantime-serde = "1.1.1"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = { version = "2", optional = true }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.45.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.45.0" }
-tor-config = { path = "../tor-config", version = "0.45.0" }
-tor-error = { path = "../tor-error", version = "0.45.0", optional = true }
-tor-linkspec = { path = "../tor-linkspec", version = "0.45.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.45.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.45.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.46.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.46.0" }
+tor-config = { path = "../tor-config", version = "0.46.0" }
+tor-error = { path = "../tor-error", version = "0.46.0", optional = true }
+tor-linkspec = { path = "../tor-linkspec", version = "0.46.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.46.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.46.0" }
 tracing = "0.1.41"
 
 [dev-dependencies]
