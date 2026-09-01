@@ -21,7 +21,7 @@ which are documented below.
 - [Congestion control](https://blog.torproject.org/congestion-contrl-047/)
   and
 - [Counter Galois Onion cryptography](https://blog.torproject.org/introducing-cgo/)
-  is now always on in `arti`. ([#2667], [!4341])
+  are now always on in `arti`. ([#2667], [!4341])
 
 ### Breaking changes in lower-level crates
 
@@ -32,7 +32,7 @@ which are documented below.
   (the corresponding code is now always-on). ([#2667], [!4341])
 - In `tor-config`, the `metrics` and `telemetry` modules were moved to the
   `tor-config-shared` crate. ([!4297])
-- In `tor-netdoc`, the `types::routerdesc` module was moved into
+- In `tor-netdoc`, the `types::routerdesc` module was split and moved into
   `doc::routerdesc` and `types::descriptor`. ([#2555], [!4276])
 - In `tor-netdoc`, `parse2::ItemStream::new` is now fallible.
 
