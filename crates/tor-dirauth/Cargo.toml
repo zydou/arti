@@ -21,7 +21,12 @@ all-features = true
 
 [features]
 experimental = []
-full = ["tor-netdoc/full", "tor-error/full", "tor-basic-utils/full", "tor-checkable/full"]
+full = [
+    "tor-netdoc/full",
+    "tor-error/full",
+    "tor-basic-utils/full",
+    "tor-checkable/full",
+]
 __is_experimental = []
 
 [dependencies]
