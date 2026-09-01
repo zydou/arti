@@ -74,9 +74,16 @@ full = [
     "tor-general-addr/full",
     "tor-log-ratelim/full",
     "web-time-compat/full",
+    "otlp-file-exporter?/full",
+    "tor-config-shared/full",
 ]
 
-async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "async-signal"]
+async-std = [
+    "arti-client/async-std",
+    "tor-rtcompat/async-std",
+    "async-ctrlc",
+    "async-signal",
+]
 bridge-client = ["arti-client/bridge-client"]
 default-runtime = ["tokio", "native-tls"]
 # Note: this feature is deprecated and should not be used (it is a no-op).
@@ -85,7 +92,13 @@ dns-proxy = ["hickory-proto"]
 experimental-api = ["arti-client/experimental-api", "visibility", "__is_experimental"]
 harden = ["secmem-proc"]
 keymgr = ["arti-client/keymgr", "__is_experimental"]
-tokio = ["tokio-crate", "arti-client/tokio", "tor-async-utils/tokio", "tor-rtcompat/tokio", "tokio-util"]
+tokio = [
+    "tokio-crate",
+    "arti-client/tokio",
+    "tor-async-utils/tokio",
+    "tor-rtcompat/tokio",
+    "tokio-util",
+]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
 
@@ -112,7 +125,13 @@ flowctl-cc = []
 # We are leaving this feature flag here so as not to break backward compatibility.
 counter-galois-onion = []
 
-rpc = ["dep:arti-rpcserver", "dep:tor-rpcbase", "dep:tor-rpc-connect", "arti-client/rpc", "derive-deftly"]
+rpc = [
+    "dep:arti-rpcserver",
+    "dep:tor-rpcbase",
+    "dep:tor-rpc-connect",
+    "arti-client/rpc",
+    "derive-deftly",
+]
 
 # These are not nonadditive from a software POV, but we mark them as such because
 # they introduce a different backend, and only one backend can actually be used.
@@ -164,7 +183,12 @@ experimental = [
     "opentelemetry",
     "tokio-console",
 ]
-metrics = ["dep:metrics-exporter-prometheus", "tor-hsservice?/metrics", "tor-hsrproxy?/metrics", "__is_experimental"]
+metrics = [
+    "dep:metrics-exporter-prometheus",
+    "tor-hsservice?/metrics",
+    "tor-hsrproxy?/metrics",
+    "__is_experimental",
+]
 http-connect = ["base64ct", "http", "hyper", "tor-error/http", "tor-cell"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
 tokio-console = ["dep:console-subscriber", "__is_experimental"]
@@ -253,11 +277,11 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 visibility = { version = "0.1.0", optional = true }
 web-time-compat = { path = "../web-time-compat", version = "0.2.0" }
 
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3.8", features = ["winerror"] }
-
 [target.'cfg(not(all(target_arch="wasm32", target_os="unknown")))'.dependencies]
 rlimit = "0.11.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.8", features = ["winerror"] }
 
 [dev-dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
