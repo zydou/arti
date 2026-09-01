@@ -9,7 +9,7 @@ Arti 2.6.0 continues our steady progress on relay and directory authority develo
 including on document parsing, directory mirror support, and DNS stream handling.
 
 Additionally, this release makes
-[Congestion control](https://blog.torproject.org/congestion-contrl-047/)
+[Congestion control](https://blog.torproject.org/congestion-contrl-047/) and
 [Counter Galois Onion cryptography](https://blog.torproject.org/introducing-cgo/)
 always on in `arti`.
 
@@ -26,7 +26,7 @@ which are documented below.
 ### Breaking changes in lower-level crates
 
 - In `arti-client` and `tor-proto`, the `flowctl-cc` and `counter-galois-onion`
-  flags are removed (the corresponding code is now always-on).
+  cargo feature flags are removed (the corresponding code is now always-on).
   ([#2667], [!4341])
 - In `tor-circmgr`, the `flowctl-cc` flag is removed
   (the corresponding code is now always-on). ([#2667], [!4341])
