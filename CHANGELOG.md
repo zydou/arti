@@ -187,7 +187,103 @@ the [Bureau of Democracy, Human Rights, and Labor],
 and our [other sponsors]
 for funding the development of Arti!
 
-<!-- links go here -->
+[!4082]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4082
+[!4176]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4176
+[!4251]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4251
+[!4256]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4256
+[!4259]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4259
+[!4265]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4265
+[!4273]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4273
+[!4274]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4274
+[!4275]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4275
+[!4276]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4276
+[!4277]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4277
+[!4278]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4278
+[!4279]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4279
+[!4280]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4280
+[!4281]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4281
+[!4283]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4283
+[!4284]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4284
+[!4285]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4285
+[!4286]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4286
+[!4290]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4290
+[!4293]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4293
+[!4294]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4294
+[!4295]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4295
+[!4296]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4296
+[!4297]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4297
+[!4298]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4298
+[!4300]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4300
+[!4301]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4301
+[!4302]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4302
+[!4303]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4303
+[!4304]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4304
+[!4306]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4306
+[!4307]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4307
+[!4308]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4308
+[!4309]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4309
+[!4310]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4310
+[!4312]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4312
+[!4313]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4313
+[!4314]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4314
+[!4315]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4315
+[!4316]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4316
+[!4317]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4317
+[!4318]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4318
+[!4319]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4319
+[!4320]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4320
+[!4321]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4321
+[!4322]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4322
+[!4323]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4323
+[!4324]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4324
+[!4325]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4325
+[!4326]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4326
+[!4327]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4327
+[!4328]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4328
+[!4330]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4330
+[!4331]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4331
+[!4333]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4333
+[!4334]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4334
+[!4335]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4335
+[!4336]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4336
+[!4337]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4337
+[!4338]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4338
+[!4340]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4340
+[!4341]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4341
+[!4342]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4342
+[!4343]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4343
+[!4344]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4344
+[!4345]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4345
+[!4346]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4346
+[!4347]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4347
+[!4348]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4348
+[!4349]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4349
+[!4353]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4353
+[!4355]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4355
+[#1156]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1156
+[#1448]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1448
+[#2555]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2555
+[#2572]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2572
+[#2579]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2579
+[#2610]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2610
+[#2618]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2618
+[#2646]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2646
+[#2648]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2648
+[#2651]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2651
+[#2653]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2653
+[#2655]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2655
+[#2656]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2656
+[#2657]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2657
+[#2667]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2667
+[#2669]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2669
+[#2670]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2670
+[#2672]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2672
+[Bureau of Democracy, Human Rights, and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[RFC 9619]: https://datatracker.ietf.org/doc/html/rfc9619
+[RUSTSEC-2026-0258]: https://rustsec.org/advisories/RUSTSEC-2026-0258
+[other sponsors]: https://www.torproject.org/about/sponsors/
+
+
 
 # Arti 2.5.1 - 3 August 2026
 
