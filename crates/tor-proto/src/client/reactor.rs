@@ -1022,7 +1022,7 @@ impl Reactor {
                     ccontrol
                         .rtt()
                         .max_rtt_usec()
-                        .map(|rtt| Duration::from_millis(u64::from(rtt)))
+                        .map(|rtt| Duration::from_micros(u64::from(rtt)))
                         .unwrap_or_default()
                 };
 
