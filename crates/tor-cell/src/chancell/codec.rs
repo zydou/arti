@@ -10,7 +10,7 @@ use bytes::BytesMut;
 
 /// This object can be used to encode and decode channel cells.
 ///
-/// NOTE: only link protocol versions 3 and higher are supported.
+/// NOTE: only link protocol versions 4 and higher are supported.
 /// VERSIONS cells are not supported via the encoder/decoder, since
 /// VERSIONS cells always use a two-byte circuit-ID for backwards
 /// compatibility with protocol versions < 4.
@@ -37,7 +37,7 @@ pub struct ChannelCodec {
     ///
     /// (We don't currently support any versions of the link protocol
     /// where this version matters, but for protocol versions below 4, it would
-    /// affect the length of the circuit ID.)
+    /// have affected the length of the circuit ID.)
     link_version: u16,
 }
 
