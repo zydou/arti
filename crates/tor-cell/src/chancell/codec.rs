@@ -17,7 +17,8 @@ use bytes::BytesMut;
 ///
 /// The implemented format is one of the following:
 ///
-/// Variable-length cells (since protocol versions 2 and 3 respectively):
+/// Variable-length cells:
+///
 /// ```ignore
 ///     u32 circid;
 ///     u8 command;
@@ -25,7 +26,8 @@ use bytes::BytesMut;
 ///     u8 body[len];
 /// ```
 ///
-/// Fixed-width cells (since protocol version 1 and 4 respectively):
+/// Fixed-width cells:
+///
 /// ```ignore
 ///     u32 circid;
 ///     u8 command;
