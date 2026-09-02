@@ -766,7 +766,7 @@ impl ConfluxSet {
     /// Returns `None` if no suitable leg was found.
     #[cfg(feature = "conflux")]
     fn select_primary_leg_min_rtt(&self, check_can_send: bool) -> Result<Option<UniqId>, Bug> {
-        let mut best: Option<(UniqId, u32)> = None;
+        let mut best: Option<(UniqId, std::time::Duration)> = None;
 
         for circ in self.legs.iter() {
             let leg_id = circ.unique_id();
@@ -778,12 +778,9 @@ impl ConfluxSet {
             }
 
             let rtt = ccontrol.rtt();
-            let init_rtt_usec = || {
-                circ.init_rtt()
-                    .map(|rtt| u32::try_from(rtt.as_micros()).unwrap_or(u32::MAX))
-            };
+            let init_rtt = || circ.init_rtt();
 
-            let Some(ewma_rtt) = rtt.ewma_rtt_usec().or_else(init_rtt_usec) else {
+            let Some(ewma_rtt) = rtt.ewma_rtt().or_else(init_rtt) else {
                 return Err(internal!(
                     "attempted to select primary leg before handshake completed?!"
                 ));
