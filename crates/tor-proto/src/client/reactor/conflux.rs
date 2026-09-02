@@ -777,10 +777,7 @@ impl ConfluxSet {
                 continue;
             }
 
-            let rtt = ccontrol.rtt();
-            let init_rtt = || circ.init_rtt();
-
-            let Some(ewma_rtt) = rtt.ewma_rtt().or_else(init_rtt) else {
+            let Some(ewma_rtt) = ccontrol.rtt().ewma_rtt().or_else(|| circ.init_rtt()) else {
                 return Err(internal!(
                     "attempted to select primary leg before handshake completed?!"
                 ));
