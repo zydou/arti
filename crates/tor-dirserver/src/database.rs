@@ -107,10 +107,13 @@ PRAGMA busy_timeout=1000;
 /// * [`FromSql`]
 /// * [`ToSql`]
 /// * [`PartialEq<&str>`] for base16 comparisons
-/// * [`From<u8; $size>`] but only in tests
+/// * [`From<u8; $size>`]
 macro_rules! impl_hash_wrapper {
     ($name:ident, $algo:ty, $size:literal) => {
-        /// Database wrapper type.
+        /// Database wrapper type for $name.
+        ///
+        /// Serves as a database friendly wrapper around [`tor_llcrypto::d`]
+        /// with features such as SQL support.
         #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
         pub(crate) struct $name([u8; $size]);
 
@@ -165,7 +168,6 @@ macro_rules! impl_hash_wrapper {
             }
         }
 
-        #[cfg(test)]
         impl From<[u8; $size]> for $name {
             fn from(value: [u8; $size]) -> Self {
                 Self(value)
