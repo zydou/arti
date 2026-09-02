@@ -40,7 +40,6 @@ impl super::ClientHandshake for NtorClient {
 }
 
 /// Server side of the ntor handshake.
-#[allow(dead_code)] // TODO #1467
 pub(crate) struct NtorServer;
 
 impl super::ServerHandshake for NtorServer {
@@ -52,14 +51,14 @@ impl super::ServerHandshake for NtorServer {
     fn server<R: Rng + CryptoRng, REPLY: AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,
-        key: &[Self::KeyType],
+        keys: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
         let _reply_msg = reply_fn
             .reply(&())
             .ok_or(RelayHandshakeError::BadClientHandshake)?;
 
-        server_handshake_ntor_v1(rng, msg, key)
+        server_handshake_ntor_v1(rng, msg, keys)
     }
 }
 
@@ -74,7 +73,6 @@ pub(crate) struct NtorPublicKey {
 }
 
 /// A secret key used by a relay to answer an ntor request
-#[allow(dead_code)] // TODO #1467
 pub(crate) struct NtorSecretKey {
     /// Public key components; must match those held by the client.
     pk: NtorPublicKey,
@@ -96,7 +94,6 @@ impl NtorSecretKey {
     /// Return true if the curve25519 public key in `self` matches `pk`.
     ///
     /// Used for looking up keys in an array.
-    #[allow(dead_code)] // TODO #1467
     fn matches_pk(&self, pk: &PublicKey) -> Choice {
         self.pk.pk.as_bytes().ct_eq(pk.as_bytes())
     }
@@ -267,7 +264,6 @@ fn ntor_derive(
 /// Perform a server-side ntor handshake.
 ///
 /// On success returns a key generator and a server onionskin.
-#[allow(dead_code)] // TODO #1467
 fn server_handshake_ntor_v1<R, T>(
     rng: &mut R,
     msg: T,

@@ -11,6 +11,7 @@ use crate::{Error, Result};
 use rand::{CryptoRng, Rng};
 use tor_bytes::SecretBuf;
 use tor_error::into_internal;
+use void::Void;
 
 /// Number of bytes used for a "CREATE_FAST" handshake by the initiator.
 pub(crate) const FAST_C_HANDSHAKE_LEN: usize = 20;
@@ -71,11 +72,10 @@ impl super::ClientHandshake for CreateFastClient {
 /// Relay-handshake for CREATE_FAST.
 ///
 /// See module documentation; you probably don't want to use this.
-#[allow(dead_code)] // TODO #1467
 pub(crate) struct CreateFastServer;
 
 impl super::ServerHandshake for CreateFastServer {
-    type KeyType = ();
+    type KeyType = Void;
     type KeyGen = super::TapKeyGenerator;
     type ClientAuxData = ();
     type ServerAuxData = ();
@@ -83,7 +83,7 @@ impl super::ServerHandshake for CreateFastServer {
     fn server<R: Rng + CryptoRng, REPLY: super::AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,
-        _key: &[Self::KeyType],
+        _keys: &[Self::KeyType],
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
         let _reply_extensions: () = reply_fn
@@ -136,7 +136,7 @@ mod test {
 
         let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &()).unwrap();
         let (s_kg, smsg) =
-            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg).unwrap();
+            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[], cmsg).unwrap();
         let (_msg, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
 
         let s_key = s_kg.expand(200).unwrap();
@@ -151,13 +151,13 @@ mod test {
 
         // badly formatted client message.
         let cmsg = [6_u8; 19];
-        let ans = CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg);
+        let ans = CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[], cmsg);
         assert!(ans.is_err());
 
         // corrupt/ incorrect server reply.
         let (state, cmsg) = CreateFastClient::client1(&mut rng, &(), &()).unwrap();
         let (_, mut smsg) =
-            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg).unwrap();
+            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[], cmsg).unwrap();
         smsg[35] ^= 16;
         let ans = CreateFastClient::client2(state, smsg);
         assert!(ans.is_err());
@@ -171,7 +171,7 @@ mod test {
 
         let mut rng = FakePRNG::new(&smsg);
         let (s_kg, smsg) =
-            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[()], cmsg).unwrap();
+            CreateFastServer::server(&mut rng, &mut |_: &()| Some(()), &[], cmsg).unwrap();
         let (_msg, c_kg) = CreateFastClient::client2(state, smsg).unwrap();
 
         let s_key = s_kg.expand(100).unwrap();

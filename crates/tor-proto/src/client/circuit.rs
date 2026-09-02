@@ -1191,7 +1191,7 @@ pub(crate) mod test {
                     let (_, rep) = CreateFastServer::server(
                         &mut rng,
                         &mut |_: &()| Some(()),
-                        &[()],
+                        &[],
                         cf.handshake(),
                     )
                     .unwrap();

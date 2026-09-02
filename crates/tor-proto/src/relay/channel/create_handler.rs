@@ -321,7 +321,7 @@ impl CreateRequestHandler {
             // so this `AuxDataReply` is a no-op.
             &mut |_: &()| Some(()),
             // The CREATE_FAST handshake doesn't use any keys.
-            &[()],
+            &[],
             msg.handshake(),
         )?;
 
