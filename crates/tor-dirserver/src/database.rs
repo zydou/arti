@@ -692,6 +692,7 @@ impl AuthCertMeta {
     /// database query potentially taking something between `O(log n)` to
     /// `O(n)` to execute.  However, given that this respective value is
     /// oftentimes fairly small, it should not be much of a big concern.
+    // XXX: Remove this.
     pub(crate) fn query(
         tx: &Transaction,
         signatories: &[AuthCertKeyIds],
@@ -766,6 +767,44 @@ impl AuthCertMeta {
         }
 
         Ok((found, missing))
+    }
+
+    /// Obtains the authority certificates from the database.
+    pub(crate) fn query2(tx: &Transaction) -> Result<Vec<Self>, DatabaseError> {
+        // Obtain all certificates from the database.
+        //
+        // This is okay because the set is not very big.
+        //
+        // In the unlikely edge case of on identity-signing key pair having
+        // multiple certificates, the most recently published certificate is
+        // going to be used.
+        //
+        // TODO DIRMIRROR: Perhaps we should modify the auth_certs table to
+        // add a UNIQUE constraint on that combination, while modifying the
+        // insertion logic to replace with the newer one in the case of a
+        // conflict.
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            SELECT docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1,
+              dir_key_published, dir_key_expires
+            FROM authority_key_certificate
+            GROUP BY kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1
+            ORDER BY MAX(dir_key_published)
+            "
+        ))?;
+
+        let certs = stmt
+            .query_map(params![], |row| {
+                Ok(Self {
+                    docid: row.get(0)?,
+                    kp_auth_id_rsa_sha1: row.get(1)?,
+                    kp_auth_sign_rsa_sha1: row.get(2)?,
+                    dir_key_published: row.get(3)?,
+                    dir_key_expires: row.get(4)?,
+                })
+            })?
+            .collect::<Result<_, _>>()?;
+        Ok(certs)
     }
 
     /// Queries the raw data of an [`AuthCertMeta`].
