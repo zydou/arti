@@ -473,10 +473,15 @@ impl<R: Runtime + ToplevelBlockOn> UreqResolver for Resolver<R> {
             core::net::SocketAddr::new(core::net::IpAddr::V4(core::net::Ipv4Addr::UNSPECIFIED), 0)
         });
 
-        for ip in ips {
+        // The ureq resolver API doesn't allow returning more than MAX_ADDRS,
+        // so we just return the first MAX_ADDRS here
+        // (if we decide to continue maintaining arti-ureq,
+        // we may want to do something more clever here,
+        // like shuffling the addresses, or making sure we always return
+        // a good mix of address families, etc.)
+        for ip in ips.into_iter().take(MAX_ADDRS) {
             let socket_addr = core::net::SocketAddr::new(ip, port);
 
-            // XXX push panics if we push more than MAX_ADDRS here
             array_vec.push(socket_addr);
         }
 
