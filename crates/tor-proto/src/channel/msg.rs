@@ -146,9 +146,10 @@ pub(super) mod linkv4 {
             (RelayInitiator, Handshake) => decode_as_any::<HandshakeRelayResponderMsg>,
             (RelayInitiator, Open) => decode_as_any::<OpenChanMsgR2R>,
             (RelayResponder { authenticated: _ }, Handshake) => {
-                // We don't know if the other side is a client or relay. However, this message set
-                // is a superset of the HandshakeClientInitiatorMsg and so we cover the client as
-                // well.
+                // We don't know if the other side is a client or relay.
+                // However, the `HandshakeRelayInitiatorMsg` message set
+                // is a superset of the `HandshakeClientInitiatorMsg` message set
+                // and so we cover any client-sent messages as well.
                 decode_as_any::<HandshakeRelayInitiatorMsg>
             }
             (RelayResponder { authenticated }, Open) => match authenticated {
