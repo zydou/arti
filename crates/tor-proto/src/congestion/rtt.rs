@@ -92,21 +92,39 @@ impl RoundtripTimeEstimator {
     }
 
     /// Return the EWMA RTT in usec or `None` if we don't have an estimate yet.
+    #[deprecated = "Use ewma_rtt instead"]
     pub(crate) fn ewma_rtt_usec(&self) -> Option<u32> {
         self.ewma_rtt
             .map(|rtt| u32::try_from(rtt.as_micros()).ok().unwrap_or(u32::MAX))
     }
 
+    /// Return the EWMA RTT or `None` if we don't have an estimate yet.
+    pub(crate) fn ewma_rtt(&self) -> Option<Duration> {
+        self.ewma_rtt
+    }
+
     /// Return the Minimum RTT in usec or `None` if we don't have an estimate yet.
+    #[deprecated = "Use min_rtt instead"]
     pub(crate) fn min_rtt_usec(&self) -> Option<u32> {
         self.min_rtt
             .map(|rtt| u32::try_from(rtt.as_micros()).ok().unwrap_or(u32::MAX))
     }
 
+    /// Return the Minimum RTT or `None` if we don't have an estimate yet.
+    pub(crate) fn min_rtt(&self) -> Option<Duration> {
+        self.min_rtt
+    }
+
     /// Return the maximum observed RTT in usec or `None` if we don't have an estimate yet.
+    #[deprecated = "Use max_rtt instead"]
     pub(crate) fn max_rtt_usec(&self) -> Option<u32> {
         self.max_rtt
             .map(|rtt| u32::try_from(rtt.as_micros()).ok().unwrap_or(u32::MAX))
+    }
+
+    /// Return the maximum observed RTT in usec or `None` if we don't have an estimate yet.
+    pub(crate) fn max_rtt(&self) -> Option<Duration> {
+        self.max_rtt
     }
 
     /// Inform the estimator that we did (at time `now`) something that we'll expect a SENDME to
