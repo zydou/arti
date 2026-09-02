@@ -458,12 +458,25 @@ impl<R: Runtime + ToplevelBlockOn> UreqResolver for Resolver<R> {
             .block_on(async { self.client.resolve(&host).await })
             .map_err(Error::from)?;
 
-        let mut array_vec: ArrayVec<core::net::SocketAddr, 16> = ArrayVec::from_fn(|_| {
+        /// Max number of socket addresses to keep from the resolver.
+        ///
+        /// Note: the ureq Resolver::resolve() API returns `ResolvedSocketAddrs`,
+        /// which is a type-alias for an ArrayVec of socket addresses of size MAX_ADDRS.
+        /// However, because ureq does not actually expose MAX_ADDRS publicly,
+        /// we have to define our own constant here, **and** cap our responses to MAX_ADDRS.
+        /// (IMO, this is a deficiency of the ureq API that needs to be patched upstream, either by
+        /// exposing MAX_ADDRS, or by adding a more convenient API for building ResolvedSocketAddrs
+        /// out of an arbitrarily large collection of, or iterator over, SocketAddrs)
+        const MAX_ADDRS: usize = 16;
+
+        let mut array_vec: ArrayVec<core::net::SocketAddr, MAX_ADDRS> = ArrayVec::from_fn(|_| {
             core::net::SocketAddr::new(core::net::IpAddr::V4(core::net::Ipv4Addr::UNSPECIFIED), 0)
         });
 
         for ip in ips {
             let socket_addr = core::net::SocketAddr::new(ip, port);
+
+            // XXX push panics if we push more than MAX_ADDRS here
             array_vec.push(socket_addr);
         }
 
