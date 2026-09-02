@@ -66,7 +66,8 @@ impl BdpEstimator {
             self.bdp = cwnd
                 .get()
                 .saturating_mul(min_rtt_usec)
-                .saturating_div(ewma_rtt_usec);
+                // Careful here to ensure we avoid divide-by-zero panic.
+                .saturating_div(ewma_rtt_usec.max(1));
         }
     }
 }
