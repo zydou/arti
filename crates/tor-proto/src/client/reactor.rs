@@ -1019,11 +1019,7 @@ impl Reactor {
 
                     // Note: if we have no measurements for the RTT, this will be set to 0,
                     // and the timeout will be 2 * CBT.
-                    ccontrol
-                        .rtt()
-                        .max_rtt_usec()
-                        .map(|rtt_usec| Duration::from_micros(u64::from(rtt_usec)))
-                        .unwrap_or_default()
+                    ccontrol.rtt().max_rtt().unwrap_or_default()
                 };
 
                 // The length of the circuit up until the hop that has the half-streeam.
