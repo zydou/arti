@@ -56,7 +56,6 @@ use oneshot_fused_workaround as oneshot;
 
 use std::result::Result as StdResult;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::channel::Channel;
 use crate::conflux::msghandler::RemoveLegReason;
