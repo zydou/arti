@@ -890,7 +890,7 @@ pub struct SignatureGroup {
 /// Can be converted to a `VerifyFailed`,
 /// giving [`InsufficientTrustedSigners`](VerifyFailed::InsufficientTrustedSigners).
 #[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_enums)]
 pub enum ConsensusVerifiabilityError {
     /// Insufficient trusted signers
     #[error("consensus not signed by enough authorities")]
