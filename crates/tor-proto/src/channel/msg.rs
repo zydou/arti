@@ -367,9 +367,6 @@ pub(super) mod linkv5 {
             (ClientInitiator, Open) => encode_as_any::<OpenChanMsgC2R>(stage, cell, codec, dst),
             (RelayInitiator, Handshake) => {
                 encode_as_any::<HandshakeRelayInitiatorMsg>(stage, cell, codec, dst)
-                // We don't know if the other side is a client or relay. However, this message set
-                // is a superset of the HandshakeClientInitiatorMsg and so we cover the client as
-                // well.
             }
             (RelayInitiator, Open) => encode_as_any::<OpenChanMsgR2R>(stage, cell, codec, dst),
             (RelayResponder { authenticated: _ }, Handshake) => {
