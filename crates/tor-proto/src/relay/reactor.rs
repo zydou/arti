@@ -107,7 +107,7 @@ impl stream::StreamHandler for StreamHandler {
             .expect("poisoned lock")
             .rtt()
             .max_rtt_usec()
-            .map(|rtt| Duration::from_millis(u64::from(rtt)))
+            .map(|rtt| Duration::from_micros(u64::from(rtt)))
             // TODO(relay): we should fallback to a non-zero default here
             // if we don't have any RTT measurements yet
             .unwrap_or_default()
