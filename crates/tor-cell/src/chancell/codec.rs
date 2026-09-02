@@ -20,18 +20,18 @@ use bytes::BytesMut;
 /// Variable-length cells:
 ///
 /// ```ignore
-///     u32 circid;
-///     u8 command;
-///     u16 len;
-///     u8 body[len];
+/// u32 circid;
+/// u8 command;
+/// u16 len;
+/// u8 body[len];
 /// ```
 ///
 /// Fixed-width cells:
 ///
 /// ```ignore
-///     u32 circid;
-///     u8 command;
-///     u8 body[509];
+/// u32 circid;
+/// u8 command;
+/// u8 body[509];
 /// ```
 pub struct ChannelCodec {
     #[allow(dead_code)] // We don't support any link versions where this matters
