@@ -6,7 +6,7 @@
 //! This module also defines [`MessageFilter`] which can be used to filter messages based on
 //! specific details of the message such as direction, command, channel type and channel stage.
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use tor_cell::chancell::{AnyChanCell, ChanCell, ChanMsg, codec, msg::AnyChanMsg};
 
 use crate::{Error, channel::ChannelType};
@@ -15,7 +15,7 @@ use crate::{Error, channel::ChannelType};
 ///
 /// Increases circuit ID width to 4 bytes.
 pub(super) mod linkv4 {
-    use bytes::BytesMut;
+    use bytes::{Bytes, BytesMut};
     use tor_cell::{
         chancell::{AnyChanCell, codec},
         restricted_msg,
@@ -131,12 +131,14 @@ pub(super) mod linkv4 {
     }
 
     /// Decode cell using the given channel type, message stage, codec and byte source.
+    ///
+    /// Returns both the cell and the bytes that the cell were decoded from.
     pub(super) fn decode_cell(
         chan_type: ChannelType,
         stage: &MessageStage,
         codec: &mut codec::ChannelCodec,
         src: &mut BytesMut,
-    ) -> Result<Option<AnyChanCell>, Error> {
+    ) -> Result<Option<(AnyChanCell, Bytes)>, Error> {
         use ChannelType::*;
         use MessageStage::*;
 
@@ -197,7 +199,7 @@ pub(super) mod linkv4 {
 ///
 /// Adds support for padding and negotiation.
 pub(super) mod linkv5 {
-    use bytes::BytesMut;
+    use bytes::{Bytes, BytesMut};
     use tor_cell::{
         chancell::{AnyChanCell, codec},
         restricted_msg,
@@ -311,12 +313,14 @@ pub(super) mod linkv5 {
     }
 
     /// Decode cell using the given channel type, message stage, codec and byte source.
+    ///
+    /// Returns both the cell and the bytes that the cell were decoded from.
     pub(super) fn decode_cell(
         chan_type: ChannelType,
         stage: &MessageStage,
         codec: &mut codec::ChannelCodec,
         src: &mut BytesMut,
-    ) -> Result<Option<AnyChanCell>, Error> {
+    ) -> Result<Option<(AnyChanCell, Bytes)>, Error> {
         use ChannelType::*;
         use MessageStage::*;
 
@@ -376,20 +380,22 @@ pub(super) mod linkv5 {
 /// Helper function to decode a cell within a restricted msg set into an AnyChanCell.
 ///
 /// The given stage is used to know which error to return.
+///
+/// Returns both the cell and the bytes that the cell were decoded from.
 fn decode_as_any<R>(
     stage: &MessageStage,
     codec: &mut codec::ChannelCodec,
     src: &mut BytesMut,
-) -> Result<Option<AnyChanCell>, Error>
+) -> Result<Option<(AnyChanCell, Bytes)>, Error>
 where
     R: Into<AnyChanMsg> + ChanMsg,
 {
     codec
         .decode_cell::<R>(src)
         .map(|opt| {
-            opt.map(|cell| {
+            opt.map(|(cell, cell_bytes)| {
                 let (circid, msg) = cell.into_circid_and_msg();
-                ChanCell::new(circid, msg.into())
+                (ChanCell::new(circid, msg.into()), cell_bytes)
             })
         })
         .map_err(|e| stage.to_err(format!("Decoding cell error: {e}")))
@@ -519,11 +525,13 @@ impl MessageFilter {
 
     /// Decode a cell from the given bytes for the right link version, channel type and message
     /// stage using the codec given.
+    ///
+    /// Returns both the cell and the bytes that the cell were decoded from.
     pub(super) fn decode_cell(
         &self,
         codec: &mut codec::ChannelCodec,
         src: &mut BytesMut,
-    ) -> Result<Option<AnyChanCell>, Error> {
+    ) -> Result<Option<(AnyChanCell, Bytes)>, Error> {
         match self.link_version {
             LinkVersion::V4 => linkv4::decode_cell(self.channel_type, &self.stage, codec, src),
             LinkVersion::V5 => linkv5::decode_cell(self.channel_type, &self.stage, codec, src),

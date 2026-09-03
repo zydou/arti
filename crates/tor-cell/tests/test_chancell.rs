@@ -34,7 +34,8 @@ fn cell(body: &str, msg: msg::AnyChanMsg, id: Option<CircId>, pad_body: bool) {
         bm.extend_from_slice(&b"next thing"[..]);
         let decoded = codec.decode_cell::<AnyChanMsg>(&mut bm).unwrap();
         assert_eq!(bm.len(), 10);
-        decoded.unwrap()
+        let (decoded, _bytes) = decoded.unwrap();
+        decoded
     };
 
     let decoded2 = {
@@ -43,7 +44,8 @@ fn cell(body: &str, msg: msg::AnyChanMsg, id: Option<CircId>, pad_body: bool) {
         // no extra bytes this time.
         let decoded = codec.decode_cell::<AnyChanMsg>(&mut bm).unwrap();
         assert_eq!(bm.len(), 0);
-        decoded.unwrap()
+        let (decoded, _bytes) = decoded.unwrap();
+        decoded
     };
 
     assert_eq!(format!("{:?}", decoded), format!("{:?}", cell));
@@ -90,10 +92,11 @@ fn test_simple_cells() {
     let cell = {
         let mut bm = BytesMut::new();
         bm.extend_from_slice(&m);
-        codec::ChannelCodec::new(4)
+        let (cell, _bytes) = codec::ChannelCodec::new(4)
             .decode_cell::<AnyChanMsg>(&mut bm)
             .unwrap()
-            .unwrap()
+            .unwrap();
+        cell
     };
     assert_eq!(cell.circid(), CircId::new(0x20201122));
     assert_eq!(cell.msg().cmd(), ChanCmd::RELAY);

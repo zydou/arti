@@ -489,7 +489,7 @@ impl asynchronous_codec::Decoder for HandshakeChannelHandler {
             let n_used = orig.len() - src.len();
             recv_log.update(&orig[..n_used]);
         }
-        Ok(cell)
+        Ok(cell.map(|(cell, _cell_bytes)| cell))
     }
 }
 
@@ -530,7 +530,9 @@ impl asynchronous_codec::Decoder for OpenChannelHandler {
     type Error = ChanError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        self.filter.decode_cell(&mut self.inner, src)
+        self.filter
+            .decode_cell(&mut self.inner, src)
+            .map(|x| x.map(|(msg, _msg_bytes)| msg))
     }
 }
 
