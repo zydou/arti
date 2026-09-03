@@ -1003,6 +1003,10 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                         .expect("Conversion error");
                 *suggested_effort = Effort::from(new_suggested_effort);
             } else {
+                // The rust `as` operator is used here to provide saturating conversions,
+                // to avoid panicking if the effort calculation would be lossy due to extremely
+                // large values. In practice, the values should be low enough that this shouldn't
+                // come up, but it is worth being defensive.
                 let theoretical_num_dequeued = num_dequeued * (1.0 / busy_fraction);
                 let num_enqueued_gte_suggested_f64 = inner.num_enqueued_gte_suggested as f64;
 
