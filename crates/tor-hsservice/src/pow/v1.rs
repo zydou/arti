@@ -970,8 +970,8 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
 
         let decay_adjustment_fraction = net_params.hs_pow_v1_default_decay_adjustment.as_fraction();
 
-        if inner.num_dequeued != 0 {
-            let update_period_duration = inner.runtime.now() - inner.update_period_start;
+        let update_period_duration = inner.runtime.now() - inner.update_period_start;
+        if inner.num_dequeued != 0 && update_period_duration.as_millis() != 0 {
             let avg_request_duration = update_period_duration / inner.num_dequeued;
             let num_dequeued = f64::from(inner.num_dequeued);
             if inner.queue.is_empty() {
