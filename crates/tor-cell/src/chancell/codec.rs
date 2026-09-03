@@ -132,7 +132,6 @@ impl ChannelCodec {
         }
 
         let cell = src.split_to(cell_len).freeze();
-        //trace!("{:?} cell body ({}) is {:?}", cmd, cell.len(), &cell[..]);
         let mut r = Reader::from_bytes(&cell);
         let circid: Option<CircId> = CircId::new(r.take_u32().map_err(wrap_err)?);
         r.advance(if varcell { 3 } else { 1 }).map_err(wrap_err)?;
