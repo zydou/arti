@@ -973,6 +973,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         if inner.num_dequeued != 0 {
             let update_period_duration = inner.runtime.now() - inner.update_period_start;
             let avg_request_duration = update_period_duration / inner.num_dequeued;
+            let num_dequeued = f64::from(inner.num_dequeued);
             if inner.queue.is_empty() {
                 let now = inner.runtime.now();
                 let last_transition = inner.last_transition;
@@ -990,24 +991,21 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
 
             let mut suggested_effort = inner.suggested_effort.lock().expect("Lock poisoned");
             let suggested_effort_inner: u32 = (*suggested_effort).into();
+            let suggested_effort_inner_f64 = f64::from(suggested_effort_inner);
 
             if busy_fraction == 0.0 {
+                // Infallible, this takes the previous suggested effort and reduces it,
+                // so overflow is not possible.
                 let new_suggested_effort =
-                    u32::from_f64(f64::from(suggested_effort_inner) * decay_adjustment_fraction)
+                    u32::from_f64(suggested_effort_inner_f64 * decay_adjustment_fraction)
                         .expect("Conversion error");
                 *suggested_effort = Effort::from(new_suggested_effort);
             } else {
-                let theoretical_num_dequeued =
-                    f64::from(inner.num_dequeued) * (1.0 / busy_fraction);
-                let num_enqueued_gte_suggested_f64 =
-                    f64::from_usize(inner.num_enqueued_gte_suggested).expect("Conversion error");
+                let theoretical_num_dequeued = num_dequeued * (1.0 / busy_fraction);
+                let num_enqueued_gte_suggested_f64 = inner.num_enqueued_gte_suggested as f64;
 
                 if num_enqueued_gte_suggested_f64 >= theoretical_num_dequeued {
-                    let effort_per_dequeued = u32::from_f64(
-                        f64::from_u64(inner.total_effort).expect("Conversion error")
-                            / f64::from(inner.num_dequeued),
-                    )
-                    .expect("Conversion error");
+                    let effort_per_dequeued = (inner.total_effort as f64 / num_dequeued) as u32;
                     *suggested_effort = Effort::from(std::cmp::max(
                         effort_per_dequeued,
                         suggested_effort_inner + 1,
@@ -1015,9 +1013,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 } else {
                     let decay = num_enqueued_gte_suggested_f64 / theoretical_num_dequeued;
                     let adjusted_decay = decay + ((1.0 - decay) * decay_adjustment_fraction);
-                    let new_suggested_effort =
-                        u32::from_f64(f64::from(suggested_effort_inner) * adjusted_decay)
-                            .expect("Conversion error");
+                    let new_suggested_effort = (suggested_effort_inner_f64 * adjusted_decay) as u32;
                     *suggested_effort = Effort::from(new_suggested_effort);
                 }
             }
