@@ -984,9 +984,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 avg_request_duration * inner.queue.len().try_into().expect("Queue too large."),
             );
             // TODO: use as_millis_f64 when stable
-            let idle_fraction = f64::from_u128(adjusted_idle_time.as_millis())
-                .expect("Conversion error")
-                / f64::from_u128(update_period_duration.as_millis()).expect("Conversion error");
+            let idle_fraction =
+                f64::from_u128(adjusted_idle_time.as_millis() / update_period_duration.as_millis())
+                    .expect("Conversion error");
             let busy_fraction = 1.0 - idle_fraction;
 
             let mut suggested_effort = inner.suggested_effort.lock().expect("Lock poisoned");
