@@ -994,8 +994,10 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             let suggested_effort_inner_f64 = f64::from(suggested_effort_inner);
 
             if busy_fraction == 0.0 {
-                // Infallible, this takes the previous suggested effort and reduces it,
-                // so overflow is not possible.
+                // Infallible, this takes the previous suggested effort and
+                // reduces it, so overflow is not possible, since the netdir
+                // code enforces that it's in the range of 0.0 - 0.99.
+                debug_assert!(decay_adjustment_fraction < 1.0);
                 let new_suggested_effort =
                     u32::from_f64(suggested_effort_inner_f64 * decay_adjustment_fraction)
                         .expect("Conversion error");
