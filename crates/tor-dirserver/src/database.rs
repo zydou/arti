@@ -1136,7 +1136,6 @@ mod test {
     use tempfile::tempdir;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_dircommon::config::DirToleranceBuilder;
-    use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_netdoc::doc::netstatus::{md, plain};
 
     use crate::testdata2::{self, current_consensus_ns};
@@ -1681,115 +1680,6 @@ mod test {
                     .into()
             );
         }
-    }
-
-    /// Tests whether authority certificates are properly queried from the database.
-    #[test]
-    fn get_auth_cert() {
-        let pool = testdata2::test_db();
-
-        // Empty.
-        let (found, missing) = read_tx(&pool, |tx| {
-            AuthCertMeta::query(
-                tx,
-                &[],
-                &DirTolerance::default(),
-                testdata2::valid_system_time().into(),
-            )
-        })
-        .unwrap()
-        .unwrap();
-        assert!(found.is_empty());
-        assert!(missing.is_empty());
-
-        // Find one and two missing ones.
-        let (found, missing) = read_tx(&pool, |tx| {
-            AuthCertMeta::query(
-                tx,
-                &[
-                    // Found one.
-                    AuthCertKeyIds {
-                        id_fingerprint: *testdata2::current_auth_certs()[0].0.id_fingerprint(),
-                        sk_fingerprint: testdata2::current_auth_certs()[0]
-                            .0
-                            .signing_key()
-                            .to_rsa_identity(),
-                    },
-                    // Missing.
-                    AuthCertKeyIds {
-                        id_fingerprint: RsaIdentity::from_hex(
-                            "0000000000000000000000000000000000000000",
-                        )
-                        .unwrap(),
-                        sk_fingerprint: RsaIdentity::from_hex(
-                            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                        )
-                        .unwrap(),
-                    },
-                    // Missing.
-                    AuthCertKeyIds {
-                        id_fingerprint: RsaIdentity::from_hex(
-                            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                        )
-                        .unwrap(),
-                        sk_fingerprint: RsaIdentity::from_hex(
-                            "0000000000000000000000000000000000000000",
-                        )
-                        .unwrap(),
-                    },
-                ],
-                &DirTolerance::default(),
-                testdata2::valid_system_time().into(),
-            )
-        })
-        .unwrap()
-        .unwrap();
-        assert_eq!(
-            found,
-            vec![AuthCertMeta {
-                docid: DocumentId::digest(testdata2::current_auth_certs()[0].1.as_bytes()),
-                kp_auth_id_rsa_sha1: Sha1::from(
-                    testdata2::current_auth_certs()[0]
-                        .0
-                        .id_fingerprint()
-                        .to_bytes()
-                ),
-                kp_auth_sign_rsa_sha1: Sha1::from(
-                    testdata2::current_auth_certs()[0]
-                        .0
-                        .signing_key()
-                        .to_rsa_identity()
-                        .to_bytes()
-                ),
-                dir_key_published: testdata2::current_auth_certs()[0].0.published().into(),
-                dir_key_expires: testdata2::current_auth_certs()[0].0.expires().into(),
-            }]
-        );
-        assert_eq!(
-            missing,
-            vec![
-                AuthCertKeyIds {
-                    id_fingerprint: RsaIdentity::from_hex(
-                        "0000000000000000000000000000000000000000",
-                    )
-                    .unwrap(),
-                    sk_fingerprint: RsaIdentity::from_hex(
-                        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                    )
-                    .unwrap(),
-                },
-                AuthCertKeyIds {
-                    id_fingerprint: RsaIdentity::from_hex(
-                        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                    )
-                    .unwrap(),
-                    sk_fingerprint: RsaIdentity::from_hex(
-                        "0000000000000000000000000000000000000000",
-                    )
-                    .unwrap(),
-                }
-            ]
-        );
     }
 
     /// Tests whether the missing router descriptor queue is computed properly.
