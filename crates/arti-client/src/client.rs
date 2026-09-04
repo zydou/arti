@@ -1694,12 +1694,12 @@ impl<R: Runtime> TorClient<R> {
         // should be a method on `Host`, not `TorAddr`.  -Diziet.
         let addr = (hostname, 1).into_tor_addr().map_err(wrap_err)?;
 
-        match addr.into_resolve_instructions(&self.client.addrcfg.get(), prefs)? {
+        let addrs = match addr.into_resolve_instructions(&self.client.addrcfg.get(), prefs)? {
             ResolveInstructions::Exit(hostname) => {
                 let circ = self.get_or_launch_exit_tunnel(&[], prefs).await?;
 
                 let resolve_future = circ.resolve(&hostname);
-                let addrs = self
+                self
                     .client
                     .runtime
                     .timeout(self.client.timeoutcfg.get().resolve_timeout, resolve_future)
@@ -1708,12 +1708,15 @@ impl<R: Runtime> TorClient<R> {
                     .map_err(|cause| ErrorDetail::StreamFailed {
                         cause,
                         kind: "DNS lookup",
-                    })?;
-
-                Ok(addrs)
+                    })?
             }
-            ResolveInstructions::Return(addrs) => Ok(addrs),
-        }
+            ResolveInstructions::Return(addrs) => addrs,
+        };
+
+        // XXX: filter out any internal addresses, unless we are configured
+        // to allow resolving them
+
+        Ok(addrs)
     }
 
     /// Perform a remote DNS reverse lookup with the provided IP address.
@@ -1733,6 +1736,9 @@ impl<R: Runtime> TorClient<R> {
         addr: IpAddr,
         prefs: &StreamPrefs,
     ) -> crate::Result<Vec<String>> {
+        // XXX if addr is an internal address, we should refuse the reverse lookup
+        // (for parity with C Tor)
+
         let circ = self.get_or_launch_exit_tunnel(&[], prefs).await?;
 
         let resolve_ptr_future = circ.resolve_ptr(addr);
