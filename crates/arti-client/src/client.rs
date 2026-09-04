@@ -1713,9 +1713,7 @@ impl<R: Runtime> TorClient<R> {
             ResolveInstructions::Return(addrs) => addrs,
         };
 
-        // XXX: make this configurable
-        let allow_resolving_local_addrs = false;
-        if !allow_resolving_local_addrs {
+        if !addrcfg.allow_resolving_local_addrs {
             addrs.retain(|addr| {
                 let keep = !crate::address::is_local(*addr);
 

@@ -571,6 +571,7 @@ mod test {
                 "proxy.socket_send_buf_size",
                 "proxy.socket_recv_buf_size",
                 "application.defer_bootstrap",
+                "address_filter.allow_resolving_local_addrs",
             ],
         );
 

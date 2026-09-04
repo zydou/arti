@@ -113,6 +113,13 @@ pub struct ClientAddrConfig {
     #[deftly(tor_config(default))]
     pub(crate) allow_local_addrs: bool,
 
+    /// Should we accept and return local addresses in anonymously retrieved DNS answers?
+    ///
+    /// This option is off by default, since (by default) Tor exits will
+    /// always reject connections to such addresses.
+    #[deftly(tor_config(default))]
+    pub(crate) allow_resolving_local_addrs: bool,
+
     /// Should we allow attempts to connect to hidden services (`.onion` services)?
     ///
     /// This option is on by default.
