@@ -456,6 +456,48 @@ impl Host {
     }
 }
 
+/// Return true if `addr` is not a globally reachable address.
+///
+/// Returns true if `addr` is any of the following:
+///
+///   * the loopback address (127.0.0.1/8, ::1). See RFC1122, RFC4291
+///   * a private address, as defined in RFC1918
+///   * unspecified (0.0.0.0, ::)
+///   * part of the Shared Address Space defined in RFC6598 (100.64.0.0/10)
+///   * a unique local address (fc00::/7). See RFC4193
+///   * a unicast address with link-local scope, as defined in RFC4291
+///
+// TODO: use this in the Host::is_local() impl?
+pub(crate) fn is_local(addr: IpAddr) -> bool {
+    // This ensures we handle IPv4-mapped addresses correctly
+    let addr = addr.to_canonical();
+    match addr {
+        IpAddr::V4(v4) => {
+            v4.is_loopback() // RFC1122 (127.0.0.0/8)
+                || v4.is_private() // RFC1918
+                || v4.is_unspecified() // 0.0.0.0
+                || v4.is_link_local() // RFC3927 (169.254.0.0/16)
+                || is_shared(v4) // RFC6598
+        }
+        IpAddr::V6(v6) => {
+            v6.is_loopback() // RFC4291 (::1)
+                || v6.is_unspecified() // RFC4291 (::)
+                || v6.is_unique_local() // RFC4193 (fc00::/7)
+                || v6.is_unicast_link_local() // RFC4291 (fe80::/10)
+        }
+    }
+}
+/// Returns [`true`] if this address is part of the Shared Address Space defined in
+/// [IETF RFC 6598] (`100.64.0.0/10`).
+///
+/// [IETF RFC 6598]: https://tools.ietf.org/html/rfc6598
+///
+// TODO: use IPv4::is_shared() when it becomes stable.
+// See <https://github.com/rust-lang/rust/issues/137259>
+fn is_shared(addr: Ipv4Addr) -> bool {
+    addr.octets()[0] == 100 && (addr.octets()[1] & 0b1100_0000 == 0b0100_0000)
+}
+
 impl std::fmt::Display for Host {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
