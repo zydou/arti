@@ -1694,7 +1694,8 @@ impl<R: Runtime> TorClient<R> {
         // should be a method on `Host`, not `TorAddr`.  -Diziet.
         let addr = (hostname, 1).into_tor_addr().map_err(wrap_err)?;
 
-        let addrs = match addr.into_resolve_instructions(&self.client.addrcfg.get(), prefs)? {
+        let addrcfg = self.client.addrcfg.get();
+        let mut addrs = match addr.into_resolve_instructions(&addrcfg, prefs)? {
             ResolveInstructions::Exit(hostname) => {
                 let circ = self.get_or_launch_exit_tunnel(&[], prefs).await?;
 
@@ -1712,8 +1713,24 @@ impl<R: Runtime> TorClient<R> {
             ResolveInstructions::Return(addrs) => addrs,
         };
 
-        // XXX: filter out any internal addresses, unless we are configured
-        // to allow resolving them
+        // XXX: make this configurable
+        let allow_resolving_local_addrs = false;
+        if !allow_resolving_local_addrs {
+            addrs.retain(|addr| {
+                let keep = !crate::address::is_local(*addr);
+
+                if !keep {
+                    debug!("Dropping non-routable address {addr} from RESOLVED answer");
+                }
+
+                keep
+            });
+
+            if addrs.is_empty() {
+                // XXX we need to return an error here,
+                // but none of the ErrorDetail variants quite work
+            }
+        }
 
         Ok(addrs)
     }
