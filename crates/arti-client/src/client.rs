@@ -1725,8 +1725,8 @@ impl<R: Runtime> TorClient<R> {
             });
 
             if addrs.is_empty() {
-                // XXX we need to return an error here,
-                // but none of the ErrorDetail variants quite work
+                debug!("Got RESOLVED containing only non-routable addresses");
+                return Err(ErrorDetail::NoRoutableAddress.into());
             }
         }
 

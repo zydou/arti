@@ -259,6 +259,10 @@ enum ErrorDetail {
     #[error("Cannot connect to a local-only address without enabling allow_local_addrs")]
     LocalAddress,
 
+    /// A domain name we were asked to resolve does not resolve to any routable addresses.
+    #[error("Cannot resolve a local-only address without enabling allow_resolving_local_addrs")]
+    NoRoutableAddress,
+
     /// Building configuration for the client failed.
     #[error("Problem with configuration")]
     Configuration(#[from] tor_config::ConfigBuildError),
@@ -442,6 +446,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::Address(e) => e.kind(),
             E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
+            E::NoRoutableAddress => EK::RemoteHostNotFound,
             E::ChanMgrSetup(e) => e.kind(),
             E::NoDir { error, .. } => error.kind(),
             E::Keystore(e) => e.kind(),
