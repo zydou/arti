@@ -1750,8 +1750,14 @@ impl<R: Runtime> TorClient<R> {
         addr: IpAddr,
         prefs: &StreamPrefs,
     ) -> crate::Result<Vec<String>> {
-        // XXX if addr is an internal address, we should refuse the reverse lookup
-        // (for parity with C Tor)
+        let addrcfg = self.client.addrcfg.get();
+        if !addrcfg.allow_resolving_local_addrs && crate::address::is_local(addr) {
+            debug!("Rejecting reverse lookup request for non-routable address {addr}");
+
+            // Note: this is not 100% accurate, but I'm not sure if it makes sense
+            // to introuce another ErrorDetail just for this
+            return Err(ErrorDetail::NoRoutableAddress.into());
+        }
 
         let circ = self.get_or_launch_exit_tunnel(&[], prefs).await?;
 
