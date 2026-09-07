@@ -1699,8 +1699,7 @@ impl<R: Runtime> TorClient<R> {
                 let circ = self.get_or_launch_exit_tunnel(&[], prefs).await?;
 
                 let resolve_future = circ.resolve(&hostname);
-                self
-                    .client
+                self.client
                     .runtime
                     .timeout(self.client.timeoutcfg.get().resolve_timeout, resolve_future)
                     .await
