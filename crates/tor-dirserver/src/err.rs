@@ -1,7 +1,6 @@
 //! Error module for `tor-dirserver`.
 
 use thiserror::Error;
-use tor_netdoc::parse2;
 
 /// Indicates that an error variant is fatal.
 ///
@@ -40,10 +39,6 @@ pub(crate) enum AuthorityRequestError {
     /// requested for.
     #[error("response error: {0}")]
     Response(&'static str),
-
-    /// Invalid netdoc received from the authority.
-    #[error("netdoc parse error: {0}")]
-    Parse(#[from] parse2::ParseError),
 
     /// An internal error.
     #[error("internal error")]
