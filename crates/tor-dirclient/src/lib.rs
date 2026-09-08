@@ -298,7 +298,9 @@ where
     let mut buffered = BufReader::new(stream);
 
     // Handle the response
-    let header = read_headers(runtime, &mut buffered).await.map_err(wrap_err)?;
+    let header = read_headers(runtime, &mut buffered)
+        .await
+        .map_err(wrap_err)?;
     if header.status != Some(200) {
         return Ok(DirResponse::new(
             method,
