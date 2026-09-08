@@ -737,7 +737,13 @@ mod test {
         assert!(is_local_hostname("loCALHOST"));
         assert!(is_local_hostname("127.0.0.1"));
         assert!(is_local_hostname("::1"));
+        assert!(is_local_hostname("::ffff:127.0.0.1"));
         assert!(is_local_hostname("192.168.0.1"));
+        assert!(is_local_hostname("0.0.0.0"));
+        assert!(is_local_hostname("::"));
+        assert!(is_local_hostname("100.64.0.1"));
+        assert!(is_local_hostname("fc00::"));
+        assert!(is_local_hostname("fe80::"));
 
         assert!(!is_local_hostname("www.example.com"));
     }
