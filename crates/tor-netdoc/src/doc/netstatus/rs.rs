@@ -100,3 +100,40 @@ trait FromRsString: Sized {
     /// Try to decode the given object.
     fn decode(s: &str) -> Result<Self>;
 }
+
+/// Implementation for parsing [`tor_protover::Protocols`] via its
+/// [`from_str_c_compatible`](tor_protover::Protocols::from_str_c_compatible)
+/// method.
+///
+/// We use this (for now) for parsing routerstatuses _and nothing else_.
+/// It's okay to be strict about router descriptors and required/recommended versions,
+/// but if we are strict about these lines in a routerstatus, we run the risk of rejecting
+/// stuff that the C tor authorities thought was okay.
+mod protovers_flexible {
+    use tor_error::Bug;
+    use tor_protover::Protocols;
+
+    use crate::{
+        encode::{ItemEncoder, ItemValueEncodable as _},
+        parse2::{ErrorProblem, UnparsedItem},
+    };
+
+    /// Parse a [`Protocols`] using [`Protocols::from_str_c_compatible`].
+    #[expect(clippy::needless_pass_by_value)]
+    pub(super) fn from_unparsed(item: UnparsedItem<'_>) -> Result<Protocols, ErrorProblem> {
+        item.check_no_object()?;
+        Protocols::from_str_c_compatible(item.args_copy().into_remaining())
+            .map_err(item.invalid_argument_handler("protocols"))
+    }
+
+    /// Encode a [`Protocols`] in the usual manner.
+    ///
+    /// (We have to define this because there is no "parse_with", only a "with" that overrides
+    /// parsing _and_ encoding.)
+    pub(super) fn write_item_value_onto(
+        protocols: &Protocols,
+        out: ItemEncoder,
+    ) -> Result<(), Bug> {
+        protocols.write_item_value_onto(out)
+    }
+}
