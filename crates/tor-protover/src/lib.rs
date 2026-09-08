@@ -242,6 +242,16 @@ struct SubprotocolEntry {
     supported: u64,
 }
 
+/// A degree of strictness with which to parse a Protocols (or one of its components).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ParseStrictness {
+    /// We should enforce all rules declared in the spec.
+    Strict,
+
+    /// We should only enforce rules that are also enforced by C tor.
+    CTorCompatible,
+}
+
 /// A set of supported or required subprotocol versions.
 ///
 /// This type supports both recognized subprotocols (listed in ProtoKind),
@@ -311,7 +321,7 @@ impl Protocols {
     /// (This method should not usually be needed for new parts of Arti:
     /// its only use-case is a legacy piece of hsdesc parsing.)
     pub fn from_kind_and_versions(kind: ProtoKind, versions: &str) -> Result<Self, ParseError> {
-        let versions = parse_version_mask(versions)?;
+        let versions = parse_version_mask(versions, ParseStrictness::Strict)?;
         let mut protocols = ProtocolsInner::default();
 
         if let Some(p) = protocols.recognized.get_mut(usize::from(kind.get())) {
@@ -502,6 +512,19 @@ impl Protocols {
         r.unrecognized.sort();
         Protocols::from(r)
     }
+
+    /// As the regular `FromStr` implementation,
+    /// but imitate the result of a the C Tor implementation, which is rather more lax.
+    ///
+    /// The principle differences are:
+    /// - We allow all decimal integer formats, even those starting with 0.
+    /// - We allow (and ignore) the integer '0'.
+    /// - We do not require that there is no more than one `SubprotocolEntry` with a given
+    ///   `ProtoKind`; instead, we ignore all but the first.
+    /// - We permit duplicate bits within the same SubprotocolEntry.
+    pub fn from_str_c_compatible(s: &str) -> Result<Self, ParseError> {
+        Self::from_str_impl(s, ParseStrictness::CTorCompatible)
+    }
 }
 
 impl ProtocolsInner {
@@ -512,17 +535,26 @@ impl ProtocolsInner {
     /// for a recognized protocol we've already added.
     ///
     /// WARNING: This method DOES NOT enforce uniqueness for unrecognized protocols.
-    /// The caller is responsible for doing that.
+    /// The caller is responsible for doing that in a way appropriate
+    /// for the provided strictness level.
     ///
     /// Does not preserve sorting order; the caller must call `self.unrecognized.sort()` before returning.
-    fn add(&mut self, foundmask: &mut u64, ent: SubprotocolEntry) -> Result<(), ParseError> {
+    fn add(
+        &mut self,
+        foundmask: &mut u64,
+        ent: SubprotocolEntry,
+        strictness: ParseStrictness,
+    ) -> Result<(), ParseError> {
         match ent.proto {
             Protocol::Proto(k) => {
                 let idx = k.get() as usize;
                 assert!(idx < N_RECOGNIZED); // guaranteed by invariant on Protocol::Proto
                 let bit = 1 << u64::from(k.get());
                 if (*foundmask & bit) != 0 {
-                    return Err(ParseError::Duplicate);
+                    match strictness {
+                        ParseStrictness::Strict => return Err(ParseError::Duplicate),
+                        ParseStrictness::CTorCompatible => return Ok(()),
+                    }
                 }
                 *foundmask |= bit;
                 self.recognized[idx] = ent.supported;
@@ -574,14 +606,17 @@ fn bitrange(lo: u64, hi: u64) -> u64 {
 }
 
 /// Helper: return true if the provided string is a valid "integer"
-/// in the form accepted by the protover spec.  This is stricter than
+/// in the form accepted by the protover spec.  This may be stricter than
 /// rust's integer parsing format.
-fn is_good_number(n: &str) -> bool {
-    n.chars().all(|ch| ch.is_ascii_digit()) && !n.starts_with('0')
+fn is_good_number(n: &str, strictness: ParseStrictness) -> bool {
+    if strictness == ParseStrictness::Strict && n.starts_with('0') {
+        return false;
+    }
+    n.chars().all(|ch| ch.is_ascii_digit())
 }
 
 /// Parse a version-list in `versions` into a bitmask.
-fn parse_version_mask(versions: &str) -> Result<u64, ParseError> {
+fn parse_version_mask(versions: &str, strictness: ParseStrictness) -> Result<u64, ParseError> {
     if versions.is_empty() {
         // We need to handle this case specially, since otherwise
         // it would be treated below as a single empty value, which
@@ -596,10 +631,10 @@ fn parse_version_mask(versions: &str) -> Result<u64, ParseError> {
         // treat it as if it were a range v-v.)
         let (lo_s, hi_s) = ent.split_once('-').unwrap_or((ent, ent));
 
-        if !is_good_number(lo_s) {
+        if !is_good_number(lo_s, strictness) {
             return Err(ParseError::Malformed);
         }
-        if !is_good_number(hi_s) {
+        if !is_good_number(hi_s, strictness) {
             return Err(ParseError::Malformed);
         }
         let lo: u64 = lo_s.parse().map_err(|_| ParseError::Malformed)?;
@@ -613,9 +648,11 @@ fn parse_version_mask(versions: &str) -> Result<u64, ParseError> {
         }
         let mask = bitrange(lo, hi);
         // Make sure that no version is included twice.
-        if (supported & mask) != 0 {
+        if strictness == ParseStrictness::Strict && (supported & mask) != 0 {
             return Err(ParseError::Duplicate);
         }
+        // Ignore bit 0, which can be set for non-strict bitmasks.
+        let mask = mask & !1;
         // Add the appropriate bits to the mask.
         supported |= mask;
     }
@@ -626,21 +663,21 @@ fn parse_version_mask(versions: &str) -> Result<u64, ParseError> {
 /// A single SubprotocolEntry is parsed from a string of the format
 /// Name=Versions, where Versions is a comma-separated list of
 /// integers or ranges of integers.
-impl std::str::FromStr for SubprotocolEntry {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, ParseError> {
+impl SubprotocolEntry {
+    /// Parse a [`SubprotocolEntry`] with a given level of strictness.
+    fn from_str(s: &str, strictness: ParseStrictness) -> Result<Self, ParseError> {
         // split the string on the =.
         let (name, versions) = s.split_once('=').ok_or(ParseError::Malformed)?;
 
         // Look up the protocol by name.
         let proto = match ProtoKind::from_name(name) {
             Some(p) => Protocol::Proto(p),
+            // XXXX Need to enforce name format.
             None => Protocol::Unrecognized(name.to_string()),
         };
         Ok(SubprotocolEntry {
             proto,
-            supported: parse_version_mask(versions)?,
+            supported: parse_version_mask(versions, strictness)?,
         })
     }
 }
@@ -661,6 +698,13 @@ impl std::str::FromStr for Protocols {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, ParseError> {
+        Protocols::from_str_impl(s, ParseStrictness::Strict)
+    }
+}
+
+impl Protocols {
+    /// Parse a [`Protocols`] with the requested degree of strictness.
+    fn from_str_impl(s: &str, strictness: ParseStrictness) -> Result<Self, ParseError> {
         let mut result = ProtocolsInner::default();
         let mut foundmask = 0_u64;
         for ent in s.split(' ') {
@@ -668,16 +712,25 @@ impl std::str::FromStr for Protocols {
                 continue;
             }
 
-            let s: SubprotocolEntry = ent.parse()?;
-            result.add(&mut foundmask, s)?;
+            let s = SubprotocolEntry::from_str(ent, strictness)?;
+            result.add(&mut foundmask, s, strictness)?;
         }
-        result.unrecognized.sort();
-        if result
-            .unrecognized
-            .windows(2)
-            .any(|w| w[0].proto == w[1].proto)
-        {
-            return Err(ParseError::Duplicate);
+        // We require a stable sort here.
+        // We can't use sort_by_key because of lifetime issues.
+        result.unrecognized.sort_by(|a, b| a.proto.cmp(&b.proto));
+        match strictness {
+            ParseStrictness::Strict => {
+                if result
+                    .unrecognized
+                    .windows(2)
+                    .any(|w| w[0].proto == w[1].proto)
+                {
+                    return Err(ParseError::Duplicate);
+                }
+            }
+            ParseStrictness::CTorCompatible => {
+                result.unrecognized.dedup_by(|a, b| a.proto.eq(&b.proto));
+            }
         }
 
         Ok(result.into())
@@ -923,6 +976,28 @@ mod test {
         assert_eq!(t("Link=01"), ParseError::Malformed);
         assert_eq!(t("Link=waffle"), ParseError::Malformed);
         assert_eq!(t("Link=1_1"), ParseError::Malformed);
+    }
+
+    #[test]
+    fn test_ctor_compat() {
+        for (loose, strict) in &[
+            // With duplicate entries, those after the first are ignored
+            ("Link=0-10 Link=25-30", "Link=1-10"),
+            ("Link=25-30 Link=0-10", "Link=25-30"),
+            ("Zelda=6-8 Link=1-10 Zelda=6-10", "Link=1-10 Zelda=6-8"),
+            // The 0 bit and any 0 prefixes are ignored.
+            ("LinkAuth=0-00040", "LinkAuth=1-40"),
+            ("Foo=0,3,004,5,0010", "Foo=3-5,10"),
+            // Duplicate bits are permitted
+            ("Foo=1-10,2-20,3-5", "Foo=1-20"),
+            ("Link=1-10,2-20,3-5", "Link=1-20"),
+        ] {
+            let p1 = Protocols::from_str_c_compatible(loose).unwrap();
+            let p2 = Protocols::from_str(strict).unwrap();
+            assert_eq!(p1, p2);
+
+            assert!(Protocols::from_str(loose).is_err());
+        }
     }
 
     #[test]
