@@ -449,8 +449,7 @@ impl Host {
             // The purpose of _this_ test is to find addresses that cannot
             // meaningfully be connected to over Tor, and that the exit
             // will not accept.
-            Host::Ip(IpAddr::V4(ip)) => ip.is_loopback() || ip.is_private(),
-            Host::Ip(IpAddr::V6(ip)) => ip.is_loopback(),
+            Host::Ip(ip) => is_local(*ip),
             Host::Onion(_) => false,
         }
     }
@@ -466,8 +465,6 @@ impl Host {
 ///   * part of the Shared Address Space defined in RFC6598 (100.64.0.0/10)
 ///   * a unique local address (fc00::/7). See RFC4193
 ///   * a unicast address with link-local scope, as defined in RFC4291
-///
-// TODO: use this in the Host::is_local() impl?
 pub(crate) fn is_local(addr: IpAddr) -> bool {
     // This ensures we handle IPv4-mapped addresses correctly
     let addr = addr.to_canonical();
