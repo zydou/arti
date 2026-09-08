@@ -143,8 +143,7 @@ impl RouterStatus {
         // PR line
         let protos = {
             let tok = sec.required(RS_PR)?;
-            tok.args_as_str()
-                .parse::<Protocols>()
+            Protocols::from_str_c_compatible(tok.args_as_str())
                 .map_err(|e| EK::BadArgument.at_pos(tok.pos()).with_source(e))?
         };
 
