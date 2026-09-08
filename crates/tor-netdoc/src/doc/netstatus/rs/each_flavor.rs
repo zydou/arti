@@ -11,6 +11,7 @@
 //! See [`crate::doc::ns_variety_definition_macros`].
 
 use super::*;
+use void::ResultVoidExt as _;
 
 impl RouterStatus {
     /// Return an iterator of ORPort addresses for this routerstatus
@@ -99,9 +100,12 @@ impl RouterStatus {
         use NetstatusKwd::*;
         // R line
         let r_item = sec.required(RS_R)?;
-        let nickname = r_item.required_arg(0)?.parse().map_err(|e: InvalidNickname| {
-            EK::BadArgument.with_msg(e.to_string()).at_pos(r_item.pos())
-        })?;
+        let nickname = r_item
+            .required_arg(0)?
+            .parse()
+            .map_err(|e: InvalidNickname| {
+                EK::BadArgument.with_msg(e.to_string()).at_pos(r_item.pos())
+            })?;
         let ident = r_item.required_arg(1)?;
         let identity = ident.parse::<Base64Fingerprint>()?;
         // Fields to skip in the "r" line.
@@ -138,7 +142,12 @@ impl RouterStatus {
         let flags = DocRelayFlags::from_item_consensus(sec.required(RS_S)?)?;
 
         // V line
-        let version = sec.maybe(RS_V).args_as_str().map(str::parse).transpose()?;
+        let version = sec
+            .maybe(RS_V)
+            .args_as_str()
+            .map(str::parse)
+            .transpose()
+            .void_unwrap();
 
         // PR line
         let protos = {

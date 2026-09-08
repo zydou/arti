@@ -10,6 +10,8 @@
 //!
 //! See [`crate::doc::ns_variety_definition_macros`].
 
+use void::ResultVoidExt;
+
 use super::*;
 
 ns_use_this_variety! {
@@ -127,7 +129,11 @@ impl RouterStatusBuilder {
     /// Try to build a GenericRouterStatus from this builder.
     // TODO this function is identical to `build`; decide which one to keep
     pub(super) fn finish(&self) -> Result<RouterStatus> {
-        let nickname = self.nickname.as_deref().unwrap_or("Unnamed").parse()
+        let nickname = self
+            .nickname
+            .as_deref()
+            .unwrap_or("Unnamed")
+            .parse()
             .map_err(|_| Error::CannotBuild("Invalid nickname"))?;
         let identity = self
             .identity
@@ -149,7 +155,12 @@ impl RouterStatusBuilder {
             effective: weight,
             params: Unknown::new_discard(),
         };
-        let version = self.version.as_deref().map(str::parse).transpose()?;
+        let version = self
+            .version
+            .as_deref()
+            .map(str::parse)
+            .transpose()
+            .void_unwrap();
 
         let mut ip = None;
         let a = self

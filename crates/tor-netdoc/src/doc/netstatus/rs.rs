@@ -25,6 +25,7 @@ use crate::{Error, NetdocErrorKind as EK, Result};
 use derive_deftly::Deftly;
 use itertools::chain;
 use std::cmp::Ordering;
+use std::result::Result as StdResult;
 use std::{net, time};
 use tor_basic_utils::intern::{Intern, InternCache};
 use tor_error::{Bug, internal};
@@ -41,7 +42,11 @@ pub enum SoftwareVersion {
     /// A Tor version
     #[display("Tor {_0}")]
     CTor(TorVersion),
+
     /// A string we couldn't parse.
+    ///
+    /// This may be a C tor version that we couldn't parse,
+    /// or some other software.
     Other(Intern<str>),
 }
 
@@ -80,9 +85,12 @@ pub struct RouterStatusMdDigestsVote {
 }
 
 impl std::str::FromStr for SoftwareVersion {
-    type Err = Error;
+    // This needs to stay infallible: if any version is unparsable,
+    // then we may reject a consensus needlessly,
+    // since authorities copy versions from what relays say.
+    type Err = void::Void;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> StdResult<Self, void::Void> {
         let mut elts = s.splitn(3, ' ');
         if elts.next() == Some("Tor") {
             if let Some(Ok(v)) = elts.next().map(str::parse) {
