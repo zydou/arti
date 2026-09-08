@@ -581,7 +581,6 @@ fn is_good_number(n: &str) -> bool {
 }
 
 /// Parse a version-list in `versions` into a bitmask.
-#[allow(clippy::string_slice)] // TODO
 fn parse_version_mask(versions: &str) -> Result<u64, ParseError> {
     if versions.is_empty() {
         // We need to handle this case specially, since otherwise
