@@ -1202,7 +1202,7 @@ fn client_download_range(lt: &Lifetime) -> (SystemTime, Duration) {
     let valid_after = lt.valid_after();
     let valid_until = lt.valid_until();
     let voting_interval = lt.voting_period();
-    // This is checked in the [`Lifetime`] constructor.
+    // This is checked in the `Lifetime` constructor.
     let whole_lifetime = valid_until
         .duration_since(valid_after)
         .expect("valid-after must precede valid-until");
@@ -1213,6 +1213,12 @@ fn client_download_range(lt: &Lifetime) -> (SystemTime, Duration) {
     // consensus is no longer fresh, and 7/8 of the time remaining
     // after that before the consensus is invalid."
     let lowbound = voting_interval + (voting_interval * 3) / 4;
+    if lowbound > whole_lifetime {
+        warn!(
+            "Consensus lifetime validity period is too short for given voting interval. \
+             This should not happen if directory authorities are operating according to the spec."
+        );
+    }
     let remainder = whole_lifetime.saturating_sub(lowbound);
     let uncertainty = (remainder * 7) / 8;
 
