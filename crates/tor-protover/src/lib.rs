@@ -230,6 +230,28 @@ impl Protocol {
     }
 }
 
+/// Return true if `s` is a valid protocol name.
+fn is_valid_proto_name(s: &str) -> bool {
+    (1..=100).contains(&s.len()) && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+impl std::str::FromStr for Protocol {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match ProtoKind::from_name(s) {
+            Some(p) => Ok(Protocol::Proto(p)),
+            None => {
+                if is_valid_proto_name(s) {
+                    Ok(Protocol::Unrecognized(s.to_string()))
+                } else {
+                    Err(ParseError::Malformed)
+                }
+            }
+        }
+    }
+}
+
 /// Representation of a set of versions supported by a protocol.
 ///
 /// For now, we only use this type for unrecognized protocols.
@@ -670,11 +692,7 @@ impl SubprotocolEntry {
         let (name, versions) = s.split_once('=').ok_or(ParseError::Malformed)?;
 
         // Look up the protocol by name.
-        let proto = match ProtoKind::from_name(name) {
-            Some(p) => Protocol::Proto(p),
-            // XXXX Need to enforce name format.
-            None => Protocol::Unrecognized(name.to_string()),
-        };
+        let proto: Protocol = name.parse()?;
         Ok(SubprotocolEntry {
             proto,
             supported: parse_version_mask(versions, strictness)?,
