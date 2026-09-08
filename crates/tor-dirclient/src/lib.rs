@@ -547,8 +547,41 @@ where
     }
 }
 
+/// Memory limit of the LZMA dictionary we are willing to allocate.
+///
+/// Without it, it may lead to an allocation of 4GiB, which is a bit overkill.
+/// However, given that LZMA is only used on direct connection, i.e. those to
+/// directory authorities, this is most likely not of a very big concern, as
+/// there is some trust anyways.
+///
+/// Right now, we use 128 MiB.  The reason for this is, that the strongest LZMA
+/// compression (i.e. xz -e9) currently requires 65MiB of decompression memory.
+/// While the decoder technically supports more, anything above that was
+/// probably not generated in good faith.
+///
+/// From the xz(1) manual page:
+/// ```
+/// Preset   DictSize   CompCPU   CompMem   DecMem
+///  -0e     256 KiB       8        4 MiB    1 MiB
+///  -1e       1 MiB       8       13 MiB    2 MiB
+///  -2e       2 MiB       8       25 MiB    3 MiB
+///  -3e       4 MiB       7       48 MiB    5 MiB
+///  -4e       4 MiB       8       48 MiB    5 MiB
+///  -5e       8 MiB       7       94 MiB    9 MiB
+///  -6e       8 MiB       8       94 MiB    9 MiB
+///  -7e      16 MiB       8      186 MiB   17 MiB
+///  -8e      32 MiB       8      370 MiB   33 MiB
+///  -9e      64 MiB       8      674 MiB   65 MiB
+/// ```
+const LZMA_DICT_MEM_LIMIT: u64 = 1 << 27; // 128 MiB
+
 /// Helper: Return a boxed decoder object that wraps the stream  $s.
 macro_rules! decoder {
+    (XzDecoder, $s:expr) => {{
+        let mut decoder = XzDecoder::with_mem_limit($s, LZMA_DICT_MEM_LIMIT);
+        decoder.multiple_members(true);
+        Ok(Box::new(decoder))
+    }};
     ($dec:ident, $s:expr) => {{
         let mut decoder = $dec::new($s);
         decoder.multiple_members(true);
