@@ -298,8 +298,7 @@ where
     let mut buffered = BufReader::new(stream);
 
     // Handle the response
-    // TODO: should there be a separate timeout here?
-    let header = read_headers(&mut buffered).await.map_err(wrap_err)?;
+    let header = read_headers(runtime, &mut buffered).await.map_err(wrap_err)?;
     if header.status != Some(200) {
         return Ok(DirResponse::new(
             method,
@@ -344,11 +343,17 @@ where
 const MAX_HEADERS_LEN: usize = 16384;
 
 /// Read and parse HTTP/1 headers from `stream`.
-async fn read_headers<S>(stream: &mut S) -> RequestResult<HeaderStatus>
+async fn read_headers<S, SP>(runtime: &SP, stream: &mut S) -> RequestResult<HeaderStatus>
 where
     S: AsyncBufRead + Unpin,
+    SP: SleepProvider,
 {
     let mut buf = Vec::with_capacity(1024);
+    // Just like with the other timeouts in this code, this should probably be
+    // configurable and may even be too much.
+    let read_timeout = Duration::from_secs(10);
+    let timer = runtime.sleep(read_timeout).fuse();
+    futures::pin_mut!(timer);
 
     // Note: Using `take` here will ensure that we will get an EOF if the header length
     // would exceed the maximum.  No extra bytes will actually be extracted.
@@ -716,20 +721,20 @@ mod test {
         let text = b"HTTP/1.0 200 OK\r\nDate: ignored\r\nContent-Encoding: Waffles\r\n\r\n";
 
         let mut s = &text[..];
-        let h = read_headers(&mut s).await?;
+        let h = tor_rtcompat::test_with_one_runtime!(async |rt| read_headers(&rt, &mut s).await)?;
 
         assert_eq!(h.status, Some(200));
         assert_eq!(h.encoding.as_deref(), Some("Waffles"));
 
         // now try truncated
         let mut s = &text[..15];
-        let h = read_headers(&mut s).await;
+        let h = tor_rtcompat::test_with_one_runtime!(async |rt| read_headers(&rt, &mut s).await);
         assert!(matches!(h, Err(RequestError::TruncatedHeaders)));
 
         // now try with no encoding.
         let text = b"HTTP/1.0 404 Not found\r\n\r\n";
         let mut s = &text[..];
-        let h = read_headers(&mut s).await?;
+        let h = tor_rtcompat::test_with_one_runtime!(async |rt| read_headers(&rt, &mut s).await)?;
 
         assert_eq!(h.status, Some(404));
         assert!(h.encoding.is_none());
@@ -741,7 +746,7 @@ mod test {
     async fn headers_bogus() -> Result<()> {
         let text = b"HTTP/999.0 WHAT EVEN\r\n\r\n";
         let mut s = &text[..];
-        let h = read_headers(&mut s).await;
+        let h = tor_rtcompat::test_with_one_runtime!(async |rt| read_headers(&rt, &mut s).await);
 
         assert!(h.is_err());
         assert!(matches!(h, Err(RequestError::HttparseError(_))));
