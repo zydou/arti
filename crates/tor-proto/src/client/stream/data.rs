@@ -36,12 +36,14 @@ use crate::client::ClientTunnel;
 use crate::memquota::StreamAccount;
 use crate::stream::StreamReceiver;
 use crate::stream::StreamTarget;
+use crate::stream::Tunnel;
 use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::{BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl};
 use tor_async_utils::rate_limited_writer::{
     DynamicRateLimitedWriter, RateLimitedWriter, RateLimitedWriterConfig,
 };
+use tor_basic_utils::onionperf_types::{OnionperfEvent, OnionperfStreamStatus};
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
@@ -599,6 +601,17 @@ impl DataStream {
         let out_buf_len = Data::max_body_len(relay_cell_format);
         let rate_limit_stream = target.rate_limit_stream().clone();
 
+        tracing::trace!(
+            onionperf = true,
+            event = ?OnionperfEvent::Stream(OnionperfStreamStatus::New),
+            stream_id = ?target.stream_id,
+            circ_id = ?match target.clone().tunnel {
+                Tunnel::Client(client) => Some(client.circ.unique_id()),
+                #[cfg(feature = "relay")]
+                Tunnel::Relay(_) => None, // TODO
+            },
+        );
+
         #[cfg(feature = "stream-ctrl")]
         let status = {
             let mut data_stream_status = DataStreamStatus::default();
@@ -856,7 +869,16 @@ impl DataWriterInner {
         };
 
         match future.as_mut().poll(cx) {
-            Poll::Ready((_imp, Err(e))) => {
+            Poll::Ready((imp, Err(e))) => {
+                match e {
+                    Error::NotConnected => (),
+                    _ => tracing::trace!(
+                        onionperf = true,
+                        event = ?OnionperfEvent::Stream(OnionperfStreamStatus::Failed),
+                        stream_id = ?imp.s.stream_id,
+                        reason = ?e,
+                    ),
+                }
                 self.state = Some(DataWriterState::Closed);
                 Poll::Ready(Err(e.into()))
             }
@@ -876,6 +898,11 @@ impl DataWriterInner {
                         // `sent_end` field.
                         imp.status.lock().expect("lock poisoned").sent_end = true;
                     }
+                    tracing::trace!(
+                        onionperf = true,
+                        event = ?OnionperfEvent::Stream(OnionperfStreamStatus::Closed),
+                        stream_id = ?imp.s.stream_id,
+                    );
                     self.state = Some(DataWriterState::Closed);
                 } else {
                     self.state = Some(DataWriterState::Ready(imp));

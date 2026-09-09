@@ -41,6 +41,7 @@ use conflux::ConfluxSet;
 use control::ControlHandler;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use tor_basic_utils::onionperf_types::{OnionperfCircuitStatus, OnionperfEvent};
 use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
@@ -713,6 +714,12 @@ impl Reactor {
                 Err(ReactorError::Err(e)) => break Err(e),
             }
         };
+
+        tracing::trace!(
+            onionperf = true,
+            tid = %self.tunnel_id,
+            event = ?&OnionperfEvent::Circuit(OnionperfCircuitStatus::Closed)
+        );
 
         // Log that the reactor stopped, possibly with the associated error as a report.
         // May log at a higher level depending on the error kind.

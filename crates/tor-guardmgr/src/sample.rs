@@ -11,6 +11,7 @@ use crate::{
 };
 use crate::{FirstHop, GuardSetSelector};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
+use tor_basic_utils::onionperf_types::{OnionperfEvent, OnionperfGuardStatus};
 use tor_linkspec::{ByRelayIds, HasRelayIds};
 
 use itertools::Itertools;
@@ -18,7 +19,7 @@ use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 use web_time_compat::{Instant, SystemTime};
 
 #[allow(unused_imports)]
@@ -469,6 +470,13 @@ impl GuardSet {
             return;
         }
         debug!(guard_id=?id, "Adding guard to sample.");
+        // TODO: I don't think onionperf actually needs the guard fingerpint,
+        // but if it does, add it here.
+        trace!(
+            onionperf = true,
+            event = ?OnionperfEvent::Guard(OnionperfGuardStatus::New),
+            guard_id = ?id,
+        );
         let guard = Guard::from_candidate(relay, now, params);
         self.guards.insert(guard);
         self.sample.push(id);
@@ -576,6 +584,16 @@ impl GuardSet {
     pub(crate) fn expire_old_guards(&mut self, params: &GuardParams, now: SystemTime) {
         self.assert_consistency();
         let n_pre = self.guards.len();
+        // TODO: Might be more ideal to do this after the assert_consistency.
+        for guard in self.guards.values() {
+            if guard.is_expired(params, now) {
+                tracing::trace!(
+                    onionperf = true,
+                    event = ?OnionperfEvent::Guard(OnionperfGuardStatus::Dropped),
+                    guard_id = ?guard.guard_id(),
+                );
+            }
+        }
         self.guards.retain(|g| !g.is_expired(params, now));
         let guards = &self.guards;
         self.sample.retain(|id| guards.by_all_ids(id).is_some());
@@ -734,6 +752,11 @@ impl GuardSet {
         how: Option<ExternalActivity>,
         now: Instant,
     ) {
+        trace!(
+            onionperf = true,
+            event = ?OnionperfEvent::Guard(OnionperfGuardStatus::Down),
+            ?guard_id,
+        );
         // TODO use instant uniformly for in-process, and systemtime for storage?
         let is_primary = self.guard_is_primary(guard_id);
         self.guards.modify_by_all_ids(guard_id, |guard| match how {

@@ -19,6 +19,7 @@ use crate::{GuardParams, GuardRestriction, GuardUsage, ids::GuardId};
 #[cfg(feature = "bridge-client")]
 use safelog::Redactable as _;
 
+use tor_basic_utils::onionperf_types::{OnionperfEvent, OnionperfGuardStatus};
 use tor_linkspec::{
     ChanTarget, ChannelMethod, HasAddrs, HasChanMethod, HasRelayIds, PtTarget, RelayIds,
 };
@@ -729,6 +730,7 @@ impl Guard {
             // TODO-SPEC: The "max" above isn't specified by guard-spec,
             // but I think it's wise.
             trace!(guard_id = ?self.id, "Newly confirmed");
+            trace!(onionperf = true, event = ?OnionperfEvent::Guard(OnionperfGuardStatus::Up));
             NewlyConfirmed::Yes
         } else {
             NewlyConfirmed::No
