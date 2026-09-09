@@ -440,6 +440,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND cr.unsigned_sha1 IS NOT NULL
               AND server.unsigned_sha1 IS NULL
+            ORDER BY RANDOM()
             LIMIT :limit
             "
         ))?;
@@ -498,6 +499,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND server.extra_unsigned_sha1 IS NOT NULL
               AND extra.unsigned_sha1 IS NULL
+            ORDER BY RANDOM()
             LIMIT :limit
             "
         ))?;
@@ -548,6 +550,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND cr.unsigned_sha2 IS NOT NULL
               AND micro.unsigned_sha2 IS NULL
+            ORDER BY RANDOM()
             LIMIT :limit
             "
         ))?;
