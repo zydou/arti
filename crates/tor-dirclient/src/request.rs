@@ -470,7 +470,7 @@ pub struct RouterDescRequest {
 #[cfg(feature = "routerdesc")]
 enum RequestedDescs {
     /// If this is set, we just ask for all the descriptors.
-    AllDescriptors,
+    All,
     /// A list of digests to download.
     Digests(Vec<RdDigest>),
 }
@@ -490,7 +490,7 @@ impl RouterDescRequest {
     /// Construct a request for all router descriptors.
     pub fn all() -> Self {
         RouterDescRequest {
-            requested_descriptors: RequestedDescs::AllDescriptors,
+            requested_descriptors: RequestedDescs::All,
         }
     }
     /// Construct a new empty request.
@@ -511,7 +511,7 @@ impl sealed::RequestableInner for RouterDescRequest {
                     .ok_or(RequestError::EmptyRequest)?;
                 uri.push_str(&ids);
             }
-            RequestedDescs::AllDescriptors => {
+            RequestedDescs::All => {
                 uri.push_str("all");
             }
         }
@@ -525,7 +525,7 @@ impl sealed::RequestableInner for RouterDescRequest {
     fn partial_response_body_ok(&self) -> bool {
         match self.requested_descriptors {
             RequestedDescs::Digests(ref digests) => digests.len() > 1,
-            RequestedDescs::AllDescriptors => true,
+            RequestedDescs::All => true,
         }
     }
 
@@ -533,7 +533,7 @@ impl sealed::RequestableInner for RouterDescRequest {
         // TODO: Pick a more principled number; I just made these up.
         match self.requested_descriptors {
             RequestedDescs::Digests(ref digests) => digests.len().saturating_mul(8 * 1024),
-            RequestedDescs::AllDescriptors => 64 * 1024 * 1024, // big but not impossible
+            RequestedDescs::All => 64 * 1024 * 1024, // big but not impossible
         }
     }
 
@@ -607,8 +607,7 @@ enum RequestedExtraInfos {
     /// Just ask for all the extra-infos.
     ///
     /// `http://<hostname>/tor/extra/all`
-    // TODO: Rename this to `All`, alongside `RequestedRouterDescs`.
-    AllExtraInfos,
+    All,
     /// Download extra-infos with these SHA-1 digests.
     ///
     /// `http://<hostname>/tor/extra/d/...`
@@ -630,7 +629,7 @@ impl ExtraInfoRequest {
     /// Construct a request for all extra-infos.
     pub fn all() -> Self {
         Self {
-            requested_extra_infos: RequestedExtraInfos::AllExtraInfos,
+            requested_extra_infos: RequestedExtraInfos::All,
         }
     }
     /// Construct a new empty request.
@@ -645,7 +644,7 @@ impl sealed::RequestableInner for ExtraInfoRequest {
         let mut uri = "/tor/extra/".to_string();
 
         match &self.requested_extra_infos {
-            RequestedExtraInfos::AllExtraInfos => uri.push_str("all"),
+            RequestedExtraInfos::All => uri.push_str("all"),
             RequestedExtraInfos::Digests(digests) => {
                 uri.push_str("d/");
                 let ids = digest_list_stringify(digests, hex::encode_upper, "+")
@@ -662,7 +661,7 @@ impl sealed::RequestableInner for ExtraInfoRequest {
     fn partial_response_body_ok(&self) -> bool {
         match &self.requested_extra_infos {
             RequestedExtraInfos::Digests(digests) => digests.len() > 1,
-            RequestedExtraInfos::AllExtraInfos => true,
+            RequestedExtraInfos::All => true,
         }
     }
 
@@ -671,7 +670,7 @@ impl sealed::RequestableInner for ExtraInfoRequest {
         // These were copied from the RouterDescRequest impl and doubled.
         match &self.requested_extra_infos {
             RequestedExtraInfos::Digests(digests) => digests.len().saturating_mul(16 * 1024),
-            RequestedExtraInfos::AllExtraInfos => 128 * 1024 * 1024,
+            RequestedExtraInfos::All => 128 * 1024 * 1024,
         }
     }
 
@@ -1065,7 +1064,7 @@ mod test {
         let req2: RouterDescRequest = vec![*d1, *d2].into_iter().collect();
         let ds: Vec<_> = match req2.requested_descriptors {
             RequestedDescs::Digests(ref digests) => digests.iter().collect(),
-            RequestedDescs::AllDescriptors => Vec::new(),
+            RequestedDescs::All => Vec::new(),
         };
         assert_eq!(ds, vec![d1, d2]);
         let req2 = crate::util::request_to_string(&req2.make_request()?);
