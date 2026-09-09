@@ -31,7 +31,7 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_checkable::TimeBound;
 use tor_dirclient::request::{AuthCertRequest, ConsensusRequest, Requestable};
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
-use tor_error::{internal, into_internal};
+use tor_error::internal;
 use tor_netdoc::{
     doc::authcert::{AuthCertKeyIds, AuthCertUnverified},
     parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput},
@@ -192,7 +192,7 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// We have downloaded and verified a consensus.
     Verified {
         /// The verified consensus we have.
-        consensus: T::Body,
+        consensus: ConsensusMeta::<T>,
 
         /// When to stop dealing with this consensus and fetching a new one.
         lifetime: Timestamp,
@@ -378,44 +378,21 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         let (server_queue, extra_queue, micro_queue, lifetime, consensus) =
             db::read_tx(pool, |tx| {
                 let meta = ConsensusMeta::<T>::query(tx, &self.tolerance, Some(now))?;
-                let meta = meta
+                let meta = *meta
                     .first()
                     .ok_or(internal!("database externally modified?"))?;
                 let server_queue = meta.missing_servers(tx, None)?;
                 let extra_queue = meta.missing_extras(tx, None)?;
                 let micro_queue = meta.missing_micros(tx, None)?;
                 let lifetime = meta.lifetime(rng);
-                let consensus = meta.data(tx)?;
                 Ok::<_, DatabaseError>((
                     server_queue,
                     extra_queue,
                     micro_queue,
                     lifetime,
-                    consensus,
+                    meta,
                 ))
             })??;
-
-        // Parse the most recent valid consensus from the database.
-        //
-        // TODO DIRMIRROR:
-        // Because only valid documents may exist in the database, it should
-        // succeed.  However, there is this weird edge-case where we may have
-        // inserted a document with a field we do not understand because of
-        // using an old version.  After upgrading our version we may now
-        // understand the field and realize it is wrong, leading to a violation
-        // of this constraint.  Handling this is not very easy; I suppose adding
-        // an additional column to the meta table storing the last used crate
-        // version is a sensible idea, with upgrades and downgrades leading to
-        // a parsing of all network documents within the database, throwing the
-        // ones out we do not understand (anymore).
-        //
-        // See also the relevant MR discussion:
-        // <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3664#note_3352723>
-        let consensus = parse2::parse_netdoc::<T>(&ParseInput::new(&consensus, ""))
-            .map_err(into_internal!("invalid netdoc in database?"))?
-            // TODO DIRMIRROR: explain why this is OK, or re-verify the signatures
-            .unwrap_unverified()
-            .0;
 
         *data = ConsensusBoundData::Verified {
             consensus,
