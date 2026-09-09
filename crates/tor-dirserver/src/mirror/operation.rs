@@ -15,11 +15,7 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::{
-    collections::VecDeque,
-    marker::PhantomData,
-    net::SocketAddr,
-};
+use std::{collections::VecDeque, marker::PhantomData, net::SocketAddr};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -192,7 +188,7 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// We have downloaded and verified a consensus.
     Verified {
         /// The verified consensus we have.
-        consensus: ConsensusMeta::<T>,
+        consensus: ConsensusMeta<T>,
 
         /// When to stop dealing with this consensus and fetching a new one.
         lifetime: Timestamp,
@@ -684,7 +680,10 @@ mod test {
                 // If everything worked properly, then the queue should only
                 // contain the relay we removed, because that is missing now.
                 db::read_tx(&pool, |tx| {
-                    assert_eq!(consensus.missing_servers(tx, None).unwrap(), HashSet::from([relay_to_remove]));
+                    assert_eq!(
+                        consensus.missing_servers(tx, None).unwrap(),
+                        HashSet::from([relay_to_remove])
+                    );
                     assert!(consensus.missing_extras(tx, None).unwrap().is_empty());
                     assert!(consensus.missing_micros(tx, None).unwrap().is_empty());
                 })
