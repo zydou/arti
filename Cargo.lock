@@ -3275,7 +3275,6 @@ dependencies = [
  "tor-hsservice",
  "tor-proto",
  "tracing-subscriber",
- "webpki-roots",
 ]
 
 [[package]]
@@ -3797,12 +3796,10 @@ dependencies = [
 name = "keygen-openssh-test"
 version = "0.1.0"
 dependencies = [
- "base32",
  "clap",
  "rand 0.10.2",
  "ssh-key-fork-arti",
  "tor-basic-utils",
- "tor-keymgr",
  "tor-llcrypto",
 ]
 
