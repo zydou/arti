@@ -6186,7 +6186,6 @@ dependencies = [
  "serde_json",
  "slotmap",
  "thiserror 2.0.20",
- "void",
 ]
 
 [[package]]
@@ -7046,7 +7045,6 @@ dependencies = [
  "hex-literal",
  "humantime",
  "rand 0.10.2",
- "saturating-time",
  "thiserror 2.0.20",
  "tor-basic-utils",
  "tor-bytes",
@@ -8394,7 +8392,6 @@ dependencies = [
 name = "tor-socksproto"
 version = "0.46.0"
 dependencies = [
- "amplify",
  "anyhow",
  "arbitrary",
  "caret",
