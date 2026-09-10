@@ -214,7 +214,6 @@ dependencies = [
  "metrics-exporter-prometheus",
  "notify",
  "opentelemetry",
- "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry-proto",
  "opentelemetry_sdk",
