@@ -17,8 +17,8 @@ use tor_chanmgr::{ChanMgr, ChanMgrConfig, Dormancy};
 use tor_config_path::CfgPathResolver;
 use tor_dircommon::authority::AuthorityContacts;
 use tor_dircommon::config::{DirTolerance, DownloadScheduleConfig};
-use tor_dirmgr::DirMgrConfig;
-use tor_dirserver::mirror::DirMirror;
+use tor_dirmgr::{DirMgrConfig, DirPlugin};
+use tor_dirserver::mirror::{DirMirror, DirMirrorWithBackend};
 use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 use tor_memquota::MemoryQuotaTracker;
 use tor_netdir::params::NetParameters;
@@ -183,7 +183,7 @@ pub(crate) struct TorRelay<R: Runtime> {
     authorities: AuthorityContacts,
 
     /// The directory mirror object, used for handling BEGIN_DIR.
-    dir_mirror: DirMirror,
+    dir_mirror: DirMirrorWithBackend<DirPlugin>,
 
     /// Channel manager, used by circuits etc.
     chanmgr: Arc<ChanMgr<R>>,
@@ -344,6 +344,9 @@ impl<R: Runtime> TorRelay<R> {
         let tolerance: DirTolerance = Default::default();
 
         let dir_mirror = DirMirror::new(path, dir_mirror_authorities, schedule, tolerance);
+
+        // TODO: This is temporary until the directory mirror has support for downloading documents.
+        let dir_mirror = DirMirrorWithBackend::new(dir_mirror, client.dirmgr_plugin().clone());
 
         Ok(Self {
             runtime,
