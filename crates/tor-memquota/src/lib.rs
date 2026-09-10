@@ -224,6 +224,8 @@
 
 // TODO #1176
 #![allow(clippy::blocks_in_conditions)]
+// TODO beta clippy bug, rust-clippy/issues/17525
+#![allow(clippy::redundant_field_names)]
 //
 // See `Panics` in the crate-level docs, above.
 //

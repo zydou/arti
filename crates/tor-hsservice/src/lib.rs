@@ -47,6 +47,8 @@
 #![deny(clippy::string_slice)] // See arti#2571
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// TODO beta clippy bug, rust-clippy/issues/17525
+#![allow(clippy::redundant_field_names)]
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(
     not(all(feature = "full", feature = "experimental")),

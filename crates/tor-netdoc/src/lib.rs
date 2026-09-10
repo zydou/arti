@@ -49,6 +49,7 @@
 
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
+#![allow(clippy::redundant_field_names)] // TODO beta clippy bug, rust-clippy/issues/17525
 
 #[macro_use]
 mod util;

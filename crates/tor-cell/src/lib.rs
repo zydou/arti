@@ -47,6 +47,8 @@
 #![deny(clippy::string_slice)] // See arti#2571
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+#![allow(clippy::redundant_field_names)] // TODO beta clippy bug, rust-clippy/issues/17525
+
 pub mod chancell;
 mod err;
 pub mod relaycell;
