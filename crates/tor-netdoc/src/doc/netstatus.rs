@@ -2978,6 +2978,7 @@ mod test {
                 body.authority.authority.dir_source.identity.0 = [0x55; _].into();
             });
             assert_matches!(
+                //
                 doc.verify(&trusted),
                 Err(VVF::AuthCertWrongAuthority)
             );
@@ -2987,6 +2988,7 @@ mod test {
         let with_mutated_lifetime = |f: &dyn Fn(&mut Lifetime)| {
             let doc = edit_body(&|body| f(&mut body.preamble.lifetime));
             assert_matches!(
+                //
                 doc.verify(&trusted),
                 Err(VVF::AuthCertWrongValidity(_))
             );
@@ -3004,6 +3006,7 @@ mod test {
             let input = ParseInput::new(&text, file);
             let doc: UV = parse_netdoc(&input)?;
             assert_matches!(
+                //
                 doc.verify(&trusted),
                 Err(VVF::AuthCertParseError(..))
             );
