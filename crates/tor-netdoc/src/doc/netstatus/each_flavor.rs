@@ -643,16 +643,16 @@ fn verify_error_netstatus() -> Result<(), anyhow::Error> {
         ( $($verify_args:tt)* ),
         $($assert_matches_rhs:tt)*
     } => {
-        assert_matches! {
+        assert_matches!(
             doc.can_verify($($verify_args)*),
             Err(e)
                 => assert_matches!(e, $($assert_matches_rhs)*)
-        };
-        assert_matches! {
+        );
+        assert_matches!(
             doc.clone().verify($($verify_args)*),
             Err(ConsensusVerifyFailed::CertificationInsufficient(e))
                 => assert_matches!(e, $($assert_matches_rhs)*)
-        };
+        );
     } }
 
     // missing authcerts
@@ -692,27 +692,27 @@ fn verify_error_netstatus() -> Result<(), anyhow::Error> {
 
     doc.sigs.sigs.directory_signature[0].signature.fill(0xff);
 
-    assert_matches! {
+    assert_matches!(
         doc.can_verify(&authorities, &certs),
         Ok(())
-    }
-    assert_matches! {
+    );
+    assert_matches!(
         doc.clone().verify(&authorities, &certs),
         Ok(_)
-    }
+    );
 
     // too few signatories, and one broken signature
 
     doc.sigs.sigs.directory_signature.truncate(authorities.len() / 2 + 1);
 
-    assert_matches! {
+    assert_matches!(
         doc.can_verify(&authorities, &certs),
         Ok(())
-    }
-    assert_matches! {
+    );
+    assert_matches!(
         doc.clone().verify(&authorities, &certs),
         Err(ConsensusVerifyFailed::InvalidSignature(VerifyFailed::VerifyFailed))
-    }
+    );
 
     // too few signatures, no broken signatures
 
