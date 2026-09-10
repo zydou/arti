@@ -18,6 +18,13 @@ pub struct EnabledToken {
     _forbid: void::Void,
 }
 
+// Avoid unused crate warning.
+//
+// (We can't express the right dependency condition in Cargo.toml,
+// and anyway it's not worth trying to conditionally suppress the dependency.)
+#[cfg(feature = "memquota")]
+use void as _;
+
 impl Eq for EnabledToken {}
 
 impl EnabledToken {

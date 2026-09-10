@@ -14,6 +14,13 @@ use std::path::Path;
 #[cfg(unix)]
 pub use std::os::unix::net::SocketAddr;
 
+// Void is used only as a stand-in for unix::SocketAddr.  Avoid unused crate warning.
+//
+// (We can't express the right dependency condition in Cargo.toml,
+// and anyway it's not worth trying to conditionally suppress the dependency.)
+#[cfg(unix)]
+use void as _;
+
 /// Address for an AF_UNIX socket.
 ///
 /// (This is an uninhabited placeholder implementations for platforms without AF_UNIX support.)
