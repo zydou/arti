@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use tor_chanmgr::ChanMgr;
 use tor_circmgr::{CircMgr, CircMgrConfig};
-use tor_dirmgr::{DirMgr, DirMgrConfig, DirMgrStore, DirProvider};
+use tor_dirmgr::{DirMgr, DirMgrConfig, DirMgrStore, DirPlugin, DirProvider};
 use tor_guardmgr::{GuardMgr, GuardMgrConfig};
 use tor_persist::FsStateMgr;
 use tor_rtcompat::Runtime;
@@ -40,6 +40,13 @@ pub(crate) struct RelayClient<R: Runtime> {
 
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<dyn DirProvider>,
+
+    /// A dirmgr-derived plugin for a directory mirror.
+    ///
+    /// TODO: This has nothing to do with the client,
+    /// but we need it temporarily until the directory mirror is implemented.
+    /// We should remove this later.
+    dirmgr_plugin: DirPlugin,
 }
 
 impl<R: Runtime> RelayClient<R> {
@@ -96,6 +103,9 @@ impl<R: Runtime> RelayClient<R> {
             .context("Failed to initialize the directory manager")?,
         );
 
+        // Plugin for the relay's directory mirror.
+        let dirmgr_plugin = dirmgr.get_plugin();
+
         Ok(Self {
             runtime,
             state_mgr,
@@ -103,6 +113,7 @@ impl<R: Runtime> RelayClient<R> {
             guardmgr,
             circmgr,
             dirmgr,
+            dirmgr_plugin,
         })
     }
 
@@ -131,5 +142,10 @@ impl<R: Runtime> RelayClient<R> {
     /// Get the client's [`DirProvider`].
     pub(crate) fn dirmgr(&self) -> &Arc<dyn DirProvider> {
         &self.dirmgr
+    }
+
+    /// Temporary. See [`RelayClient::dirmgr_plugin`].
+    pub(crate) fn dirmgr_plugin(&self) -> &DirPlugin {
+        &self.dirmgr_plugin
     }
 }
