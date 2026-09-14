@@ -74,7 +74,6 @@ use futures::FutureExt;
 use futures::io::{
     AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader,
 };
-use memchr::memchr;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{info, instrument};
@@ -351,11 +350,15 @@ where
 {
     let mut buf = Vec::with_capacity(1024);
 
+    // Note: Using `take` here will ensure that we will get an EOF if the header length
+    // would exceed the maximum.  No extra bytes will actually be extracted.
+    let mut limited_stream = stream.take(MAX_HEADERS_LEN as u64);
+
     loop {
         // TODO: it's inefficient to do this a line at a time; it would
         // probably be better to read until the CRLF CRLF ending of the
         // response.  But this should be fast enough.
-        let n = read_until_limited(stream, b'\n', 2048, &mut buf).await?;
+        let n = limited_stream.read_until(b'\n', &mut buf).await?;
 
         // TODO(nickm): Better maximum and/or let this expand.
         let mut headers = [httparse::EMPTY_HEADER; 32];
@@ -508,45 +511,6 @@ where
     circ_mgr.retire_circ(id);
 }
 
-/// As AsyncBufReadExt::read_until, but stops after reading `max` bytes.
-///
-/// Note that this function might not actually read any byte of value
-/// `byte`, since EOF might occur, or we might fill the buffer.
-///
-/// A return value of 0 indicates an end-of-file.
-async fn read_until_limited<S>(
-    stream: &mut S,
-    byte: u8,
-    max: usize,
-    buf: &mut Vec<u8>,
-) -> std::io::Result<usize>
-where
-    S: AsyncBufRead + Unpin,
-{
-    let mut n_added = 0;
-    loop {
-        let data = stream.fill_buf().await?;
-        if data.is_empty() {
-            // End-of-file has been reached.
-            return Ok(n_added);
-        }
-        debug_assert!(n_added < max);
-        let remaining_space = max - n_added;
-        let (available, found_byte) = match memchr(byte, data) {
-            Some(idx) => (idx + 1, true),
-            None => (data.len(), false),
-        };
-        debug_assert!(available >= 1);
-        let n_to_copy = std::cmp::min(remaining_space, available);
-        buf.extend(&data[..n_to_copy]);
-        stream.consume_unpin(n_to_copy);
-        n_added += n_to_copy;
-        if found_byte || n_added == max {
-            return Ok(n_added);
-        }
-    }
-}
-
 /// Memory limit of the LZMA dictionary we are willing to allocate.
 ///
 /// Without it, it may lead to an allocation of 4GiB, which is a bit overkill.
@@ -630,34 +594,6 @@ mod test {
     use web_time_compat::{SystemTime, SystemTimeExt};
 
     use futures_await_test::async_test;
-
-    #[async_test]
-    async fn test_read_until_limited() -> RequestResult<()> {
-        let mut out = Vec::new();
-        let bytes = b"This line eventually ends\nthen comes another\n";
-
-        // Case 1: find a whole line.
-        let mut s = &bytes[..];
-        let res = read_until_limited(&mut s, b'\n', 100, &mut out).await;
-        assert_eq!(res?, 26);
-        assert_eq!(&out[..], b"This line eventually ends\n");
-
-        // Case 2: reach the limit.
-        let mut s = &bytes[..];
-        out.clear();
-        let res = read_until_limited(&mut s, b'\n', 10, &mut out).await;
-        assert_eq!(res?, 10);
-        assert_eq!(&out[..], b"This line ");
-
-        // Case 3: reach EOF.
-        let mut s = &bytes[..];
-        out.clear();
-        let res = read_until_limited(&mut s, b'Z', 100, &mut out).await;
-        assert_eq!(res?, 45);
-        assert_eq!(&out[..], &bytes[..]);
-
-        Ok(())
-    }
 
     // Basic decompression wrapper.
     async fn decomp_basic(

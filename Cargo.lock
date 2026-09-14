@@ -7429,7 +7429,6 @@ dependencies = [
  "httparse",
  "httpdate",
  "itertools 0.15.0",
- "memchr",
  "thiserror 2.0.20",
  "tor-circmgr",
  "tor-error",
