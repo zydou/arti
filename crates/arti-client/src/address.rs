@@ -475,12 +475,15 @@ pub(crate) fn is_non_globally_reachable(addr: IpAddr) -> bool {
                 || v4.is_unspecified() // 0.0.0.0
                 || v4.is_link_local() // RFC3927 (169.254.0.0/16)
                 || is_shared(v4) // RFC6598
+                || v4.is_broadcast() // RFC919
+                || v4.is_multicast() // RFC6771
         }
         IpAddr::V6(v6) => {
             v6.is_loopback() // RFC4291 (::1)
                 || v6.is_unspecified() // RFC4291 (::)
                 || v6.is_unique_local() // RFC4193 (fc00::/7)
                 || v6.is_unicast_link_local() // RFC4291 (fe80::/10)
+                || v6.is_multicast() // RFC4291
         }
     }
 }
@@ -744,6 +747,9 @@ mod test {
         assert!(is_local_hostname("100.64.0.1"));
         assert!(is_local_hostname("fc00::"));
         assert!(is_local_hostname("fe80::"));
+        assert!(is_local_hostname("255.255.255.255"));
+        assert!(is_local_hostname("224.1.1.1"));
+        assert!(is_local_hostname("ff00::"));
 
         assert!(!is_local_hostname("www.example.com"));
     }
