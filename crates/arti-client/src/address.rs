@@ -302,8 +302,8 @@ impl TorAddr {
     }
 
     /// Return true if the `host` in this address is local.
-    fn is_local(&self) -> bool {
-        self.host.is_local()
+    fn is_non_globally_reachable(&self) -> bool {
+        self.host.is_non_globally_reachable()
     }
 
     /// Give an error if this address doesn't conform to the rules set in
@@ -314,7 +314,7 @@ impl TorAddr {
         #[allow(unused_variables)] // will only be used in certain configurations
         prefs: &StreamPrefs,
     ) -> Result<(), ErrorDetail> {
-        if !cfg.allow_local_addrs && self.is_local() {
+        if !cfg.allow_local_addrs && self.is_non_globally_reachable() {
             return Err(ErrorDetail::LocalAddress);
         }
 
@@ -440,10 +440,10 @@ impl FromStr for Host {
 impl Host {
     /// Return true if this address is one that is "internal": that is,
     /// relative to the particular host that is resolving it.
-    fn is_local(&self) -> bool {
+    fn is_non_globally_reachable(&self) -> bool {
         match self {
             Host::Hostname(name) => name.eq_ignore_ascii_case("localhost"),
-            Host::Ip(ip) => is_local(*ip),
+            Host::Ip(ip) => is_non_globally_reachable(*ip),
             Host::Onion(_) => false,
         }
     }
@@ -459,7 +459,7 @@ impl Host {
 ///   * part of the Shared Address Space defined in RFC6598 (100.64.0.0/10)
 ///   * a unique local address (fc00::/7). See RFC4193
 ///   * a unicast address with link-local scope, as defined in RFC4291
-pub(crate) fn is_local(addr: IpAddr) -> bool {
+pub(crate) fn is_non_globally_reachable(addr: IpAddr) -> bool {
     // This ensures we handle IPv4-mapped addresses correctly
     let addr = addr.to_canonical();
     // TODO: use is_global once it's stable, perhaps.
@@ -730,7 +730,7 @@ mod test {
     fn local_addrs() {
         fn is_local_hostname(s: &str) -> bool {
             let h: Host = s.parse().unwrap();
-            h.is_local()
+            h.is_non_globally_reachable()
         }
 
         assert!(is_local_hostname("localhost"));

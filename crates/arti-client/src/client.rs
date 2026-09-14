@@ -1715,7 +1715,7 @@ impl<R: Runtime> TorClient<R> {
 
         if !addrcfg.allow_resolving_local_addrs {
             addrs.retain(|addr| {
-                let keep = !crate::address::is_local(*addr);
+                let keep = !crate::address::is_non_globally_reachable(*addr);
 
                 if !keep {
                     debug!("Dropping non-routable address {addr} from RESOLVED answer");
@@ -1751,7 +1751,7 @@ impl<R: Runtime> TorClient<R> {
         prefs: &StreamPrefs,
     ) -> crate::Result<Vec<String>> {
         let addrcfg = self.client.addrcfg.get();
-        if !addrcfg.allow_resolving_local_addrs && crate::address::is_local(addr) {
+        if !addrcfg.allow_resolving_local_addrs && crate::address::is_non_globally_reachable(addr) {
             debug!("Rejecting reverse lookup request for non-routable address {addr}");
 
             // Note: this is not 100% accurate, but I'm not sure if it makes sense
