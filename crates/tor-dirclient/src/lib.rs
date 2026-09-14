@@ -554,10 +554,9 @@ where
 /// directory authorities, this is most likely not of a very big concern, as
 /// there is some trust anyways.
 ///
-/// Right now, we use 128 MiB.  The reason for this is, that the strongest LZMA
-/// compression (i.e. xz -e9) currently requires 65MiB of decompression memory.
-/// While the decoder technically supports more, anything above that was
-/// probably not generated in good faith.
+/// Right now, we use 16 MiB, as the spec limits the compression quality to
+/// "6", meaning 9 MiB of decompression memory, which rounds up to 16 MiB in
+/// terms of base 2.
 ///
 /// From the xz(1) manual page:
 /// ```
@@ -573,7 +572,7 @@ where
 ///  -8e      32 MiB       8      370 MiB   33 MiB
 ///  -9e      64 MiB       8      674 MiB   65 MiB
 /// ```
-const LZMA_DICT_MEM_LIMIT: u64 = 1 << 27; // 128 MiB
+const LZMA_DICT_MEM_LIMIT: u64 = 1 << 24; // 16 MiB
 
 /// Helper: Return a boxed decoder object that wraps the stream  $s.
 macro_rules! decoder {
@@ -737,7 +736,8 @@ mod test {
 
     #[cfg(feature = "xz")]
     #[async_test]
-    async fn decomp_xz2() -> RequestResult<()> {
+    // FIXME
+    async fn decomp_xz() -> RequestResult<()> {
         // Not so good at tiny files...
         let compressed = hex::decode("fd377a585a000004e6d6b446020021011c00000010cf58cce00024001d5d00279b88a202ca8612cfb3c19c87c34248a570451e4851d3323d34ab8000000000000901af64854c91f600013925d6ec06651fb6f37d010000000004595a").unwrap();
         let limit = 10 << 20;
