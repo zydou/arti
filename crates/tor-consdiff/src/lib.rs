@@ -378,6 +378,8 @@ pub enum DiffSizeStrictness {
     Apply,
 
     /// Check whether the diff is reasonable to serve as a diff against the input.
+    ///
+    /// This is an even stricter version of [`DiffSizeStrictness::Apply`].
     Generate,
 }
 
