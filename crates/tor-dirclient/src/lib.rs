@@ -550,9 +550,6 @@ where
 /// Memory limit of the LZMA dictionary we are willing to allocate.
 ///
 /// Without it, it may lead to an allocation of 4GiB, which is a bit overkill.
-/// However, given that LZMA is only used on direct connection, i.e. those to
-/// directory authorities, this is most likely not of a very big concern, as
-/// there is some trust anyways.
 ///
 /// Right now, we use 16 MiB, as the spec limits the compression quality to
 /// "6", meaning 9 MiB of decompression memory, which rounds up to 16 MiB in
