@@ -2,6 +2,8 @@
 
 This is an interim policy.  We'll probably make it more formal as Arti becomes more mature.
 
+**NOTE:** This security policy is not up-to-date.
+
 
 ## To report a security vulnerability
 
@@ -30,8 +32,8 @@ insecure usage of Arti.
 
 ## How will we track vulnerabilities?
 
-*TBD whether we will use TROVE, or whether we will have a separate repository
-for each tool.  But we will do something like that.*
+Vulnerabilities are tracked in Tor's
+[TROVE list](https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE).
 
 ## How will we respond to vulnerabilities?
 
@@ -44,16 +46,6 @@ For any "high"-level severity issues that seem likely to cause immediate
 harm if not fixed, and for all "critical"-level vulnerabilities, we will try
 to fix them in private, and put out a release as soon as seems practical.
 
-We do not plan to backport any security fixes until Arti 1.0.0 is out: only
-the most recent API revision will get security fixes.
+We do not plan to backport any security fixes.
 
 We'll announce any such issues **XXXX Where**?
-
-## Issues so far
-
-(We'll move this list once we have a better registry.)
-
- * The link handshake validation issue we fixed with 11cd138c7488a4660a75e932f9ebb992002e70de.  I believe it predates the actual use of an issue tracker for Arti.
- * The [environment-related bug](https://rustsec.org/advisories/RUSTSEC-2020-0159) in chrono that caused us to migrate to time.
- * The [string-slicing bug](https://github.com/acw/simple_asn1/pull/28) in `simple_asn1`.
- * Boolean inversion in `auth_sendme_optional` (#294).
