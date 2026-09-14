@@ -48,4 +48,4 @@ to fix them in private, and put out a release as soon as seems practical.
 
 We do not plan to backport any security fixes.
 
-We'll announce any such issues **XXXX Where**?
+We'll announce any such issues **TODO Where**?
