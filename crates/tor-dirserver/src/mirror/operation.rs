@@ -651,7 +651,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             .filter_map(|(res, start, end)| match res {
                 Ok(doc) => Some((doc, start, end)),
                 Err(e) => {
-                    warn!("ignoring invalid netdoc: {e}");
+                    debug!("ignoring invalid netdoc: {e}");
                     None
                 }
             })
