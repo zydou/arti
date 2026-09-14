@@ -597,7 +597,10 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     /// It opens a TCP connection, performs the request, and parses the result.
     ///
     /// Returns the raw response alongside the output of
-    /// [`parse2::parse_netdoc_multiple_with_offsets()`].
+    /// [`parse2::parse_netdoc_multiple_sophisticated()`] with the results being
+    /// filtered.
+    ///
+    /// Invalid documents are ignored but a warning is logged.
     ///
     /// The output is required because we need the raw document alongside the
     /// offsets to have the actual data we will insert into the database later
@@ -643,7 +646,16 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         }?;
 
         // Parse the response.
-        let parsed = parse2::parse_netdoc_multiple_with_offsets(&ParseInput::new(&resp, ""))?;
+        let parsed = parse2::parse_netdoc_multiple_sophisticated(&ParseInput::new(&resp, ""))?
+            .into_iter()
+            .filter_map(|(res, start, end)| match res {
+                Ok(doc) => Some((doc, start, end)),
+                Err(e) => {
+                    debug!("ignoring invalid netdoc: {e}");
+                    None
+                }
+            })
+            .collect();
 
         Ok((resp, parsed))
     }

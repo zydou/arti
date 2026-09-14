@@ -1,7 +1,6 @@
 //! Error module for `tor-dirserver`.
 
 use thiserror::Error;
-use tor_netdoc::parse2;
 
 /// Indicates that an error variant is fatal.
 ///
@@ -32,7 +31,7 @@ pub(crate) enum AuthorityRequestError {
     /// here and there with regard to this, hence why we have dirclient in the
     /// first place.
     #[error("dirclient error: {0}")]
-    Request(#[from] tor_dirclient::RequestFailedError),
+    Request(Box<tor_dirclient::RequestFailedError>),
 
     /// A response does not make semantic sense.
     ///
@@ -41,13 +40,15 @@ pub(crate) enum AuthorityRequestError {
     #[error("response error: {0}")]
     Response(&'static str),
 
-    /// Invalid netdoc received from the authority.
-    #[error("netdoc parse error: {0}")]
-    Parse(#[from] parse2::ParseError),
-
     /// An internal error.
     #[error("internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+impl From<tor_dirclient::RequestFailedError> for AuthorityRequestError {
+    fn from(value: tor_dirclient::RequestFailedError) -> Self {
+        Self::Request(Box::new(value))
+    }
 }
 
 impl IsFatal for AuthorityRequestError {
