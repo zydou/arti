@@ -287,6 +287,17 @@ async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
         }
     }
 
+    if !reader.buffer().is_empty() {
+        // We have extraneous data after the HTTP response header; it is about to be discarded,
+        // which would be an error.
+        //
+        // LIMITATION: Technically, this might be data from the Tor relay we're contacting.
+        // However, we only use this method for negotiating Tor channels, which use TLS.
+        // In TLS, the responder is supposed to be silent until the initiator says something,
+        // so if we do have data here, then it is a TLS protocol violation.
+        return Err(ProxyError::HttpConnectMalformed);
+    }
+
     // Parse and validate response
     let _status_code = parse_http_connect_response(&response_buffer)?;
 
