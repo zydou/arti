@@ -443,12 +443,6 @@ impl Host {
     fn is_local(&self) -> bool {
         match self {
             Host::Hostname(name) => name.eq_ignore_ascii_case("localhost"),
-            // TODO: use is_global once it's stable, perhaps.
-            // NOTE: Contrast this with is_sufficiently_private in tor-hsproxy,
-            // which has a different purpose. Also see #1159.
-            // The purpose of _this_ test is to find addresses that cannot
-            // meaningfully be connected to over Tor, and that the exit
-            // will not accept.
             Host::Ip(ip) => is_local(*ip),
             Host::Onion(_) => false,
         }
@@ -468,6 +462,12 @@ impl Host {
 pub(crate) fn is_local(addr: IpAddr) -> bool {
     // This ensures we handle IPv4-mapped addresses correctly
     let addr = addr.to_canonical();
+    // TODO: use is_global once it's stable, perhaps.
+    // NOTE: Contrast this with is_sufficiently_private in tor-hsproxy,
+    // which has a different purpose. Also see #1159.
+    // The purpose of _this_ test is to find addresses that cannot
+    // meaningfully be connected to over Tor, and that the exit
+    // will not accept.
     match addr {
         IpAddr::V4(v4) => {
             v4.is_loopback() // RFC1122 (127.0.0.0/8)
