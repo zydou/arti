@@ -301,7 +301,12 @@ impl TorAddr {
         Ok(instructions)
     }
 
-    /// Return true if the `host` in this address is local.
+    /// Return true if `addr` is not a globally reachable address.
+    ///
+    /// Used for deciding if this [`TorAddr`] is an acceptable BEGIN target
+    /// (typically, the target of a BEGIN must be globally reachable).
+    ///
+    /// See [`is_non_globally_reachable`].
     fn is_non_globally_reachable(&self) -> bool {
         self.host.is_non_globally_reachable()
     }
@@ -459,6 +464,41 @@ impl Host {
 ///   * part of the Shared Address Space defined in RFC6598 (100.64.0.0/10)
 ///   * a unique local address (fc00::/7). See RFC4193
 ///   * a unicast address with link-local scope, as defined in RFC4291
+///
+/// Used for deciding whether an address is a valid BEGIN target.
+/// Additionally, we use this to determine whether to allow a reverse DNS lookup
+/// (ordinarily, reverse lookups for non-globally reachable addresses are rejected),
+/// and to filter out any non-globally reachable addresses from the exit-provided
+/// RESOLVED responses.
+///
+/// False positives are allowed, but false negatives are not
+/// (to avoid unintentionally opening connections to local services,
+/// either on the exit, or on the client itself).
+///
+/// Semantically, this function is roughly equivalent to checking
+/// `! (IpAddr::is_global() && !IpAddr::is_broadcast() && !IpAddr::is_multicast())`,
+/// with the only difference being that our implementation of the `is_global()` check
+/// does not cover
+///
+///   * addresses reserved for benchmarking (RFC2544, RFC5180)
+///   * addresses reserved for documentation (RFC5737, RFC3849, RFC9637)
+///   * v4 addresses reserved by IANA for future use (RFC1112)
+///   * v6 discard-only address block (`100::/64`)
+///   * v6 IETF special assignments of `2001::/23`
+///   * 6to4 (`2002::/16`) – it's not explicitly documented as globally reachable,
+///     IANA says N/A.
+///   * segment routing (SRv6) SIDs (`5f00::/16`)
+///
+// Note(gabi): for the sake of completeness, we may want to extend this function to
+// cover the ranges mentioned above too, because in theory, these addresses
+// shouldn't be reachable anyway.
+//
+// TODO: we may want to rewrite this function using IpAddr::is_global() once
+// that becomes stable.
+//
+// TODO: we should also consider replacing this with its reverse
+// (is_globally_reachable()), as that might a bit easier to reason about
+// than its negated counterpart
 pub(crate) fn is_non_globally_reachable(addr: IpAddr) -> bool {
     // This ensures we handle IPv4-mapped addresses correctly
     let addr = addr.to_canonical();
@@ -468,6 +508,9 @@ pub(crate) fn is_non_globally_reachable(addr: IpAddr) -> bool {
     // The purpose of _this_ test is to find addresses that cannot
     // meaningfully be connected to over Tor, and that the exit
     // will not accept.
+    //
+    // TODO: we may want to extend this to cover more non-routable ranges
+    // (for example, the reserved documentation prefixes)
     match addr {
         IpAddr::V4(v4) => {
             v4.is_loopback() // RFC1122 (127.0.0.0/8)
