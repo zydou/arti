@@ -14,7 +14,7 @@ We'll provide more secure vulnerability reporting once Arti is more secure.
 ## What counts as a vulnerability?  How severe is it?
 
 We incorporate the definition of security vulnerabilities from the
-network team [SecurityPolicy](https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/SecurityPolicy)
+network team [SecurityPolicy](https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/SecurityPolicy).
 
 We do not distinguish whether bugs occur in our upstream libraries or in Arti: only their effect on Arti users. However, this guarantee is weakened when Arti is used with upstream library versions that are different from those specified in our `Cargo.lock`, such as when Arti is embedded as a library itself. In this configuration, we will attempt to mitigate the impact of upstream vulnerabilities on a best-effort basis only.
 
@@ -49,11 +49,11 @@ the most recent API revision will get security fixes.
 
 We'll announce any such issues **XXXX Where**?
 
-# Issues so far
+## Issues so far
 
 (We'll move this list once we have a better registry.)
 
  * The link handshake validation issue we fixed with 11cd138c7488a4660a75e932f9ebb992002e70de.  I believe it predates the actual use of an issue tracker for Arti.
  * The [environment-related bug](https://rustsec.org/advisories/RUSTSEC-2020-0159) in chrono that caused us to migrate to time.
- * The [string-slicing bug](https://github.com/acw/simple_asn1/pull/28) in simple_asn1.
- * Boolean inversion in auth_sendme_optional (#294).
+ * The [string-slicing bug](https://github.com/acw/simple_asn1/pull/28) in `simple_asn1`.
+ * Boolean inversion in `auth_sendme_optional` (#294).
