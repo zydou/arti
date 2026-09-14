@@ -736,6 +736,19 @@ mod test {
 
     #[cfg(feature = "xz")]
     #[async_test]
+    async fn decomp_xz() -> RequestResult<()> {
+        // echo "One fish Two fish Red fish Blue fish" | xz -6 | xxd -p
+        let compressed = hex::decode("fd377a585a000004e6d6b44604c02525210116000000000000000000bfdbca33e00024001d5d00279b88a202ca8612cfb3c19c87c34248a570451e4851d3323d34ab8000000000000901af64854c91f600014125281fe0821fb6f37d010000000004595a").unwrap();
+        let limit = LZMA_DICT_MEM_LIMIT as usize;
+        let (s, r) = decomp_basic(Some("x-tor-lzma"), &compressed, limit).await;
+        s?;
+        assert_eq!(r, b"One fish Two fish Red fish Blue fish\n");
+
+        Ok(())
+    }
+
+    #[cfg(feature = "xz")]
+    #[async_test]
     async fn decomp_xz_bad() -> RequestResult<()> {
         // Not so good at tiny files...
         let compressed = hex::decode("fd377a585a000004e6d6b446020021011c00000010cf58cce00024001d5d00279b88a202ca8612cfb3c19c87c34248a570451e4851d3323d34ab8000000000000901af64854c91f600013925d6ec06651fb6f37d010000000004595a").unwrap();
