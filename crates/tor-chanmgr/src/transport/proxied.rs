@@ -263,22 +263,23 @@ async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
     let target_str = format_connect_target(target)?;
     send_http_connect_request::<R>(&mut stream, auth, &target_str).await?;
 
-    // Read response until we see the double CRLF that terminates headers
+    // Read response until we see the double CRLF that terminates headers,
+    // OR we reach MAX_HTTP_HEADER_BYTES.
     let mut response_buffer = Vec::new();
-    let mut reader = BufReader::new(stream);
+    let limit = MAX_HTTP_HEADER_BYTES as u64;
+    let mut reader = BufReader::new(stream.take(limit));
     let mut line = String::new();
 
     loop {
         line.clear();
         let n = reader.read_line(&mut line).await?;
         if n == 0 {
+            // We got an EOF (either from take(), or from the underlying stream),
+            // before we could finish reading the headers.
             return Err(ProxyError::HttpConnectMalformed);
         }
 
         response_buffer.extend_from_slice(line.as_bytes());
-        if response_buffer.len() > MAX_HTTP_HEADER_BYTES {
-            return Err(ProxyError::HttpConnectMalformed);
-        }
 
         // Check for blank line (end of headers)
         if line == "\r\n" || line == "\n" {
@@ -289,8 +290,8 @@ async fn do_http_connect_handshake<R: NetStreamProvider + Send + Sync>(
     // Parse and validate response
     let _status_code = parse_http_connect_response(&response_buffer)?;
 
-    // Return the underlying stream (BufReader is dropped, stream continues)
-    Ok(reader.into_inner())
+    // Return the underlying stream (BufReader is dropped, Take is dropped, stream continues)
+    Ok(reader.into_inner().into_inner())
 }
 
 /// An error that occurs while negotiating a connection with a proxy.
