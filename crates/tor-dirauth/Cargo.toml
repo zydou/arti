@@ -31,7 +31,6 @@ __is_experimental = []
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
-anyhow = "1.0.23"
 derive_more = { version = "2.0.1", features = ["full"] }
 ipnet = "2.10"
 itertools = "0.15.0"
@@ -44,5 +43,6 @@ tor-error = { path = "../tor-error", version = "0.46.0" }
 tor-netdoc = { version = "0.46.0", path = "../tor-netdoc", features = ["full", "retain-unknown"] }
 
 [dev-dependencies]
+anyhow = "1.0.23"
 derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }
 tor-netdoc = { version = "0.46.0", path = "../tor-netdoc", features = ["full", "testing"] }
