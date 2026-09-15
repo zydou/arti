@@ -45,7 +45,7 @@ use tracing::{debug, warn};
 use crate::{
     database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Timestamp},
     err::{AuthorityRequestError, DatabaseError, OperationError},
-    types::{FlavoredConsensusSignatures, FlavoredConsensusUnverified},
+    types::FlavoredConsensusUnverified,
 };
 
 mod poc;
@@ -456,7 +456,6 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 
     /// Fetches, validates, and stores authority certificates.
-    // XXX: Adjust.
     #[allow(clippy::string_slice)] // TODO
     async fn auth_certs(
         &self,
@@ -465,23 +464,18 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         endpoint: &[SocketAddr],
         now: Timestamp,
     ) -> Result<(), OperationError> {
-        // Obtain the signatories of the current unverified consensus.
-        let signatories = match data {
-            ConsensusBoundData::Unverified { consensus, .. } => consensus.sigs().signatories(),
+        let certs_already = db::read_tx(pool, |tx| self.certs_already(tx, now))??;
+
+        // Obtain the missing authority certificate identifiers.
+        let missing = match data {
+            ConsensusBoundData::Unverified { consensus, .. } => {
+                match consensus.can_verify(self.authorities.v3idents(), &certs_already) {
+                    Err(ConsensusVerifiabilityError::MissingAuthCerts { missing, .. }) => missing,
+                    _ => return Err(OperationError::Bug(internal!("we have all auth certs"))),
+                }
+            }
             _ => return Err(OperationError::Bug(internal!("data is not unverified"))),
         };
-
-        // Obtain the missing certificate identifiers.
-        let (_, missing) = db::read_tx(pool, |tx| {
-            AuthCertMeta::query(tx, &signatories, &self.tolerance, now)
-        })??;
-        if missing.is_empty() {
-            // Although not technically fatal, retrying when the database was
-            // externally modified does not make much sense.
-            return Err(OperationError::Bug(internal!(
-                "database externally modified?"
-            )));
-        }
 
         // Compose the request.
         let mut requ = AuthCertRequest::new();
@@ -738,7 +732,7 @@ mod test {
     };
     use tor_basic_utils::test_rng::testing_rng;
 
-    use crate::{database::sql, testdata2};
+    use crate::{database::sql, testdata2, types::FlavoredConsensusSignatures};
 
     use super::*;
 
