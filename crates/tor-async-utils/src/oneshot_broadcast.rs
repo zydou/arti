@@ -138,6 +138,12 @@ struct MessageAlreadySet;
 #[allow(clippy::exhaustive_structs)]
 pub struct SenderDropped;
 
+/// All the receivers were dropped, so the channel is closed.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("all the receivers were dropped")]
+#[allow(clippy::exhaustive_structs)]
+pub struct AllReceiversDropped;
+
 /// Create a new oneshot broadcast channel.
 ///
 /// ```rust
@@ -241,6 +247,16 @@ impl<T> Sender<T> {
     // this won't return the correct value.
     pub fn is_cancelled(&self) -> bool {
         self.shared.strong_count() == 0
+    }
+
+    /// Subscribe to this channel, creating a new receiver.
+    ///
+    /// Returns an error if all the existing [`Receiver`]s (and all futures created
+    /// from the receivers) have already been dropped.
+    pub fn subscribe(&self) -> Result<Receiver<T>, AllReceiversDropped> {
+        Ok(Receiver {
+            shared: self.shared.upgrade().ok_or(AllReceiversDropped)?,
+        })
     }
 }
 
@@ -664,12 +680,14 @@ mod test {
     fn recv_multiple_times() {
         tor_rtmock::MockRuntime::test_with_various(|_rt| async move {
             let (tx, rx) = channel();
+            let rx_subscribed = tx.subscribe().unwrap();
 
             tx.send(0_u8);
             assert_eq!(rx.borrowed().await, Ok(&0));
             assert_eq!(rx.borrowed().await, Ok(&0));
             assert_eq!(rx.clone().await, Ok(0));
             assert_eq!(rx.await, Ok(0));
+            assert_eq!(rx_subscribed.await, Ok(0));
         });
     }
 

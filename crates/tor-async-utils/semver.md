@@ -1,0 +1,1 @@
+ADDED: `Sender::subscribe()`, `AllReceiversDropped`
