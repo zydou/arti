@@ -33,7 +33,10 @@ use tor_dirclient::request::{AuthCertRequest, ConsensusRequest, Requestable};
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::{internal, into_internal};
 use tor_netdoc::{
-    doc::authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
+    doc::{
+        authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
+        netstatus::ConsensusVerifiabilityError,
+    },
     parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput},
 };
 use tor_rtcompat::PreferredRuntime;
@@ -72,6 +75,7 @@ enum State {
     /// * [`State::AuthCerts`], if we miss authority certificates.
     /// * [`State::StoreConsensus`], if all authority certificates exist in the
     ///   database.
+    /// * [`State::Hibernate`], if we have insufficient trusted authorities.
     // TODO DIRMIRROR: What to do in the case of getting an invalid consensus
     // such as junk data?  The normal retry logic sounds reasonable here.
     FetchConsensus,
@@ -115,7 +119,9 @@ enum State {
     /// Hibernate because nothing is left.
     ///
     /// Transitions from:
-    /// * [`State::Descriptors`]
+    /// * [`State::FetchConsensus`], if we have insufficient trusted
+    ///   authorities.
+    /// * [`State::Descriptors`], if we have downloaded all descriptors.
     ///
     /// Transitions into:
     /// * [`State::FetchConsensus`], if the lifetime is over.
@@ -257,25 +263,20 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             // validated yet and we may not even be able due to missing
             // authority certificates.
             ConsensusBoundData::Unverified { consensus, .. } => {
-                // Check whether there any missing authority certificates that
-                // have signed the consensus.
-                let missing_certs = !AuthCertMeta::query(
-                    tx,
-                    &consensus.sigs().signatories(),
-                    &self.tolerance,
-                    now,
-                )?
-                .1
-                .is_empty();
+                let certs_already = self.certs_already(tx, now)?;
+                match consensus.can_verify(self.authorities.v3idents(), &certs_already) {
+                    // We can verify and insert the consensus.
+                    Ok(()) => State::StoreConsensus,
 
-                if missing_certs {
-                    // Missing authority certificates means we must download
-                    // them.
-                    State::AuthCerts
-                } else {
-                    // If we have all authority certificates, we can validate
-                    // and store it inside the database.
-                    State::StoreConsensus
+                    // We will never be able to verify the consensus, better
+                    // times may come ...
+                    Err(ConsensusVerifiabilityError::InsufficientTrustedSigners) => {
+                        State::Hibernate
+                    }
+
+                    // We need to fetch more authority certificates from the
+                    // network.
+                    Err(ConsensusVerifiabilityError::MissingAuthCerts { .. }) => State::AuthCerts,
                 }
             }
 
@@ -455,6 +456,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 
     /// Fetches, validates, and stores authority certificates.
+    // XXX: Adjust.
     #[allow(clippy::string_slice)] // TODO
     async fn auth_certs(
         &self,
@@ -556,6 +558,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 
     /// Hibernates for the remaining lifetime of the consensus.
+    // XXX: Adjust.
     async fn hibernate(
         &self,
         data: &mut ConsensusBoundData<T>,
