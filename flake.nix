@@ -47,7 +47,7 @@
           ];
 
           LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-          RUSTUP_TOOLCHAIN="1.91";
+          RUSTUP_TOOLCHAIN="1.92";
 
           shellHook = ''
             echo "⚠️ The Nix Development Shell is maintained by the community ⚠️"
