@@ -33,7 +33,7 @@ use tor_dirclient::request::{AuthCertRequest, ConsensusRequest, Requestable};
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::{internal, into_internal};
 use tor_netdoc::{
-    doc::authcert::{AuthCertKeyIds, AuthCertUnverified},
+    doc::authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
     parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput},
 };
 use tor_rtcompat::PreferredRuntime;
@@ -644,6 +644,71 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
 
         Ok((resp, parsed))
     }
+
+    /// Loads all authority certificates from the database into a [`Vec<AuthCert>`].
+    ///
+    /// Performance wise, it is quite inefficient as it parses and verifies all
+    /// certificates over again.  However, this should be fine as the N for
+    /// directory authorities is usually very small.
+    ///
+    /// This accepts a [`Transaction`] rather than a [`Pool`] because it is
+    /// called by [`StaticEngine::determine_state()`] and should therefore be
+    /// consistent in its view of the database with its caller.  It should not
+    /// be a problem however, as it is a read-only transaction anyways.
+    fn certs_already(
+        &self,
+        tx: &Transaction<'_>,
+        now: Timestamp,
+    ) -> Result<Vec<AuthCert>, DatabaseError> {
+        let raw_certs = AuthCertMeta::query2(tx)?
+            .into_iter()
+            .map(|meta| Ok::<_, DatabaseError>((meta, meta.data(tx)?)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut certs_already = Vec::new();
+        for (meta, raw) in raw_certs {
+            // Only used for debugging.
+            // TODO DIRMIRROR: Put this into span with tracing.
+            let key_ids = AuthCertKeyIds {
+                id_fingerprint: meta.kp_auth_id_rsa_sha1.0.into(),
+                sk_fingerprint: meta.kp_auth_sign_rsa_sha1.0.into(),
+            };
+
+            let unverified = match parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
+                &raw,
+                "<database>",
+            )) {
+                Ok(c) => c,
+                Err(e) => {
+                    // TODO DIRMIRROR: Perhaps we should remove it?
+                    debug!("unparseable auth cert ({key_ids:?}) in database: {e}");
+                    continue;
+                }
+            };
+
+            let verified = match unverified.verify(self.authorities.v3idents()) {
+                Ok(c) => c,
+                Err(e) => {
+                    debug!("ignoring invalid auth cert ({key_ids:?}): {e}");
+                    continue;
+                }
+            };
+
+            let timely = match self
+                .tolerance
+                .extend_tolerance(verified)
+                .if_valid_at(&now.into())
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    debug!("ignoring non-timely auth cert ({key_ids:?}): {e}");
+                    continue;
+                }
+            };
+            certs_already.push(timely);
+        }
+        Ok(certs_already)
+    }
 }
 
 #[cfg(test)]
@@ -908,5 +973,40 @@ mod test {
             engine.authorities.v3idents().len()
         );
         assert!(recent_authcerts.1.is_empty());
+    }
+
+    /// Checks whether we can probably load and parse all certificates from
+    /// the database.
+    #[tokio::test]
+    async fn certs_already() {
+        let pool = testdata2::test_db();
+        let engine = StaticEngine::<Plain> {
+            authorities: testdata2::current_auth_cert_contacts(),
+            tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
+            _phantom: Default::default(),
+        };
+
+        db::read_tx(&pool, |tx| {
+            // With a correct system time, this should align with all authority
+            // fingerprints we have.
+            let certs_already = engine
+                .certs_already(tx, testdata2::valid_system_time().into())
+                .unwrap();
+            assert_eq!(certs_already.len(), engine.authorities.v3idents().len());
+            assert!(certs_already.iter().all(|c| {
+                engine
+                    .authorities
+                    .v3idents()
+                    .contains(&c.dir_identity_key.to_rsa_identity())
+            }));
+
+            // With an invalid system time, it should be empty.
+            let certs_already = engine
+                .certs_already(tx, testdata2::invalid_system_time().into())
+                .unwrap();
+            assert!(certs_already.is_empty());
+        })
+        .unwrap();
     }
 }
