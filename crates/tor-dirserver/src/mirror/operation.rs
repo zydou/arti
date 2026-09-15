@@ -659,7 +659,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         tx: &Transaction<'_>,
         now: Timestamp,
     ) -> Result<Vec<AuthCert>, DatabaseError> {
-        let raw_certs = AuthCertMeta::query2(tx)?
+        let raw_certs = AuthCertMeta::query(tx)?
             .into_iter()
             .map(|meta| Ok::<_, DatabaseError>((meta, meta.data(tx)?)))
             .collect::<Result<Vec<_>, _>>()?;

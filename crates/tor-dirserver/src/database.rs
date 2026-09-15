@@ -678,7 +678,7 @@ pub(crate) struct AuthCertMeta {
 
 impl AuthCertMeta {
     /// Obtains the authority certificates from the database.
-    pub(crate) fn query2(tx: &Transaction) -> Result<Vec<Self>, DatabaseError> {
+    pub(crate) fn query(tx: &Transaction) -> Result<Vec<Self>, DatabaseError> {
         // Obtain all certificates from the database.
         //
         // This is okay because the set is not very big.
