@@ -40,7 +40,7 @@ use tor_netdoc::{
     parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput},
 };
 use tor_rtcompat::PreferredRuntime;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::{
     database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Timestamp},
@@ -510,24 +510,27 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                     return None;
                 }
 
-                let verified = unverified
-                    .verify(self.authorities.v3idents())
-                    .and_then(|v| {
-                        Ok(self
-                            .tolerance
-                            .extend_tolerance(v)
-                            .if_valid_at(&now.into())?)
-                    });
-                let verified = match verified {
-                    Ok(v) => v,
+                let verified = match unverified.verify(self.authorities.v3idents()) {
+                    Ok(c) => c,
                     Err(e) => {
-                        // TODO DIRMIRROR: Log the actual cert.
-                        warn!("received invalid auth cert: {e}",);
+                        debug!("received invalid auth cert ({kp:?}): {e}");
                         return None;
                     }
                 };
 
-                Some((verified, &resp[start..end]))
+                let timely = match self
+                    .tolerance
+                    .extend_tolerance(verified)
+                    .if_valid_at(&now.into())
+                {
+                    Ok(c) => c,
+                    Err(e) => {
+                        debug!("received non-timely auth cert ({kp:?}): {e}");
+                        return None;
+                    }
+                };
+
+                Some((timely, &resp[start..end]))
             })
             .collect::<Vec<_>>();
 
