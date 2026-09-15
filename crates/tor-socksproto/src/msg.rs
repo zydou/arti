@@ -31,7 +31,10 @@ impl TryFrom<u8> for SocksVersion {
         match v {
             4 => Ok(SocksVersion::V4),
             5 => Ok(SocksVersion::V5),
-            _ => Err(Error::BadProtocol(v)),
+            // Note that we do *not* return BadProtocol in this case.
+            // BadProtocol is only for the case when the first byte
+            // of the SOCKS handshake is invalid.
+            _ => Err(Error::Syntax),
         }
     }
 }
