@@ -872,7 +872,7 @@ mod test {
             .unwrap(),
             raw: testdata2::current_consensus_ns().2.to_owned(),
         };
-        let engine = StaticEngine {
+        let mut engine = StaticEngine {
             authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
@@ -960,6 +960,15 @@ mod test {
             .collect::<HashSet<_>>();
         let expect = engine.authorities.v3idents().iter().copied().collect();
         assert_eq!(got, expect);
+
+        // Check an edge case of not having enough trusted signers.
+        engine.authorities = AuthorityContacts::builder().build().unwrap();
+        let state = db::read_tx(&pool, |tx| {
+            engine.determine_state(tx, &data, testdata2::valid_system_time().into())
+        })
+        .unwrap()
+        .unwrap();
+        assert_eq!(state, State::Hibernate);
     }
 
     /// Checks whether we can probably load and parse all certificates from
