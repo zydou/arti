@@ -494,11 +494,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         let certs = certs
             .into_iter()
             .filter_map(|(unverified, start, end)| {
-                let unverified_body = unverified.inspect_unverified().0;
-                let kp = AuthCertKeyIds {
-                    id_fingerprint: unverified_body.dir_identity_key.to_rsa_identity(),
-                    sk_fingerprint: unverified_body.dir_signing_key.to_rsa_identity(),
-                };
+                let kp = unverified.inspect_unverified().0.key_ids();
 
                 // Skip certificates we did not asked for.
                 //
