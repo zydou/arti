@@ -13,6 +13,12 @@ pub(crate) async fn wait_for_ctrl_c() -> Result<()> {
     #[cfg(feature = "tokio")]
     {
         tokio_crate::signal::ctrl_c().await?;
+
+        // Avoid an unused crate warning when building with --all-features.
+        // (The dependency is already conditional on async-std, but Cargo.toml
+        // can't express the not(tokio).)
+        #[cfg(feature = "async-std")]
+        use async_ctrlc as _;
     }
     #[cfg(all(feature = "async-std", not(feature = "tokio")))]
     {

@@ -17,9 +17,9 @@ pub enum Change {
 }
 
 fn value_is_str(value: &Value, string: &str) -> bool {
-    matches! {
+    matches!(
         value, Value::String(s) if s.value() == string
-    }
+    )
 }
 
 impl Change {

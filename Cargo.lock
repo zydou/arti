@@ -214,7 +214,6 @@ dependencies = [
  "metrics-exporter-prometheus",
  "notify",
  "opentelemetry",
- "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry-proto",
  "opentelemetry_sdk",
@@ -3276,7 +3275,6 @@ dependencies = [
  "tor-hsservice",
  "tor-proto",
  "tracing-subscriber",
- "webpki-roots",
 ]
 
 [[package]]
@@ -3798,12 +3796,10 @@ dependencies = [
 name = "keygen-openssh-test"
 version = "0.1.0"
 dependencies = [
- "base32",
  "clap",
  "rand 0.10.2",
  "ssh-key-fork-arti",
  "tor-basic-utils",
- "tor-keymgr",
  "tor-llcrypto",
 ]
 
@@ -6190,7 +6186,6 @@ dependencies = [
  "serde_json",
  "slotmap",
  "thiserror 2.0.20",
- "void",
 ]
 
 [[package]]
@@ -7050,7 +7045,6 @@ dependencies = [
  "hex-literal",
  "humantime",
  "rand 0.10.2",
- "saturating-time",
  "thiserror 2.0.20",
  "tor-basic-utils",
  "tor-bytes",
@@ -8068,7 +8062,6 @@ dependencies = [
  "tor-protover",
  "tor-units",
  "visibility",
- "visible",
  "void",
  "web-time-compat",
  "zeroize",
@@ -8098,7 +8091,6 @@ dependencies = [
  "test-temp-dir",
  "thiserror 2.0.20",
  "time",
- "tor-async-utils",
  "tor-basic-utils",
  "tor-error",
  "tracing",
@@ -8286,7 +8278,6 @@ dependencies = [
  "thiserror 2.0.20",
  "tiny-keccak",
  "toml 1.1.4+spec-1.1.0",
- "tor-basic-utils",
  "tor-config-path",
  "tor-general-addr",
  "tor-rtcompat",
@@ -8399,7 +8390,6 @@ dependencies = [
 name = "tor-socksproto"
 version = "0.46.0"
 dependencies = [
- "amplify",
  "anyhow",
  "arbitrary",
  "caret",
@@ -8836,16 +8826,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "visible"
-version = "0.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a044005fd5c0fc1ebd79c622e5606431c6b879a6a19acafb754be9926a2de73e"
-dependencies = [
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]

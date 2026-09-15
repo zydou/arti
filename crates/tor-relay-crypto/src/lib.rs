@@ -45,6 +45,7 @@
 #![allow(clippy::collapsible_if)] // See arti#2342
 #![deny(clippy::unused_async)]
 #![deny(clippy::string_slice)] // See arti#2571
+#![allow(recursion_depth_exceeding_limit)] // arti#2715, rust/issues/159228
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod certs;
@@ -54,3 +55,13 @@ pub mod pk;
 pub use certs::{
     RelayLinkSigningKeyCert, RelaySigningKeyCert, gen_link_cert, gen_signing_cert, gen_tls_cert,
 };
+
+/// Dummy module
+///
+/// TODO MSRV 1.100, change this to `[lints.cargo]` in `Cargo.toml`.
+/// See <https://github.com/rust-lang/cargo/issues/17461>.
+#[allow(unused, clippy::single_component_path_imports)]
+mod _suppress_unused_crate_warnings {
+    // TODO RELAY drop these suppressions (deleting the dep from Cargo.toml too if not needed)
+    use tor_keymgr;
+}

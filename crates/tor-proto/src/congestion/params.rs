@@ -296,6 +296,7 @@ impl CongestionControlParams {
 
 /// Return true iff the given sendme increment is valid with regards to the value in the circuit
 /// parameters that is taken from the consensus.
+#[allow(clippy::needless_bool)] // it's clearer this way
 pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CongestionControlParams) -> bool {
     // A consensus value of 1 would allow this sendme increment to be 0 and thus
     // we have to special case it before evaluating.

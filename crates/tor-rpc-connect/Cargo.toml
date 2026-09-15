@@ -17,7 +17,6 @@ full = [
     "rpc-server",
     "fs-mistrust/full",
     "safelog/full",
-    "tor-basic-utils/full",
     "tor-config-path/full",
     "tor-general-addr/full",
     "tor-rtcompat?/full",
@@ -46,7 +45,6 @@ subtle = "2.6"
 thiserror = "2"
 tiny-keccak = { version = "2.0.2", features = ["tuple_hash"] }
 toml = "1.0.3"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.46.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.46.0", features = ["address"] }
 tor-general-addr = { path = "../tor-general-addr", version = "0.46.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.46.0", optional = true }

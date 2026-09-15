@@ -2957,19 +2957,19 @@ mod test {
         {
             let mut doc = doc.clone();
             doc.sigs.sigs.directory_signature.signature.fill(0xff);
-            assert_matches! {
+            assert_matches!(
                 doc.verify(&trusted),
                 Err(VVF::InvalidSignature(VF::VerifyFailed))
-            }
+            );
         }
 
         // wrong authority
         {
             let doc = doc.clone();
-            assert_matches! {
+            assert_matches!(
                 doc.verify(&[[0x55; _].into()]),
                 Err(VVF::InvalidSignature(VF::InsufficientTrustedSigners))
-            }
+            );
         }
 
         // authcert is for a different authority
@@ -2977,19 +2977,21 @@ mod test {
             let doc = edit_body(&|body| {
                 body.authority.authority.dir_source.identity.0 = [0x55; _].into();
             });
-            assert_matches! {
+            assert_matches!(
+                //
                 doc.verify(&trusted),
                 Err(VVF::AuthCertWrongAuthority)
-            }
+            );
         }
 
         // authcert is from a different time
         let with_mutated_lifetime = |f: &dyn Fn(&mut Lifetime)| {
             let doc = edit_body(&|body| f(&mut body.preamble.lifetime));
-            assert_matches! {
+            assert_matches!(
+                //
                 doc.verify(&trusted),
                 Err(VVF::AuthCertWrongValidity(_))
-            }
+            );
         };
         let t_past = parse_rfc3339("1990-01-01T00:02:25Z")?;
         let t_future = parse_rfc3339("2010-01-01T00:02:25Z")?;
@@ -3003,10 +3005,11 @@ mod test {
             regsub(&mut text, "^dir-key-expires ", "dir-key-expires-SABOTAGED ");
             let input = ParseInput::new(&text, file);
             let doc: UV = parse_netdoc(&input)?;
-            assert_matches! {
+            assert_matches!(
+                //
                 doc.verify(&trusted),
                 Err(VVF::AuthCertParseError(..))
-            }
+            );
         }
 
         Ok(())

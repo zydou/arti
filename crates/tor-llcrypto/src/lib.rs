@@ -45,6 +45,7 @@
 #![allow(clippy::collapsible_if)] // See arti#2342
 #![deny(clippy::unused_async)]
 #![deny(clippy::string_slice)] // See arti#2571
+#![allow(recursion_depth_exceeding_limit)] // arti#2715, rust/issues/159228
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod cipher;
@@ -53,6 +54,17 @@ pub mod pk;
 pub mod rng;
 pub mod traits;
 pub mod util;
+
+/// Dummy module
+///
+/// Not `[lints.cargo]` in `Cargo.toml` because it wants to be conditional
+#[allow(unused, clippy::single_component_path_imports)]
+mod _suppress_unused_crate_warnings {
+    // When openssl is included, these other implementation crates aren't used.
+    // Cargo.toml can't express these negative conditional dependencies.
+    #[cfg(feature = "with-openssl")]
+    use {aes, ctr, sha1};
+}
 
 #[doc(hidden)]
 pub use derive_deftly;
