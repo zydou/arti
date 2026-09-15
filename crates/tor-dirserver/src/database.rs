@@ -59,17 +59,14 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::{
-    OptionalExtension, ToSql, Transaction, TransactionBehavior, named_params, params,
+    ToSql, Transaction, TransactionBehavior, named_params, params,
     types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef},
 };
 use saturating_time::SaturatingTime;
 use tor_basic_utils::RngExt;
 use tor_dircommon::config::DirTolerance;
 use tor_error::{internal, into_internal};
-use tor_netdoc::doc::{
-    authcert::{AuthCert, AuthCertKeyIds},
-    netstatus::ConsensusFlavor,
-};
+use tor_netdoc::doc::{authcert::AuthCert, netstatus::ConsensusFlavor};
 
 use crate::{
     err::DatabaseError,
@@ -680,95 +677,6 @@ pub(crate) struct AuthCertMeta {
 }
 
 impl AuthCertMeta {
-    /// Obtain the most recently published and valid certificate for each authority.
-    ///
-    /// Returns the found [`AuthCertMeta`] items as well as the missing
-    /// [`AuthCertKeyIds`].
-    ///
-    /// # Performance
-    ///
-    /// This function has a performance between `O(n * log n)` and `O(n^2)`
-    /// because it performs `signatories.len()` database queries, with each
-    /// database query potentially taking something between `O(log n)` to
-    /// `O(n)` to execute.  However, given that this respective value is
-    /// oftentimes fairly small, it should not be much of a big concern.
-    // XXX: Remove this.
-    pub(crate) fn query(
-        tx: &Transaction,
-        signatories: &[AuthCertKeyIds],
-        tolerance: &DirTolerance,
-        now: Timestamp,
-    ) -> Result<(Vec<Self>, Vec<AuthCertKeyIds>), DatabaseError> {
-        // For every key pair in `signatories`, get the most recent valid cert.
-        //
-        // This query selects the most recent timestamp valid certificate from
-        // the database for a single given key pair.  It means that this query
-        // has to be executed as many times as there are entries in
-        // `signatories`.
-        //
-        // Unfortunately, there is no neater way to do this, because the
-        // alternative would involve using a nested set which SQLite does not
-        // support, even with the carray extension.  An alternative might be to
-        // precompute that string and then insert it here using `format!` but
-        // that feels hacky, error- and injection-prone.
-        //
-        // Parameters:
-        // :id_rsa: The RSA identity key fingerprint in uppercase hexadecimal.
-        // :sk_rsa: The RSA signing key fingerprint in uppercase hexadecimal.
-        // :now: The current system timestamp.
-        // :pre_tolerance: The tolerance for not-yet-valid certificates.
-        // :post_tolerance: The tolerance for expired certificates.
-        let mut stmt = tx.prepare_cached(sql!(
-            "
-            SELECT docid, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1,
-              dir_key_published, dir_key_expires
-            FROM authority_key_certificate
-            WHERE
-              (:id_rsa, :sk_rsa) = (kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1)
-              AND :now >= dir_key_published - :pre_tolerance
-              AND :now <= dir_key_expires + :post_tolerance
-            ORDER BY dir_key_published DESC
-            LIMIT 1
-            "
-        ))?;
-
-        // Keep track of the found (and parsed) certificates and the missing ones.
-        let mut found = Vec::new();
-        let mut missing = Vec::new();
-
-        // Iterate over every key pair and query it, adding it to found if it exists
-        // and was parsed successfully or to missing if it does not exist within the
-        // database.
-        for kp in signatories {
-            // Query the certificate from the database.
-            let res = stmt
-            .query_one(
-                named_params! {
-                    ":id_rsa": kp.id_fingerprint.as_hex_upper(),
-                    ":sk_rsa": kp.sk_fingerprint.as_hex_upper(),
-                    ":now": now,
-                    ":pre_tolerance": tolerance.pre_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
-                    ":post_tolerance": tolerance.post_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
-                },
-                |row| Ok(Self {
-                    docid: row.get(0)?,
-                    kp_auth_id_rsa_sha1: row.get(1)?,
-                    kp_auth_sign_rsa_sha1: row.get(2)?,
-                    dir_key_published: row.get(3)?,
-                    dir_key_expires: row.get(4)?,
-                })
-            )
-            .optional()?;
-
-            match res {
-                Some(cert) => found.push(cert),
-                None => missing.push(*kp),
-            }
-        }
-
-        Ok((found, missing))
-    }
-
     /// Obtains the authority certificates from the database.
     pub(crate) fn query2(tx: &Transaction) -> Result<Vec<Self>, DatabaseError> {
         // Obtain all certificates from the database.
