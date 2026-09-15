@@ -731,7 +731,7 @@ mod test {
     };
     use tor_basic_utils::test_rng::testing_rng;
 
-    use crate::{database::sql, testdata2, types::FlavoredConsensusSignatures};
+    use crate::{database::sql, testdata2};
 
     use super::*;
 
@@ -947,28 +947,19 @@ mod test {
             .unwrap(),
             State::StoreConsensus
         );
-        let recent_authcerts = db::read_tx(&pool, |tx| {
-            AuthCertMeta::query(
-                tx,
-                &parse2::parse_netdoc::<Plain>(&ParseInput::new(
-                    testdata2::current_consensus_ns().2,
-                    "",
-                ))
-                .unwrap()
-                .sigs()
-                .signatories(),
-                &DirTolerance::default(),
-                testdata2::valid_system_time().into(),
-            )
+        // Check whether we now have all auth certs in the database.
+        let certs = db::read_tx(&pool, |tx| {
+            engine.certs_already(tx, testdata2::valid_system_time().into())
         })
         .unwrap()
         .unwrap();
-        // TODO DIRMIRROR: Compare more than just length.
-        assert_eq!(
-            recent_authcerts.0.len(),
-            engine.authorities.v3idents().len()
-        );
-        assert!(recent_authcerts.1.is_empty());
+
+        let got = certs
+            .into_iter()
+            .map(|c| c.dir_identity_key.to_rsa_identity())
+            .collect::<HashSet<_>>();
+        let expect = engine.authorities.v3idents().iter().copied().collect();
+        assert_eq!(got, expect);
     }
 
     /// Checks whether we can probably load and parse all certificates from
