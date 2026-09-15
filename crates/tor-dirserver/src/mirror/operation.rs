@@ -551,17 +551,20 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 
     /// Hibernates for the remaining lifetime of the consensus.
-    // XXX: Adjust.
     async fn hibernate(
         &self,
         data: &mut ConsensusBoundData<T>,
         now: Timestamp,
     ) -> Result<(), OperationError> {
         match data {
-            ConsensusBoundData::None | ConsensusBoundData::Unverified { .. } => {
-                // This should not happen, we only enter hibernation in a state
-                // that already has a verified consensus.
-                return Err(internal!("hibernating without a verified consensus?").into());
+            ConsensusBoundData::None => {
+                return Err(internal!("hibernating without a consensus?").into());
+            }
+            ConsensusBoundData::Unverified { .. } => {
+                // TODO DIRMIRROR: This requires further consideration, as we
+                // cannot simply hibernate based on the time in the unverified
+                // consensus.
+                todo!()
             }
             ConsensusBoundData::Verified { lifetime, .. } => {
                 let timeout = *lifetime - now;
