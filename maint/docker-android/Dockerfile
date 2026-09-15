@@ -1,4 +1,4 @@
-FROM rust:1.91.0-bullseye
+FROM rust:1.92.0-bullseye
 
 RUN set -eux; \
 	apt-get update; \
