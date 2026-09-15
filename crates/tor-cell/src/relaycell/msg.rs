@@ -1091,6 +1091,10 @@ impl Resolve {
             query: query.into_bytes(),
         }
     }
+    /// Return a reference to the ASCII-encoded address from this message.
+    pub fn query(&self) -> &[u8] {
+        &self.query
+    }
 }
 impl Body for Resolve {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
