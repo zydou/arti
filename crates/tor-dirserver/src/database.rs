@@ -118,7 +118,7 @@ macro_rules! impl_hash_wrapper {
         /// Serves as a database friendly wrapper around [`tor_llcrypto::d`]
         /// with features such as SQL support.
         #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-        pub(crate) struct $name([u8; $size]);
+        pub(crate) struct $name(pub [u8; $size]);
 
         impl $name {
             /// Computes the hash from arbitrary data.
