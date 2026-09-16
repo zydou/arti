@@ -190,6 +190,7 @@ impl RouterStatus {
                 publication: IgnoredPublicationTimeSp,
                 ip,
                 dir_port: 0,
+                __non_exhaustive: (),
             },
             m: m_doc_digest.into(),
             a,
@@ -200,6 +201,7 @@ impl RouterStatus {
             port_policy: ns_expr!(None, NotPresent, Void {}),
             ed25519_id: NotPresent,
             stats: NotPresent,
+            __non_exhaustive: (),
         })
     }
 }
