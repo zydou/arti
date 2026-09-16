@@ -36,6 +36,55 @@ LAST_VERSION=1.1.5
 THIS_VERSION=1.1.6
 ```
 
+## Prepare for confidential security patches (~1 week before release)
+
+1. [ ] Check for the existence of a confidential meta-issue
+   titled "Private security patch tracking",
+   and ensure that it has the "Blocker" label.
+
+2. [ ] If the above meta-issue doesn't exist,
+   there are no confidential security patches for this release,
+   so skip the remainder of this section.
+
+    NOTE: During the final release preparation,
+    we will check for additional security patches that were not listed in this meta-issue.
+
+3. [ ] In a *private* arti repository, create an `arti-next` branch.
+
+    This new branch should be up to date with the arti repository's main branch.
+
+    The repository should be accessible by all arti team members.
+    You can get a list of arti team members at:
+
+    <https://gitlab.torproject.org/tpo/core/arti/-/project_members>
+
+    and add members who have a "Maintainer" or "Owner" role.
+
+    **TODO:** If we continue with this process in the future,
+    we should make a permanent private arti repository that we can reuse in all future releases.
+
+4. [ ] For each security patch listed in the meta-issue,
+   merge it into `arti-next`.
+
+    If there are conflicts, attempt to fix the conflicts manually,
+    or ask the patch author for help.
+    If the changes required to fix a conflict are more than trivial changes,
+    you should inform the author of that patch.
+
+5. [ ] Ensure that CI passes with all of the security patches.
+
+## Finalize confidential security patches (~3 day before release)
+
+1. [ ] Look over all confidential issues for any that have patches not listed
+   in a "Private security patch tracking" meta-issue.
+
+    If there any that seem like they have a patch,
+    but have not been added to the meta-issue,
+    ask the patch author if they should be added to the meta-issue.
+    Don't add a patch without confirming with the author beforehand.
+
+2. [ ] Repeat steps in "Prepare for confidential security patches" section above.
+
 ## Are we ready to release?
 
 Before we can finally release, we need to check a few things
@@ -53,6 +102,13 @@ to make sure we aren't going to break our users.
 
 [issues]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Blocker
 [merge requests]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/?label_name[]=Blocker
+
+4. [ ] Ensure that [issues tagged "Security Patch Approved"][security-patch-approved] are all listed
+   in the "Private security patch tracking" meta-issue.
+
+[security-patch-approved]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Security%20Patch%20Approved
+
+    If not, add them and repeat the steps from "Finalize confidential security patches" above.
 
 4. [ ] Ensure `maint/fixup-features` is happy
 
@@ -196,6 +252,15 @@ before you continue!
 0. [ ] Tell `network-team` (via email and IRC) that the tree is now frozen,
    and no MRs should be merged.
 
+1. [ ] Recheck for [issues tagged "Security Patch Approved"][security-patch-approved]
+   that are not listed in the "Private security patch tracking" meta-issue.
+
+2. [ ] Repeat steps in "Finalize confidential security patches" section.
+
+3. [ ] Merge changes from the private `arti-next` branch into the arti `main` branch.
+
+    If there are merge conflicts, fix them manually and hope for the best.
+
 1. [ ] Finalize the changelog.
 
    Make sure that the date is correct.
@@ -331,6 +396,11 @@ before you continue!
    to add them as owners for the new crates.
 
 5. [ ] Write and publish a blog post.
+
+6. [ ] For each security patch listed in the "Private security patch tracking" meta-issue,
+   check if the issue associated with the patch should be closed.
+
+    Don't close an issue unless meta-issue says to close it.
 
 ### In due course
 
