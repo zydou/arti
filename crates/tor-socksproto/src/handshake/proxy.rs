@@ -86,9 +86,9 @@ impl SocksProxyHandshake {
 
     /// Complete a socks4 or socks4a handshake.
     fn s4(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
-        let version = r.take_u8()?.try_into()?;
-        if version != SocksVersion::V4 {
-            return Err(internal!("called s4 on wrong type {:?}", version).into());
+        let version_number = r.take_u8()?;
+        if version_number.try_into() != Ok(SocksVersion::V4) {
+            return Err(internal!("called s4 on wrong type {:?}", version_number).into());
         }
 
         let cmd: SocksCmd = r.take_u8()?.into();
@@ -116,7 +116,7 @@ impl SocksProxyHandshake {
             SocksAddr::Ip(ip4.into())
         };
 
-        let request = SocksRequest::new(version, cmd, addr, port, auth)?;
+        let request = SocksRequest::new(SocksVersion::V4, cmd, addr, port, auth)?;
 
         self.state = State::Done;
         self.handshake = Some(request);
@@ -127,9 +127,9 @@ impl SocksProxyHandshake {
     /// Socks5: initial handshake to negotiate authentication method.
     fn s5_initial(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         use super::{NO_AUTHENTICATION, USERNAME_PASSWORD};
-        let version: SocksVersion = r.take_u8()?.try_into()?;
-        if version != SocksVersion::V5 {
-            return Err(internal!("called on wrong handshake type {:?}", version).into());
+        let version_number = r.take_u8()?;
+        if version_number.try_into() != Ok(SocksVersion::V5) {
+            return Err(internal!("called on wrong handshake type {:?}", version_number).into());
         }
 
         let nmethods = r.take_u8()?;
@@ -173,11 +173,13 @@ impl SocksProxyHandshake {
 
     /// Socks5: final step, to receive client's request.
     fn s5(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
-        let version: SocksVersion = r.take_u8()?.try_into()?;
-        if version != SocksVersion::V5 {
-            return Err(
-                internal!("called s5 on non socks5 handshake with type {:?}", version).into(),
-            );
+        let version_number = r.take_u8()?;
+        if version_number.try_into() != Ok(SocksVersion::V5) {
+            return Err(internal!(
+                "called s5 on non socks5 handshake with type {:?}",
+                version_number
+            )
+            .into());
         }
         let cmd = r.take_u8()?.into();
         let _ignore = r.take_u8()?;
@@ -189,7 +191,7 @@ impl SocksProxyHandshake {
             .take()
             .ok_or_else(|| internal!("called s5 without negotiating auth"))?;
 
-        let request = SocksRequest::new(version, cmd, addr, port, auth)?;
+        let request = SocksRequest::new(SocksVersion::V5, cmd, addr, port, auth)?;
 
         self.state = State::Done;
         self.handshake = Some(request);
