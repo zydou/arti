@@ -259,11 +259,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             // State::LoadConsensus.  Depending on this, we download the missing
             // network documents (descriptors) from a directory authority, if
             // any.
-            ConsensusBoundData::Verified {
-                consensus,
-                ttl,
-                ..
-            } => {
+            ConsensusBoundData::Verified { consensus, ttl, .. } => {
                 if *ttl <= now {
                     // The ttl has been surpassed, download a new
                     // consensus.  It is very important TO NOT transition to
@@ -352,10 +348,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         .ok_or(internal!("database externally modified?"))?;
         let ttl = consensus.ttl(rng);
 
-        *data = ConsensusBoundData::Verified {
-            consensus,
-            ttl,
-        };
+        *data = ConsensusBoundData::Verified { consensus, ttl };
         Ok(())
     }
 
@@ -728,11 +721,7 @@ mod test {
 
         // El-cheapo assert_eq due to lack of PartialEq for tor-netdoc poc.
         match data {
-            ConsensusBoundData::Verified {
-                consensus,
-                ttl,
-                ..
-            } => {
+            ConsensusBoundData::Verified { consensus, ttl, .. } => {
                 // If everything worked properly, then the queue should only
                 // contain the relay we removed, because that is missing now.
                 db::read_tx(&pool, |tx| {
