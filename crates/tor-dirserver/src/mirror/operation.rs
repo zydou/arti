@@ -514,13 +514,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             ConsensusBoundData::None => {
                 return Err(internal!("hibernating without a consensus?").into());
             }
-            ConsensusBoundData::Unverified { .. } => {
-                // TODO DIRMIRROR: This requires further consideration, as we
-                // cannot simply hibernate based on the time in the unverified
-                // consensus.
-                todo!()
-            }
-            ConsensusBoundData::Verified { ttl, .. } => {
+            ConsensusBoundData::Verified { ttl, .. } | ConsensusBoundData::Unverified { ttl, .. } => {
                 let timeout = *ttl - now;
                 debug!("hibernating for {}s", timeout.as_secs());
                 tokio::time::sleep(timeout).await;
