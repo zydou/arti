@@ -30,6 +30,46 @@ We treat API weaknesses that _promote_ insecure usage of Arti as security
 vulnerabilities.  It is not a security bug if an API weakness only _permits_
 insecure usage of Arti.
 
+
+## When do we assign identifiers to security vulnerabilities?
+
+### TROVEs:
+
+We only publish TROVEs for "stable" artifacts that can be built
+(or are bundled in releases) from the Arti repository.
+This means that we only publish TROVEs for arti,
+and arti-relay/arti-dirauth in the future once they are stable.
+If a vulnerability in a lower-level crate is not exploitable in these artifacts,
+then we do not publish a TROVE.
+We do not publish TROVEs for issues that require enabling experimental
+features.
+
+Past examples: <https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE>
+
+### RustSec advisories:
+
+We publish RustSec advisories for issues in any published crate we deem
+to have "high" or "critical" severity according to our
+[TROVE guidelines](https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/SecurityPolicy#how-will-the-developers-handle-security-issues).
+For consistency, we use these TROVE guidelines to determine the severity
+even if we're not publishing a TROVE.
+We do not publish RustSec advisories for issues that require enabling
+experimental features.
+
+This means that "medium" and lower severity security issues are not documented
+or published anywhere outside of the issue tracker.
+
+If third parties wish to publish RustSec advisories for our crates for less-serious issues,
+we will review them for accuracy,
+participating in the RustSec review process (currently, GitHub MR review).
+
+Past examples: <https://rustsec.org/packages/tor-circmgr.html>
+
+### CVEs:
+
+We do not apply for CVEs for any Arti security issues.
+
+
 ## How will we track vulnerabilities?
 
 Vulnerabilities are tracked in Tor's
