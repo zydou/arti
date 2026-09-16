@@ -26,7 +26,7 @@ mod time;
 #[derive(Debug, Clone, Deftly, Eq, PartialEq)]
 #[derive_deftly(TorConfig)]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = pub)))]
 pub(crate) struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr>
@@ -34,14 +34,14 @@ pub(crate) struct LoggingConfig {
     /// You can override this setting with the -l, --log-level command line parameter.
     ///
     /// Example: "info,tor_proto::channel=trace"
-    #[deftly(tor_config(default = "default_console_filter()"))]
+    #[deftly(tor_config(default = default_console_filter()))]
     console: Option<String>,
 
     /// Filtering directives for the journald logger.
     ///
     /// Only takes effect if Arti is built with the `journald` filter.
     #[deftly(tor_config(
-        build = r#"|this: &Self| tor_config::resolve_option(&this.journald, || None)"#
+        build = { |this: &Self| tor_config::resolve_option(&this.journald, || None) }
     ))]
     journald: Option<String>,
 
@@ -49,16 +49,16 @@ pub(crate) struct LoggingConfig {
     ///
     /// Only takes effect if Arti is built with the `syslog` feature.
     #[deftly(tor_config(
-        cfg = r#"all(feature = "syslog", unix)"#,
+        cfg = { all(feature = "syslog", unix) },
         cfg_desc = "with syslog support",
-        default = r#"Some("".into())"#,
+        default = Some("".into()),
     ))]
     syslog: Option<String>,
 
     /// Configuration for logging spans with OpenTelemetry.
     #[deftly(tor_config(
         sub_builder,
-        cfg = r#" feature = "opentelemetry" "#,
+        cfg = { feature = "opentelemetry" },
         cfg_desc = "with opentelemetry support"
     ))]
     opentelemetry: OpentelemetryConfig,
@@ -66,7 +66,7 @@ pub(crate) struct LoggingConfig {
     /// Configuration for passing information to tokio-console.
     #[deftly(tor_config(
         sub_builder,
-        cfg = r#" feature = "tokio-console" "#,
+        cfg = { feature = "tokio-console" },
         cfg_desc = "with tokio-console support"
     ))]
     tokio_console: TokioConsoleConfig,
@@ -74,7 +74,7 @@ pub(crate) struct LoggingConfig {
     /// Configuration for one or more logfiles.
     ///
     /// The default is not to log to any files.
-    #[deftly(tor_config(list(element(build), listtype = "LogfileList"), default = "vec![]"))]
+    #[deftly(tor_config(list(element(build), listtype = LogfileList), default = vec![]))]
     files: Vec<LogfileConfig>,
 
     /// If set to true, we disable safe logging on _all logs_, and store
@@ -104,7 +104,7 @@ pub(crate) struct LoggingConfig {
     /// "2.5s", we may treat it as if you had said "3s."
     ///
     /// The default is "1s", or one second.
-    #[deftly(tor_config(default = "std::time::Duration::new(1,0)"))]
+    #[deftly(tor_config(default = std::time::Duration::new(1,0)))]
     time_granularity: std::time::Duration,
 }
 
@@ -119,7 +119,7 @@ fn default_console_filter() -> Option<String> {
 #[derive_deftly(TorConfig)]
 #[deftly(tor_config(no_default_trait))]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = pub)))]
 pub(crate) struct LogfileConfig {
     /// How often to rotate the file?
     #[deftly(tor_config(default))]
@@ -152,7 +152,7 @@ pub(crate) enum LogRotation {
 #[derive_deftly(TorConfig)]
 #[cfg(feature = "tokio-console")]
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = "pub")))]
+#[cfg_attr(feature = "experimental-api", deftly(tor_config(vis = pub)))]
 pub(crate) struct TokioConsoleConfig {
     /// If true, the tokio console subscriber should be enabled.
     ///
