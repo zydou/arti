@@ -424,7 +424,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     /// # Specifications
     ///
     /// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#download-ns-from-auth>
-    pub(crate) fn lifetime<R: Rng>(&self, rng: &mut R) -> Timestamp {
+    pub(crate) fn ttl<R: Rng>(&self, rng: &mut R) -> Timestamp {
         assert!(self.fresh_until < self.valid_until);
 
         let offset = rng
@@ -1626,7 +1626,7 @@ mod test {
             flavor: Default::default(),
         };
         for _ in 0..10000 {
-            let when = cons.lifetime(&mut testing_rng());
+            let when = cons.ttl(&mut testing_rng());
             assert!(when >= lifetime.fresh_until.0.into());
             // Computes the half between fresh_until and valid_until.
             assert!(

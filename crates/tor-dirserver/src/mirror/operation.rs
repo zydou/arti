@@ -64,8 +64,8 @@ enum State {
     ///
     /// Transitions from:
     /// * Start, if no recent valid consensus exists in the database.
-    /// * [`State::Descriptors`], if lifetime is over.
-    /// * [`State::Hibernate`], if lifetime is over.
+    /// * [`State::Descriptors`], if ttl is over.
+    /// * [`State::Hibernate`], if ttl is over.
     ///
     /// Transitions into:
     /// * [`State::AuthCerts`], if we miss authority certificates.
@@ -107,7 +107,7 @@ enum State {
     /// * [`State::Descriptors`], if we still have missing descriptors left.
     ///
     /// Transitions into:
-    /// * [`State::FetchConsensus`], if lifetime is over.
+    /// * [`State::FetchConsensus`], if ttl is over.
     /// * [`State::Descriptors`], if we still have missing descriptors left.
     /// * [`State::Hibernate`], if nothing is left.
     Descriptors,
@@ -120,7 +120,7 @@ enum State {
     /// * [`State::Descriptors`], if we have downloaded all descriptors.
     ///
     /// Transitions into:
-    /// * [`State::FetchConsensus`], if the lifetime is over.
+    /// * [`State::FetchConsensus`], if the ttl is over.
     Hibernate,
 }
 
@@ -191,7 +191,7 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
         consensus: ConsensusMeta<T>,
 
         /// When to stop dealing with this consensus and fetching a new one.
-        lifetime: Timestamp,
+        ttl: Timestamp,
     },
 }
 
@@ -261,11 +261,11 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             // any.
             ConsensusBoundData::Verified {
                 consensus,
-                lifetime,
+                ttl,
                 ..
             } => {
-                if *lifetime <= now {
-                    // The lifetime has been surpassed, download a new
+                if *ttl <= now {
+                    // The ttl has been surpassed, download a new
                     // consensus.  It is very important TO NOT transition to
                     // State::LoadConsensus here, because the current consensus
                     // may still be valid but not fresh anymore, in which case
@@ -277,11 +277,11 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                     && consensus.missing_micros(tx, Some(1))?.is_empty()
                     && consensus.missing_extras(tx, Some(1))?.is_empty()
                 {
-                    // All queues are empty, meaning we are done, until lifetime
+                    // All queues are empty, meaning we are done, until ttl
                     // ends.
                     State::Hibernate
                 } else {
-                    // The lifetime has not been surpassed and we have stuff
+                    // The ttl has not been surpassed and we have stuff
                     // to download, so we need to obtain the descriptors.
                     State::Descriptors
                 }
@@ -329,7 +329,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     ///
     /// This method does the following:
     /// * Load the most recent valid consensus from the database.
-    /// * Compute the lifetime for it.
+    /// * Compute the ttl for it.
     /// * Compute the missing descriptors for it.
     fn load_consensus<R: Rng>(
         &self,
@@ -350,11 +350,11 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         })??
         .first()
         .ok_or(internal!("database externally modified?"))?;
-        let lifetime = consensus.lifetime(rng);
+        let ttl = consensus.ttl(rng);
 
         *data = ConsensusBoundData::Verified {
             consensus,
-            lifetime,
+            ttl,
         };
         Ok(())
     }
@@ -487,7 +487,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         Ok(())
     }
 
-    /// Hibernates for the remaining lifetime of the consensus.
+    /// Hibernates for the remaining ttl of the consensus.
     async fn hibernate(
         &self,
         data: &mut ConsensusBoundData<T>,
@@ -503,8 +503,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // consensus.
                 todo!()
             }
-            ConsensusBoundData::Verified { lifetime, .. } => {
-                let timeout = *lifetime - now;
+            ConsensusBoundData::Verified { ttl, .. } => {
+                let timeout = *ttl - now;
                 debug!("hibernating for {}s", timeout.as_secs());
                 tokio::time::sleep(timeout).await;
             }
@@ -730,7 +730,7 @@ mod test {
         match data {
             ConsensusBoundData::Verified {
                 consensus,
-                lifetime,
+                ttl,
                 ..
             } => {
                 // If everything worked properly, then the queue should only
@@ -744,8 +744,8 @@ mod test {
                     assert!(consensus.missing_micros(tx, None).unwrap().is_empty());
                 })
                 .unwrap();
-                assert!(lifetime >= fresh_until);
-                assert!(lifetime <= fresh_until_half);
+                assert!(ttl >= fresh_until);
+                assert!(ttl <= fresh_until_half);
             }
             _ => panic!("data is not verified"),
         }
