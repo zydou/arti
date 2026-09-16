@@ -1632,7 +1632,17 @@ define_derive_deftly! {
     /// build system.
     ///
     /// See [module documentation](crate::derive) for more information and usage instructions.
-    export TorConfig beta_deftly, for struct:
+    //
+    // `meta_quoted strip` means that
+    //     #[deftly(tor_config(default = "something"))]
+    // means to try to parse "something" as Rust code.  That means the syntax for specifying
+    // a string literals for a default value is clumsy, but that's not a useful thing to do
+    // since config fields don't have fields of type `&str`.
+    //
+    // All the other `as expr` want functions or something, so `strip` is right.
+    //
+    // `cfg_desc` is `as str`, which doesn't try to strip quotes and reparse.
+    export TorConfig beta_deftly, for struct, meta_quoted strip:
 
     #[allow(unused_imports)]
     use $crate::derive::exports as $<__tor_config_exports__ $tname>;
