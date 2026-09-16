@@ -1765,17 +1765,13 @@ define_derive_deftly! {
     }}
 
     // Visibility for the builder type.
-    //
-    // TODO: d-d has no ` .. as vis`, which is what really want.
-    // https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/issues/137
-    // (also, below)
     ${define BLD_TVIS
-        ${tmeta(tor_config(vis)) as token_stream, default $tvis}
+        ${tmeta(tor_config(vis)) as vis, default $tvis}
     }
 
     // Visibility for the current field in the builder type.
     ${define BLD_FVIS
-        ${fmeta(tor_config(field(vis))) as token_stream, default {} }
+        ${fmeta(tor_config(field(vis))) as vis, default {} }
     }
 
     // True if we want to derive Flattenable for the builder type
@@ -1787,7 +1783,7 @@ define_derive_deftly! {
     // Expands to the visibility for the current setter/accessor,
     // and for any types that we generate for it to expose.
     ${define SETTER_VIS {
-        ${fmeta(tor_config(setter(vis))) as token_stream, default $BLD_TVIS}
+        ${fmeta(tor_config(setter(vis))) as vis, default $BLD_TVIS}
     }}
 
     // -------------------
@@ -2230,7 +2226,7 @@ define_derive_deftly! {
 
     // Expands to the visibility of the build method.
     ${define BLD_FN_VIS {
-        ${tmeta(tor_config(build_fn(vis))) as token_stream, default $BLD_TVIS}
+        ${tmeta(tor_config(build_fn(vis))) as vis, default $BLD_TVIS}
     }}
 
     // -------------------
