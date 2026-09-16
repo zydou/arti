@@ -110,7 +110,7 @@ to make sure we aren't going to break our users.
 
     If not, add them and repeat the steps from "Finalize confidential security patches" above.
 
-4. [ ] Ensure `maint/fixup-features` is happy
+5. [ ] Ensure `maint/fixup-features` is happy
 
    Does `maint/fixup-features` produce any results?
    If so, fix them.
@@ -125,7 +125,7 @@ to make sure we aren't going to break our users.
    improperly formatted and/or sorted.
    You'll probably need to run `cargo sort` too; see `maint/cargo-sort`.
 
-5. [ ] Does `maint/semver-checks "arti-v$LAST_VERSION" | tee ../semver.log` find any issues
+6. [ ] Does `maint/semver-checks "arti-v$LAST_VERSION" | tee ../semver.log` find any issues
    not noted in our semver.md files?
    If so, add them.
 
@@ -142,7 +142,7 @@ release" below.
 Note that you can do these steps _in parallel_ with "are we ready to
 release?" above.
 
-4. [ ] Write a changelog.
+1. [ ] Write a changelog.
 
    I start by copying the [changelog template](./ChangelogTemplate.md),
    and filling in the version and date.
@@ -165,7 +165,7 @@ release?" above.
 
    See below for our current [changelog style guide](#changelog-style-guide).
 
-5. [ ] Finish the changelog.
+2. [ ] Finish the changelog.
 
    When the changelog is done, run
    `maint/update-md-links CHANGELOG.md`
@@ -186,7 +186,7 @@ release?" above.
 
    Add an acknowledgement for the current sponsor(s).
 
-6. [ ] Determine what semver/version update to do to each crate.
+3. [ ] Determine what semver/version update to do to each crate.
 
    We need to sort our crates into the following tiers.
     * Unstable (0.x) `tor-*` and `arti-*` crates.
@@ -249,25 +249,25 @@ Wait! Go back and make sure
 that you have done everything in the previous sections
 before you continue!
 
-0. [ ] Tell `network-team` (via email and IRC) that the tree is now frozen,
+1. [ ] Tell `network-team` (via email and IRC) that the tree is now frozen,
    and no MRs should be merged.
 
-1. [ ] Recheck for [issues tagged "Security Patch Approved"][security-patch-approved]
+2. [ ] Recheck for [issues tagged "Security Patch Approved"][security-patch-approved]
    that are not listed in the "Private security patch tracking" meta-issue.
 
-2. [ ] Repeat steps in "Finalize confidential security patches" section.
+3. [ ] Repeat steps in "Finalize confidential security patches" section.
 
-3. [ ] Merge changes from the private `arti-next` branch into the arti `main` branch.
+4. [ ] Merge changes from the private `arti-next` branch into the arti `main` branch.
 
     If there are merge conflicts, fix them manually and hope for the best.
 
-1. [ ] Finalize the changelog.
+5. [ ] Finalize the changelog.
 
    Make sure that the date is correct.
    Make sure that the acknowledgments and links are correct,
    if they might have gotten stale.
 
-2. [ ] Increase all appropriate version numbers.
+6. [ ] Increase all appropriate version numbers.
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
@@ -298,7 +298,7 @@ before you continue!
 		(cd crates/equix/bench && cargo update)
 ```
 
-3. [ ] (Re)run `maint/semver-checks` (having addressed any expected problems)
+7. [ ] (Re)run `maint/semver-checks` (having addressed any expected problems)
 
    Check for side effects from bumping versions!
 
@@ -329,7 +329,7 @@ before you continue!
    Run `maint/semver-checks` again:
    It should be quiet now that you bumped all the versions.
 
-4. [ ] Run `maint/update-release-date`
+8. [ ] Run `maint/update-release-date`
 
    This makes sure that Arti has an accurate sense of when its version was bumped.
 
@@ -386,7 +386,7 @@ before you continue!
 
 ### Soon
 
-4. [ ] If new crates published, add appropriate owners.
+1. [ ] If new crates published, add appropriate owners.
 
    Did you create any new crates?
    If so, you need to make sure that they are owned (on crates.io)
@@ -395,9 +395,9 @@ before you continue!
    You can then use `cargo owner --add <username> <crate-name>`
    to add them as owners for the new crates.
 
-5. [ ] Write and publish a blog post.
+2. [ ] Write and publish a blog post.
 
-6. [ ] For each security patch listed in the "Private security patch tracking" meta-issue,
+3. [ ] For each security patch listed in the "Private security patch tracking" meta-issue,
    check if the issue associated with the patch should be closed.
 
     Don't close an issue unless meta-issue says to close it.
@@ -408,7 +408,7 @@ before you continue!
    dependencies get things wrong.  In that case, adding a dependency
    to `maint/dependencies-bodge/` can help.
 
-6. [ ] Consider dependency updates for breaking changes in our dependencies.
+1. [ ] Consider dependency updates for breaking changes in our dependencies.
 
    Check for breaking changes to our dependencies with
    `cargo upgrade --dry-run --compatible=ignore --incompatible=allow`.
@@ -434,7 +434,7 @@ before you continue!
    If the reason you can't upgrade is a bug in the dependency,
    or _accidental_ MSRV breakage, file a bug upstream.
 
-7. [ ] Consider updating CI Docker images.
+2. [ ] Consider updating CI Docker images.
 
    Look in `.gitlab-ci.yml` for docker images that we specify a specific version for.
    These are the `image:` items within each job.
@@ -446,14 +446,14 @@ before you continue!
    Note that some images may intentionally specify older versions,
    such as our `minimal-versions` test which is currently used to test our MSRV as well.
 
-8. [ ] Look at the current list of exceptions in our automated tooling.
+3. [ ] Look at the current list of exceptions in our automated tooling.
 
    Are they still relevant? There are exceptions in:
     * `maint/cargo-audit`
     * `maint/check-licenses`
     * `maint/dependencies-bodge/Cargo.toml`
 
-8. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
+4. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
 
    If anything was janky or didn't go as planned, and you can see how
    to improve it, please fix it - here or in the relevant tooling.
