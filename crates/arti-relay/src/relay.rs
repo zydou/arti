@@ -454,7 +454,7 @@ impl<R: Runtime> TorRelay<R> {
         // Listen for new Tor streams
         task_handles.spawn(
             // TODO: Should we give all tasks a `start` method?
-            crate::stream::handle_incoming_streams(runtime, begin_dir_tx, self.circuit_stream_rx),
+            crate::stream::handle_incoming_streams(runtime, begin_dir_tx, self.circuit_stream_rx, resolver),
         );
 
         // Channel used to ask the descriptor publisher to rebuild and re-publish the descriptor.
