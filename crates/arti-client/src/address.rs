@@ -301,14 +301,14 @@ impl TorAddr {
         Ok(instructions)
     }
 
-    /// Return true if `addr` is not a globally reachable address.
+    /// Return true if `addr` is not a globally reachable unicast address.
     ///
     /// Used for deciding if this [`TorAddr`] is an acceptable BEGIN target
     /// (typically, the target of a BEGIN must be globally reachable).
     ///
-    /// See [`is_non_globally_reachable`].
-    fn is_non_globally_reachable(&self) -> bool {
-        self.host.is_non_globally_reachable()
+    /// See [`is_not_globally_reachable_unicast`].
+    fn is_not_globally_reachable_unicast(&self) -> bool {
+        self.host.is_not_globally_reachable_unicast()
     }
 
     /// Give an error if this address doesn't conform to the rules set in
@@ -319,7 +319,7 @@ impl TorAddr {
         #[allow(unused_variables)] // will only be used in certain configurations
         prefs: &StreamPrefs,
     ) -> Result<(), ErrorDetail> {
-        if !cfg.allow_local_addrs && self.is_non_globally_reachable() {
+        if !cfg.allow_local_addrs && self.is_not_globally_reachable_unicast() {
             return Err(ErrorDetail::LocalAddress);
         }
 
@@ -445,16 +445,16 @@ impl FromStr for Host {
 impl Host {
     /// Return true if this address is one that is "internal": that is,
     /// relative to the particular host that is resolving it.
-    fn is_non_globally_reachable(&self) -> bool {
+    fn is_not_globally_reachable_unicast(&self) -> bool {
         match self {
             Host::Hostname(name) => name.eq_ignore_ascii_case("localhost"),
-            Host::Ip(ip) => is_non_globally_reachable(*ip),
+            Host::Ip(ip) => is_not_globally_reachable_unicast(*ip),
             Host::Onion(_) => false,
         }
     }
 }
 
-/// Return true if `addr` is not a globally reachable address.
+/// Return true if `addr` is not a globally reachable unicast address.
 ///
 /// Returns true if `addr` is any of the following:
 ///
@@ -499,7 +499,7 @@ impl Host {
 // TODO: we should also consider replacing this with its reverse
 // (is_globally_reachable()), as that might a bit easier to reason about
 // than its negated counterpart
-pub(crate) fn is_non_globally_reachable(addr: IpAddr) -> bool {
+pub(crate) fn is_not_globally_reachable_unicast(addr: IpAddr) -> bool {
     // This ensures we handle IPv4-mapped addresses correctly
     let addr = addr.to_canonical();
     // TODO: use is_global once it's stable, perhaps.
@@ -776,7 +776,7 @@ mod test {
     fn local_addrs() {
         fn is_local_hostname(s: &str) -> bool {
             let h: Host = s.parse().unwrap();
-            h.is_non_globally_reachable()
+            h.is_not_globally_reachable_unicast()
         }
 
         assert!(is_local_hostname("localhost"));
