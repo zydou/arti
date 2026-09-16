@@ -38,7 +38,7 @@ __is_experimental = []
 [dependencies]
 anyhow = "1.0.72"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
-derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }
+derive-deftly = { version = "~1.12.0", features = ["full", "beta"] }
 digest = "0.10.0"
 educe = "0.4.22"
 thiserror = "2"
