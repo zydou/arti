@@ -92,6 +92,7 @@ use void::ResultVoidExt as _;
 
 use derive_deftly::{Deftly, define_derive_deftly};
 use digest::Digest;
+use educe::Educe;
 use itertools::Itertools;
 use saturating_time::SaturatingTime as _;
 use std::sync::LazyLock;
@@ -353,7 +354,8 @@ pub mod consensus_methods_comma_separated {
 //  - Encoding throws `Bug` if the resulting document will be clearly garbage,
 //    forbidding `=`, whitespace, and controls.  If the supplied keywords are bizarre,
 //    it may generate surprising documents (eg, containing exciting Unicode).
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
+#[derive(Debug, Clone, Educe, Eq, PartialEq)]
+#[educe(Default)]
 pub struct NetParams<T> {
     /// Map from keys to values.
     params: HashMap<String, T>,
