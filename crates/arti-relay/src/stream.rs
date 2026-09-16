@@ -1,7 +1,7 @@
 //! Stream handling logic
 
 mod directory;
-mod dns;
+pub(crate) mod dns;
 mod exit;
 
 use tor_error::warn_report;

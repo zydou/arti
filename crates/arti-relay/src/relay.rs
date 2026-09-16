@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Weak};
 
 use anyhow::Context;
+use hickory_resolver::Resolver;
 use tokio::task::JoinSet;
 use tracing::debug;
 #[cfg(unix)]
@@ -25,11 +26,12 @@ use tor_netdir::params::NetParameters;
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::relay::{CircuitIncomingStreamReceiver, CreateRequestHandler};
-use tor_rtcompat::{NetStreamProvider, Runtime};
+use tor_rtcompat::{DynTimeProvider, NetStreamProvider, Runtime};
 
 use crate::client::RelayClient;
 use crate::config::TorRelayConfig;
 use crate::stream::RequestFilter;
+use crate::stream::dns::resolver::DnsResolverReactor;
 use crate::tasks::channel::build_circ_net_params;
 use crate::tasks::crypto::InitKeyMaterial;
 
@@ -424,6 +426,28 @@ impl<R: Runtime> TorRelay<R> {
             // because we won't need the anyhow! error below.
             self.dir_mirror.serve(begin_dir_rx).await?;
             Err(anyhow::anyhow!("dir mirror exited"))
+        });
+
+        // This builds a hickory resolver that uses
+        // /etc/resolv.conf on Unix-like systems and the registry on Windows.
+        // TODO(relay): we should decide if this the correct behavior
+        // (should double-check what C Tor does).
+        //
+        // TODO(relay): enable DoT
+        //
+        // TODO(relay): disable hickory's internal cache
+        // (this will involve patching hickory to make its moka dependency optional)
+        //
+        // Note: the hickory resolver spawns various background tasks
+        let resolver = Arc::new(Resolver::builder_tokio()?.build()?);
+        let (reactor, resolver) =
+            DnsResolverReactor::new(DynTimeProvider::new(self.runtime.clone()), resolver);
+        // Spawn the DNS reactor
+        //
+        // TODO(relay): only spawn this if we're configured to run as an exit
+        task_handles.spawn(async move {
+            reactor.run().await?;
+            Err(anyhow::anyhow!("DNS reactor exited"))
         });
 
         let runtime = self.runtime.clone();
