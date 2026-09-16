@@ -63,11 +63,10 @@ pub(crate) struct RpcListenerSetConfig {
     #[deftly(tor_config(
         setter(skip),
         serde = "flatten",
-        field(
-            // This lets us hold a Builder in the Config too,
-            // so we can use `ExtendBuilder` on it.
-            ty = "ConnectPointOptionsBuilder"),
-            build = "|this: &Self| this.listener_options.clone()",
+        // This lets us hold a Builder in the Config too,
+        // so we can use `ExtendBuilder` on it.
+        field(ty = "ConnectPointOptionsBuilder"),
+        build = "|this: &Self| this.listener_options.clone()",
         extend_with = "ExtendBuilder::extend_from"
     ))]
     listener_options: ConnectPointOptionsBuilder,
