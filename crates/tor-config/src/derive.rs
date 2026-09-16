@@ -2503,14 +2503,14 @@ mod test {
             #[deftly(tor_config(default))]
             pub(super) xyz: u32,
 
-            #[deftly(tor_config(default = "3"))]
+            #[deftly(tor_config(default = 3))]
             pub(super) abc: u16,
 
-            #[deftly(tor_config(build = "|_self| 6 * 7"))]
+            #[deftly(tor_config(build = |_self| 6 * 7))]
             pub(super) forty_two: u16,
 
             #[deftly(tor_config(
-                try_build = "|_self| Ok::<_,crate::ConfigBuildError>(6 * 7 + 1)"
+                try_build = { |_self| Ok::<_,crate::ConfigBuildError>(6 * 7 + 1) }
             ))]
             pub(super) forty_three: u16,
         }
@@ -2542,10 +2542,10 @@ mod test {
         #[derive(Deftly, Clone, Debug, PartialEq)]
         #[derive_deftly(TorConfig)]
         pub(super) struct Magic {
-            #[deftly(tor_config(default = "7"))]
+            #[deftly(tor_config(default = 7))]
             pub(super) nzu8: NonZeroU8,
 
-            #[deftly(tor_config(default = "123"))]
+            #[deftly(tor_config(default = 123))]
             pub(super) nzu8_2: NonZero<u8>,
 
             #[deftly(tor_config(default))]
@@ -2560,13 +2560,13 @@ mod test {
         pub(super) struct CfgEnabled {
             #[deftly(tor_config(
                 default,
-                cfg = "true",
+                cfg = { true },
                 cfg_desc = "with eschaton immenentization"
             ))]
             pub(super) flower_power: u32,
             #[deftly(tor_config(
                 default,
-                cfg = "true",
+                cfg = { true },
                 cfg_reject,
                 cfg_desc = "with eschaton immenentization"
             ))]
@@ -2578,7 +2578,7 @@ mod test {
         pub(super) struct CfgDisabled {
             #[deftly(tor_config(
                 default,
-                cfg = "false",
+                cfg = { false },
                 cfg_desc = "with resublimated thiotimoline"
             ))]
             pub(super) time_travel: u32,
@@ -2594,11 +2594,11 @@ mod test {
         #[derive(Deftly, Clone, Debug, PartialEq)]
         #[derive_deftly(TorConfig)]
         #[deftly(tor_config(
-            pre_build = "Self::check_odd",
-            post_build = "CfgValidating::check_even"
+            pre_build = Self::check_odd,
+            post_build = CfgValidating::check_even
         ))]
         pub(super) struct CfgValidating {
-            #[deftly(tor_config(default = "1"))]
+            #[deftly(tor_config(default = 1))]
             pub(super) odd: u32,
             #[deftly(tor_config(default))]
             pub(super) even: u32,
@@ -2652,9 +2652,9 @@ mod test {
         pub(super) struct OptionsCfg {
             #[deftly(tor_config(default))]
             pub(super) a: Option<u32>,
-            #[deftly(tor_config(default = "Some(123)"))]
+            #[deftly(tor_config(default = Some(123)))]
             pub(super) b: Option<u32>,
-            #[deftly(tor_config(default = "Some(42)"))]
+            #[deftly(tor_config(default = Some(42)))]
             pub(super) nz: Option<NonZeroU8>,
             #[deftly(tor_config(default))]
             pub(super) s: Option<String>,
@@ -2667,7 +2667,7 @@ mod test {
         #[deftly(tor_config(attr = "derive(Eq,Ord,PartialOrd,PartialEq)"))]
         pub(super) struct AttribsCfg {
             #[deftly(tor_config(default))]
-            #[deftly(tor_config(attr = r#"serde(alias = "fun_with_numbers")"#))]
+            #[deftly(tor_config(attr = { serde(alias = "fun_with_numbers") }))]
             #[deftly(tor_config(serde = r#"alias = "its_fun_to_count""#))]
             pub(super) a: u32,
         }
@@ -2685,7 +2685,7 @@ mod test {
             pub(super) c: u32,
             #[deftly(tor_config(default, setter(strip_option)))]
             pub(super) d: Option<u32>,
-            #[deftly(tor_config(default, setter(name = "set_the_e")))]
+            #[deftly(tor_config(default, setter(name = set_the_e)))]
             pub(super) e: u32,
         }
         impl SettersCfgBuilder {
@@ -2723,9 +2723,9 @@ mod test {
         pub(super) struct FullyCustom {
             #[deftly(tor_config(
                 setter(skip),
-                field(ty = "(u32, u32)", vis = "pub(super)"),
-                build = r#"|this: &Self| format!("{} {}", this.value.0, this.value.1)"#,
-                extend_with = r#"|mine: &mut (u32,u32), theirs: (u32,u32), _| *mine = theirs"#,
+                field(ty = (u32, u32), vis = "pub(super)"),
+                build = { |this: &Self| format!("{} {}", this.value.0, this.value.1) },
+                extend_with = { |mine: &mut (u32,u32), theirs: (u32,u32), _| *mine = theirs },
             ))]
             pub(super) value: String,
         }
@@ -2737,23 +2737,23 @@ mod test {
         #[derive(Deftly, Clone, Debug, PartialEq)]
         #[derive_deftly(TorConfig)]
         pub(super) struct FieldSkipCfg {
-            #[deftly(tor_config(skip, build = r#"|_this: &Self| 25"#))]
+            #[deftly(tor_config(skip, build = { |_this: &Self| 25 }))]
             pub(super) value: u32,
         }
 
         #[derive(Deftly, Clone, Debug, PartialEq)]
         #[derive_deftly(TorConfig)]
         pub(super) struct ListsCfg {
-            #[deftly(tor_config(list(element(clone)), default = "vec![7]"))]
+            #[deftly(tor_config(list(element(clone)), default = vec![7]))]
             pub(super) integers: Vec<u32>,
 
             #[deftly(tor_config(
-                list(listtype = "StringSet", element(clone)),
-                default = "cats()"
+                list(listtype = StringSet, element(clone)),
+                default = cats()
             ))]
             pub(super) cats: BTreeSet<String>,
 
-            #[deftly(tor_config(list(element(build)), default = "vec![]"))]
+            #[deftly(tor_config(list(element(build)), default = vec![]))]
             pub(super) simple: Vec<Simple>,
         }
 
@@ -2767,7 +2767,7 @@ mod test {
         #[derive(Deftly, Clone, Debug, PartialEq)]
         #[derive_deftly(TorConfig)]
         pub(super) struct MapCfg {
-            #[deftly(tor_config(map, default = "default_map()"))]
+            #[deftly(tor_config(map, default = default_map()))]
             pub(super) map: HashMap<String, Simple>,
         }
         fn default_map() -> HashMap<String, SimpleBuilder> {
