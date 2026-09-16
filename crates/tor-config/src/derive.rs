@@ -293,15 +293,18 @@ pub mod doc_generated_code {}
 ///
 /// <div id="tmeta:attr">
 ///
-/// ### `deftly(tor_config(attr = { .. }))` — Apply an attribute to the builder struct
+/// ### `deftly(tor_config(attr = ..))` — Apply attribute(s) to the builder struct
 ///
 /// </div>
 ///
 /// This attribute passes its contents through to a new attribute on the derived builder struct.
-/// For example, you can make the builder derive `PartialOrd` by saying
+/// `tor_config(attr = ..)` maybe specified more than once, to apply multiple attributes.
+///
+/// For example, you can make the builder derive `PartialOrd` and `Ord` by saying
 ///
 /// ```no_compile
 /// #[deftly(tor_config(attr= { derive(PartialOrd) }))]
+/// #[deftly(tor_config(attr= #[derive(Ord)]))]
 /// ```
 ///
 /// (See also [`attr`](crate::derive::doc_ref_attrs#fmeta:attr) for fields.)
@@ -1179,7 +1182,6 @@ pub mod doc_magic_types {}
 // TODO:
 // - Can I replace cfg() with a single FeatureNotSupported type, or a family of such types?
 //   (See #2298.)
-// - derive-deftly#109 would let us have better syntax for tmeta:attr, fmeta:attr, and fmeta:serde.
 // - We must decide before merging whether we actually _want_ to always accept T
 //   for setters on `NonZero<T>`.  There are some places in our code where we do this now:
 //   so if we were to stop doing so, we'd be breaking backward compat in the `arti` crate.
@@ -1888,11 +1890,7 @@ define_derive_deftly! {
     ${if DD_FLATTENABLE_ON_BUILDER {
         #[derive_deftly($E::Flattenable)]
     }}
-    // TODO: drop requirement this be a string.
-    // https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/issues/56
-    ${ if tmeta(tor_config(attr)) {
-        #[ ${tmeta(tor_config(attr)) as token_stream} ]
-    }}
+    ${tmeta(tor_config(attr)) as attrs}
     #[allow(dead_code)]
     $BLD_TVIS struct $<$tname Builder><$tdefgens>
     where $twheres
@@ -1900,11 +1898,7 @@ define_derive_deftly! {
         $(
             ${when not(fmeta(tor_config(skip)))}
 
-            // TODO: drop requirement this be a string.
-            // https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/issues/56
-            ${if fmeta(tor_config(attr)) {
-                #[${fmeta(tor_config(attr)) as token_stream}]
-            }}
+            ${fmeta(tor_config(attr)) as attrs}
             ${if SERDE {
                 #[serde(default)]
             }}
@@ -2664,7 +2658,7 @@ mod test {
 
         #[derive(Deftly, Clone, Debug, PartialEq)]
         #[derive_deftly(TorConfig)]
-        #[deftly(tor_config(attr = "derive(Eq,Ord,PartialOrd,PartialEq)"))]
+        #[deftly(tor_config(attr = #[derive(Eq,Ord,PartialOrd,PartialEq)]))]
         pub(super) struct AttribsCfg {
             #[deftly(tor_config(default))]
             #[deftly(tor_config(attr = { serde(alias = "fun_with_numbers") }))]
