@@ -345,17 +345,29 @@ where
 const MAX_HEADERS_LEN: usize = 16384;
 
 /// Read and parse HTTP/1 headers from `stream`.
+///
+/// Wraps around [`read_headers_internal()`] with a timeout.
 async fn read_headers<S, SP>(runtime: &SP, stream: &mut S) -> RequestResult<HeaderStatus>
 where
     S: AsyncBufRead + Unpin,
     SP: SleepProvider,
 {
-    let mut buf = Vec::with_capacity(1024);
     // Just like with the other timeouts in this code, this should probably be
     // configurable and may even be too much.
     let read_timeout = Duration::from_secs(10);
-    let timer = runtime.sleep(read_timeout).fuse();
-    futures::pin_mut!(timer);
+    runtime
+        .timeout(read_timeout, read_headers_internal(stream))
+        .await
+        .map_err(|_| RequestError::DirTimeout)
+        .flatten()
+}
+
+/// Internal version of [`read_headers()`] without a timeout.
+async fn read_headers_internal<S>(stream: &mut S) -> RequestResult<HeaderStatus>
+where
+    S: AsyncBufRead + Unpin,
+{
+    let mut buf = Vec::with_capacity(1024);
 
     // Note: Using `take` here will ensure that we will get an EOF if the header length
     // would exceed the maximum.  No extra bytes will actually be extracted.
