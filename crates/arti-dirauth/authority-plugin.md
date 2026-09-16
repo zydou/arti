@@ -144,6 +144,11 @@ Where...
 C Tor SHOULD ignore extra arguments and spaces in this line.
 C Tor SHOULD treat unparseable lines as a total failure of the plugin.
 
+It is C Tor's responsibility to implement a minimum threshold of
+generated microdescriptors,
+as per <https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/522>.
+(TODO DIRAUTH update this when spec change is final.)
+
 > The formats here are meant to be as close as possible to what we have to
 > put in our votes, and to what C tor expects to put into its md cache(s).
 
