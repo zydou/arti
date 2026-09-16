@@ -419,7 +419,7 @@ pub struct ChannelConfig {
     /// Outbound proxy to use for all direct connections
     #[deftly(tor_config(
         default,
-        serde = r#" deserialize_with = "deserialize_outbound_proxy" "#
+        attr = serde(deserialize_with = "deserialize_outbound_proxy"),
     ))]
     pub(crate) outbound_proxy: Option<ProxyProtocol>,
 }

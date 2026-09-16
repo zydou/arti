@@ -204,7 +204,7 @@ pub struct RestrictedDiscoveryConfig {
     pub(crate) enabled: bool,
 
     /// If true, the provided `key_dirs` will be watched for changes.
-    #[deftly(tor_config(default, serde = "skip"))]
+    #[deftly(tor_config(default, attr = serde(skip)))]
     #[getter(as_mut, as_copy)]
     watch_configuration: bool,
 

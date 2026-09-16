@@ -44,5 +44,5 @@ tor-netdoc = { version = "0.46.0", path = "../tor-netdoc", features = ["full", "
 
 [dev-dependencies]
 anyhow = "1.0.23"
-derive-deftly = { version = "~1.11.4", features = ["full", "beta"] }
+derive-deftly = { version = "~1.12.0", features = ["full", "beta"] }
 tor-netdoc = { version = "0.46.0", path = "../tor-netdoc", features = ["full", "testing"] }
