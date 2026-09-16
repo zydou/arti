@@ -19,7 +19,7 @@
 //!     #[deftly(tor_config(default))]
 //!     owner_uid: Option<u32>,
 //!
-//!     #[deftly(tor_config(default = r#" "~".to_string() "#))]
+//!     #[deftly(tor_config(default = { "~".to_string() }))]
 //!     path: String,
 //! }
 //! ```
@@ -69,7 +69,7 @@
 /// # pub struct Foo {
 ///
 /// // If the user doesn't set this field, we set it by calling some_function().
-/// #[deftly(tor_config(default="some_function()"))]
+/// #[deftly(tor_config(default=some_function()))]
 /// value1: u32,
 ///
 /// // If the user doesn't set this field, we set it by calling Default::default().
@@ -293,7 +293,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="tmeta:attr">
 ///
-/// ### `deftly(tor_config(attr = ".."))` — Apply an attribute to the builder struct
+/// ### `deftly(tor_config(attr = { .. }))` — Apply an attribute to the builder struct
 ///
 /// </div>
 ///
@@ -301,14 +301,14 @@ pub mod doc_generated_code {}
 /// For example, you can make the builder derive `PartialOrd` by saying
 ///
 /// ```no_compile
-/// #[deftly(tor_config(attr= "derive(PartialOrd)"))]
+/// #[deftly(tor_config(attr= { derive(PartialOrd) }))]
 /// ```
 ///
 /// (See also [`attr`](crate::derive::doc_ref_attrs#fmeta:attr) for fields.)
 ///
 /// <div id="tmeta:pre_build">
 ///
-/// ### `deftly(tor_config(pre_build = ".."))` — Call a function before building
+/// ### `deftly(tor_config(pre_build = ..))` — Call a function before building
 ///
 /// </div>
 ///
@@ -323,9 +323,9 @@ pub mod doc_generated_code {}
 /// # use tor_config::{derive::prelude::*, ConfigBuildError};
 /// #[derive(Clone,Debug,PartialEq,Deftly)]
 /// #[derive_deftly(TorConfig)]
-/// #[deftly(tor_config(pre_build="Self::must_be_odd"))]
+/// #[deftly(tor_config(pre_build=Self::must_be_odd))]
 /// pub struct FavoriteOddNumber {
-///     #[deftly(tor_config(default="23"))]
+///     #[deftly(tor_config(default=23))]
 ///     my_favorite: u32,
 /// }
 ///
@@ -347,7 +347,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="tmeta:post_build">
 ///
-/// ### `deftly(tor_config(post_build = ".."))` — Call a function after building
+/// ### `deftly(tor_config(post_build = ..))` — Call a function after building
 ///
 /// </div>
 ///
@@ -364,9 +364,9 @@ pub mod doc_generated_code {}
 /// # use tor_config::{derive::prelude::*, ConfigBuildError};
 /// #[derive(Clone,Debug,PartialEq,Deftly)]
 /// #[derive_deftly(TorConfig)]
-/// #[deftly(tor_config(post_build="FavoriteEvenNumber::must_be_even"))]
+/// #[deftly(tor_config(post_build=FavoriteEvenNumber::must_be_even))]
 /// pub struct FavoriteEvenNumber {
-///     #[deftly(tor_config(default="86"))]
+///     #[deftly(tor_config(default=86))]
 ///     my_favorite: u32,
 /// }
 ///
@@ -388,7 +388,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="tmeta:vis">
 ///
-/// ### `deftly(tor_config(vis = ".."))` — Change visibility of the builder
+/// ### `deftly(tor_config(vis = ..))` — Change visibility of the builder
 ///
 /// </div>
 ///
@@ -399,7 +399,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="tmeta:build_fn_name">
 ///
-/// ### `deftly(tor_config(build_fn(name = "..")))` — Change name of the build method
+/// ### `deftly(tor_config(build_fn(name = ..)))` — Change name of the build method
 ///
 /// </div>
 ///
@@ -408,7 +408,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="tmeta:build_fn_vis">
 ///
-/// ### `deftly(tor_config(build_fn(vis = "..")))` — Change visibility of the build method
+/// ### `deftly(tor_config(build_fn(vis = ..)))` — Change visibility of the build method
 ///
 /// </div>
 ///
@@ -416,11 +416,11 @@ pub mod doc_generated_code {}
 /// You can use this attribute to change its visibility.
 ///
 /// See also:
-/// * [`deftly(tor_config(vis = ".."))`](crate::derive::doc_ref_attrs#tmeta:vis)
+/// * [`deftly(tor_config(vis = ..))`](crate::derive::doc_ref_attrs#tmeta:vis)
 ///
 /// <div id="tmeta:build_fn_error">
 ///
-/// ### `deftly(tor_config(build_fn(error = "..")))` — Change return error type of the build method.
+/// ### `deftly(tor_config(build_fn(error = ..)))` — Change return error type of the build method.
 ///
 /// </div>
 ///
@@ -432,7 +432,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="tmeta:build_fn_missing_field">
 ///
-/// ### `deftly(tor_config(build_fn(missing_field = "..")))` — Code to generate a missing field error.
+/// ### `deftly(tor_config(build_fn(missing_field = ..)))` — Code to generate a missing field error.
 ///
 /// </div>
 ///
@@ -473,7 +473,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:default_equals">
 ///
-/// ### `deftly(tor_config(default = "..")))` — Use a given value when no value is provided
+/// ### `deftly(tor_config(default = ..)))` — Use a given value when no value is provided
 ///
 /// </div>
 ///
@@ -511,7 +511,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:build">
 ///
-/// ### `deftly(tor_config(build = ".."))` — Call a function to build this field.
+/// ### `deftly(tor_config(build = ..))` — Call a function to build this field.
 ///
 /// </div>
 ///
@@ -532,7 +532,7 @@ pub mod doc_generated_code {}
 /// #[derive(Clone,Debug,PartialEq,Deftly)]
 /// #[derive_deftly(TorConfig)]
 /// pub struct LowercaseExample {
-///     #[deftly(tor_config(build="Self::build_lc"))]
+///     #[deftly(tor_config(build=Self::build_lc))]
 ///     lc: String,
 /// }
 /// impl LowercaseExampleBuilder {
@@ -545,7 +545,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:try_build">
 ///
-/// ### `deftly(tor_config(try_build = ".."))` — Call a fallible function to build this field.
+/// ### `deftly(tor_config(try_build = ..))` — Call a fallible function to build this field.
 ///
 /// </div>
 ///
@@ -566,7 +566,7 @@ pub mod doc_generated_code {}
 /// #[derive(Clone,Debug,PartialEq,Deftly)]
 /// #[derive_deftly(TorConfig)]
 /// pub struct SqrtExample {
-///     #[deftly(tor_config(try_build="Self::build_sqrt"))]
+///     #[deftly(tor_config(try_build=Self::build_sqrt))]
 ///     val: f64,
 /// }
 /// impl SqrtExampleBuilder {
@@ -600,7 +600,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:sub_builder_build_fn">
 ///
-/// ### `deftly(tor_config(sub_builder(build_fn = "...")))` — Call a different function on this sub-builder
+/// ### `deftly(tor_config(sub_builder(build_fn = ..)))` — Call a different function on this sub-builder
 ///
 /// </div>
 ///
@@ -640,11 +640,11 @@ pub mod doc_generated_code {}
 ///
 /// ```no_compile
 /// // The builder and the constructed list will both contain u32.
-/// #[deftly(tor_config(list(element(clone)), default = "vec![7]"))]
+/// #[deftly(tor_config(list(element(clone)), default = vec![7]))]
 /// integers: Vec<u32>,
 ///
 /// // The builder will contain a Vec<MyTypeBuilder>;.
-/// #[deftly(tor_config(list(), (element(build)), default = "vec![]"))]
+/// #[deftly(tor_config(list(), (element(build)), default = vec![]))]
 /// objects: Vec<MyType>
 /// ```
 ///
@@ -656,7 +656,7 @@ pub mod doc_generated_code {}
 ///
 /// Usually, the name of the list type alias and builder object  based on the struct and the field name.
 /// You can provide a different name for the list type alias using this attribute, as in
-/// `listtype = "TypeName"`.
+/// `listtype = TypeName`.
 /// The list builder will then be constructed with the list type name, suffixed with `Builder`.
 ///
 ///  <!-- TODO:
@@ -717,12 +717,12 @@ pub mod doc_generated_code {}
 ///
 /// Usually, the name of the map type alias and builder object  based on the struct and the field name.
 /// You can provide a different name for the map type alias using this attribute, as in
-/// `maptype = "TypeName"`.
+/// `maptype = TypeName`.
 /// The map builder will then be constructed with the map type name, suffixed with `Builder`.
 ///
 /// <div id = "fmeta:setter_name">
 ///
-/// ### `deftly(tor_config(setter(name = "..")))` — Change the name of the setter function
+/// ### `deftly(tor_config(setter(name = ..)))` — Change the name of the setter function
 ///
 /// </div>
 ///
@@ -731,7 +731,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:setter_vis">
 ///
-/// ### `deftly(tor_config(setter(vis = "..")))` — Change the visibility of the setter function
+/// ### `deftly(tor_config(setter(vis = ..)))` — Change the visibility of the setter function
 ///
 /// </div>
 ///
@@ -784,7 +784,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:field_ty">
 ///
-/// ### `deftly(tor_config(field(ty = "..")))` — Change the type of a field in the builder
+/// ### `deftly(tor_config(field(ty = ..)))` — Change the type of a field in the builder
 ///
 /// </div>
 ///
@@ -818,8 +818,8 @@ pub mod doc_generated_code {}
 /// #[derive_deftly(TorConfig)]
 /// pub struct MyConfig {
 ///     #[deftly(tor_config(
-///         try_build = r#"Self::try_build_behavior"#,
-///         field(ty = "Option<String>"),
+///         try_build = Self::try_build_behavior,
+///         field(ty = { Option<String> }),
 ///         setter(skip)
 ///     ))]
 ///     behavior: ParsedValue,
@@ -871,7 +871,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:field_vis">
 ///
-/// ### `deftly(tor_config(field(vis = "..")))` — Change the visibility of a field in the builder
+/// ### `deftly(tor_config(field(vis = ..)))` — Change the visibility of a field in the builder
 ///
 /// </div>
 ///
@@ -890,7 +890,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:attr">
 ///
-/// ### `deftly(tor_config(attr = "..")))` — Apply an attribute to the field in the builder
+/// ### `deftly(tor_config(attr = { .. })))` — Apply an attribute to the field in the builder
 ///
 /// </div>
 ///
@@ -898,7 +898,7 @@ pub mod doc_generated_code {}
 ///
 /// Example:
 /// ```no_compile
-/// #[deftly(tor_config(attr = "allow(deprecated)"))]
+/// #[deftly(tor_config(attr = { allow(deprecated) }))]
 /// x: SomeDeprecatedType,
 /// ```
 ///
@@ -906,7 +906,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:serde">
 ///
-/// ### `deftly(tor_config(serde = "..")))` — Apply a serde attribute to the field in the builder
+/// ### `deftly(tor_config(serde = { .. })))` — Apply a serde attribute to the field in the builder
 ///
 /// </div>
 ///
@@ -914,7 +914,7 @@ pub mod doc_generated_code {}
 ///
 /// Example:
 /// ```no_compile
-/// #[deftly(tor_config(serde = r#"alias = "old_name_of_field" "#))]
+/// #[deftly(tor_config(serde = { alias = old_name_of_field }))]
 /// current_name_of_field: String,
 /// ```
 ///
@@ -928,7 +928,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:extend_with">
 ///
-/// ### `deftly(tor_config(extend_with = ""))` — Change the ExtendBuilder behavior for a field.
+/// ### `deftly(tor_config(extend_with = ..))` — Change the ExtendBuilder behavior for a field.
 ///
 /// </div>
 ///
@@ -943,7 +943,7 @@ pub mod doc_generated_code {}
 ///
 /// <div id="fmeta:cfg">
 ///
-/// ### `deftly(tor_config(cfg = "..")))` — Mark a field as conditionally present
+/// ### `deftly(tor_config(cfg = { .. })))` — Mark a field as conditionally present
 ///
 /// </div>
 ///
@@ -985,7 +985,7 @@ pub mod doc_generated_code {}
 /// #[derive(Clone,Debug,PartialEq,Deftly)]
 /// #[derive_deftly(TorConfig)]
 /// pub struct OnionSoupConfig {
-///     #[deftly(tor_config(cfg = r#" feature="rpc" "#, cfg_desc = "with RPC support"))]
+///     #[deftly(tor_config(cfg = { feature="rpc" }, cfg_desc = "with RPC support"))]
 ///     #[deftly(tor_config(default))]
 ///     rpc_option: RpcOptionType,
 /// }
