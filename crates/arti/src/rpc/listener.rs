@@ -62,7 +62,7 @@ pub(crate) struct RpcListenerSetConfig {
     /// that we can override for each connect point in `file_options`.
     #[deftly(tor_config(
         setter(skip),
-        serde = "flatten",
+        attr = serde(flatten),
         // This lets us hold a Builder in the Config too,
         // so we can use `ExtendBuilder` on it.
         field(ty = ConnectPointOptionsBuilder),

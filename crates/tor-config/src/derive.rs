@@ -905,13 +905,18 @@ pub mod doc_generated_code {}
 /// x: SomeDeprecatedType,
 /// ```
 ///
-/// See also the [`cfg`](crate::derive::doc_ref_attrs#fmeta:cfg) and [`serde`] attributes.
+/// <!-- TODO: write up a list of recommended serde attributes -->
+///
+/// See also the [`cfg`](crate::derive::doc_ref_attrs#fmeta:cfg) attribute.
 ///
 /// <div id="fmeta:serde">
 ///
-/// ### `deftly(tor_config(serde = { .. })))` — Apply a serde attribute to the field in the builder
+/// ### `deftly(tor_config(serde = { .. })))` — Apply a serde attribute (deprecated)
 ///
 /// </div>
+///
+/// **Deprecated**: use
+/// [`#[deftly(tor_config(attrs = serde(...)))]`(crate::derive::doc_ref_attrs#fmeta:attrs) instead.
 ///
 /// Any serde attribute provided here is applied to the declared field in the builder.
 ///
@@ -923,11 +928,6 @@ pub mod doc_generated_code {}
 ///
 /// Attributes applied with `serde` apply after any specified with
 /// [`attr`](crate::derive::doc_ref_attrs#fmeta:attr) instead.
-///
-/// > This is a convenience attribute; you could just use
-/// > [`attr`](crate::derive::doc_ref_attrs#fmeta:attr) instead.
-///
-/// <!-- TODO: write up a list of recommended serde attributes -->
 ///
 /// <div id="fmeta:extend_with">
 ///
@@ -1902,8 +1902,7 @@ define_derive_deftly! {
             ${if SERDE {
                 #[serde(default)]
             }}
-            // TODO: drop requirement this be a string.
-            // https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/issues/56
+            // TODO tor_config(serde) deprecated, abolish (and remove from docs) around 2027-04
             ${ if fmeta(tor_config(serde)) {
                 #[ serde( ${fmeta(tor_config(serde)) as token_stream} )]
             }}
