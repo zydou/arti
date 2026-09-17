@@ -632,9 +632,8 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
 
         // Insert all router descriptor member relationships.
         //
-        // Yes, many inserts are potentially slower than one large insert.
-        // However, given that all of this is a single transaction, the
-        // performance gap is not that much of a big deal.
+        // Many small queries are fast in sqlite, so this shouldn't be a perf problem.
+        // https://sqlite.org/np1queryprob.html
         //
         // Depending on the flavor, we map the document digests to an iterator
         // of a tuple of Option's, where one of the values is always None.
