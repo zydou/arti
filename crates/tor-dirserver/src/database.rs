@@ -639,11 +639,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // of a tuple of Option's, where one of the values is always None.
         // This represents the fact that router descriptors use SHA-1 and micro
         // descriptors SHA-256.
-        let doc_digests = body.doc_digests().into_iter().map(|d| match T::flavor() {
-            ConsensusFlavor::Plain => (Some(d), None),
-            ConsensusFlavor::Microdesc => (None, Some(d)),
-        });
-        for (sha1, sha2) in doc_digests {
+        for (sha1, sha2) in body.doc_digests() {
             cons_rs_member_stmt.execute(named_params! {
                 ":docid": docid,
                 ":sha1": sha1,

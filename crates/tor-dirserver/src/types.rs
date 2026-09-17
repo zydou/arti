@@ -4,8 +4,6 @@
 //! directory server that are not related to the database, in which case they
 //! belong to the respective [`crate::database`] module.
 
-use std::collections::HashSet;
-
 use tor_netdoc::{
     doc::{
         authcert::AuthCertKeyIds,
@@ -24,12 +22,14 @@ pub(crate) trait FlavoredConsensusBody: Clone {
     fn lifetime(&self) -> &Lifetime;
 
     /// Returns the doc digests for every router.
+    ///
+    /// These may be duplicate so ensure to properly handle conflicts.
     // TODO DIRMIRROR: This module should probably be moved into a submodule
     // of database.rs alongside other types found in database.rs.
     //
     // Orginally, the types here had no relation to database implementations,
     // but this does not work out long-term, as we see by this signature.
-    fn doc_digests(&self) -> HashSet<impl rusqlite::ToSql>;
+    fn doc_digests(&self) -> impl Iterator<Item = (Option<Sha1>, Option<Sha256>)>;
 }
 
 /// Generic trait representing the signatures of a consensus.
@@ -75,11 +75,10 @@ impl FlavoredConsensusBody for plain::NetworkStatus {
         &self.preamble.lifetime
     }
 
-    fn doc_digests(&self) -> HashSet<impl rusqlite::ToSql> {
+    fn doc_digests(&self) -> impl Iterator<Item = (Option<Sha1>, Option<Sha256>)> {
         self.routers
             .iter()
-            .map(|r| Sha1::from(*r.doc_digest()))
-            .collect()
+            .map(|r| (Some(Sha1::from(*r.doc_digest())), None))
     }
 }
 
@@ -88,11 +87,10 @@ impl FlavoredConsensusBody for md::NetworkStatus {
         &self.preamble.lifetime
     }
 
-    fn doc_digests(&self) -> HashSet<impl rusqlite::ToSql> {
+    fn doc_digests(&self) -> impl Iterator<Item = (Option<Sha1>, Option<Sha256>)> {
         self.routers
             .iter()
-            .map(|r| Sha256::from(*r.doc_digest()))
-            .collect()
+            .map(|r| (None, Some(Sha256::from(*r.doc_digest()))))
     }
 }
 
