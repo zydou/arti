@@ -356,6 +356,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     /// Supplying [`None`] as the [`Timestamp`] simply returns the consensus
     /// with the highest valid-after value, regardless of the current system
     /// time.
+    // XXX: Remove time logic here.
     pub(crate) fn query(
         tx: &Transaction,
         tolerance: &DirTolerance,
