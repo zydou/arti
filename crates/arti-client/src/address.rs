@@ -860,30 +860,31 @@ mod test {
     fn resolve_instructions() {
         use ResolveInstructions as RI;
 
-        fn sap(s: &str) -> Result<ResolveInstructions, ErrorDetail> {
+        fn sap(s: &str, prefs: &StreamPrefs) -> Result<ResolveInstructions, ErrorDetail> {
             TorAddr::from(s)
                 .unwrap()
-                .into_resolve_instructions(&Default::default(), &Default::default())
+                .into_resolve_instructions(&Default::default(), prefs)
         }
 
+        let default_prefs = Default::default();
         assert_eq!(
-            sap("[2001:db8::42]:9001").unwrap(),
+            sap("[2001:db8::42]:9001", &default_prefs).unwrap(),
             RI::Return(vec!["2001:db8::42".parse().unwrap()]),
         );
         assert_eq!(
-            sap("example.com:80").unwrap(),
+            sap("example.com:80", &default_prefs).unwrap(),
             RI::Exit("example.com".to_owned()),
         );
         assert!(matches!(
-            sap("example.onion:80"),
+            sap("example.onion:80", &default_prefs),
             Err(ErrorDetail::OnionAddressResolveRequest),
         ));
         assert!(matches!(
-            sap("localhost:80"),
+            sap("localhost:80", &default_prefs),
             Err(ErrorDetail::LocalAddress),
         ));
         assert!(matches!(
-            sap("127.0.0.1:80"),
+            sap("127.0.0.1:80", &default_prefs),
             Err(ErrorDetail::LocalAddress),
         ));
     }
