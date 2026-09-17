@@ -160,7 +160,7 @@ impl HttpServer {
     where
         I: Stream<Item = Result<S, E>> + Unpin,
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        E: std::error::Error,
+        E: std::error::Error + 'static,
         B: DirBackendPlugin,
     {
         // Creates a failing HTTP resposne while satisfying the hyper requirements.
