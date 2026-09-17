@@ -649,11 +649,6 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     /// Performance wise, it is quite inefficient as it parses and verifies all
     /// certificates over again.  However, this should be fine as the N for
     /// directory authorities is usually very small.
-    ///
-    /// This accepts a [`Transaction`] rather than a [`Pool`] because it is
-    /// called by [`StaticEngine::determine_state()`] and should therefore be
-    /// consistent in its view of the database with its caller.  It should not
-    /// be a problem however, as it is a read-only transaction anyways.
     fn certs_already(
         &self,
         tx: &Transaction<'_>,
