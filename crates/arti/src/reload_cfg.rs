@@ -298,12 +298,21 @@ impl<R: Runtime> CfgMgr<R> {
         let mut new_cfg = inner.loaded_cfg.clone();
         new_cfg.merge_from(&new_additional)?;
 
-        // XXXX Handle changes in watch.
-        let _watch = reconfigure(&new_cfg, &mut inner, how)?;
+        let watch = reconfigure(&new_cfg, &mut inner, how)?;
 
-        // If we reached here, we were successful. Remember new_additional.
         if how != Reconfigure::CheckAllOrNothing {
+            // If we reached here, we were successful. Remember new_additional...
             inner.additional_cfg = new_additional;
+
+            // And adjust the file watcher.
+            if !watch && inner.watcher.is_some() {
+                inner.watcher = None;
+            } else if watch && inner.watcher.is_none() {
+                match self.launch_file_watcher() {
+                    Ok((watcher, _)) => inner.watcher = Some(watcher),
+                    Err(e) => warn_report!(e, "Unable to launch file watcher"),
+                }
+            }
         }
 
         Ok(())
