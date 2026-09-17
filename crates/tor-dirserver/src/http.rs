@@ -8,7 +8,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 #[cfg(feature = "dir-plugin-backend")]
 use tor_dircommon::dir_plugin_backend::DirBackendPlugin;
-use tor_error::internal;
+use tor_error::{internal, warn_report};
 
 use std::{
     collections::VecDeque,
@@ -160,7 +160,7 @@ impl HttpServer {
     where
         I: Stream<Item = Result<S, E>> + Unpin,
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        E: std::error::Error,
+        E: std::error::Error + 'static,
         B: DirBackendPlugin,
     {
         // Creates a failing HTTP resposne while satisfying the hyper requirements.
@@ -214,19 +214,18 @@ impl HttpServer {
 
                     // There has been an error in accepting the connection.
                     Some(Err(e)) => {
-                        warn!("listener accept failure: {e}");
+                        warn_report!(e, "listener accept failure");
                         continue;
                     }
 
                     // This should not happen due to ownership.
                     None => return Err(internal!("listener was closed externally?")),
                 },
-
                 // A hyper task we monitored in our tasks has exiteed.
                 Some(res) = tasks.join_next() => match res {
                     Ok(Ok(())) => {},
-                    Ok(Err(e)) => warn!("client task encountered an error: {e}"),
-                    Err(e) => warn!("client task exited ungracefully: {e}"),
+                    Ok(Err(e)) => warn_report!(e, "client task encountered an error"),
+                    Err(e) => warn_report!(e, "client task exited ungracefully"),
                 },
 
             }

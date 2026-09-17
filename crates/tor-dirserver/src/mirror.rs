@@ -117,7 +117,7 @@ impl<B: DirBackendPlugin> DirMirrorWithBackend<B> {
     where
         S: Stream<Item = Result<T, E>> + Unpin,
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        E: std::error::Error,
+        E: std::error::Error + 'static,
     {
         let res = crate::http::HttpServer::serve_backend(listener, self.backend).await;
         if let Err(e) = res {
