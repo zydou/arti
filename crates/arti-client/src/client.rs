@@ -667,6 +667,10 @@ pub struct StreamPrefs {
     /// `Auto` means to use the client configuration.
     #[cfg(feature = "onion-service-client")]
     pub(crate) connect_to_onion_services: BoolOrAuto,
+    /// Whether to try to make connections to local addresses.
+    ///
+    /// `Auto` means to use the client configuration.
+    pub(crate) connect_to_local_addrs: BoolOrAuto,
 }
 
 /// Record of how we are isolating connections
@@ -807,6 +811,21 @@ impl StreamPrefs {
         self.connect_to_onion_services = connect_to_onion_services;
         self
     }
+
+    /// Indicate whether connection to a local address should be allowed
+    ///
+    /// If `Explicit(false)`, attempts to connect to local addresses will be forced to fail with
+    /// an error of kind [`InvalidStreamTarget`](crate::ErrorKind::InvalidStreamTarget).
+    ///
+    /// If `Explicit(true)`, connections to local addresses are allowed.
+    ///
+    /// If `Auto`, the behaviour depends on the `address_filter.allow_local_addrs`
+    /// configuration option, which is in turn disabled by default.
+    pub fn connect_to_local_addrs(&mut self, connect_to_local_addrs: BoolOrAuto) -> &mut Self {
+        self.connect_to_local_addrs = connect_to_local_addrs;
+        self
+    }
+
     /// Return a TargetPort to describe what kind of exit policy our
     /// target circuit needs to support.
     fn wrap_target_port(&self, port: u16) -> TargetPort {

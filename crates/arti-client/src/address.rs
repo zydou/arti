@@ -319,7 +319,12 @@ impl TorAddr {
         #[allow(unused_variables)] // will only be used in certain configurations
         prefs: &StreamPrefs,
     ) -> Result<(), ErrorDetail> {
-        if !cfg.allow_local_addrs && !self.is_globally_reachable_unicast() {
+        let allow_local_addrs = prefs
+            .connect_to_local_addrs
+            .as_bool()
+            .unwrap_or(cfg.allow_local_addrs);
+
+        if !allow_local_addrs && !self.is_globally_reachable_unicast() {
             return Err(ErrorDetail::LocalAddress);
         }
 
@@ -872,6 +877,14 @@ mod test {
         assert!(matches!(
             sap("example.onion:80"),
             Err(ErrorDetail::OnionAddressResolveRequest),
+        ));
+        assert!(matches!(
+            sap("localhost:80"),
+            Err(ErrorDetail::LocalAddress),
+        ));
+        assert!(matches!(
+            sap("127.0.0.1:80"),
+            Err(ErrorDetail::LocalAddress),
         ));
     }
 
