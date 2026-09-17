@@ -887,6 +887,18 @@ mod test {
             sap("127.0.0.1:80", &default_prefs),
             Err(ErrorDetail::LocalAddress),
         ));
+
+        let mut connect_to_local_addrs = StreamPrefs::new();
+        connect_to_local_addrs.connect_to_local_addrs(tor_config::BoolOrAuto::Explicit(true));
+
+        assert_eq!(
+            sap("localhost:80", &connect_to_local_addrs).unwrap(),
+            RI::Exit("localhost".to_owned()),
+        );
+        assert_eq!(
+            sap("127.0.0.1:80", &connect_to_local_addrs).unwrap(),
+            RI::Return(vec!["127.0.0.1".parse().unwrap()]),
+        );
     }
 
     #[test]
