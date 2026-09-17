@@ -545,7 +545,7 @@ fn reconfigure(
     }
 
     #[cfg(feature = "rpc")]
-    {
+    if how != Reconfigure::CheckAllOrNothing {
         mgr_inner.normalized_cfg = rs
             .output_tree
             .expect("normalized cfg not exposed as expected!?");
