@@ -18,7 +18,7 @@ use tor_chanmgr::ChanMgrConfig;
 use tor_circmgr::ClientDataTunnel;
 use tor_circmgr::isolation::{Isolation, StreamIsolation};
 use tor_circmgr::{IsolationToken, TargetPort, isolation::StreamIsolationBuilder};
-use tor_config::MutCfg;
+use tor_config::{BoolOrAuto, MutCfg};
 #[cfg(feature = "bridge-client")]
 use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
@@ -39,7 +39,6 @@ use tor_rtcompat::PreferredRuntime;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 #[cfg(feature = "onion-service-client")]
 use {
-    tor_config::BoolOrAuto,
     tor_hsclient::{HsClientConnector, HsClientDescEncKeypairSpecifier, HsClientSecretKeysBuilder},
     tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncKeypair, HsClientDescEncSecretKey},
     tor_keymgr::CTorClientKeystore,
@@ -671,6 +670,10 @@ pub struct StreamPrefs {
     ///
     /// `Auto` means to use the client configuration.
     pub(crate) connect_to_local_addrs: BoolOrAuto,
+    /// Whether to accept and return local addresses in anonymously retrieved DNS answers.
+    ///
+    /// `Auto` means to use the client configuration.
+    pub(crate) resolve_local_addrs: BoolOrAuto,
 }
 
 /// Record of how we are isolating connections
@@ -823,6 +826,21 @@ impl StreamPrefs {
     /// configuration option, which is in turn disabled by default.
     pub fn connect_to_local_addrs(&mut self, connect_to_local_addrs: BoolOrAuto) -> &mut Self {
         self.connect_to_local_addrs = connect_to_local_addrs;
+        self
+    }
+
+    /// Indicate whether to accept and return local addresses in anonymously retrieved DNS answers.
+    ///
+    /// If `Explicit(false)`, we will filter out the local addresses
+    /// from anonymously retrieved DNS answers.
+    ///
+    /// If `Explicit(true)`, we will not filter out the local addresses
+    /// from anonymously retrieved DNS answers.
+    ///
+    /// If `Auto`, the behaviour depends on the `address_filter.allow_resolving_local_addrs`
+    /// configuration option, which is in turn disabled by default.
+    pub fn resolve_local_addrs(&mut self, resolve_local_addrs: BoolOrAuto) -> &mut Self {
+        self.resolve_local_addrs = resolve_local_addrs;
         self
     }
 
@@ -1732,7 +1750,12 @@ impl<R: Runtime> TorClient<R> {
             ResolveInstructions::Return(addrs) => addrs,
         };
 
-        if !addrcfg.allow_resolving_local_addrs {
+        let allow_resolving_local_addrs = prefs
+            .resolve_local_addrs
+            .as_bool()
+            .unwrap_or(addrcfg.allow_resolving_local_addrs);
+
+        if !allow_resolving_local_addrs {
             addrs.retain(|addr| {
                 let keep = crate::address::is_globally_reachable_unicast(*addr);
 
@@ -1770,7 +1793,12 @@ impl<R: Runtime> TorClient<R> {
         prefs: &StreamPrefs,
     ) -> crate::Result<Vec<String>> {
         let addrcfg = self.client.addrcfg.get();
-        if !addrcfg.allow_resolving_local_addrs
+        let allow_resolving_local_addrs = prefs
+            .resolve_local_addrs
+            .as_bool()
+            .unwrap_or(addrcfg.allow_resolving_local_addrs);
+
+        if !allow_resolving_local_addrs
             && !crate::address::is_globally_reachable_unicast(addr)
         {
             debug!("Rejecting reverse lookup request for non-routable address {addr}");
