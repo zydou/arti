@@ -242,7 +242,7 @@ struct Job {
 impl Job {
     /// Make a new unbootstrapped client for this job.
     fn make_client<R: Runtime>(&self, runtime: R) -> Result<Arc<TorClient<R>>> {
-        let (_arti, tcc) = tor_config::resolve::<ArtiCombinedConfig>(self.config.load()?)?;
+        let (_arti, tcc) = tor_config::resolve::<ArtiCombinedConfig>(&self.config.load()?)?;
         let client = TorClient::with_runtime(runtime)
             .config(tcc)
             .dirfilter(self.dir_filter.clone())

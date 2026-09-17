@@ -511,7 +511,7 @@ mod test_serde {
         let cfg = sources.load().unwrap();
 
         dbg!(&cfg);
-        let TestConfigFile { p } = tor_config::load::resolve(cfg).expect("cfg resolution failed");
+        let TestConfigFile { p } = tor_config::load::resolve(&cfg).expect("cfg resolution failed");
         p
     }
 

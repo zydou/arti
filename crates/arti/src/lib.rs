@@ -427,7 +427,7 @@ where
 
         let cfg = cfg_sources.load()?;
         let (config, client_config) =
-            tor_config::resolve::<ArtiCombinedConfig>(cfg).context("read configuration")?;
+            tor_config::resolve::<ArtiCombinedConfig>(&cfg).context("read configuration")?;
 
         let log_mistrust = client_config.fs_mistrust().clone();
 

@@ -201,7 +201,7 @@ impl<R: Runtime> CfgMgr<R> {
 
         let config = found_files.load()?;
 
-        match reconfigure(config, &mut inner, how) {
+        match reconfigure(&config, &mut inner, how) {
             Ok(watch) => {
                 info!("Successfully reloaded configuration.");
                 if how != Reconfigure::CheckAllOrNothing {
@@ -517,7 +517,7 @@ fn prepare<'a, R: Runtime>(
 /// Return true if we should be watching for configuration changes.
 #[instrument(level = "trace", skip_all)]
 fn reconfigure(
-    config: ConfigurationTree,
+    config: &ConfigurationTree,
     mgr_inner: &mut CfgMgrInner,
     how: Reconfigure,
 ) -> Result<bool, ChangeConfigurationError> {

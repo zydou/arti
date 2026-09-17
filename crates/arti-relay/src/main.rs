@@ -195,7 +195,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
         .load()
         .context("Failed to load configuration sources")?;
     let config =
-        tor_config::resolve::<TorRelayConfig>(cfg).context("Failed to resolve configuration")?;
+        tor_config::resolve::<TorRelayConfig>(&cfg).context("Failed to resolve configuration")?;
 
     // TODO: Configure a proper logger, not just a simple stderr logger.
     // TODO: We may want this to be the global logger, but if we use arti's `setup_logging` in the
