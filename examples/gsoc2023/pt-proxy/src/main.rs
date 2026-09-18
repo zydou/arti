@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use fast_socks5::client::{Config as ClientConfig, Socks5Stream};
-use fast_socks5::server::{DnsResolveHelper as _, Socks5ServerProtocol, run_tcp_proxy};
+use fast_socks5::server::{Socks5ServerProtocol, run_tcp_proxy};
 use fast_socks5::{ReplyError, Socks5Command, SocksError};
 use std::str::FromStr;
 use tokio::io::AsyncWriteExt;
@@ -252,8 +252,6 @@ async fn serve_socks5(stream: TcpStream) -> Result<(), SocksError> {
     let (proto, cmd, target_addr) = Socks5ServerProtocol::accept_no_auth(stream)
         .await?
         .read_command()
-        .await?
-        .resolve_dns()
         .await?;
 
     match cmd {
