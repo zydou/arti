@@ -317,6 +317,21 @@ impl<R: Runtime> CfgMgr<R> {
 
         Ok(())
     }
+
+    /// Return the configuration value for a given key, if any is set.
+    ///
+    /// TODO: will need a different error type for RPC.
+    #[allow(unused)] // TODO RPC Config remove.
+    pub(crate) fn get_cfg_setting(&self, key: &str) -> anyhow::Result<Option<rpc::ConfigValue>> {
+        let settings: Option<rpc::ConfigValue> = self
+            .inner
+            .lock()
+            .expect("Lock poisoned")
+            .normalized_cfg
+            .get_serde_value(key)?;
+
+        Ok(settings)
+    }
 }
 
 impl<R: Runtime> UnlaunchedWatcher<R> {
