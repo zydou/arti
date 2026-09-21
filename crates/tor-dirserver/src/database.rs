@@ -408,6 +408,15 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     ///
     /// `limit` may be given to specify an optional upper limit, in which case
     /// the result will contain at most `limit` missing descriptors.
+    ///
+    /// # Performance
+    ///
+    /// The performance here is O(n * log n) for each 64-element batch, leading
+    /// to an overall performance of O(n^2 * (log n)/64) per consensus period,
+    /// which sould be acceptable.  See the link below for a further discussion
+    /// on performance related matters:
+    ///
+    /// <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4378#note_3467300>
     pub(crate) fn missing_servers(
         &self,
         tx: &Transaction<'_>,
@@ -462,6 +471,9 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     ///
     /// `limit` may be given to specify an optional upper limit, in which case
     /// the result will contain at most `limit` missing extra-infos.
+    ///
+    /// See [`ConsensusMeta::missing_servers()`] for a discussion on
+    /// performance.
     pub(crate) fn missing_extras(
         &self,
         tx: &Transaction<'_>,
@@ -518,6 +530,9 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     ///
     /// `limit` may be given to specify an optional upper limit, in which case
     /// the result will contain at most `limit` missing descriptors.
+    ///
+    /// See [`ConsensusMeta::missing_servers()`] for a discussion on
+    /// performance.
     pub(crate) fn missing_micros(
         &self,
         tx: &Transaction<'_>,
