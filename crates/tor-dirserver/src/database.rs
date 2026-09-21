@@ -315,6 +315,36 @@ pub(crate) struct ConsensusMeta<T> {
 }
 
 impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
+    /// Select the missing router descriptors.
+    ///
+    /// A router descriptor is considered missing if it exists in
+    /// `consensus_router_descriptor_member` but not in `router_descriptor`
+    /// because the first entry is added once the consensus got parsed,
+    /// whereas the second entry is added once we have actually retrieved it.
+    ///
+    /// It works by doing a left join on router_descriptor and filtering for
+    /// all entries where the join is NULL, as that implies we are aware of
+    /// the descriptor but not have it stored.
+    ///
+    /// Parameters:
+    /// :docid - The docid of the consensus.
+    /// :limit - The maximum number of descriptors to return.
+    //
+    // TODO DIRMIRROR: Potentially constify more queries.
+    const MISSING_SERVERS_QUERY: &'static str = sql!(
+        "
+        SELECT cr.unsigned_sha1, RANDOM() AS rand
+        FROM consensus_router_descriptor_member AS cr
+          LEFT JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
+        WHERE
+          cr.consensus_docid = :docid
+          AND cr.unsigned_sha1 IS NOT NULL
+          AND server.unsigned_sha1 IS NULL
+        ORDER BY rand
+        LIMIT :limit
+        "
+    );
+
     /// Obtains the (valid) consensuses from the database.
     ///
     /// This function queries the database using a [`Transaction`] in order to
@@ -405,41 +435,35 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     }
 
     /// Returns the missing server descriptors for this consensus.
+    ///
+    /// `limit` may be given to specify an optional upper limit, in which case
+    /// the result will contain at most `limit` missing descriptors.
+    ///
+    /// # Performance
+    ///
+    /// The performance here is O(n * log n) for each 64-element batch, leading
+    /// to an overall performance of O(n^2 * (log n)/64) per consensus period,
+    /// which sould be acceptable.  See the link below for a further discussion
+    /// on performance related matters:
+    ///
+    /// <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4378#note_3467300>
     pub(crate) fn missing_servers(
         &self,
         tx: &Transaction<'_>,
+        limit: Option<u64>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Plain {
             return Ok(HashSet::new());
         }
 
-        // Select the missing router descriptors.
-        //
-        // A router descriptor is considered missing if it exists in
-        // `consensus_router_descriptor_member` but not in `router_descriptor`
-        // because the first entry is added once the consensus got parsed,
-        // whereas the second entry is added once we have actually retrieved it.
-        //
-        // It works by doing a left join on router_descriptor and filtering for
-        // all entries where the join is NULL, as that implies we are aware of
-        // the descriptor but not have it stored.
-        //
-        // Parameters:
-        // :docid - The docid of the consensus.
-        let mut stmt = tx.prepare_cached(sql!(
-            "
-            SELECT cr.unsigned_sha1
-            FROM consensus_router_descriptor_member AS cr
-              LEFT JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
-            WHERE
-              cr.consensus_docid = :docid
-              AND cr.unsigned_sha1 IS NOT NULL
-              AND server.unsigned_sha1 IS NULL
-            "
-        ))?;
+        let mut stmt = tx.prepare_cached(Self::MISSING_SERVERS_QUERY)?;
 
+        let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
-            .query_map(named_params! {":docid": self.docid}, |row| row.get(0))?
+            .query_map(
+                named_params! {":docid": self.docid, ":limit": limit},
+                |row| row.get(0),
+            )?
             .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
@@ -448,9 +472,16 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     ///
     /// Keep in mind that this does not return **all** missing extra infos but
     /// only the missing extra infos of server descriptors we have.
+    ///
+    /// `limit` may be given to specify an optional upper limit, in which case
+    /// the result will contain at most `limit` missing extra-infos.
+    ///
+    /// See [`ConsensusMeta::missing_servers()`] for a discussion on
+    /// performance.
     pub(crate) fn missing_extras(
         &self,
         tx: &Transaction<'_>,
+        limit: Option<u64>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Plain {
             return Ok(HashSet::new());
@@ -473,9 +504,10 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         //
         // Parameters:
         // :docid - The docid of the consensus.
+        // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
-            SELECT server.extra_unsigned_sha1
+            SELECT server.extra_unsigned_sha1, RANDOM() AS rand
             FROM consensus_router_descriptor_member AS cr
               INNER JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
               LEFT JOIN router_extra_info AS extra ON server.extra_unsigned_sha1 = extra.unsigned_sha1
@@ -483,19 +515,32 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND server.extra_unsigned_sha1 IS NOT NULL
               AND extra.unsigned_sha1 IS NULL
+            ORDER BY rand
+            LIMIT :limit
             "
         ))?;
 
+        let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
-            .query_map(named_params! {":docid": self.docid}, |row| row.get(0))?
+            .query_map(
+                named_params! {":docid": self.docid, ":limit": limit},
+                |row| row.get(0),
+            )?
             .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
 
     /// Returns the missing micro descriptors for this consensus.
+    ///
+    /// `limit` may be given to specify an optional upper limit, in which case
+    /// the result will contain at most `limit` missing descriptors.
+    ///
+    /// See [`ConsensusMeta::missing_servers()`] for a discussion on
+    /// performance.
     pub(crate) fn missing_micros(
         &self,
         tx: &Transaction<'_>,
+        limit: Option<u64>,
     ) -> Result<HashSet<Sha256>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Microdesc {
             return Ok(HashSet::new());
@@ -514,20 +559,27 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         //
         // Parameters:
         // :docid - The docid of the consensus.
+        // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
-            SELECT cr.unsigned_sha2
+            SELECT cr.unsigned_sha2, RANDOM() AS rand
             FROM consensus_router_descriptor_member AS cr
               LEFT JOIN router_descriptor AS micro ON cr.unsigned_sha2 = micro.unsigned_sha2
             WHERE
               cr.consensus_docid = :docid
               AND cr.unsigned_sha2 IS NOT NULL
               AND micro.unsigned_sha2 IS NULL
+            ORDER BY rand
+            LIMIT :limit
             "
         ))?;
 
+        let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
-            .query_map(named_params! {":docid": self.docid}, |row| row.get(0))?
+            .query_map(
+                named_params! {":docid": self.docid, ":limit": limit},
+                |row| row.get(0),
+            )?
             .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
@@ -1630,7 +1682,7 @@ mod test {
             .unwrap();
 
         // Only one should be returned.
-        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx))
+        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx, None))
             .unwrap()
             .unwrap();
         assert_eq!(missing_servers, HashSet::from([removed_descriptor]));
@@ -1644,7 +1696,7 @@ mod test {
 
         // Now all should be returned; we verify this by checking that the
         // result is present in all_descriptors, which is a superset.
-        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx))
+        let missing_servers = read_tx(&pool, |tx| meta.missing_servers(tx, None))
             .unwrap()
             .unwrap();
         // This is a superset of missing_servers because it includes router
@@ -1658,6 +1710,74 @@ mod test {
                 .iter()
                 .all(|sha1| all_descriptors.contains(sha1))
         );
+    }
+
+    /// Tests whether or not the missing descriptors are actually random.
+    #[test]
+    fn missing_descriptors_are_random() {
+        let pool = testdata2::test_db();
+        rw_tx(&pool, |tx| {
+            tx.execute(sql!("DELETE FROM router_descriptor"), ())
+                .unwrap();
+            let meta = ConsensusMeta::<Plain>::query(
+                tx,
+                &DirTolerance::default(),
+                Some(testdata2::valid_system_time().into()),
+            )
+            .unwrap()[0];
+
+            // Ensure there are more than 1 missing descriptors now.
+            let n = meta.missing_servers(tx, None).unwrap().len();
+            assert!(n > 1);
+
+            let mut prev = HashSet::new();
+            let mut randomness_works = false;
+            for _ in 0..100 {
+                let cur = meta.missing_servers(tx, Some(1)).unwrap();
+                if prev != cur {
+                    randomness_works = true;
+                    break;
+                }
+                prev = cur;
+            }
+            assert!(randomness_works);
+        })
+        .unwrap();
+    }
+
+    /// Tests whether the RANDOM() calls are executed before the ordering so
+    /// that we have stability.
+    #[test]
+    fn missing_servers_monotonically_increasing() {
+        let pool = testdata2::test_db();
+        rw_tx(&pool, |tx| {
+            let meta = ConsensusMeta::<Plain>::query(
+                tx,
+                &DirTolerance::default(),
+                Some(testdata2::valid_system_time().into()),
+            )
+            .unwrap();
+            tx.execute(sql!("DELETE FROM router_descriptor"), ())
+                .unwrap();
+
+            let mut stmt = tx
+                .prepare_cached(ConsensusMeta::<Plain>::MISSING_SERVERS_QUERY)
+                .unwrap();
+
+            let res = stmt
+                .query_map(params![meta[0].docid, -1], |row| row.get::<_, i64>(1))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+
+            // Ensure there is more than 1 missing descriptor because we can
+            // only test ordering if n >= 2.
+            assert!(res.len() > 1);
+
+            // Verify that the calls are monotonically increasing.
+            assert!(res.is_sorted());
+        })
+        .unwrap();
     }
 
     /// Tests whether the missing extra-info documents are computed properly.
@@ -1681,7 +1801,7 @@ mod test {
         );
 
         // We should have no missing extra-infos.
-        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx))
+        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx, None))
             .unwrap()
             .unwrap();
         assert!(missing_extras.is_empty());
@@ -1732,7 +1852,7 @@ mod test {
             .unwrap();
 
         // Only one should be returned.
-        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx))
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, None))
             .unwrap()
             .unwrap();
         assert_eq!(missing_micros, HashSet::from([removed_descriptor]));
@@ -1746,7 +1866,7 @@ mod test {
 
         // Now all should be returned; we verify this by checking that the
         // result is present in all_descriptors, which is a superset.
-        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx))
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, None))
             .unwrap()
             .unwrap();
         // This is a superset of missing_micros because it includes micro

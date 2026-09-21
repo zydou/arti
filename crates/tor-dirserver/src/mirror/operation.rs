@@ -15,11 +15,7 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::{
-    collections::{HashSet, VecDeque},
-    marker::PhantomData,
-    net::SocketAddr,
-};
+use std::{collections::VecDeque, marker::PhantomData, net::SocketAddr};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -31,7 +27,7 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_checkable::TimeBound;
 use tor_dirclient::request::{AuthCertRequest, ConsensusRequest, Requestable};
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
-use tor_error::{internal, into_internal};
+use tor_error::internal;
 use tor_netdoc::{
     doc::{
         authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
@@ -192,32 +188,10 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// We have downloaded and verified a consensus.
     Verified {
         /// The verified consensus we have.
-        consensus: T::Body,
+        consensus: ConsensusMeta<T>,
 
         /// When to stop dealing with this consensus and fetching a new one.
         lifetime: Timestamp,
-
-        /// SHA-1 digests of the missing server descriptors in the consensus.
-        server_queue: HashSet<db::Sha1>,
-
-        /// SHA-1 digests of the missing extra-info descriptors in the server
-        /// descriptors of the consensus.
-        ///
-        /// extra-info documents are only transitively related to a consensus
-        /// through consensus -> server descriptors -> extra-info descriptors
-        extra_queue: HashSet<db::Sha1>,
-
-        /// SHA-256 digests of the missing micro descriptors in the consensus.
-        ///
-        /// This field is technically mutually exclusive to server_queue and
-        /// extra_queue because micro descriptors are only found in
-        /// microdescriptor consensuses  and server plus extra-info
-        /// descriptors only in plain consensuses.  However, because
-        /// we used a queue based design, we just leave the queue empty instead
-        /// of wrapping this behind an enum variant for true mutual exclusivity.
-        /// This makes coding much easier with less boilerplate and neglectable
-        /// additional runtime cost.
-        micro_queue: HashSet<db::Sha256>,
     },
 }
 
@@ -286,10 +260,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             // network documents (descriptors) from a directory authority, if
             // any.
             ConsensusBoundData::Verified {
+                consensus,
                 lifetime,
-                server_queue: servers,
-                extra_queue: extras,
-                micro_queue: micros,
                 ..
             } => {
                 if *lifetime <= now {
@@ -301,7 +273,10 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                     // database until valid-after has been surpassed, which is
                     // most definitely not what we want.
                     State::FetchConsensus
-                } else if servers.is_empty() && extras.is_empty() && micros.is_empty() {
+                } else if consensus.missing_servers(tx, Some(1))?.is_empty()
+                    && consensus.missing_micros(tx, Some(1))?.is_empty()
+                    && consensus.missing_extras(tx, Some(1))?.is_empty()
+                {
                     // All queues are empty, meaning we are done, until lifetime
                     // ends.
                     State::Hibernate
@@ -370,54 +345,16 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // In this case, it is probably better to return a bug, as external
         // applications arbitrarily modifying the database while we are running
         // leaves too much room for wrong/weird behavior.
-        let (server_queue, extra_queue, micro_queue, lifetime, consensus) =
-            db::read_tx(pool, |tx| {
-                let meta = ConsensusMeta::<T>::query(tx, &self.tolerance, Some(now))?;
-                let meta = meta
-                    .first()
-                    .ok_or(internal!("database externally modified?"))?;
-                let server_queue = meta.missing_servers(tx)?;
-                let extra_queue = meta.missing_extras(tx)?;
-                let micro_queue = meta.missing_micros(tx)?;
-                let lifetime = meta.lifetime(rng);
-                let consensus = meta.data(tx)?;
-                Ok::<_, DatabaseError>((
-                    server_queue,
-                    extra_queue,
-                    micro_queue,
-                    lifetime,
-                    consensus,
-                ))
-            })??;
-
-        // Parse the most recent valid consensus from the database.
-        //
-        // TODO DIRMIRROR:
-        // Because only valid documents may exist in the database, it should
-        // succeed.  However, there is this weird edge-case where we may have
-        // inserted a document with a field we do not understand because of
-        // using an old version.  After upgrading our version we may now
-        // understand the field and realize it is wrong, leading to a violation
-        // of this constraint.  Handling this is not very easy; I suppose adding
-        // an additional column to the meta table storing the last used crate
-        // version is a sensible idea, with upgrades and downgrades leading to
-        // a parsing of all network documents within the database, throwing the
-        // ones out we do not understand (anymore).
-        //
-        // See also the relevant MR discussion:
-        // <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3664#note_3352723>
-        let consensus = parse2::parse_netdoc::<T>(&ParseInput::new(&consensus, ""))
-            .map_err(into_internal!("invalid netdoc in database?"))?
-            // TODO DIRMIRROR: explain why this is OK, or re-verify the signatures
-            .unwrap_unverified()
-            .0;
+        let consensus = *db::read_tx(pool, |tx| {
+            ConsensusMeta::query(tx, &self.tolerance, Some(now))
+        })??
+        .first()
+        .ok_or(internal!("database externally modified?"))?;
+        let lifetime = consensus.lifetime(rng);
 
         *data = ConsensusBoundData::Verified {
             consensus,
             lifetime,
-            server_queue,
-            extra_queue,
-            micro_queue,
         };
         Ok(())
     }
@@ -722,6 +659,8 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use std::collections::HashSet;
+
     use rusqlite::params;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
@@ -790,19 +729,23 @@ mod test {
         // El-cheapo assert_eq due to lack of PartialEq for tor-netdoc poc.
         match data {
             ConsensusBoundData::Verified {
+                consensus,
                 lifetime,
-                server_queue,
-                extra_queue,
-                micro_queue,
                 ..
             } => {
                 // If everything worked properly, then the queue should only
                 // contain the relay we removed, because that is missing now.
-                assert_eq!(server_queue, HashSet::from([relay_to_remove]));
+                db::read_tx(&pool, |tx| {
+                    assert_eq!(
+                        consensus.missing_servers(tx, None).unwrap(),
+                        HashSet::from([relay_to_remove])
+                    );
+                    assert!(consensus.missing_extras(tx, None).unwrap().is_empty());
+                    assert!(consensus.missing_micros(tx, None).unwrap().is_empty());
+                })
+                .unwrap();
                 assert!(lifetime >= fresh_until);
                 assert!(lifetime <= fresh_until_half);
-                assert!(extra_queue.is_empty());
-                assert!(micro_queue.is_empty());
             }
             _ => panic!("data is not verified"),
         }
