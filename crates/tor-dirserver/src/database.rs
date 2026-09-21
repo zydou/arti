@@ -65,13 +65,16 @@ use rusqlite::{
 use saturating_time::SaturatingTime;
 use tor_basic_utils::RngExt;
 use tor_dircommon::config::DirTolerance;
-use tor_error::into_internal;
+use tor_error::{internal, into_internal};
 use tor_netdoc::doc::{
     authcert::{AuthCert, AuthCertKeyIds},
     netstatus::ConsensusFlavor,
 };
 
-use crate::{err::DatabaseError, types::FlavoredConsensusUnverified};
+use crate::{
+    err::DatabaseError,
+    types::{FlavoredConsensusBody, FlavoredConsensusSignatures, FlavoredConsensusUnverified},
+};
 
 /// Version 1 of the database schema.
 ///
@@ -531,6 +534,128 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
             .collect::<Result<HashSet<_>, _>>()?;
         Ok(missing)
     }
+
+    /// Inserts a verified consensus into the database.
+    ///
+    /// This method *DOES NOT* compute any consensus diffs but populates
+    /// associated meta tables such as `consensus_router_descriptor_member`
+    /// and `consensus_authority_voter` properly.
+    pub(crate) fn insert<I>(
+        tx: &Transaction<'_>,
+        encodings: I,
+        (body, sigs): (&T::Body, &T::Signatures),
+        data: &str,
+    ) -> Result<ConsensusMeta<T>, DatabaseError>
+    where
+        I: Iterator<Item = ContentEncoding>,
+    {
+        // Insert a consensus into the consensus meta table.
+        //
+        // This requires the consensus to already be present in the `store`
+        // table.
+        //
+        // Parameters:
+        // :docid - The docid of the consensus.
+        // :unsigned_sha3_256 - The SHA3-256 sum of the part of the consensus
+        //   without signatures but a trailing `\ndirectory-signature<SPACE>`.
+        // :flavor - The consensus flavor to use.
+        // :valid_after, :fresh_until, :valid_until - The respective validities.
+        let mut cons_stmt = tx.prepare_cached(sql!(
+            "
+            INSERT INTO consensus
+            (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
+            VALUES
+            (:docid, :unsigned_sha3_256, :flavor, :valid_after, :fresh_until, :valid_until)
+            ON CONFLICT DO NOTHING
+            "
+        ))?;
+
+        // Insert the relationship between a router status to a consensus.
+        //
+        // Parameters:
+        // :docid - The consensus docid.
+        // :sha1 - The server descriptor digest (plain consensus only, NULL otherwise).
+        // :sha2 - The micro descriptor digest (microdesc consensus only, NULL otherwise).
+        let mut cons_rs_member_stmt = tx.prepare_cached(sql!(
+            "
+            INSERT INTO consensus_router_descriptor_member
+            (consensus_docid, unsigned_sha1, unsigned_sha2)
+            VALUES
+            (:docid, :sha1, :sha2)
+            ON CONFLICT DO NOTHING
+            "
+        ))?;
+
+        // Insert the relationship between authority certificate to consensus votes.
+        //
+        // Parameters:
+        // :cons - The consensus docid.
+        // :auth - The authority certificate docid.
+        let mut cons_auth_voter = tx.prepare_cached(sql!(
+            "
+            INSERT INTO consensus_authority_voter
+            (consensus_docid, kp_auth_id_rsa_sha1)
+            VALUES
+            (:consensus_docid, :id_rsa)
+            ON CONFLICT DO NOTHING
+            "
+        ))?;
+
+        // First, insert the consensus as is.
+        let docid = store_insert(tx, data.as_bytes(), encodings)?;
+
+        // TODO DIRMIRROR: We *need* this in tor-netdoc!!!
+        let unsigned_sha3_256 = Sha3_256::digest(
+            data.split_inclusive("\ndirectory-signature ")
+                .next()
+                .ok_or(internal!("verified document without signatures?"))?
+                .as_bytes(),
+        );
+
+        let lifetime = body.lifetime();
+        let meta = ConsensusMeta {
+            docid,
+            unsigned_sha3_256,
+            valid_after: lifetime.valid_after.0.into(),
+            fresh_until: lifetime.fresh_until.0.into(),
+            valid_until: lifetime.valid_until.0.into(),
+            flavor: Default::default(),
+        };
+        cons_stmt.execute(named_params! {
+            ":docid": meta.docid,
+            ":unsigned_sha3_256": meta.unsigned_sha3_256,
+            ":valid_after": meta.valid_after,
+            ":fresh_until": meta.fresh_until,
+            ":valid_until": meta.valid_until,
+            ":flavor": T::flavor().name(),
+        })?;
+
+        // Insert all router descriptor member relationships.
+        //
+        // Many small queries are fast in sqlite, so this shouldn't be a perf problem.
+        // https://sqlite.org/np1queryprob.html
+        //
+        // Depending on the flavor, we map the document digests to an iterator
+        // of a tuple of Option's, where one of the values is always None.
+        // This represents the fact that router descriptors use SHA-1 and micro
+        // descriptors SHA-256.
+        for (sha1, sha2) in body.doc_digests() {
+            cons_rs_member_stmt.execute(named_params! {
+                ":docid": docid,
+                ":sha1": sha1,
+                ":sha2": sha2,
+            })?;
+        }
+
+        for sig in sigs.signatories() {
+            cons_auth_voter.execute(named_params! {
+                ":consensus_docid": docid,
+                ":id_rsa": Sha1(sig.id_fingerprint.to_bytes()),
+            })?;
+        }
+
+        Ok(meta)
+    }
 }
 
 /// Representation of authority certificate metadata from the database.
@@ -962,6 +1087,7 @@ mod test {
     use std::{
         collections::HashSet,
         io::Read,
+        iter,
         sync::{Arc, Once},
     };
 
@@ -974,7 +1100,7 @@ mod test {
     use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_netdoc::doc::netstatus::{md, plain};
 
-    use crate::testdata2;
+    use crate::testdata2::{self, current_consensus_ns};
 
     use super::*;
 
@@ -1328,9 +1454,9 @@ mod test {
             .build()
             .unwrap();
 
-        let docid = Sha256::digest(testdata2::current_consensus_ns().1.as_bytes());
+        let docid = Sha256::digest(testdata2::current_consensus_ns().2.as_bytes());
         let lifetime = testdata2::current_consensus_ns().0.preamble.lifetime;
-        let unsigned_sha3_256 = testdata2::consensus_sha3(testdata2::current_consensus_ns().1);
+        let unsigned_sha3_256 = testdata2::consensus_sha3(testdata2::current_consensus_ns().2);
 
         read_tx(&pool, move |tx| {
             // Get None by being way before valid-after.
@@ -1444,6 +1570,44 @@ mod test {
         .unwrap();
     }
 
+    /// Verify that the insertion of a consensus works.
+    ///
+    /// For this, we do not use the test database but rather a fresh one and
+    /// call ConsensusMeta::insert().  After, we verify that the consensus
+    /// can be queried as well as that the missing descriptors are properly
+    /// calculated.
+    #[test]
+    fn consensus_insert() {
+        let pool = open("").unwrap();
+        let mut conn = pool.get().unwrap();
+        let tx = conn.transaction().unwrap();
+        let (body, sigs, data) = current_consensus_ns();
+        let meta = ConsensusMeta::<Plain>::insert(
+            &tx,
+            iter::once(ContentEncoding::Identity),
+            (&body, &sigs),
+            data,
+        )
+        .unwrap();
+
+        assert_eq!(
+            meta,
+            ConsensusMeta::<Plain> {
+                docid: Sha256::digest(data.as_bytes()),
+                unsigned_sha3_256: testdata2::consensus_sha3(data),
+                valid_after: body.preamble.lifetime.valid_after.0.into(),
+                fresh_until: body.preamble.lifetime.fresh_until.0.into(),
+                valid_until: body.preamble.lifetime.valid_until.0.into(),
+                flavor: Default::default()
+            }
+        );
+        let meta2 = ConsensusMeta::<Plain>::query(&tx, &DirTolerance::default(), None).unwrap();
+        assert_eq!(meta2, vec![meta]);
+        let missing_descs = meta.missing_servers(&tx).unwrap();
+        let missing_descs2 = body.routers.iter().map(|r| Sha1(*r.doc_digest())).collect();
+        assert_eq!(missing_descs, missing_descs2);
+    }
+
     /// Tests whether the timeout computation lies within the proper interval.
     ///
     /// Because this involves randomness, it performs the test several thousand
@@ -1452,9 +1616,9 @@ mod test {
     #[test]
     fn sync_timeout() {
         // We repeat the tests a few thousand times to go over many random values.
-        let docid = Sha256::digest(testdata2::current_consensus_ns().1.as_bytes());
+        let docid = Sha256::digest(testdata2::current_consensus_ns().2.as_bytes());
         let lifetime = testdata2::current_consensus_ns().0.preamble.lifetime;
-        let unsigned_sha3_256 = testdata2::consensus_sha3(testdata2::current_consensus_ns().1);
+        let unsigned_sha3_256 = testdata2::consensus_sha3(testdata2::current_consensus_ns().2);
         let cons = ConsensusMeta::<Plain> {
             docid,
             unsigned_sha3_256,
@@ -1608,7 +1772,7 @@ mod test {
         // Ensure that the returned consensus matches the one from testdata2.
         assert_eq!(
             meta.docid,
-            DocumentId::digest(testdata2::current_consensus_ns().1.as_bytes())
+            DocumentId::digest(testdata2::current_consensus_ns().2.as_bytes())
         );
 
         // Delete a single router descriptor, so we can determine a missing one
@@ -1676,7 +1840,7 @@ mod test {
         // Ensure that the returned consensus matches the one from testdata2.
         assert_eq!(
             meta.docid,
-            DocumentId::digest(testdata2::current_consensus_ns().1.as_bytes())
+            DocumentId::digest(testdata2::current_consensus_ns().2.as_bytes())
         );
 
         // We should have no missing extra-infos.
@@ -1710,7 +1874,7 @@ mod test {
         // Ensure that the returned consensus matches the one from testdata2.
         assert_eq!(
             meta.docid,
-            DocumentId::digest(testdata2::current_consensus_md().1.as_bytes())
+            DocumentId::digest(testdata2::current_consensus_md().2.as_bytes())
         );
 
         // Delete a single router descriptor, so we can determine a missing one

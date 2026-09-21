@@ -794,7 +794,7 @@ mod test {
             let mut buf = vec![0; 1024];
             let _ = stream.read(&mut buf).await.unwrap();
 
-            let consensus = testdata2::current_consensus_ns().1;
+            let consensus = testdata2::current_consensus_ns().2;
             let resp = format!(
                 "HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: {}\r\n\r\n{consensus}",
                 consensus.len()
@@ -805,7 +805,7 @@ mod test {
         engine.fetch_consensus(&mut data, &[saddr]).await.unwrap();
         match data {
             ConsensusBoundData::Unverified { raw, .. } => {
-                assert_eq!(raw, testdata2::current_consensus_ns().1);
+                assert_eq!(raw, testdata2::current_consensus_ns().2);
             }
             _ => panic!("data is not unverified"),
         }
@@ -820,11 +820,11 @@ mod test {
         let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::<Plain>::Unverified {
             consensus: parse2::parse_netdoc(&ParseInput::new(
-                testdata2::current_consensus_ns().1,
+                testdata2::current_consensus_ns().2,
                 "",
             ))
             .unwrap(),
-            raw: testdata2::current_consensus_ns().1.to_owned(),
+            raw: testdata2::current_consensus_ns().2.to_owned(),
         };
         let engine = StaticEngine {
             authorities: testdata2::current_auth_cert_contacts(),
@@ -905,7 +905,7 @@ mod test {
             AuthCertMeta::query(
                 tx,
                 &parse2::parse_netdoc::<Plain>(&ParseInput::new(
-                    testdata2::current_consensus_ns().1,
+                    testdata2::current_consensus_ns().2,
                     "",
                 ))
                 .unwrap()
