@@ -1707,6 +1707,39 @@ mod test {
         );
     }
 
+    /// Tests whether or not the missing descriptors are actually random.
+    #[test]
+    fn missing_descriptors_are_random() {
+        let pool = testdata2::test_db();
+        rw_tx(&pool, |tx| {
+            tx.execute(sql!("DELETE FROM router_descriptor"), ())
+                .unwrap();
+            let meta = ConsensusMeta::<Plain>::query(
+                tx,
+                &DirTolerance::default(),
+                Some(testdata2::valid_system_time().into()),
+            )
+            .unwrap()[0];
+
+            // Ensure there are more than 1 missing descriptors now.
+            let n = meta.missing_servers(tx, None).unwrap().len();
+            assert!(n > 1);
+
+            let mut prev = HashSet::new();
+            let mut randomness_works = false;
+            for _ in 0..100 {
+                let cur = meta.missing_servers(tx, Some(1)).unwrap();
+                if prev != cur {
+                    randomness_works = true;
+                    break;
+                }
+                prev = cur;
+            }
+            assert!(randomness_works);
+        })
+        .unwrap();
+    }
+
     /// Tests whether the missing extra-info documents are computed properly.
     // TODO DIRMIRROR: Expand on this once we have proper extra-info support.
     #[test]
