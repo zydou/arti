@@ -8,6 +8,7 @@ use std::net::IpAddr;
 use either::Either;
 use futures::SinkExt as _;
 use futures::channel::mpsc;
+use hickory_proto::rr::RData as HickoryRecordData;
 use smallvec::SmallVec;
 
 use oneshot_fused_workaround as oneshot;
@@ -34,6 +35,21 @@ pub(crate) enum RecordData {
     Ip(IpAddr),
     /// A PTR record
     Hostname(String),
+}
+
+impl TryFrom<&HickoryRecordData> for RecordData {
+    type Error = LookupError;
+
+    fn try_from(record: &HickoryRecordData) -> Result<Self, Self::Error> {
+        let rec = match record {
+            HickoryRecordData::A(a) => RecordData::Ip(a.0.into()),
+            HickoryRecordData::AAAA(aaaa) => RecordData::Ip(aaaa.0.into()),
+            HickoryRecordData::PTR(hostname) => RecordData::Hostname(hostname.to_ascii()),
+            _ => return Err(internal!("unexpected answer record {record:?}").into()),
+        };
+
+        Ok(rec)
+    }
 }
 
 impl From<RecordData> for ResolvedVal {

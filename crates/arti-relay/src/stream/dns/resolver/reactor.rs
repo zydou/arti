@@ -15,6 +15,8 @@ use futures::FutureExt as _;
 use futures::channel::mpsc;
 use futures::select_biased;
 use futures::stream::StreamExt as _;
+use hickory_resolver::lookup::Lookup;
+use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use tokio::task::JoinSet;
 
 use tor_async_utils::oneshot_broadcast;
@@ -25,6 +27,9 @@ use crate::stream::dns::resolver::{
     DnsRequest, DnsResolver, DnsResponseReceiver, LookupAnswers, LookupError, RecordData,
 };
 
+/// The hickory stub resolver.
+pub(crate) type HickoryResolver = hickory_resolver::Resolver<TokioRuntimeProvider>;
+
 /// A reactor that performs DNS lookups on behalf of incoming streams (RESOLVE, BEGIN).
 ///
 /// De-duplicates queries, and uses hickory-resolver under the hood.
@@ -32,7 +37,7 @@ use crate::stream::dns::resolver::{
 /// Queries are de-duplicated using [`PendingQueries`], which keeps track
 /// of all the currently running lookup tasks.
 #[must_use = "the reactor doesn't do anything unless you run it"]
-pub(crate) struct DnsResolverReactor<M: MockableAsyncResolver> {
+pub(crate) struct DnsResolverReactor<M: MockableAsyncResolver = HickoryResolver> {
     /// The async stub resolver.
     resolver: Arc<M>,
     /// The time provider.
@@ -85,6 +90,20 @@ pub(crate) struct AnswerRecord {
     ttl: u32,
 }
 
+/// Type-alias for the hickory record type, for convenience
+type HickoryRecord = hickory_proto::rr::Record<hickory_proto::rr::RData>;
+
+impl TryFrom<&HickoryRecord> for AnswerRecord {
+    type Error = LookupError;
+
+    fn try_from(rec: &HickoryRecord) -> Result<Self, Self::Error> {
+        Ok(Self {
+            data: RecordData::try_from(&rec.data)?,
+            ttl: rec.ttl,
+        })
+    }
+}
+
 /// A mockable stub resolver.
 ///
 /// Used for mocking the hickory resolver in the
@@ -100,6 +119,54 @@ pub(crate) trait MockableAsyncResolver: Send + Sync + 'static {
     -> Result<LookupAnswers<AnswerRecord>, LookupError>;
 }
 
+// TODO(relay): do we want hickory_resolver::ConnectionProvider to be a supertrait of tor_rtcompat::Runtime?
+// It would enable us to write some unit tests involving the hickory resolver,
+// without having to mock the whole thing like we do today.
+//
+// For now, this seems more trouble than it's worth.
+
+#[async_trait]
+impl MockableAsyncResolver for HickoryResolver {
+    async fn lookup_ip(&self, query: &str) -> Result<LookupAnswers<AnswerRecord>, LookupError> {
+        let lookup = self.lookup_ip(query).await?;
+
+        extract_hickory_answers(lookup.as_lookup())
+    }
+
+    async fn reverse_lookup(
+        &self,
+        query: &str,
+    ) -> Result<LookupAnswers<AnswerRecord>, LookupError> {
+        let lookup = self.reverse_lookup(query).await?;
+
+        extract_hickory_answers(&lookup)
+    }
+}
+
+/// Convert a hickory [`Lookup`] into a collection of [`AnswerRecord`]s.
+///
+/// Note: we need our own AnswerRecord type here, because the hickory Record type
+/// is quite big (272 bytes) and includes various fields we don't actually use
+/// (such as the domain name that was looked up and the DNS record class).
+fn extract_hickory_answers(lookup: &Lookup) -> Result<LookupAnswers<AnswerRecord>, LookupError> {
+    // Note on TTLs: you might think we could use the valid_until timestamp
+    // from the Lookup object here. However, that wouldn't give us
+    // the real TTL, because hickory-resolver always sets this to the maximum
+    // allowed TTL of 1 day (see the Future impl for LookupIpFuture in hickory_resolver).
+    //
+    // TODO(gabi): This *might* be tolerable for our use case, but I am not sure.
+    // We might want to compute our own valid_until timestamp for the lookup,
+    // based on the individual TTLs of the answers. This has the added benefit
+    // of allowing us to make the valid_until relative to the `now` timestamp
+    // (which will make it easier to write tests for the cache expiry logic,
+    // when we implement that).
+
+    lookup
+        .answers()
+        .iter()
+        .map(AnswerRecord::try_from)
+        .collect::<Result<_, LookupError>>()
+}
 
 /// A response cache for the [`DnsResolverReactor`].
 #[derive(Default)]
