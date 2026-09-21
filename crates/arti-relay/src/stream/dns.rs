@@ -18,7 +18,6 @@ use tracing::trace;
 const FAKE_TTL_SECONDS: u32 = 60;
 
 /// Handle an incoming DNS stream
-#[allow(clippy::unused_async)] // TODO(relay)
 pub(crate) async fn handle_resolve(
     incoming: IncomingStream,
     mut resolver: DnsResolver,
