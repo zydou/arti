@@ -404,7 +404,11 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         let ttl = now + UNVERIFIED_TTL;
 
         // And store it.
-        *data = ConsensusBoundData::Unverified { consensus, raw, ttl };
+        *data = ConsensusBoundData::Unverified {
+            consensus,
+            raw,
+            ttl,
+        };
 
         Ok(())
     }
@@ -514,7 +518,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             ConsensusBoundData::None => {
                 return Err(internal!("hibernating without a consensus?").into());
             }
-            ConsensusBoundData::Verified { ttl, .. } | ConsensusBoundData::Unverified { ttl, .. } => {
+            ConsensusBoundData::Verified { ttl, .. }
+            | ConsensusBoundData::Unverified { ttl, .. } => {
                 let timeout = *ttl - now;
                 debug!("hibernating for {}s", timeout.as_secs());
                 tokio::time::sleep(timeout).await;
@@ -775,11 +780,9 @@ mod test {
         };
         let now = Timestamp::from(testdata2::invalid_system_time());
 
-        let state = db::read_tx(&pool, |tx| {
-            engine.determine_state(tx, &data, now)
-        })
-        .unwrap()
-        .unwrap();
+        let state = db::read_tx(&pool, |tx| engine.determine_state(tx, &data, now))
+            .unwrap()
+            .unwrap();
         assert_eq!(state, State::FetchConsensus);
 
         let server = TcpListener::bind("[::1]:0").await.unwrap();
@@ -797,7 +800,10 @@ mod test {
             stream.write_all(resp.as_bytes()).await.unwrap();
         });
 
-        engine.fetch_consensus(&mut data, &[saddr], now).await.unwrap();
+        engine
+            .fetch_consensus(&mut data, &[saddr], now)
+            .await
+            .unwrap();
         match data {
             ConsensusBoundData::Unverified { raw, ttl, .. } => {
                 assert_eq!(raw, testdata2::current_consensus_ns().2);
