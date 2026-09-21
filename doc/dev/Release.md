@@ -48,7 +48,7 @@ THIS_VERSION=1.1.6
 
 [security-patch-approved]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Security%20Patch%20Approved
 
-1. [ ] Look over all remaining confidential issues for any that have patches not listed
+3. [ ] Look over all remaining confidential issues for any that have patches not listed
    in the above meta-issue.
 
     If there any that seem like they have a patch,
@@ -56,11 +56,11 @@ THIS_VERSION=1.1.6
     ask the patch author if they should be added to the meta-issue.
     Don't add a patch without confirming with the author beforehand.
 
-3. [ ] If the above meta-issue doesn't exist,
+4. [ ] If the above meta-issue doesn't exist,
    there are no confidential security patches for this release,
    so skip the remainder of this section.
 
-3. [ ] In a *private* arti repository, create an `arti-next` branch.
+5. [ ] In a *private* arti repository, create an `arti-next` branch.
 
     This new branch should be up to date with the arti repository's main branch.
 
@@ -71,7 +71,7 @@ THIS_VERSION=1.1.6
 
 [tpo-core]: https://gitlab.torproject.org/groups/tpo/core/-/group_members
 
-4. [ ] For each security patch listed in the meta-issue,
+6. [ ] For each security patch listed in the meta-issue,
    merge it into `arti-next`.
 
     If there are conflicts, attempt to fix the conflicts manually,
@@ -79,11 +79,11 @@ THIS_VERSION=1.1.6
     If the changes required to fix a conflict are more than trivial changes,
     you should inform the author of that patch.
 
-5. [ ] Ensure that CI passes with all of the security patches.
+7. [ ] Ensure that CI passes with all of the security patches.
 
 ## Finalize confidential security patches (~3 day before release)
 
-2. [ ] Repeat steps in "Prepare for confidential security patches" section above.
+1. [ ] Repeat steps in "Prepare for confidential security patches" section above.
 
 ## Are we ready to release?
 
@@ -103,7 +103,7 @@ to make sure we aren't going to break our users.
 [issues]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Blocker
 [merge requests]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/?label_name[]=Blocker
 
-5. [ ] Ensure `maint/fixup-features` is happy
+4. [ ] Ensure `maint/fixup-features` is happy
 
    Does `maint/fixup-features` produce any results?
    If so, fix them.
@@ -118,7 +118,7 @@ to make sure we aren't going to break our users.
    improperly formatted and/or sorted.
    You'll probably need to run `cargo sort` too; see `maint/cargo-sort`.
 
-6. [ ] Does `maint/semver-checks "arti-v$LAST_VERSION" | tee ../semver.log` find any issues
+5. [ ] Does `maint/semver-checks "arti-v$LAST_VERSION" | tee ../semver.log` find any issues
    not noted in our semver.md files?
    If so, add them.
 
@@ -245,20 +245,20 @@ before you continue!
 1. [ ] Tell `network-team` (via email and IRC) that the tree is now frozen,
    and no MRs should be merged.
 
-3. [ ] Repeat steps in "Prepare for confidential security patches" section above
+2. [ ] Repeat steps in "Prepare for confidential security patches" section above
    to ensure that no security patches were missed.
 
-4. [ ] Merge changes from the private `arti-next` branch into the arti `main` branch.
+3. [ ] Merge changes from the private `arti-next` branch into the arti `main` branch.
 
     If there are merge conflicts, fix them manually and hope for the best.
 
-5. [ ] Finalize the changelog.
+4. [ ] Finalize the changelog.
 
    Make sure that the date is correct.
    Make sure that the acknowledgments and links are correct,
    if they might have gotten stale.
 
-6. [ ] Increase all appropriate version numbers.
+5. [ ] Increase all appropriate version numbers.
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
@@ -289,7 +289,7 @@ before you continue!
 		(cd crates/equix/bench && cargo update)
 ```
 
-7. [ ] (Re)run `maint/semver-checks` (having addressed any expected problems)
+6. [ ] (Re)run `maint/semver-checks` (having addressed any expected problems)
 
    Check for side effects from bumping versions!
 
@@ -320,7 +320,7 @@ before you continue!
    Run `maint/semver-checks` again:
    It should be quiet now that you bumped all the versions.
 
-8. [ ] Run `maint/update-release-date`
+7. [ ] Run `maint/update-release-date`
 
    This makes sure that Arti has an accurate sense of when its version was bumped.
 
