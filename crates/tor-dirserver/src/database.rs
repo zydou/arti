@@ -442,14 +442,14 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
-            SELECT cr.unsigned_sha1
+            SELECT cr.unsigned_sha1, RANDOM() AS rand
             FROM consensus_router_descriptor_member AS cr
               LEFT JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
             WHERE
               cr.consensus_docid = :docid
               AND cr.unsigned_sha1 IS NOT NULL
               AND server.unsigned_sha1 IS NULL
-            ORDER BY RANDOM()
+            ORDER BY rand
             LIMIT :limit
             "
         ))?;
@@ -503,7 +503,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
-            SELECT server.extra_unsigned_sha1
+            SELECT server.extra_unsigned_sha1, RANDOM() AS rand
             FROM consensus_router_descriptor_member AS cr
               INNER JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
               LEFT JOIN router_extra_info AS extra ON server.extra_unsigned_sha1 = extra.unsigned_sha1
@@ -511,7 +511,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND server.extra_unsigned_sha1 IS NOT NULL
               AND extra.unsigned_sha1 IS NULL
-            ORDER BY RANDOM()
+            ORDER BY rand
             LIMIT :limit
             "
         ))?;
@@ -558,14 +558,14 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
-            SELECT cr.unsigned_sha2
+            SELECT cr.unsigned_sha2, RANDOM() AS rand
             FROM consensus_router_descriptor_member AS cr
               LEFT JOIN router_descriptor AS micro ON cr.unsigned_sha2 = micro.unsigned_sha2
             WHERE
               cr.consensus_docid = :docid
               AND cr.unsigned_sha2 IS NOT NULL
               AND micro.unsigned_sha2 IS NULL
-            ORDER BY RANDOM()
+            ORDER BY rand
             LIMIT :limit
             "
         ))?;
