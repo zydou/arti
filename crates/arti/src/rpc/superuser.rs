@@ -29,8 +29,7 @@ pub(super) struct RpcSuperuser<R: Runtime> {
     launchable: Arc<LaunchableTorClient<R>>,
 
     /// A handle to the manager for configuration information.
-    #[allow(unused)] // TODO(rpc) remove
-    cfg_mgr: Arc<CfgMgr<R>>,
+    pub(super) cfg_mgr: Arc<CfgMgr<R>>,
 }
 
 impl<R: Runtime> RpcSuperuser<R> {
@@ -55,6 +54,8 @@ impl<R: Runtime> RpcSuperuser<R> {
         rpc::invoker_ent_list![
             enter_dormant_mode_on_rpcsuperuser::<R>,
             bootstrap_client_on_rpcsuperuser::<R>,
+            crate::rpc::configuration::set_config_on_rpcsuperuser::<R>,
+            crate::rpc::configuration::get_config_on_rpcsuperuser::<R>,
         ]
     }
 }
