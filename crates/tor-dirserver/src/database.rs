@@ -1779,6 +1779,10 @@ mod test {
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
 
+            // Ensure there is more than 1 missing descriptor because we can
+            // only test ordering if n >= 2.
+            assert!(res.len() > 1);
+
             // Verify that the calls are monotonically increasing.
             assert!(res.is_sorted());
         })
