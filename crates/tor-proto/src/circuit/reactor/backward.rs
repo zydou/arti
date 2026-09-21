@@ -478,7 +478,28 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                 msg,
             } => match msg {
                 FlowCtrlMsg::Sendme => {
-                    todo!()
+                    // Congestion control decides if we can send stream level SENDMEs or not.
+                    let (cell_fmt, cc) = self.hop_info(hop)?;
+                    let uses_stream_sendme = cc.lock().expect("poisoned").uses_stream_sendme();
+
+                    if !uses_stream_sendme {
+                        // Nothing to do, so discard the SENDME.
+                        //
+                        // TODO(arti#2068): We should do something better here,
+                        // like ensure that nothing sends `FlowCtrlMsg::Sendme` when it shouldn't,
+                        // and making this an error instead.
+                        return Ok(None);
+                    }
+
+                    let sendme = Sendme::new_empty();
+                    let msg = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
+
+                    Ok(Some(ReadyStreamMsg {
+                        hop,
+                        msg,
+                        relay_cell_format: cell_fmt,
+                        ccontrol: Arc::clone(&cc),
+                    }))
                 }
                 FlowCtrlMsg::Xon(rate) => {
                     todo!()
@@ -877,7 +898,7 @@ enum CircuitEvent<M> {
     ///
     /// (The cell is client-bound if we are a relay, or exit-bound if we are a client).
     Cell(M),
-    /// We received a RELAY cell from the stream reactor that needs
+    /// A stream has a RELAY cell that needs
     /// to be packaged and written to our Tor channel.
     ///
     /// (The message is client-bound if we are a relay, or exit-bound if we are a client).
