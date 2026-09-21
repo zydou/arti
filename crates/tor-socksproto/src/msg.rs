@@ -25,13 +25,25 @@ pub enum SocksVersion {
     V5,
 }
 
+/// We tried to convert something other than '4' or '5' to a SOCKS version.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{0} is not a recognized socks version")]
+#[allow(clippy::exhaustive_structs)]
+pub struct InvalidSocksVersion(pub u8);
+
 impl TryFrom<u8> for SocksVersion {
-    type Error = Error;
-    fn try_from(v: u8) -> Result<SocksVersion> {
+    // Note: This is not and should not be `Error::BadProtocol`!
+    // See the documentation on that variant for discussion of why.
+    type Error = InvalidSocksVersion;
+
+    fn try_from(v: u8) -> std::result::Result<SocksVersion, InvalidSocksVersion> {
         match v {
             4 => Ok(SocksVersion::V4),
             5 => Ok(SocksVersion::V5),
-            _ => Err(Error::BadProtocol(v)),
+            // Note that we do *not* return BadProtocol in this case.
+            // BadProtocol is only for the case when the first byte
+            // of the SOCKS handshake is invalid.
+            _ => Err(InvalidSocksVersion(v)),
         }
     }
 }

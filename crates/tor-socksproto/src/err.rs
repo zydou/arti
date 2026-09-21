@@ -24,6 +24,11 @@ pub enum Error {
     ///
     /// In all likelihood, this is somebody trying to use the port for
     /// some protocol other than SOCKS.
+    //
+    // Note: This is not the appropriate error for cases where the
+    // client has changed its declared version
+    // between the initial message and some other message:
+    // those cases should just be `Syntax`.
     #[error("Unrecognized SOCKS protocol version {0}")]
     BadProtocol(u8),
 
