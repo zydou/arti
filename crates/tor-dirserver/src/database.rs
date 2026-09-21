@@ -1740,6 +1740,51 @@ mod test {
         .unwrap();
     }
 
+    /// Tests whether the RANDOM() calls are executed before the ordering so
+    /// that we have stability.
+    #[test]
+    fn missing_servers_monotonically_increasing() {
+        let pool = testdata2::test_db();
+        rw_tx(&pool, |tx| {
+            let meta = ConsensusMeta::<Plain>::query(
+                tx,
+                &DirTolerance::default(),
+                Some(testdata2::valid_system_time().into()),
+            )
+            .unwrap();
+            tx.execute(sql!("DELETE FROM router_descriptor"), ())
+                .unwrap();
+
+            // Same statement as in .missing_servers(); we should probably not
+            // C&P here ...
+            let mut stmt = tx
+                .prepare_cached(sql!(
+                    "
+                    SELECT cr.unsigned_sha1, RANDOM() AS rand
+                    FROM consensus_router_descriptor_member AS cr
+                      LEFT JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
+                    WHERE
+                      cr.consensus_docid = :docid
+                      AND cr.unsigned_sha1 IS NOT NULL
+                      AND server.unsigned_sha1 IS NULL
+                    ORDER BY rand
+                    LIMIT :limit
+                    "
+                ))
+                .unwrap();
+
+            let res = stmt
+                .query_map(params![meta[0].docid, -1], |row| row.get::<_, i64>(1))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+
+            // Verify that the calls are monotonically increasing.
+            assert!(res.is_sorted());
+        })
+        .unwrap();
+    }
+
     /// Tests whether the missing extra-info documents are computed properly.
     // TODO DIRMIRROR: Expand on this once we have proper extra-info support.
     #[test]
