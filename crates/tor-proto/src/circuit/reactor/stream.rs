@@ -557,37 +557,35 @@ impl StreamReactor {
     async fn send_msg_to_bwd(&mut self, msg: AnyRelayMsgOuter) -> StdResult<(), ReactorError> {
         // TODO(DEDUP): this contains parts of Circuit::send_relay_cell_inner()
 
-        {
-            // We might be out of capacity entirely; see if we are about to hit a limit.
-            //
-            // TODO: If we ever add a notion of _recoverable_ errors below, we'll
-            // need a way to restore this limit, and similarly for about_to_send().
-            self.hop.decrement_cell_limit()?;
+        // We might be out of capacity entirely; see if we are about to hit a limit.
+        //
+        // TODO: If we ever add a notion of _recoverable_ errors below, we'll
+        // need a way to restore this limit, and similarly for about_to_send().
+        self.hop.decrement_cell_limit()?;
 
-            let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
+        let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
 
-            // We need to apply stream-level flow control *before* encoding the message
-            // (the BWD handles the encoding)
-            if c_t_w {
-                if let Some(stream_id) = msg.stream_id() {
-                    self.hop.about_to_send(
-                        self.unique_id,
-                        self.circ_id,
-                        stream_id,
-                        msg.msg(),
-                    )?;
-                }
+        // We need to apply stream-level flow control *before* encoding the message
+        // (the BWD handles the encoding)
+        if c_t_w {
+            if let Some(stream_id) = msg.stream_id() {
+                self.hop.about_to_send(
+                    self.unique_id,
+                    self.circ_id,
+                    stream_id,
+                    msg.msg(),
+                )?;
             }
-
-            // NOTE: on the client side, we call note_data_sent()
-            // just before writing the cell to the channel.
-            // We can't do that here, because we're not the ones
-            // encoding the cell, so we don't have the SENDME tag
-            // which is needed for note_data_sent().
-            //
-            // Instead, we notify the CC algorithm in the BWD,
-            // right after we've finished sending the cell.
         }
+
+        // NOTE: on the client side, we call note_data_sent()
+        // just before writing the cell to the channel.
+        // We can't do that here, because we're not the ones
+        // encoding the cell, so we don't have the SENDME tag
+        // which is needed for note_data_sent().
+        //
+        // Instead, we notify the CC algorithm in the BWD,
+        // right after we've finished sending the cell.
 
         let msg = ReadyStreamMsg {
             hop: self.hopnum,
