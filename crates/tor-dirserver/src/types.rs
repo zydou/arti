@@ -4,10 +4,11 @@
 //! directory server that are not related to the database, in which case they
 //! belong to the respective [`crate::database`] module.
 
+use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::{
     doc::{
-        authcert::AuthCertKeyIds,
-        netstatus::{ConsensusFlavor, Lifetime, md, plain},
+        authcert::{AuthCert, AuthCertKeyIds},
+        netstatus::{ConsensusFlavor, ConsensusVerifiabilityError, Lifetime, md, plain},
     },
     parse2::{NetdocParseable, NetdocParseableUnverified},
 };
@@ -56,6 +57,14 @@ pub(crate) trait FlavoredConsensusUnverified:
 {
     /// Returns the [`ConsensusFlavor`] of this type.
     fn flavor() -> ConsensusFlavor;
+
+    /// Whether or not we have all required authority certificates to verify
+    /// the consensus.
+    fn can_verify(
+        &self,
+        trusted_authorities: &[RsaIdentity],
+        certs_already: &[AuthCert],
+    ) -> Result<(), ConsensusVerifiabilityError>;
 
     /// Returns the signatures contained inside.
     ///
@@ -116,10 +125,26 @@ impl FlavoredConsensusUnverified for plain::NetworkStatusUnverified {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Plain
     }
+
+    fn can_verify(
+        &self,
+        trusted_authorities: &[RsaIdentity],
+        certs_already: &[AuthCert],
+    ) -> Result<(), ConsensusVerifiabilityError> {
+        self.can_verify(trusted_authorities, certs_already)
+    }
 }
 
 impl FlavoredConsensusUnverified for md::NetworkStatusUnverified {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Microdesc
+    }
+
+    fn can_verify(
+        &self,
+        trusted_authorities: &[RsaIdentity],
+        certs_already: &[AuthCert],
+    ) -> Result<(), ConsensusVerifiabilityError> {
+        self.can_verify(trusted_authorities, certs_already)
     }
 }
