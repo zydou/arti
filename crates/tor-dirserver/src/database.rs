@@ -1601,7 +1601,7 @@ mod test {
         );
         let meta2 = ConsensusMeta::<Plain>::query(&tx, &DirTolerance::default(), None).unwrap();
         assert_eq!(meta2, vec![meta]);
-        let missing_descs = meta.missing_servers(&tx).unwrap();
+        let missing_descs = meta.missing_servers(&tx, None).unwrap();
         let missing_descs2 = body.routers.iter().map(|r| Sha1(*r.doc_digest())).collect();
         assert_eq!(missing_descs, missing_descs2);
     }
