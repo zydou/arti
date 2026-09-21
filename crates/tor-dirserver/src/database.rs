@@ -315,6 +315,36 @@ pub(crate) struct ConsensusMeta<T> {
 }
 
 impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
+    // Select the missing router descriptors.
+    //
+    // A router descriptor is considered missing if it exists in
+    // `consensus_router_descriptor_member` but not in `router_descriptor`
+    // because the first entry is added once the consensus got parsed,
+    // whereas the second entry is added once we have actually retrieved it.
+    //
+    // It works by doing a left join on router_descriptor and filtering for
+    // all entries where the join is NULL, as that implies we are aware of
+    // the descriptor but not have it stored.
+    //
+    // Parameters:
+    // :docid - The docid of the consensus.
+    // :limit - The maximum number of descriptors to return.
+    //
+    // TODO DIRMIRROR: Potentially constify more queries.
+    const MISSING_SERVERS_QUERY: &'static str = sql!(
+        "
+        SELECT cr.unsigned_sha1, RANDOM() AS rand
+        FROM consensus_router_descriptor_member AS cr
+          LEFT JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
+        WHERE
+          cr.consensus_docid = :docid
+          AND cr.unsigned_sha1 IS NOT NULL
+          AND server.unsigned_sha1 IS NULL
+        ORDER BY rand
+        LIMIT :limit
+        "
+    );
+
     /// Obtains the (valid) consensuses from the database.
     ///
     /// This function queries the database using a [`Transaction`] in order to
@@ -426,33 +456,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
             return Ok(HashSet::new());
         }
 
-        // Select the missing router descriptors.
-        //
-        // A router descriptor is considered missing if it exists in
-        // `consensus_router_descriptor_member` but not in `router_descriptor`
-        // because the first entry is added once the consensus got parsed,
-        // whereas the second entry is added once we have actually retrieved it.
-        //
-        // It works by doing a left join on router_descriptor and filtering for
-        // all entries where the join is NULL, as that implies we are aware of
-        // the descriptor but not have it stored.
-        //
-        // Parameters:
-        // :docid - The docid of the consensus.
-        // :limit - The maximum number of descriptors to return.
-        let mut stmt = tx.prepare_cached(sql!(
-            "
-            SELECT cr.unsigned_sha1, RANDOM() AS rand
-            FROM consensus_router_descriptor_member AS cr
-              LEFT JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
-            WHERE
-              cr.consensus_docid = :docid
-              AND cr.unsigned_sha1 IS NOT NULL
-              AND server.unsigned_sha1 IS NULL
-            ORDER BY rand
-            LIMIT :limit
-            "
-        ))?;
+        let mut stmt = tx.prepare_cached(Self::MISSING_SERVERS_QUERY)?;
 
         let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
@@ -1755,22 +1759,8 @@ mod test {
             tx.execute(sql!("DELETE FROM router_descriptor"), ())
                 .unwrap();
 
-            // Same statement as in .missing_servers(); we should probably not
-            // C&P here ...
             let mut stmt = tx
-                .prepare_cached(sql!(
-                    "
-                    SELECT cr.unsigned_sha1, RANDOM() AS rand
-                    FROM consensus_router_descriptor_member AS cr
-                      LEFT JOIN router_descriptor AS server ON cr.unsigned_sha1 = server.unsigned_sha1
-                    WHERE
-                      cr.consensus_docid = :docid
-                      AND cr.unsigned_sha1 IS NOT NULL
-                      AND server.unsigned_sha1 IS NULL
-                    ORDER BY rand
-                    LIMIT :limit
-                    "
-                ))
+                .prepare_cached(ConsensusMeta::<Plain>::MISSING_SERVERS_QUERY)
                 .unwrap();
 
             let res = stmt
