@@ -315,20 +315,20 @@ pub(crate) struct ConsensusMeta<T> {
 }
 
 impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
-    // Select the missing router descriptors.
-    //
-    // A router descriptor is considered missing if it exists in
-    // `consensus_router_descriptor_member` but not in `router_descriptor`
-    // because the first entry is added once the consensus got parsed,
-    // whereas the second entry is added once we have actually retrieved it.
-    //
-    // It works by doing a left join on router_descriptor and filtering for
-    // all entries where the join is NULL, as that implies we are aware of
-    // the descriptor but not have it stored.
-    //
-    // Parameters:
-    // :docid - The docid of the consensus.
-    // :limit - The maximum number of descriptors to return.
+    /// Select the missing router descriptors.
+    ///
+    /// A router descriptor is considered missing if it exists in
+    /// `consensus_router_descriptor_member` but not in `router_descriptor`
+    /// because the first entry is added once the consensus got parsed,
+    /// whereas the second entry is added once we have actually retrieved it.
+    ///
+    /// It works by doing a left join on router_descriptor and filtering for
+    /// all entries where the join is NULL, as that implies we are aware of
+    /// the descriptor but not have it stored.
+    ///
+    /// Parameters:
+    /// :docid - The docid of the consensus.
+    /// :limit - The maximum number of descriptors to return.
     //
     // TODO DIRMIRROR: Potentially constify more queries.
     const MISSING_SERVERS_QUERY: &'static str = sql!(
