@@ -64,7 +64,6 @@ use rusqlite::{
 };
 use saturating_time::SaturatingTime;
 use tor_basic_utils::RngExt;
-use tor_dircommon::config::DirTolerance;
 use tor_error::{internal, into_internal};
 use tor_netdoc::doc::{authcert::AuthCert, netstatus::ConsensusFlavor};
 
@@ -345,40 +344,22 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         "
     );
 
-    /// Obtains the (valid) consensuses from the database.
+    /// Obtains all consensuses found in the database.
     ///
-    /// This function queries the database using a [`Transaction`] in order to
-    /// have a consistent view upon it.  It will return an [`Option`] containing
-    /// a consensus.  In order to obtain a *valid* consensus, a [`Timestamp`]
-    /// plus a [`DirTolerance`] are supplied, which will be used for querying
-    /// the database in a time-constrained fashion.
-    ///
-    /// Supplying [`None`] as the [`Timestamp`] simply returns the consensus
-    /// with the highest valid-after value, regardless of the current system
-    /// time.
-    // XXX: Remove time logic here.
+    /// This should be reasonable size-wise, given that a ConsensusMeta instance
+    /// is very small and that the garbage collector removes old consensuses
+    /// anyways.  If this becomes a problem, we may want to add an optional
+    /// limit.
     pub(crate) fn query(
         tx: &Transaction,
-        tolerance: &DirTolerance,
-        now: Option<Timestamp>,
     ) -> Result<Vec<Self>, DatabaseError> {
         // Select the most recent flavored consensus document from the database.
-        //
-        // The `valid_after` and `valid_until` cells must be a member of the range:
-        // `[valid_after - pre_valid_tolerance; valid_after + post_valid_tolerance]`
-        // (inclusively).
         let mut meta_stmt = tx.prepare_cached(sql!(
             "
             SELECT docid, unsigned_sha3_256, valid_after, fresh_until, valid_until
             FROM consensus
             WHERE
               flavor = :flavor
-              AND
-              (
-                (:now IS NULL)
-                OR
-                (:now >= valid_after - :pre_valid AND :now <= valid_until + :post_valid)
-              )
             ORDER BY valid_after DESC
             "
         ))?;
@@ -386,9 +367,6 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // Actually execute the query.
         let rows = meta_stmt.query_map(named_params! {
             ":flavor": T::flavor().name(),
-            ":now": now,
-            ":pre_valid": tolerance.pre_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
-            ":post_valid": tolerance.post_valid_tolerance().as_secs().try_into().unwrap_or(i64::MAX),
         }, |row| {
             Ok(Self {
                 docid: row.get(0)?,
@@ -1464,7 +1442,7 @@ mod test {
                 flavor: Default::default()
             }
         );
-        let meta2 = ConsensusMeta::<Plain>::query(&tx, &DirTolerance::default(), None).unwrap();
+        let meta2 = ConsensusMeta::<Plain>::query(&tx).unwrap();
         assert_eq!(meta2, vec![meta]);
         let missing_descs = meta.missing_servers(&tx, None).unwrap();
         let missing_descs2 = body.routers.iter().map(|r| Sha1(*r.doc_digest())).collect();
@@ -1514,13 +1492,7 @@ mod test {
     #[test]
     fn missing_server_descriptors() {
         let pool = testdata2::test_db();
-        let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::<Plain>::query(
-                tx,
-                &DirTolerance::default(),
-                Some(testdata2::valid_system_time().into()),
-            )
-        })
+        let meta = read_tx(&pool, ConsensusMeta::<Plain>::query)
         .unwrap()
         .unwrap()[0];
         // Ensure that the returned consensus matches the one from testdata2.
@@ -1584,11 +1556,7 @@ mod test {
         rw_tx(&pool, |tx| {
             tx.execute(sql!("DELETE FROM router_descriptor"), ())
                 .unwrap();
-            let meta = ConsensusMeta::<Plain>::query(
-                tx,
-                &DirTolerance::default(),
-                Some(testdata2::valid_system_time().into()),
-            )
+            let meta = ConsensusMeta::<Plain>::query(tx)
             .unwrap()[0];
 
             // Ensure there are more than 1 missing descriptors now.
@@ -1616,11 +1584,7 @@ mod test {
     fn missing_servers_monotonically_increasing() {
         let pool = testdata2::test_db();
         rw_tx(&pool, |tx| {
-            let meta = ConsensusMeta::<Plain>::query(
-                tx,
-                &DirTolerance::default(),
-                Some(testdata2::valid_system_time().into()),
-            )
+            let meta = ConsensusMeta::<Plain>::query(tx)
             .unwrap();
             tx.execute(sql!("DELETE FROM router_descriptor"), ())
                 .unwrap();
@@ -1650,13 +1614,7 @@ mod test {
     #[test]
     fn missing_extra_infos() {
         let pool = testdata2::test_db();
-        let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::<Plain>::query(
-                tx,
-                &DirTolerance::default(),
-                Some(testdata2::valid_system_time().into()),
-            )
-        })
+        let meta = read_tx(&pool, ConsensusMeta::<Plain>::query)
         .unwrap()
         .unwrap()[0];
         // Ensure that the returned consensus matches the one from testdata2.
@@ -1684,13 +1642,7 @@ mod test {
     #[test]
     fn missing_micro_descriptors() {
         let pool = testdata2::test_db();
-        let meta = read_tx(&pool, |tx| {
-            ConsensusMeta::<Md>::query(
-                tx,
-                &DirTolerance::default(),
-                Some(testdata2::valid_system_time().into()),
-            )
-        })
+        let meta = read_tx(&pool, ConsensusMeta::<Md>::query)
         .unwrap()
         .unwrap()[0];
         // Ensure that the returned consensus matches the one from testdata2.

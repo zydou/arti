@@ -571,7 +571,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         tx: &Transaction<'_>,
         now: Timestamp,
     ) -> Result<Option<ConsensusMeta<T>>, DatabaseError> {
-        let meta = match ConsensusMeta::<T>::query(tx, &self.tolerance, None)?.as_slice() {
+        let meta = match ConsensusMeta::<T>::query(tx)?.as_slice() {
             &[front] | &[front, ..] => front,
             &[] => return Ok(None),
         };
