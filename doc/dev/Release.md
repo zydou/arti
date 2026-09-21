@@ -53,15 +53,12 @@ THIS_VERSION=1.1.6
 
     This new branch should be up to date with the arti repository's main branch.
 
-    The repository should be accessible by all arti team members.
-    You can get a list of arti team members at:
-
-    <https://gitlab.torproject.org/tpo/core/arti/-/project_members>
-
-    and add members who have a "Maintainer" or "Owner" role.
+    The repository should be accessible by all ["tpo/core"](tpo-core) team members.
 
     **TODO:** If we continue with this process in the future,
     we should make a permanent private arti repository that we can reuse in all future releases.
+
+[tpo-core]: https://gitlab.torproject.org/groups/tpo/core/-/group_members
 
 4. [ ] For each security patch listed in the meta-issue,
    merge it into `arti-next`.
