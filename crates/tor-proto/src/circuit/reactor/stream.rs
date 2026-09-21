@@ -563,18 +563,12 @@ impl StreamReactor {
         // need a way to restore this limit, and similarly for about_to_send().
         self.hop.decrement_cell_limit()?;
 
-        let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
-
         // We need to apply stream-level flow control *before* encoding the message
         // (the BWD handles the encoding)
-        if c_t_w {
+        if sendme::cmd_counts_towards_windows(msg.cmd()) {
             if let Some(stream_id) = msg.stream_id() {
-                self.hop.about_to_send(
-                    self.unique_id,
-                    self.circ_id,
-                    stream_id,
-                    msg.msg(),
-                )?;
+                self.hop
+                    .about_to_send(self.unique_id, self.circ_id, stream_id, msg.msg())?;
             }
         }
 
