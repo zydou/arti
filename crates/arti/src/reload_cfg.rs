@@ -11,15 +11,15 @@ use futures::StreamExt;
 use futures::stream::BoxStream;
 use futures::{FutureExt as _, Stream, select_biased};
 use tor_basic_utils::error_sources::ErrorSources;
-use tor_config::ConfigurationTree;
 use tor_config::ReconfigureError;
 use tor_config::file_watcher::{
     self, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
 use tor_config::load::{ConfigResolveOptions, DisfavouredKey};
+use tor_config::{ConfigGetValueError, ConfigurationTree};
 use tor_config::{ConfigurationSource, ConfigurationSources, sources::FoundConfigFiles};
-use tor_error::into_internal;
 use tor_error::warn_report;
+use tor_error::{HasKind, into_internal};
 use tor_rtcompat::Runtime;
 use tor_rtcompat::SpawnExt;
 use tracing::{debug, error, info, instrument, warn};
@@ -281,15 +281,16 @@ impl<R: Runtime> CfgMgr<R> {
     /// On success, the configuration is changed, and the changes are applied.
     ///
     /// On failure, the configuration is not changed, and the changes are not applied.
-    ///
-    /// TODO Will need a different error type for RPC.
     #[cfg(feature = "rpc")]
     #[instrument(level = "trace", skip_all)]
     #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-    #[allow(unused)] // TODO RPC Config remove.
-    pub(crate) fn try_modify_cfg<F>(&self, func: F, how: Reconfigure) -> anyhow::Result<()>
+    pub(crate) fn try_modify_cfg<F>(
+        &self,
+        func: F,
+        how: Reconfigure,
+    ) -> Result<(), ChangeConfigurationError>
     where
-        F: FnOnce(&mut rpc::ConfigSettings) -> anyhow::Result<()>,
+        F: FnOnce(&mut rpc::ConfigSettings) -> Result<(), ChangeConfigurationError>,
     {
         let mut inner = self.inner.lock().expect("Lock poisoned");
 
@@ -319,10 +320,12 @@ impl<R: Runtime> CfgMgr<R> {
     }
 
     /// Return the configuration value for a given key, if any is set.
-    ///
-    /// TODO: will need a different error type for RPC.
     #[allow(unused)] // TODO RPC Config remove.
-    pub(crate) fn get_cfg_setting(&self, key: &str) -> anyhow::Result<Option<rpc::ConfigValue>> {
+    #[cfg(feature = "rpc")]
+    pub(crate) fn get_cfg_setting(
+        &self,
+        key: &str,
+    ) -> Result<Option<rpc::ConfigValue>, ConfigGetValueError> {
         let settings: Option<rpc::ConfigValue> = self
             .inner
             .lock()
@@ -665,8 +668,20 @@ fn reconfigure(
 }
 
 /// An error that occurred while trying to reload and/or replace our configuration
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[non_exhaustive]
 #[derive(thiserror::Error, Clone, Debug)]
 pub(crate) enum ChangeConfigurationError {
+    /// When we tried to make an application-level request in the configuration tree, we
+    /// were unable to do so.
+    #[error("Unable to modify configuration tree: {0}")]
+    Apply(String),
+
+    /// When we tried to merge the RPC tree into the loaded configuration, we weren't able
+    /// to do so.
+    #[error("Internal: RPC configuration tree did not apply cleanly.")]
+    Merge(#[from] tor_config::ConfigError),
+
     /// We couldn't turn the configuration tree into the appropriate set of data structures.
     #[error("Invalid configuration")]
     Resolve(#[from] tor_config::load::ConfigResolveError),
@@ -674,6 +689,19 @@ pub(crate) enum ChangeConfigurationError {
     /// One of the transitions we tried to make was not allowed, or failed as we tried to apply it.
     #[error("Configuration transition failed")]
     Transition(#[from] ReconfigureError),
+}
+
+impl HasKind for ChangeConfigurationError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use ChangeConfigurationError as E;
+        use tor_error::ErrorKind as EK;
+        match self {
+            E::Apply(_) => EK::InvalidConfig,
+            E::Merge(_) => EK::InvalidConfig,
+            E::Resolve(_) => EK::InvalidConfig,
+            E::Transition(e) => e.kind(),
+        }
+    }
 }
 
 #[cfg(test)]
