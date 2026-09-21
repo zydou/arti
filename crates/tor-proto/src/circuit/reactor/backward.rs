@@ -396,8 +396,13 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             }
             res = self.control_rx.next().fuse() => {
                 let msg = res.ok_or_else(|| ReactorError::Shutdown)?;
-                self.handle_msg(msg)?;
-                return Ok(());
+                if let Some(new_msg) = self.handle_msg(msg)? {
+                    let mut events = <PollAll::<_, _> as Future>::Output::new();
+                    events.push(Some(CircuitEvent::Send(new_msg)));
+                    events
+                } else {
+                    return Ok(());
+                }
             }
             res = self.padding_event_stream.next().fuse() => {
                 // If there's a padding event, we need to handle it immediately,
@@ -454,9 +459,19 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     }
 
     /// Handle a control message.
-    fn handle_msg(&mut self, msg: CtrlMsg<B::CtrlMsg>) -> StdResult<(), ReactorError> {
+    ///
+    /// This may result in a new stream message that needs to be sent backward.
+    fn handle_msg(
+        &mut self,
+        msg: CtrlMsg<B::CtrlMsg>,
+    ) -> StdResult<Option<ReadyStreamMsg>, ReactorError> {
         match msg {
-            CtrlMsg::Custom(c) => self.inner.handle_msg(c),
+            CtrlMsg::Custom(c) => {
+                // In the future we may also want `inner.handle_msg(c)` to return an
+                // `Option<ReadyStreamMsg>`, and we can pass it through.
+                let () = self.inner.handle_msg(c)?;
+                Ok(None)
+            }
             CtrlMsg::FlowCtrlUpdate {
                 hop,
                 stream_id,
