@@ -16,6 +16,9 @@ const FAKE_TTL_SECONDS: u32 = 60;
 
 /// Handle an incoming DNS stream
 #[allow(clippy::unused_async)] // TODO(relay)
-pub(crate) async fn handle_resolve(_incoming: IncomingStream, resolver: DnsResolver) -> anyhow::Result<()> {
+pub(crate) async fn handle_resolve(
+    _incoming: IncomingStream,
+    resolver: DnsResolver,
+) -> anyhow::Result<()> {
     todo!()
 }

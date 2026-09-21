@@ -51,7 +51,12 @@ pub(crate) async fn handle_incoming_streams<R: Runtime>(
         // Each circuit gets its own stream-handling task
         let rt = runtime.clone();
         let begin_dir_tx = begin_dir_tx.clone();
-        runtime.spawn(handle_circuit_incoming_streams(rt, stream, begin_dir_tx, resolver.clone()))?;
+        runtime.spawn(handle_circuit_incoming_streams(
+            rt,
+            stream,
+            begin_dir_tx,
+            resolver.clone(),
+        ))?;
     }
 
     Err(anyhow::anyhow!("stream handling task exited"))
@@ -76,7 +81,9 @@ async fn handle_circuit_incoming_streams<R: Runtime>(
                 IncomingStreamRequest::BeginDir(_) => {
                     directory::handle_begin_dir(tor_stream, begin_dir_tx).await
                 }
-                IncomingStreamRequest::Resolve(_) => dns::handle_resolve(tor_stream, resolver.clone()).await,
+                IncomingStreamRequest::Resolve(_) => {
+                    dns::handle_resolve(tor_stream, resolver.clone()).await
+                }
                 s => Err(anyhow::anyhow!("unknown stream request kind {s:?}")),
             };
 
