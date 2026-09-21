@@ -20,8 +20,9 @@ use crate::client::circuit::padding::{
 
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
+use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, RelayCmd};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId};
 use tor_error::internal;
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
@@ -141,6 +142,19 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
 
 /// A control message aimed at the generic backward reactor.
 pub(crate) enum CtrlMsg<M> {
+    /// Inform the reactor that there's a flow control update for a given stream.
+    ///
+    /// The reactor will decide how to handle this update depending on the type of flow control and
+    /// the current state of the stream.
+    FlowCtrlUpdate {
+        /// The hop that the stream is on.
+        /// Relay circuits use `None`.
+        hop: Option<HopNum>,
+        /// The stream ID that the update is for.
+        stream_id: StreamId,
+        /// The type of flow control update, and any associated metadata.
+        msg: FlowCtrlMsg,
+    },
     /// An implementation-dependent control message.
     #[allow(unused)] // TODO(relay)
     Custom(M),
@@ -443,6 +457,18 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     fn handle_msg(&mut self, msg: CtrlMsg<B::CtrlMsg>) -> StdResult<(), ReactorError> {
         match msg {
             CtrlMsg::Custom(c) => self.inner.handle_msg(c),
+            CtrlMsg::FlowCtrlUpdate {
+                hop,
+                stream_id,
+                msg,
+            } => match msg {
+                FlowCtrlMsg::Sendme => {
+                    todo!()
+                }
+                FlowCtrlMsg::Xon(rate) => {
+                    todo!()
+                }
+            },
         }
     }
 
@@ -897,4 +923,16 @@ pub(crate) enum BackwardReactorCmd {
         /// Yields cells moving from the exit towards the client, if we are a middle relay.
         outbound_chan_rx: CircuitRxReceiver,
     },
+}
+
+/// A flow control update message.
+///
+/// TODO(DEDUP): This is a duplicate of the client's
+/// `crate::client::reactor::control::FlowCtrlMsg`.
+#[derive(Debug)]
+pub(crate) enum FlowCtrlMsg {
+    /// Send a SENDME message on this stream.
+    Sendme,
+    /// Send an XON message on this stream with the given rate.
+    Xon(XonKBpsEwma),
 }

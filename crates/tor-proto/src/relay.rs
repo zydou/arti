@@ -30,9 +30,7 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use crate::Error;
 use crate::circuit::celltypes::derive_deftly_template_RestrictedChanMsgSet;
-use crate::circuit::reactor::CircReactorHandle;
-use crate::circuit::reactor::CtrlCmd;
-use crate::circuit::reactor::forward;
+use crate::circuit::reactor::{CircReactorHandle, CtrlCmd, backward, forward};
 use crate::relay::reactor::backward::Backward;
 use crate::relay::reactor::forward::Forward;
 use crate::stream::incoming::IncomingStreamRequestFilter;
@@ -89,17 +87,37 @@ impl RelayCirc {
     /// See [`StreamTarget::drain_rate_update`].
     pub(crate) fn drain_rate_update(
         &self,
-        _stream_id: StreamId,
-        _rate: XonKBpsEwma,
+        stream_id: StreamId,
+        rate: XonKBpsEwma,
     ) -> crate::Result<()> {
-        todo!()
+        let msg = backward::CtrlMsg::FlowCtrlUpdate {
+            hop: None,
+            msg: backward::FlowCtrlMsg::Xon(rate),
+            stream_id,
+        };
+        self.0
+            .control
+            .unbounded_send(msg.into())
+            .map_err(|_| Error::CircuitClosed)?;
+
+        Ok(())
     }
 
     /// Request to send a SENDME cell for this stream.
     ///
     /// See [`StreamTarget::send_sendme`].
-    pub(crate) fn send_sendme(&self, _stream_id: StreamId) -> crate::Result<()> {
-        todo!()
+    pub(crate) fn send_sendme(&self, stream_id: StreamId) -> crate::Result<()> {
+        let msg = backward::CtrlMsg::FlowCtrlUpdate {
+            hop: None,
+            msg: backward::FlowCtrlMsg::Sendme,
+            stream_id,
+        };
+        self.0
+            .control
+            .unbounded_send(msg.into())
+            .map_err(|_| Error::CircuitClosed)?;
+
+        Ok(())
     }
 
     /// Close the pending stream that owns this StreamTarget, delivering the specified
