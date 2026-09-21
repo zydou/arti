@@ -18,6 +18,10 @@ use tracing::trace;
 const FAKE_TTL_SECONDS: u32 = 60;
 
 /// Handle an incoming DNS stream
+///
+/// Performs the DNS lookup, and closes `incoming` by sending back a RESOLVED message.
+///
+/// Returns an error if `incoming` is not a RESOLVE stream.
 pub(crate) async fn handle_resolve(
     incoming: IncomingStream,
     mut resolver: DnsResolver,
