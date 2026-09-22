@@ -483,13 +483,30 @@ impl asynchronous_codec::Decoder for HandshakeChannelHandler {
         &mut self,
         src: &mut BytesMut,
     ) -> std::result::Result<Option<Self::Item>, Self::Error> {
-        let orig = src.clone(); // NOTE: Not fun. But This is only done during handshake.
-        let cell = self.filter.decode_cell(&mut self.inner, src)?;
+        // Remember the original src length so that we can later check if it changed.
+        let original_len = src.len();
+
+        let opt_cell = self.filter.decode_cell(&mut self.inner, src)?;
+
+        let Some((cell, cell_bytes)) = opt_cell else {
+            // If there was no cell, no bytes should have been removed from `src`.
+            // If bytes were removed without us here knowing what they were,
+            // then our `recv_log` won't be valid and our handshake will fail.
+            // This is almost certainly a bug,
+            // so let's fail early with an actionable error message.
+            if self.recv_log.is_some() && src.len() != original_len {
+                return Err(
+                    internal!("Read bytes from the buffer without returning a cell").into(),
+                );
+            }
+            return Ok(None);
+        };
+
         if let Some(recv_log) = self.recv_log.as_mut() {
-            let n_used = orig.len() - src.len();
-            recv_log.update(&orig[..n_used]);
+            recv_log.update(&cell_bytes);
         }
-        Ok(cell)
+
+        Ok(Some(cell))
     }
 }
 
@@ -530,7 +547,9 @@ impl asynchronous_codec::Decoder for OpenChannelHandler {
     type Error = ChanError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        self.filter.decode_cell(&mut self.inner, src)
+        self.filter
+            .decode_cell(&mut self.inner, src)
+            .map(|x| x.map(|(msg, _msg_bytes)| msg))
     }
 }
 

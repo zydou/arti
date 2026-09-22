@@ -6,7 +6,7 @@ use crate::chancell::{ChanCmd, ChanMsg, CircId};
 use tor_bytes::{self, Reader, Writer};
 use tor_error::internal;
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 
 /// This object can be used to encode and decode channel cells.
 ///
@@ -92,14 +92,17 @@ impl ChannelCodec {
         Ok(())
     }
 
-    /// Try to decode a cell from the provided BytesMut object.
+    /// Try to decode a cell from the provided [`BytesMut`] object.
     ///
-    /// On a definite decoding error, return Err(_).  On a cell that might
-    /// just be truncated, return Ok(None).
+    /// On a definite decoding error, return `Err(_)`.
+    /// On a cell that might just be truncated, return `Ok(None)`.
+    ///
+    /// Returns both the cell and the bytes that the cell were decoded from.
+    /// These bytes are intended for SLOG/CLOG calculations.
     pub fn decode_cell<M: ChanMsg>(
         &mut self,
         src: &mut BytesMut,
-    ) -> crate::Result<Option<ChanCell<M>>> {
+    ) -> crate::Result<Option<(ChanCell<M>, Bytes)>> {
         /// Wrap `be` as an appropriate type.
         fn wrap_err(be: tor_bytes::Error) -> crate::Error {
             crate::Error::BytesErr {
@@ -129,7 +132,6 @@ impl ChannelCodec {
         }
 
         let cell = src.split_to(cell_len).freeze();
-        //trace!("{:?} cell body ({}) is {:?}", cmd, cell.len(), &cell[..]);
         let mut r = Reader::from_bytes(&cell);
         let circid: Option<CircId> = CircId::new(r.take_u32().map_err(wrap_err)?);
         r.advance(if varcell { 3 } else { 1 }).map_err(wrap_err)?;
@@ -142,6 +144,6 @@ impl ChannelCodec {
                 cmd
             )));
         }
-        Ok(Some(ChanCell { circid, msg }))
+        Ok(Some((ChanCell { circid, msg }, cell)))
     }
 }
