@@ -206,8 +206,6 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// We have downloaded a consensus but it is not yet verified.
     Unverified {
         /// The unverified parsed consensus we have.
-        // TODO DIRMIRROR: Make this optional, see comment in
-        // StaticEngine::execute.
         consensus: T,
 
         /// The unparsed raw consensus we have.
