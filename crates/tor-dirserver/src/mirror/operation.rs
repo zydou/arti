@@ -217,18 +217,12 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             // None afterwards.
             ConsensusBoundData::None => {
                 // Check whether there is a valid consensus in the database at all.
-                //
-                // Yes, it is kinda redundant querying a consensus here
-                // and potentially again when loading the consensus, but SQLite
-                // is very fast and having to maintain two different queries,
-                // one for checking and one for selecting, is prone to get
-                // out-of-sync.
-                match ConsensusMeta::<T>::query(tx, &self.tolerance, Some(now))?.as_slice() {
+                match self.recent_consensus(tx, now)? {
                     // Some consensus means we can load it.
-                    [_, ..] => State::LoadConsensus,
+                    Some(_) => State::LoadConsensus,
 
                     // None means we must download it.
-                    [] => State::FetchConsensus,
+                    None => State::FetchConsensus,
                 }
             }
 
@@ -341,11 +335,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // In this case, it is probably better to return a bug, as external
         // applications arbitrarily modifying the database while we are running
         // leaves too much room for wrong/weird behavior.
-        let consensus = *db::read_tx(pool, |tx| {
-            ConsensusMeta::query(tx, &self.tolerance, Some(now))
-        })??
-        .first()
-        .ok_or(internal!("database externally modified?"))?;
+        let consensus = db::read_tx(pool, |tx| self.recent_consensus(tx, now))??
+            .ok_or(internal!("database externally modified?"))?;
         let ttl = consensus.ttl(rng);
 
         *data = ConsensusBoundData::Verified { consensus, ttl };
@@ -572,6 +563,50 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             .collect();
 
         Ok((resp, parsed))
+    }
+
+    /// Queries and validates the most recent consensus from the database.
+    fn recent_consensus(
+        &self,
+        tx: &Transaction<'_>,
+        now: Timestamp,
+    ) -> Result<Option<ConsensusMeta<T>>, DatabaseError> {
+        let meta = match ConsensusMeta::<T>::query(tx)?.as_slice() {
+            &[front] | &[front, ..] => front,
+            &[] => return Ok(None),
+        };
+        let raw = meta.data(tx)?;
+
+        let unverified = match parse2::parse_netdoc::<T>(&ParseInput::new(&raw, "<database>")) {
+            Ok(unverified) => unverified,
+            Err(e) => {
+                // TODO DIRMIRROR: Perhaps we should remove it?
+                debug!("unparseable consensus in database: {meta:?} {e}");
+                return Ok(None);
+            }
+        };
+
+        let certs_already = self.certs_already(tx, now)?;
+        let verified = match unverified.verify(self.authorities.v3idents(), &certs_already) {
+            Ok(verified) => verified,
+            Err(e) => {
+                // TODO DIRMIRROR: Perhaps we should remove it?
+                debug!("ignoring invalid consensus in database: {meta:?} {e}");
+                return Ok(None);
+            }
+        };
+
+        match self
+            .tolerance
+            .extend_tolerance(verified)
+            .if_valid_at(&now.into())
+        {
+            Ok(_) => Ok(Some(meta)),
+            Err(e) => {
+                debug!("ignoring non-timely consensus in database: {meta:?} {e}");
+                Ok(None)
+            }
+        }
     }
 
     /// Loads all authority certificates from the database into a [`Vec<AuthCert>`].
