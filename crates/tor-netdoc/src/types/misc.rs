@@ -1104,6 +1104,12 @@ impl<T: PartialOrd> PartialOrd for Unknown<T> {
 ///
 /// We may to change this in the future to use exponentials notation for output.
 /// See <https://gitlab.torproject.org/tpo/core/torspec/-/work_items/416>
+///
+/// Comparison and ordering:
+///
+/// Implements `Eq` and `Ord` according to *mathematical* equality and ordering.
+/// In particular, `-0.0` compares equal to `0.0`.
+/// Therefore, does not implement `Hash`.
 //
 // TODO torspec#416 Consider replacing our F64Finite with finite f64 newtype from some crate
 //
