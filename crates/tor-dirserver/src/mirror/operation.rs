@@ -221,6 +221,14 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// We have downloaded and verified a consensus.
     Verified {
         /// The verified consensus we have.
+        ///
+        /// Contained in this structure because it is the only way we can
+        /// uniquely identify a consensus, which is crucial for operation, as
+        /// things like the `ttl` are derived from it.
+        ///
+        /// While methods like [`ConsensusMeta::query`] would probably also
+        /// work correctly, relying on them feels rather wrong, as they were
+        /// not made to be pure.
         consensus: ConsensusMeta<T>,
 
         /// When to stop dealing with this consensus and fetching a new one.
