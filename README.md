@@ -27,6 +27,8 @@ you might want to check out these links:
 
    * [Compatibility guide](./doc/Compatibility.md)
 
+   * [Supported third-party integrations](./doc/Integrations.md)
+
    * [Frequently Asked Questions](./doc/FAQ.md)
 
 ## Why rewrite Tor in Rust?
