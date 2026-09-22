@@ -15,7 +15,7 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::{collections::VecDeque, marker::PhantomData, net::SocketAddr};
+use std::{collections::VecDeque, marker::PhantomData, net::SocketAddr, time::Duration};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -45,6 +45,19 @@ use crate::{
 };
 
 mod poc;
+
+/// The duration to try verifying an unverified consensus.
+///
+/// This exists primarily to properly handle the
+/// [`ConsensusVerifiabilityError::InsufficientTrustedSigners`] error.  Besides,
+/// it also serves as an upper-limit for the time we can spend in the phase for
+/// fetching authority certificates, which could otherwise run for a very long
+/// time, as long as every request makes progress and finishes before a
+/// connection timeout is reached.
+///
+/// Obviously, we cannot use the values inside the consensus, as they are
+/// untrusted.
+const UNVERIFIED_TTL: Duration = Duration::from_mins(10);
 
 /// The various states for the [`StaticEngine`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
@@ -183,6 +196,12 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
 
         /// The unparsed raw consensus we have.
         raw: String,
+
+        /// When to stop dealing with this consensus and download again.
+        ///
+        /// Useful to have in order to not stuck forever in a verification
+        /// loop, i.e. due to unavailable authentication certificates, etc.
+        ttl: Timestamp,
     },
 
     /// We have downloaded and verified a consensus.
@@ -230,7 +249,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             // a consensus through State::FetchConsensus.  It is not fully
             // validated yet and we may not even be able due to missing
             // authority certificates.
-            ConsensusBoundData::Unverified { consensus, .. } => {
+            ConsensusBoundData::Unverified { consensus, ttl, .. } if now < *ttl => {
                 let certs_already = self.certs_already(tx, now)?;
                 match consensus.can_verify(self.authorities.v3idents(), &certs_already) {
                     // We can verify and insert the consensus.
@@ -247,6 +266,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                     Err(ConsensusVerifiabilityError::MissingAuthCerts { .. }) => State::AuthCerts,
                 }
             }
+
+            ConsensusBoundData::Unverified { .. } => State::FetchConsensus,
 
             // ConsensusBoundData::Verified means that we have successfully
             // loaded a recent valid consensus from the database using
@@ -307,7 +328,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
 
         match state {
             State::LoadConsensus => self.load_consensus(pool, data, now, rng),
-            State::FetchConsensus => Ok(self.fetch_consensus(data, endpoint).await?),
+            State::FetchConsensus => Ok(self.fetch_consensus(data, endpoint, now).await?),
             State::AuthCerts => self.auth_certs(pool, data, endpoint, now).await,
             State::StoreConsensus => todo!(),
             State::Descriptors => todo!(),
@@ -350,6 +371,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         &self,
         data: &mut ConsensusBoundData<T>,
         endpoint: &[SocketAddr],
+        now: Timestamp,
     ) -> Result<(), AuthorityRequestError> {
         // Obtain the consensus.
         let (raw, consensus) = self
@@ -370,8 +392,14 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // expect is fine because we checked the length for one above.
         let (raw, consensus) = consensus.pop_front().expect("pop_front");
 
+        let ttl = now + UNVERIFIED_TTL;
+
         // And store it.
-        *data = ConsensusBoundData::Unverified { consensus, raw };
+        *data = ConsensusBoundData::Unverified {
+            consensus,
+            raw,
+            ttl,
+        };
 
         Ok(())
     }
@@ -481,13 +509,11 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             ConsensusBoundData::None => {
                 return Err(internal!("hibernating without a consensus?").into());
             }
-            ConsensusBoundData::Unverified { .. } => {
-                // TODO DIRMIRROR: This requires further consideration, as we
-                // cannot simply hibernate based on the time in the unverified
-                // consensus.
-                todo!()
-            }
-            ConsensusBoundData::Verified { ttl, .. } => {
+            // TODO DIRMIRROR: Should the Unverified case be an error or a
+            // success? In other words: Should we exclude the current authority
+            // from the set of the next authorities to try?
+            ConsensusBoundData::Verified { ttl, .. }
+            | ConsensusBoundData::Unverified { ttl, .. } => {
                 let timeout = *ttl - now;
                 debug!("hibernating for {}s", timeout.as_secs());
                 tokio::time::sleep(timeout).await;
@@ -790,12 +816,11 @@ mod test {
             rt: PreferredRuntime::current().unwrap(),
             _phantom: Default::default(),
         };
+        let now = Timestamp::from(testdata2::invalid_system_time());
 
-        let state = db::read_tx(&pool, |tx| {
-            engine.determine_state(tx, &data, testdata2::invalid_system_time().into())
-        })
-        .unwrap()
-        .unwrap();
+        let state = db::read_tx(&pool, |tx| engine.determine_state(tx, &data, now))
+            .unwrap()
+            .unwrap();
         assert_eq!(state, State::FetchConsensus);
 
         let server = TcpListener::bind("[::1]:0").await.unwrap();
@@ -813,10 +838,14 @@ mod test {
             stream.write_all(resp.as_bytes()).await.unwrap();
         });
 
-        engine.fetch_consensus(&mut data, &[saddr]).await.unwrap();
+        engine
+            .fetch_consensus(&mut data, &[saddr], now)
+            .await
+            .unwrap();
         match data {
-            ConsensusBoundData::Unverified { raw, .. } => {
+            ConsensusBoundData::Unverified { raw, ttl, .. } => {
                 assert_eq!(raw, testdata2::current_consensus_ns().2);
+                assert_eq!(ttl, now + UNVERIFIED_TTL);
             }
             _ => panic!("data is not unverified"),
         }
@@ -836,6 +865,7 @@ mod test {
             ))
             .unwrap(),
             raw: testdata2::current_consensus_ns().2.to_owned(),
+            ttl: Timestamp::from(testdata2::valid_system_time()) + UNVERIFIED_TTL,
         };
         let mut engine = StaticEngine {
             authorities: testdata2::current_auth_cert_contacts(),
