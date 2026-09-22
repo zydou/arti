@@ -1046,4 +1046,56 @@ mod test {
         })
         .unwrap();
     }
+
+    /// Ensures that an unverified consensus gets properly inserted into the
+    /// database.
+    #[tokio::test]
+    async fn state_store_consensus() {
+        let pool = testdata2::test_db();
+        let unverified: Plain =
+            parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().2, ""))
+                .unwrap();
+        let engine = StaticEngine::<Plain> {
+            authorities: testdata2::current_auth_cert_contacts(),
+            tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
+            _phantom: Default::default(),
+        };
+        let now = Timestamp::from(testdata2::valid_system_time());
+        let mut data = ConsensusBoundData::<Plain>::Unverified {
+            consensus: unverified.clone(),
+            raw: testdata2::current_consensus_ns().2.to_string(),
+            ttl: now + UNVERIFIED_TTL,
+        };
+
+        // Clean all consensus related tables.
+        pool.get()
+            .unwrap()
+            .execute_batch(sql!(
+                "
+                DELETE FROM consensus_router_descriptor_member;
+                DELETE FROM consensus_authority_voter;
+                DELETE FROM consensus;
+                "
+            ))
+            .unwrap();
+
+        // Execute the StoreConsensus state.
+        let state = db::read_tx(&pool, |tx| engine.determine_state(tx, &data, now))
+            .unwrap()
+            .unwrap();
+        assert_eq!(state, State::StoreConsensus);
+        engine.store_consensus(&pool, &mut data, now).unwrap();
+        assert!(matches!(&data, ConsensusBoundData::None));
+
+        // Verify that it got inserted.
+        let state = db::read_tx(&pool, |tx| engine.determine_state(tx, &data, now))
+            .unwrap()
+            .unwrap();
+        assert_eq!(state, State::LoadConsensus);
+        engine
+            .load_consensus(&pool, &mut data, now, &mut testing_rng())
+            .unwrap();
+        assert!(matches!(data, ConsensusBoundData::Verified { .. }));
+    }
 }
