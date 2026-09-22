@@ -505,7 +505,7 @@ mod ed25519impl {
 
     /// An alleged ed25519 public key, encoded in base64 with optional
     /// padding.
-    #[derive(Debug, Copy, Clone, PartialEq, Eq, Deftly)]
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Deftly)]
     #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Ed25519Public(pub Ed25519Identity);
@@ -550,7 +550,7 @@ mod ed25519impl {
     ///
     ///  * `id` in votes' routerstatus entries:
     ///    <https://spec.torproject.org/dir-spec/consensus-formats.html#item:id>
-    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Deftly)]
     #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
     #[non_exhaustive]
     pub struct Ed25519IdentityLine {

@@ -2,3 +2,4 @@ ADDED: `NetParams<T>` is `Default` even if `T` isn't
 ADDED: `RouterStatusConstructor`, `RouterStatusIntroItemConstructor`
 ADDED: `netstatus::VARIETY::RouterStatusIntroItem`, `RouterStatusIntroItemConstructor`
 ADDED: impl `Hash` for `Curve25519Public`
+ADDED: impl `Hash, Ord, PartialOrd` for `Ed25519Public` and `Ed25519IdentityLine`
