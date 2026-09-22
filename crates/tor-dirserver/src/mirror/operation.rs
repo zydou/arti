@@ -518,6 +518,9 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             ConsensusBoundData::None => {
                 return Err(internal!("hibernating without a consensus?").into());
             }
+            // TODO DIRMIRROR: Should the Unverified case be an error or a
+            // success? In other words: Should we exclude the current authority
+            // from the set of the next authorities to try?
             ConsensusBoundData::Verified { ttl, .. }
             | ConsensusBoundData::Unverified { ttl, .. } => {
                 let timeout = *ttl - now;
