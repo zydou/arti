@@ -33,7 +33,7 @@ use tor_netdoc::{
         authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
         netstatus::ConsensusVerifiabilityError,
     },
-    parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput},
+    parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput, VerifyFailed},
 };
 use tor_rtcompat::PreferredRuntime;
 use tracing::debug;
@@ -592,6 +592,9 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 
     /// Queries and validates the most recent consensus from the database.
+    ///
+    /// Effectively a wrapper around [`StaticEngine::verify_consensus()`] with
+    /// the data obtained from the database.
     fn recent_consensus(
         &self,
         tx: &Transaction<'_>,
@@ -613,25 +616,40 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         };
 
         let certs_already = self.certs_already(tx, now)?;
-        let verified = match unverified.verify(self.authorities.v3idents(), &certs_already) {
-            Ok(verified) => verified,
+
+        match self.verify_consensus(unverified, &certs_already, now) {
+            Ok(_) => Ok(Some(meta)),
             Err(e) => {
                 // TODO DIRMIRROR: Perhaps we should remove it?
                 debug!("ignoring invalid consensus in database: {meta:?} {e}");
-                return Ok(None);
+                Ok(None)
             }
+        }
+    }
+
+    /// Parses and verifies a raw consensus in a database agnostic fashion.
+    fn verify_consensus(
+        &self,
+        unverified: T,
+        certs_already: &[AuthCert],
+        now: Timestamp,
+    ) -> Result<(T::Body, T::Signatures), VerifyFailed> {
+        let sigs = unverified.sigs().clone();
+
+        // XXX: Remove match.
+        let verified = match unverified.verify(self.authorities.v3idents(), certs_already) {
+            Ok(verified) => verified,
+            Err(e) => return Err(e.into()),
         };
 
+        // XXX: Remove match.
         match self
             .tolerance
             .extend_tolerance(verified)
             .if_valid_at(&now.into())
         {
-            Ok(_) => Ok(Some(meta)),
-            Err(e) => {
-                debug!("ignoring non-timely consensus in database: {meta:?} {e}");
-                Ok(None)
-            }
+            Ok(body) => Ok((body, sigs)),
+            Err(e) => Err(e.into()),
         }
     }
 
