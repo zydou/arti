@@ -469,7 +469,8 @@ mod curve25519impl {
     use tor_llcrypto::pk::curve25519::PublicKey;
 
     /// A Curve25519 public key, encoded in base64 with optional padding
-    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Deftly)]
+    // Sadly not Ord because x25519_dalek::PublicKey isn't
     #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Curve25519Public(pub PublicKey);
