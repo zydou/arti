@@ -31,7 +31,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 //   - The names are fairly confusing
 //     (especially that RelayFamilyId is not the id of a RelayFamily)
 // See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4117#note_3428678>
-#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Deftly)]
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Deftly)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable, GloballyInternable)]
 pub struct RelayFamily(Vec<LongIdent>);
 
@@ -95,7 +95,7 @@ impl std::str::FromStr for RelayFamily {
 /// but will instead contain these identifiers.
 ///
 /// If two relays have a `RelayFamilyId` in common, they belong to the same family.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum RelayFamilyId {
     /// An identifier derived from an Ed25519 relay family key. (`KP_familyid_ed`)
