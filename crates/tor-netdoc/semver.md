@@ -3,3 +3,4 @@ ADDED: `RouterStatusConstructor`, `RouterStatusIntroItemConstructor`
 ADDED: `netstatus::VARIETY::RouterStatusIntroItem`, `RouterStatusIntroItemConstructor`
 ADDED: impl `Hash` for `Curve25519Public`
 ADDED: impl `Hash, Ord, PartialOrd` for `Ed25519Public` and `Ed25519IdentityLine`
+ADDED: impl `Hash, Ord, PartialOrd` for `Ed25519AlgorithmString`, `RetainedOrderVec`, `Nickname`, `ContactInfo`, `NumericBoolean`
