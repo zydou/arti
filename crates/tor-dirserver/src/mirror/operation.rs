@@ -179,9 +179,25 @@ struct StaticEngine<T> {
 
 /// Additional state machine data concerning a single consensus.
 ///
-/// This enum stores and keeps track of the consensus we are serving and in
-/// which ✨state✨ it is currently in, such as whether it is verified or not,
-/// or if we even have a state loaded in memory in the first place.
+/// This data type exists to store data that cannot be stored in the database,
+/// including the consensus that is currently verified, the consensus that is
+/// currently served, the timestamp until we will serve it, etc.
+///
+/// # Field Requirements
+///
+/// In order for a field to be contained here, at least one of the following
+/// criteria should be met:
+/// * The item needs to persist between multiple invocation and cannot be
+///   obtained from the database.
+/// * The item itself serves as an identifier to the database and querying it
+///   it again can not be done in a pure fashion, e.g. a [`ConsensusMeta`]
+///   identifier.
+/// * The item exists purely for optimization purposes and can be thrown away
+///   at any time without data loss, such as content-addressable caches.
+///   These caches must be pure in the sense that a cache miss must always
+///   return the same result as a cache hit and vice versa.
+//
+// TODO DIRMIRROR: This is probably better of as a struct instead of an enum.
 #[derive(Debug, Clone)]
 enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// No state is loaded in memory at the moment.
