@@ -13,7 +13,10 @@
 use super::*;
 
 ns_use_this_variety! {
-    pub use [crate::doc::netstatus::rs]::?::{RouterStatus};
+    pub use [crate::doc::netstatus::rs]::?::{
+        RouterStatus, RouterStatusConstructor,
+        RouterStatusIntroItem, RouterStatusIntroItemConstructor,
+    };
 }
 
 /// Network status document - consensus, or vote

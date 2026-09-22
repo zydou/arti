@@ -45,24 +45,28 @@ type DocDigestB64 = FixedB64<DOC_DIGEST_LEN>;
 /// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc>
 /// `r` item.
 #[derive(Debug, Clone, Deftly)]
-#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueEncodable, ItemValueParseable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct RouterStatusIntroItem {
     /// The nickname for this relay.
     ///
     /// Nicknames can be used for convenience purpose, but no more:
     /// there is no mechanism to enforce their uniqueness.
+    #[deftly(constructor)]
     pub nickname: Nickname,
 
     /// Fingerprint of the old-style RSA identity for this relay.
+    #[deftly(constructor)]
     pub identity: Base64Fingerprint,
 
     /// Digest of the document for this relay (except md consensuses)
     // TODO SPEC rename in the spec from `digest` to "doc_digest"
     // TODO SPEC in md consensuses the referenced document digest is in a separate `m` item
+    #[deftly(constructor)]
     pub doc_digest: ns_type!(DocDigestB64, NotPresent, DocDigestB64),
 
     /// Publication time.
+    #[deftly(constructor)]
     pub publication: ns_type!(
         IgnoredPublicationTimeSp,
         IgnoredPublicationTimeSp,
@@ -70,6 +74,7 @@ pub struct RouterStatusIntroItem {
     ),
 
     /// IPv4 address
+    #[deftly(constructor)]
     pub ip: std::net::Ipv4Addr,
 
     /// Relay port
@@ -79,6 +84,10 @@ pub struct RouterStatusIntroItem {
     ///
     /// Always 0 when read by the old parser.
     pub dir_port: u16,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// A single relay's status, in a network status document.
@@ -92,13 +101,14 @@ pub struct RouterStatusIntroItem {
 // entry keywords are chosen to be very short to minimise the consensus size, so we
 // use longer names in the struct and specify the keyword separately.
 #[derive(Debug, Clone, Deftly)]
-#[derive_deftly(NetdocEncodable, NetdocParseable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, NetdocEncodable, NetdocParseable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct RouterStatus {
     /// `r` --- Introduce a routerstatus entry
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:r>
     /// (and, the md version, which is different).
+    #[deftly(constructor)]
     pub r: RouterStatusIntroItem,
 
     /// `m` --- Microdescriptor or document digest
@@ -113,6 +123,7 @@ pub struct RouterStatus {
     //
     // TODO SPEC Adjust microdesc consensus `m` item position in the spec.
     // This item is here because this is where C Tor puts it.  
+    #[deftly(constructor)]
     #[deftly(netdoc(with = doc_digest_item_m))]
     pub m: ns_type!(NotPresent, DocDigestB64, Vec<RouterStatusMdDigestsVote>),
 
@@ -126,6 +137,7 @@ pub struct RouterStatus {
     /// `s` --- Router status flags
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
+    #[deftly(constructor)]
     #[deftly(netdoc(
         keyword = "s",
         with = {
@@ -147,12 +159,21 @@ pub struct RouterStatus {
     /// `pr` --- Subprotocol capabilities supported
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:v>
+    #[deftly(constructor)]
     #[deftly(netdoc(keyword = "pr"))]
     pub protos: Protocols,
 
     /// `w` --- Bandwidth estimates
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
+    ///
+    /// In `Constructor`, you can use `RelayWeightsItem::default()`
+    /// if `retain-unknown` is enabled.
+    // RelayWeightsItem is only Default (meaning "no `w` item") with retain-unknown.
+    // But without that feature, that contains info not represented, so then it's not `Default`.
+    // We mustn't have fields that are in Constructor if some feature is *missing*,
+    // because that would be non-additive.
+    #[deftly(constructor)]
     #[deftly(netdoc(flatten))]
     pub weight: RelayWeightsItem,
 
@@ -167,6 +188,7 @@ pub struct RouterStatus {
     /// `id` --- Relay’s (ed25519) identity
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:id>
+    #[deftly(constructor)]
     #[deftly(netdoc(keyword = "id"))] 
     pub ed25519_id: ns_type!(NotPresent, NotPresent, Ed25519IdentityLine),
 
@@ -174,6 +196,10 @@ pub struct RouterStatus {
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:stats>
     pub stats: ns_type!(NotPresent, NotPresent, NetParams<F64Finite>),
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 impl RouterStatus {

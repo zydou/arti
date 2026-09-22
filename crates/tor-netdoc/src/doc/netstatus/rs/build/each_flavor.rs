@@ -185,6 +185,7 @@ impl RouterStatusBuilder {
                 ip: *ip.ip(),
                 or_port: ip.port(),
                 dir_port: 0,
+                __non_exhaustive: (),
             },
             m: m_doc_digest.into(),
             a,
@@ -198,6 +199,7 @@ impl RouterStatusBuilder {
             port_policy: ns_expr!(None, NotPresent, Void {}),
             ed25519_id: NotPresent,
             stats: NotPresent,
+            __non_exhaustive: (),
         })
     }
 
