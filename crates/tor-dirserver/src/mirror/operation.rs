@@ -636,21 +636,13 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     ) -> Result<(T::Body, T::Signatures), VerifyFailed> {
         let sigs = unverified.sigs().clone();
 
-        // XXX: Remove match.
-        let verified = match unverified.verify(self.authorities.v3idents(), certs_already) {
-            Ok(verified) => verified,
-            Err(e) => return Err(e.into()),
-        };
+        let verified = unverified.verify(self.authorities.v3idents(), certs_already)?;
 
-        // XXX: Remove match.
-        match self
-            .tolerance
+        self.tolerance
             .extend_tolerance(verified)
             .if_valid_at(&now.into())
-        {
-            Ok(body) => Ok((body, sigs)),
-            Err(e) => Err(e.into()),
-        }
+            .map(|body| (body, sigs))
+            .map_err(|e| e.into())
     }
 
     /// Loads all authority certificates from the database into a [`Vec<AuthCert>`].
