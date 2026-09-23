@@ -110,7 +110,8 @@ pub type RelayFlags = EnumSet<RelayFlag>;
 /// they are not listed in this type.
 ///
 /// TODO SPEC: Make the terminology the same everywhere.
-#[derive(Debug, strum::Display, strum::EnumString, strum::IntoStaticStr, EnumSetType)]
+#[derive(Debug, strum::Display, strum::EnumString, strum::IntoStaticStr, EnumSetType)] //
+#[derive(Hash, Ord, PartialOrd)]
 #[enumset(repr = "u16")] // Must be the same as RelayFlagBits
 #[non_exhaustive]
 pub enum RelayFlag {

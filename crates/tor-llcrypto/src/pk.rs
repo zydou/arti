@@ -66,7 +66,9 @@ pub mod curve25519 {
     /// A curve15519 public key.
     ///
     /// See [`x25519_dalek::PublicKey`] for more information.
-    #[derive(Clone, Copy, Debug, Eq, Deftly)]
+    #[derive(Clone, Copy, Debug, Eq, Hash, Deftly)]
+    // Sadly not Ord because x25519_dalek::PublicKey isn't
+    #[allow(clippy::derived_hash_with_manual_eq)]
     #[derive_deftly(PartialEqFromCtEq)]
     pub struct PublicKey(x25519_dalek::PublicKey);
 

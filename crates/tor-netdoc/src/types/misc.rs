@@ -469,7 +469,8 @@ mod curve25519impl {
     use tor_llcrypto::pk::curve25519::PublicKey;
 
     /// A Curve25519 public key, encoded in base64 with optional padding
-    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Deftly)]
+    // Sadly not Ord because x25519_dalek::PublicKey isn't
     #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Curve25519Public(pub PublicKey);
@@ -504,7 +505,7 @@ mod ed25519impl {
 
     /// An alleged ed25519 public key, encoded in base64 with optional
     /// padding.
-    #[derive(Debug, Copy, Clone, PartialEq, Eq, Deftly)]
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Deftly)]
     #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Ed25519Public(pub Ed25519Identity);
@@ -528,7 +529,8 @@ mod ed25519impl {
     impl NormalItemArgument for Ed25519Public {}
 
     /// Helper that checks for the presence of `ed25519`.
-    #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::FromStr)]
+    #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)] //
+    #[derive(derive_more::Display, derive_more::FromStr)]
     #[display(rename_all = "lowercase")]
     #[from_str(rename_all = "lowercase")]
     #[allow(clippy::exhaustive_enums)]
@@ -549,7 +551,7 @@ mod ed25519impl {
     ///
     ///  * `id` in votes' routerstatus entries:
     ///    <https://spec.torproject.org/dir-spec/consensus-formats.html#item:id>
-    #[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+    #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Deftly)]
     #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
     #[non_exhaustive]
     pub struct Ed25519IdentityLine {
@@ -1231,7 +1233,7 @@ impl<T: Copy + FromStr> FromStr for KeywordOrString<T> {
 /// *This* type retains the ordering.
 ///
 /// Implements the [`encode`] and [`parse2`] item multiplicity traits.
-#[derive(Debug, Clone, Hash, Deftly, Eq, PartialEq, Educe)]
+#[derive(Debug, Clone, Hash, Deftly, Eq, PartialEq, Ord, PartialOrd, Educe)]
 #[educe(Default)]
 #[derive_deftly(Transparent)]
 #[allow(clippy::exhaustive_structs)]
@@ -2284,7 +2286,7 @@ mod nickname {
     ///
     /// Nicknames are required to be ASCII, alphanumeric, and between 1 and 19
     /// characters inclusive.
-    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
     pub struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
 
     /// Invalid nickname
@@ -2468,7 +2470,7 @@ mod contact_info {
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:contact>
     ///
     /// Also used for authority entries in netstatus documents.
-    #[derive(Clone, Debug, PartialEq, Eq, Deftly)] //
+    #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash, Deftly)] //
     #[derive(derive_more::Into, derive_more::AsRef, derive_more::Deref, derive_more::Display)]
     #[derive_deftly(ItemValueEncodable)]
     #[non_exhaustive]
@@ -2518,7 +2520,7 @@ mod boolean {
     use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos};
 
     /// A boolean that is represented by a `0` (false) or `1` (true).
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Deftly)]
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Deftly)]
     #[derive_deftly(Transparent)]
     #[allow(clippy::exhaustive_structs)]
     pub struct NumericBoolean(pub bool);
