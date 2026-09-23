@@ -73,7 +73,8 @@ impl SaturatingTime for SystemTime {
 
 impl SaturatingTime for Instant {
     fn anchor() -> Self {
-        Self::now()
+        use web_time_compat::InstantExt;
+        Self::get()
     }
 
     fn max_value() -> Self {

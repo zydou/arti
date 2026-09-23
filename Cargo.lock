@@ -5715,6 +5715,9 @@ dependencies = [
 [[package]]
 name = "saturating-time"
 version = "0.4.0"
+dependencies = [
+ "web-time-compat",
+]
 
 [[package]]
 name = "schannel"

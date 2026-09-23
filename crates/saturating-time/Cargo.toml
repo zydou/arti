@@ -10,5 +10,8 @@ license = "MIT OR Apache-2.0"
 keywords = ["time", "system-time", "instant", "saturating"]
 categories = ["date-and-time", "os", "rust-patterns"]
 
+[dependencies]
+web-time-compat = { version = "0.2.0", path = "../web-time-compat" }
+
 [package.metadata.docs.rs]
 all-features = true
