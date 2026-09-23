@@ -189,7 +189,7 @@ metrics = [
     "__is_experimental",
 ]
 http-connect = ["base64ct", "http", "hyper", "tor-error/http", "tor-cell"]
-hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
+hsc = ["onion-service-client", "experimental-api", "arti-client/keymgr", "__is_experimental"]
 tokio-console = ["dep:console-subscriber", "__is_experimental"]
 hsc-negotiate-extensions = ["arti-client/hsc-negotiate-extensions", "__is_experimental"]
 hss-negotiate-extensions = ["arti-client/hss-negotiate-extensions", "__is_experimental"]
