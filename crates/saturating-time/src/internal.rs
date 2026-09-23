@@ -143,7 +143,7 @@ where
         match next {
             Some(st) => {
                 // (2.1) If Some, set res to the returned value and continue.
-                res = st
+                res = st;
             }
             None => {
                 if step == ONE_NS {
