@@ -51,7 +51,7 @@ THIS_VERSION=1.1.6
 3. [ ] Look over all remaining confidential issues for any that have patches not listed
    in the above meta-issue.
 
-    If there any that seem like they have a patch,
+    If there are any that seem like they have a patch
     but have not been added to the meta-issue,
     ask the patch author if they should be added to the meta-issue.
     Don't add a patch without confirming with the author beforehand.
@@ -64,7 +64,10 @@ THIS_VERSION=1.1.6
 
     This new branch should be up to date with the arti repository's main branch.
 
-    The repository should be accessible by all ["tpo/core"](tpo-core) team members.
+    The repository should be accessible by the ["The Tor Project / Core"](tpo-core) group.
+    You can do this by selecting "Invite a group" in your private arti repository,
+    choosing "The Tor Project / Core",
+    and selecting a maximum role of "Developer".
 
     **TODO:** If we continue with this process in the future,
     we should make a permanent private arti repository that we can reuse in all future releases.
