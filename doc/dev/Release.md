@@ -51,7 +51,7 @@ THIS_VERSION=1.1.6
 3. [ ] Look over all remaining confidential issues for any that have patches not listed
    in the above meta-issue.
 
-    If there any that seem like they have a patch,
+    If there are any that seem like they have a patch
     but have not been added to the meta-issue,
     ask the patch author if they should be added to the meta-issue.
     Don't add a patch without confirming with the author beforehand.
