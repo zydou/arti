@@ -99,4 +99,3 @@ None yet.
 ## License and Copyright
 
 This crate is licensed under `MIT OR Apache-2.0`.
-See the respective `LICENSE-*` files in the repository for more information.
