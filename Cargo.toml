@@ -16,6 +16,7 @@ members = [
     "crates/slotmap-careful",
     "crates/test-temp-dir",
     "crates/fslock-guard",
+    "crates/saturating-time",
     "crates/hashx",
     "crates/equix",
     "crates/tor-basic-utils",
