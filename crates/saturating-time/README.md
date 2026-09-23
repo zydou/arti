@@ -96,6 +96,15 @@ None yet.
 [^5]: <https://github.com/rust-lang/rust/pull/151200>
 [^6]: <https://github.com/rust-lang/rust/issues/151199>
 
+## History
+
+Up until (and including) version 0.4.0, `saturating-time` was maintained as an
+independent project hosted on [Codeberg](https://codeberg.org/cve/saturating-time).
+
+Starting with version 0.5.0, it has been incorporated into the
+[Arti](https://arti.torproject.org) and is therefore maintained by
+*The Tor Project, Inc.*
+
 ## License and Copyright
 
 This crate is licensed under `MIT OR Apache-2.0`.
