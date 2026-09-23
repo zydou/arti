@@ -32,11 +32,7 @@ However, this crate implements this trait for two structures:
 
 ## Example
 
-Add the following to your `Cargo.toml`:
-```toml
-[dependencies]
-saturating-time = "0.4.0"
-```
+Add `saturating-time` to your `Cargo.toml`.
 
 If you use Rust nightly, you may want to additionally configure the following
 in your `.cargo/config.toml`:
