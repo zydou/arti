@@ -38,10 +38,11 @@ Add the following to your `Cargo.toml`:
 saturating-time = "0.4.0"
 ```
 
-If you use Rust nightly, you may want to do:
+If you use Rust nightly, you may want to additionally configure the following
+in your `.cargo/config.toml`:
 ```toml
-[dependencies]
-saturating-time = { version = "0.4.0", features = ["nightly"] }
+[build]
+rustflags = ["--cfg", "saturating_time_nightly"]
 ```
 
 Now, you can use `saturating-time` in your code:

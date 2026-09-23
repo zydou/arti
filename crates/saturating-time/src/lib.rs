@@ -1,7 +1,8 @@
 #![doc = include_str!("../README.md")]
+#![allow(unexpected_cfgs)]
 #![forbid(unsafe_code)]
 #![cfg_attr(
-    feature = "nightly",
+    saturating_time_nightly,
     feature(time_systemtime_limits, time_saturating_systemtime)
 )]
 
@@ -157,7 +158,7 @@ pub trait SaturatingTime: internal::SaturatingTime {
 }
 
 // Use nightly implementation if compiled with the nightly feature.
-#[cfg(feature = "nightly")]
+#[cfg(saturating_time_nightly)]
 impl SaturatingTime for SystemTime {
     fn max_value() -> Self {
         Self::MAX
@@ -181,7 +182,7 @@ impl SaturatingTime for SystemTime {
 }
 
 // Otherwise, use the default one.
-#[cfg(not(feature = "nightly"))]
+#[cfg(not(saturating_time_nightly))]
 impl SaturatingTime for SystemTime {}
 
 impl SaturatingTime for Instant {
