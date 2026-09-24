@@ -114,8 +114,6 @@ restricted-discovery = ["tor-hsservice/restricted-discovery"]
 vanguards = ["arti-client/vanguards"]
 hs-pow-full = ["arti-client/hs-pow-full", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
-# XXX this now does nothing
-ctor-keystore = []
 
 # This feature flag does nothing; CC flow control is always on.
 # We are leaving this feature flag here so as not to break backward compatibility.
@@ -129,6 +127,12 @@ counter-galois-onion = []
 # by enabling one of the onion service or onion service client features.
 # We are leaving this feature flag here so as not to break backward compatibility.
 keymgr = []
+
+# This feature does nothing;
+# Client C Tor keystore support can be turned on by enabling onion-service-client.
+# Onion Service C Tor keystore support can be turned on by enabling onion-service-service.
+# We are leaving this feature flag here so as not to break backward compatibility.
+ctor-keystore = []
 
 rpc = [
     "dep:arti-rpcserver",
