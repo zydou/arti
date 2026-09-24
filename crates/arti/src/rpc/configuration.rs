@@ -125,7 +125,7 @@ pub(crate) struct ConfigValue(serde_json::Value);
 ///
 /// ### Setting a single option
 ///
-/// This invocation will set disable client connections to "local"
+/// This invocation will disable client connections to "local"
 /// addresses over the Tor network.  It will override any
 /// value for this option set in any other configuration source.
 ///
@@ -193,7 +193,7 @@ impl rpc::RpcMethod for SetConfig {
 /// This method requires superuser access, since some options
 /// (like onion service configurations) can be sensitive.
 ///
-/// This method can return either the value for a single options,
+/// This method can return either the value for a single option,
 /// or multiple values of the tree.
 ///
 /// It returns the actual configuration values _as used_:
@@ -205,7 +205,7 @@ impl rpc::RpcMethod for SetConfig {
 #[derive_deftly(rpc::DynMethod)]
 #[deftly(rpc(method_name = "arti:get_config"))]
 pub(super) struct GetConfig {
-    /// A path in the RPC configuration tree to override.
+    /// A path in the RPC configuration tree to retrieve.
     ///
     /// This path is either the empty string,
     /// or a sequence of period-separated configuration identifiers.
