@@ -20,8 +20,9 @@ use crate::client::circuit::padding::{
 
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
+use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, RelayCmd};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId};
 use tor_error::internal;
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
@@ -139,14 +140,27 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     padding_block: Option<padding::StartBlocking>,
 }
 
-/// A control message aimed at the generic forward reactor.
+/// A control message aimed at the generic backward reactor.
 pub(crate) enum CtrlMsg<M> {
+    /// Inform the reactor that there's a flow control update for a given stream.
+    ///
+    /// The reactor will decide how to handle this update depending on the type of flow control and
+    /// the current state of the stream.
+    FlowCtrlUpdate {
+        /// The hop that the stream is on.
+        /// Relay circuits use `None`.
+        hop: Option<HopNum>,
+        /// The stream ID that the update is for.
+        stream_id: StreamId,
+        /// The type of flow control update, and any associated metadata.
+        msg: FlowCtrlMsg,
+    },
     /// An implementation-dependent control message.
     #[allow(unused)] // TODO(relay)
     Custom(M),
 }
 
-/// A control command aimed at the generic forward reactor.
+/// A control command aimed at the generic backward reactor.
 pub(crate) enum CtrlCmd<C> {
     /// An implementation-dependent control command.
     #[allow(unused)] // TODO(relay)
@@ -382,8 +396,13 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             }
             res = self.control_rx.next().fuse() => {
                 let msg = res.ok_or_else(|| ReactorError::Shutdown)?;
-                self.handle_msg(msg)?;
-                return Ok(());
+                if let Some(new_msg) = self.handle_msg(msg)? {
+                    let mut events = <PollAll::<_, _> as Future>::Output::new();
+                    events.push(Some(CircuitEvent::Send(new_msg)));
+                    events
+                } else {
+                    return Ok(());
+                }
             }
             res = self.padding_event_stream.next().fuse() => {
                 // If there's a padding event, we need to handle it immediately,
@@ -440,9 +459,52 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     }
 
     /// Handle a control message.
-    fn handle_msg(&mut self, msg: CtrlMsg<B::CtrlMsg>) -> StdResult<(), ReactorError> {
+    ///
+    /// This may result in a new stream message that needs to be sent backward.
+    fn handle_msg(
+        &mut self,
+        msg: CtrlMsg<B::CtrlMsg>,
+    ) -> StdResult<Option<ReadyStreamMsg>, ReactorError> {
         match msg {
-            CtrlMsg::Custom(c) => self.inner.handle_msg(c),
+            CtrlMsg::Custom(c) => {
+                // In the future we may also want `inner.handle_msg(c)` to return an
+                // `Option<ReadyStreamMsg>`, and we can pass it through.
+                let () = self.inner.handle_msg(c)?;
+                Ok(None)
+            }
+            CtrlMsg::FlowCtrlUpdate {
+                hop,
+                stream_id,
+                msg,
+            } => match msg {
+                FlowCtrlMsg::Sendme => {
+                    // Congestion control decides if we can send stream level SENDMEs or not.
+                    let (cell_fmt, cc) = self.hop_info(hop)?;
+                    let uses_stream_sendme = cc.lock().expect("poisoned").uses_stream_sendme();
+
+                    if !uses_stream_sendme {
+                        // Nothing to do, so discard the SENDME.
+                        //
+                        // TODO(arti#2068): We should do something better here,
+                        // like ensure that nothing sends `FlowCtrlMsg::Sendme` when it shouldn't,
+                        // and making this an error instead.
+                        return Ok(None);
+                    }
+
+                    let sendme = Sendme::new_empty();
+                    let msg = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
+
+                    Ok(Some(ReadyStreamMsg {
+                        hop,
+                        msg,
+                        relay_cell_format: cell_fmt,
+                        ccontrol: Arc::clone(&cc),
+                    }))
+                }
+                FlowCtrlMsg::Xon(rate) => {
+                    todo!()
+                }
+            },
         }
     }
 
@@ -834,12 +896,12 @@ impl<B: BackwardHandler> Drop for BackwardReactor<B> {
 enum CircuitEvent<M> {
     /// We received a cell that needs to be handled.
     ///
-    /// The cell is client-bound if we are a relay, or exit-bound if we are a client).
+    /// (The cell is client-bound if we are a relay, or exit-bound if we are a client).
     Cell(M),
-    /// We received a RELAY cell from the stream reactor that needs
+    /// A stream has a RELAY cell that needs
     /// to be packaged and written to our Tor channel.
     ///
-    /// The message is client-bound if we are a relay, or exit-bound if we are a client).
+    /// (The message is client-bound if we are a relay, or exit-bound if we are a client).
     Send(ReadyStreamMsg),
     /// We received a cell from the ForwardReactor that we need to handle.
     ///
@@ -897,4 +959,16 @@ pub(crate) enum BackwardReactorCmd {
         /// Yields cells moving from the exit towards the client, if we are a middle relay.
         outbound_chan_rx: CircuitRxReceiver,
     },
+}
+
+/// A flow control update message.
+///
+/// TODO(DEDUP): This is a duplicate of the client's
+/// `crate::client::reactor::control::FlowCtrlMsg`.
+#[derive(Debug)]
+pub(crate) enum FlowCtrlMsg {
+    /// Send a SENDME message on this stream.
+    Sendme,
+    /// Send an XON message on this stream with the given rate.
+    Xon(XonKBpsEwma),
 }

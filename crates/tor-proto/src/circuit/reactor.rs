@@ -283,7 +283,7 @@ pub(crate) struct CircReactorHandle<F: ForwardHandler, B: BackwardHandler> {
 /// A control command.
 ///
 /// The difference between this and [`CtrlMsg`] is that `CtrlCmd`s
-/// never cause cells to sent on the Tor channel,
+/// never cause cells to be sent on the Tor channel,
 /// while `CtrlMsg`s potentially do.
 #[allow(unused)] // TODO(relay)
 pub(crate) enum CtrlCmd<F, B> {
@@ -297,6 +297,7 @@ pub(crate) enum CtrlCmd<F, B> {
 
 /// A control message.
 #[allow(unused)] // TODO(relay)
+#[derive(derive_more::From)]
 pub(crate) enum CtrlMsg<F, B> {
     /// A control message for the forward reactor.
     Forward(forward::CtrlMsg<F>),
