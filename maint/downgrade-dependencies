@@ -44,3 +44,12 @@ $CARGO update --precise 3.1.0 event-listener@3.0.0
 # (We use -Z minimal-dependencies here to avoid upgrading the several
 # dependencies of async-io.)
 $CARGO +nightly update -Z minimal-versions --precise 1.1.5 async-io@1.0.1
+
+# The downgraded `hickory-resolver@0.26.3` specifies a dependencies of `moka`
+# 0.12, but `OwnedKeyEntrySelector::and_upsert_with()` was added in 0.12.3.
+# (we need to bump quanta too, because moka requires quanta 0.12.2)
+#
+# TODO(relay): can we make the moka-based cache optional in hickory-resolver?
+# See https://github.com/hickory-dns/hickory-dns/issues/3270
+$CARGO +nightly update --precise 0.12.2 quanta@0.12.0
+$CARGO +nightly update --precise 0.12.3 moka@0.12.0
