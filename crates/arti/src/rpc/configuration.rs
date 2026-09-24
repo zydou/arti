@@ -25,18 +25,20 @@ impl ConfigSettings {
     /// Replace the value at `key` within this object with `value`.
     ///
     /// `key` is interpreted as a dot-separated sequence of dictionary keys.
-    /// Any empty keys are ignored.
+    ///
+    /// Either "." or "" can be used to refer to the root of the tree.
     ///
     /// Note this function can easily create an invalid configuration.
     fn apply_key_value(&mut self, key: &str, value: serde_json::Value) {
         use serde_json::{Map, Value};
 
+        if ["", "."].contains(&key) {
+            self.0 = value;
+            return;
+        }
+
         let mut v: &mut Value = &mut self.0;
         for path_elt in key.split('.') {
-            if path_elt.is_empty() {
-                continue;
-            }
-
             if v.is_object() {
                 let map = v.as_object_mut().expect("No longer an object");
                 v = map.entry(path_elt).or_insert(Value::Null);
