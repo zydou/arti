@@ -34,9 +34,9 @@ fn prompt(msg: &str) -> Result<bool> {
 
     let mut proceed = String::new();
 
-    print!("{} (type {YES} or {NO}): ", msg);
-    io::stdout().flush().map_err(|e| anyhow!(e))?;
     loop {
+        print!("{} (type {YES} or {NO}): ", msg);
+        io::stdout().flush().map_err(|e| anyhow!(e))?;
         io::stdin()
             .read_line(&mut proceed)
             .map_err(|e| anyhow!(e))?;
