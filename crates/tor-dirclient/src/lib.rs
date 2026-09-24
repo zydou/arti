@@ -548,8 +548,37 @@ where
     }
 }
 
+/// Memory limit of the LZMA dictionary we are willing to allocate.
+///
+/// Without it, it may lead to an allocation of 4GiB, which is a bit overkill.
+///
+/// Right now, we use 16 MiB, as the spec limits the compression quality to
+/// "6", meaning 9 MiB of decompression memory, which rounds up to 16 MiB in
+/// terms of base 2.
+///
+/// From the xz(1) manual page:
+/// ```text
+/// Preset   DictSize   CompCPU   CompMem   DecMem
+///  -0e     256 KiB       8        4 MiB    1 MiB
+///  -1e       1 MiB       8       13 MiB    2 MiB
+///  -2e       2 MiB       8       25 MiB    3 MiB
+///  -3e       4 MiB       7       48 MiB    5 MiB
+///  -4e       4 MiB       8       48 MiB    5 MiB
+///  -5e       8 MiB       7       94 MiB    9 MiB
+///  -6e       8 MiB       8       94 MiB    9 MiB
+///  -7e      16 MiB       8      186 MiB   17 MiB
+///  -8e      32 MiB       8      370 MiB   33 MiB
+///  -9e      64 MiB       8      674 MiB   65 MiB
+/// ```
+const LZMA_DICT_MEM_LIMIT: u64 = 1 << 24; // 16 MiB
+
 /// Helper: Return a boxed decoder object that wraps the stream  $s.
 macro_rules! decoder {
+    (XzDecoder, $s:expr) => {{
+        let mut decoder = XzDecoder::with_mem_limit($s, LZMA_DICT_MEM_LIMIT);
+        decoder.multiple_members(true);
+        Ok(Box::new(decoder))
+    }};
     ($dec:ident, $s:expr) => {{
         let mut decoder = $dec::new($s);
         decoder.multiple_members(true);
@@ -705,13 +734,25 @@ mod test {
 
     #[cfg(feature = "xz")]
     #[async_test]
-    async fn decomp_xz2() -> RequestResult<()> {
-        // Not so good at tiny files...
-        let compressed = hex::decode("fd377a585a000004e6d6b446020021011c00000010cf58cce00024001d5d00279b88a202ca8612cfb3c19c87c34248a570451e4851d3323d34ab8000000000000901af64854c91f600013925d6ec06651fb6f37d010000000004595a").unwrap();
-        let limit = 10 << 20;
+    async fn decomp_xz() -> RequestResult<()> {
+        // echo "One fish Two fish Red fish Blue fish" | xz -6 | xxd -p
+        let compressed = hex::decode("fd377a585a000004e6d6b44604c02525210116000000000000000000bfdbca33e00024001d5d00279b88a202ca8612cfb3c19c87c34248a570451e4851d3323d34ab8000000000000901af64854c91f600014125281fe0821fb6f37d010000000004595a").unwrap();
+        let limit = LZMA_DICT_MEM_LIMIT as usize;
         let (s, r) = decomp_basic(Some("x-tor-lzma"), &compressed, limit).await;
         s?;
         assert_eq!(r, b"One fish Two fish Red fish Blue fish\n");
+
+        Ok(())
+    }
+
+    #[cfg(feature = "xz")]
+    #[async_test]
+    async fn decomp_xz_bad() -> RequestResult<()> {
+        // Not so good at tiny files...
+        let compressed = hex::decode("fd377a585a000004e6d6b446020021011c00000010cf58cce00024001d5d00279b88a202ca8612cfb3c19c87c34248a570451e4851d3323d34ab8000000000000901af64854c91f600013925d6ec06651fb6f37d010000000004595a").unwrap();
+        let limit = 10 << 20;
+        let (s, _) = decomp_basic(Some("x-tor-lzma"), &compressed, limit).await;
+        assert!(matches!(s, Err(RequestError::IoError(_))));
 
         Ok(())
     }
