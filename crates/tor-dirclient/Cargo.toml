@@ -49,7 +49,7 @@ experimental = []
 __is_experimental = []
 
 [dependencies]
-async-compression = { version = "0.4.0", features = ["futures-io", "zlib"] }
+async-compression = { version = "0.4.5", features = ["futures-io", "zlib"] }
 base64ct = "1.5.1"
 derive_more = { version = "2.0.1", features = ["full"] }
 futures = "0.3.14"
