@@ -556,7 +556,7 @@ where
 /// terms of base 2.
 ///
 /// From the xz(1) manual page:
-/// ```
+/// ```text
 /// Preset   DictSize   CompCPU   CompMem   DecMem
 ///  -0e     256 KiB       8        4 MiB    1 MiB
 ///  -1e       1 MiB       8       13 MiB    2 MiB
