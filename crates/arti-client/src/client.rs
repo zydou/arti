@@ -57,7 +57,7 @@ use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, config::ArtiKeystore
 #[cfg(feature = "ephemeral-keystore")]
 use tor_keymgr::ArtiEphemeralKeystore;
 
-#[cfg(feature = "ctor-keystore")]
+// XXX gate these behind onion-service-client,onion-service-service
 use tor_keymgr::{CTorClientKeystore, CTorServiceKeystore};
 
 use futures::StreamExt as _;
@@ -349,7 +349,7 @@ impl InertTorClient {
 
         let mut builder = KeyMgrBuilder::default().primary_store(primary_store);
 
-        #[cfg(feature = "ctor-keystore")]
+        // XXX gate this behind onion-service-service
         for config in config.storage.keystore().ctor_svc_stores() {
             let store: Box<dyn Keystore> = Box::new(CTorServiceKeystore::from_path_and_mistrust(
                 config.path(),
@@ -363,7 +363,7 @@ impl InertTorClient {
             builder.secondary_stores().push(store);
         }
 
-        #[cfg(feature = "ctor-keystore")]
+        // XXX gate this behind onion-service-client
         for config in config.storage.keystore().ctor_client_stores() {
             let store: Box<dyn Keystore> = Box::new(CTorClientKeystore::from_path_and_mistrust(
                 config.path(),

@@ -151,8 +151,6 @@ experimental = [
 experimental-api = ["__is_experimental"]
 dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
 ephemeral-keystore = ["tor-keymgr/ephemeral-keystore", "__is_experimental"]
-# XXX remove
-ctor-keystore = []
 error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
 hsc-negotiate-extensions = ["tor-hsclient?/negotiate-extensions", "__is_experimental"]

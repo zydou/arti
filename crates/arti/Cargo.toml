@@ -114,8 +114,8 @@ restricted-discovery = ["tor-hsservice/restricted-discovery"]
 vanguards = ["arti-client/vanguards"]
 hs-pow-full = ["arti-client/hs-pow-full", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
-# XXX remove
-ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
+# XXX this now does nothing
+ctor-keystore = []
 
 # This feature flag does nothing; CC flow control is always on.
 # We are leaving this feature flag here so as not to break backward compatibility.
