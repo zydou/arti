@@ -5051,7 +5051,6 @@ dependencies = [
  "fast-socks5",
  "thiserror 2.0.20",
  "tokio",
- "tokio-stream",
  "tor-chanmgr",
  "tor-linkspec",
  "tor-ptmgr",

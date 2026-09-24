@@ -1,14 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use fast_socks5::client::{Config, Socks5Stream};
-#[allow(deprecated)] // TODO: #2335
-use fast_socks5::server::{AcceptAuthentication, Socks5Server};
+use fast_socks5::client::{Config as ClientConfig, Socks5Stream};
+use fast_socks5::server::{Socks5ServerProtocol, run_tcp_proxy};
+use fast_socks5::{ReplyError, Socks5Command, SocksError};
 use std::str::FromStr;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
-use tokio_stream::StreamExt;
 use tor_chanmgr::transport::proxied::{Protocol, settings_to_protocol};
 use tor_linkspec::PtTransportName;
 use tor_ptmgr::ipc::{
@@ -149,7 +148,7 @@ fn build_client_config(protocol: &str) -> Result<(PtCommonParameters, PtClientPa
 async fn connect_to_obfs4_client(
     forward_creds: ForwardingCreds,
 ) -> Result<Socks5Stream<TcpStream>> {
-    let config = Config::default();
+    let config = ClientConfig::default();
     Ok(Socks5Stream::connect_with_password(
         forward_creds.forward_endpoint,
         forward_creds.obfs4_server_ip,
@@ -233,20 +232,38 @@ async fn run_forwarding_server(endpoint: &str, forward_creds: ForwardingCreds) -
 /// Run the final hop of the connection, which finally makes the actual
 /// network request to the intended host and relays it back
 async fn run_socks5_server(endpoint: &str) -> Result<oneshot::Receiver<bool>> {
-    #[allow(deprecated)] // TODO: #2335
-    let listener = Socks5Server::<AcceptAuthentication>::bind(endpoint).await?;
+    let listener = TcpListener::bind(endpoint).await?;
     let (tx, rx) = oneshot::channel::<bool>();
     tokio::spawn(async move {
-        while let Some(Ok(socks_socket)) = listener.incoming().next().await {
+        while let Ok((stream, _)) = listener.accept().await {
             tokio::spawn(async move {
-                if let Err(e) = socks_socket.upgrade_to_socks5().await {
+                if let Err(e) = serve_socks5(stream).await {
                     eprintln!("{e:#?}");
                 }
             });
         }
-        tx.send(true).unwrap()
+        let _ = tx.send(true);
     });
     Ok(rx)
+}
+
+/// Serve a single SOCKS5 connection.
+async fn serve_socks5(stream: TcpStream) -> Result<(), SocksError> {
+    let (proto, cmd, target_addr) = Socks5ServerProtocol::accept_no_auth(stream)
+        .await?
+        .read_command()
+        .await?;
+
+    match cmd {
+        Socks5Command::TCPConnect => {
+            run_tcp_proxy(proto, &target_addr, Duration::from_secs(10), false).await?;
+        }
+        _ => {
+            proto.reply_error(&ReplyError::CommandNotSupported).await?;
+            return Err(ReplyError::CommandNotSupported.into());
+        }
+    }
+    Ok(())
 }
 
 /// Main function, ties everything together and parses arguments etc.
