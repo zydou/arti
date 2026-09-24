@@ -170,6 +170,7 @@ pub(super) struct SetConfig {
     ///
     /// This path is either the empty string,
     /// or a sequence of period-separated configuration identifiers.
+    /// The root of the tree can be represented as "." or as "".
     ///
     /// No validation is done to ensure that the identifiers are actually
     /// a recognized configuration option.
@@ -211,6 +212,7 @@ pub(super) struct GetConfig {
     ///
     /// This path is either the empty string,
     /// or a sequence of period-separated configuration identifiers.
+    /// The root of the tree can be represented as "." or as "".
     key: String,
 }
 
