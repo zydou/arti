@@ -179,9 +179,25 @@ struct StaticEngine<T> {
 
 /// Additional state machine data concerning a single consensus.
 ///
-/// This enum stores and keeps track of the consensus we are serving and in
-/// which ✨state✨ it is currently in, such as whether it is verified or not,
-/// or if we even have a state loaded in memory in the first place.
+/// This data type exists to store data that cannot be stored in the database,
+/// including the consensus that is currently verified, the consensus that is
+/// currently served, the timestamp until we will serve it, etc.
+///
+/// # Field Requirements
+///
+/// In order for a field to be contained here, at least one of the following
+/// criteria should be met:
+/// * The item needs to persist between multiple invocation and cannot be
+///   obtained from the database.
+/// * The item itself serves as an identifier to the database and querying it
+///   it again can not be done in a pure fashion, e.g. a [`ConsensusMeta`]
+///   identifier.
+/// * The item exists purely for optimization purposes and can be thrown away
+///   at any time without data loss, such as content-addressable caches.
+///   These caches must be pure in the sense that a cache miss must always
+///   return the same result as a cache hit and vice versa.
+//
+// TODO DIRMIRROR: This is probably better of as a struct instead of an enum.
 #[derive(Debug, Clone)]
 enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// No state is loaded in memory at the moment.
@@ -190,8 +206,6 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// We have downloaded a consensus but it is not yet verified.
     Unverified {
         /// The unverified parsed consensus we have.
-        // TODO DIRMIRROR: Make this optional, see comment in
-        // StaticEngine::execute.
         consensus: T,
 
         /// The unparsed raw consensus we have.
@@ -207,6 +221,14 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
     /// We have downloaded and verified a consensus.
     Verified {
         /// The verified consensus we have.
+        ///
+        /// Contained in this structure because it is the only way we can
+        /// uniquely identify a consensus, which is crucial for operation, as
+        /// things like the `ttl` are derived from it.
+        ///
+        /// While methods like [`ConsensusMeta::query`] would probably also
+        /// work correctly, relying on them feels rather wrong, as they were
+        /// not made to be pure.
         consensus: ConsensusMeta<T>,
 
         /// When to stop dealing with this consensus and fetching a new one.
