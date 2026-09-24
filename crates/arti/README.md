@@ -206,6 +206,9 @@ Note that these features will still be enabled if you build with the
   the feature flag does nothing.
 * `counter-galois-onion`: This functionality is now always-on;
   the feature flag does nothing.
+* `keymgr`: Key management functionality can be turned on
+  by enabling one of the onion service or onion service client features;
+  the feature flag does nothing
 
 ## Limitations
 
