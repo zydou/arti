@@ -20,6 +20,7 @@ _TEST_MODS = [
     "defer_bootstrap",
     "cancel",
     "clone",
+    "configuration",
     "connpt",
     "connect",
     "meta_features",

@@ -11,21 +11,23 @@ use futures::StreamExt;
 use futures::stream::BoxStream;
 use futures::{FutureExt as _, Stream, select_biased};
 use tor_basic_utils::error_sources::ErrorSources;
-use tor_config::ConfigurationTree;
 use tor_config::ReconfigureError;
 use tor_config::file_watcher::{
     self, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
 use tor_config::load::{ConfigResolveOptions, DisfavouredKey};
+use tor_config::{ConfigGetValueError, ConfigurationTree};
 use tor_config::{ConfigurationSource, ConfigurationSources, sources::FoundConfigFiles};
-use tor_error::into_internal;
 use tor_error::warn_report;
+use tor_error::{HasKind, into_internal};
 use tor_rtcompat::Runtime;
 use tor_rtcompat::SpawnExt;
 use tracing::{debug, error, info, instrument, warn};
 
 #[cfg(target_family = "unix")]
 use crate::process::sighup_stream;
+#[cfg(feature = "rpc")]
+use crate::rpc;
 
 #[cfg(not(target_family = "unix"))]
 use futures::stream;
@@ -71,6 +73,34 @@ pub(crate) struct CfgMgr<R> {
 }
 
 /// Mutable part of a CfgMgr.
+///
+/// ## RPC Dataflow
+///
+/// We keep a fair amount of state for our configuration,
+/// especially when we are supporting RPC.  A few important pieces are,
+/// in dataflow order:
+///
+/// 1. `sources`: A set of [`ConfigurationSources`] telling us where to load
+///    our configuration from.
+/// 2. `loaded_cfg`: A [`ConfigurationTree`] that we have loaded from our
+///    `sources`.  This is the most recent tree that we were able to successfully
+///    decode and apply. (RPC only)
+/// 3. `additional_cfg`: A set of [`rpc::ConfigSettings`] provided by an RPC superuser app,
+///    to override options in `loaded_cfg`. (RPC only)
+/// 4. `normalized_cfg`: A [`ConfigurationTree`] produced by combining
+///    loaded_cfg` and `additional_cfg`, and filling any missing defaults.
+///
+/// When we are reloading our configuration from disk, we use `sources` to
+/// load and parse a new [`ConfigurationTree`], then we apply `additional_cfg` to it,
+/// and then we see whether that configuration can successfully be resolved
+/// and used to reconfigure the modules in Arti.
+/// On success, we replace `loaded_cfg` and `normalized_cfg`,
+///
+/// When we are changing our configuration via RPC, we try to change `additional_cfg`,
+/// apply it to `loaded_cfg`,
+/// and then we see whether that configuration can successfully be resolved
+/// and used to reconfigure the modules in Arti.
+/// On success, we replace `normalized_cfg` and `additional_cfg`.
 #[derive(Default)]
 struct CfgMgrInner {
     /// A list of modules to alert whenever the configuration has changed.
@@ -79,6 +109,16 @@ struct CfgMgrInner {
     /// If present, a [`FileWatcher`] that is currently watching for changes
     /// in the configuration files and directories.
     watcher: Option<FileWatcher>,
+
+    /// RPC only: The most recent configuration tree _as loaded_.  We use this to apply
+    /// additional_cfg repeatedly without reloading all the files every time RPC tells us
+    /// to change something.
+    #[cfg(feature = "rpc")]
+    loaded_cfg: ConfigurationTree,
+
+    /// RPC only: A set of RPC-provided options to apply to the configuration before decoding it.
+    #[cfg(feature = "rpc")]
+    additional_cfg: rpc::ConfigSettings,
 
     /// RPC only: a fully populated, normalized configuration tree, based on the most recent time
     /// that we called [`CfgMgr::reload_configuration`].
@@ -131,6 +171,7 @@ impl<R: Runtime> CfgMgr<R> {
     pub(crate) fn new(
         runtime: R,
         sources: ConfigurationSources,
+        #[cfg(feature = "rpc")] loaded_cfg: ConfigurationTree,
         config: &ArtiConfig,
         modules: Vec<Weak<dyn ReconfigurableModule>>,
     ) -> anyhow::Result<(Arc<Self>, UnlaunchedWatcher<R>)> {
@@ -141,6 +182,8 @@ impl<R: Runtime> CfgMgr<R> {
             tx,
             inner: Mutex::new(CfgMgrInner {
                 modules,
+                #[cfg(feature = "rpc")]
+                loaded_cfg,
                 ..Default::default()
             }),
         });
@@ -199,12 +242,20 @@ impl<R: Runtime> CfgMgr<R> {
             (files, None)
         };
 
-        let config = found_files.load()?;
+        let mut config = found_files.load()?;
+        #[cfg(feature = "rpc")]
+        let loaded_cfg = config.clone();
+        #[cfg(feature = "rpc")]
+        config.merge_from(&inner.additional_cfg)?;
 
-        match reconfigure(config, &mut inner, how) {
+        match reconfigure(&config, &mut inner, how) {
             Ok(watch) => {
                 info!("Successfully reloaded configuration.");
                 if how != Reconfigure::CheckAllOrNothing {
+                    #[cfg(feature = "rpc")]
+                    {
+                        inner.loaded_cfg = loaded_cfg;
+                    }
                     if watch && inner.watcher.is_none() {
                         info!("Starting watching over configuration.");
                         let (watcher, _files) = self
@@ -223,6 +274,66 @@ impl<R: Runtime> CfgMgr<R> {
         }
 
         Ok(())
+    }
+
+    /// Try to change the set of RPC configuration options.
+    ///
+    /// On success, the configuration is changed, and the changes are applied.
+    ///
+    /// On failure, the configuration is not changed, and the changes are not applied.
+    #[cfg(feature = "rpc")]
+    #[instrument(level = "trace", skip_all)]
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn try_modify_cfg<F>(
+        &self,
+        func: F,
+        how: Reconfigure,
+    ) -> Result<(), ChangeConfigurationError>
+    where
+        F: FnOnce(&mut rpc::ConfigSettings) -> Result<(), ChangeConfigurationError>,
+    {
+        let mut inner = self.inner.lock().expect("Lock poisoned");
+
+        let mut new_additional = inner.additional_cfg.clone();
+        func(&mut new_additional)?;
+        let mut new_cfg = inner.loaded_cfg.clone();
+        new_cfg.merge_from(&new_additional)?;
+
+        let watch = reconfigure(&new_cfg, &mut inner, how)?;
+
+        if how != Reconfigure::CheckAllOrNothing {
+            // If we reached here, we were successful. Remember new_additional...
+            inner.additional_cfg = new_additional;
+
+            // And adjust the file watcher.
+            if !watch && inner.watcher.is_some() {
+                inner.watcher = None;
+            } else if watch && inner.watcher.is_none() {
+                match self.launch_file_watcher() {
+                    Ok((watcher, _)) => inner.watcher = Some(watcher),
+                    Err(e) => warn_report!(e, "Unable to launch file watcher"),
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Return the configuration value for a given key, if any is set.
+    #[allow(unused)] // TODO RPC Config remove.
+    #[cfg(feature = "rpc")]
+    pub(crate) fn get_cfg_setting(
+        &self,
+        key: &str,
+    ) -> Result<Option<rpc::ConfigValue>, ConfigGetValueError> {
+        let settings: Option<rpc::ConfigValue> = self
+            .inner
+            .lock()
+            .expect("Lock poisoned")
+            .normalized_cfg
+            .get_serde_value(key)?;
+
+        Ok(settings)
     }
 }
 
@@ -517,7 +628,7 @@ fn prepare<'a, R: Runtime>(
 /// Return true if we should be watching for configuration changes.
 #[instrument(level = "trace", skip_all)]
 fn reconfigure(
-    config: ConfigurationTree,
+    config: &ConfigurationTree,
     mgr_inner: &mut CfgMgrInner,
     how: Reconfigure,
 ) -> Result<bool, ChangeConfigurationError> {
@@ -545,7 +656,7 @@ fn reconfigure(
     }
 
     #[cfg(feature = "rpc")]
-    {
+    if how != Reconfigure::CheckAllOrNothing {
         mgr_inner.normalized_cfg = rs
             .output_tree
             .expect("normalized cfg not exposed as expected!?");
@@ -557,8 +668,20 @@ fn reconfigure(
 }
 
 /// An error that occurred while trying to reload and/or replace our configuration
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[non_exhaustive]
 #[derive(thiserror::Error, Clone, Debug)]
 pub(crate) enum ChangeConfigurationError {
+    /// When we tried to make an application-level request in the configuration tree, we
+    /// were unable to do so.
+    #[error("Unable to modify configuration tree: {0}")]
+    Apply(String),
+
+    /// When we tried to merge the RPC tree into the loaded configuration, we weren't able
+    /// to do so.
+    #[error("Internal: RPC configuration tree did not apply cleanly.")]
+    Merge(#[from] tor_config::ConfigError),
+
     /// We couldn't turn the configuration tree into the appropriate set of data structures.
     #[error("Invalid configuration")]
     Resolve(#[from] tor_config::load::ConfigResolveError),
@@ -566,6 +689,19 @@ pub(crate) enum ChangeConfigurationError {
     /// One of the transitions we tried to make was not allowed, or failed as we tried to apply it.
     #[error("Configuration transition failed")]
     Transition(#[from] ReconfigureError),
+}
+
+impl HasKind for ChangeConfigurationError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use ChangeConfigurationError as E;
+        use tor_error::ErrorKind as EK;
+        match self {
+            E::Apply(_) => EK::InvalidConfig,
+            E::Merge(_) => EK::InvalidConfig,
+            E::Resolve(_) => EK::InvalidConfig,
+            E::Transition(e) => e.kind(),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -391,7 +391,7 @@ fn main() -> Result<()> {
     config_sources.set_mistrust(mistrust);
 
     let cfg = config_sources.load()?;
-    let (_config, tcc) = tor_config::resolve::<ArtiCombinedConfig>(cfg)?;
+    let (_config, tcc) = tor_config::resolve::<ArtiCombinedConfig>(&cfg)?;
     info!("Binding local TCP listener...");
     let listener = TcpListener::bind("0.0.0.0:0")?;
     let local_addr = listener.local_addr()?;

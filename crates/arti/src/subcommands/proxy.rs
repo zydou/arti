@@ -36,6 +36,7 @@ pub(crate) fn run<R: ToplevelRuntime>(
     runtime: R,
     proxy_matches: &ArgMatches,
     cfg_sources: ConfigurationSources,
+    loaded_cfg: tor_config::ConfigurationTree,
     config: ArtiConfig,
     client_config: TorClientConfig,
 ) -> Result<()> {
@@ -98,6 +99,7 @@ pub(crate) fn run<R: ToplevelRuntime>(
         dns_listen,
         config.proxy().protocols(),
         cfg_sources,
+        loaded_cfg,
         config,
         client_config,
     ))?;
@@ -113,12 +115,16 @@ pub(crate) fn run<R: ToplevelRuntime>(
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 #[instrument(skip_all, level = "trace")]
+#[expect(clippy::too_many_arguments)]
 async fn run_proxy<R: ToplevelRuntime>(
     runtime: R,
     socks_listen: Listen,
     dns_listen: Listen,
     protocols: ListenProtocols,
+    // TODO RPC Config: We are passing numerous types here in order to construct a CfgMgr.
+    // Can we instead construct one earlier?  Or at least put them in a struct?
     config_sources: ConfigurationSources,
+    loaded_cfg: tor_config::ConfigurationTree,
     arti_config: ArtiConfig,
     client_config: TorClientConfig,
 ) -> Result<()> {
@@ -138,8 +144,14 @@ async fn run_proxy<R: ToplevelRuntime>(
         false => BootstrapBehavior::OnDemand,
     };
 
-    let (cfg_mgr, cfg_watcher_task) =
-        reload_cfg::CfgMgr::new(runtime.clone(), config_sources, &arti_config, vec![])?;
+    let (cfg_mgr, cfg_watcher_task) = reload_cfg::CfgMgr::new(
+        runtime.clone(),
+        config_sources,
+        #[cfg(feature = "rpc")]
+        loaded_cfg,
+        &arti_config,
+        vec![],
+    )?;
 
     let client_builder = TorClient::with_runtime(runtime.clone())
         .config(client_config)

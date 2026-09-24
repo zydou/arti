@@ -770,7 +770,7 @@ mod test {
         let empty_config = tor_config::ConfigurationSources::new_empty()
             .load()
             .unwrap();
-        let empty_config: ArtiCombinedConfig = tor_config::resolve(empty_config).unwrap();
+        let empty_config: ArtiCombinedConfig = tor_config::resolve(&empty_config).unwrap();
 
         let default = (ArtiConfig::default(), TorClientConfig::default());
         let exceptions = declared_config_exceptions();
@@ -841,7 +841,7 @@ mod test {
 
             // This tests that the example settings do not *contradict* the defaults.
             let results: ResolutionResults<ArtiCombinedConfig> =
-                tor_config::resolve_return_results(cfg, &Default::default()).unwrap();
+                tor_config::resolve_return_results(&cfg, &Default::default()).unwrap();
 
             assert_eq!(&results.value, &default, "{which:?} {uncommented:?}");
             assert_eq!(&results.value, &empty_config, "{which:?} {uncommented:?}");
@@ -1651,13 +1651,13 @@ example config file {which:?}, uncommented={uncommented:?}
         }
 
         fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
-            tor_config::load::resolve(self.parse())
+            tor_config::load::resolve(&self.parse())
         }
 
         fn resolve_return_results<R: tor_config::load::Resolvable>(
             &self,
         ) -> Result<ResolutionResults<R>, ConfigResolveError> {
-            tor_config::load::resolve_return_results(self.parse(), &Default::default())
+            tor_config::load::resolve_return_results(&self.parse(), &Default::default())
         }
     }
 

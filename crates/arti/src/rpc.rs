@@ -15,12 +15,14 @@ use tracing::{debug, info};
 use arti_client::TorClient;
 use tor_rtcompat::{NetStreamListener as _, Runtime, SpawnExt, general};
 
+semipublic_mod! { pub(crate) mod configuration; }
 pub(crate) mod conntarget;
 pub(crate) mod listener;
 mod proxyinfo;
 mod session;
 mod superuser;
 
+pub(crate) use configuration::{ConfigSettings, ConfigValue};
 use listener::RpcListenerSetConfig;
 pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
 

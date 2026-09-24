@@ -86,7 +86,7 @@
 //! let cfg = cfg_sources.load()?;
 //!
 //! let (tcc, arti_config, embedder_config) =
-//!      tor_config::resolve::<(TorClientConfig, ArtiConfig, EmbedderConfig)>(cfg)?;
+//!      tor_config::resolve::<(TorClientConfig, ArtiConfig, EmbedderConfig)>(&cfg)?;
 //!
 //! let _: EmbedderConfig = embedder_config; // etc.
 //!
@@ -267,9 +267,9 @@ define_for_tuples! { A - B C D E }
 ///
 /// This is public only because it appears in the [`Resolvable`] trait.
 /// You don't want to try to obtain one.
-pub struct ResolveContext {
+pub struct ResolveContext<'a> {
     /// The input
-    input: ConfigurationTree,
+    input: &'a ConfigurationTree,
 
     /// Paths unrecognized by all deserializations
     ///
@@ -378,7 +378,7 @@ impl Default for ConfigResolveOptions {
 ///
 /// Inner function used by all the `resolve_*` family
 fn resolve_inner<T>(
-    input: ConfigurationTree,
+    input: &ConfigurationTree,
     options: &ConfigResolveOptions,
 ) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
@@ -455,7 +455,7 @@ where
 ///
 /// For an example, see the
 /// [`tor_config::load` module-level documentation](self).
-pub fn resolve<T>(input: ConfigurationTree) -> Result<T, ConfigResolveError>
+pub fn resolve<T>(input: &ConfigurationTree) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -480,7 +480,7 @@ where
 
 /// Deserialize and build overall configuration, reporting unrecognized keys in the return value
 pub fn resolve_return_results<T>(
-    input: ConfigurationTree,
+    input: &ConfigurationTree,
     options: &ConfigResolveOptions,
 ) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
@@ -510,7 +510,7 @@ pub struct ResolutionResults<T> {
 }
 
 /// Deserialize and build overall configuration, silently ignoring unrecognized config keys
-pub fn resolve_ignore_warnings<T>(input: ConfigurationTree) -> Result<T, ConfigResolveError>
+pub fn resolve_ignore_warnings<T>(input: &ConfigurationTree) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -923,10 +923,10 @@ mod test {
             sources.load().unwrap()
         };
 
-        let _: (TestConfigA, TestConfigB) = resolve_ignore_warnings(cfg.clone()).unwrap();
+        let _: (TestConfigA, TestConfigB) = resolve_ignore_warnings(&cfg).unwrap();
 
         let resolved: ResolutionResults<(TestConfigA, TestConfigB)> =
-            resolve_return_results(cfg, &Default::default()).unwrap();
+            resolve_return_results(&cfg, &Default::default()).unwrap();
         let (a, b) = resolved.value;
 
         let mk_strings =
@@ -978,20 +978,20 @@ mod test {
         {
             // First try "A", then "C".
             let res1: Result<ResolutionResults<(TestConfigA, TestConfigC)>, _> =
-                resolve_return_results(cfg.clone(), &Default::default());
+                resolve_return_results(&cfg, &Default::default());
             assert!(res1.is_err());
             assert!(matches!(res1, Err(ConfigResolveError::Deserialize(_))));
         }
         {
             // Now the other order: first try "C", then "A".
             let res2: Result<ResolutionResults<(TestConfigC, TestConfigA)>, _> =
-                resolve_return_results(cfg.clone(), &Default::default());
+                resolve_return_results(&cfg, &Default::default());
             assert!(res2.is_err());
             assert!(matches!(res2, Err(ConfigResolveError::Deserialize(_))));
         }
         // Try manually, to make sure unrecognized fields are removed.
         let mut ctx = ResolveContext {
-            input: cfg,
+            input: &cfg,
             unrecognized: UnrecognizedKeys::AllKeys,
             output_tree: None,
         };
