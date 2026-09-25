@@ -14,6 +14,7 @@ pub(crate) mod reactor;
 use derive_deftly::Deftly;
 use oneshot_fused_workaround as oneshot;
 use std::net::IpAddr;
+use std::num::NonZero;
 use std::sync::Arc;
 use tracing::instrument;
 
@@ -496,6 +497,12 @@ impl ClientTunnel {
         } else {
             target
         };
+
+        // It would be nice to make this method take a `NonZero<u16>`,
+        // but this is exposed to users in arti-client,
+        // and I don't think it's worth making this breaking change at this time.
+        let port = NonZero::new(port).ok_or(Error::BadStreamAddress)?;
+
         let beginmsg = Begin::new(target, port, begin_flags)
             .map_err(|e| Error::from_cell_enc(e, "begin message"))?;
         self.begin_data_stream(beginmsg.into(), optimistic).await

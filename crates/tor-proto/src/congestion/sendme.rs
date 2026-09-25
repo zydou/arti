@@ -284,6 +284,7 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use std::num::NonZero;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, msg};
 
@@ -291,7 +292,8 @@ mod test {
     fn what_counts() {
         let mut rng = testing_rng();
         let fmt = RelayCellFormat::V0;
-        let m = msg::Begin::new("www.torproject.org", 443, 0)
+        let port = NonZero::new(443).unwrap();
+        let m = msg::Begin::new("www.torproject.org", port, 0)
             .unwrap()
             .into();
         assert!(!msg_counts_towards_windows(&m));

@@ -13,6 +13,7 @@ use tor_linkspec::LinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::num::NonZero;
 
 use hex_literal::hex;
 
@@ -79,24 +80,31 @@ fn test_begin() {
     let cmd = RelayCmd::BEGIN;
     assert_eq!(Into::<u8>::into(cmd), 1_u8);
 
+    /// Helper for shortening the building of a non-zero port.
+    fn port(p: u16) -> NonZero<u16> {
+        NonZero::new(p).unwrap()
+    }
+
     msg(
         cmd,
         "3132372E302E302E313A3730303300",
-        &msg::Begin::new("127.0.0.1", 7003, 0).unwrap().into(),
+        &msg::Begin::new("127.0.0.1", port(7003), 0).unwrap().into(),
     );
 
     // hand-generated test, with flags set.
     msg(
         cmd,
         "7777772e786b63642e636f6d3a34343300 00000003",
-        &msg::Begin::new("www.xkcd.com", 443, 3).unwrap().into(),
+        &msg::Begin::new("www.xkcd.com", port(443), 3)
+            .unwrap()
+            .into(),
     );
 
     // hand-generated test, with IPv6 set.
     msg(
         cmd,
         "5b323030313a6462383a3a315d3a323200",
-        &msg::Begin::new("2001:db8::1", 22, 0).unwrap().into(),
+        &msg::Begin::new("2001:db8::1", port(22), 0).unwrap().into(),
     );
 
     // hand-generated failure case: no port after ipv6.
@@ -104,6 +112,13 @@ fn test_begin() {
         cmd,
         "5b3a3a5d21", // [::]!
         BytesError::InvalidMessage("missing port in begin cell".into()),
+    );
+
+    // hand-generated failure case: a zero port.
+    msg_error(
+        cmd,
+        "3132372E302E302E31 3A 30 00",
+        BytesError::InvalidMessage("port in begin cell is zero".into()),
     );
 
     // hand-generated failure case: not ascii.
@@ -115,7 +130,7 @@ fn test_begin() {
 
     // failure on construction: bad address.
     assert!(matches!(
-        msg::Begin::new("www.torproject™.org", 443, 0),
+        msg::Begin::new("www.torproject™.org", port(443), 0),
         Err(tor_cell::Error::BadStreamAddress)
     ));
 }

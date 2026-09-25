@@ -215,7 +215,7 @@ impl OnionServiceReverseProxy {
             IncomingStreamRequest::Begin(begin) => {
                 // The C tor implementation deliberately ignores the address and
                 // flags on the BEGIN message, so we do too.
-                begin.port()
+                begin.port().get()
             }
             other => {
                 tracing::warn!(

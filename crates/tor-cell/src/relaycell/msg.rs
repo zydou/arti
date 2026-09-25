@@ -13,7 +13,7 @@ use caret::caret_int;
 use derive_deftly::Deftly;
 use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};
-use std::num::NonZeroU8;
+use std::num::{NonZero, NonZeroU8};
 use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_linkspec::EncodedLinkSpec;
@@ -203,14 +203,14 @@ pub struct Begin {
     /// Ascii string describing target address
     addr: Vec<u8>,
     /// Target port
-    port: u16,
+    port: NonZero<u16>,
     /// Flags that describe how to resolve the address
     flags: BeginFlags,
 }
 
 impl Begin {
     /// Construct a new Begin cell
-    pub fn new<F>(addr: &str, port: u16, flags: F) -> crate::Result<Self>
+    pub fn new<F>(addr: &str, port: NonZero<u16>, flags: F) -> crate::Result<Self>
     where
         F: Into<BeginFlags>,
     {
@@ -232,7 +232,7 @@ impl Begin {
     }
 
     /// Return the port requested by this message.
-    pub fn port(&self) -> u16 {
+    pub fn port(&self) -> NonZero<u16> {
         self.port
     }
 
@@ -274,6 +274,12 @@ impl Body for Begin {
         let port = port
             .parse()
             .map_err(|_| Error::InvalidMessage("port in begin cell not a valid port".into()))?;
+
+        // torspec:
+        //
+        // > PORT is a decimal integer between 1 and 65535, inclusive
+        let port = NonZero::new(port)
+            .ok_or_else(|| Error::InvalidMessage("port in begin cell is zero".into()))?;
 
         Ok(Begin {
             addr: addr.into(),

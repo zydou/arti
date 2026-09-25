@@ -380,6 +380,7 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use std::num::NonZero;
     use tor_cell::relaycell::{
         AnyRelayMsgOuter, RelayCellFormat,
         msg::{Begin, BeginDir, Data, Resolve},
@@ -396,7 +397,8 @@ mod test {
                 .unwrap();
             UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V0, body).unwrap()
         };
-        let begin = u(Begin::new("allium.example.com", 443, 0).unwrap().into());
+        let port = NonZero::new(443).unwrap();
+        let begin = u(Begin::new("allium.example.com", port, 0).unwrap().into());
         let begin_dir = u(BeginDir::default().into());
         let resolve = u(Resolve::new("allium.example.com").into());
         let data = u(Data::new(&[1, 2, 3]).unwrap().into());
