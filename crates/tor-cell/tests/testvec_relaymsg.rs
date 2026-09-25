@@ -121,6 +121,13 @@ fn test_begin() {
         BytesError::InvalidMessage("port in begin cell is zero".into()),
     );
 
+    // hand-generated failure case: a '+' port.
+    msg_error(
+        cmd,
+        "3132372E302E302E31 3A 2B3830 00", // "127.0.0.1:+80\0"
+        BytesError::InvalidMessage("port in begin cell has non-digit character".into()),
+    );
+
     // hand-generated failure case: not ascii.
     msg_error(
         cmd,

@@ -268,6 +268,15 @@ impl Body for Begin {
             ));
         }
 
+        // The later `u16::parse()` allows a leading `+` which we don't want to allow.
+        if let Some(first_byte) = port.first()
+            && !first_byte.is_ascii_digit()
+        {
+            return Err(Error::InvalidMessage(
+                "port in begin cell has non-digit character".into(),
+            ));
+        }
+
         let port = std::str::from_utf8(port)
             .map_err(|_| Error::InvalidMessage("port in begin cell not utf8".into()))?;
 
