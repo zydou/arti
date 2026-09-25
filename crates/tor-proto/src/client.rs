@@ -40,7 +40,9 @@ use reactor::{CtrlCmd, CtrlMsg, FlowCtrlMsg, MetaCellHandler};
 
 use tor_cell::relaycell::StreamId;
 use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
-use tor_cell::relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal};
+use tor_cell::relaycell::msg::{
+    AnyRelayMsg, Begin, BeginAddr, BeginHostname, Resolve, Resolved, ResolvedVal,
+};
 use tor_error::bad_api_usage;
 use tor_linkspec::OwnedChanTarget;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -493,9 +495,16 @@ impl ClientTunnel {
         let begin_flags = parameters.begin_flags();
         let optimistic = parameters.is_optimistic();
         let target = if parameters.suppressing_hostname() {
-            ""
+            BeginAddr::empty()
         } else {
-            target
+            // We try to interpret what's in the string.
+            if let Ok(ip) = target.parse() {
+                BeginAddr::Ip(ip)
+            } else {
+                let hostname = BeginHostname::new(target)
+                    .map_err(|e| Error::from_cell_enc(e, "begin hostname"))?;
+                BeginAddr::Hostname(hostname)
+            }
         };
 
         // It would be nice to make this method take a `NonZero<u16>`,
@@ -503,7 +512,7 @@ impl ClientTunnel {
         // and I don't think it's worth making this breaking change at this time.
         let port = NonZero::new(port).ok_or(Error::BadStreamAddress)?;
 
-        let beginmsg = Begin::new(target, port, begin_flags)
+        let beginmsg = Begin::new(target.encode(), port, begin_flags)
             .map_err(|e| Error::from_cell_enc(e, "begin message"))?;
         self.begin_data_stream(beginmsg.into(), optimistic).await
     }

@@ -2351,7 +2351,7 @@ pub(crate) mod test {
     #[cfg(feature = "hs-service")]
     fn allow_stream_requests() {
         use std::num::NonZero;
-        use tor_cell::relaycell::msg::BeginFlags;
+        use tor_cell::relaycell::msg::{BeginAddr, BeginFlags, BeginHostname};
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             const TEST_DATA: &[u8] = b"ping";
@@ -2394,8 +2394,10 @@ pub(crate) mod test {
             };
 
             let simulate_client = async move {
+                let addr = BeginAddr::Hostname(BeginHostname::new("localhost").unwrap());
                 let port = NonZero::new(80).unwrap();
-                let begin = relaymsg::Begin::new("localhost", port, BeginFlags::IPV6_OKAY).unwrap();
+                let begin =
+                    relaymsg::Begin::new(addr.encode(), port, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(rfmt, &mut testing_rng())
@@ -2433,8 +2435,8 @@ pub(crate) mod test {
     fn accept_stream_after_reject() {
         use std::num::NonZero;
         use tor_cell::relaycell::msg::AnyRelayMsg;
-        use tor_cell::relaycell::msg::BeginFlags;
         use tor_cell::relaycell::msg::EndReason;
+        use tor_cell::relaycell::msg::{BeginAddr, BeginFlags, BeginHostname};
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             const TEST_DATA: &[u8] = b"ping";
@@ -2493,8 +2495,10 @@ pub(crate) mod test {
             };
 
             let simulate_client = async move {
+                let addr = BeginAddr::Hostname(BeginHostname::new("localhost").unwrap());
                 let port = NonZero::new(80).unwrap();
-                let begin = relaymsg::Begin::new("localhost", port, BeginFlags::IPV6_OKAY).unwrap();
+                let begin =
+                    relaymsg::Begin::new(addr.encode(), port, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(rfmt, &mut testing_rng())
@@ -2533,7 +2537,7 @@ pub(crate) mod test {
     #[cfg(feature = "hs-service")]
     fn incoming_stream_bad_hop() {
         use std::num::NonZero;
-        use tor_cell::relaycell::msg::BeginFlags;
+        use tor_cell::relaycell::msg::{BeginAddr, BeginFlags, BeginHostname};
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             /// Expect the originator of the BEGIN cell to be hop 1.
@@ -2570,8 +2574,10 @@ pub(crate) mod test {
             };
 
             let simulate_client = async move {
+                let addr = BeginAddr::Hostname(BeginHostname::new("localhost").unwrap());
                 let port = NonZero::new(80).unwrap();
-                let begin = relaymsg::Begin::new("localhost", port, BeginFlags::IPV6_OKAY).unwrap();
+                let begin =
+                    relaymsg::Begin::new(addr.encode(), port, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(rfmt, &mut testing_rng())

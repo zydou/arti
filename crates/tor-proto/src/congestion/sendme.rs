@@ -292,10 +292,9 @@ mod test {
     fn what_counts() {
         let mut rng = testing_rng();
         let fmt = RelayCellFormat::V0;
+        let addr = msg::BeginAddr::Hostname(msg::BeginHostname::new("www.torproject.org").unwrap());
         let port = NonZero::new(443).unwrap();
-        let m = msg::Begin::new("www.torproject.org", port, 0)
-            .unwrap()
-            .into();
+        let m = msg::Begin::new(addr.encode(), port, 0).unwrap().into();
         assert!(!msg_counts_towards_windows(&m));
         assert!(!cell_counts_towards_windows(
             &UnparsedRelayMsg::from_singleton_body(
