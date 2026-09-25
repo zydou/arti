@@ -331,6 +331,8 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
         // (maybe it wants to be an unbounded channel? Or maybe we can somehow make it
         // memquota-aware?)
         const DNS_QUERY_BUF_SIZE: usize = 512;
+
+        #[allow(clippy::disallowed_methods)]
         let (query_tx, query_rx) = mpsc::channel(DNS_QUERY_BUF_SIZE);
 
         let mut inflight = JoinSet::new();
