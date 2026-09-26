@@ -251,9 +251,12 @@ impl From<BoundedInt32<1, 254>> for u8 {
     }
 }
 
+/// Convert to `u32`.
+///
+/// If `L` is negative, this will panic at build-time. See [`BoundedInt32::get_u32`].
 impl<const L: i32, const H: i32> From<BoundedInt32<L, H>> for u32 {
     fn from(val: BoundedInt32<L, H>) -> u32 {
-        val.value as u32
+        val.get_u32()
     }
 }
 
