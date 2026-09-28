@@ -480,7 +480,7 @@ mod test {
 
     #[test]
     #[cfg(not(feature = "keymgr"))]
-    fn invalid_config() {
+    fn keystore_use_requires_keymgr_feat() {
         let mut builder = ArtiKeystoreConfigBuilder::default();
         builder.enabled(BoolOrAuto::Explicit(true));
 
