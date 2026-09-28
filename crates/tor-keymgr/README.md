@@ -72,7 +72,6 @@ path of the key on disk (relative to the root directory of the key store).
  versioning[^1] guarantees: we might break them or remove them between patch
  versions.
 
-* `ctor-keystore` -- build with C Tor keystore support
 * `ephemeral-keystore` -- build with ephemeral keystore support
 * `onion-service-cli-extra` -- build with additional key and state management
   command line functionalities

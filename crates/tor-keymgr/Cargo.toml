@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = ["keymgr"]
 
-keymgr = []
+keymgr = ["data-encoding"]
 full = [
     "keymgr",
     "fs-mistrust/full",
@@ -37,7 +37,6 @@ full = [
 # feature voids your "semver warrantee".
 experimental = [
     "ephemeral-keystore",
-    "ctor-keystore",
     "testing",
     "experimental-api",
     "onion-service-cli-extra",
@@ -45,7 +44,6 @@ experimental = [
 
 experimental-api = ["__is_experimental"]
 ephemeral-keystore = ["__is_experimental"]
-ctor-keystore = ["data-encoding", "__is_experimental"]
 
 onion-service-cli-extra = ["keymgr", "__is_experimental"]
 testing = ["__is_experimental"]

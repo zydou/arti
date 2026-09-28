@@ -90,6 +90,7 @@ pub use key_specifier::CertSpecifierPattern;
 #[cfg(feature = "keymgr")]
 pub use {
     keystore::arti::ArtiNativeKeystore,
+    keystore::ctor::{CTorClientKeystore, CTorServiceKeystore},
     keystore::{Keystore, KeystoreEntryResult},
     mgr::{KeyMgr, KeyMgrBuilder, KeyMgrBuilderError, KeystoreEntry},
     ssh_key,
@@ -97,9 +98,6 @@ pub use {
 
 #[cfg(all(feature = "keymgr", feature = "ephemeral-keystore"))]
 pub use keystore::ephemeral::ArtiEphemeralKeystore;
-
-#[cfg(all(feature = "keymgr", feature = "ctor-keystore"))]
-pub use keystore::ctor::{CTorClientKeystore, CTorServiceKeystore};
 
 #[doc(hidden)]
 pub use key_specifier::derive as key_specifier_derive;

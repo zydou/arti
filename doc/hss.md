@@ -27,8 +27,8 @@ Arti has experimental support for C Tor's key format.
 This means you can configure Arti to use the identity key from the
 `HiddenServiceDirectory` directory of your C Tor service.
 
-> Note: this feature is only available in builds that have the experimental
-> `onion-service-cli-extra` feature enabled.
+> Note: this feature is only available in builds that have the
+> `onion-service-service` feature enabled.
 
 For example:
 

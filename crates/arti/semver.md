@@ -1,1 +1,1 @@
-DEPRECATED: the `keymgr` feature
+DEPRECATED: the `keymgr` and `ctor-keystore` features

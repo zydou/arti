@@ -30,8 +30,6 @@ use tor_netdir::{NetDirProvider, params::NetParameters};
 use tor_persist::StateMgr;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 use tor_persist::TestingStateMgr;
-#[cfg(feature = "onion-service-service")]
-use tor_persist::state_dir::StateDirectory;
 use tor_proto::client::stream::{DataStream, IpVersionPreference, StreamParameters};
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
@@ -44,8 +42,11 @@ use {
     tor_config::BoolOrAuto,
     tor_hsclient::{HsClientConnector, HsClientDescEncKeypairSpecifier, HsClientSecretKeysBuilder},
     tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncKeypair, HsClientDescEncSecretKey},
+    tor_keymgr::CTorClientKeystore,
     tor_netdir::DirEvent,
 };
+#[cfg(feature = "onion-service-service")]
+use {tor_keymgr::CTorServiceKeystore, tor_persist::state_dir::StateDirectory};
 
 #[cfg(all(feature = "onion-service-service", feature = "experimental-api"))]
 use tor_hsservice::HsIdKeypairSpecifier;
@@ -56,9 +57,6 @@ use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, config::ArtiKeystore
 
 #[cfg(feature = "ephemeral-keystore")]
 use tor_keymgr::ArtiEphemeralKeystore;
-
-#[cfg(feature = "ctor-keystore")]
-use tor_keymgr::{CTorClientKeystore, CTorServiceKeystore};
 
 use futures::StreamExt as _;
 use futures::lock::Mutex as AsyncMutex;
@@ -349,7 +347,7 @@ impl InertTorClient {
 
         let mut builder = KeyMgrBuilder::default().primary_store(primary_store);
 
-        #[cfg(feature = "ctor-keystore")]
+        #[cfg(feature = "onion-service-service")]
         for config in config.storage.keystore().ctor_svc_stores() {
             let store: Box<dyn Keystore> = Box::new(CTorServiceKeystore::from_path_and_mistrust(
                 config.path(),
@@ -363,7 +361,7 @@ impl InertTorClient {
             builder.secondary_stores().push(store);
         }
 
-        #[cfg(feature = "ctor-keystore")]
+        #[cfg(feature = "onion-service-client")]
         for config in config.storage.keystore().ctor_client_stores() {
             let store: Box<dyn Keystore> = Box::new(CTorClientKeystore::from_path_and_mistrust(
                 config.path(),
