@@ -30,8 +30,6 @@ use tor_netdir::{NetDirProvider, params::NetParameters};
 use tor_persist::StateMgr;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 use tor_persist::TestingStateMgr;
-#[cfg(feature = "onion-service-service")]
-use tor_persist::state_dir::StateDirectory;
 use tor_proto::client::stream::{DataStream, IpVersionPreference, StreamParameters};
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
@@ -47,6 +45,8 @@ use {
     tor_keymgr::CTorClientKeystore,
     tor_netdir::DirEvent,
 };
+#[cfg(feature = "onion-service-service")]
+use {tor_keymgr::CTorServiceKeystore, tor_persist::state_dir::StateDirectory};
 
 #[cfg(all(feature = "onion-service-service", feature = "experimental-api"))]
 use tor_hsservice::HsIdKeypairSpecifier;
@@ -57,9 +57,6 @@ use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, config::ArtiKeystore
 
 #[cfg(feature = "ephemeral-keystore")]
 use tor_keymgr::ArtiEphemeralKeystore;
-
-#[cfg(feature = "onion-service-service")]
-use tor_keymgr::CTorServiceKeystore;
 
 use futures::StreamExt as _;
 use futures::lock::Mutex as AsyncMutex;
