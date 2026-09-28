@@ -44,6 +44,7 @@ use {
     tor_config::BoolOrAuto,
     tor_hsclient::{HsClientConnector, HsClientDescEncKeypairSpecifier, HsClientSecretKeysBuilder},
     tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncKeypair, HsClientDescEncSecretKey},
+    tor_keymgr::CTorClientKeystore,
     tor_netdir::DirEvent,
 };
 
@@ -57,8 +58,8 @@ use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, config::ArtiKeystore
 #[cfg(feature = "ephemeral-keystore")]
 use tor_keymgr::ArtiEphemeralKeystore;
 
-// XXX gate these behind onion-service-client,onion-service-service
-use tor_keymgr::{CTorClientKeystore, CTorServiceKeystore};
+#[cfg(feature = "onion-service-service")]
+use tor_keymgr::CTorServiceKeystore;
 
 use futures::StreamExt as _;
 use futures::lock::Mutex as AsyncMutex;
@@ -349,7 +350,7 @@ impl InertTorClient {
 
         let mut builder = KeyMgrBuilder::default().primary_store(primary_store);
 
-        // XXX gate this behind onion-service-service
+        #[cfg(feature = "onion-service-service")]
         for config in config.storage.keystore().ctor_svc_stores() {
             let store: Box<dyn Keystore> = Box::new(CTorServiceKeystore::from_path_and_mistrust(
                 config.path(),
@@ -363,7 +364,7 @@ impl InertTorClient {
             builder.secondary_stores().push(store);
         }
 
-        // XXX gate this behind onion-service-client
+        #[cfg(feature = "onion-service-client")]
         for config in config.storage.keystore().ctor_client_stores() {
             let store: Box<dyn Keystore> = Box::new(CTorClientKeystore::from_path_and_mistrust(
                 config.path(),
