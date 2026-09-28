@@ -23,6 +23,7 @@ full = [
     "tor-rtcompat/full",
     "tor-llcrypto/full",
     "tor-checkable/full",
+    "saturating-time/full",
 ]
 experimental = ["dir-plugin-backend"]
 dir-plugin-backend = ["__is_experimental"]
