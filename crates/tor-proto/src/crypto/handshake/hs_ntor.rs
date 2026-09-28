@@ -24,6 +24,7 @@
 use crate::crypto::handshake::KeyGenerator;
 use crate::crypto::ll::kdf::{Kdf, ShakeKdf};
 use crate::{Error, Result};
+use std::result::Result as StdResult;
 use tor_bytes::{Reader, SecretBuf, Writer};
 use tor_hscrypto::{
     Subcredential,
@@ -486,7 +487,7 @@ fn get_rendezvous_key_material(
     B: &curve25519::PublicKey,
     X: &curve25519::PublicKey,
     Y: &curve25519::PublicKey,
-) -> Result<(HsNtorHkdfKeyGenerator, AuthInputMac)> {
+) -> StdResult<(HsNtorHkdfKeyGenerator, AuthInputMac), tor_error::Bug> {
     let hs_ntor_protoid_constant = &b"tor-hs-ntor-curve25519-sha3-256-1"[..];
     let hs_ntor_mac_constant = &b"tor-hs-ntor-curve25519-sha3-256-1:hs_mac"[..];
     let hs_ntor_verify_constant = &b"tor-hs-ntor-curve25519-sha3-256-1:hs_verify"[..];
