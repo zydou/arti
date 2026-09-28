@@ -17,6 +17,16 @@ use tracing::instrument;
 /// A [`TlsProvider`] that uses `native_tls`.
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
+///
+/// # Limitations
+///
+/// `native_tls` doesn't let us configure TLS session resumption, so depending on the
+/// platform's TLS library, our ClientHello may advertise support for session tickets.
+/// The tor-spec says implementations SHOULD NOT allow session resumption.
+/// As far as we know, `native_tls` never stores or reuses a session, so no resumption
+/// actually happens, but this still makes our TLS fingerprint differ from C tor's.
+/// If that matters to you, use `RustlsProvider` instead, which disables resumption.
+/// See [#580](https://gitlab.torproject.org/tpo/core/arti/-/issues/580).
 #[cfg_attr(
     docsrs,
     doc(cfg(all(
@@ -126,6 +136,9 @@ where
         // We don't participate in the web PKI, so there is no reason for us to load the standard
         // list of CAs and CRLs. This can save us an megabyte or two.
         builder.disable_built_in_roots(true);
+
+        // We'd like to disable session resumption here, as the rustls provider does,
+        // but native_tls has no API for it. See the docs on `NativeTlsProvider`.
 
         let connector = builder.into();
 
