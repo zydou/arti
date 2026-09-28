@@ -60,7 +60,7 @@ CREATE TABLE descriptor(
     sha2                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT,
     flavor                  TEXT NOT NULL,
-    extra_sha1              TEXT,
+    extra_sha1              TEXT UNIQUE,
     FOREIGN KEY(docid) REFERENCES store(docid),
     CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', sha2) == 0),
