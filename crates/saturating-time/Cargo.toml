@@ -13,5 +13,8 @@ categories = ["date-and-time", "os", "rust-patterns"]
 [dependencies]
 web-time-compat = { version = "0.2.0", path = "../web-time-compat" }
 
+[features]
+full = ["web-time-compat/full"]
+
 [package.metadata.docs.rs]
 all-features = true

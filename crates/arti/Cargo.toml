@@ -48,6 +48,7 @@ full = [
     "restricted-discovery",
     "arti-rpcserver?/full",
     "fs-mistrust/full",
+    "keymgr",
     "rpc",
     "http-connect",
     "flowctl-cc",

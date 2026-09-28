@@ -30,6 +30,7 @@ full = [
     "tor-units?/full",
     "tor-cell/full",
     "web-time-compat/full",
+    "saturating-time/full",
 ]
 experimental = [
     "build_docs",
