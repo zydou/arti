@@ -276,7 +276,7 @@ pub(crate) fn test_db() -> Pool<SqliteConnectionManager> {
             sql!(
                 "
                 INSERT INTO router_descriptor
-                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor, extra_unsigned_sha1)
+                (docid, sha1, sha2, kp_relay_id_rsa_sha1, flavor, extra_sha1)
                 VALUES
                 -- TODO DIRMIRROR: Support extra-info.
                 (:docid, :sha1, :sha2, :fingerprint, :flavor, NULL)
@@ -314,7 +314,7 @@ pub(crate) fn test_db() -> Pool<SqliteConnectionManager> {
                 "
                 -- TODO DIRMIRROR: Same naming issue here.
                 INSERT INTO router_descriptor
-                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor, extra_unsigned_sha1)
+                (docid, sha1, sha2, kp_relay_id_rsa_sha1, flavor, extra_sha1)
                 VALUES
                 (:docid, :sha1, :sha2, NULL, :flavor, NULL)
                 "

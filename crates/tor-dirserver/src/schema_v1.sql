@@ -17,14 +17,14 @@ CREATE TABLE consensus(
     docid               TEXT NOT NULL UNIQUE,
     -- Required for consensus diffs.
     -- https://spec.torproject.org/dir-spec/directory-cache-operation.html#diff-format
-    unsigned_sha3_256   TEXT NOT NULL UNIQUE,
+    sha3_256            TEXT NOT NULL UNIQUE,
     flavor              TEXT NOT NULL,
     valid_after         INTEGER NOT NULL,
     fresh_until         INTEGER NOT NULL,
     valid_until         INTEGER NOT NULL,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha3_256) == 0),
-    CHECK(LENGTH(unsigned_sha3_256) == 64),
+    CHECK(GLOB('*[^0-9A-F]*', sha3_256) == 0),
+    CHECK(LENGTH(sha3_256) == 64),
     CHECK(flavor IN ('ns', 'microdesc')),
     CHECK(valid_after >= 0),
     CHECK(fresh_until >= 0),
@@ -56,20 +56,20 @@ CREATE TABLE consensus_diff(
 CREATE TABLE router_descriptor(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
-    unsigned_sha1           TEXT NOT NULL UNIQUE,
-    unsigned_sha2           TEXT NOT NULL UNIQUE,
+    sha1                    TEXT NOT NULL UNIQUE,
+    sha2                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT,
     flavor                  TEXT NOT NULL,
-    extra_unsigned_sha1     TEXT,
+    extra_sha1              TEXT,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha2) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', sha2) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
-    CHECK(GLOB('*[^0-9A-F]*', extra_unsigned_sha1) == 0),
-    CHECK(LENGTH(unsigned_sha1) == 40),
-    CHECK(LENGTH(unsigned_sha2) == 64),
+    CHECK(GLOB('*[^0-9A-F]*', extra_sha1) == 0),
+    CHECK(LENGTH(sha1) == 40),
+    CHECK(LENGTH(sha2) == 64),
     CHECK(kp_relay_id_rsa_sha1 IS NULL OR LENGTH(kp_relay_id_rsa_sha1) == 40),
-    CHECK(LENGTH(extra_unsigned_sha1) == 40)
+    CHECK(LENGTH(extra_sha1) == 40)
 ) STRICT;
 
 -- Stores extra-info documents.
@@ -81,12 +81,12 @@ CREATE TABLE router_descriptor(
 CREATE TABLE router_extra_info(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
-    unsigned_sha1           TEXT NOT NULL UNIQUE,
+    sha1                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
-    CHECK(LENGTH(unsigned_sha1) == 40),
+    CHECK(LENGTH(sha1) == 40),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40)
 ) STRICT;
 
@@ -146,16 +146,16 @@ CREATE TABLE consensus_router_descriptor_member(
     -- They are mutually exclusive, meaning that either one of them must be set.
     -- This is a bit unfortunate but depending on the consensus flavor, we may
     -- either only have the SHA-1 (ns) or the SHA-2 (md).
-    unsigned_sha1           TEXT,
-    unsigned_sha2           TEXT,
-    UNIQUE(consensus_docid, unsigned_sha1, unsigned_sha2),
+    sha1                    TEXT,
+    sha2                    TEXT,
+    UNIQUE(consensus_docid, sha1, sha2),
     FOREIGN KEY(consensus_docid) REFERENCES consensus(docid),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha2) == 0),
-    CHECK(LENGTH(unsigned_sha1) == 40),
-    CHECK(LENGTH(unsigned_sha2) == 64),
+    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', sha2) == 0),
+    CHECK(LENGTH(sha1) == 40),
+    CHECK(LENGTH(sha2) == 64),
     CHECK(
-        (unsigned_sha1 IS NULL) != (unsigned_sha2 IS NULL)
+        (sha1 IS NULL) != (sha2 IS NULL)
     )
 ) STRICT;
 
