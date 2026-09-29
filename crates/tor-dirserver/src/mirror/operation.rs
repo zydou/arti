@@ -15,7 +15,13 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::{collections::{HashSet, VecDeque}, marker::PhantomData, mem, net::SocketAddr, time::Duration};
+use std::{
+    collections::{HashSet, VecDeque},
+    marker::PhantomData,
+    mem,
+    net::SocketAddr,
+    time::Duration,
+};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -554,7 +560,12 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         db::rw_tx(pool, |tx| {
             let certs_already = self.certs_already(tx, now)?;
             let (verified, sigs) = self.verify_consensus(unverified, &certs_already, now)?;
-            ConsensusMeta::<T>::insert(tx, self.encodings.iter().copied(), (&verified, &sigs), &raw)?;
+            ConsensusMeta::<T>::insert(
+                tx,
+                self.encodings.iter().copied(),
+                (&verified, &sigs),
+                &raw,
+            )?;
             Ok::<_, OperationError>(())
         })?
     }
