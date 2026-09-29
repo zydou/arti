@@ -32,7 +32,7 @@ fn to_u64(x: usize) -> u64 {
     x.try_into().expect("failed usize to u64 conversion")
 }
 
-/// Convert a `u64` to `usize`. Infallible on every platform we support.
+/// Convert a `u64` to `usize`. Panics if the value exceeds `usize::MAX`.
 fn to_usize(x: u64) -> usize {
     x.try_into().expect("failed u64 to usize conversion")
 }

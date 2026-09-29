@@ -89,7 +89,8 @@ pub(super) fn poll_read_limited<R: AsyncRead>(
 
     // Acquire a permit and learn how many bytes we are cleared to read.
     let permit = ready!(state.poll_acquire(cx, buf.len()))?;
-    let buf = &mut buf[..super::to_usize(permit.granted())];
+    let len = super::to_usize(permit.granted().min(super::to_u64(buf.len())));
+    let buf = &mut buf[..len];
 
     match inner.poll_read(cx, buf) {
         // The inner is not ready. Drop the permit so the tokens go back to the pool for

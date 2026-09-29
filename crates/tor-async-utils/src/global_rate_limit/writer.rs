@@ -97,7 +97,8 @@ pub(super) fn poll_write_limited<W: AsyncWrite>(
 
     // Acquire a permit and get the permit granted tokens worth of bytes from the buffer.
     let permit = ready!(state.poll_acquire(cx, buf.len()))?;
-    let buf = &buf[..super::to_usize(permit.granted())];
+    let len = super::to_usize(permit.granted().min(super::to_u64(buf.len())));
+    let buf = &buf[..len];
 
     match inner.poll_write(cx, buf) {
         // The inner is not ready, refund the permit by dropping it.
