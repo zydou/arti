@@ -103,10 +103,9 @@ impl RefillWaiter {
     ///
     /// A `granted` value of 0 is not possible as such value indicate that the permit has
     /// not been granted yet.
-    pub(super) fn grant(&self, granted: u64) {
-        debug_assert_ne!(granted, 0, "a queued request can't be 0 tokens");
+    pub(super) fn grant(&self, granted: NonZero<u64>) {
         // A single store publishes both the amount and the fact that we were funded.
-        self.set_granted(granted);
+        self.set_granted(granted.get());
         // We are granted, wake up the waiter!
         self.wake();
     }
@@ -391,7 +390,7 @@ impl BandwidthRefiller {
             // down, the grant is forfeited but that is a documented limitation.
             self.held -= needed;
             // Grant what we took which could be a clamped value.
-            waiter.grant(needed);
+            waiter.grant(NonZero::new(needed).expect("BW request is 0 tokens"));
         }
     }
 
