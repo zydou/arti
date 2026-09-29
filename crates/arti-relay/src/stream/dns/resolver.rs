@@ -135,7 +135,10 @@ impl DnsResolver {
     ) -> Result<LookupAnswers<RecordData>, LookupError> {
         let (tx, rx) = oneshot::channel();
 
-        let query = String::from_utf8(query.to_vec()).map_err(LookupError::InvalidHostname)?;
+        let query = String::from_utf8(query.to_vec()).map_err(|_| LookupError::NonAsciiHostname)?;
+
+        // XXX return an error if the query isn't ASCII
+
         let req = DnsRequest { query, tx };
         // Send the query to the reactor,
         // which handles the actual DNS resolution,

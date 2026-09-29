@@ -7,9 +7,9 @@ use tor_error::Bug;
 /// An error representing a failed DNS lookup.
 #[derive(Clone, Debug, Error)]
 pub(crate) enum LookupError {
-    /// The hostname from the RESOLVE message was not UTF-8 encoded.
-    #[error("Hostname is not UTF-8")]
-    InvalidHostname(std::string::FromUtf8Error),
+    /// The hostname from the RESOLVE message was not valid ASCII.
+    #[error("Hostname is not ASCII")]
+    NonAsciiHostname,
 
     /// An error coming from hickory
     #[error("failed to resolve name")]
@@ -34,7 +34,7 @@ impl LookupError {
                 // or, alternatively, just match on the inner error here
                 true
             }
-            LE::InvalidHostname(_) | LE::Bug(_) => false,
+            LE::NonAsciiHostname | LE::Bug(_) => false,
         }
     }
 }
