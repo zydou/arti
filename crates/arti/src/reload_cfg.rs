@@ -320,7 +320,6 @@ impl<R: Runtime> CfgMgr<R> {
     }
 
     /// Return the configuration value for a given key, if any is set.
-    #[allow(unused)] // TODO RPC Config remove.
     #[cfg(feature = "rpc")]
     pub(crate) fn get_cfg_setting(
         &self,

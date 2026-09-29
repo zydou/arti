@@ -761,14 +761,33 @@ impl Guard {
         self.circ_history.n_indeterminate += 1;
 
         if let Some(ratio) = self.circ_history.indeterminate_ratio() {
-            // TODO: These should not be hardwired, and they may be set
-            // too high.
+            // TODO: These should not be hardwired.
+
             /// If this fraction of circs are suspicious, we should disable
             /// the guard.
-            const DISABLE_THRESHOLD: f64 = 0.7;
+            ///
+            /// (We may lower this in the future, but see discussion in arti#2752
+            /// and analysis in proposal 344.  It's currently set to 2.0 while we
+            /// wait to get more network simulation and testing; 2.0 is impossible,
+            /// since the ratio will be in range `0.0..=1.0`.)
+            ///
+            /// (Choosing `DISABLE_THRESHOLD = 1.0` would have the same effect,
+            /// since we compare `ratio > DISABLE_THRESHOLD`, but using 2.0 makes it more
+            /// clear that we will never disable a guard.)
+            const DISABLE_THRESHOLD: f64 = 2.0;
+
             /// If this fraction of circuits are suspicious, we should
             /// warn.
-            const WARN_THRESHOLD: f64 = 0.5;
+            ///
+            /// (This value is deliberately _lower_ than recommended on arti#2752,
+            /// under the theory that warnings don't hurt anybody.  If we start to see
+            /// excessive warnings, we should investigate.)
+            ///
+            /// Generally speaking, we would expect an adversary who controls fraction
+            /// X of the network to succeed in a path bias attack with probability X^2.
+            /// Therefore, if we set this value to 1.0-X^2, we should catch about half
+            /// of the attempts by such an attacker to mount a path-bias attack.)
+            const WARN_THRESHOLD: f64 = 0.91;
 
             if ratio > DISABLE_THRESHOLD {
                 let reason = GuardDisabled::TooManyIndeterminateFailures {
@@ -922,7 +941,7 @@ impl CircHistory {
         // TODO: This should probably not be hardwired
 
         /// Don't try to give a ratio unless we've seen this many observations.
-        const MIN_OBSERVATIONS: u32 = 15;
+        const MIN_OBSERVATIONS: u32 = 100;
 
         let total = self.n_successes + self.n_indeterminate;
         if total < MIN_OBSERVATIONS {
@@ -1314,19 +1333,23 @@ mod test {
         };
         assert!(h.indeterminate_ratio().is_none());
 
-        h.n_successes = 20;
-        assert!((h.indeterminate_ratio().unwrap() - 3.0 / 23.0).abs() < 0.0001);
+        h.n_successes = 100;
+        assert!((h.indeterminate_ratio().unwrap() - 3.0 / 103.0).abs() < 0.0001);
     }
 
+    // This test is skipped for now, since DISABLE_THRESHOLD is deliberately set
+    // to be >= 1.0
     #[test]
+    #[ignore]
     fn disable_on_failure() {
         let mut g = basic_guard();
-        let params = GuardParams::default();
 
-        let now = SystemTime::get();
+        // Disabled for now, since DISABLE_THRESHOLD is 2.0
+        //let params = GuardParams::default();
+        //let now = SystemTime::get();
+        //let _ignore = g.record_success(now, &params);
 
-        let _ignore = g.record_success(now, &params);
-        for _ in 0..13 {
+        for _ in 0..99 {
             g.record_indeterminate_result();
         }
         // We're still under the observation threshold.
@@ -1343,8 +1366,8 @@ mod test {
                 failure_ratio,
                 threshold_ratio,
             } => {
-                assert!((failure_ratio - 0.933).abs() < 0.01);
-                assert!((threshold_ratio - 0.7).abs() < 0.01);
+                assert!((failure_ratio - 1.0).abs() < 0.01);
+                assert!((threshold_ratio - 1.0).abs() < 0.01);
             }
             other => {
                 panic!("Wrong variant: {:?}", other);
