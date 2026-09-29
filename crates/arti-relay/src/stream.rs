@@ -35,7 +35,8 @@ impl IncomingStreamRequestFilter for RequestFilter {
         _ctx: &IncomingStreamRequestContext<'_>,
         _circ: &CircHopSyncView<'_>,
     ) -> tor_proto::Result<IncomingStreamRequestDisposition> {
-        // TODO(relay): enforce the checks mentioned in relay-streams.md
+        // TODO(relay): enforce the checks mentioned in relay-streams.md,
+        // especially DoSStreamCreationRate
         Ok(IncomingStreamRequestDisposition::Accept)
     }
 }
