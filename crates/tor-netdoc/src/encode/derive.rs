@@ -266,7 +266,7 @@ define_derive_deftly! {
     /// TODO NETDOC ENCODE provide an example when signatures are implemented.
     export NetdocEncodable beta_deftly, for struct, meta_quoted rigorous, expect items:
 
-    impl<$tgens> $P::NetdocEncodable for $ttype {
+    ${impl $P::NetdocEncodable} {
         fn encode_unsigned(&self, out: &mut $P::NetdocEncoder) -> $P::Result<(), $P::Bug> {
             use $P::*;
 
@@ -293,7 +293,7 @@ define_derive_deftly! {
     ///
     export NetdocEncodableFields beta_deftly, for struct, meta_quoted rigorous, expect items:
 
-    impl<$tgens> $P::NetdocEncodableFields for $ttype {
+    ${impl $P::NetdocEncodableFields} {
         fn encode_fields(
             &self,
             #[allow(unused)] // Not used if there are no fields.
@@ -402,7 +402,7 @@ define_derive_deftly! {
         ))
     }}
 
-    impl<$tgens> $P::ItemValueEncodable for $ttype {
+    ${impl $P::ItemValueEncodable} {
         fn write_item_value_onto(
             &self,
             #[allow(unused)]
