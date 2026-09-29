@@ -138,7 +138,7 @@ CREATE TABLE compressed_document(
 
 -- Stores the N:M cardinality of which router descriptors are contained in which
 -- consensuses.
-CREATE TABLE consensus_router_descriptor_member(
+CREATE TABLE consensus_descriptor_member(
     consensus_docid         TEXT NOT NULL,
     -- These two fields contain the SHA-1 and SHA-2 of the router descriptors
     -- without signatures.

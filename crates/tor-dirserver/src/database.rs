@@ -317,7 +317,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     /// Select the missing router descriptors.
     ///
     /// A router descriptor is considered missing if it exists in
-    /// `consensus_router_descriptor_member` but not in `router_descriptor`
+    /// `consensus_descriptor_member` but not in `router_descriptor`
     /// because the first entry is added once the consensus got parsed,
     /// whereas the second entry is added once we have actually retrieved it.
     ///
@@ -333,7 +333,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     const MISSING_ROUTERS_QUERY: &'static str = sql!(
         "
         SELECT cr.sha1, RANDOM() AS rand
-        FROM consensus_router_descriptor_member AS cr
+        FROM consensus_descriptor_member AS cr
           LEFT JOIN router_descriptor AS router ON cr.sha1 = router.sha1
         WHERE
           cr.consensus_docid = :docid
@@ -475,7 +475,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // router descriptor.
         //
         // It works by doing an inner join from
-        // `consensus_router_descriptor_member` to `router_descriptor` because
+        // `consensus_descriptor_member` to `router_descriptor` because
         // we can only know about the extra-infos of which we have the router
         // descriptors from.  Afterwards, we do a left join with the
         // `router_extra_info` table and filter for all results where the left
@@ -488,7 +488,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         let mut stmt = tx.prepare_cached(sql!(
             "
             SELECT router.extra_sha1, RANDOM() AS rand
-            FROM consensus_router_descriptor_member AS cr
+            FROM consensus_descriptor_member AS cr
               INNER JOIN router_descriptor AS router ON cr.sha1 = router.sha1
               LEFT JOIN router_extra_info AS extra ON router.extra_sha1 = extra.sha1
             WHERE
@@ -529,7 +529,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // Select the missing micro descriptors.
         //
         // A micro descriptor is considered missing if it exists in
-        // `consensus_router_descriptor_member` but not in `router_descriptor`
+        // `consensus_descriptor_member` but not in `router_descriptor`
         // because the first entry is added once the consensus got parsed,
         // whereas the second entry is added once we have actually retrieved it.
         //
@@ -543,7 +543,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         let mut stmt = tx.prepare_cached(sql!(
             "
             SELECT cr.sha2, RANDOM() AS rand
-            FROM consensus_router_descriptor_member AS cr
+            FROM consensus_descriptor_member AS cr
               LEFT JOIN router_descriptor AS micro ON cr.sha2 = micro.sha2
             WHERE
               cr.consensus_docid = :docid
@@ -567,7 +567,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     /// Inserts a verified consensus into the database.
     ///
     /// This method *DOES NOT* compute any consensus diffs but populates
-    /// associated meta tables such as `consensus_router_descriptor_member`
+    /// associated meta tables such as `consensus_descriptor_member`
     /// and `consensus_authority_voter` properly.
     pub(crate) fn insert<I>(
         tx: &Transaction<'_>,
@@ -607,7 +607,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // :sha2 - The micro descriptor digest (microdesc consensus only, NULL otherwise).
         let mut cons_rs_member_stmt = tx.prepare_cached(sql!(
             "
-            INSERT INTO consensus_router_descriptor_member
+            INSERT INTO consensus_descriptor_member
             (consensus_docid, sha1, sha2)
             VALUES
             (:docid, :sha1, :sha2)

@@ -1095,7 +1095,7 @@ mod test {
             .unwrap()
             .execute_batch(sql!(
                 "
-                DELETE FROM consensus_router_descriptor_member;
+                DELETE FROM consensus_descriptor_member;
                 DELETE FROM consensus_authority_voter;
                 DELETE FROM consensus;
                 "
