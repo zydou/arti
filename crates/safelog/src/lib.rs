@@ -314,6 +314,12 @@ impl<'a, T: Redactable + ?Sized> Redactable for &'a T {
     fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (*self).display_redacted(f)
     }
+
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (*self).debug_redacted(f)
+    }
+
+    // The default implementations for redacted() and maybe_redacted() are okay unconditionally.
 }
 
 /// A wrapper around a `Redactable` that displays it in redacted format.
