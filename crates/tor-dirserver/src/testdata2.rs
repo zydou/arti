@@ -275,7 +275,7 @@ pub(crate) fn test_db() -> Pool<SqliteConnectionManager> {
         tx.execute(
             sql!(
                 "
-                INSERT INTO router_descriptor
+                INSERT INTO descriptor
                 (docid, sha1, sha2, kp_relay_id_rsa_sha1, flavor, extra_sha1)
                 VALUES
                 -- TODO DIRMIRROR: Support extra-info.
@@ -313,7 +313,7 @@ pub(crate) fn test_db() -> Pool<SqliteConnectionManager> {
             sql!(
                 "
                 -- TODO DIRMIRROR: Same naming issue here.
-                INSERT INTO router_descriptor
+                INSERT INTO descriptor
                 (docid, sha1, sha2, kp_relay_id_rsa_sha1, flavor, extra_sha1)
                 VALUES
                 (:docid, :sha1, :sha2, NULL, :flavor, NULL)

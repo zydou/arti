@@ -53,7 +53,7 @@ CREATE TABLE consensus_diff(
 -- http://<hostname>/tor/server/d/<D>
 -- http://<hostname>/tor/server/authority
 -- http://<hostname>/tor/server/all
-CREATE TABLE router_descriptor(
+CREATE TABLE descriptor(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
     sha1                    TEXT NOT NULL UNIQUE,

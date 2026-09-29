@@ -317,11 +317,11 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     /// Select the missing router descriptors.
     ///
     /// A router descriptor is considered missing if it exists in
-    /// `consensus_descriptor_member` but not in `router_descriptor`
+    /// `consensus_descriptor_member` but not in `descriptor`
     /// because the first entry is added once the consensus got parsed,
     /// whereas the second entry is added once we have actually retrieved it.
     ///
-    /// It works by doing a left join on router_descriptor and filtering for
+    /// It works by doing a left join on descriptor and filtering for
     /// all entries where the join is NULL, as that implies we are aware of
     /// the descriptor but not have it stored.
     ///
@@ -334,7 +334,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         "
         SELECT cr.sha1, RANDOM() AS rand
         FROM consensus_descriptor_member AS cr
-          LEFT JOIN router_descriptor AS router ON cr.sha1 = router.sha1
+          LEFT JOIN descriptor AS router ON cr.sha1 = router.sha1
         WHERE
           cr.consensus_docid = :docid
           AND cr.sha1 IS NOT NULL
@@ -475,7 +475,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // router descriptor.
         //
         // It works by doing an inner join from
-        // `consensus_descriptor_member` to `router_descriptor` because
+        // `consensus_descriptor_member` to `descriptor` because
         // we can only know about the extra-infos of which we have the router
         // descriptors from.  Afterwards, we do a left join with the
         // `router_extra_info` table and filter for all results where the left
@@ -489,7 +489,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
             "
             SELECT router.extra_sha1, RANDOM() AS rand
             FROM consensus_descriptor_member AS cr
-              INNER JOIN router_descriptor AS router ON cr.sha1 = router.sha1
+              INNER JOIN descriptor AS router ON cr.sha1 = router.sha1
               LEFT JOIN router_extra_info AS extra ON router.extra_sha1 = extra.sha1
             WHERE
               cr.consensus_docid = :docid
@@ -529,11 +529,11 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // Select the missing micro descriptors.
         //
         // A micro descriptor is considered missing if it exists in
-        // `consensus_descriptor_member` but not in `router_descriptor`
+        // `consensus_descriptor_member` but not in `descriptor`
         // because the first entry is added once the consensus got parsed,
         // whereas the second entry is added once we have actually retrieved it.
         //
-        // It works by doing a left join on router_descriptor and filtering for
+        // It works by doing a left join on descriptor and filtering for
         // all entries where the join is NULL, as that implies we are aware of
         // the descriptor but not have it stored.
         //
@@ -544,7 +544,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
             "
             SELECT cr.sha2, RANDOM() AS rand
             FROM consensus_descriptor_member AS cr
-              LEFT JOIN router_descriptor AS micro ON cr.sha2 = micro.sha2
+              LEFT JOIN descriptor AS micro ON cr.sha2 = micro.sha2
             WHERE
               cr.consensus_docid = :docid
               AND cr.sha2 IS NOT NULL
@@ -1491,7 +1491,7 @@ mod test {
     /// For this, we remove existing router descriptors from the database and
     /// see whether they are determined as missing properly.
     #[test]
-    fn missing_router_descriptors() {
+    fn missing_descriptors() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, ConsensusMeta::<Plain>::query)
             .unwrap()
@@ -1511,7 +1511,7 @@ mod test {
             .execute(
                 sql!(
                     "
-                    DELETE FROM router_descriptor
+                    DELETE FROM descriptor
                     WHERE sha1 = ?1
                     "
                 ),
@@ -1527,7 +1527,7 @@ mod test {
 
         // If we delete all router descriptors we have, we should get all.
         rw_tx(&pool, |tx| {
-            tx.execute(sql!("DELETE FROM router_descriptor"), params![])
+            tx.execute(sql!("DELETE FROM descriptor"), params![])
         })
         .unwrap()
         .unwrap();
@@ -1555,7 +1555,7 @@ mod test {
     fn missing_descriptors_are_random() {
         let pool = testdata2::test_db();
         rw_tx(&pool, |tx| {
-            tx.execute(sql!("DELETE FROM router_descriptor"), ())
+            tx.execute(sql!("DELETE FROM descriptor"), ())
                 .unwrap();
             let meta = ConsensusMeta::<Plain>::query(tx).unwrap()[0];
 
@@ -1585,7 +1585,7 @@ mod test {
         let pool = testdata2::test_db();
         rw_tx(&pool, |tx| {
             let meta = ConsensusMeta::<Plain>::query(tx).unwrap();
-            tx.execute(sql!("DELETE FROM router_descriptor"), ())
+            tx.execute(sql!("DELETE FROM descriptor"), ())
                 .unwrap();
 
             let mut stmt = tx
@@ -1657,7 +1657,7 @@ mod test {
             .execute(
                 sql!(
                     "
-                    DELETE FROM router_descriptor
+                    DELETE FROM descriptor
                     WHERE sha2 = ?1
                     "
                 ),
@@ -1673,7 +1673,7 @@ mod test {
 
         // If we delete all micro descriptors we have, we should get all.
         rw_tx(&pool, |tx| {
-            tx.execute(sql!("DELETE FROM router_descriptor"), params![])
+            tx.execute(sql!("DELETE FROM descriptor"), params![])
         })
         .unwrap()
         .unwrap();

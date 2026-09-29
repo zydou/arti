@@ -839,7 +839,7 @@ mod test {
         pool.get()
             .unwrap()
             .execute(
-                sql!("DELETE FROM router_descriptor WHERE sha1 = ?1"),
+                sql!("DELETE FROM descriptor WHERE sha1 = ?1"),
                 params![relay_to_remove],
             )
             .unwrap();
