@@ -114,6 +114,19 @@ impl sealed::RequestableInner for Arc<dyn Requestable> {
         let r: &dyn Requestable = self.as_ref();
         r.anonymized()
     }
+
+    fn max_response_len(&self) -> usize {
+        let r: &dyn Requestable = self.as_ref();
+        r.max_response_len()
+    }
+
+    fn check_circuit<'a>(
+        &self,
+        tunnel: &'a ClientDirTunnel,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
+        let r: &dyn Requestable = self.as_ref();
+        r.check_circuit(tunnel)
+    }
 }
 
 /// How much clock skew do we allow in the distance between the directory
