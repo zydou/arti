@@ -137,7 +137,9 @@ impl DnsResolver {
 
         let query = String::from_utf8(query.to_vec()).map_err(|_| LookupError::NonAsciiHostname)?;
 
-        // XXX return an error if the query isn't ASCII
+        if !query.is_ascii() {
+            return Err(LookupError::NonAsciiHostname);
+        }
 
         let req = DnsRequest { query, tx };
         // Send the query to the reactor,
