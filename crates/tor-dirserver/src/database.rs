@@ -478,7 +478,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // `consensus_descriptor_member` to `descriptor` because
         // we can only know about the extra-infos of which we have the router
         // descriptors from.  Afterwards, we do a left join with the
-        // `router_extra_info` table and filter for all results where the left
+        // `extra_info` table and filter for all results where the left
         // join result is null, hence where we have a router descriptor but not
         // the respective extra-info.
         //
@@ -490,7 +490,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
             SELECT router.extra_sha1, RANDOM() AS rand
             FROM consensus_descriptor_member AS cr
               INNER JOIN descriptor AS router ON cr.sha1 = router.sha1
-              LEFT JOIN router_extra_info AS extra ON router.extra_sha1 = extra.sha1
+              LEFT JOIN extra_info AS extra ON router.extra_sha1 = extra.sha1
             WHERE
               cr.consensus_docid = :docid
               AND router.extra_sha1 IS NOT NULL

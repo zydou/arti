@@ -78,7 +78,7 @@ CREATE TABLE descriptor(
 -- http://<hostname>/tor/extra/fp/<FP>
 -- http://<hostname>/tor/extra/all
 -- http://<hostname>/tor/extra/authority
-CREATE TABLE router_extra_info(
+CREATE TABLE extra_info(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
     sha1                    TEXT NOT NULL UNIQUE,
