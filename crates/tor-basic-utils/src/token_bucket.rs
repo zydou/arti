@@ -68,6 +68,15 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
         Ok(self.claim(count)?.commit())
     }
 
+    /// Drain all tokens in the bucket.
+    ///
+    /// Return how many were removed.
+    pub fn drain_all(&mut self) -> u64 {
+        let count = self.bucket;
+        self.bucket = 0;
+        count
+    }
+
     /// Claim a number of tokens.
     ///
     /// The claim will be held by the returned [`ClaimedTokens`], and committed when dropped.

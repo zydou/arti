@@ -6935,6 +6935,7 @@ name = "tor-async-utils"
 version = "0.46.0"
 dependencies = [
  "cfg-if",
+ "criterion",
  "derive-deftly",
  "educe",
  "extend",
