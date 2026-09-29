@@ -17,7 +17,7 @@ define_derive_deftly! {
     ///  * **`#[deftly(parse_options(field = ".field.field"))]`**, default `.options`
     ParseOptions beta_deftly, expect items:
 
-    impl<$tgens> $ttype {
+    $impl {
         /// Examine the parsing options
         pub fn parse_options(&self) -> &'s ParseOptions {
             &self
