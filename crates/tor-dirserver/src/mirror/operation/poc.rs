@@ -38,6 +38,7 @@ async fn serve<T: FlavoredConsensusUnverified, R: Rng, F: Fn() -> Timestamp>(
         authorities,
         tolerance,
         rt: PreferredRuntime::current().expect("unable to get runtime"),
+        encodings: Default::default(),
         _phantom: Default::default(),
     };
 
