@@ -1555,8 +1555,7 @@ mod test {
     fn missing_descriptors_are_random() {
         let pool = testdata2::test_db();
         rw_tx(&pool, |tx| {
-            tx.execute(sql!("DELETE FROM descriptor"), ())
-                .unwrap();
+            tx.execute(sql!("DELETE FROM descriptor"), ()).unwrap();
             let meta = ConsensusMeta::<Plain>::query(tx).unwrap()[0];
 
             // Ensure there are more than 1 missing descriptors now.
@@ -1585,8 +1584,7 @@ mod test {
         let pool = testdata2::test_db();
         rw_tx(&pool, |tx| {
             let meta = ConsensusMeta::<Plain>::query(tx).unwrap();
-            tx.execute(sql!("DELETE FROM descriptor"), ())
-                .unwrap();
+            tx.execute(sql!("DELETE FROM descriptor"), ()).unwrap();
 
             let mut stmt = tx
                 .prepare_cached(ConsensusMeta::<Plain>::MISSING_ROUTERS_QUERY)

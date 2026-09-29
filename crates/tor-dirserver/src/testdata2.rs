@@ -324,8 +324,9 @@ pub(crate) fn test_db() -> Pool<SqliteConnectionManager> {
                 ":sha1": sha1,
                 ":sha2": sha2,
                 ":flavor": ConsensusFlavor::Microdesc.name(),
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
     }
 
     tx.commit().unwrap();
