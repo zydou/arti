@@ -47,7 +47,7 @@ CREATE TABLE consensus_diff(
     FOREIGN KEY(target_consensus_docid) REFERENCES consensus(docid)
 ) STRICT;
 
--- Stores the router descriptors.
+-- Stores the descriptors independent of their flavor.
 --
 -- http://<hostname>/tor/server/fp/<F>
 -- http://<hostname>/tor/server/d/<D>
@@ -136,12 +136,12 @@ CREATE TABLE compressed_document(
     UNIQUE(algorithm, identity_docid)
 ) STRICT;
 
--- Stores the N:M cardinality of which router descriptors are contained in which
+-- Stores the N:M cardinality of which descriptors are contained in which
 -- consensuses.
 CREATE TABLE consensus_descriptor_member(
     consensus_docid         TEXT NOT NULL,
-    -- These two fields contain the SHA-1 and SHA-2 of the router descriptors
-    -- without signatures.
+    -- These two fields contain the SHA-1 and SHA-2 of the descriptors
+    -- as via. their signature scheme.
     --
     -- They are mutually exclusive, meaning that either one of them must be set.
     -- This is a bit unfortunate but depending on the consensus flavor, we may
