@@ -19,6 +19,7 @@
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use futures::task::AtomicWaker;
+use std::num::NonZero;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::Waker;
@@ -69,18 +70,18 @@ impl RefillWaiter {
         }
     }
 
-    /// Return the number of tokens granted to this waiter. A value of zero meaning it
+    /// Return the number of tokens granted to this waiter. `None` means it
     /// wasn't granted yet.
     ///
     /// See [`Self::set_granted`] for the memory ordering.
-    fn granted(&self) -> u64 {
-        self.granted.load(Ordering::Relaxed)
+    fn granted(&self) -> Option<NonZero<u64>> {
+        NonZero::new(self.granted.load(Ordering::Relaxed))
     }
 
     /// Return true iff this waiter was granted permission to use the requested
     /// bandwidth.
     fn is_granted(&self) -> bool {
-        self.granted() != 0
+        self.granted().is_some()
     }
 
     /// Prepare this waiter for a new request with the given `waker`.
