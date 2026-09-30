@@ -176,28 +176,21 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
         if line.is_empty() {
             return Err(EK::EmptyLine.at_pos(self.pos(pos)));
         }
-        let (line, anno_ok) = if let Some(rem) = line.strip_prefix("opt ") {
-            (rem, false)
+        let (line, anno_ok) = if let Some(rem) = line.strip_prefix("opt") {
+            (rem.trim_start_matches(is_sp), false)
         } else {
             (line, true)
         };
-        let mut parts_iter = line.splitn(2, [' ', '\t']);
-        let kwd = match parts_iter.next() {
-            Some(k) => k,
-            // This case seems like it can't happen: split always returns
-            // something, apparently.
-            None => return Err(EK::MissingKeyword.at_pos(self.pos(pos))),
+        let parts = line.split_once(is_sp);
+        // TODO(nickm): dir-spec does not yet allow unicode in the arguments, but we're
+        // assuming that proposal 285 is accepted.
+        let (kwd, args) = match parts {
+            Some((left, right)) => (left, right.trim_start_matches(is_sp)),
+            None => (line, &line[line.len()..]),
         };
         if !keyword_ok(kwd, anno_ok) {
             return Err(EK::BadKeyword.at_pos(self.pos(pos)));
         }
-        // TODO(nickm): dir-spec does not yet allow unicode in the arguments, but we're
-        // assuming that proposal 285 is accepted.
-        let args = match parts_iter.next() {
-            Some(a) => a,
-            // take a zero-length slice, so it will be within the string.
-            None => &kwd[kwd.len()..],
-        };
         Ok((kwd, args))
     }
 
@@ -771,6 +764,8 @@ cherry 6
 8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S
 -----END CHERRY SYNOPSIS-----
 plum hello there
+orange    77
+opt    lemon    tabs    and    spaces
 ";
         let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s).unwrap();
 
@@ -781,7 +776,7 @@ plum hello there
         assert!(r.should_be_exhausted().is_ok());
 
         let toks = toks.unwrap();
-        assert_eq!(toks.len(), 5);
+        assert_eq!(toks.len(), 7);
         assert_eq!(toks[0].kwd(), ANN_TASTY);
         assert_eq!(toks[0].n_args(), 3);
         assert_eq!(toks[0].args_as_str(), "very much so");
@@ -816,6 +811,14 @@ plum hello there
         assert!(toks[3].obj("PLUOT SYNOPSIS").is_err());
         // this "end-pos" value is questionable!
         assert_eq!(toks[3].end_pos().within(s), Pos::from_line(7, 30));
+
+        assert_eq!(toks[5].kwd(), ORANGE);
+        assert_eq!(toks[5].n_args(), 1);
+        assert_eq!(toks[5].args_as_str(), "77");
+
+        assert_eq!(toks[6].kwd(), LEMON);
+        assert_eq!(toks[6].n_args(), 3);
+        assert_eq!(toks[6].args_as_str(), "tabs    and    spaces");
     }
 
     #[test]
