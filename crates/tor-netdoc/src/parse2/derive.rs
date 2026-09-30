@@ -1143,7 +1143,7 @@ define_derive_deftly! {
         }
     }
 
-    ${impl $P::HasUnverifiedParsedBody for $ttype} {
+    ${impl $P::HasUnverifiedParsedBody} {
         type UnverifiedParsedBody = $NETDOC_PARSEABLE_TTYPE;
         fn unverified_into_inner_unchecked(unverified: Self::UnverifiedParsedBody) -> Self {
             unverified.unverified
