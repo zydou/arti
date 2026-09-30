@@ -27,6 +27,8 @@ you might want to check out these links:
 
    * [Compatibility guide](./doc/Compatibility.md)
 
+   * [Supported third-party integrations](./doc/Integrations.md)
+
    * [Frequently Asked Questions](./doc/FAQ.md)
 
 ## Why rewrite Tor in Rust?
@@ -113,7 +115,7 @@ for details.
 
 ## Using Arti as a library
 
-The `arti` command line utility is built on top of the 
+The `arti` command line utility is built on top of the
 [`arti_client`](https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html)
 library (and its dependencies).
 
