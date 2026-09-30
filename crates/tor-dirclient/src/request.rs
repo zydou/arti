@@ -56,9 +56,7 @@ pub(crate) mod sealed {
 
         /// Return the maximum allowable response length we'll accept for this
         /// request.
-        fn max_response_len(&self) -> usize {
-            (16 * 1024 * 1024) - 1
-        }
+        fn max_response_len(&self) -> usize;
 
         /// Optimization: return an error if there is some problem with the provided circuit that
         /// makes it unlikely to be useful for this request.
@@ -309,6 +307,10 @@ impl sealed::RequestableInner for ConsensusRequest {
 
     fn partial_response_body_ok(&self) -> bool {
         false
+    }
+
+    fn max_response_len(&self) -> usize {
+        (16 * 1024 * 1024) - 1
     }
 
     fn check_circuit_skip_optimization<'a>(
@@ -594,6 +596,12 @@ impl sealed::RequestableInner for RoutersOwnDescRequest {
 
     fn partial_response_body_ok(&self) -> bool {
         false
+    }
+
+    fn max_response_len(&self) -> usize {
+        // As of 2026, directory authorities don't accept a routerdesc longer than
+        // 20000 bytes.  This should be plenty for the foreseeable future.
+        128 * 1024
     }
 
     fn anonymized(&self) -> AnonymizedRequest {
