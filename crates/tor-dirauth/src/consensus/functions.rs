@@ -6,7 +6,7 @@ use super::*;
 
 /// Return the low median of the inputs
 pub(super) fn low_median<'i, T: Ord + Clone + 'i, AC>(
-    context: ConsensusContextRefs<AC>,
+    _context: ConsensusContextRefs<AC>,
     inputs: impl ComponentInVotes<&'i T>,
 ) -> Result<T, ConsensusError> {
     low_median_raw(inputs.map(|(_vnum, v)| v.clone())).ok_or(ConsensusError::NoVotes)

@@ -99,6 +99,7 @@ use super::*;
 /// Dummy struct to allow use of derive-deftly to defeat hygiene - see the module-level docs
 #[derive(Deftly)]
 #[derive_deftly_adhoc]
+#[allow(dead_code)]
 pub(super) struct DummyForMacrology;
 
 /// Calculates one consensus output field (possibly in multiple flavours), from votes
@@ -174,6 +175,7 @@ macro_rules! calc { { $($input:tt)* } => { calc_internal! { { $($input)* } {let}
 /// // once for each OUT
 /// OUT_FIELD = .. .. ..;
 /// ```
+#[allow(unused_macros)] // Let's keep this; otherwise it might be v. annoying when we need it
 macro_rules! calc_assign { { $($input:tt)* } => { calc_internal! { { $($input)* } {} } } }
 
 /// Implementation of `calc!` and `calc_assign!`.  Do not call directly.

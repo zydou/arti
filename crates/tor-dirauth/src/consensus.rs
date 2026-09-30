@@ -1,5 +1,4 @@
 //! Consensus methods
-#![allow(unused)] // TODO DIRAUTH
 
 use crate::internal_prelude::*;
 
