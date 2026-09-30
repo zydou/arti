@@ -52,6 +52,10 @@ impl Aggregate for netstatus::Lifetime {
         calc! { out.fresh_until <+ functions::low_median }
         calc! { out.valid_until <+ functions::low_median }
 
+        // We want these to be in increasing order, or the resulting consensus is nonsensical.
+        // This could only be violated if some of the inputs votes didn't have them in
+        // increasing order.   TODO arti#2786
+
         Ok(construct! {
             netstatus::Lifetime {
                 out. valid_after, fresh_until, valid_until;
