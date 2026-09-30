@@ -94,45 +94,46 @@ impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
     {
         // https://spec.torproject.org/dir-spec/computing-consensus.html#router-status-entries
         // under "`w` item".
-        //
-        // TODO DIRAUTH implements torspec!542, as yet unmerged, so may need to change.
 
         const MEASURED: &str = "Measured";
         const BANDWIDTH: &str = "Bandwidth";
         const UNMEASURED: &str = "Unmeasured";
+        const MAX_UNMEASURED_BW_PARAM: &str = "maxunmeasuredbw";
         const MEASURED_THRESHOLD: usize = 3;
 
-        // Obtains the Measured value from this vote, if its there and we ought to use it
-        let get_measured = |(vnum, rwi): (_, &VoteRelayWeightsItem)| -> Option<u32> {
-                rwi.w.as_ref()?.get(MEASURED).copied()
+        let get_inputs = |k| {
+            inputs
+                .clone()
+                .filter_map(move |(_vnum, rwi)| rwi.w.as_ref()?.get(k).copied())
         };
-        // Obtains some bandwidth value from this vote
-        let get_bandwidth = |(vnum, rwi): (_, &VoteRelayWeightsItem)| -> Option<u32> {
-            get_measured((vnum, rwi)).or_else(|| {
-                //
-                rwi.w.as_ref()?.get(BANDWIDTH).copied()
-            })
-        };
+        let calc_median = |k| functions::low_median_raw(get_inputs(k));
 
-        // Iterator of the Measured values.
-        let measured_inputs = inputs.clone().filter_map(&get_measured as &dyn Fn(_) -> _);
-
-        let median_inputs; // the inputs for the median
+        let out; // the calculated output value, for Bandwdith
         let unmeasured; // the (keyword, value) for Unmeasured, or None
-        if measured_inputs.clone().count() >= MEASURED_THRESHOLD {
-            median_inputs = measured_inputs;
+        if get_inputs(MEASURED).count() >= MEASURED_THRESHOLD {
+            out = calc_median(MEASURED).expect("MEASURED_THRESHOLD");
             unmeasured = None;
-        } else {
-            median_inputs = inputs.clone().filter_map(&get_bandwidth as _);
+        } else if let Some(median) = calc_median(BANDWIDTH) {
+            let max_unmeasured = context
+                .computed
+                .params
+                .get(MAX_UNMEASURED_BW_PARAM)
+                .copied()
+                // w items are unsigned 32-bit, but it's capped using netparams which are
+                // are *signed* 32-bit.  If the netparam is negative, ignore it
+                // (rather than treating it as zero).
+                .and_then(|mu: i32| u32::try_from(mu).ok());
+
+            out = chain!([median], max_unmeasured,)
+                .min()
+                .expect("[median] is nonempthy");
             unmeasured = Some((UNMEASURED, 1));
-        };
-
-        let Some(median) = functions::low_median_raw(median_inputs) else {
-            // There were no w lines, or none of them had a bandwidth of any kind.
+        } else {
+            // There were no w lines, or not enough had Measured, or none had Bandwidth
             return Ok(RelayWeightsItem::default());
-        };
+        }
 
-        let out = chain!([(BANDWIDTH, median)], unmeasured)
+        let out = chain!([(BANDWIDTH, out)], unmeasured)
             .collect::<NetParams<_>>()
             .try_into()
             .map_err(into_internal!("generated bad w item"))?;
