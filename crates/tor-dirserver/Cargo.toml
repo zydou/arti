@@ -46,10 +46,10 @@ r2d2 = "0.8.10"
 # NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
 r2d2_sqlite = ">=0.29.0, <0.36.0"
 rand = "0.10.1"
-retry-error = { version = "0.13.0", path = "../retry-error" }
+retry-error = { version = "0.14.0", path = "../retry-error" }
 # NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
 rusqlite = ">=0.36.0, <0.41.0"
-saturating-time = { path = "../saturating-time", version = "0.4.0" }
+saturating-time = { path = "../saturating-time", version = "0.5.0" }
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full", "test-util"] }

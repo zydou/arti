@@ -21,10 +21,10 @@ educe = "0.4.22"
 futures = "0.3.14"
 humantime = "2"
 itertools = "0.15.0"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.7.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.8.0" }
 pin-project = "1"
 priority-queue = "2.0.3"
-slotmap-careful = { path = "../slotmap-careful", version = "0.8.0" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.9.0" }
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
 tor-error = { version = "0.47.0", path = "../tor-error", features = ["tracing"] }
@@ -33,7 +33,7 @@ tor-rtcompat = { version = "0.47.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 tracing-test = "0.2.4"
 void = "1"
-web-time-compat = { version = "0.2.0", path = "../web-time-compat" }
+web-time-compat = { version = "0.3.0", path = "../web-time-compat" }
 
 [dev-dependencies]
 futures-await-test = "0.3.0"

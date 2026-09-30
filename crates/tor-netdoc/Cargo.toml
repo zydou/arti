@@ -94,7 +94,7 @@ phf = { version = "0.14.0", features = ["macros"] }
 rand = { version = "0.10.1" }
 rangemap = "1.7"
 regex = { version = "1", optional = true }
-saturating-time = { path = "../saturating-time", version = "0.4.0" }
+saturating-time = { path = "../saturating-time", version = "0.5.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 signature = "2"
@@ -117,7 +117,7 @@ tor-protover = { path = "../tor-protover", version = "0.47.0", features = ["serd
 tor-units = { version = "0.47.0", path = "../tor-units", optional = true }
 visibility = { version = "0.1.0", optional = true }
 void = "1"
-web-time-compat = { version = "0.2.0", path = "../web-time-compat" }
+web-time-compat = { version = "0.3.0", path = "../web-time-compat" }
 zeroize = "1"
 
 [dev-dependencies]

@@ -1,6 +1,6 @@
 [package]
 name = "fslock-guard"
-version = "0.8.2"
+version = "0.9.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -31,4 +31,4 @@ libc = "0.2"
 windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_Foundation"] }
 
 [dev-dependencies]
-test-temp-dir = { version = "0.8.0", path = "../test-temp-dir" }
+test-temp-dir = { version = "0.9.0", path = "../test-temp-dir" }
