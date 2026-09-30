@@ -41,6 +41,10 @@ pub(crate) enum AuthorityRequestError {
     #[error("response error: {0}")]
     Response(&'static str),
 
+    /// A request led to no progress being made.
+    #[error("request resulted in no progress")]
+    NoProgress,
+
     /// An internal error.
     #[error("internal error")]
     Bug(#[from] tor_error::Bug),
