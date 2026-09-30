@@ -313,7 +313,7 @@ impl AsRef<[u8]> for Datagram {
 impl msg::Body for Datagram {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Datagram {
-            body: r.take(r.remaining())?.into(),
+            body: r.take_rest().into(),
         })
     }
 

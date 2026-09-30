@@ -402,7 +402,7 @@ impl Body for Data {
             return Err(Error::InvalidMessage("Empty DATA message".into()));
         }
         Ok(Data {
-            body: r.take(r.remaining())?.into(),
+            body: r.take_rest().into(),
         })
     }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
@@ -1323,7 +1323,7 @@ impl Body for Unrecognized {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Unrecognized {
             cmd: 0.into(),
-            body: r.take(r.remaining())?.into(),
+            body: r.take_rest().into(),
         })
     }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {

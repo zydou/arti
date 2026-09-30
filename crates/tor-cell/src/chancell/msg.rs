@@ -1228,7 +1228,7 @@ impl Readable for Unrecognized {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         Ok(Unrecognized {
             cmd: 0.into(),
-            content: r.take(r.remaining())?.into(),
+            content: r.take_rest().into(),
         })
     }
 }
