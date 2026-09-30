@@ -13,8 +13,8 @@ description = "Tool used by arti to generate OpenSSH keys for testing"
 clap = { version = "4.3.24", features = ["derive"] }
 rand = "0.10.1"
 ssh-key = { version = "0.6.7", package = "ssh-key-fork-arti", features = ["dsa", "alloc", "rand_core", "std"] }
-tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.46" }
-tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.46", features = ["relay", "rng-compat", "cvt-x25519"] }
+tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.47" }
+tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.47", features = ["relay", "rng-compat", "cvt-x25519"] }
 
 [features]
 full = ["tor-basic-utils/full", "tor-llcrypto/full"]
