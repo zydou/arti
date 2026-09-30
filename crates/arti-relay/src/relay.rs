@@ -439,6 +439,9 @@ impl<R: Runtime> TorRelay<R> {
         // (this will involve patching hickory to make its moka dependency optional)
         //
         // Note: the hickory resolver spawns various background tasks
+
+        // XXX: use the resolv_conf provided in the config, if there is one
+        // XXX: enable case randomization
         let resolver = Arc::new(Resolver::builder_tokio()?.build()?);
         let (reactor, resolver) =
             DnsResolverReactor::new(DynTimeProvider::new(self.runtime.clone()), resolver);
