@@ -30,7 +30,7 @@ pub(super) struct ConsensusContextRefs<'r, AlreadyComputed> {
     /// This is usually the part of the context that's wanted, so
     /// for convenience, `ContextAndComputed` derefs to this.
     #[deref]
-    pub context: &'r ConsensusCommonContext,
+    pub context: &'r ConsensusCommonContext<'r>,
 
     /// Stuff we computed earlier
     ///
@@ -149,7 +149,7 @@ pub enum ConsensusError {
 
 /// "Global" inputs for calculating consensus from votes
 #[derive(Debug, Clone)]
-pub(super) struct ConsensusCommonContext {
+pub(super) struct ConsensusCommonContext<'r> {
     /// The consensus method for which to generate a consensus
     pub method: SupportedConsensusMethod,
 
@@ -157,10 +157,10 @@ pub(super) struct ConsensusCommonContext {
     pub n_authorities: usize,
 
     /// The input votes (in their entirity)
-    pub votes: TiVec<VoterNum, tor_netdoc::doc::netstatus::vote::NetworkStatus>,
+    pub votes: TiVec<VoterNum, &'r tor_netdoc::doc::netstatus::vote::NetworkStatus>,
 }
 
-impl ConsensusCommonContext {
+impl<'r> ConsensusCommonContext<'r> {
     /// Is `n_some_voters` strictly more than half of all the authorities?
     pub(super) fn is_more_than_half_all_auths(&self, n_some_voters: usize) -> bool {
         // This way of writing it avoids any possibility of over/under-flow
@@ -186,7 +186,7 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    impl ConsensusCommonContext {
+    impl ConsensusCommonContext<'static> {
         pub(crate) fn new_for_test() -> Self {
             // TODO obtain (memoised?) from testdata2, using its constructor, when we have one
             ConsensusCommonContext {
