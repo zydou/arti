@@ -142,7 +142,12 @@ impl IsFatal for OperationError {
     /// Right now, the following variants are considered to be fatal:
     /// * [`OperationError::Database`]
     /// * [`OperationError::Bug`]
+    /// * [`OperationError::AuthorityRequest`] if [`IsFatal`]
     fn is_fatal(&self) -> bool {
-        matches!(&self, Self::Database(_) | Self::Bug(_))
+        match self {
+            Self::Database(_) | Self::Bug(_) => true,
+            Self::AuthorityRequest(e) => e.is_fatal(),
+            _ => false,
+        }
     }
 }
