@@ -11,7 +11,7 @@ pub(super) use tor_netdoc::doc::{netstatus, routerdesc};
 /// <https://spec.torproject.org/dir-spec/computing-consensus.html#choosing-relay-ids>
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Deftly, derive_more::Display)]
 #[derive_deftly(DiscrepReportFilter)]
-#[display("{ed} / {rsa}")]
+#[display("ed={ed} / rsa={rsa}")]
 pub(super) struct IdTuple {
     /// ed25519
     pub ed: Ed25519Public,
