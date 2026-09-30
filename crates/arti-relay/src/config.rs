@@ -34,7 +34,7 @@ use tracing_subscriber::filter::EnvFilter;
 
 use crate::util::NonEmptyList;
 
-use self::listen::Listen;
+use listen::Listen;
 
 /// Paths used for default configuration files.
 pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {
