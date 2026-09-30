@@ -510,7 +510,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // i.e. the authority only returned certificates we were not interested
         // in.
         if certs.is_empty() {
-            Err(Box::new(AuthorityRequestError::NoProgress))?;
+            Err(AuthorityRequestError::NoProgress)?;
         }
 
         // Finally, insert them all into the database.

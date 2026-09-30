@@ -116,7 +116,7 @@ pub(crate) enum DatabaseError {
 pub(crate) enum OperationError {
     /// Request to a directory authority failed.
     #[error("authority request error: {0}")]
-    AuthorityRequest(#[from] Box<AuthorityRequestError>),
+    AuthorityRequest(#[from] AuthorityRequestError),
 
     /// Access to the database failed for good.
     #[error("database error: {0}")]
@@ -134,12 +134,6 @@ pub(crate) enum OperationError {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
-}
-
-impl From<AuthorityRequestError> for OperationError {
-    fn from(value: AuthorityRequestError) -> Self {
-        Self::AuthorityRequest(Box::new(value))
-    }
 }
 
 impl IsFatal for OperationError {
