@@ -19,6 +19,49 @@ pub(super) type VoterSet = HashSet<VoterNum>;
 pub(super) trait ComponentInVotes<T>: Iterator<Item = (VoterNum, T)> + Clone {}
 impl<I, T> ComponentInVotes<T> for I where I: Iterator<Item = (VoterNum, T)> + Clone {}
 
+/// Actual contextx for computing a field: global context, plus already-computed values
+///
+/// Shared references, so `Copy`.
+#[derive(Debug, Educe, derive_more::Deref)]
+#[educe(Clone, Copy)]
+pub(super) struct ConsensusContextRefs<'r, AlreadyComputed> {
+    /// The `ConsensusContext`, the same for all parts of the computation
+    ///
+    /// This is usually the part of the context that's wanted, so
+    /// for convenience, `ContextAndComputed` derefs to this.
+    #[deref]
+    pub context: &'r ConsensusCommonContext,
+
+    /// Stuff we computed earlier
+    ///
+    /// This is needed because some parts of the consensus depend on other parts.
+    /// For example, the `w` item in a routerstatus depends on network parameters
+    /// (as found in the preamble of *this* consensus).
+    ///
+    /// impls that don't need any precomputed data should be blanket over `AlreadyComputed`.
+    //
+    // The alternatives to this would be:
+    //  a. Build the consensus in mutable variables.  But there are a lot of required
+    //     fields, so that is quite awkward.
+    //  b. Have some separate mutable variables in the context, and pass them mutably
+    //     through all the calculations.
+    //
+    // Both a and b would make it easy to write the kind of "didn't assign to
+    // this variable yet" ordering bugs which are common in languages and
+    // progrms with mutable globals.
+    //
+    //  c. Do some kind of ad-hoc calculation beforehand, and put the answers in
+    //     `context`.  The ad-hoc calculation couldn't use any of our infrastructure
+    //     since that requires a `ConsensusContext` which we wouldn't have yet.
+    //
+    //  d. Put dummy data in the awkward fields, and fix it up later
+    //     after the systematic calculation has produced a whole consensus.
+    //     This makes it easy to accidentally use or emit uninitialised data,
+    //     and is really a form of (a)/(b).
+    //
+    pub computed: &'r AlreadyComputed,
+}
+
 /// Component of a vote, from which a corresponding consensus component can be calculated
 ///
 /// Implemented on the *input*, ie the vote or part of a vote.
@@ -27,7 +70,7 @@ impl<I, T> ComponentInVotes<T> for I where I: Iterator<Item = (VoterNum, T)> + C
 ///
 /// Implement [`Aggregate`] instead, if the flavour doesn't matter.
 /// There is a blanket implementation of `ConsensusesFromVotes` for any [`Aggregate`].
-pub(super) trait ConsensusesFromVotes {
+pub(super) trait ConsensusesFromVotes<AlreadyComputed> {
     /// The plain-flavourconsensus component
     type PlainOutput: Sized;
     /// The microdescriptor consensus component
@@ -40,7 +83,7 @@ pub(super) trait ConsensusesFromVotes {
     ///
     /// `inputs` is an iterator of references to the relevant parts of each vote.
     fn consensuses<'i>(
-        context: &ConsensusContext,
+        context: ConsensusContextRefs<AlreadyComputed>,
         inputs: impl ComponentInVotes<&'i Self>,
     ) -> Result<(Self::PlainOutput, Self::MdOutput), ConsensusError>
     where
@@ -52,7 +95,7 @@ pub(super) trait ConsensusesFromVotes {
 /// Implemented on the *input*, ie the vote or part of a vote.
 ///
 /// Use `[ConsensusesFromVotes`] when flavour is relevant.
-pub(super) trait Aggregate: Sized {
+pub(super) trait Aggregate<AC>: Sized {
     /// The output (consensus) component type.  Often `Self`.
     type Output: Sized;
 
@@ -63,19 +106,19 @@ pub(super) trait Aggregate: Sized {
     ///
     /// `inputs` is an iterator of references to the relevant parts of each vote.
     fn aggregate<'i>(
-        context: &ConsensusContext,
+        context: ConsensusContextRefs<AC>,
         inputs: impl ComponentInVotes<&'i Self>,
     ) -> Result<Self::Output, ConsensusError>
     where
         Self: 'i;
 }
 
-impl<V: Aggregate> ConsensusesFromVotes for V {
+impl<AC, V: Aggregate<AC>> ConsensusesFromVotes<AC> for V {
     type PlainOutput = V::Output;
     type MdOutput = V::Output;
 
     fn consensuses<'i>(
-        context: &ConsensusContext,
+        context: ConsensusContextRefs<AC>,
         inputs: impl ComponentInVotes<&'i Self>,
     ) -> Result<(Self::PlainOutput, Self::MdOutput), ConsensusError>
     where
@@ -106,7 +149,7 @@ pub enum ConsensusError {
 
 /// "Global" inputs for calculating consensus from votes
 #[derive(Debug, Clone)]
-pub(super) struct ConsensusContext {
+pub(super) struct ConsensusCommonContext {
     /// The consensus method for which to generate a consensus
     pub method: SupportedConsensusMethod,
 
@@ -120,7 +163,7 @@ pub(super) struct ConsensusContext {
     pub bandwidth_authorities: VoterSet,
 }
 
-impl ConsensusContext {
+impl ConsensusCommonContext {
     /// Is `n_some_voters` strictly more than half of all the authorities?
     pub(super) fn is_more_than_half_all_auths(&self, n_some_voters: usize) -> bool {
         // This way of writing it avoids any possibility of over/under-flow
@@ -146,10 +189,10 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    impl ConsensusContext {
+    impl ConsensusCommonContext {
         pub(crate) fn new_for_test() -> Self {
             // TODO obtain (memoised?) from testdata2, using its constructor, when we have one
-            ConsensusContext {
+            ConsensusCommonContext {
                 method: SupportedConsensusMethod::MAX,
                 n_authorities: 0,
                 votes: ti_vec![],
@@ -160,7 +203,7 @@ pub(crate) mod test {
 
     #[test]
     fn is_more_than_half_all_auths() {
-        let mut context = ConsensusContext::new_for_test();
+        let mut context = ConsensusCommonContext::new_for_test();
 
         let mut check = |n_authorities, minimum_that_is_more_than_half| {
             context.n_authorities = n_authorities;

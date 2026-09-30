@@ -3,12 +3,12 @@
 use super::*;
 use rs_common::*;
 
-impl ConsensusesFromVotes for Vec<RouterStatusVote> {
+impl ConsensusesFromVotes<PlainPreamble> for Vec<RouterStatusVote> {
     type PlainOutput = Vec<netstatus::plain::RouterStatus>;
     type MdOutput = Vec<netstatus::md::RouterStatus>;
 
     fn consensuses<'i>(
-        context: &ConsensusContext,
+        context: ConsensusContextRefs<PlainPreamble>,
         inputs: impl ComponentInVotes<&'i Self>,
     ) -> Result<(Self::PlainOutput, Self::MdOutput), ConsensusError>
     where

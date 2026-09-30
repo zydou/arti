@@ -6,12 +6,12 @@ use tor_netdoc::doc::netstatus;
 
 // TODO DIRAUTH tests of consensus calculation
 
-impl ConsensusesFromVotes for netstatus::vote::Preamble {
+impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
     type PlainOutput = netstatus::plain::Preamble;
     type MdOutput = netstatus::md::Preamble;
 
     fn consensuses<'i>(
-        context: &ConsensusContext,
+        context: ConsensusContextRefs<()>,
         inputs: impl Iterator<Item = (VoterNum, &'i Self)> + Clone,
     ) -> Result<(Self::PlainOutput, Self::MdOutput), ConsensusError>
     where
@@ -38,11 +38,11 @@ impl ConsensusesFromVotes for netstatus::vote::Preamble {
     }
 }
 
-impl Aggregate for netstatus::Lifetime {
+impl<AC> Aggregate<AC> for netstatus::Lifetime {
     type Output = Self;
 
     fn aggregate<'i>(
-        context: &ConsensusContext,
+        context: ConsensusContextRefs<AC>,
         inputs: impl ComponentInVotes<&'i Self>,
     ) -> Result<Self, ConsensusError>
     where

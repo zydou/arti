@@ -15,7 +15,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
     /// (eg, because its listing would lack the Running flag).
     pub(super) fn consensuses(
         &self,
-        context: &ConsensusContext,
+        context: ConsensusContextRefs<PlainPreamble>,
     ) -> Result<
         Option<(
             //
@@ -81,12 +81,12 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
     }
 }
 
-impl Aggregate for VoteRelayWeightsItem {
+impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
     type Output = RelayWeightsItem;
 
     #[allow(clippy::needless_late_init)] // re median_inputs and unmeasured; clearer this way
     fn aggregate<'i>(
-        context: &ConsensusContext,
+        context: ConsensusContextRefs<PlainPreamble>,
         inputs: impl ComponentInVotes<&'i VoteRelayWeightsItem>,
     ) -> Result<RelayWeightsItem, ConsensusError>
     where
