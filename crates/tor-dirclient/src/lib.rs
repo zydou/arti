@@ -730,8 +730,8 @@ mod test {
         assert!(matches!(s, Err(RequestError::IoError(_))));
     }
 
-    #[async_test]
-    async fn headers_ok() -> RequestResult<()> {
+    #[test]
+    fn headers_ok() -> RequestResult<()> {
         let text = b"HTTP/1.0 200 OK\r\nDate: ignored\r\nContent-Encoding: Waffles\r\n\r\n";
 
         let mut s = &text[..];
@@ -756,15 +756,14 @@ mod test {
         Ok(())
     }
 
-    #[async_test]
-    async fn headers_bogus() -> Result<()> {
+    #[test]
+    fn headers_bogus() {
         let text = b"HTTP/999.0 WHAT EVEN\r\n\r\n";
         let mut s = &text[..];
         let h = tor_rtcompat::test_with_one_runtime!(async |rt| read_headers(&rt, &mut s).await);
 
         assert!(h.is_err());
         assert!(matches!(h, Err(RequestError::HttparseError(_))));
-        Ok(())
     }
 
     /// Run a trivial download example with a response provided as a binary
