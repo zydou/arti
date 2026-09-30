@@ -54,7 +54,7 @@
 //! which could cause identifier clashes.
 //!
 //! So we use a prefixing scheme: the macro accepts field names,
-//! but expands to bindings like `out_field`.
+//! but expands to bindings like `out_field`, `plain_field`, or `md_field`.
 //!
 //! ### Hygiene defeat via (ab)use of derive-deftly
 //!
