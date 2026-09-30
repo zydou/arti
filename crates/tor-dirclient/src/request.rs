@@ -60,9 +60,11 @@ pub(crate) mod sealed {
             (16 * 1024 * 1024) - 1
         }
 
-        /// Return an error if there is some problem with the provided circuit that
-        /// would keep it from being used for this request.
-        fn check_circuit<'a>(
+        /// Optimization: return an error if there is some problem with the provided circuit that
+        /// makes it unlikely to be useful for this request.
+        ///
+        /// *Do not* use this method to check for security properties.
+        fn check_circuit_skip_optimization<'a>(
             &self,
             tunnel: &'a ClientDirTunnel,
         ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
@@ -120,12 +122,12 @@ impl sealed::RequestableInner for Arc<dyn Requestable> {
         r.max_response_len()
     }
 
-    fn check_circuit<'a>(
+    fn check_circuit_skip_optimization<'a>(
         &self,
         tunnel: &'a ClientDirTunnel,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
         let r: &dyn Requestable = self.as_ref();
-        r.check_circuit(tunnel)
+        r.check_circuit_skip_optimization(tunnel)
     }
 }
 
@@ -309,7 +311,7 @@ impl sealed::RequestableInner for ConsensusRequest {
         false
     }
 
-    fn check_circuit<'a>(
+    fn check_circuit_skip_optimization<'a>(
         &self,
         tunnel: &'a ClientDirTunnel,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
