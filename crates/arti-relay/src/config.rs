@@ -298,6 +298,20 @@ impl Advertise {
             .chain(self.ipv6.iter().map(|s| (*s).into()))
             .collect()
     }
+
+    /// Return the primary IPv4 address.
+    ///
+    /// This is used to get the `router` line of our server descriptor.
+    #[expect(unused)] // TODO(relay)
+    pub(crate) fn primary_ipv4(&self) -> &SocketAddrV4 {
+        self.ipv4.iter().next().expect("No primary IPv4")
+    }
+
+    /// Return the IPv6 addresses.
+    #[expect(unused)] // TODO(relay)
+    pub(crate) fn ipv6(&self) -> &[SocketAddrV6] {
+        &self.ipv6
+    }
 }
 
 /// Default log level.
