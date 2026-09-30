@@ -358,7 +358,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let runtime = self.0.write().expect("Lock poisoned").runtime.clone();
 
         let mut last_suggested_effort_update = runtime.now();
-        let mut last_published_suggested_effort: u32 = (*self
+        let last_published_suggested_effort: u32 = (*self
             .0
             .read()
             .expect("Lock poisoned")
@@ -366,6 +366,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             .lock()
             .expect("Lock poisoned"))
         .into();
+        // Deal with effort values as i64 in this part of the code
+        // to allow for subtracting them without worring about underflow.
+        let mut last_published_suggested_effort: i64 = last_published_suggested_effort.into();
 
         let netdir_provider = self
             .0
@@ -393,10 +396,11 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                     last_suggested_effort_update = runtime.now();
                     let new_suggested_effort: u32 =
                         (*inner.suggested_effort.lock().expect("Lock poisoned")).into();
+                    let new_suggested_effort: i64 = new_suggested_effort.into();
 
-                    let percent_change =
-                        f64::from(new_suggested_effort - last_published_suggested_effort)
-                            / f64::from(last_published_suggested_effort);
+                    let percent_change = (new_suggested_effort - last_published_suggested_effort)
+                        as f64
+                        / last_published_suggested_effort as f64;
                     if percent_change.abs() >= SUGGESTED_EFFORT_DEADZONE {
                         last_published_suggested_effort = new_suggested_effort;
 
