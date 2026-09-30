@@ -306,7 +306,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                     // database until valid-after has been surpassed, which is
                     // most definitely not what we want.
                     State::FetchConsensus
-                } else if consensus.missing_servers(tx, Some(1))?.is_empty()
+                } else if consensus.missing_routers(tx, Some(1))?.is_empty()
                     && consensus.missing_micros(tx, Some(1))?.is_empty()
                     && consensus.missing_extras(tx, Some(1))?.is_empty()
                 {
@@ -855,7 +855,7 @@ mod test {
                 // contain the relay we removed, because that is missing now.
                 db::read_tx(&pool, |tx| {
                     assert_eq!(
-                        consensus.missing_servers(tx, None).unwrap(),
+                        consensus.missing_routers(tx, None).unwrap(),
                         HashSet::from([relay_to_remove])
                     );
                     assert!(consensus.missing_extras(tx, None).unwrap().is_empty());
