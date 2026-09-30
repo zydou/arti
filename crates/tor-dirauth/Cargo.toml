@@ -33,6 +33,7 @@ __is_experimental = []
 amplify = { version = "4", default-features = false, features = ["derive"] }
 derive-deftly = { version = "~1.12.0", features = ["full", "beta"] }
 derive_more = { version = "2.0.1", features = ["full"] }
+educe = "0.4.22"
 ipnet = "2.10"
 itertools = "0.15.0"
 paste = "1.0.3"

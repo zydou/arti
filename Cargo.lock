@@ -7282,6 +7282,7 @@ dependencies = [
  "anyhow",
  "derive-deftly",
  "derive_more",
+ "educe",
  "ipnet",
  "itertools 0.15.0",
  "paste",
