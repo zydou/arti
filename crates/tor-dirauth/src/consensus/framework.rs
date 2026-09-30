@@ -105,6 +105,7 @@ pub enum ConsensusError {
 }
 
 /// "Global" inputs for calculating consensus from votes
+#[derive(Debug, Clone)]
 pub(super) struct ConsensusContext {
     /// The consensus method for which to generate a consensus
     pub(super) method: SupportedConsensusMethod,
