@@ -1,6 +1,6 @@
 [package]
 name = "saturating-time"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["The Tor Project, Inc.", "Clara Engler <cve@torproject.org>"]
 edition = "2024"
 rust-version = "1.92"
@@ -11,7 +11,7 @@ keywords = ["time", "system-time", "instant", "saturating"]
 categories = ["date-and-time", "os", "rust-patterns"]
 
 [dependencies]
-web-time-compat = { version = "0.2.0", path = "../web-time-compat" }
+web-time-compat = { version = "0.3.0", path = "../web-time-compat" }
 
 [features]
 full = ["web-time-compat/full"]

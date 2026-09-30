@@ -5825,7 +5825,7 @@ dependencies = [
 
 [[package]]
 name = "saturating-time"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "web-time-compat",
 ]
