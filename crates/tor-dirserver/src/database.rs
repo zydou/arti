@@ -854,7 +854,8 @@ pub(crate) fn open<P: AsRef<Path>>(
         .unwrap_or(NonZero::new(8).expect("8 == 0?"))
         .get() as u32;
 
-    let manager = r2d2_sqlite::SqliteConnectionManager::file(&path);
+    let manager = r2d2_sqlite::SqliteConnectionManager::file(&path)
+        .with_init(|c| rusqlite::vtab::array::load_module(c));
     let pool = Pool::builder().max_size(num_cores).build(manager)?;
 
     rw_tx(&pool, |tx| {
