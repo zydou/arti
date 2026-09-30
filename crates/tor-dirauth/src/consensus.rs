@@ -24,6 +24,7 @@ mod preamble;
 mod rs_common;
 mod rs_body;
 mod rs_select;
+mod toplevel;
 
 pub use framework::*;
 pub use method::*;

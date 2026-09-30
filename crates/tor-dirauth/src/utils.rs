@@ -2,6 +2,13 @@
 
 use crate::internal_prelude::*;
 
+/// Wrapper for `todo!` which avoids daft warnings everywhere
+///
+/// TOOD DIRAUTH abolish `todo` wrapper, getting rid of panics.
+pub(super) fn todo<T>() -> T {
+    todo!()
+}
+
 /// What `RangeInclusive::map` ought to be
 ///
 /// Open-coding this at the call site would risk accidental change of the range type,
