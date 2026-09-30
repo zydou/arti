@@ -104,11 +104,7 @@ impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
 
         // Obtains the Measured value from this vote, if its there and we ought to use it
         let get_measured = |(vnum, rwi): (_, &VoteRelayWeightsItem)| -> Option<u32> {
-            if context.bandwidth_authorities.contains(&vnum) {
                 rwi.w.as_ref()?.get(MEASURED).copied()
-            } else {
-                None
-            }
         };
         // Obtains some bandwidth value from this vote
         let get_bandwidth = |(vnum, rwi): (_, &VoteRelayWeightsItem)| -> Option<u32> {
