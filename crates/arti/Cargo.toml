@@ -53,6 +53,7 @@ full = [
     "http-connect",
     "flowctl-cc",
     "counter-galois-onion",
+    "opentelemetry-appender-tracing",
     "safelog/full",
     "tor-config/full",
     "tor-error/full",
