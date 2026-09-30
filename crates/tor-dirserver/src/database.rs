@@ -60,7 +60,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::{
     ToSql, Transaction, TransactionBehavior, named_params, params,
-    types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef},
+    types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, Value, ValueRef},
 };
 use saturating_time::SaturatingTime;
 use tor_basic_utils::RngExt;
@@ -158,6 +158,12 @@ macro_rules! impl_hash_wrapper {
                 // Because Self is only constructed with FromSql and digest
                 // data, it is safe to assume it is valid.
                 Ok(ToSqlOutput::from(self.to_string()))
+            }
+        }
+
+        impl From<$name> for Value {
+            fn from(value: $name) -> Value {
+                Value::Text(value.to_string())
             }
         }
 
