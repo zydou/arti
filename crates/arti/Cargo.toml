@@ -53,6 +53,7 @@ full = [
     "http-connect",
     "flowctl-cc",
     "counter-galois-onion",
+    "opentelemetry-appender-tracing",
     "safelog/full",
     "tor-config/full",
     "tor-error/full",
@@ -134,6 +135,9 @@ keymgr = []
 # Onion Service C Tor keystore support can be turned on by enabling onion-service-service.
 # We are leaving this feature flag here so as not to break backward compatibility.
 ctor-keystore = []
+
+# This feature does nothing, and only exists for backwards compat.
+opentelemetry-appender-tracing = []
 
 rpc = [
     "dep:arti-rpcserver",
