@@ -64,6 +64,9 @@ mod poc;
 /// untrusted.
 const UNVERIFIED_TTL: Duration = Duration::from_mins(10);
 
+/// The endpoint(s) of a download authority identifying it.
+type DownloadAuthority = [SocketAddr];
+
 /// The various states for the [`StaticEngine`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
 enum State {
@@ -346,7 +349,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         &self,
         pool: &Pool<SqliteConnectionManager>,
         data: &mut ConsensusBoundData<T>,
-        endpoint: &[SocketAddr],
+        endpoint: &DownloadAuthority,
         now: Timestamp,
         rng: &mut R,
     ) -> Result<(), OperationError> {
@@ -405,7 +408,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     async fn fetch_consensus(
         &self,
         data: &mut ConsensusBoundData<T>,
-        endpoint: &[SocketAddr],
+        endpoint: &DownloadAuthority,
         now: Timestamp,
     ) -> Result<(), AuthorityRequestError> {
         // Obtain the consensus.
@@ -445,7 +448,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         &self,
         pool: &Pool<SqliteConnectionManager>,
         data: &mut ConsensusBoundData<T>,
-        endpoint: &[SocketAddr],
+        endpoint: &DownloadAuthority,
         now: Timestamp,
     ) -> Result<(), OperationError> {
         let certs_already = db::read_tx(pool, |tx| self.certs_already(tx, now))??;
@@ -609,7 +612,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     /// on.
     async fn send_request<R: Requestable, D: NetdocParseable>(
         &self,
-        endpoint: &[SocketAddr],
+        endpoint: &DownloadAuthority,
         requ: R,
     ) -> Result<(String, Vec<(D, usize, usize)>), AuthorityRequestError> {
         // The check is required to not let Tokio panic.
