@@ -108,16 +108,16 @@ pub enum ConsensusError {
 #[derive(Debug, Clone)]
 pub(super) struct ConsensusContext {
     /// The consensus method for which to generate a consensus
-    pub(super) method: SupportedConsensusMethod,
+    pub method: SupportedConsensusMethod,
 
     /// The number of authorities (>= the number of votes)
-    pub(super) n_authorities: usize,
+    pub n_authorities: usize,
 
     /// The input votes (in their entirity)
-    pub(super) votes: TiVec<VoterNum, tor_netdoc::doc::netstatus::vote::NetworkStatus>,
+    pub votes: TiVec<VoterNum, tor_netdoc::doc::netstatus::vote::NetworkStatus>,
 
     /// Which of the votes came from bandwidth authorities
-    pub(super) bandwidth_authorities: VoterSet,
+    pub bandwidth_authorities: VoterSet,
 }
 
 impl ConsensusContext {
