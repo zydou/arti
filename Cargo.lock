@@ -7648,9 +7648,9 @@ dependencies = [
 
 [[package]]
 name = "tor-geoip-db"
-version = "0.1.0-pre2"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5baacfe724d837c0da5558fe5e544b0c99181001606b9eb066e4fd98a9b77952"
+checksum = "0148a9a955ce4636b949900949aaec01f19210997f1b36b690ff4e524b962751"
 
 [[package]]
 name = "tor-guardmgr"
