@@ -29,6 +29,7 @@ mod toplevel;
 pub use framework::*;
 pub use method::*;
 pub use microdesc::*;
+pub use toplevel::*;
 pub use tracked_method::*;
 
 /// Supported consensus methods
