@@ -3,6 +3,344 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+
+# Arti 2.7.0 — 01 October 2026
+
+Arti 2.7.0 continues our steady progress on relay and directory authority
+development, including on document parsing, directory mirror support, and DNS
+stream handling.
+
+This release has a number of security fixes for `arti`, `arti-client`,
+`arti-ureq`, and other lower-level crates. Notice for packagers: We have updated
+our security policy to reflect that we do not request CVE Identifiers for any
+Arti security issues.
+
+### Breaking changes
+
+- The minimum supported Rust version (MSRV) has been increased to 1.92.
+  ([!4387])
+
+### Security fixes
+
+- low-severity: Fixed a low-severity issue in [`arti-ureq`] that could allow a
+  malicious exit relay to cause an `arti-ureq` client to panic.
+  ([#2691], [!4365])
+- low-severity: Fixed a low-severity issue in the onion service proof-of-work
+  code, where the control loop could panic and stop if an attacker spent a very
+  large amount of effort.
+  ([#2681], [!4370], TROVE-2026-068)
+- low-severity: Refactored the decoding of channel handshake messages to avoid
+  an unnecessary `clone()` of the channel's buffer.
+  ([#2684], [!4398], TROVE-2026-055)
+- low-severity: Added a memory limit of 16 MiB for an LZMA decompression
+  dictionary. Previously a directory mirror could cause a memory allocation of
+  up to 4 GiB.
+  ([#2687], [!4418], TROVE-2026-045)
+- low-severity: Fixed an integer underflow that could cause an onion service to
+  panic in debug builds, or when built with `overflow-checks = true` (a
+  non-standard and not-recommended configuration). This panic could be triggered
+  to cause an intentional denial-of-service of that onion service.
+  ([#2748], TROVE-2026-063)
+- low-severity: Fixed an unbounded buffer read during `arti`s HTTP CONNECT
+  handshake that could cause excessive memory usage.
+  ([#2686], TROVE-2026-049)
+- medium-severity: Fixed a consensus parsing/decompression issue that could
+  cause excessive memory usage.
+  ([#2599], TROVE-2026-028)
+- medium-severity: Fixed a consensus-diff parsing/decompression issue that could
+  cause excessive memory usage.
+  ([#2600], TROVE-2026-029)
+- medium-severity: Fixed an issue where Arti is unable to parse the consensus
+  due to a parser that is more strict than that of the directory authorities.
+  ([#2680], TROVE-2026-048)
+- medium-severity: Added a timeout while reading the HTTP headers of a directory
+  fetch. Without this timeout, a directory mirror could prevent Arti from
+  updating its consensus or descriptors.
+  ([#2688], TROVE-2026-046)
+- medium-severity: Added a filter to the RESOLVED response which removes local
+  addresses.
+  ([#2694], TROVE-2026-044)
+- high-severity: Fixed a bug in the handling of "half-streams". Previously,
+  these half-streams could be leveraged to cause excessive memory usage, and a
+  "dropped cells" side-channel attack.
+  ([#2683], TROVE-2026-047)
+
+### Major features
+
+- Added RPC support for modifying and inspecting `arti`s configuration.
+  ([!4413])
+
+### Deprecated functionality
+
+- `arti`: Deprecated the "keymgr" Cargo feature. The same functionality can be
+  enabled through other Cargo features like "onion-service-service".
+  ([!4417])
+- `arti`: Deprecated the "ctor-keystore" Cargo feature. The same functionality
+  can be enabled through other Cargo features.
+  ([!4423])
+- `arti`: Deprecated the "opentelemetry-appender-tracing" Cargo feature. This
+  was never a real feature, but an implicit feature created by Cargo due to an
+  unused optional dependency.
+  ([!4442], [!4380])
+- `tor-config`: Deprecated the `tor_config(serde = ...)` attribute in the
+  `TorConfig` `derive-deftly` derive macro.
+  ([!4395])
+
+### Breaking changes in lower-level crates
+
+- `arti-client`: Removed the "ctor-keystore" Cargo feature. The same
+  functionality can be enabled through other Cargo features like
+  "onion-service-service".
+  ([!4423])
+- `tor-keymgr`: Removed the "ctor-keystore" Cargo feature. The same
+  functionality can be enabled through the "keymgr" Cargo feature.
+  ([!4423])
+- `tor-config`: Changed the `resolve` functions to now take `ConfigurationTree`
+  by reference.
+  ([!4413])
+- `tor-config`: Changed the `ResolveContext` struct to now have a lifetime
+  parameter.
+  ([!4413])
+- `tor-socksproto`: Changed the `SocksVersion::try_from()` function to return a
+  new `InvalidSocksVersion` error type.
+  ([!4388])
+
+### Relay development
+
+- Enabled use of `arti-relay`'s temporary `DirMgr`-based directory server
+  backend.
+  ([!4381])
+- Added a new `Resolve::query()` accessor in the `tor-cell` crate.
+  ([!4391])
+- Fixed checking of IPv4-mapped IPv6 addresses in `ChanTarget` for when
+  `arti-relay` opens channels.
+  ([!4372])
+- Cleaned up some of the circuit handshake code to improve readability.
+  ([!4350])
+- Fixed receiving stream SENDMEs on relay circuits by correctly updating the
+  SENDME counter.
+  ([!4406])
+- Added support for sending stream SENDMEs on relay circuits.
+  ([!4407])
+- Added a bandwidth pool utility to the `tor-async-utils` crate to support relay
+  connection bandwidth rate-limiting in the future.
+  ([!4072], [!4452])
+- Added an initial implementation of the relay's DNS resolver, which underpins
+  domain name resolution for RESOLVE (and in the future BEGIN) messages.
+  ([!4420])
+
+### Directory authority development
+
+- Changed a panic to a warning when a consensus lifetime validity period is
+  unexpectedly short.
+  ([!4371])
+- Renamed some private enum variants in the `tor-dirserver` code.
+  ([!4288])
+- Switched directory mirror requests to a "sophisticated" version of the network
+  document parser.
+  ([!4374])
+- Changed the `anyhow` dependency to a dev-dependency in the `tor-dirauth`
+  crate.
+  ([!4393])
+- Documented the directory authority's microdescriptor error threshold
+  responsibility.
+  ([!4332])
+- Improved some error messages in Arti's experimental directory server.
+  ([!4399])
+- Added logic to Arti's experimental directory server to enable future insertion
+  of network statuses into the database.
+  ([!4351], [!4352])
+- Refactored the authority certificate handling in Arti's experimental directory
+  server.
+  ([!4389])
+- Changed the directory server to compute the missing descriptor queue
+  dynamically.
+  ([!4378])
+- Renamed uses of "lifetime" to "ttl" in the directory server code.
+  ([!4394])
+- Refactored the directory server's consensus loading and database time logic.
+  ([!4400])
+- Added constructor types for some router status types.
+  ([!4396])
+- Added a 10 minute "ttl" field for unverified consensus documents.
+  ([!4402])
+- Improved the documentation for `Eq` and `Ord` on `F64Finite` in `tor-netdoc`.
+  ([!4412])
+- Implemented `Ord`, `PartialOrd`, and `Hash` for a variety of types in
+  `tor-netdoc` and `tor-llcrypto`.
+  ([!4409])
+- Added logic for adding a consensus to the directory server's database.
+  ([!4408])
+- Improved the documentation around `ConsensusBoundData` field requirements in
+  `tor-dirserver`.
+  ([!4410])
+- Renamed "servers" to "routers" in much of the `tor-dirserver` crate.
+  ([!4429])
+- Added a lot of groundwork facilities for building the "consensus-from-votes"
+  algorithm.
+  ([!4415])
+
+### Documentation
+
+- Migrated our security policy from Arti's [wiki] to the Arti repository.
+  ([!4383])
+- Updated our security policy to describe when/how we assign identifiers
+  (TROVEs, RUSTSECs, etc) for security issues.
+  ([!4386])
+- Updated our release guide to include instructions for handling security
+  patches.
+  ([!4401], [!4416])
+- Added documentation about Arti's support for third-party integrations, such as
+  `arti-ureq`.
+  ([!4411])
+- Documented in the `tor-rtcompat` crate that the `native-tls` backend cannot
+  disable TLS session resumption.
+  ([!4425])
+
+### Infrastructure
+
+- Upgraded the [Shadow] version used in the CI environment to fix sqlite3
+  database errors.
+  ([!4361])
+- Upgraded some container image versions used in the CI environment.
+  ([!4363], [!4428])
+
+### Cleanups, minor features, and bugfixes
+
+- Upgraded dependency versions in the `Cargo.lock` file.
+  ([!4362], [!4384], [RUSTSEC-2026-0285])
+- Added some onionperf-related tracing events.
+  ([!4329])
+- Fixed a `clippy::unused_async` warning.
+  ([!4382])
+- Various changes/fixes to allow Arti to build in rust nightly.
+  ([!4380], [!4443])
+- Updated various crates to use `derive-deftly`s new unquoted meta syntax.
+  ([!4395])
+- Improved the error returned from the SOCKS protocol code.
+  ([!4388])
+- Added a new `Sender::subscribe()` API in the `tor-async-utils` crate.
+  ([!4390])
+- Cleaned up some comments and code structure in the channel message code.
+  ([!4366])
+- Imported/migrated the `saturating-time` crate from
+  <https://codeberg.org/cve/saturating-time>.
+  ([!4414])
+- Improved prompts in `arti`s command line interface to re-prompt for "yes"/"no"
+  after invalid input.
+  ([!4403])
+- Updated the "pt-proxy" example to the new API provided by the `fast-socks5`
+  crate.
+  ([!4397])
+- Relaxed the version bounds on the `rusqlite` crate to allow Arti embedders to
+  use `rusqlite` 0.40.x versions.
+  ([!4424])
+- Relaxed the "pathbias-lite" circuit build failure thresholds for triggering
+  guard restrictions.
+  ([!4426])
+- Updated to use the latest GeoIP data from the `tor-geoip-data` crate.
+  ([!4432])
+- Improved some message buffer parsing code to make the intent more clear.
+  ([!4435])
+- Updated the fallback relay list to a version generated on 08 September 2026.
+  ([!4375])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Gaith Hallak, iqdecay, manthan-lab, and pryty26.
+
+Also, our deep thanks to
+the [Bureau of Democracy, Human Rights, and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+[!4072]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4072
+[!4288]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4288
+[!4329]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4329
+[!4332]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4332
+[!4350]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4350
+[!4351]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4351
+[!4352]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4352
+[!4361]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4361
+[!4362]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4362
+[!4363]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4363
+[!4365]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4365
+[!4366]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4366
+[!4370]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4370
+[!4371]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4371
+[!4372]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4372
+[!4374]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4374
+[!4375]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4375
+[!4378]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4378
+[!4380]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4380
+[!4381]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4381
+[!4382]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4382
+[!4383]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4383
+[!4384]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4384
+[!4386]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4386
+[!4387]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4387
+[!4388]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4388
+[!4389]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4389
+[!4390]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4390
+[!4391]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4391
+[!4393]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4393
+[!4394]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4394
+[!4395]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4395
+[!4396]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4396
+[!4397]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4397
+[!4398]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4398
+[!4399]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4399
+[!4400]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4400
+[!4401]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4401
+[!4402]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4402
+[!4403]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4403
+[!4406]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4406
+[!4407]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4407
+[!4408]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4408
+[!4409]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4409
+[!4410]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4410
+[!4411]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4411
+[!4412]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4412
+[!4413]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4413
+[!4414]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4414
+[!4415]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4415
+[!4416]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4416
+[!4417]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4417
+[!4418]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4418
+[!4420]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4420
+[!4423]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4423
+[!4424]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4424
+[!4425]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4425
+[!4426]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4426
+[!4428]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4428
+[!4429]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4429
+[!4432]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4432
+[!4435]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4435
+[!4442]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4442
+[!4443]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4443
+[!4452]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4452
+[#2599]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2599
+[#2600]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2600
+[#2680]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2680
+[#2681]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2681
+[#2683]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2683
+[#2684]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2684
+[#2686]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2686
+[#2687]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2687
+[#2688]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2688
+[#2691]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2691
+[#2694]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2694
+[#2748]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2748
+[Bureau of Democracy, Human Rights, and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[RUSTSEC-2026-0285]: https://rustsec.org/advisories/RUSTSEC-2026-0285.html
+[Shadow]: https://shadow.github.io
+[`arti-ureq`]: https://crates.io/crates/arti-ureq
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[wiki]: https://gitlab.torproject.org/tpo/core/arti/-/wikis/home
+
+
+
 # Arti 2.6.0 — 1 September 2026
 
 Arti 2.6.0 continues our steady progress on relay and directory authority development,
