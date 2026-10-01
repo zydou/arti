@@ -15,6 +15,10 @@ pub enum Error {
     #[error("Invalid diff: {0}")]
     BadDiff(&'static str),
 
+    /// We received or generated a diff that is implausibly large.
+    #[error("Diff too large in relation to consensus")]
+    DiffTooLarge,
+
     /// We got a consensus diff that looked valid, but we couldn't apply it
     /// to the given input.
     #[error("Diff didn't apply to input: {0}")]

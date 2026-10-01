@@ -341,9 +341,8 @@ fn server_receive_intro_no_keygen(
     let X: curve25519::PublicKey = cur
         .extract()
         .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?;
-    let remaining_bytes = cur.remaining();
     let ciphertext = &mut cur
-        .take(remaining_bytes - HS_MAC_LEN)
+        .take_all_but(HS_MAC_LEN)
         .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?
         .to_vec();
     let mac_tag: MacTag = cur

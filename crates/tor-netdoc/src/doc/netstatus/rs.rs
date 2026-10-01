@@ -25,6 +25,7 @@ use crate::{Error, NetdocErrorKind as EK, Result};
 use derive_deftly::Deftly;
 use itertools::chain;
 use std::cmp::Ordering;
+use std::result::Result as StdResult;
 use std::{net, time};
 use tor_basic_utils::intern::{Intern, InternCache};
 use tor_error::{Bug, internal};
@@ -41,7 +42,11 @@ pub enum SoftwareVersion {
     /// A Tor version
     #[display("Tor {_0}")]
     CTor(TorVersion),
+
     /// A string we couldn't parse.
+    ///
+    /// This may be a C tor version that we couldn't parse,
+    /// or some other software.
     Other(Intern<str>),
 }
 
@@ -80,9 +85,12 @@ pub struct RouterStatusMdDigestsVote {
 }
 
 impl std::str::FromStr for SoftwareVersion {
-    type Err = Error;
+    // This needs to stay infallible: if any version is unparsable,
+    // then we may reject a consensus needlessly,
+    // since authorities copy versions from what relays say.
+    type Err = void::Void;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> StdResult<Self, void::Void> {
         let mut elts = s.splitn(3, ' ');
         if elts.next() == Some("Tor") {
             if let Some(Ok(v)) = elts.next().map(str::parse) {
@@ -99,4 +107,41 @@ impl std::str::FromStr for SoftwareVersion {
 trait FromRsString: Sized {
     /// Try to decode the given object.
     fn decode(s: &str) -> Result<Self>;
+}
+
+/// Implementation for parsing [`tor_protover::Protocols`] via its
+/// [`from_str_c_compatible`](tor_protover::Protocols::from_str_c_compatible)
+/// method.
+///
+/// We use this (for now) for parsing routerstatuses _and nothing else_.
+/// It's okay to be strict about router descriptors and required/recommended versions,
+/// but if we are strict about these lines in a routerstatus, we run the risk of rejecting
+/// stuff that the C tor authorities thought was okay.
+mod protovers_flexible {
+    use tor_error::Bug;
+    use tor_protover::Protocols;
+
+    use crate::{
+        encode::{ItemEncoder, ItemValueEncodable as _},
+        parse2::{ErrorProblem, UnparsedItem},
+    };
+
+    /// Parse a [`Protocols`] using [`Protocols::from_str_c_compatible`].
+    #[expect(clippy::needless_pass_by_value)]
+    pub(super) fn from_unparsed(item: UnparsedItem<'_>) -> Result<Protocols, ErrorProblem> {
+        item.check_no_object()?;
+        Protocols::from_str_c_compatible(item.args_copy().into_remaining())
+            .map_err(item.invalid_argument_handler("protocols"))
+    }
+
+    /// Encode a [`Protocols`] in the usual manner.
+    ///
+    /// (We have to define this because there is no "parse_with", only a "with" that overrides
+    /// parsing _and_ encoding.)
+    pub(super) fn write_item_value_onto(
+        protocols: &Protocols,
+        out: ItemEncoder,
+    ) -> Result<(), Bug> {
+        protocols.write_item_value_onto(out)
+    }
 }

@@ -515,6 +515,11 @@ impl ClientTunnel {
     /// Perform a DNS lookup, using a RESOLVE cell with the last relay
     /// in this tunnel.
     ///
+    /// Returns all the addresses from the RESOLVED response,
+    /// without performing any filtering.
+    /// Most callers will want filter out the local and non-routable addresses
+    /// before using the result.
+    ///
     /// Note that this function does not check for timeouts; that's
     /// the caller's responsibility.
     pub async fn resolve(self: &Arc<Self>, hostname: &str) -> Result<Vec<IpAddr>> {
@@ -535,6 +540,10 @@ impl ClientTunnel {
 
     /// Perform a reverse DNS lookup, by sending a RESOLVE cell with
     /// the last relay on this tunnel.
+    ///
+    /// Does not perform any validation on `addr`.
+    /// Most callers will want to avoid calling this function
+    /// with a local or non-routable `addr`.
     ///
     /// Note that this function does not check for timeouts; that's
     /// the caller's responsibility.

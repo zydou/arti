@@ -605,6 +605,9 @@
 # Should we allow attempts to make Tor connections to local addresses?
 #allow_local_addrs = false
 
+# Should we accept and return local addresses in anonymously retrieved DNS answers?
+#allow_resolving_local_addrs = false
+
 # Should Arti make connections to hidden services (.onion services) ?
 #allow_onion_addrs = true
 

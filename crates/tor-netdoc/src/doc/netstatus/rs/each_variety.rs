@@ -160,7 +160,7 @@ pub struct RouterStatus {
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:v>
     #[deftly(constructor)]
-    #[deftly(netdoc(keyword = "pr"))]
+    #[deftly(netdoc(keyword = "pr", with = protovers_flexible))]
     pub protos: Protocols,
 
     /// `w` --- Bandwidth estimates

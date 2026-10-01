@@ -301,9 +301,14 @@ impl TorAddr {
         Ok(instructions)
     }
 
-    /// Return true if the `host` in this address is local.
-    fn is_local(&self) -> bool {
-        self.host.is_local()
+    /// Return true if `addr` is a globally reachable address.
+    ///
+    /// Used for deciding if this [`TorAddr`] is an acceptable BEGIN target
+    /// (typically, the target of a BEGIN must be globally reachable).
+    ///
+    /// See [`is_globally_reachable_unicast`].
+    fn is_globally_reachable_unicast(&self) -> bool {
+        self.host.is_globally_reachable_unicast()
     }
 
     /// Give an error if this address doesn't conform to the rules set in
@@ -314,7 +319,12 @@ impl TorAddr {
         #[allow(unused_variables)] // will only be used in certain configurations
         prefs: &StreamPrefs,
     ) -> Result<(), ErrorDetail> {
-        if !cfg.allow_local_addrs && self.is_local() {
+        let allow_local_addrs = prefs
+            .connect_to_local_addrs
+            .as_bool()
+            .unwrap_or(cfg.allow_local_addrs);
+
+        if !allow_local_addrs && !self.is_globally_reachable_unicast() {
             return Err(ErrorDetail::LocalAddress);
         }
 
@@ -438,22 +448,98 @@ impl FromStr for Host {
 }
 
 impl Host {
-    /// Return true if this address is one that is "internal": that is,
-    /// relative to the particular host that is resolving it.
-    fn is_local(&self) -> bool {
+    /// Return true if this address is one that is not "internal": that is,
+    /// if `addr` is a globally reachable unicast address.
+    fn is_globally_reachable_unicast(&self) -> bool {
         match self {
-            Host::Hostname(name) => name.eq_ignore_ascii_case("localhost"),
-            // TODO: use is_global once it's stable, perhaps.
-            // NOTE: Contrast this with is_sufficiently_private in tor-hsproxy,
-            // which has a different purpose. Also see #1159.
-            // The purpose of _this_ test is to find addresses that cannot
-            // meaningfully be connected to over Tor, and that the exit
-            // will not accept.
-            Host::Ip(IpAddr::V4(ip)) => ip.is_loopback() || ip.is_private(),
-            Host::Ip(IpAddr::V6(ip)) => ip.is_loopback(),
-            Host::Onion(_) => false,
+            Host::Hostname(name) => !name.eq_ignore_ascii_case("localhost"),
+            Host::Ip(ip) => is_globally_reachable_unicast(*ip),
+            Host::Onion(_) => true,
         }
     }
+}
+
+/// Return true if `addr` is a globally reachable unicast address.
+///
+/// Returns false if `addr` is any of the following:
+///
+///   * the loopback address (127.0.0.1/8, ::1). See RFC1122, RFC4291
+///   * a private address, as defined in RFC1918
+///   * unspecified (0.0.0.0, ::)
+///   * part of the Shared Address Space defined in RFC6598 (100.64.0.0/10)
+///   * a unique local address (fc00::/7). See RFC4193
+///   * a unicast address with link-local scope, as defined in RFC4291
+///
+/// Used for deciding whether an address is a valid BEGIN target.
+/// Additionally, we use this to determine whether to allow a reverse DNS lookup
+/// (ordinarily, reverse lookups for non-globally reachable addresses are rejected),
+/// and to filter out any non-globally reachable addresses from the exit-provided
+/// RESOLVED responses.
+///
+/// False negatives are allowed, but false positives are not
+/// (to avoid unintentionally opening connections to local services,
+/// either on the exit, or on the client itself).
+///
+/// Semantically, this function is roughly equivalent to checking
+/// `(IpAddr::is_global() && !IpAddr::is_broadcast() && !IpAddr::is_multicast())`,
+/// with the only difference being that our implementation of the `is_global()` check
+/// does not cover
+///
+///   * addresses reserved for benchmarking (RFC2544, RFC5180)
+///   * addresses reserved for documentation (RFC5737, RFC3849, RFC9637)
+///   * v4 addresses reserved by IANA for future use (RFC1112)
+///   * v6 discard-only address block (`100::/64`)
+///   * v6 IETF special assignments of `2001::/23`
+///   * 6to4 (`2002::/16`) – it's not explicitly documented as globally reachable,
+///     IANA says N/A.
+///   * segment routing (SRv6) SIDs (`5f00::/16`)
+///
+// Note(gabi): for the sake of completeness, we may want to extend this function to
+// cover the ranges mentioned above too, because in theory, these addresses
+// shouldn't be reachable anyway.
+//
+// TODO: we may want to rewrite this function using IpAddr::is_global() once
+// that becomes stable.
+pub(crate) fn is_globally_reachable_unicast(addr: IpAddr) -> bool {
+    // This ensures we handle IPv4-mapped addresses correctly
+    let addr = addr.to_canonical();
+    // TODO: use is_global once it's stable, perhaps.
+    // NOTE: Contrast this with is_sufficiently_private in tor-hsproxy,
+    // which has a different purpose. Also see #1159.
+    // The purpose of _this_ test is to find addresses that cannot
+    // meaningfully be connected to over Tor, and that the exit
+    // will not accept.
+    //
+    // TODO: we may want to extend this to cover more non-routable ranges
+    // (for example, the reserved documentation prefixes)
+    !(match addr {
+        IpAddr::V4(v4) => {
+            v4.is_loopback() // RFC1122 (127.0.0.0/8)
+                || v4.is_private() // RFC1918
+                || v4.is_unspecified() // 0.0.0.0
+                || v4.is_link_local() // RFC3927 (169.254.0.0/16)
+                || is_shared(v4) // RFC6598
+                || v4.is_broadcast() // RFC919
+                || v4.is_multicast() // RFC6771
+        }
+        IpAddr::V6(v6) => {
+            v6.is_loopback() // RFC4291 (::1)
+                || v6.is_unspecified() // RFC4291 (::)
+                || v6.is_unique_local() // RFC4193 (fc00::/7)
+                || v6.is_unicast_link_local() // RFC4291 (fe80::/10)
+                || v6.is_multicast() // RFC4291
+        }
+    })
+}
+/// Returns [`true`] if this address is part of the Shared Address Space defined in
+/// [IETF RFC 6598] (`100.64.0.0/10`).
+///
+/// [IETF RFC 6598]: https://tools.ietf.org/html/rfc6598
+///
+// TODO: use IPv4::is_shared() when it becomes stable.
+// See <https://github.com/rust-lang/rust/issues/137259>
+fn is_shared(addr: Ipv4Addr) -> bool {
+    addr.octets()[0] == 100 && (addr.octets()[1] & 0b1100_0000 == 0b0100_0000)
 }
 
 impl std::fmt::Display for Host {
@@ -691,14 +777,23 @@ mod test {
     fn local_addrs() {
         fn is_local_hostname(s: &str) -> bool {
             let h: Host = s.parse().unwrap();
-            h.is_local()
+            !h.is_globally_reachable_unicast()
         }
 
         assert!(is_local_hostname("localhost"));
         assert!(is_local_hostname("loCALHOST"));
         assert!(is_local_hostname("127.0.0.1"));
         assert!(is_local_hostname("::1"));
+        assert!(is_local_hostname("::ffff:127.0.0.1"));
         assert!(is_local_hostname("192.168.0.1"));
+        assert!(is_local_hostname("0.0.0.0"));
+        assert!(is_local_hostname("::"));
+        assert!(is_local_hostname("100.64.0.1"));
+        assert!(is_local_hostname("fc00::"));
+        assert!(is_local_hostname("fe80::"));
+        assert!(is_local_hostname("255.255.255.255"));
+        assert!(is_local_hostname("224.1.1.1"));
+        assert!(is_local_hostname("ff00::"));
 
         assert!(!is_local_hostname("www.example.com"));
     }
@@ -765,24 +860,45 @@ mod test {
     fn resolve_instructions() {
         use ResolveInstructions as RI;
 
-        fn sap(s: &str) -> Result<ResolveInstructions, ErrorDetail> {
+        fn sap(s: &str, prefs: &StreamPrefs) -> Result<ResolveInstructions, ErrorDetail> {
             TorAddr::from(s)
                 .unwrap()
-                .into_resolve_instructions(&Default::default(), &Default::default())
+                .into_resolve_instructions(&Default::default(), prefs)
         }
 
+        let default_prefs = Default::default();
         assert_eq!(
-            sap("[2001:db8::42]:9001").unwrap(),
+            sap("[2001:db8::42]:9001", &default_prefs).unwrap(),
             RI::Return(vec!["2001:db8::42".parse().unwrap()]),
         );
         assert_eq!(
-            sap("example.com:80").unwrap(),
+            sap("example.com:80", &default_prefs).unwrap(),
             RI::Exit("example.com".to_owned()),
         );
         assert!(matches!(
-            sap("example.onion:80"),
+            sap("example.onion:80", &default_prefs),
             Err(ErrorDetail::OnionAddressResolveRequest),
         ));
+        assert!(matches!(
+            sap("localhost:80", &default_prefs),
+            Err(ErrorDetail::LocalAddress),
+        ));
+        assert!(matches!(
+            sap("127.0.0.1:80", &default_prefs),
+            Err(ErrorDetail::LocalAddress),
+        ));
+
+        let mut connect_to_local_addrs = StreamPrefs::new();
+        connect_to_local_addrs.connect_to_local_addrs(tor_config::BoolOrAuto::Explicit(true));
+
+        assert_eq!(
+            sap("localhost:80", &connect_to_local_addrs).unwrap(),
+            RI::Exit("localhost".to_owned()),
+        );
+        assert_eq!(
+            sap("127.0.0.1:80", &connect_to_local_addrs).unwrap(),
+            RI::Return(vec!["127.0.0.1".parse().unwrap()]),
+        );
     }
 
     #[test]

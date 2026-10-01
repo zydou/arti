@@ -56,7 +56,6 @@ use oneshot_fused_workaround as oneshot;
 
 use std::result::Result as StdResult;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::channel::Channel;
 use crate::conflux::msghandler::RemoveLegReason;
@@ -1019,11 +1018,7 @@ impl Reactor {
 
                     // Note: if we have no measurements for the RTT, this will be set to 0,
                     // and the timeout will be 2 * CBT.
-                    ccontrol
-                        .rtt()
-                        .max_rtt_usec()
-                        .map(|rtt| Duration::from_millis(u64::from(rtt)))
-                        .unwrap_or_default()
+                    ccontrol.rtt().max_rtt().unwrap_or_default()
                 };
 
                 // The length of the circuit up until the hop that has the half-streeam.
