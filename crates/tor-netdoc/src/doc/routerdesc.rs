@@ -566,9 +566,9 @@ pub struct Bandwidth {
 /// * [`Ed25519NtorCrossCert`]
 /// * <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:ntor-onion-key-crosscert>
 #[derive(Debug, Clone, Deftly, PartialEq)]
-#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
 #[deftly(netdoc(no_extra_args))]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_structs)]
 pub struct NtorOnionKeyCrossCert {
     /// True if X coordinate of the ntor onion key is negative, false if
     /// positive.
@@ -576,11 +576,17 @@ pub struct NtorOnionKeyCrossCert {
     // to `is_negative`.  Also, using a boolean for storing a sign bit feels
     // wrong to me due to the zero edge case, which would not be negative,
     // but also not positive either.
+    #[deftly(constructor)]
     pub bit: NumericBoolean,
 
     /// The actual embedded ntor onion key certificate.
     #[deftly(netdoc(object))]
+    #[deftly(constructor)]
     pub cert: EmbeddedCert<Ed25519NtorCrossCert, KeyUnknownCert>,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 decl_keyword! {
@@ -1039,11 +1045,12 @@ impl RouterDesc {
             )
             .map_err(|_| EK::BadSignature.err())?;
 
-            let cert = NtorOnionKeyCrossCert {
+            let cert = NtorOnionKeyCrossCertConstructor {
                 bit: NumericBoolean(sign != 0),
                 // Okay to call because we added the signature to the batch.
                 cert: EmbeddedCert::new(Ed25519NtorCrossCert::dangerous_new_unverified(), cert),
-            };
+            }
+            .construct();
 
             (sig, expiry, cert)
         };
@@ -1784,7 +1791,7 @@ mod test {
             hibernating: NumericBoolean(false),
             uptime: None,
             ntor_onion_key: Curve25519Public(curve25519_ntor.public),
-            ntor_onion_key_crosscert: NtorOnionKeyCrossCert {
+            ntor_onion_key_crosscert: NtorOnionKeyCrossCertConstructor {
                 bit: NumericBoolean(ed25519_ntor.1 == 1),
                 cert: Ed25519NtorCrossCert::new_signed(
                     &ed25519_ntor.0,
@@ -1792,7 +1799,8 @@ mod test {
                     expiration,
                 )
                 .unwrap(),
-            },
+            }
+            .construct(),
             signing_key: rsa_id.to_public_key(),
             ipv4_policy: AddrPolicy::default(),
             ipv6_policy: Default::default(),
