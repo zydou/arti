@@ -797,6 +797,7 @@ mod test {
     use std::collections::HashSet;
 
     use rusqlite::params;
+    use strum::IntoEnumIterator;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
@@ -816,7 +817,7 @@ mod test {
             authorities: testdata2::current_auth_cert_contacts(),
             tolerance: DirTolerance::default(),
             rt: PreferredRuntime::current().unwrap(),
-            encodings: Default::default(),
+            encodings: ContentEncoding::iter().collect(),
             _phantom: Default::default(),
         }
     }
