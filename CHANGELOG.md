@@ -71,7 +71,7 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   The same functionality can be enabled through other Cargo features like "onion-service-service".
   ([!4423])
 - tor-keymgr: Removed the "ctor-keystore" Cargo feature.
-  The same functionality can be enabled through other Cargo features.
+  The same functionality can be enabled through the "keymgr" Cargo feature.
   ([!4423])
 - tor-config: Changed the `resolve` functions to now take `ConfigurationTree` by reference.
   ([!4413])
