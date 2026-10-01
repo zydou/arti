@@ -484,13 +484,19 @@ impl NormalItemArgument for OverloadGeneralVersion {}
 ///
 /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deftly)]
-#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct OverloadGeneral {
     /// The version of the item.
+    #[deftly(constructor)]
     pub version: OverloadGeneralVersion,
     /// The timestamp since when the relay is overloaded.
+    #[deftly(constructor)]
     pub since: Iso8601TimeSp,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// Introduction line of a router descriptor.
