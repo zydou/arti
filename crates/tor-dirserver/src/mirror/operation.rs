@@ -317,7 +317,28 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             // State::LoadConsensus.  Depending on this, we download the missing
             // network documents (descriptors) from a directory authority, if
             // any.
-            ConsensusBoundData::Verified { consensus, ttl, .. } => {
+            ConsensusBoundData::Verified { consensus, ttl, futile } => {
+                // See if there are any missing descriptors that are not Refused
+                // yet.  It is important to not exclude the NotFound descriptors
+                // here because they may be available at a different authority.
+                //
+                // TODO DIRMIRROR: What to do in the case there is no authority
+                // left in our list of endpoints?  Right now, this module of the
+                // code is not aware of the endpoints to try and it is the
+                // responsibility of the caller to check this.  Perhaps we
+                // should provide a possibility to force hibernate, as in passing
+                // an Option<DownloadAuthority> or an empty list.  An alternative
+                // worth exploring might also be to perform the RetryDelay
+                // wait logic, as in to not let the caller perform any timeouts
+                // themselves.  Either way, we want to wait to hibernate and
+                // wait for the next consensus in the case that no authority
+                // is left.
+                let (missing_routers, missing_micros, missing_extras) = (
+                    consensus.missing_routers(tx, futile.routers.refused(), Some(1))?,
+                    consensus.missing_micros(tx, futile.micros.refused(), Some(1))?,
+                    consensus.missing_extras(tx, futile.extras.refused(), Some(1))?,
+                );
+
                 if *ttl <= now {
                     // The ttl has been surpassed, download a new
                     // consensus.  It is very important TO NOT transition to
@@ -327,9 +348,9 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                     // database until valid-after has been surpassed, which is
                     // most definitely not what we want.
                     State::FetchConsensus
-                } else if consensus.missing_routers(tx, Some(1))?.is_empty()
-                    && consensus.missing_micros(tx, Some(1))?.is_empty()
-                    && consensus.missing_extras(tx, Some(1))?.is_empty()
+                } else if missing_routers.is_empty()
+                    && missing_micros.is_empty()
+                    && missing_extras.is_empty()
                 {
                     // All queues are empty, meaning we are done, until ttl
                     // ends.
@@ -865,7 +886,7 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::collections::HashSet;
+    use std::{collections::HashSet, iter};
 
     use rusqlite::params;
     use strum::IntoEnumIterator;
@@ -946,11 +967,11 @@ mod test {
                 // contain the relay we removed, because that is missing now.
                 db::read_tx(&pool, |tx| {
                     assert_eq!(
-                        consensus.missing_routers(tx, None).unwrap(),
+                        consensus.missing_routers(tx, iter::empty(), None).unwrap(),
                         HashSet::from([relay_to_remove])
                     );
-                    assert!(consensus.missing_extras(tx, None).unwrap().is_empty());
-                    assert!(consensus.missing_micros(tx, None).unwrap().is_empty());
+                    assert!(consensus.missing_extras(tx, iter::empty(), None).unwrap().is_empty());
+                    assert!(consensus.missing_micros(tx, iter::empty(), None).unwrap().is_empty());
                 })
                 .unwrap();
                 assert!(ttl >= fresh_until);

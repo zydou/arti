@@ -49,6 +49,7 @@ use std::{
     num::NonZero,
     ops::{Add, Sub},
     path::Path,
+    rc::Rc,
     time::{Duration, SystemTime},
 };
 
@@ -335,6 +336,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     ///
     /// Parameters:
     /// :docid - The docid of the consensus.
+    /// :exclude - The descriptors to skip.
     /// :limit - The maximum number of descriptors to return.
     //
     // TODO DIRMIRROR: Potentially constify more queries.
@@ -346,6 +348,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         WHERE
           cr.consensus_docid = :docid
           AND cr.sha1 IS NOT NULL
+          AND cr.sha1 NOT IN rarray(:exclude)
           AND router.sha1 IS NULL
         ORDER BY rand
         LIMIT :limit
@@ -440,6 +443,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     pub(crate) fn missing_routers(
         &self,
         tx: &Transaction<'_>,
+        exclude: impl Iterator<Item = Sha1>,
         limit: Option<u64>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Plain {
@@ -448,10 +452,12 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
 
         let mut stmt = tx.prepare_cached(Self::MISSING_ROUTERS_QUERY)?;
 
+        let exclude = exclude.map(Value::from).collect();
+        let exclude: Rc<Vec<Value>> = Rc::new(exclude);
         let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
             .query_map(
-                named_params! {":docid": self.docid, ":limit": limit},
+                named_params! {":docid": self.docid, ":limit": limit, ":exclude": exclude},
                 |row| row.get(0),
             )?
             .collect::<Result<HashSet<_>, _>>()?;
@@ -471,6 +477,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     pub(crate) fn missing_extras(
         &self,
         tx: &Transaction<'_>,
+        exclude: impl Iterator<Item = Sha1>,
         limit: Option<u64>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Plain {
@@ -494,6 +501,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         //
         // Parameters:
         // :docid - The docid of the consensus.
+        // :exclude - The descriptors to skip.
         // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
@@ -505,15 +513,18 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND router.extra_sha1 IS NOT NULL
               AND extra.sha1 IS NULL
+              AND extra.sha1 NOT IN rarray(:exclude)
             ORDER BY rand
             LIMIT :limit
             "
         ))?;
 
+        let exclude = exclude.map(Value::from).collect();
+        let exclude: Rc<Vec<Value>> = Rc::new(exclude);
         let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
             .query_map(
-                named_params! {":docid": self.docid, ":limit": limit},
+                named_params! {":docid": self.docid, ":limit": limit, ":exclude": exclude},
                 |row| row.get(0),
             )?
             .collect::<Result<HashSet<_>, _>>()?;
@@ -530,6 +541,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     pub(crate) fn missing_micros(
         &self,
         tx: &Transaction<'_>,
+        exclude: impl Iterator<Item = Sha256>,
         limit: Option<u64>,
     ) -> Result<HashSet<Sha256>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Microdesc {
@@ -559,15 +571,18 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND cr.sha2 IS NOT NULL
               AND micro.sha2 IS NULL
+              AND micro.sha2 NOT IN rarray(:exclude)
             ORDER BY rand
             LIMIT :limit
             "
         ))?;
 
+        let exclude = exclude.map(Value::from).collect();
+        let exclude: Rc<Vec<Value>> = Rc::new(exclude);
         let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
             .query_map(
-                named_params! {":docid": self.docid, ":limit": limit},
+                named_params! {":docid": self.docid, ":limit": limit, ":exclude": exclude},
                 |row| row.get(0),
             )?
             .collect::<Result<HashSet<_>, _>>()?;
@@ -1456,7 +1471,7 @@ mod test {
         );
         let meta2 = ConsensusMeta::<Plain>::query(&tx).unwrap();
         assert_eq!(meta2, vec![meta]);
-        let missing_descs = meta.missing_routers(&tx, None).unwrap();
+        let missing_descs = meta.missing_routers(&tx, iter::empty(), None).unwrap();
         let missing_descs2 = body.routers.iter().map(|r| Sha1(*r.doc_digest())).collect();
         assert_eq!(missing_descs, missing_descs2);
     }
@@ -1531,7 +1546,7 @@ mod test {
             .unwrap();
 
         // Only one should be returned.
-        let missing_routers = read_tx(&pool, |tx| meta.missing_routers(tx, None))
+        let missing_routers = read_tx(&pool, |tx| meta.missing_routers(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         assert_eq!(missing_routers, HashSet::from([removed_descriptor]));
@@ -1545,7 +1560,7 @@ mod test {
 
         // Now all should be returned; we verify this by checking that the
         // result is present in all_descriptors, which is a superset.
-        let missing_routers = read_tx(&pool, |tx| meta.missing_routers(tx, None))
+        let missing_routers = read_tx(&pool, |tx| meta.missing_routers(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         // This is a superset of missing_routers because it includes router
@@ -1570,13 +1585,13 @@ mod test {
             let meta = ConsensusMeta::<Plain>::query(tx).unwrap()[0];
 
             // Ensure there are more than 1 missing descriptors now.
-            let n = meta.missing_routers(tx, None).unwrap().len();
+            let n = meta.missing_routers(tx, iter::empty(), None).unwrap().len();
             assert!(n > 1);
 
             let mut prev = HashSet::new();
             let mut randomness_works = false;
             for _ in 0..100 {
-                let cur = meta.missing_routers(tx, Some(1)).unwrap();
+                let cur = meta.missing_routers(tx, iter::empty(), Some(1)).unwrap();
                 if prev != cur {
                     randomness_works = true;
                     break;
@@ -1601,8 +1616,9 @@ mod test {
                 .prepare_cached(ConsensusMeta::<Plain>::MISSING_ROUTERS_QUERY)
                 .unwrap();
 
+            let empty = Rc::new(Vec::<Value>::new());
             let res = stmt
-                .query_map(params![meta[0].docid, -1], |row| row.get::<_, i64>(1))
+                .query_map(params![meta[0].docid, empty, -1], |row| row.get::<_, i64>(1))
                 .unwrap()
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -1632,7 +1648,7 @@ mod test {
         );
 
         // We should have no missing extra-infos.
-        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx, None))
+        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         assert!(missing_extras.is_empty());
@@ -1675,7 +1691,7 @@ mod test {
             .unwrap();
 
         // Only one should be returned.
-        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, None))
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         assert_eq!(missing_micros, HashSet::from([removed_descriptor]));
@@ -1689,7 +1705,7 @@ mod test {
 
         // Now all should be returned; we verify this by checking that the
         // result is present in all_descriptors, which is a superset.
-        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, None))
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         // This is a superset of missing_micros because it includes micro
