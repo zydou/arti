@@ -6,11 +6,14 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 2.7.0 — 01 October 2026
 
-Arti 2.7.0 continues our steady progress on relay and directory authority development,
-including on document parsing, directory mirror support, and DNS stream handling.
+Arti 2.7.0 continues our steady progress on relay and directory authority
+development, including on document parsing, directory mirror support, and DNS
+stream handling.
 
-This release has a number of security fixes for `arti`, `arti-client`, `arti-ureq`, and other lower-level crates.
-Notice for packagers: We have updated our security policy to reflect that we do not request CVE Identifiers for any Arti security issues.
+This release has a number of security fixes for `arti`, `arti-client`,
+`arti-ureq`, and other lower-level crates. Notice for packagers: We have updated
+our security policy to reflect that we do not request CVE Identifiers for any
+Arti security issues.
 
 ### Breaking changes
 
@@ -19,15 +22,19 @@ Notice for packagers: We have updated our security policy to reflect that we do 
 
 ### Security fixes
 
-- low-severity: Fixed a low-severity issue in [`arti-ureq`] that could allow a malicious exit relay to cause an `arti-ureq` client to panic.
+- low-severity: Fixed a low-severity issue in [`arti-ureq`] that could allow a
+  malicious exit relay to cause an `arti-ureq` client to panic.
   ([#2691], [!4365])
-- low-severity: Fixed a low-severity issue in the onion service proof-of-work code,
-  where the control loop could panic and stop if an attacker spent a very large amount of effort.
+- low-severity: Fixed a low-severity issue in the onion service proof-of-work
+  code, where the control loop could panic and stop if an attacker spent a very
+  large amount of effort.
   ([#2681], [!4370], TROVE-2026-068)
-- low-severity: Refactored the decoding of channel handshake messages to avoid an unnecessary `clone()` of the channel's buffer.
+- low-severity: Refactored the decoding of channel handshake messages to avoid
+  an unnecessary `clone()` of the channel's buffer.
   ([#2684], [!4398], TROVE-2026-055)
-- low-severity: Added a memory limit of 16 MiB for an LZMA decompression dictionary.
-  Previously a directory mirror could cause a memory allocation of up to 4 GiB.
+- low-severity: Added a memory limit of 16 MiB for an LZMA decompression
+  dictionary. Previously a directory mirror could cause a memory allocation of
+  up to 4 GiB.
   ([#2687], [!4418], TROVE-2026-045)
 - low-severity: *see confidential comment*
   ([#2748], TROVE-2026-063)
@@ -53,72 +60,89 @@ Notice for packagers: We have updated our security policy to reflect that we do 
 
 ### Deprecated functionality
 
-- `arti`: Deprecated the "keymgr" Cargo feature.
-  The same functionality can be enabled through other Cargo features like "onion-service-service".
+- `arti`: Deprecated the "keymgr" Cargo feature. The same functionality can be
+  enabled through other Cargo features like "onion-service-service".
   ([!4417])
-- `arti`: Deprecated the "ctor-keystore" Cargo feature.
-  The same functionality can be enabled through other Cargo features.
+- `arti`: Deprecated the "ctor-keystore" Cargo feature. The same functionality
+  can be enabled through other Cargo features.
   ([!4423])
-- `arti`: Deprecated the "opentelemetry-appender-tracing" Cargo feature.
-  This was never a real feature, but an implicit feature created by Cargo due to an unused optional dependency.
+- `arti`: Deprecated the "opentelemetry-appender-tracing" Cargo feature. This
+  was never a real feature, but an implicit feature created by Cargo due to an
+  unused optional dependency.
   ([!4442], [!4380])
-- `tor-config`: Deprecated the `tor_config(serde = ...)` attribute in the `TorConfig` `derive-deftly` derive macro.
+- `tor-config`: Deprecated the `tor_config(serde = ...)` attribute in the
+  `TorConfig` `derive-deftly` derive macro.
   ([!4395])
 
 ### Breaking changes in lower-level crates
 
-- `arti-client`: Removed the "ctor-keystore" Cargo feature.
-  The same functionality can be enabled through other Cargo features like "onion-service-service".
+- `arti-client`: Removed the "ctor-keystore" Cargo feature. The same
+  functionality can be enabled through other Cargo features like
+  "onion-service-service".
   ([!4423])
-- `tor-keymgr`: Removed the "ctor-keystore" Cargo feature.
-  The same functionality can be enabled through the "keymgr" Cargo feature.
+- `tor-keymgr`: Removed the "ctor-keystore" Cargo feature. The same
+  functionality can be enabled through the "keymgr" Cargo feature.
   ([!4423])
-- `tor-config`: Changed the `resolve` functions to now take `ConfigurationTree` by reference.
+- `tor-config`: Changed the `resolve` functions to now take `ConfigurationTree`
+  by reference.
   ([!4413])
-- `tor-config`: Changed the `ResolveContext` struct to now have a lifetime parameter.
+- `tor-config`: Changed the `ResolveContext` struct to now have a lifetime
+  parameter.
   ([!4413])
-- `tor-socksproto`: Changed the `SocksVersion::try_from()` function to return a new `InvalidSocksVersion` error type.
+- `tor-socksproto`: Changed the `SocksVersion::try_from()` function to return a
+  new `InvalidSocksVersion` error type.
   ([!4388])
 
 ### Relay development
 
-- Enabled use of `arti-relay`'s temporary `DirMgr`-based directory server backend.
+- Enabled use of `arti-relay`'s temporary `DirMgr`-based directory server
+  backend.
   ([!4381])
 - Added a new `Resolve::query()` accessor in the `tor-cell` crate.
   ([!4391])
-- Fixed checking of IPv4-mapped IPv6 addresses in `ChanTarget` for when `arti-relay` opens channels.
+- Fixed checking of IPv4-mapped IPv6 addresses in `ChanTarget` for when
+  `arti-relay` opens channels.
   ([!4372])
 - Cleaned up some of the circuit handshake code to improve readability.
   ([!4350])
-- Fixed receiving stream SENDMEs on relay circuits by correctly updating the SENDME counter.
+- Fixed receiving stream SENDMEs on relay circuits by correctly updating the
+  SENDME counter.
   ([!4406])
 - Added support for sending stream SENDMEs on relay circuits.
   ([!4407])
-- Added a bandwidth pool utility to the `tor-async-utils` crate to support relay connection bandwidth rate-limiting in the future.
+- Added a bandwidth pool utility to the `tor-async-utils` crate to support relay
+  connection bandwidth rate-limiting in the future.
   ([!4072])
-- Added an initial implementation of the relay's DNS resolver,
-  which underpins domain name resolution for RESOLVE (and in the future BEGIN) messages.
+- Added an initial implementation of the relay's DNS resolver, which underpins
+  domain name resolution for RESOLVE (and in the future BEGIN) messages.
   ([!4420])
 
 ### Directory authority development
 
-- Changed a panic to a warning when a consensus lifetime validity period is unexpectedly short.
+- Changed a panic to a warning when a consensus lifetime validity period is
+  unexpectedly short.
   ([!4371])
 - Renamed some private enum variants in the `tor-dirserver` code.
   ([!4288])
-- Switched directory mirror requests to a "sophisticated" version of the network document parser.
+- Switched directory mirror requests to a "sophisticated" version of the network
+  document parser.
   ([!4374])
-- Changed the `anyhow` dependency to a dev-dependency in the `tor-dirauth` crate.
+- Changed the `anyhow` dependency to a dev-dependency in the `tor-dirauth`
+  crate.
   ([!4393])
-- Documented the directory authority's microdescriptor error threshold responsibility.
+- Documented the directory authority's microdescriptor error threshold
+  responsibility.
   ([!4332])
 - Improved some error messages in Arti's experimental directory server.
   ([!4399])
-- Added logic to Arti's experimental directory server to enable future insertion of network statuses into the database.
+- Added logic to Arti's experimental directory server to enable future insertion
+  of network statuses into the database.
   ([!4351], [!4352])
-- Refactored the authority certificate handling in Arti's experimental directory server.
+- Refactored the authority certificate handling in Arti's experimental directory
+  server.
   ([!4389])
-- Changed the directory server to compute the missing descriptor queue dynamically.
+- Changed the directory server to compute the missing descriptor queue
+  dynamically.
   ([!4378])
 - Renamed uses of "lifetime" to "ttl" in the directory server code.
   ([!4394])
@@ -130,11 +154,13 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4402])
 - Improved the documentation for `Eq` and `Ord` on `F64Finite` in `tor-netdoc`.
   ([!4412])
-- Implemented `Ord`, `PartialOrd`, and `Hash` for a variety of types in `tor-netdoc` and `tor-llcrypto`.
+- Implemented `Ord`, `PartialOrd`, and `Hash` for a variety of types in
+  `tor-netdoc` and `tor-llcrypto`.
   ([!4409])
 - Added logic for adding a consensus to the directory server's database.
   ([!4408])
-- Improved the documentation around `ConsensusBoundData` field requirements in `tor-dirserver`.
+- Improved the documentation around `ConsensusBoundData` field requirements in
+  `tor-dirserver`.
   ([!4410])
 - Renamed "servers" to "routers" in much of the `tor-dirserver` crate.
   ([!4429])
@@ -143,18 +169,23 @@ Notice for packagers: We have updated our security policy to reflect that we do 
 
 - Migrated our security policy from Arti's [wiki] to the Arti repository.
   ([!4383])
-- Updated our security policy to describe when/how we assign identifiers (TROVEs, RUSTSECs, etc) for security issues.
+- Updated our security policy to describe when/how we assign identifiers
+  (TROVEs, RUSTSECs, etc) for security issues.
   ([!4386])
-- Updated our release guide to include instructions for handling security patches.
+- Updated our release guide to include instructions for handling security
+  patches.
   ([!4401], [!4416])
-- Added documentation about Arti's support for third-party integrations, such as `arti-ureq`.
+- Added documentation about Arti's support for third-party integrations, such as
+  `arti-ureq`.
   ([!4411])
-- Documented in the `tor-rtcompat` crate that the `native-tls` backend cannot disable TLS session resumption.
+- Documented in the `tor-rtcompat` crate that the `native-tls` backend cannot
+  disable TLS session resumption.
   ([!4425])
 
 ### Infrastructure
 
-- Upgraded the [Shadow] version used in the CI environment to fix sqlite3 database errors.
+- Upgraded the [Shadow] version used in the CI environment to fix sqlite3
+  database errors.
   ([!4361])
 - Upgraded some container image versions used in the CI environment.
   ([!4363], [!4428])
@@ -177,15 +208,20 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4390])
 - Cleaned up some comments and code structure in the channel message code.
   ([!4366])
-- Imported/migrated the saturating-time crate from <https://codeberg.org/cve/saturating-time>.
+- Imported/migrated the saturating-time crate from
+  <https://codeberg.org/cve/saturating-time>.
   ([!4414])
-- Improved prompts in `arti`s command line interface to re-prompt for "yes"/"no" after invalid input.
+- Improved prompts in `arti`s command line interface to re-prompt for "yes"/"no"
+  after invalid input.
   ([!4403])
-- Updated the "pt-proxy" example to the new API provided by the fast-socks5 crate.
+- Updated the "pt-proxy" example to the new API provided by the fast-socks5
+  crate.
   ([!4397])
-- Relaxed the version bounds on the `rusqlite` crate to allow Arti embedders to use `rusqlite` 0.40.x versions.
+- Relaxed the version bounds on the `rusqlite` crate to allow Arti embedders to
+  use `rusqlite` 0.40.x versions.
   ([!4424])
-- Relaxed the "pathbias-lite" circuit build failure thresholds for triggering guard restrictions.
+- Relaxed the "pathbias-lite" circuit build failure thresholds for triggering
+  guard restrictions.
   ([!4426])
 - Updated to use the latest GeoIP data from the `tor-geoip-data` crate.
   ([!4432])
