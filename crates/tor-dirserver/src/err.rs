@@ -42,6 +42,13 @@ pub(crate) enum AuthorityRequestError {
     Response(&'static str),
 
     /// A request led to no progress being made.
+    ///
+    /// This is the case if the response only consists of netdocs we did not
+    /// request or no netdocs at all, leading to no progress.
+    ///
+    /// The correct error handling strategy for this case is to pick a different
+    /// endpoint, as the current one is either not useful for us anymore or
+    /// is maliciously tricking us into something that should not happen.
     #[error("request resulted in no progress")]
     NoProgress,
 
