@@ -208,13 +208,13 @@ Arti security issues.
   ([!4390])
 - Cleaned up some comments and code structure in the channel message code.
   ([!4366])
-- Imported/migrated the saturating-time crate from
+- Imported/migrated the `saturating-time` crate from
   <https://codeberg.org/cve/saturating-time>.
   ([!4414])
 - Improved prompts in `arti`s command line interface to re-prompt for "yes"/"no"
   after invalid input.
   ([!4403])
-- Updated the "pt-proxy" example to the new API provided by the fast-socks5
+- Updated the "pt-proxy" example to the new API provided by the `fast-socks5`
   crate.
   ([!4397])
 - Relaxed the version bounds on the `rusqlite` crate to allow Arti embedders to
