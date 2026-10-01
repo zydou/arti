@@ -109,12 +109,18 @@ def add_additional_methods(methods):
     Add entries for additional methods that are not ordinarily detected
     `by arti:x_list_all_rpc_methods`.
     """
-    # This one isn't detected because it applies to all objects.
+    # These aren't detected because they apply to all objects.
     # Eventually we may add a better way to solve this.
     methods["methods"]["rpc:release"] = {
         "applies_to_object_types": "*",
         "method_type": "arti_rpcserver::objmap::methods::RpcRelease",
         "output_type": "tor_rpcbase::Nil",
+        "update_type": None,
+    }
+    methods["methods"]["rpc:clone_id"] = {
+        "applies_to_object_types": "*",
+        "method_type": "arti_rpcserver::objmap::methods::RpcCloneId",
+        "output_type": "tor_rpcbase::SingleIdResponse",
         "update_type": None,
     }
 
