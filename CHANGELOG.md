@@ -9,7 +9,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 Arti 2.7.0 continues our steady progress on relay and directory authority development,
 including on document parsing, directory mirror support, and DNS stream handling.
 
-This release has a number of security fixes for arti, arti-client, arti-ureq, and other lower-level crates.
+This release has a number of security fixes for `arti`, `arti-client`, `arti-ureq`, and other lower-level crates.
 Notice for packagers: We have updated our security policy to reflect that we do not apply for CVEs for any Arti security issues.
 
 ### Breaking changes
@@ -19,7 +19,7 @@ Notice for packagers: We have updated our security policy to reflect that we do 
 
 ### Security fixes
 
-- low-severity: Fixed a low-severity issue in [arti-ureq] that could allow a malicious exit relay to cause an arti-ureq client to panic.
+- low-severity: Fixed a low-severity issue in [`arti-ureq`] that could allow a malicious exit relay to cause an `arti-ureq` client to panic.
   ([#2691], [!4365])
 - low-severity: Fixed a low-severity issue in the onion service proof-of-work code,
   where the control loop could panic and stop if an attacker spent a very large amount of effort.
@@ -82,11 +82,11 @@ Notice for packagers: We have updated our security policy to reflect that we do 
 
 ### Relay development
 
-- Enabled use of arti-relay's temporary `DirMgr`-based directory server backend.
+- Enabled use of `arti-relay`'s temporary `DirMgr`-based directory server backend.
   ([!4381])
-- Added a new `Resolve::query()` accessor in the tor-cell crate.
+- Added a new `Resolve::query()` accessor in the `tor-cell` crate.
   ([!4391])
-- Fixed checking of IPv4-mapped IPv6 addresses in `ChanTarget` for when arti-relay opens channels.
+- Fixed checking of IPv4-mapped IPv6 addresses in `ChanTarget` for when `arti-relay` opens channels.
   ([!4372])
 - Cleaned up some of the circuit handshake code to improve readability.
   ([!4350])
@@ -94,7 +94,7 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4406])
 - Added support for sending stream SENDMEs on relay circuits.
   ([!4407])
-- Added a bandwidth pool utility to the tor-async-utils crate to support relay connection bandwidth rate-limiting in the future.
+- Added a bandwidth pool utility to the `tor-async-utils` crate to support relay connection bandwidth rate-limiting in the future.
   ([!4072])
 - Added an initial implementation of the relay's DNS resolver,
   which underpins domain name resolution for RESOLVE (and in the future BEGIN) messages.
@@ -104,11 +104,11 @@ Notice for packagers: We have updated our security policy to reflect that we do 
 
 - Changed a panic to a warning when a consensus lifetime validity period is unexpectedly short.
   ([!4371])
-- Renamed some private enum variants in the tor-dirserver code.
+- Renamed some private enum variants in the `tor-dirserver` code.
   ([!4288])
 - Switched directory mirror requests to a "sophisticated" version of the network document parser.
   ([!4374])
-- Changed the "anyhow" dependency to a dev-dependency in the tor-dirauth crate.
+- Changed the `anyhow` dependency to a dev-dependency in the `tor-dirauth` crate.
   ([!4393])
 - Documented the directory authority's microdescriptor error threshold responsibility.
   ([!4332])
@@ -130,13 +130,13 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4402])
 - Improved the documentation for `Eq` and `Ord` on `F64Finite` in tor-netdoc.
   ([!4412])
-- Implemented `Ord`, `PartialOrd`, and `Hash` for a variety of types in tor-netdoc and tor-llcrypto.
+- Implemented `Ord`, `PartialOrd`, and `Hash` for a variety of types in `tor-netdoc` and `tor-llcrypto`.
   ([!4409])
 - Added logic for adding a consensus to the directory server's database.
   ([!4408])
-- Improved the documentation around `ConsensusBoundData` field requirements in tor-dirserver.
+- Improved the documentation around `ConsensusBoundData` field requirements in `tor-dirserver`.
   ([!4410])
-- Renamed "servers" to "routers" in much of the tor-dirserver crate.
+- Renamed "servers" to "routers" in much of the `tor-dirserver` crate.
   ([!4429])
 
 ### Documentation
@@ -147,9 +147,9 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4386])
 - Updated our release guide to include instructions for handling security patches.
   ([!4401], [!4416])
-- Added documentation about Arti's support for third-party integrations, such as arti-ureq.
+- Added documentation about Arti's support for third-party integrations, such as `arti-ureq`.
   ([!4411])
-- Documented in the tor-rtcompat crate that the native-tls backend cannot disable TLS session resumption.
+- Documented in the `tor-rtcompat` crate that the native-tls backend cannot disable TLS session resumption.
   ([!4425])
 
 ### Infrastructure
@@ -173,7 +173,7 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4395])
 - Improved the error returned from the SOCKS protocol code.
   ([!4388])
-- Added a new `Sender::subscribe()` API in the async-utils crate.
+- Added a new `Sender::subscribe()` API in the `tor-async-utils` crate.
   ([!4390])
 - Cleaned up some comments and code structure in the channel message code.
   ([!4366])
