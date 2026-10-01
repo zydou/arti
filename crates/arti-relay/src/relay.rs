@@ -361,9 +361,7 @@ impl<R: Runtime> TorRelay<R> {
         // TODO: This is temporary until the directory mirror has support for downloading documents.
         let dir_mirror = DirMirrorWithBackend::new(dir_mirror, client.dirmgr_plugin().clone());
 
-        // XXX: use the resolv_conf provided in the config, if there is one
-        // XXX: enable case randomization
-        let resolver = Arc::new(Resolver::builder_tokio()?.build()?);
+        let resolver = Arc::new(build_hickory_resolver(&inert.config)?);
 
         Ok(Self {
             runtime,
