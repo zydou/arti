@@ -48,36 +48,36 @@ Notice for packagers: We have updated our security policy to reflect that we do 
 
 ### Major features
 
-- Added RPC support for modifying and inspecting arti's configuration.
+- Added RPC support for modifying and inspecting `arti`s configuration.
   ([!4413])
 
 ### Deprecated functionality
 
-- arti: Deprecated the "keymgr" Cargo feature.
+- `arti`: Deprecated the "keymgr" Cargo feature.
   The same functionality can be enabled through other Cargo features like "onion-service-service".
   ([!4417])
-- arti: Deprecated the "ctor-keystore" Cargo feature.
+- `arti`: Deprecated the "ctor-keystore" Cargo feature.
   The same functionality can be enabled through other Cargo features.
   ([!4423])
-- arti: Deprecated the "opentelemetry-appender-tracing" Cargo feature.
+- `arti`: Deprecated the "opentelemetry-appender-tracing" Cargo feature.
   This was never a real feature, but an implicit feature created by Cargo due to an unused optional dependency.
   ([!4442], [!4380])
-- tor-config: Deprecated the `tor_config(serde = ...)` attribute in the `TorConfig` derive-deftly derive macro.
+- `tor-config`: Deprecated the `tor_config(serde = ...)` attribute in the `TorConfig` `derive-deftly` derive macro.
   ([!4395])
 
 ### Breaking changes in lower-level crates
 
-- arti-client: Removed the "ctor-keystore" Cargo feature.
+- `arti-client`: Removed the "ctor-keystore" Cargo feature.
   The same functionality can be enabled through other Cargo features like "onion-service-service".
   ([!4423])
-- tor-keymgr: Removed the "ctor-keystore" Cargo feature.
+- `tor-keymgr`: Removed the "ctor-keystore" Cargo feature.
   The same functionality can be enabled through the "keymgr" Cargo feature.
   ([!4423])
-- tor-config: Changed the `resolve` functions to now take `ConfigurationTree` by reference.
+- `tor-config`: Changed the `resolve` functions to now take `ConfigurationTree` by reference.
   ([!4413])
-- tor-config: Changed the `ResolveContext` struct to now have a lifetime parameter.
+- `tor-config`: Changed the `ResolveContext` struct to now have a lifetime parameter.
   ([!4413])
-- tor-socksproto: Changed the `SocksVersion::try_from()` function to return a new `InvalidSocksVersion` error type.
+- `tor-socksproto`: Changed the `SocksVersion::try_from()` function to return a new `InvalidSocksVersion` error type.
   ([!4388])
 
 ### Relay development
@@ -128,7 +128,7 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4396])
 - Added a 10 minute "ttl" field for unverified consensus documents.
   ([!4402])
-- Improved the documentation for `Eq` and `Ord` on `F64Finite` in tor-netdoc.
+- Improved the documentation for `Eq` and `Ord` on `F64Finite` in `tor-netdoc`.
   ([!4412])
 - Implemented `Ord`, `PartialOrd`, and `Hash` for a variety of types in `tor-netdoc` and `tor-llcrypto`.
   ([!4409])
@@ -149,7 +149,7 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4401], [!4416])
 - Added documentation about Arti's support for third-party integrations, such as `arti-ureq`.
   ([!4411])
-- Documented in the `tor-rtcompat` crate that the native-tls backend cannot disable TLS session resumption.
+- Documented in the `tor-rtcompat` crate that the `native-tls` backend cannot disable TLS session resumption.
   ([!4425])
 
 ### Infrastructure
@@ -169,7 +169,7 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4382])
 - Various changes/fixes to allow Arti to build in rust nightly.
   ([!4380], [!4443])
-- Updated various crates to use derive-deftly's new unquoted meta syntax.
+- Updated various crates to use `derive-deftly`s new unquoted meta syntax.
   ([!4395])
 - Improved the error returned from the SOCKS protocol code.
   ([!4388])
@@ -179,15 +179,15 @@ Notice for packagers: We have updated our security policy to reflect that we do 
   ([!4366])
 - Imported/migrated the saturating-time crate from <https://codeberg.org/cve/saturating-time>.
   ([!4414])
-- Improved prompts in arti's command line interface to re-prompt for "yes"/"no" after invalid input.
+- Improved prompts in `arti`s command line interface to re-prompt for "yes"/"no" after invalid input.
   ([!4403])
 - Updated the "pt-proxy" example to the new API provided by the fast-socks5 crate.
   ([!4397])
-- Relaxed the version bounds on the rusqlite crate to allow arti embedders to use rusqlite 0.40.x versions.
+- Relaxed the version bounds on the `rusqlite` crate to allow Arti embedders to use `rusqlite` 0.40.x versions.
   ([!4424])
 - Relaxed the "pathbias-lite" circuit build failure thresholds for triggering guard restrictions.
   ([!4426])
-- Updated to use the latest GeoIP data from the tor-geoip-data crate.
+- Updated to use the latest GeoIP data from the `tor-geoip-data` crate.
   ([!4432])
 - Improved some message buffer parsing code to make the intent more clear.
   ([!4435])
@@ -282,7 +282,7 @@ for funding the development of Arti!
 [Bureau of Democracy, Human Rights, and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
 [RUSTSEC-2026-0285]: https://rustsec.org/advisories/RUSTSEC-2026-0285.html
 [Shadow]: https://shadow.github.io
-[arti-ureq]: https://crates.io/crates/arti-ureq
+[`arti-ureq`]: https://crates.io/crates/arti-ureq
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [wiki]: https://gitlab.torproject.org/tpo/core/arti/-/wikis/home
 
