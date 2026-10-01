@@ -56,13 +56,13 @@ pub(crate) mod sealed {
 
         /// Return the maximum allowable response length we'll accept for this
         /// request.
-        fn max_response_len(&self) -> usize {
-            (16 * 1024 * 1024) - 1
-        }
+        fn max_response_len(&self) -> usize;
 
-        /// Return an error if there is some problem with the provided circuit that
-        /// would keep it from being used for this request.
-        fn check_circuit<'a>(
+        /// Optimization: return an error if there is some problem with the provided circuit that
+        /// makes it unlikely to be useful for this request.
+        ///
+        /// *Do not* use this method to check for security properties.
+        fn check_circuit_skip_optimization<'a>(
             &self,
             tunnel: &'a ClientDirTunnel,
         ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
@@ -113,6 +113,19 @@ impl sealed::RequestableInner for Arc<dyn Requestable> {
     fn anonymized(&self) -> AnonymizedRequest {
         let r: &dyn Requestable = self.as_ref();
         r.anonymized()
+    }
+
+    fn max_response_len(&self) -> usize {
+        let r: &dyn Requestable = self.as_ref();
+        r.max_response_len()
+    }
+
+    fn check_circuit_skip_optimization<'a>(
+        &self,
+        tunnel: &'a ClientDirTunnel,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
+        let r: &dyn Requestable = self.as_ref();
+        r.check_circuit_skip_optimization(tunnel)
     }
 }
 
@@ -296,7 +309,11 @@ impl sealed::RequestableInner for ConsensusRequest {
         false
     }
 
-    fn check_circuit<'a>(
+    fn max_response_len(&self) -> usize {
+        (16 * 1024 * 1024) - 1
+    }
+
+    fn check_circuit_skip_optimization<'a>(
         &self,
         tunnel: &'a ClientDirTunnel,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
@@ -579,6 +596,12 @@ impl sealed::RequestableInner for RoutersOwnDescRequest {
 
     fn partial_response_body_ok(&self) -> bool {
         false
+    }
+
+    fn max_response_len(&self) -> usize {
+        // As of 2026, directory authorities don't accept a routerdesc longer than
+        // 20000 bytes.  This should be plenty for the foreseeable future.
+        128 * 1024
     }
 
     fn anonymized(&self) -> AnonymizedRequest {

@@ -191,7 +191,9 @@ where
         })
     };
 
-    req.check_circuit(&tunnel).await.map_err(wrap_err)?;
+    req.check_circuit_skip_optimization(&tunnel)
+        .await
+        .map_err(wrap_err)?;
 
     // Launch the stream.
     let mut stream = runtime

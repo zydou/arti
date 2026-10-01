@@ -727,6 +727,7 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     fn protocol_statuses(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)>;
 }
 
+#[async_trait]
 impl<T> NetDirProvider for Arc<T>
 where
     T: NetDirProvider,
@@ -745,6 +746,23 @@ where
 
     fn params(&self) -> Arc<dyn AsRef<NetParameters>> {
         self.deref().params()
+    }
+
+    async fn wait_for_netdir(
+        &self,
+        timeliness: Timeliness,
+    ) -> std::result::Result<Arc<NetDir>, NetdirProviderShutdown> {
+        self.deref().wait_for_netdir(timeliness).await
+    }
+
+    async fn wait_for_netdir_to_list(
+        &self,
+        target: &tor_linkspec::RelayIds,
+        timeliness: Timeliness,
+    ) -> std::result::Result<(), NetdirProviderShutdown> {
+        self.deref()
+            .wait_for_netdir_to_list(target, timeliness)
+            .await
     }
 
     fn protocol_statuses(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)> {
