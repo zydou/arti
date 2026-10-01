@@ -810,6 +810,17 @@ mod test {
     type Plain = tor_netdoc::doc::netstatus::plain::NetworkStatusUnverified;
     type Md = tor_netdoc::doc::netstatus::md::NetworkStatusUnverified;
 
+    /// Returns a [`StaticEngine`] for testing.
+    fn static_engine<T>() -> StaticEngine<T> {
+        StaticEngine {
+            authorities: testdata2::current_auth_cert_contacts(),
+            tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
+            encodings: Default::default(),
+            _phantom: Default::default(),
+        }
+    }
+
     /// Tests whether the load consensus state computes missing descriptors
     /// properly.
     ///
@@ -820,13 +831,7 @@ mod test {
     async fn state_load_consensus() {
         let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::<Plain>::None;
-        let engine = StaticEngine {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            encodings: Default::default(),
-            _phantom: Default::default(),
-        };
+        let engine = static_engine();
 
         let time: Timestamp = testdata2::valid_system_time().into();
         let fresh_until: Timestamp = testdata2::current_consensus_ns()
@@ -892,13 +897,7 @@ mod test {
     async fn state_fetch_consensus() {
         let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::<Plain>::None;
-        let engine = StaticEngine {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            encodings: Default::default(),
-            _phantom: Default::default(),
-        };
+        let engine = static_engine();
         let now = Timestamp::from(testdata2::invalid_system_time());
 
         let state = db::read_tx(&pool, |tx| engine.determine_state(tx, &data, now))
@@ -950,13 +949,7 @@ mod test {
             raw: testdata2::current_consensus_ns().2.to_owned(),
             ttl: Timestamp::from(testdata2::valid_system_time()) + UNVERIFIED_TTL,
         };
-        let mut engine = StaticEngine {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            encodings: Default::default(),
-            _phantom: Default::default(),
-        };
+        let mut engine = static_engine();
 
         // We want to download authority certificates; for this, remove
         // one of them from the database.
@@ -1055,13 +1048,7 @@ mod test {
     #[tokio::test]
     async fn certs_already() {
         let pool = testdata2::test_db();
-        let engine = StaticEngine::<Plain> {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            encodings: Default::default(),
-            _phantom: Default::default(),
-        };
+        let engine = static_engine::<Plain>();
 
         db::read_tx(&pool, |tx| {
             // With a correct system time, this should align with all authority
@@ -1094,13 +1081,7 @@ mod test {
         let unverified: Plain =
             parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().2, ""))
                 .unwrap();
-        let engine = StaticEngine::<Plain> {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            encodings: Default::default(),
-            _phantom: Default::default(),
-        };
+        let engine = static_engine();
         let now = Timestamp::from(testdata2::valid_system_time());
         let mut data = ConsensusBoundData::<Plain>::Unverified {
             consensus: unverified.clone(),
