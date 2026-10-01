@@ -284,8 +284,6 @@ impl Consensus {
         let hashes = DirectorySignaturesHashesAccu {
             sha256,
             sha1,
-            // TODO #2530 This is wrong.  There isn't one hash, there's two.
-            sha1_unnamed: sha1,
         };
         let siggroup = SignatureGroup {
             hashes,
