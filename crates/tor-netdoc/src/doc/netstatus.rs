@@ -1018,7 +1018,7 @@ pub struct SharedRandStatuses {
     pub __non_exhaustive: (),
 }
 
-/// Relay weight information - `w` item in routerstatus
+/// Relay weight information - `w` item in routerstatus in consensuses
 ///
 /// This is a combination of two representations of (subsets of) the same information,
 /// from an optional `w` in the document.
@@ -1081,6 +1081,15 @@ pub struct RelayWeightsItem {
 
     /// The complete parameter set, if available and `w` was present.
     params: Unknown<Option<NetParams<u32>>>,
+}
+
+/// Relay weight information - `w` item in routerstatus in votes
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(NetdocEncodableFields, NetdocParseableFields)]
+#[allow(clippy::exhaustive_structs)] // this is always just this single item
+pub struct VoteRelayWeightsItem {
+    /// The parameters, uninterpreted.
+    pub w: Option<NetParams<u32>>,
 }
 
 /// Recognized weight fields on a single relay in a consensus

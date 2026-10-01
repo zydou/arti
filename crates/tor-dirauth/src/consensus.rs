@@ -1,12 +1,29 @@
 //! Consensus methods
+#![allow(unused)] // TODO DIRAUTH
 
 use crate::internal_prelude::*;
 
+use tor_netdoc::doc::netstatus::{NetParams, RelayWeightsItem, VoteRelayWeightsItem};
+use tor_netdoc::types::{NotPresent, relay_flags::DocRelayFlags};
+
+// md calculations
 mod ip_summary;
 mod method;
 mod microdesc;
 mod tracked_method;
 
+// consensus calculations
+#[macro_use]
+mod calculate_macros;
+mod framework;
+mod functions;
+mod preamble;
+#[macro_use]
+mod rs_common;
+mod rs_body;
+mod rs_select;
+
+pub use framework::*;
 pub use method::*;
 pub use microdesc::*;
 pub use tracked_method::*;

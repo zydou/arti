@@ -175,7 +175,7 @@ pub struct RouterStatus {
     // because that would be non-additive.
     #[deftly(constructor)]
     #[deftly(netdoc(flatten))]
-    pub weight: RelayWeightsItem,
+    pub weight: ns_type!(RelayWeightsItem, RelayWeightsItem, VoteRelayWeightsItem),
 
     /// `p` --- Exit ports summary
     ///
