@@ -112,7 +112,7 @@ Arti security issues.
   ([!4407])
 - Added a bandwidth pool utility to the `tor-async-utils` crate to support relay
   connection bandwidth rate-limiting in the future.
-  ([!4072])
+  ([!4072], [!4452])
 - Added an initial implementation of the relay's DNS resolver, which underpins
   domain name resolution for RESOLVE (and in the future BEGIN) messages.
   ([!4420])
@@ -164,6 +164,9 @@ Arti security issues.
   ([!4410])
 - Renamed "servers" to "routers" in much of the `tor-dirserver` crate.
   ([!4429])
+- Added a lot of groundwork facilities for building the "consensus-from-votes"
+  algorithm.
+  ([!4415])
 
 ### Documentation
 
@@ -289,6 +292,7 @@ for funding the development of Arti!
 [!4412]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4412
 [!4413]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4413
 [!4414]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4414
+[!4415]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4415
 [!4416]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4416
 [!4417]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4417
 [!4418]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4418
@@ -303,6 +307,7 @@ for funding the development of Arti!
 [!4435]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4435
 [!4442]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4442
 [!4443]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4443
+[!4452]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4452
 [#2599]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2599
 [#2600]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2600
 [#2680]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2680
