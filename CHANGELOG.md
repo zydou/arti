@@ -36,21 +36,33 @@ Arti security issues.
   dictionary. Previously a directory mirror could cause a memory allocation of
   up to 4 GiB.
   ([#2687], [!4418], TROVE-2026-045)
-- low-severity: *see confidential comment*
+- low-severity: Fixed an integer underflow that could cause an onion service to
+  panic in debug builds, or when built with `overflow-checks = true` (a
+  non-standard and not-recommended configuration). This panic could be triggered
+  to cause an intentional denial-of-service of that onion service.
   ([#2748], TROVE-2026-063)
-- low-severity: *see confidential comment*
+- low-severity: Fixed an unbounded buffer read during `arti`s HTTP CONNECT
+  handshake that could cause excessive memory usage.
   ([#2686], TROVE-2026-049)
-- medium-severity: *see confidential comment*
+- medium-severity: Fixed a consensus parsing/decompression issue that could
+  cause excessive memory usage.
   ([#2599], TROVE-2026-028)
-- medium-severity: *see confidential comment*
+- medium-severity: Fixed a consensus-diff parsing/decompression issue that could
+  cause excessive memory usage.
   ([#2600], TROVE-2026-029)
-- medium-severity: *see confidential comment*
+- medium-severity: Fixed an issue where Arti is unable to parse the consensus
+  due to a parser that is more strict than that of the directory authorities.
   ([#2680], TROVE-2026-048)
-- medium-severity: *see confidential comment*
+- medium-severity: Added a timeout while reading the HTTP headers of a directory
+  fetch. Without this timeout, a directory mirror could prevent Arti from
+  updating its consensus or descriptors.
   ([#2688], TROVE-2026-046)
-- medium-severity: *see confidential comment*
+- medium-severity: Added a filter to the RESOLVED response which removes local
+  addresses.
   ([#2694], TROVE-2026-044)
-- high-severity: *see confidential comment*
+- high-severity: Fixed a bug in the handling of "half-streams". Previously,
+  these half-streams could be leveraged to cause excessive memory usage, and a
+  "dropped cells" side-channel attack.
   ([#2683], TROVE-2026-047)
 
 ### Major features
