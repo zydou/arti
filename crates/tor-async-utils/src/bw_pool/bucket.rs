@@ -10,6 +10,9 @@
 //! See the [`super`] documentation for more information on how these objects interact with each
 //! other.
 
+// TODO MSRV 1.95: Remove this, and use try_update instead of fetch_update.
+#![allow(deprecated)]
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The atomic token bucket minus the clock component.
