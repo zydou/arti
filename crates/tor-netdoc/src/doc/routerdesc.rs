@@ -536,17 +536,24 @@ pub struct ExtraInfoDigests {
 // Does not derive Ord because it only makes sense to order on a single
 // field but not all.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Deftly)]
-#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct Bandwidth {
     /// The volume that the relay is willing to sustain over long periods.
+    #[deftly(constructor)]
     pub average: u64,
 
     /// The volume that the relay is willing to sustain in very short intervals.
+    #[deftly(constructor)]
     pub burst: u64,
 
     /// The estimate of the capacity this relay can handle.
+    #[deftly(constructor)]
     pub observed: u64,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// Ntor onion key cross-certificate.
@@ -1765,11 +1772,12 @@ mod test {
             )
             .unwrap(),
             master_key_ed25519: Ed25519Identity::from(ed25519_id.public_key()).into(),
-            bandwidth: Bandwidth {
+            bandwidth: BandwidthConstructor {
                 average: 0,
                 burst: 0,
                 observed: 0,
-            },
+            }
+            .construct(),
             platform: None,
             published: published.into(),
             fingerprint: Some(rsa_id.to_public_key().to_rsa_identity().into()),
