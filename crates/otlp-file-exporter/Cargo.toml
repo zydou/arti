@@ -1,6 +1,6 @@
 [package]
 name = "otlp-file-exporter"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Wesley Aptekar-Cassels <wesleyac@torproject.org>"]
 edition = "2024"
 rust-version = "1.92"

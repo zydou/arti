@@ -184,7 +184,7 @@ dependencies = [
 
 [[package]]
 name = "arti"
-version = "2.6.0"
+version = "2.7.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -364,7 +364,7 @@ version = "0.42.0"
 
 [[package]]
 name = "arti-dirauth"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "arti-relay"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -454,7 +454,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpc-client-core"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "assert_matches",
  "caret",
@@ -482,7 +482,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpcserver"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "arti-client",
  "async-trait",
@@ -542,7 +542,7 @@ dependencies = [
 
 [[package]]
 name = "arti-ureq"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "arti-client",
  "async-std",
@@ -1217,7 +1217,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "caret"
-version = "0.10.1"
+version = "0.11.0"
 
 [[package]]
 name = "cast"
@@ -2426,7 +2426,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "equix"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "arrayvec",
  "hashx",
@@ -2687,7 +2687,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "assert_matches",
  "derive_builder_fork_arti",
@@ -2712,7 +2712,7 @@ checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
 name = "fslock-guard"
-version = "0.8.2"
+version = "0.9.0"
 dependencies = [
  "libc",
  "test-temp-dir",
@@ -2774,7 +2774,7 @@ dependencies = [
 
 [[package]]
 name = "futures-copy"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "extend",
  "futures",
@@ -3076,7 +3076,7 @@ dependencies = [
 
 [[package]]
 name = "hashx"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -4453,7 +4453,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "oneshot-fused-workaround"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "futures",
 ]
@@ -4642,7 +4642,7 @@ dependencies = [
 
 [[package]]
 name = "otlp-file-exporter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "futures",
  "opentelemetry-proto",
@@ -5542,7 +5542,7 @@ checksum = "1e061d1b48cb8d38042de4ae0a7a6401009d6143dc80d2e2d6f31f0bdd6470c7"
 
 [[package]]
 name = "retry-error"
-version = "0.13.1"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -5793,7 +5793,7 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "safelog"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "derive_more",
  "educe",
@@ -5825,7 +5825,7 @@ dependencies = [
 
 [[package]]
 name = "saturating-time"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "web-time-compat",
 ]
@@ -6291,7 +6291,7 @@ dependencies = [
 
 [[package]]
 name = "slotmap-careful"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "paste",
  "serde",
@@ -6675,7 +6675,7 @@ checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
 
 [[package]]
 name = "test-temp-dir"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -7050,7 +7050,7 @@ dependencies = [
 
 [[package]]
 name = "tor-async-utils"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "cfg-if",
  "criterion",
@@ -7079,7 +7079,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
@@ -7105,7 +7105,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "bytes",
  "derive-deftly",
@@ -7122,7 +7122,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "bitflags 2.13.1",
@@ -7153,7 +7153,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "base64ct",
  "caret",
@@ -7176,7 +7176,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert-x509"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "digest 0.10.7",
  "ecdsa",
@@ -7194,7 +7194,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "async-trait",
  "base64ct",
@@ -7241,7 +7241,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "humantime",
  "itertools 0.15.0",
@@ -7254,7 +7254,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "async-trait",
@@ -7308,7 +7308,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "assert_matches",
@@ -7346,7 +7346,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config-path"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "assert_matches",
  "derive-deftly",
@@ -7365,7 +7365,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config-shared"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "derive-deftly",
@@ -7378,7 +7378,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "derive_more",
  "digest 0.10.7",
@@ -7395,7 +7395,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirauth"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -7417,7 +7417,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirclient"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "async-compression",
  "base64ct",
@@ -7446,7 +7446,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dircommon"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "base64ct",
  "derive-deftly",
@@ -7469,7 +7469,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7534,7 +7534,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirpublish"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "async-trait",
  "educe",
@@ -7556,7 +7556,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirserver"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -7598,7 +7598,7 @@ dependencies = [
 
 [[package]]
 name = "tor-error"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -7629,7 +7629,7 @@ dependencies = [
 
 [[package]]
 name = "tor-general-addr"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "arbitrary",
  "assert_matches",
@@ -7640,7 +7640,7 @@ dependencies = [
 
 [[package]]
 name = "tor-geoip"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "derive_more",
  "proptest",
@@ -7657,7 +7657,7 @@ checksum = "0148a9a955ce4636b949900949aaec01f19210997f1b36b690ff4e524b962751"
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "base64ct",
@@ -7706,7 +7706,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsclient"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -7756,7 +7756,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hscrypto"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -7791,7 +7791,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsrproxy"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "derive-deftly",
  "futures",
@@ -7821,7 +7821,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsservice"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "arrayvec",
@@ -7893,7 +7893,7 @@ dependencies = [
 
 [[package]]
 name = "tor-key-forge"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
@@ -7914,7 +7914,7 @@ dependencies = [
 
 [[package]]
 name = "tor-keymgr"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "arrayvec",
@@ -7959,7 +7959,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "base64ct",
  "by_address",
@@ -7986,7 +7986,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "aes",
  "base64ct",
@@ -8033,7 +8033,7 @@ dependencies = [
 
 [[package]]
 name = "tor-log-ratelim"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "futures",
  "humantime",
@@ -8047,7 +8047,7 @@ dependencies = [
 
 [[package]]
 name = "tor-memquota"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "cfg-if",
  "derive-deftly",
@@ -8083,7 +8083,7 @@ dependencies = [
 
 [[package]]
 name = "tor-memquota-cost"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "derive-deftly",
  "itertools 0.15.0",
@@ -8095,7 +8095,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "async-trait",
  "bitflags 2.13.1",
@@ -8131,7 +8131,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -8191,7 +8191,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -8223,7 +8223,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "aes",
  "amplify",
@@ -8305,7 +8305,7 @@ dependencies = [
 
 [[package]]
 name = "tor-protover"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "caret",
  "derive-deftly",
@@ -8318,7 +8318,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8350,7 +8350,7 @@ dependencies = [
 
 [[package]]
 name = "tor-relay-crypto"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
@@ -8367,7 +8367,7 @@ dependencies = [
 
 [[package]]
 name = "tor-relay-selection"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "rand 0.10.2",
  "serde",
@@ -8380,7 +8380,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rpc-connect"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "assert_matches",
  "base16ct 1.0.0",
@@ -8409,7 +8409,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rpcbase"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "assert-impl",
  "derive-deftly",
@@ -8433,7 +8433,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "arbitrary",
@@ -8479,7 +8479,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "amplify",
  "assert_matches",
@@ -8510,7 +8510,7 @@ dependencies = [
 
 [[package]]
 name = "tor-socksproto"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -8527,7 +8527,7 @@ dependencies = [
 
 [[package]]
 name = "tor-units"
-version = "0.46.0"
+version = "0.47.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
@@ -9095,7 +9095,7 @@ dependencies = [
 
 [[package]]
 name = "web-time-compat"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "web-time",
 ]
