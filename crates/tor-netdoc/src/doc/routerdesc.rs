@@ -27,7 +27,7 @@
 //! TODO: There should be accessor functions for some or all of the
 //! fields in RouterDesc.  I'm deferring those until I know what they
 //! should be.
-use crate::encode::{ItemEncoder, ItemValueEncodable};
+use crate::encode::{ItemEncoder, ItemValueEncodable, NetdocEncodable, NetdocEncoder};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
@@ -56,9 +56,9 @@ use tor_checkable::timed::{TimeRangeBound, TimeRangeBoundBuilder};
 use tor_checkable::{Timebound, signed, timed};
 use tor_error::{internal, into_internal};
 use tor_llcrypto as ll;
-use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
 use tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public;
-use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_llcrypto::pk::rsa::{self, RsaIdentity};
 
 use digest::Digest;
 
@@ -265,6 +265,10 @@ pub struct RouterDesc {
 /// Signatures of a [`RouterDesc`].
 ///
 /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router-sig-ed25519>
+///
+// TODO(relay): Would be grand to be able to use this within RouterDesc::encode_sign()
+// but it would need to support "signature sections" I guess or something around those
+// lines because the RSA signature covers the Ed25519 signature.
 #[derive(Clone, Debug, PartialEq, Deftly)]
 #[derive_deftly(NetdocParseableSignatures, NetdocEncodable)]
 #[deftly(netdoc(signatures(hashes_accu = "RouterHashAccu")))]
@@ -284,7 +288,6 @@ pub struct RouterDescSignatures {
     pub router_signature: RouterSignature,
 }
 
-// TODO: Implement a .encode_sign() method.
 impl RouterDescUnverified {
     /// Verifies a self-signed [`RouterDescUnverified`].
     ///
@@ -764,6 +767,55 @@ const ROUTER_EXPIRY_SECONDS: u64 = 5 * 86400;
 const ROUTER_PRE_VALIDITY_SECONDS: u64 = 86400;
 
 impl RouterDesc {
+    /// Encode this router descriptor and append its Ed25519 and RSA signatures in that
+    /// specific order.
+    ///
+    /// `k_relayid_rsa` must match [`Self::signing_key`] and `k_relaysign_ed`
+    /// must match the relay signing key certified by [`Self::identity_ed25519`].
+    /// Returns an error if either key's public part does not match.
+    ///
+    /// Returns the signed and encoded document as a string.
+    pub fn encode_sign(
+        &self,
+        k_relayid_rsa: &rsa::KeyPair,
+        k_relaysign_ed: &ed25519::Keypair,
+    ) -> Result<String> {
+        use RouterKwd::{ROUTER_SIG_ED25519, ROUTER_SIGNATURE};
+
+        // Extra precaution as non matching keys will successfully create a non usable
+        // descriptor with keys not matching the signatures.
+        if k_relayid_rsa.to_public_key() != self.signing_key {
+            return Err(internal!("RSA identity key does not match the one stored").into());
+        }
+        if Ed25519Identity::from(k_relaysign_ed.public_key())
+            != self.identity_ed25519.get()?.sign_ed25519
+        {
+            return Err(internal!("Ed25519 signing key does not match the one stored").into());
+        }
+
+        let mut encoder = NetdocEncoder::new();
+        self.encode_unsigned(&mut encoder)?;
+
+        // Note that we can't use RouterDescSignatures because of the overlapping
+        // signatures that is the RSA signature covers the Ed25519 signatures.
+
+        let ed_signature = RouterSigEd25519::new_sign_netdoc(
+            k_relaysign_ed,
+            &encoder,
+            ROUTER_SIG_ED25519.to_str(),
+        )?;
+        ed_signature.write_item_value_onto(encoder.item(ROUTER_SIG_ED25519))?;
+
+        // The RSA signature also covers the preceding Ed25519 signature item.
+        let rsa_signature = RouterSignature(
+            RsaSha1Signature::new_sign_netdoc(k_relayid_rsa, &encoder, ROUTER_SIGNATURE.to_str())?
+                .signature,
+        );
+        rsa_signature.write_item_value_onto(encoder.item(ROUTER_SIGNATURE))?;
+
+        Ok(encoder.finish()?)
+    }
+
     /// Return a reference to this relay's RSA identity.
     pub fn rsa_identity(&self) -> RsaIdentity {
         self.signing_key.to_rsa_identity()
@@ -1714,51 +1766,6 @@ mod test {
         assert_eq!(rd, rd2);
     }
 
-    /// Very bad encode and sign method for router descriptors.
-    // TODO: Replace with proper one, once it exists
-    fn rd_encode_sign(doc: &RouterDesc, rsa: &rsa::KeyPair, ed25519: &ed25519::Keypair) -> String {
-        /// Helper for writing out router-sig-ed25519.
-        #[derive(Deftly)]
-        #[derive_deftly(NetdocEncodable)]
-        struct Ed25519Writer {
-            router_sig_ed25519: RouterSigEd25519,
-        }
-
-        /// Helper for writing out router-signature.
-        #[derive(Deftly)]
-        #[derive_deftly(NetdocEncodable)]
-        struct RsaWriter {
-            router_signature: RouterSignature,
-        }
-
-        // Add the router-sig-ed25519 signature.
-        let mut out = NetdocEncoder::new();
-        doc.encode_unsigned(&mut out).unwrap();
-        Ed25519Writer {
-            router_sig_ed25519: RouterSigEd25519::new_sign_netdoc(
-                ed25519,
-                &out,
-                "router-sig-ed25519",
-            )
-            .unwrap(),
-        }
-        .encode_unsigned(&mut out)
-        .unwrap();
-
-        // Add the router-signature signature.
-        RsaWriter {
-            router_signature: RouterSignature(
-                RsaSha1Signature::new_sign_netdoc(rsa, &out, "router-signature")
-                    .unwrap()
-                    .signature,
-            ),
-        }
-        .encode_unsigned(&mut out)
-        .unwrap();
-
-        out.finish().unwrap()
-    }
-
     /// Test for various succeeding and failing verifications.
     #[test]
     fn test_verify() {
@@ -1841,7 +1848,7 @@ mod test {
 
         let verify =
             |rd: &RouterDesc| -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
-                let encoded = rd_encode_sign(rd, &rsa_id, &ed25519_sign);
+                let encoded = rd.encode_sign(&rsa_id, &ed25519_sign).unwrap();
                 let decoded = parse2::parse_netdoc::<RouterDescUnverified>(&ParseInput::new(
                     &encoded,
                     "<test_invalid>",
@@ -1881,10 +1888,9 @@ mod test {
         let other_rsa_key = rsa::KeyPair::generate(rng).unwrap();
         rd.fingerprint = Some(other_rsa_key.to_public_key().to_rsa_identity().into());
         assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::Inconsistent);
-        // It should fail with a different error if we change the signing key.
-        // (No longer inconsistent but simply not validly signed)
+        // Encoding rejects a signing key that does not match the set keypair.
         rd.signing_key = other_rsa_key.to_public_key();
-        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+        assert!(rd.encode_sign(&rsa_id, &ed25519_sign).is_err());
         // It should work again if we set it to None.
         rd.signing_key = rd_original.signing_key.clone();
         rd.fingerprint = None;
@@ -1906,8 +1912,7 @@ mod test {
 
         // TODO: Test family certificates.
 
-        // Violate the outer ed25519 signatures, which can be done by swapping
-        // the signing key to something else.
+        // Encoding rejects a certificate for a different Ed25519 signing key.
         let different_ed25519_sign = ed25519::Keypair::generate(rng);
         rd.identity_ed25519 = Ed25519IdentityCert::new_signed(
             &ed25519_id,
@@ -1915,15 +1920,14 @@ mod test {
             expiration,
         )
         .unwrap();
-        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+        assert!(rd.encode_sign(&rsa_id, &ed25519_sign).is_err());
         rd = rd_original.clone();
 
-        // Violate the outer RSA signature by swapping the signing key and
-        // "disabling" the fingerprint.
+        // Encoding rejects a different RSA key even without a fingerprint.
         let different_rsa_id = rsa::KeyPair::generate(rng).unwrap();
         rd.signing_key = different_rsa_id.to_public_key();
         rd.fingerprint = None;
-        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+        assert!(rd.encode_sign(&rsa_id, &ed25519_sign).is_err());
     }
 
     #[test]
