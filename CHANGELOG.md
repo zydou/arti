@@ -10,7 +10,7 @@ Arti 2.7.0 continues our steady progress on relay and directory authority develo
 including on document parsing, directory mirror support, and DNS stream handling.
 
 This release has a number of security fixes for `arti`, `arti-client`, `arti-ureq`, and other lower-level crates.
-Notice for packagers: We have updated our security policy to reflect that we do not apply for CVEs for any Arti security issues.
+Notice for packagers: We have updated our security policy to reflect that we do not request CVE Identifiers for any Arti security issues.
 
 ### Breaking changes
 
