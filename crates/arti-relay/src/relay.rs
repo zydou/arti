@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Weak};
 
 use anyhow::Context;
+use hickory_net::runtime::TokioRuntimeProvider;
 use hickory_resolver::Resolver;
 use tokio::task::JoinSet;
 use tracing::debug;
@@ -208,6 +209,16 @@ pub(crate) struct TorRelay<R: Runtime> {
 
     /// Listening OR ports.
     or_listeners: Vec<<R as NetStreamProvider<SocketAddr>>::Listener>,
+
+    /// The hickory stub resolver, used for building the DNS resolver reactor.
+    //
+    // TODO(relay): this should be optional, and only set to Some
+    // if we're configured to run as an exit.
+    //
+    // Right now, because there is no exit config,
+    // arti-relay unconditionally spawns the DNS resolver task,
+    // and unconditionally accepts all RESOLVE.
+    resolver: Arc<Resolver<TokioRuntimeProvider>>,
 }
 
 impl<R: Runtime> TorRelay<R> {
@@ -350,6 +361,10 @@ impl<R: Runtime> TorRelay<R> {
         // TODO: This is temporary until the directory mirror has support for downloading documents.
         let dir_mirror = DirMirrorWithBackend::new(dir_mirror, client.dirmgr_plugin().clone());
 
+        // XXX: use the resolv_conf provided in the config, if there is one
+        // XXX: enable case randomization
+        let resolver = Arc::new(Resolver::builder_tokio()?.build()?);
+
         Ok(Self {
             runtime,
             memquota,
@@ -361,6 +376,7 @@ impl<R: Runtime> TorRelay<R> {
             keymgr: inert.keymgr,
             or_listeners,
             circuit_stream_rx,
+            resolver,
         })
     }
 
@@ -440,11 +456,8 @@ impl<R: Runtime> TorRelay<R> {
         //
         // Note: the hickory resolver spawns various background tasks
 
-        // XXX: use the resolv_conf provided in the config, if there is one
-        // XXX: enable case randomization
-        let resolver = Arc::new(Resolver::builder_tokio()?.build()?);
         let (reactor, resolver) =
-            DnsResolverReactor::new(DynTimeProvider::new(self.runtime.clone()), resolver);
+            DnsResolverReactor::new(DynTimeProvider::new(self.runtime.clone()), self.resolver);
         // Spawn the DNS reactor
         //
         // TODO(relay): only spawn this if we're configured to run as an exit
