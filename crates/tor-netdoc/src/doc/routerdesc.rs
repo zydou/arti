@@ -526,14 +526,19 @@ pub struct RouterDescIntroItem {
 ///
 /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:extra-info-digest>
 #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
-#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct ExtraInfoDigests {
     /// Mandatory SHA-1 of the signed data in base 16.
+    #[deftly(constructor)]
     pub sha1: FixedB16U<20>,
 
     /// Optional SHA-256 of the entire extra-info in base 64.
     pub sha2: Option<FixedB64<32>>,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// Estimated bandwidth for a router.
