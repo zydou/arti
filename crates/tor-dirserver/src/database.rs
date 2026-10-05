@@ -298,7 +298,7 @@ pub(crate) struct ConsensusMeta<T> {
     pub docid: DocumentId,
 
     /// The SHA3 of the unsigned part of the consensus.
-    pub unsigned_sha3_256: Sha3_256,
+    pub sha3_256: Sha3_256,
 
     /// The time after which this consensus is valid.
     pub valid_after: Timestamp,
@@ -317,11 +317,11 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     /// Select the missing router descriptors.
     ///
     /// A router descriptor is considered missing if it exists in
-    /// `consensus_router_descriptor_member` but not in `router_descriptor`
+    /// `consensus_descriptor_member` but not in `descriptor`
     /// because the first entry is added once the consensus got parsed,
     /// whereas the second entry is added once we have actually retrieved it.
     ///
-    /// It works by doing a left join on router_descriptor and filtering for
+    /// It works by doing a left join on descriptor and filtering for
     /// all entries where the join is NULL, as that implies we are aware of
     /// the descriptor but not have it stored.
     ///
@@ -332,13 +332,13 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     // TODO DIRMIRROR: Potentially constify more queries.
     const MISSING_ROUTERS_QUERY: &'static str = sql!(
         "
-        SELECT cr.unsigned_sha1, RANDOM() AS rand
-        FROM consensus_router_descriptor_member AS cr
-          LEFT JOIN router_descriptor AS router ON cr.unsigned_sha1 = router.unsigned_sha1
+        SELECT cr.sha1, RANDOM() AS rand
+        FROM consensus_descriptor_member AS cr
+          LEFT JOIN descriptor AS router ON cr.sha1 = router.sha1
         WHERE
           cr.consensus_docid = :docid
-          AND cr.unsigned_sha1 IS NOT NULL
-          AND router.unsigned_sha1 IS NULL
+          AND cr.sha1 IS NOT NULL
+          AND router.sha1 IS NULL
         ORDER BY rand
         LIMIT :limit
         "
@@ -354,7 +354,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // Select the most recent flavored consensus document from the database.
         let mut meta_stmt = tx.prepare_cached(sql!(
             "
-            SELECT docid, unsigned_sha3_256, valid_after, fresh_until, valid_until
+            SELECT docid, sha3_256, valid_after, fresh_until, valid_until
             FROM consensus
             WHERE
               flavor = :flavor
@@ -370,7 +370,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
             |row| {
                 Ok(Self {
                     docid: row.get(0)?,
-                    unsigned_sha3_256: row.get(1)?,
+                    sha3_256: row.get(1)?,
                     valid_after: row.get(2)?,
                     fresh_until: row.get(3)?,
                     valid_until: row.get(4)?,
@@ -475,10 +475,10 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // router descriptor.
         //
         // It works by doing an inner join from
-        // `consensus_router_descriptor_member` to `router_descriptor` because
+        // `consensus_descriptor_member` to `descriptor` because
         // we can only know about the extra-infos of which we have the router
         // descriptors from.  Afterwards, we do a left join with the
-        // `router_extra_info` table and filter for all results where the left
+        // `extra_info` table and filter for all results where the left
         // join result is null, hence where we have a router descriptor but not
         // the respective extra-info.
         //
@@ -487,14 +487,14 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
-            SELECT router.extra_unsigned_sha1, RANDOM() AS rand
-            FROM consensus_router_descriptor_member AS cr
-              INNER JOIN router_descriptor AS router ON cr.unsigned_sha1 = router.unsigned_sha1
-              LEFT JOIN router_extra_info AS extra ON router.extra_unsigned_sha1 = extra.unsigned_sha1
+            SELECT router.extra_sha1, RANDOM() AS rand
+            FROM consensus_descriptor_member AS cr
+              INNER JOIN descriptor AS router ON cr.sha1 = router.sha1
+              LEFT JOIN extra_info AS extra ON router.extra_sha1 = extra.sha1
             WHERE
               cr.consensus_docid = :docid
-              AND router.extra_unsigned_sha1 IS NOT NULL
-              AND extra.unsigned_sha1 IS NULL
+              AND router.extra_sha1 IS NOT NULL
+              AND extra.sha1 IS NULL
             ORDER BY rand
             LIMIT :limit
             "
@@ -529,11 +529,11 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // Select the missing micro descriptors.
         //
         // A micro descriptor is considered missing if it exists in
-        // `consensus_router_descriptor_member` but not in `router_descriptor`
+        // `consensus_descriptor_member` but not in `descriptor`
         // because the first entry is added once the consensus got parsed,
         // whereas the second entry is added once we have actually retrieved it.
         //
-        // It works by doing a left join on router_descriptor and filtering for
+        // It works by doing a left join on descriptor and filtering for
         // all entries where the join is NULL, as that implies we are aware of
         // the descriptor but not have it stored.
         //
@@ -542,13 +542,13 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
-            SELECT cr.unsigned_sha2, RANDOM() AS rand
-            FROM consensus_router_descriptor_member AS cr
-              LEFT JOIN router_descriptor AS micro ON cr.unsigned_sha2 = micro.unsigned_sha2
+            SELECT cr.sha2, RANDOM() AS rand
+            FROM consensus_descriptor_member AS cr
+              LEFT JOIN descriptor AS micro ON cr.sha2 = micro.sha2
             WHERE
               cr.consensus_docid = :docid
-              AND cr.unsigned_sha2 IS NOT NULL
-              AND micro.unsigned_sha2 IS NULL
+              AND cr.sha2 IS NOT NULL
+              AND micro.sha2 IS NULL
             ORDER BY rand
             LIMIT :limit
             "
@@ -567,7 +567,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     /// Inserts a verified consensus into the database.
     ///
     /// This method *DOES NOT* compute any consensus diffs but populates
-    /// associated meta tables such as `consensus_router_descriptor_member`
+    /// associated meta tables such as `consensus_descriptor_member`
     /// and `consensus_authority_voter` properly.
     pub(crate) fn insert<I>(
         tx: &Transaction<'_>,
@@ -585,16 +585,16 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         //
         // Parameters:
         // :docid - The docid of the consensus.
-        // :unsigned_sha3_256 - The SHA3-256 sum of the part of the consensus
+        // :sha3_256 - The SHA3-256 sum of the part of the consensus
         //   without signatures but a trailing `\ndirectory-signature<SPACE>`.
         // :flavor - The consensus flavor to use.
         // :valid_after, :fresh_until, :valid_until - The respective validities.
         let mut cons_stmt = tx.prepare_cached(sql!(
             "
             INSERT INTO consensus
-            (docid, unsigned_sha3_256, flavor, valid_after, fresh_until, valid_until)
+            (docid, sha3_256, flavor, valid_after, fresh_until, valid_until)
             VALUES
-            (:docid, :unsigned_sha3_256, :flavor, :valid_after, :fresh_until, :valid_until)
+            (:docid, :sha3_256, :flavor, :valid_after, :fresh_until, :valid_until)
             ON CONFLICT DO NOTHING
             "
         ))?;
@@ -607,8 +607,8 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         // :sha2 - The micro descriptor digest (microdesc consensus only, NULL otherwise).
         let mut cons_rs_member_stmt = tx.prepare_cached(sql!(
             "
-            INSERT INTO consensus_router_descriptor_member
-            (consensus_docid, unsigned_sha1, unsigned_sha2)
+            INSERT INTO consensus_descriptor_member
+            (consensus_docid, sha1, sha2)
             VALUES
             (:docid, :sha1, :sha2)
             ON CONFLICT DO NOTHING
@@ -634,7 +634,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         let docid = store_insert(tx, data.as_bytes(), encodings)?;
 
         // TODO DIRMIRROR: We *need* this in tor-netdoc!!!
-        let unsigned_sha3_256 = Sha3_256::digest(
+        let sha3_256 = Sha3_256::digest(
             data.split_inclusive("\ndirectory-signature ")
                 .next()
                 .ok_or(internal!("verified document without signatures?"))?
@@ -644,7 +644,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         let lifetime = body.lifetime();
         let meta = ConsensusMeta {
             docid,
-            unsigned_sha3_256,
+            sha3_256,
             valid_after: lifetime.valid_after.0.into(),
             fresh_until: lifetime.fresh_until.0.into(),
             valid_until: lifetime.valid_until.0.into(),
@@ -652,7 +652,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         };
         cons_stmt.execute(named_params! {
             ":docid": meta.docid,
-            ":unsigned_sha3_256": meta.unsigned_sha3_256,
+            ":sha3_256": meta.sha3_256,
             ":valid_after": meta.valid_after,
             ":fresh_until": meta.fresh_until,
             ":valid_until": meta.valid_until,
@@ -1436,7 +1436,7 @@ mod test {
             meta,
             ConsensusMeta::<Plain> {
                 docid: Sha256::digest(data.as_bytes()),
-                unsigned_sha3_256: testdata2::consensus_sha3(data),
+                sha3_256: testdata2::consensus_sha3(data),
                 valid_after: body.preamble.lifetime.valid_after.0.into(),
                 fresh_until: body.preamble.lifetime.fresh_until.0.into(),
                 valid_until: body.preamble.lifetime.valid_until.0.into(),
@@ -1460,10 +1460,10 @@ mod test {
         // We repeat the tests a few thousand times to go over many random values.
         let docid = Sha256::digest(testdata2::current_consensus_ns().2.as_bytes());
         let lifetime = testdata2::current_consensus_ns().0.preamble.lifetime;
-        let unsigned_sha3_256 = testdata2::consensus_sha3(testdata2::current_consensus_ns().2);
+        let sha3_256 = testdata2::consensus_sha3(testdata2::current_consensus_ns().2);
         let cons = ConsensusMeta::<Plain> {
             docid,
-            unsigned_sha3_256,
+            sha3_256,
             valid_after: lifetime.valid_after.0.into(),
             fresh_until: lifetime.fresh_until.0.into(),
             valid_until: lifetime.valid_until.0.into(),
@@ -1491,7 +1491,7 @@ mod test {
     /// For this, we remove existing router descriptors from the database and
     /// see whether they are determined as missing properly.
     #[test]
-    fn missing_router_descriptors() {
+    fn missing_descriptors() {
         let pool = testdata2::test_db();
         let meta = read_tx(&pool, ConsensusMeta::<Plain>::query)
             .unwrap()
@@ -1511,8 +1511,8 @@ mod test {
             .execute(
                 sql!(
                     "
-                    DELETE FROM router_descriptor
-                    WHERE unsigned_sha1 = ?1
+                    DELETE FROM descriptor
+                    WHERE sha1 = ?1
                     "
                 ),
                 params![removed_descriptor],
@@ -1527,7 +1527,7 @@ mod test {
 
         // If we delete all router descriptors we have, we should get all.
         rw_tx(&pool, |tx| {
-            tx.execute(sql!("DELETE FROM router_descriptor"), params![])
+            tx.execute(sql!("DELETE FROM descriptor"), params![])
         })
         .unwrap()
         .unwrap();
@@ -1555,8 +1555,7 @@ mod test {
     fn missing_descriptors_are_random() {
         let pool = testdata2::test_db();
         rw_tx(&pool, |tx| {
-            tx.execute(sql!("DELETE FROM router_descriptor"), ())
-                .unwrap();
+            tx.execute(sql!("DELETE FROM descriptor"), ()).unwrap();
             let meta = ConsensusMeta::<Plain>::query(tx).unwrap()[0];
 
             // Ensure there are more than 1 missing descriptors now.
@@ -1585,8 +1584,7 @@ mod test {
         let pool = testdata2::test_db();
         rw_tx(&pool, |tx| {
             let meta = ConsensusMeta::<Plain>::query(tx).unwrap();
-            tx.execute(sql!("DELETE FROM router_descriptor"), ())
-                .unwrap();
+            tx.execute(sql!("DELETE FROM descriptor"), ()).unwrap();
 
             let mut stmt = tx
                 .prepare_cached(ConsensusMeta::<Plain>::MISSING_ROUTERS_QUERY)
@@ -1657,8 +1655,8 @@ mod test {
             .execute(
                 sql!(
                     "
-                    DELETE FROM router_descriptor
-                    WHERE unsigned_sha2 = ?1
+                    DELETE FROM descriptor
+                    WHERE sha2 = ?1
                     "
                 ),
                 params![removed_descriptor],
@@ -1673,7 +1671,7 @@ mod test {
 
         // If we delete all micro descriptors we have, we should get all.
         rw_tx(&pool, |tx| {
-            tx.execute(sql!("DELETE FROM router_descriptor"), params![])
+            tx.execute(sql!("DELETE FROM descriptor"), params![])
         })
         .unwrap()
         .unwrap();

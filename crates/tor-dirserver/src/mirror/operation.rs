@@ -839,7 +839,7 @@ mod test {
         pool.get()
             .unwrap()
             .execute(
-                sql!("DELETE FROM router_descriptor WHERE unsigned_sha1 = ?1"),
+                sql!("DELETE FROM descriptor WHERE sha1 = ?1"),
                 params![relay_to_remove],
             )
             .unwrap();
@@ -1095,7 +1095,7 @@ mod test {
             .unwrap()
             .execute_batch(sql!(
                 "
-                DELETE FROM consensus_router_descriptor_member;
+                DELETE FROM consensus_descriptor_member;
                 DELETE FROM consensus_authority_voter;
                 DELETE FROM consensus;
                 "

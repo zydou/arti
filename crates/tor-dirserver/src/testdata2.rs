@@ -275,8 +275,8 @@ pub(crate) fn test_db() -> Pool<SqliteConnectionManager> {
         tx.execute(
             sql!(
                 "
-                INSERT INTO router_descriptor
-                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor, extra_unsigned_sha1)
+                INSERT INTO descriptor
+                (docid, sha1, sha2, kp_relay_id_rsa_sha1, flavor, extra_sha1)
                 VALUES
                 -- TODO DIRMIRROR: Support extra-info.
                 (:docid, :sha1, :sha2, :fingerprint, :flavor, NULL)
@@ -313,8 +313,8 @@ pub(crate) fn test_db() -> Pool<SqliteConnectionManager> {
             sql!(
                 "
                 -- TODO DIRMIRROR: Same naming issue here.
-                INSERT INTO router_descriptor
-                (docid, unsigned_sha1, unsigned_sha2, kp_relay_id_rsa_sha1, flavor, extra_unsigned_sha1)
+                INSERT INTO descriptor
+                (docid, sha1, sha2, kp_relay_id_rsa_sha1, flavor, extra_sha1)
                 VALUES
                 (:docid, :sha1, :sha2, NULL, :flavor, NULL)
                 "
@@ -324,8 +324,9 @@ pub(crate) fn test_db() -> Pool<SqliteConnectionManager> {
                 ":sha1": sha1,
                 ":sha2": sha2,
                 ":flavor": ConsensusFlavor::Microdesc.name(),
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
     }
 
     tx.commit().unwrap();

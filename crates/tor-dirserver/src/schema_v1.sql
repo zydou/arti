@@ -17,14 +17,14 @@ CREATE TABLE consensus(
     docid               TEXT NOT NULL UNIQUE,
     -- Required for consensus diffs.
     -- https://spec.torproject.org/dir-spec/directory-cache-operation.html#diff-format
-    unsigned_sha3_256   TEXT NOT NULL UNIQUE,
+    sha3_256            TEXT NOT NULL UNIQUE,
     flavor              TEXT NOT NULL,
     valid_after         INTEGER NOT NULL,
     fresh_until         INTEGER NOT NULL,
     valid_until         INTEGER NOT NULL,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha3_256) == 0),
-    CHECK(LENGTH(unsigned_sha3_256) == 64),
+    CHECK(GLOB('*[^0-9A-F]*', sha3_256) == 0),
+    CHECK(LENGTH(sha3_256) == 64),
     CHECK(flavor IN ('ns', 'microdesc')),
     CHECK(valid_after >= 0),
     CHECK(fresh_until >= 0),
@@ -47,29 +47,29 @@ CREATE TABLE consensus_diff(
     FOREIGN KEY(target_consensus_docid) REFERENCES consensus(docid)
 ) STRICT;
 
--- Stores the router descriptors.
+-- Stores the descriptors independent of their flavor.
 --
 -- http://<hostname>/tor/server/fp/<F>
 -- http://<hostname>/tor/server/d/<D>
 -- http://<hostname>/tor/server/authority
 -- http://<hostname>/tor/server/all
-CREATE TABLE router_descriptor(
+CREATE TABLE descriptor(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
-    unsigned_sha1           TEXT NOT NULL UNIQUE,
-    unsigned_sha2           TEXT NOT NULL UNIQUE,
+    sha1                    TEXT NOT NULL UNIQUE,
+    sha2                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT,
     flavor                  TEXT NOT NULL,
-    extra_unsigned_sha1     TEXT,
+    extra_sha1              TEXT,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha2) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', sha2) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
-    CHECK(GLOB('*[^0-9A-F]*', extra_unsigned_sha1) == 0),
-    CHECK(LENGTH(unsigned_sha1) == 40),
-    CHECK(LENGTH(unsigned_sha2) == 64),
+    CHECK(GLOB('*[^0-9A-F]*', extra_sha1) == 0),
+    CHECK(LENGTH(sha1) == 40),
+    CHECK(LENGTH(sha2) == 64),
     CHECK(kp_relay_id_rsa_sha1 IS NULL OR LENGTH(kp_relay_id_rsa_sha1) == 40),
-    CHECK(LENGTH(extra_unsigned_sha1) == 40)
+    CHECK(LENGTH(extra_sha1) == 40)
 ) STRICT;
 
 -- Stores extra-info documents.
@@ -78,15 +78,15 @@ CREATE TABLE router_descriptor(
 -- http://<hostname>/tor/extra/fp/<FP>
 -- http://<hostname>/tor/extra/all
 -- http://<hostname>/tor/extra/authority
-CREATE TABLE router_extra_info(
+CREATE TABLE extra_info(
     rowid                   INTEGER PRIMARY KEY AUTOINCREMENT,
     docid                   TEXT NOT NULL UNIQUE,
-    unsigned_sha1           TEXT NOT NULL UNIQUE,
+    sha1                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     FOREIGN KEY(docid) REFERENCES store(docid),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
-    CHECK(LENGTH(unsigned_sha1) == 40),
+    CHECK(LENGTH(sha1) == 40),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40)
 ) STRICT;
 
@@ -136,26 +136,26 @@ CREATE TABLE compressed_document(
     UNIQUE(algorithm, identity_docid)
 ) STRICT;
 
--- Stores the N:M cardinality of which router descriptors are contained in which
+-- Stores the N:M cardinality of which descriptors are contained in which
 -- consensuses.
-CREATE TABLE consensus_router_descriptor_member(
+CREATE TABLE consensus_descriptor_member(
     consensus_docid         TEXT NOT NULL,
-    -- These two fields contain the SHA-1 and SHA-2 of the router descriptors
-    -- without signatures.
+    -- These two fields contain the SHA-1 and SHA-2 of the descriptors
+    -- as via. their signature scheme.
     --
     -- They are mutually exclusive, meaning that either one of them must be set.
     -- This is a bit unfortunate but depending on the consensus flavor, we may
     -- either only have the SHA-1 (ns) or the SHA-2 (md).
-    unsigned_sha1           TEXT,
-    unsigned_sha2           TEXT,
-    UNIQUE(consensus_docid, unsigned_sha1, unsigned_sha2),
+    sha1                    TEXT,
+    sha2                    TEXT,
+    UNIQUE(consensus_docid, sha1, sha2),
     FOREIGN KEY(consensus_docid) REFERENCES consensus(docid),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha1) == 0),
-    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha2) == 0),
-    CHECK(LENGTH(unsigned_sha1) == 40),
-    CHECK(LENGTH(unsigned_sha2) == 64),
+    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', sha2) == 0),
+    CHECK(LENGTH(sha1) == 40),
+    CHECK(LENGTH(sha2) == 64),
     CHECK(
-        (unsigned_sha1 IS NULL) != (unsigned_sha2 IS NULL)
+        (sha1 IS NULL) != (sha2 IS NULL)
     )
 ) STRICT;
 
