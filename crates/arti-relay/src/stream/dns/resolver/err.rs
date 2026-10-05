@@ -13,7 +13,6 @@ pub(crate) enum LookupError {
 
     /// An error coming from hickory
     #[error("failed to resolve name")]
-    #[allow(dead_code)] // TODO(relay)
     Hickory(#[from] NetError),
 
     /// An internal error

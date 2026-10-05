@@ -118,7 +118,6 @@ pub(crate) struct StreamReactor {
     memquota: CircuitAccount,
 }
 
-#[allow(unused)] // TODO(relay)
 impl StreamReactor {
     /// Create a new [`StreamReactor`].
     #[allow(clippy::too_many_arguments)] // TODO
@@ -157,8 +156,6 @@ impl StreamReactor {
     /// and the `cells_rx` MPSC stream for stream messages received
     /// from the `ForwardReactor` that need to be delivered to the application streams.
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
-        use postage::prelude::{Sink as _, Stream as _};
-
         // Garbage-collect all halfstreams that have expired.
         //
         // Note: this will iterate over the closed streams of this hop.
@@ -172,14 +169,14 @@ impl StreamReactor {
             .expect("poisoned lock")
             .remove_expired_halfstreams(self.time_provider.now());
 
-        let mut streams = Arc::clone(self.hop.stream_map());
+        let streams = Arc::clone(self.hop.stream_map());
         let can_send = self
             .hop
             .ccontrol()
             .lock()
             .expect("poisoned lock")
             .can_send();
-        let mut ready_streams_fut = future::poll_fn(move |cx| {
+        let ready_streams_fut = future::poll_fn(move |cx| {
             if !can_send {
                 // We can't send anything on this hop that counts towards SENDME windows.
                 //
