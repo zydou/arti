@@ -4,4 +4,5 @@
 ///
 /// (This type _is_ inhabited when we're built with RPC support.)
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[allow(clippy::exhaustive_enums)]
 pub(crate) enum RpcProxySupport {}
