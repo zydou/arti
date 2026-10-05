@@ -36,7 +36,7 @@ full = [
     "tor-linkspec/full",
     "tor-llcrypto/full",
     "tor-rtcompat/full",
-    "tor-rtmock/full",
+    "tor-rtmock?/full",
     "tor-units/full",
     "tor-hscrypto?/full",
     "tor-log-ratelim/full",
@@ -82,7 +82,7 @@ rpc = ["stream-ctrl", "dep:tor-rpcbase", "dep:serde"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
-testing = ["__is_experimental"]
+testing = ["__is_experimental", "dep:tor-rtmock"]
 tokio = ["tokio-crate", "tokio-util", "tor-async-utils/tokio"]
 bench = ["__is_experimental"]
 __is_experimental = []
@@ -146,7 +146,7 @@ tor-protover = { version = "0.47.0", path = "../tor-protover" }
 tor-relay-crypto = { version = "0.47.0", path = "../tor-relay-crypto", optional = true }
 tor-rpcbase = { version = "0.47.0", path = "../tor-rpcbase", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0" }
-tor-rtmock = { path = "../tor-rtmock", version = "0.47.0" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.47.0", optional = true }
 tor-units = { path = "../tor-units", version = "0.47.0", features = ["memquota-memcost"] }
 tracing = "0.1.36"
 typenum = "1.12"
@@ -168,6 +168,7 @@ tokio-crate = { package = "tokio", version = "1.47.1", features = ["full"] }
 tor-key-forge = { path = "../tor-key-forge", version = "0.47.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.47.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.47.0" }
 tracing-test = "0.2.4"
 
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dev-dependencies]
