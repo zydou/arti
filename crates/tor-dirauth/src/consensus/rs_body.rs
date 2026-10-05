@@ -111,7 +111,8 @@ impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
         let out; // the calculated output value, for Bandwdith
         let unmeasured; // the (keyword, value) for Unmeasured, or None
         if get_inputs(MEASURED).count() >= MEASURED_THRESHOLD {
-            out = calc_median(MEASURED).expect("MEASURED_THRESHOLD");
+            out = calc_median(MEASURED).expect(".count() was >= MEASURED_THRESHOLD so >0");
+            const_assert!(MEASURED_THRESHOLD > 0);
             unmeasured = None;
         } else if let Some(median) = calc_median(BANDWIDTH) {
             let max_unmeasured = context

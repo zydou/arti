@@ -7287,6 +7287,7 @@ dependencies = [
  "itertools 0.15.0",
  "paste",
  "rangemap",
+ "static_assertions",
  "thiserror 2.0.20",
  "tor-basic-utils",
  "tor-checkable",
