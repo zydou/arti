@@ -66,8 +66,14 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         calc! { plain.m = NotPresent }
         calc! { plain, md .weight }
 
+        calc! { out.flags }
+        // "routers that do not have the Running flag are not listed at all."
+        if !out_flags.contains(RelayFlag::Running) {
+            return Ok((None, None));
+        }
+        calc! { both.flags = out_flags.clone() }
+
         // TODO DIRAUTH replace routerstatus dummy values
-        calc! { both.flags = DocRelayFlags::new_empty_unknown_discarded() }
         calc! { both.protos = Default::default() }
         calc! { md.m = [0; 32].into() }
 
@@ -141,5 +147,47 @@ impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
             .map_err(into_internal!("generated bad w item"))?;
 
         Ok(out)
+    }
+}
+
+impl Aggregate<PlainPreamble> for DocRelayFlags {
+    type Output = DocRelayFlags;
+
+    fn aggregate<'i>(
+        context: ConsensusContextRefs<PlainPreamble>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self::Output, ConsensusError>
+    where
+        Self: 'i,
+    {
+        Ok(context
+            .computed
+            .known_flags
+            // "A routerstatus has a flag set if that is included by more than half of the
+            // authorities who care about that flag."
+            .iter_incl_unknown()?
+            .filter_map(|flag| {
+                (|| {
+                    // Check the votes' opinions about `flag`
+                    let mut tally = [0_usize; 2];
+                    for (vnum, vote_rs_flags) in inputs.clone() {
+                        let vote_known_flags = &context.votes.vote(vnum)?.preamble.known_flags;
+                        if !vote_known_flags.contains_incl_unknown(&flag)? {
+                            // This authority didn't advertise this flag as one it knows about.
+                            // It's possible that it is included in that authority's vote for this
+                            // relay anyway; if so we disregard it.
+                            continue;
+                        }
+                        let is_in_favour: bool = vote_rs_flags.contains_incl_unknown(&flag)?;
+                        let update = &mut tally[usize::from(is_in_favour)];
+                        // can't overflow, but let's use saturating add anyway
+                        *update = update.saturating_add(1);
+                    }
+                    let y = tally[1] > tally[0];
+                    Ok::<_, Bug>(y.then_some(flag))
+                })()
+                .transpose()
+            })
+            .try_collect()?)
     }
 }
