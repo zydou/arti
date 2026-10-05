@@ -61,6 +61,8 @@ pub trait ReprMode: Debug + Copy {
     /// These are inferred when parsing, and omitted when encoding.
     ///
     /// (During parsing `ENCODE_OMIT` and `PARSE_IMPLICIT` flags are treated the same.)
+    //
+    // TODO if setting this to nonzero, ensure it's actually tested.
     const ENCODE_OMIT: RelayFlags;
 }
 
@@ -301,6 +303,7 @@ mod parse2_impl {
                 flags
                     .known
                     .iter()
+                    .filter(|f| !M::ENCODE_OMIT.contains(*f))
                     .map(|f| <&'static str>::from(f)),
                 flags
                     .unknown
