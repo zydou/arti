@@ -114,7 +114,6 @@ pub(crate) trait MockableAsyncResolver: Send + Sync + 'static {
     async fn lookup_ip(&self, query: &str) -> Result<LookupAnswers<AnswerRecord>, LookupError>;
 
     /// Performs a lookup for the associated type.
-    #[allow(dead_code)] // TODO(relay)
     async fn reverse_lookup(&self, query: &str)
     -> Result<LookupAnswers<AnswerRecord>, LookupError>;
 }
