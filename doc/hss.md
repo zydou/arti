@@ -23,7 +23,7 @@ wrxdvcaqpuzakbfww5sxs6r2uybczwijzfn2ezy2osaj7iox7kl7nhad.onion
 
 ### Running Arti with your C Tor keys
 
-Arti has experimental support for C Tor's key format.
+Arti additionally supports C Tor's key format.
 This means you can configure Arti to use the identity key from the
 `HiddenServiceDirectory` directory of your C Tor service.
 
