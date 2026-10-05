@@ -76,10 +76,26 @@ define_derive_deftly! {
         ///
         /// `ds.fingerprint` is the *superseded* key.
         pub fn from_dir_source(ds: DirSource) -> Self {
+            let id = ds.identity;
+            SupersededAuthorityKey::from_dir_source_and_key(ds, id)
+        }
+
+        /// Make a superseded authority key entry from a `DirSource` and a key fingerprint
+        ///
+        /// As with `from_dir_source`,
+        /// `ds.nickname` is the real nickname (without `-legacy`).
+        ///
+        /// `ds.fingerprint` is ignored in favour of `superseded_key`.
+        pub fn from_dir_source_and_key(ds: DirSource, superseded_key: Fingerprint) -> Self {
             SupersededAuthorityKey {
                 raw_nickname_string: format!("{}{SUPERSEDED_SUFFIX}", ds.nickname),
                 real_nickname: ds.nickname,
-                $( ${when F_NORMAL} $fname: ds.$fname, )
+                identity: superseded_key,
+             $(
+                ${when F_NORMAL}
+                ${when not(approx_equal($fname, identity))}
+                $fname: ds.$fname,
+             )
             }
         }
     }
