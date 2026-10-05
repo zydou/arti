@@ -26,12 +26,7 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
         calc! { both.known_flags = DocRelayFlags::new_empty_unknown_discarded() }
         calc! { both.params = Default::default() }
         calc! { both.proto_statuses = Default::default() }
-        calc! { both.voting_delay =
-                netstatus::VotingDelayConstructor {
-                    vote_seconds: 0,
-                    dist_seconds: 0,
-                }.construct()
-        }
+        calc! { both.voting_delay }
 
         Ok(construct_both! {
             netstatus::plain::Preamble, netstatus::md::Preamble {
@@ -65,6 +60,28 @@ impl<AC> Aggregate<AC> for netstatus::Lifetime {
         Ok(construct! {
             netstatus::Lifetime {
                 out. valid_after, fresh_until, valid_until;
+            } {
+            }
+        })
+    }
+}
+
+impl<AC> Aggregate<AC> for netstatus::VotingDelay {
+    type Output = Self;
+
+    fn aggregate<'i>(
+        context: ConsensusContextRefs<AC>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self, ConsensusError>
+    where
+        Self: 'i,
+    {
+        // Spec just says "median".  Low median will do; it's in seconds.
+        calc! { out.vote_seconds <+ functions::low_median }
+        calc! { out.dist_seconds <+ functions::low_median  }
+        Ok(construct! {
+            netstatus::VotingDelay {
+                out. vote_seconds, dist_seconds;
             } {
             }
         })
