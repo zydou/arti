@@ -298,7 +298,10 @@ mod parse2_impl {
             mut out: ItemEncoder,
         ) -> Result<(), Bug> {
             let set = chain!(
-                flags.known.iter().map(|f| <&'static str>::from(f)),
+                flags
+                    .known
+                    .iter()
+                    .map(|f| <&'static str>::from(f)),
                 flags
                     .unknown
                     .as_ref()
