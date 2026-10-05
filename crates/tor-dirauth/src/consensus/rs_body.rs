@@ -17,11 +17,11 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         &self,
         context: ConsensusContextRefs<PlainPreamble>,
     ) -> Result<
-        Option<(
+        (
             //
-            netstatus::plain::RouterStatus,
-            netstatus::md::RouterStatus,
-        )>,
+            Option<netstatus::plain::RouterStatus>,
+            Option<netstatus::md::RouterStatus>,
+        ),
         ConsensusError,
     > {
         let inputs = self
@@ -71,13 +71,14 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         calc! { both.protos = Default::default() }
         calc! { md.m = [0; 32].into() }
 
-        Ok(Some(construct_both! {
+        let (plain, md) = construct_both! {
             netstatus::plain::RouterStatus, netstatus::md::RouterStatus {
                 both. r, m, flags, protos, weight, ed25519_id;
             } {
                 // TODO DIRAUTH routerstatus fields missing
             }
-        }))
+        };
+        Ok((Some(plain), Some(md)))
     }
 }
 
