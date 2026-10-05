@@ -41,6 +41,9 @@ pub struct DocRelayFlags {
     /// Unknown flags, if they were parsed
     ///
     /// Not sorted.
+    ///
+    /// It is a semantic error to include known flags here.
+    /// The parsing routines will not do so.
     pub unknown: Unknown<HashSet<String>>,
 }
 
