@@ -27,7 +27,7 @@
 //! TODO: There should be accessor functions for some or all of the
 //! fields in RouterDesc.  I'm deferring those until I know what they
 //! should be.
-use crate::encode::{ItemEncoder, ItemValueEncodable};
+use crate::encode::{ItemEncoder, ItemValueEncodable, NetdocEncodable, NetdocEncoder};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
@@ -56,9 +56,9 @@ use tor_checkable::timed::{TimeRangeBound, TimeRangeBoundBuilder};
 use tor_checkable::{Timebound, signed, timed};
 use tor_error::{internal, into_internal};
 use tor_llcrypto as ll;
-use tor_llcrypto::pk::ed25519;
+use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
 use tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public;
-use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_llcrypto::pk::rsa::{self, RsaIdentity};
 
 use digest::Digest;
 
@@ -265,6 +265,10 @@ pub struct RouterDesc {
 /// Signatures of a [`RouterDesc`].
 ///
 /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router-sig-ed25519>
+///
+// TODO(relay): Would be grand to be able to use this within RouterDesc::encode_sign()
+// but it would need to support "signature sections" I guess or something around those
+// lines because the RSA signature covers the Ed25519 signature.
 #[derive(Clone, Debug, PartialEq, Deftly)]
 #[derive_deftly(NetdocParseableSignatures, NetdocEncodable)]
 #[deftly(netdoc(signatures(hashes_accu = "RouterHashAccu")))]
@@ -284,7 +288,6 @@ pub struct RouterDescSignatures {
     pub router_signature: RouterSignature,
 }
 
-// TODO: Implement a .encode_sign() method.
 impl RouterDescUnverified {
     /// Verifies a self-signed [`RouterDescUnverified`].
     ///
@@ -484,29 +487,38 @@ impl NormalItemArgument for OverloadGeneralVersion {}
 ///
 /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:overload-general>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deftly)]
-#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct OverloadGeneral {
     /// The version of the item.
+    #[deftly(constructor)]
     pub version: OverloadGeneralVersion,
     /// The timestamp since when the relay is overloaded.
+    #[deftly(constructor)]
     pub since: Iso8601TimeSp,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// Introduction line of a router descriptor.
 ///
 /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router>
 #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
-#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct RouterDescIntroItem {
     /// A valid router [`Nickname`].
+    #[deftly(constructor)]
     pub nickname: Nickname,
 
     /// An IPv4 address in dotted-squad format.
+    #[deftly(constructor)]
     pub address: std::net::Ipv4Addr,
 
     /// The TCP port of the onion router.
+    #[deftly(constructor)]
     pub orport: u16,
 
     /// Legacy.
@@ -514,20 +526,29 @@ pub struct RouterDescIntroItem {
 
     /// Legacy.
     pub dirport: u16,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// Digest identifying the extra-info document.
 ///
 /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:extra-info-digest>
 #[derive(Clone, Debug, PartialEq, Eq, Deftly)]
-#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct ExtraInfoDigests {
     /// Mandatory SHA-1 of the signed data in base 16.
+    #[deftly(constructor)]
     pub sha1: FixedB16U<20>,
 
     /// Optional SHA-256 of the entire extra-info in base 64.
     pub sha2: Option<FixedB64<32>>,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// Estimated bandwidth for a router.
@@ -536,17 +557,24 @@ pub struct ExtraInfoDigests {
 // Does not derive Ord because it only makes sense to order on a single
 // field but not all.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Deftly)]
-#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct Bandwidth {
     /// The volume that the relay is willing to sustain over long periods.
+    #[deftly(constructor)]
     pub average: u64,
 
     /// The volume that the relay is willing to sustain in very short intervals.
+    #[deftly(constructor)]
     pub burst: u64,
 
     /// The estimate of the capacity this relay can handle.
+    #[deftly(constructor)]
     pub observed: u64,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// Ntor onion key cross-certificate.
@@ -559,9 +587,9 @@ pub struct Bandwidth {
 /// * [`Ed25519NtorCrossCert`]
 /// * <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:ntor-onion-key-crosscert>
 #[derive(Debug, Clone, Deftly, PartialEq)]
-#[derive_deftly(ItemValueParseable, ItemValueEncodable)]
+#[derive_deftly(Constructor, ItemValueParseable, ItemValueEncodable)]
 #[deftly(netdoc(no_extra_args))]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_structs)]
 pub struct NtorOnionKeyCrossCert {
     /// True if X coordinate of the ntor onion key is negative, false if
     /// positive.
@@ -569,11 +597,17 @@ pub struct NtorOnionKeyCrossCert {
     // to `is_negative`.  Also, using a boolean for storing a sign bit feels
     // wrong to me due to the zero edge case, which would not be negative,
     // but also not positive either.
+    #[deftly(constructor)]
     pub bit: NumericBoolean,
 
     /// The actual embedded ntor onion key certificate.
     #[deftly(netdoc(object))]
+    #[deftly(constructor)]
     pub cert: EmbeddedCert<Ed25519NtorCrossCert, KeyUnknownCert>,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 decl_keyword! {
@@ -733,6 +767,55 @@ const ROUTER_EXPIRY_SECONDS: u64 = 5 * 86400;
 const ROUTER_PRE_VALIDITY_SECONDS: u64 = 86400;
 
 impl RouterDesc {
+    /// Encode this router descriptor and append its Ed25519 and RSA signatures in that
+    /// specific order.
+    ///
+    /// `k_relayid_rsa` must match [`Self::signing_key`] and `k_relaysign_ed`
+    /// must match the relay signing key certified by [`Self::identity_ed25519`].
+    /// Returns an error if either key's public part does not match.
+    ///
+    /// Returns the signed and encoded document as a string.
+    pub fn encode_sign(
+        &self,
+        k_relayid_rsa: &rsa::KeyPair,
+        k_relaysign_ed: &ed25519::Keypair,
+    ) -> Result<String> {
+        use RouterKwd::{ROUTER_SIG_ED25519, ROUTER_SIGNATURE};
+
+        // Extra precaution as non matching keys will successfully create a non usable
+        // descriptor with keys not matching the signatures.
+        if k_relayid_rsa.to_public_key() != self.signing_key {
+            return Err(internal!("RSA identity key does not match the one stored").into());
+        }
+        if Ed25519Identity::from(k_relaysign_ed.public_key())
+            != self.identity_ed25519.get()?.sign_ed25519
+        {
+            return Err(internal!("Ed25519 signing key does not match the one stored").into());
+        }
+
+        let mut encoder = NetdocEncoder::new();
+        self.encode_unsigned(&mut encoder)?;
+
+        // Note that we can't use RouterDescSignatures because of the overlapping
+        // signatures that is the RSA signature covers the Ed25519 signatures.
+
+        let ed_signature = RouterSigEd25519::new_sign_netdoc(
+            k_relaysign_ed,
+            &encoder,
+            ROUTER_SIG_ED25519.to_str(),
+        )?;
+        ed_signature.write_item_value_onto(encoder.item(ROUTER_SIG_ED25519))?;
+
+        // The RSA signature also covers the preceding Ed25519 signature item.
+        let rsa_signature = RouterSignature(
+            RsaSha1Signature::new_sign_netdoc(k_relayid_rsa, &encoder, ROUTER_SIGNATURE.to_str())?
+                .signature,
+        );
+        rsa_signature.write_item_value_onto(encoder.item(ROUTER_SIGNATURE))?;
+
+        Ok(encoder.finish()?)
+    }
+
     /// Return a reference to this relay's RSA identity.
     pub fn rsa_identity(&self) -> RsaIdentity {
         self.signing_key.to_rsa_identity()
@@ -1032,11 +1115,12 @@ impl RouterDesc {
             )
             .map_err(|_| EK::BadSignature.err())?;
 
-            let cert = NtorOnionKeyCrossCert {
+            let cert = NtorOnionKeyCrossCertConstructor {
                 bit: NumericBoolean(sign != 0),
                 // Okay to call because we added the signature to the batch.
                 cert: EmbeddedCert::new(Ed25519NtorCrossCert::dangerous_new_unverified(), cert),
-            };
+            }
+            .construct();
 
             (sig, expiry, cert)
         };
@@ -1208,11 +1292,13 @@ impl RouterDesc {
 
         let desc = RouterDesc {
             router: RouterDescIntroItem {
-                nickname,
-                address: ipv4addr,
-                orport,
-                socksport: 0,
                 dirport,
+                ..RouterDescIntroItemConstructor {
+                    nickname,
+                    address: ipv4addr,
+                    orport,
+                }
+                .construct()
             },
             identity_ed25519: EmbeddedCert::new(
                 Ed25519IdentityCert {
@@ -1640,11 +1726,13 @@ mod test {
         assert_eq!(
             rd[0].0.router,
             RouterDescIntroItem {
-                nickname: "test002a".parse().unwrap(),
-                address: net::Ipv4Addr::LOCALHOST,
-                orport: 5102,
-                socksport: 0,
-                dirport: 7102
+                dirport: 7102,
+                ..RouterDescIntroItemConstructor {
+                    nickname: "test002a".parse().unwrap(),
+                    address: net::Ipv4Addr::LOCALHOST,
+                    orport: 5102,
+                }
+                .construct()
             }
         );
         assert_eq!(
@@ -1678,51 +1766,6 @@ mod test {
         assert_eq!(rd, rd2);
     }
 
-    /// Very bad encode and sign method for router descriptors.
-    // TODO: Replace with proper one, once it exists
-    fn rd_encode_sign(doc: &RouterDesc, rsa: &rsa::KeyPair, ed25519: &ed25519::Keypair) -> String {
-        /// Helper for writing out router-sig-ed25519.
-        #[derive(Deftly)]
-        #[derive_deftly(NetdocEncodable)]
-        struct Ed25519Writer {
-            router_sig_ed25519: RouterSigEd25519,
-        }
-
-        /// Helper for writing out router-signature.
-        #[derive(Deftly)]
-        #[derive_deftly(NetdocEncodable)]
-        struct RsaWriter {
-            router_signature: RouterSignature,
-        }
-
-        // Add the router-sig-ed25519 signature.
-        let mut out = NetdocEncoder::new();
-        doc.encode_unsigned(&mut out).unwrap();
-        Ed25519Writer {
-            router_sig_ed25519: RouterSigEd25519::new_sign_netdoc(
-                ed25519,
-                &out,
-                "router-sig-ed25519",
-            )
-            .unwrap(),
-        }
-        .encode_unsigned(&mut out)
-        .unwrap();
-
-        // Add the router-signature signature.
-        RsaWriter {
-            router_signature: RouterSignature(
-                RsaSha1Signature::new_sign_netdoc(rsa, &out, "router-signature")
-                    .unwrap()
-                    .signature,
-            ),
-        }
-        .encode_unsigned(&mut out)
-        .unwrap();
-
-        out.finish().unwrap()
-    }
-
     /// Test for various succeeding and failing verifications.
     #[test]
     fn test_verify() {
@@ -1751,13 +1794,12 @@ mod test {
         // Very boilerplatey construction of a router descriptor.
         // TODO: Probably best to use constructor logic here.
         let mut rd = RouterDesc {
-            router: RouterDescIntroItem {
+            router: RouterDescIntroItemConstructor {
                 nickname: "foo".parse().unwrap(),
                 address: Ipv4Addr::LOCALHOST,
                 orport: 9000,
-                socksport: 0,
-                dirport: 0,
-            },
+            }
+            .construct(),
             identity_ed25519: Ed25519IdentityCert::new_signed(
                 &ed25519_id,
                 Ed25519Identity::from(ed25519_sign.public_key()),
@@ -1765,18 +1807,19 @@ mod test {
             )
             .unwrap(),
             master_key_ed25519: Ed25519Identity::from(ed25519_id.public_key()).into(),
-            bandwidth: Bandwidth {
+            bandwidth: BandwidthConstructor {
                 average: 0,
                 burst: 0,
                 observed: 0,
-            },
+            }
+            .construct(),
             platform: None,
             published: published.into(),
             fingerprint: Some(rsa_id.to_public_key().to_rsa_identity().into()),
             hibernating: NumericBoolean(false),
             uptime: None,
             ntor_onion_key: Curve25519Public(curve25519_ntor.public),
-            ntor_onion_key_crosscert: NtorOnionKeyCrossCert {
+            ntor_onion_key_crosscert: NtorOnionKeyCrossCertConstructor {
                 bit: NumericBoolean(ed25519_ntor.1 == 1),
                 cert: Ed25519NtorCrossCert::new_signed(
                     &ed25519_ntor.0,
@@ -1784,7 +1827,8 @@ mod test {
                     expiration,
                 )
                 .unwrap(),
-            },
+            }
+            .construct(),
             signing_key: rsa_id.to_public_key(),
             ipv4_policy: AddrPolicy::default(),
             ipv6_policy: Default::default(),
@@ -1804,7 +1848,7 @@ mod test {
 
         let verify =
             |rd: &RouterDesc| -> std::result::Result<TimeRangeBound<RouterDesc>, VerifyFailed> {
-                let encoded = rd_encode_sign(rd, &rsa_id, &ed25519_sign);
+                let encoded = rd.encode_sign(&rsa_id, &ed25519_sign).unwrap();
                 let decoded = parse2::parse_netdoc::<RouterDescUnverified>(&ParseInput::new(
                     &encoded,
                     "<test_invalid>",
@@ -1844,10 +1888,9 @@ mod test {
         let other_rsa_key = rsa::KeyPair::generate(rng).unwrap();
         rd.fingerprint = Some(other_rsa_key.to_public_key().to_rsa_identity().into());
         assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::Inconsistent);
-        // It should fail with a different error if we change the signing key.
-        // (No longer inconsistent but simply not validly signed)
+        // Encoding rejects a signing key that does not match the set keypair.
         rd.signing_key = other_rsa_key.to_public_key();
-        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+        assert!(rd.encode_sign(&rsa_id, &ed25519_sign).is_err());
         // It should work again if we set it to None.
         rd.signing_key = rd_original.signing_key.clone();
         rd.fingerprint = None;
@@ -1869,8 +1912,7 @@ mod test {
 
         // TODO: Test family certificates.
 
-        // Violate the outer ed25519 signatures, which can be done by swapping
-        // the signing key to something else.
+        // Encoding rejects a certificate for a different Ed25519 signing key.
         let different_ed25519_sign = ed25519::Keypair::generate(rng);
         rd.identity_ed25519 = Ed25519IdentityCert::new_signed(
             &ed25519_id,
@@ -1878,15 +1920,14 @@ mod test {
             expiration,
         )
         .unwrap();
-        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+        assert!(rd.encode_sign(&rsa_id, &ed25519_sign).is_err());
         rd = rd_original.clone();
 
-        // Violate the outer RSA signature by swapping the signing key and
-        // "disabling" the fingerprint.
+        // Encoding rejects a different RSA key even without a fingerprint.
         let different_rsa_id = rsa::KeyPair::generate(rng).unwrap();
         rd.signing_key = different_rsa_id.to_public_key();
         rd.fingerprint = None;
-        assert_eq!(verify(&rd).unwrap_err(), VerifyFailed::VerifyFailed);
+        assert!(rd.encode_sign(&rsa_id, &ed25519_sign).is_err());
     }
 
     #[test]
