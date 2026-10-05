@@ -26,7 +26,12 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
         calc! { both.known_flags = DocRelayFlags::new_empty_unknown_discarded() }
         calc! { both.params = Default::default() }
         calc! { both.proto_statuses = Default::default() }
-        calc! { both.voting_delay = Default::default() }
+        calc! { both.voting_delay =
+                netstatus::VotingDelayConstructor {
+                    vote_seconds: 0,
+                    dist_seconds: 0,
+                }.construct()
+        }
 
         Ok(construct_both! {
             netstatus::plain::Preamble, netstatus::md::Preamble {

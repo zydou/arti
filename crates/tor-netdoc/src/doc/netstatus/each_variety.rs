@@ -149,8 +149,10 @@ pub struct Preamble {
 
     /// How long in seconds should voters wait for votes and
     /// signatures (respectively) to propagate?
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:voting-delay>
     #[deftly(constructor)]
-    pub voting_delay: (u32, u32),
+    pub voting_delay: VotingDelay,
 
     /// List of recommended Tor client versions.
     ///
@@ -227,7 +229,7 @@ impl Preamble {
     pub fn validity_time_range(&self) -> std::ops::Range<SystemTime> {
         let lifetime = self.lifetime.clone();
         let delay = self.voting_delay;
-        let dist_interval = time::Duration::from_secs(delay.1.into());
+        let dist_interval = time::Duration::from_secs(delay.dist_seconds.into());
         let starting_time = lifetime.valid_after.saturating_sub(dist_interval);
         starting_time..*lifetime.valid_until
     }

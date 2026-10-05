@@ -401,9 +401,9 @@ impl Preamble {
 
         let voting_delay = {
             let tok = sec.required(VOTING_DELAY)?;
-            let n1 = tok.parse_arg(0)?;
-            let n2 = tok.parse_arg(1)?;
-            (n1, n2)
+            let vote_seconds = tok.parse_arg(0)?;
+            let dist_seconds = tok.parse_arg(1)?;
+            VotingDelayConstructor { vote_seconds, dist_seconds }.construct()
         };
 
         let shared_rand = SharedRandStatuses {

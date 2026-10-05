@@ -254,7 +254,7 @@ impl ConsensusBuilder {
                 .map_err(|_| crate::NetdocErrorKind::BadApiUsage.err())
         };
 
-        let voting_delay = self
+        let (vote_seconds, dist_seconds) = self
             .voting_delay
             .unwrap_or(
                 // This is wrong.  voting-delay is mandatory, and we shouldn't emit
@@ -266,6 +266,10 @@ impl ConsensusBuilder {
                 // callers of this whole module.
                 (0, 0)
             );
+        let voting_delay = VotingDelayConstructor {
+            vote_seconds,
+            dist_seconds,
+        }.construct();
 
         let preamble = Preamble {
             lifetime,
