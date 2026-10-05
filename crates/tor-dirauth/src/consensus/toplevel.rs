@@ -45,7 +45,12 @@ impl ConsensusesFromVotes<()> for netstatus::vote::NetworkStatus {
 pub fn compute_consensus_from_votes<'v>(
     method: SupportedConsensusMethod,
     n_authorities: usize,
-    votes: impl Iterator<Item = &'v netstatus::vote::NetworkStatus>,
+    votes: impl Iterator<
+        Item = (
+            &'v netstatus::vote::NetworkStatus,
+            &'v netstatus::DirectorySignaturesHashesAccu,
+        ),
+    >,
 ) -> Result<
     (
         netstatus::plain::NetworkStatus,
@@ -53,11 +58,12 @@ pub fn compute_consensus_from_votes<'v>(
     ),
     ConsensusError,
 > {
-    let votes = votes.collect();
+    let (votes, sig_hashes) = votes.collect();
     let context = ConsensusCommonContext {
         method,
         n_authorities,
         votes,
+        sig_hashes,
     };
     let context = ConsensusContextRefs {
         context: &context,

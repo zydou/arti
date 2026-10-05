@@ -172,6 +172,10 @@ pub(super) struct ConsensusCommonContext<'r> {
 
     /// The input votes (in their entirity)
     pub votes: TiVec<VoterNum, &'r netstatus::vote::NetworkStatus>,
+
+    /// The votes' digests (in the same `VoterNum` order)
+    #[allow(unused)] // XXXX
+    pub sig_hashes: TiVec<VoterNum, &'r netstatus::DirectorySignaturesHashesAccu>,
 }
 
 impl<'r> ConsensusCommonContext<'r> {
@@ -207,6 +211,7 @@ pub(crate) mod test {
                 method: SupportedConsensusMethod::MAX,
                 n_authorities: 0,
                 votes: ti_vec![],
+                sig_hashes: ti_vec![],
             }
         }
     }
