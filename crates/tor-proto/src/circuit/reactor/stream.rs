@@ -118,7 +118,6 @@ pub(crate) struct StreamReactor {
     memquota: CircuitAccount,
 }
 
-#[allow(unused)] // TODO(relay)
 impl StreamReactor {
     /// Create a new [`StreamReactor`].
     #[allow(clippy::too_many_arguments)] // TODO
