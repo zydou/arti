@@ -1,9 +1,10 @@
 //! Consensus methods
-#![allow(unused)] // TODO DIRAUTH
 
 use crate::internal_prelude::*;
 
-use tor_netdoc::doc::netstatus::{NetParams, RelayWeightsItem, VoteRelayWeightsItem};
+use tor_netdoc::doc::netstatus::{
+    NetParams, PlainPreamble, RelayWeightsItem, VoteRelayWeightsItem,
+};
 use tor_netdoc::types::{NotPresent, relay_flags::DocRelayFlags};
 
 // md calculations
@@ -22,10 +23,12 @@ mod preamble;
 mod rs_common;
 mod rs_body;
 mod rs_select;
+mod toplevel;
 
 pub use framework::*;
 pub use method::*;
 pub use microdesc::*;
+pub use toplevel::*;
 pub use tracked_method::*;
 
 /// Supported consensus methods

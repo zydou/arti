@@ -9,10 +9,12 @@ pub(crate) use std::net::Ipv4Addr;
 pub(crate) use std::ops::{RangeBounds, RangeInclusive};
 
 pub(crate) use derive_deftly::{Deftly, define_derive_deftly};
+pub(crate) use educe::Educe;
 pub(crate) use ipnet::{IpNet, Ipv4Net};
 pub(crate) use itertools::{Itertools, chain};
 pub(crate) use paste::paste;
 pub(crate) use rangemap::RangeInclusiveMap;
+pub(crate) use static_assertions::const_assert;
 pub(crate) use tracing::info;
 pub(crate) use typed_index_collections::{TiSlice, TiVec, ti_vec};
 
