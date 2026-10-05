@@ -817,6 +817,9 @@ opt    lemon    tabs    and    spaces
         assert_eq!(toks[6].kwd(), LEMON);
         assert_eq!(toks[6].n_args(), 3);
         assert_eq!(toks[6].args_as_str(), "tabs    and    spaces");
+        assert_eq!(toks[6].required_arg(0), Ok("tabs"));
+        assert_eq!(toks[6].required_arg(1), Ok("and"));
+        assert_eq!(toks[6].required_arg(2), Ok("spaces"));
     }
 
     #[test]
