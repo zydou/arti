@@ -174,7 +174,6 @@ pub(super) struct ConsensusCommonContext<'r> {
     pub votes: TiVec<VoterNum, &'r netstatus::vote::NetworkStatus>,
 
     /// The votes' digests (in the same `VoterNum` order)
-    #[allow(unused)] // XXXX
     pub sig_hashes: TiVec<VoterNum, &'r netstatus::DirectorySignaturesHashesAccu>,
 }
 
