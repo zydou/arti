@@ -442,11 +442,6 @@ impl<R: Runtime> TorRelay<R> {
             Err(anyhow::anyhow!("dir mirror exited"))
         });
 
-        // This builds a hickory resolver that uses
-        // /etc/resolv.conf on Unix-like systems and the registry on Windows.
-        // TODO(relay): we should decide if this the correct behavior
-        // (should double-check what C Tor does).
-        //
         // TODO(relay): enable DoT
         //
         // TODO(relay): disable hickory's internal cache
