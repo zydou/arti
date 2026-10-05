@@ -915,9 +915,9 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
     /// timestamp verification.
     const VALID_SYSTEM_TIME: &str = "2000-06-01 00:00:00";
 
-    // === AUTHCERT 0B8997614EC647C1C6B6A044E2B5408F0B823FB0 ===
-    // This values come from ../../testdata2/cached-certs--1
-    // A different authority certificate different from the one above.
+    /// Different authcert, from `../../testdata2/cached-certs--1`
+    ///
+    /// A different authority certificate different from the one above.
     const ALTERNATIVE_AUTHCERT_RAW: &str = include_str!("../../testdata2/cached-certs--1");
 
     /// Converts a string in the [`Iso8601TimeSp`] format to [`SystemTime`].
@@ -1151,35 +1151,37 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             .if_valid_at(&(to_system_time(DIR_KEY_EXPIRES) + Duration::from_secs(1)))
             .unwrap();
 
-        // Check with non-matching fingerprint and long-term identity key.
-        let mut cert =
-            parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
+        // Alternative (different) cert we use for generating broken certs for testing
         let alternative_cert = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
             ALTERNATIVE_AUTHCERT_RAW,
             "",
         ))
         .unwrap();
-        cert.body.dir_identity_key = alternative_cert.body.dir_identity_key.clone();
+
+        // Check with non-matching fingerprint and long-term identity key.
+        let mut res =
+            parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
+        res.body.dir_identity_key = alternative_cert.body.dir_identity_key.clone();
         assert_eq!(
-            cert.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
+            res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
             VerifyFailed::Inconsistent
         );
 
         // Check invalid cross-cert.
-        let mut cert =
+        let mut res =
             parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
-        cert.body.dir_key_crosscert = alternative_cert.body.dir_key_crosscert.clone();
+        res.body.dir_key_crosscert = alternative_cert.body.dir_key_crosscert.clone();
         assert_eq!(
-            cert.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
+            res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
             VerifyFailed::VerifyFailed
         );
 
         // Check outer signature.
-        let mut cert =
+        let mut res =
             parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
-        cert.sigs = alternative_cert.sigs.clone();
+        res.sigs = alternative_cert.sigs.clone();
         assert_eq!(
-            cert.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
+            res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
             VerifyFailed::VerifyFailed
         );
     }
