@@ -12,6 +12,7 @@ use crate::{
 use crate::{FirstHop, GuardSetSelector};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
 use tor_basic_utils::onionperf_types::{OnionperfEvent, OnionperfGuardStatus};
+use tor_error::{internal, warn_report};
 use tor_linkspec::{ByRelayIds, HasRelayIds};
 
 use itertools::Itertools;
@@ -212,14 +213,25 @@ impl GuardSet {
         fix_id_list(&self.guards, &mut self.primary);
     }
 
-    /// Assert that this `GuardSet` is internally consistent.
+    /// Log an internal error if this `GuardSet` is not internally consistent.
+    ///
+    /// If debug assertions are enabled, panic on failure.
     ///
     /// Incidentally fixes the consistency of this `GuardSet` if needed.
     fn assert_consistency(&mut self) {
         let len_pre = self.inner_lengths();
         self.fix_consistency();
         let len_post = self.inner_lengths();
-        assert_eq!(len_pre, len_post);
+        if len_pre != len_post {
+            // This is the most convenient way to get a backtrace.  We want a backtrace so that
+            // we can blame the function where the error actually occurred.
+            let e = internal!("Inner length changed from {len_pre:?} to {len_post:?}");
+            warn_report!(
+                e,
+                "Found guard sample in an inconsistent state, and restored it"
+            );
+            debug_assert_eq!(len_pre, len_post);
+        }
     }
 
     /// Return the guard that has every identity in `id`, if any.
