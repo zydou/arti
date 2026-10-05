@@ -19,7 +19,7 @@ pub(super) type VoterSet = HashSet<VoterNum>;
 pub(super) trait ComponentInVotes<T>: Iterator<Item = (VoterNum, T)> + Clone {}
 impl<I, T> ComponentInVotes<T> for I where I: Iterator<Item = (VoterNum, T)> + Clone {}
 
-/// Actual contextx for computing a field: global context, plus already-computed values
+/// Actual context for computing a field: global context, plus already-computed values
 ///
 /// Shared references, so `Copy`.
 #[derive(Debug, Educe, derive_more::Deref)]
