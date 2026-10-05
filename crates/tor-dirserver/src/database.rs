@@ -1551,6 +1551,14 @@ mod test {
             .unwrap();
         assert_eq!(missing_routers, HashSet::from([removed_descriptor]));
 
+        // None should be returned if we exclude the descriptor we just removed.
+        let missing_routers = read_tx(&pool, |tx| {
+            meta.missing_routers(tx, iter::once(removed_descriptor), None)
+        })
+        .unwrap()
+        .unwrap();
+        assert!(missing_routers.is_empty());
+
         // If we delete all router descriptors we have, we should get all.
         rw_tx(&pool, |tx| {
             tx.execute(sql!("DELETE FROM descriptor"), params![])
@@ -1574,6 +1582,28 @@ mod test {
                 .iter()
                 .all(|sha1| all_descriptors.contains(sha1))
         );
+
+        // If we exclude one random descriptor, only that one should be missing.
+        let to_exclude = missing_routers.iter().copied().next().unwrap();
+        let missing_routers2 = read_tx(&pool, |tx| {
+            meta.missing_routers(tx, iter::once(to_exclude), None)
+        })
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            missing_routers
+                .difference(&missing_routers2)
+                .collect::<HashSet<_>>(),
+            [&to_exclude].into()
+        );
+
+        // If we exclude all descriptors, it should be empty too.
+        let missing_routers = read_tx(&pool, |tx| {
+            meta.missing_routers(tx, all_descriptors.iter().copied(), None)
+        })
+        .unwrap()
+        .unwrap();
+        assert!(missing_routers.is_empty());
     }
 
     /// Tests whether or not the missing descriptors are actually random.
