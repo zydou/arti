@@ -185,7 +185,9 @@ impl_hash_wrapper!(Sha3_256, tor_llcrypto::d::Sha3_256, 32);
 pub(crate) type DocumentId = Sha256;
 
 /// The supported content encodings.
-#[derive(Debug, Clone, Copy, PartialEq, strum::EnumString, strum::Display, strum::EnumIter)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumString, strum::Display, strum::EnumIter,
+)]
 #[strum(serialize_all = "kebab-case", ascii_case_insensitive)]
 pub(crate) enum ContentEncoding {
     /// RFC2616 section 3.5.

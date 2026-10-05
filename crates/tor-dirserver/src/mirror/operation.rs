@@ -15,13 +15,18 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::{collections::VecDeque, marker::PhantomData, mem, net::SocketAddr, time::Duration};
+use std::{
+    collections::{HashSet, VecDeque},
+    marker::PhantomData,
+    mem,
+    net::SocketAddr,
+    time::Duration,
+};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::Transaction;
-use strum::IntoEnumIterator;
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_checkable::TimeBound;
@@ -172,6 +177,9 @@ struct StaticEngine<T> {
     ///
     /// Generally obtained through [`PreferredRuntime::current()`].
     rt: PreferredRuntime,
+
+    /// The content encodings we apply to documents.
+    encodings: HashSet<ContentEncoding>,
 
     /// Utilizes the generic type parameter.
     _phantom: PhantomData<T>,
@@ -518,7 +526,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // Finally, insert them all into the database.
         db::rw_tx(pool, |tx| {
             for (cert, data) in certs {
-                AuthCertMeta::insert(tx, ContentEncoding::iter(), &cert, data)?;
+                AuthCertMeta::insert(tx, self.encodings.iter().copied(), &cert, data)?;
             }
             Ok::<_, DatabaseError>(())
         })??;
@@ -552,7 +560,12 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         db::rw_tx(pool, |tx| {
             let certs_already = self.certs_already(tx, now)?;
             let (verified, sigs) = self.verify_consensus(unverified, &certs_already, now)?;
-            ConsensusMeta::<T>::insert(tx, ContentEncoding::iter(), (&verified, &sigs), &raw)?;
+            ConsensusMeta::<T>::insert(
+                tx,
+                self.encodings.iter().copied(),
+                (&verified, &sigs),
+                &raw,
+            )?;
             Ok::<_, OperationError>(())
         })?
     }
@@ -784,6 +797,7 @@ mod test {
     use std::collections::HashSet;
 
     use rusqlite::params;
+    use strum::IntoEnumIterator;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
@@ -797,6 +811,17 @@ mod test {
     type Plain = tor_netdoc::doc::netstatus::plain::NetworkStatusUnverified;
     type Md = tor_netdoc::doc::netstatus::md::NetworkStatusUnverified;
 
+    /// Returns a [`StaticEngine`] for testing.
+    fn static_engine<T>() -> StaticEngine<T> {
+        StaticEngine {
+            authorities: testdata2::current_auth_cert_contacts(),
+            tolerance: DirTolerance::default(),
+            rt: PreferredRuntime::current().unwrap(),
+            encodings: ContentEncoding::iter().collect(),
+            _phantom: Default::default(),
+        }
+    }
+
     /// Tests whether the load consensus state computes missing descriptors
     /// properly.
     ///
@@ -807,12 +832,7 @@ mod test {
     async fn state_load_consensus() {
         let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::<Plain>::None;
-        let engine = StaticEngine {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            _phantom: Default::default(),
-        };
+        let engine = static_engine();
 
         let time: Timestamp = testdata2::valid_system_time().into();
         let fresh_until: Timestamp = testdata2::current_consensus_ns()
@@ -878,12 +898,7 @@ mod test {
     async fn state_fetch_consensus() {
         let pool = testdata2::test_db();
         let mut data = ConsensusBoundData::<Plain>::None;
-        let engine = StaticEngine {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            _phantom: Default::default(),
-        };
+        let engine = static_engine();
         let now = Timestamp::from(testdata2::invalid_system_time());
 
         let state = db::read_tx(&pool, |tx| engine.determine_state(tx, &data, now))
@@ -935,12 +950,7 @@ mod test {
             raw: testdata2::current_consensus_ns().2.to_owned(),
             ttl: Timestamp::from(testdata2::valid_system_time()) + UNVERIFIED_TTL,
         };
-        let mut engine = StaticEngine {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            _phantom: Default::default(),
-        };
+        let mut engine = static_engine();
 
         // We want to download authority certificates; for this, remove
         // one of them from the database.
@@ -1039,12 +1049,7 @@ mod test {
     #[tokio::test]
     async fn certs_already() {
         let pool = testdata2::test_db();
-        let engine = StaticEngine::<Plain> {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            _phantom: Default::default(),
-        };
+        let engine = static_engine::<Plain>();
 
         db::read_tx(&pool, |tx| {
             // With a correct system time, this should align with all authority
@@ -1077,12 +1082,7 @@ mod test {
         let unverified: Plain =
             parse2::parse_netdoc(&ParseInput::new(testdata2::current_consensus_ns().2, ""))
                 .unwrap();
-        let engine = StaticEngine::<Plain> {
-            authorities: testdata2::current_auth_cert_contacts(),
-            tolerance: DirTolerance::default(),
-            rt: PreferredRuntime::current().unwrap(),
-            _phantom: Default::default(),
-        };
+        let engine = static_engine();
         let now = Timestamp::from(testdata2::valid_system_time());
         let mut data = ConsensusBoundData::<Plain>::Unverified {
             consensus: unverified.clone(),

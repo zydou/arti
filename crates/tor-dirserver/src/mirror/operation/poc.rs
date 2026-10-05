@@ -5,12 +5,13 @@
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::{Rng, seq::SliceRandom};
+use strum::IntoEnumIterator;
 use tor_basic_utils::retry::RetryDelay;
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_rtcompat::PreferredRuntime;
 
 use crate::{
-    database::Timestamp,
+    database::{ContentEncoding, Timestamp},
     err::IsFatal,
     mirror::operation::{ConsensusBoundData, StaticEngine},
     types::FlavoredConsensusUnverified,
@@ -38,6 +39,7 @@ async fn serve<T: FlavoredConsensusUnverified, R: Rng, F: Fn() -> Timestamp>(
         authorities,
         tolerance,
         rt: PreferredRuntime::current().expect("unable to get runtime"),
+        encodings: ContentEncoding::iter().collect(),
         _phantom: Default::default(),
     };
 
