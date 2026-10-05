@@ -165,7 +165,7 @@ define_derive_deftly! {
         }
     }
 
-    impl<$tgens> From<$CONSTRUCTOR> for $ttype where $twheres {
+    ${impl From<$CONSTRUCTOR>} {
         fn from(constructor: $CONSTRUCTOR) -> $ttype {
             constructor.construct()
         }
@@ -216,14 +216,14 @@ define_derive_deftly! {
     ${define FMT { ::std::fmt} }
     ${define ERR { $crate::ExpectedConstantString } }
 
-    impl<$tgens> $FMT::Display for $ttype where $twheres {
+    ${impl $FMT::Display} {
         fn fmt(&self, f: &mut $FMT::Formatter) -> $FMT::Result {
             $LET_CONSTANT
             $FMT::Display::fmt(constant, f)
         }
     }
 
-    impl<$tgens> ::std::str::FromStr for $ttype where $twheres {
+    ${impl ::std::str::FromStr} {
         type Err = $ERR;
 
         fn from_str(s: &str) -> ::std::result::Result<Self, $ERR> {
@@ -239,7 +239,7 @@ define_derive_deftly! {
         }
     }
 
-    impl<$tgens> $crate::NormalItemArgument for $ttype where $twheres {}
+    ${impl $crate::NormalItemArgument} {}
 }
 
 /// Define a ZST struct for a fixed, constant, argument string in a netdoc item
