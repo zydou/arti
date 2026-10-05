@@ -29,6 +29,14 @@ pub type RelayFlagsBits = u16;
 ///
 /// Two `RelayFlags` only *one* of which retained unknown flags are treated as unequal.
 /// Such a comparison is probably a bug, but panicking would be worse.
+///
+/// ### `FromIterator`
+///
+/// With `feature = "retain-unknown"`, a
+/// a `DocRelayFlags` can be assembled from an iterator of `DocRelayFlag`.
+/// The inputs flags are then deduplicated, and no ordering checks are done.
+///
+/// So the `FromIterator` impl should not be used for parsing.
 #[derive(Debug, Clone, derive_more::Deref, PartialEq)]
 #[non_exhaustive]
 pub struct DocRelayFlags {
@@ -323,6 +331,92 @@ mod parse2_impl {
                 out = out.arg(&f);
             }
             Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "retain-unknown")]
+pub use doc_relay_flag::*;
+/// One relay flag that might be known or unknown, iterators, accessors
+#[cfg(feature = "retain-unknown")]
+mod doc_relay_flag {
+    use super::*;
+    use itertools::chain;
+    use std::borrow::{Borrow, Cow};
+    use tor_error::Bug;
+
+    /// One relay flag, known or unknown
+    #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+    #[allow(clippy::exhaustive_enums)] // there are only these two possibilities
+    pub enum DocRelayFlag<'s> {
+        /// Known relay flag (normally found as a bit in [`RelayFlags`])
+        Known(RelayFlag),
+
+        /// Unknown relay flag (stored as strings in [`DocRelayFlags`]).
+        ///
+        /// It is a semantic error to represent a known flag here; see [`DocRelayFlags`].
+        /// A `DocRelayFlag` from a correct `DocRelayFlags` (eg from the parsing routines)
+        /// will not do so.
+        Unknown(Cow<'s, str>),
+    }
+
+    impl<'s> DocRelayFlag<'s> {
+        /// Un-borrow, yielding a `DocRelayFlag<'static>`
+        pub fn into_static(self) -> DocRelayFlag<'static> {
+            match self {
+                DocRelayFlag::Known(f) => DocRelayFlag::Known(f),
+                DocRelayFlag::Unknown(s) => DocRelayFlag::Unknown(s.into_owned().into()),
+            }
+        }
+    }
+
+    impl DocRelayFlags {
+        /// Returns an iterator over all the flags, known and unknown
+        ///
+        /// Throws `Bug` if the `DocRelayFlags` has `Unknown::Discarded`.
+        ///
+        /// Contrast `RelayFlags::iter()` (available on `DocRelayFlags` via `Deref`)
+        /// which yields only the known flags.
+        pub fn iter_incl_unknown(&self) -> Result<impl Iterator<Item = DocRelayFlag<'_>>, Bug> {
+            let unknown = self.unknown.as_ref().into_retained()?;
+            Ok(chain! {
+                self.known.iter().map(DocRelayFlag::Known),
+                unknown.iter().map(|s| DocRelayFlag::Unknown(s.into())),
+            })
+        }
+
+        /// Does this `DocRelayFlags` contain this flag?
+        ///
+        /// Throws `Bug` if the `DocRelayFlags` has `Unknown::Discarded`.
+        ///
+        /// Contrast `RelayFlags::iter()` (available on `DocRelayFlags` via `Deref`)
+        /// checks if a `RelayFlag` (a known flag) is included.
+        pub fn contains_incl_unknown(&self, flag: &DocRelayFlag<'_>) -> Result<bool, Bug> {
+            Ok(match flag {
+                DocRelayFlag::Known(k) => self.known.contains(*k),
+                DocRelayFlag::Unknown(k) => self
+                    .unknown
+                    .as_ref()
+                    .into_retained()?
+                    .contains::<str>(k.borrow()),
+            })
+        }
+    }
+
+    impl<'s> FromIterator<DocRelayFlag<'s>> for DocRelayFlags {
+        fn from_iter<I: IntoIterator<Item = DocRelayFlag<'s>>>(input: I) -> Self {
+            let mut known = RelayFlags::new();
+            let mut unknown = HashSet::new();
+            for i in input {
+                match i {
+                    DocRelayFlag::Known(f) => known.insert(f),
+                    DocRelayFlag::Unknown(f) => unknown.insert(String::from(f)),
+                };
+            }
+            DocRelayFlags {
+                known,
+                unknown: Unknown::Retained(unknown),
+            }
         }
     }
 }
