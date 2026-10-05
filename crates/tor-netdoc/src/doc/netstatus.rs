@@ -126,7 +126,10 @@ pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
 pub use rs::{RouterStatusMdDigestsVote, SoftwareVersion};
 
-pub use dir_source::{ConsensusAuthoritySection, ConsensusAuthoritySectionConstructor, DirSource, DirSourceConstructor, SupersededAuthorityKey};
+pub use dir_source::{
+    ConsensusAuthoritySection, ConsensusAuthoritySectionConstructor, DirSource,
+    DirSourceConstructor, SupersededAuthorityKey,
+};
 
 define_constant_string! {
     /// `network-status-version` version value
