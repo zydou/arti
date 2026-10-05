@@ -254,13 +254,26 @@ impl ConsensusBuilder {
                 .map_err(|_| crate::NetdocErrorKind::BadApiUsage.err())
         };
 
+        let voting_delay = self
+            .voting_delay
+            .unwrap_or(
+                // This is wrong.  voting-delay is mandatory, and we shouldn't emit
+                // `voting-delay 0 0` in a network status document.
+                //
+                // But, this is the old, deprecated, way to build a consensus document.
+                // We retain compatibility with callers who don't specify a voting-delay
+                // to avoid breaking existing test cases, which are hopefully the only
+                // callers of this whole module.
+                (0, 0)
+            );
+
         let preamble = Preamble {
             lifetime,
             client_versions: mk_versions(&self.client_versions)?,
             server_versions: mk_versions(&self.server_versions)?,
             proto_statuses,
             params: self.params.clone(),
-            voting_delay: self.voting_delay,
+            voting_delay,
             consensus_method: (consensus_method,),
             consensus_methods: NotPresent,
             published: NotPresent,

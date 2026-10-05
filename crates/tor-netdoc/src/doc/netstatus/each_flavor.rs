@@ -399,12 +399,11 @@ impl Preamble {
             .map(SharedRandStatus::from_item)
             .transpose()?;
 
-        let voting_delay = if let Some(tok) = sec.get(VOTING_DELAY) {
+        let voting_delay = {
+            let tok = sec.required(VOTING_DELAY)?;
             let n1 = tok.parse_arg(0)?;
             let n2 = tok.parse_arg(1)?;
-            Some((n1, n2))
-        } else {
-            None
+            (n1, n2)
         };
 
         let shared_rand = SharedRandStatuses {
