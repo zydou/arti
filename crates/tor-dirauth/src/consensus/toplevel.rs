@@ -2,8 +2,6 @@
 
 use super::*;
 
-use tor_netdoc::doc::netstatus;
-
 impl ConsensusesFromVotes<()> for netstatus::vote::NetworkStatus {
     type PlainOutput = netstatus::plain::NetworkStatus;
     type MdOutput = netstatus::md::NetworkStatus;

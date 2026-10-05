@@ -171,7 +171,7 @@ pub(super) struct ConsensusCommonContext<'r> {
     pub n_authorities: usize,
 
     /// The input votes (in their entirity)
-    pub votes: TiVec<VoterNum, &'r tor_netdoc::doc::netstatus::vote::NetworkStatus>,
+    pub votes: TiVec<VoterNum, &'r netstatus::vote::NetworkStatus>,
 }
 
 impl<'r> ConsensusCommonContext<'r> {

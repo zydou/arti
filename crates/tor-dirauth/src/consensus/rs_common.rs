@@ -3,7 +3,7 @@
 use super::*;
 pub(super) use netstatus::vote::RouterStatus as RouterStatusVote;
 pub(super) use routerdesc::RdDigest;
-pub(super) use tor_netdoc::doc::{netstatus, routerdesc};
+pub(super) use tor_netdoc::doc::routerdesc;
 
 /// Router id-tuple as used in consensus calculations
 ///
