@@ -182,8 +182,6 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
             (line, true)
         };
         let parts = line.split_once(is_sp);
-        // TODO(nickm): dir-spec does not yet allow unicode in the arguments, but we're
-        // assuming that proposal 285 is accepted.
         let (kwd, args) = match parts {
             Some((left, right)) => (left, right.trim_start_matches(is_sp)),
             None => (line, &line[line.len()..]),
