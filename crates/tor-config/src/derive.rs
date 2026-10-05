@@ -1892,6 +1892,7 @@ define_derive_deftly! {
     }}
     ${tmeta(tor_config(attr)) as attrs}
     #[allow(dead_code)]
+    ${tattrs non_exhaustive}
     $BLD_TVIS struct $<$tname Builder><$tdefgens>
     where $twheres
     {
