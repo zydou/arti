@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Weak};
 
 use anyhow::Context;
-use hickory_resolver::Resolver;
+use hickory_net::runtime::TokioRuntimeProvider;
+use hickory_resolver::{Resolver, ResolverBuilder};
 use tokio::task::JoinSet;
 use tracing::debug;
 #[cfg(unix)]
@@ -29,7 +30,7 @@ use tor_proto::relay::{CircuitIncomingStreamReceiver, CreateRequestHandler};
 use tor_rtcompat::{DynTimeProvider, NetStreamProvider, Runtime};
 
 use crate::client::RelayClient;
-use crate::config::TorRelayConfig;
+use crate::config::{DnsConfig, TorRelayConfig};
 use crate::stream::RequestFilter;
 use crate::stream::dns::resolver::DnsResolverReactor;
 use crate::tasks::channel::build_circ_net_params;
@@ -208,6 +209,16 @@ pub(crate) struct TorRelay<R: Runtime> {
 
     /// Listening OR ports.
     or_listeners: Vec<<R as NetStreamProvider<SocketAddr>>::Listener>,
+
+    /// The hickory stub resolver, used for building the DNS resolver reactor.
+    //
+    // TODO(relay): this should be optional, and only set to Some
+    // if we're configured to run as an exit.
+    //
+    // Right now, because there is no exit config,
+    // arti-relay unconditionally spawns the DNS resolver task,
+    // and unconditionally accepts all RESOLVE.
+    resolver: Arc<Resolver<TokioRuntimeProvider>>,
 }
 
 impl<R: Runtime> TorRelay<R> {
@@ -350,6 +361,8 @@ impl<R: Runtime> TorRelay<R> {
         // TODO: This is temporary until the directory mirror has support for downloading documents.
         let dir_mirror = DirMirrorWithBackend::new(dir_mirror, client.dirmgr_plugin().clone());
 
+        let resolver = Arc::new(build_hickory_resolver(&inert.config)?);
+
         Ok(Self {
             runtime,
             memquota,
@@ -361,6 +374,7 @@ impl<R: Runtime> TorRelay<R> {
             keymgr: inert.keymgr,
             or_listeners,
             circuit_stream_rx,
+            resolver,
         })
     }
 
@@ -439,9 +453,9 @@ impl<R: Runtime> TorRelay<R> {
         // (this will involve patching hickory to make its moka dependency optional)
         //
         // Note: the hickory resolver spawns various background tasks
-        let resolver = Arc::new(Resolver::builder_tokio()?.build()?);
+
         let (reactor, resolver) =
-            DnsResolverReactor::new(DynTimeProvider::new(self.runtime.clone()), resolver);
+            DnsResolverReactor::new(DynTimeProvider::new(self.runtime.clone()), self.resolver);
         // Spawn the DNS reactor
         //
         // TODO(relay): only spawn this if we're configured to run as an exit
@@ -537,4 +551,67 @@ impl<R: Runtime> TorRelay<R> {
         // We can never get here since a `Void` cannot be constructed.
         void::unreachable(void);
     }
+}
+
+/// Build the hickory resolver, configuring it using
+/// the settings from our [`DnsConfig`].
+fn build_hickory_resolver(
+    config: &TorRelayConfig,
+) -> anyhow::Result<Resolver<TokioRuntimeProvider>> {
+    let mut builder = prepare_hickory_builder(config)?;
+
+    // Set the hickory's internal cache size to 0
+    // (we will be implementing our own cache separately)
+    builder.options_mut().cache_size = 0;
+
+    // Unconditionally enable case randomization,
+    // equivalent to C Tor's ServerDNSRandomizeCase.
+    builder.options_mut().case_randomization = true;
+
+    Ok(builder.build()?)
+}
+
+/// Prepare the hickory resolver builder, using the settings from
+/// our [`DnsConfig`].
+#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+fn prepare_hickory_builder(
+    config: &TorRelayConfig,
+) -> anyhow::Result<ResolverBuilder<TokioRuntimeProvider>> {
+    use hickory_resolver::system_conf::parse_resolv_conf;
+    let DnsConfig { resolv_conf } = &config.relay.dns;
+    let builder = if let Some(resolv_conf) = resolv_conf {
+        let mistrust = config.storage.permissions();
+        let resolv_conf = mistrust.verifier().file_access().read(resolv_conf)?;
+        let (config, opts) = parse_resolv_conf(resolv_conf)?;
+
+        let rt_provider = TokioRuntimeProvider::default();
+        let mut builder = Resolver::builder_with_config(config, rt_provider);
+        // Setting the options like this is a bit funky,
+        // but hickory doesn't have any other API for setting them
+        *builder.options_mut() = opts;
+
+        builder
+    } else {
+        Resolver::builder_tokio()?
+    };
+
+    Ok(builder)
+}
+
+/// Prepare the hickory resolver builder, using the settings from
+/// our [`DnsConfig`](crate::config::DnsConfig).
+///
+// Note: currently this returns a default-initialized hickory resolver,
+// because all of the DnsConfig options we have today are unavailable
+// on these platforms.
+#[cfg(not(all(unix, not(any(target_os = "android", target_vendor = "apple")))))]
+fn prepare_hickory_builder(
+    config: &TorRelayConfig,
+) -> anyhow::Result<ResolverBuilder<TokioRuntimeProvider>> {
+    // We can't use resolv_conf on this platform,
+    // but we deconstruct DnsConfig here to make sure that
+    // if we add new fields, this will fail to compile,
+    // reminding us to handle them here
+    let DnsConfig { resolv_conf: _ } = &config.relay.dns;
+    Ok(Resolver::builder_tokio()?)
 }

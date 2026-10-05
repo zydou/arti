@@ -4,6 +4,7 @@
 // them for arti-relay. But I don't think we can do so while still using tor-config. See:
 // https://gitlab.torproject.org/tpo/core/arti/-/issues/2253
 
+mod dns;
 mod listen;
 
 use std::borrow::Cow;
@@ -34,7 +35,8 @@ use tracing_subscriber::filter::EnvFilter;
 
 use crate::util::NonEmptyList;
 
-use self::listen::Listen;
+pub(crate) use dns::{DnsConfig, DnsConfigBuilder};
+use listen::Listen;
 
 /// Paths used for default configuration files.
 pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {
@@ -232,6 +234,10 @@ pub(crate) struct RelayConfig {
     /// Addresses to listen on for incoming OR connections.
     #[deftly(tor_config(no_default))]
     pub(crate) listen: Listen,
+
+    /// The DNS configuration.
+    #[deftly(tor_config(sub_builder))]
+    pub(crate) dns: DnsConfig,
 
     /// Addresses to advertise on the network for receiving OR connections.
     // For now, we've decided that we don't want to include any IP address auto-detection in
