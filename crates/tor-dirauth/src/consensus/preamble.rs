@@ -25,13 +25,16 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
         // TODO DIRAUTH replace dummy values
         calc! { both.proto_statuses = Default::default() }
         calc! { both.voting_delay }
+        calc! { both.client_versions = Default::default() }
+        calc! { both.server_versions = Default::default() }
+        calc! { both.shared_rand = Default::default() }
 
         Ok(construct_both! {
             netstatus::plain::Preamble, netstatus::md::Preamble {
                 both. lifetime, consensus_method, consensus_methods, published;
                 both. known_flags, params, proto_statuses, voting_delay;
             } {
-                // TODO DIRAUTH Preamble fields missing
+                both. client_versions, server_versions, shared_rand;
             }
         })
     }
