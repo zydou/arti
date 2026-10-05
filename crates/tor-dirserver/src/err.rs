@@ -50,7 +50,7 @@ pub(crate) enum AuthorityRequestError {
     /// endpoint, as the current one is either not useful for us anymore or
     /// is maliciously tricking us into something that should not happen.
     #[error("request resulted in no progress")]
-    NoProgress,
+    NoRequestedDocumentsReturned,
 
     /// An internal error.
     #[error("internal error")]
