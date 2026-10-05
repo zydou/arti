@@ -176,7 +176,7 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
         if line.is_empty() {
             return Err(EK::EmptyLine.at_pos(self.pos(pos)));
         }
-        let (line, anno_ok) = if let Some(rem) = line.strip_prefix("opt") {
+        let (line, anno_ok) = if let Some(rem) = line.strip_prefix("opt ") {
             (rem.trim_start_matches(is_sp), false)
         } else {
             (line, true)
