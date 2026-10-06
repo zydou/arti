@@ -48,3 +48,17 @@ where
         (ac, bc)
     }
 }
+
+#[ext(name = TryAddAssign)]
+pub(crate) impl<T: num_traits::CheckedAdd> T {
+    /// `+=` but throws bug on overflow.
+    //
+    // `try` rather than `checked` because `checked_add_assign` ought to return `Option<()>`
+    // by analogy with `.checked_add`.
+    fn try_add_assign(&mut self, v: Self) -> Result<(), Bug> {
+        *self = self
+            .checked_add(&v)
+            .ok_or_else(|| internal!("addition overflow"))?;
+        Ok(())
+    }
+}
