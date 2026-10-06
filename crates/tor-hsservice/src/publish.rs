@@ -18,6 +18,7 @@ use reactor::read_blind_id_keypair;
 use reupload_timer::ReuploadTimer;
 
 use tor_config_path::CfgPathResolver;
+use tor_persist::state_dir::InstanceRawSubdir;
 
 pub use reactor::UploadError;
 pub(crate) use reactor::{Mockable, OVERALL_UPLOAD_TIMEOUT, Real};
@@ -57,6 +58,11 @@ pub(crate) struct Publisher<R: Runtime, M: Mockable> {
     /// Queue on which we receive messages from the [`PowManager`] telling us that a seed has
     /// rotated and thus we need to republish the descriptor for a particular time period.
     update_from_pow_manager_rx: mpsc::Receiver<TimePeriod>,
+    /// The directory to dump invalid HS descriptors to.
+    ///
+    /// In practice, we should never be generating invalid HS descriptors,
+    /// but if we do, they will be dumped to this directory for debugging.
+    bad_hsdescs_dir: InstanceRawSubdir,
 }
 
 impl<R: Runtime, M: Mockable> Publisher<R, M> {
@@ -79,6 +85,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
         path_resolver: Arc<CfgPathResolver>,
         pow_manager: Arc<PowManager<R>>,
         update_from_pow_manager_rx: mpsc::Receiver<TimePeriod>,
+        bad_hsdescs_dir: InstanceRawSubdir,
     ) -> Self {
         let config = config_rx.borrow().clone();
         Self {
@@ -94,6 +101,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             path_resolver,
             pow_manager,
             update_from_pow_manager_rx,
+            bad_hsdescs_dir,
         }
     }
 
@@ -112,6 +120,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             path_resolver,
             pow_manager,
             update_from_pow_manager_rx: publisher_update_rx,
+            bad_hsdescs_dir,
         } = self;
 
         let reactor = Reactor::new(
@@ -127,6 +136,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             path_resolver,
             pow_manager,
             publisher_update_rx,
+            bad_hsdescs_dir,
         );
 
         runtime

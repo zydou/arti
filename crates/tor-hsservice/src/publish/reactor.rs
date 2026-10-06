@@ -80,6 +80,7 @@ use tor_config::file_watcher::{
 use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_dirclient::{RequestError, SourceInfo};
 use tor_netdir::{DirEvent, NetDir};
+use tor_persist::state_dir::InstanceRawSubdir;
 use tracing::instrument;
 
 use crate::config::OnionServiceConfigPublisherView;
@@ -208,6 +209,8 @@ struct Immutable<R: Runtime, M: Mockable> {
     status_tx: PublisherStatusSender,
     /// Proof-of-work state.
     pow_manager: Arc<PowManager<R>>,
+    /// The directory to dump invalid HS descriptors to.
+    bad_hsdescs_dir: InstanceRawSubdir,
 }
 
 impl<R: Runtime, M: Mockable> Immutable<R, M> {
@@ -585,6 +588,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         path_resolver: Arc<CfgPathResolver>,
         pow_manager: Arc<PowManager<R>>,
         update_from_pow_manager_rx: mpsc::Receiver<TimePeriod>,
+        bad_hsdescs_dir: InstanceRawSubdir,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
         ///
@@ -616,6 +620,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             keymgr,
             status_tx,
             pow_manager,
+            bad_hsdescs_dir,
         };
 
         let inner = Inner {
