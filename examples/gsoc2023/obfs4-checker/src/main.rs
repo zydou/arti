@@ -1,5 +1,6 @@
 #![warn(clippy::missing_docs_in_private_items)]
 #![doc = include_str!("../README.md")]
+#![recursion_limit = "256"] // arti#2715, rust/issues/159228
 use crate::checking::RECEIVE_TIMEOUT;
 use axum::{
     Json, Router,
