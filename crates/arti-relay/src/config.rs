@@ -38,7 +38,7 @@ use tracing_subscriber::filter::EnvFilter;
 use crate::util::NonEmptyList;
 
 pub(crate) use dns::{DnsConfig, DnsConfigBuilder};
-use listen::Listen;
+pub(crate) use listen::Listen;
 
 /// Paths used for default configuration files.
 pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {

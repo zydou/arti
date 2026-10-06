@@ -25,6 +25,14 @@ impl Listen {
     }
 }
 
+#[cfg(test)]
+impl Listen {
+    /// Listen on `port` for all IPv4 and IPv6.
+    pub(crate) fn from_port(port: u16) -> Result<Self, ListenError> {
+        UncheckedListen::Port(port).try_into()
+    }
+}
+
 /// A deserialize helper for [`Listen`].
 ///
 /// This is a `Listen` that has not yet been validated.
@@ -49,7 +57,6 @@ impl TryFrom<UncheckedListen> for Listen {
         match from {
             UncheckedListen::Port(port @ 0) => Err(ListenError::InvalidPort { ip: None, port }),
             UncheckedListen::Port(port) => {
-                // Listen at 0.0.0.0 and [::].
                 let addrs: [IpAddr; 2] =
                     [Ipv4Addr::UNSPECIFIED.into(), Ipv6Addr::UNSPECIFIED.into()];
                 let addrs = addrs

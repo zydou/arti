@@ -72,3 +72,186 @@ pub(super) fn encode_and_sign_router_desc(
     )
     .context("Failed to encode and sign router descriptor")
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    #![allow(clippy::string_slice)] // See arti#2571
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use std::time::Duration;
+    use tor_key_forge::Keygen as _;
+    use tor_netdoc::doc::routerdesc::{NtorOnionKeyCrossCertConstructor, RouterDescUnverified};
+    use tor_netdoc::parse2::{ParseInput, parse_netdoc};
+    use tor_netdoc::types::{Ed25519NtorCrossCert, NumericBoolean};
+    use tor_relay_crypto::pk::{
+        RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayNtorKeypair, RelaySigningKeypair,
+    };
+
+    /// Build what we need to build a descriptor as in config and key material.
+    ///
+    /// Return all this along the now time used for the certificates.
+    fn descriptor_fixture() -> (config::RelayConfig, RouterDescKeyMaterial, SystemTime) {
+        let advertise = config::Advertise::new(
+            ["192.0.2.1:9001", "192.0.2.1:9003", "192.0.2.2:9001"]
+                .map(|addr| addr.parse().unwrap())
+                .to_vec()
+                .try_into()
+                .unwrap(),
+            ["[2001:42::1]:9002", "[2001:42::2]:9004"]
+                .map(|addr| addr.parse().unwrap())
+                .to_vec(),
+        );
+        let config = config::RelayConfigBuilder::default()
+            .nickname("Compassion".parse().unwrap())
+            .contact(Some("Abed Nadir<abed.nadir@foo.bar>".parse().unwrap()))
+            .listen(config::Listen::from_port(9001).unwrap())
+            .advertise(advertise)
+            .build()
+            .unwrap();
+        let rng = &mut tor_llcrypto::rng::CautiousRng;
+        let now = SystemTime::UNIX_EPOCH;
+        let expiry = now + Duration::from_secs(7 * 24 * 60 * 60);
+        let ed_identity_kp = RelayIdentityKeypair::generate(rng).unwrap();
+        let relay_sign_kp = RelaySigningKeypair::generate(rng).unwrap();
+        let rsa_identity_kp = RelayIdentityRsaKeypair::generate(rng).unwrap();
+        let ntor_keypair = RelayNtorKeypair::generate(rng).unwrap();
+        let ed_identity = ed_identity_kp.to_ed25519_id();
+        let ed_signing_cert =
+            tor_relay_crypto::gen_signing_cert(&ed_identity_kp, &relay_sign_kp, expiry).unwrap();
+        let (ntor_ed_kp, signbit) =
+            tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_private(
+                ntor_keypair.secret(),
+            )
+            .unwrap();
+        let keys = RouterDescKeyMaterial {
+            ed_identity,
+            ed_signing_cert,
+            ntor_crosscert: NtorOnionKeyCrossCertConstructor {
+                bit: NumericBoolean(signbit != 0),
+                cert: Ed25519NtorCrossCert::new_signed(&ntor_ed_kp, ed_identity, expiry).unwrap(),
+            }
+            .construct(),
+            ntor_key: ntor_keypair.public(),
+            relay_sign_kp,
+            rsa_identity_kp,
+        };
+        (config, keys, now)
+    }
+
+    #[test]
+    fn signed_descriptor_roundtrip() {
+        let (config, keys, now) = descriptor_fixture();
+        let ed_identity = keys.ed_identity;
+        let rsa_identity = keys.rsa_identity_kp.to_rsa_identity();
+        let ntor_key = *keys.ntor_key.inner();
+        let encoded = encode_and_sign_router_desc(&config, keys, now).unwrap();
+        let verified = parse_netdoc::<RouterDescUnverified>(&ParseInput::new(&encoded, "encoded"))
+            .unwrap()
+            .verify()
+            .unwrap();
+        let desc = verified.dangerously_peek();
+        assert_eq!(desc.ed_identity(), &ed_identity);
+        assert_eq!(desc.rsa_identity(), rsa_identity);
+        assert_eq!(desc.ntor_onion_key(), &ntor_key);
+        assert_eq!(desc.published(), now);
+        assert_eq!(desc.router.nickname, config.nickname);
+        assert_eq!(desc.router.address, *config.advertise.primary_ipv4().ip());
+        assert_eq!(desc.router.orport, 9001);
+        assert_eq!(desc.router.socksport, 0);
+        assert_eq!(desc.router.dirport, 0);
+        assert_eq!(desc.contact, config.contact);
+        assert!(desc.tunnelled_dir_server.is_some());
+        // TODO(relay): For now we don't support it.
+        assert!(desc.hidden_service_dir.is_none());
+        assert_eq!(
+            desc.or_address,
+            vec![
+                "192.0.2.1:9003".parse().unwrap(),
+                "192.0.2.2:9001".parse().unwrap(),
+                "[2001:42::1]:9002".parse().unwrap(),
+                "[2001:42::2]:9004".parse().unwrap(),
+            ]
+        );
+        assert_eq!(
+            desc.ipv4_policy.allows(&"192.0.2.2".parse().unwrap(), 443),
+            Some(tor_netdoc::types::policy::RuleKind::Reject),
+        );
+        assert!(!desc.ipv6_policy.allows_some_port());
+
+        // Both signatures must cover the descriptor body.
+        let tampered = encoded.replace("Compassion", "Flamboyance");
+        assert!(
+            parse_netdoc::<RouterDescUnverified>(&ParseInput::new(&tampered, "tampered"),)
+                .unwrap()
+                .verify()
+                .is_err()
+        );
+    }
+
+    /// Test that using an expired certificate is caught.
+    #[test]
+    fn expired_signing_cert() {
+        let (config, keys, now) = descriptor_fixture();
+        let after_expiry = now + Duration::from_secs(8 * 24 * 60 * 60);
+        let err = encode_and_sign_router_desc(&config, keys, after_expiry).unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<tor_checkable::TimeValidityError>(),
+            Some(tor_checkable::TimeValidityError::Expired(_))
+        ));
+    }
+
+    #[test]
+    fn mismatched_cert_identity() {
+        let (config, mut keys, now) = descriptor_fixture();
+        keys.ed_identity = RelayIdentityKeypair::generate(&mut tor_llcrypto::rng::CautiousRng)
+            .unwrap()
+            .to_ed25519_id();
+        let err = encode_and_sign_router_desc(&config, keys, now).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Relay signing cert does not match relay identity"
+        );
+    }
+
+    #[test]
+    fn mismatched_cert_signing_key() {
+        let (config, mut keys, now) = descriptor_fixture();
+        keys.relay_sign_kp =
+            RelaySigningKeypair::generate(&mut tor_llcrypto::rng::CautiousRng).unwrap();
+        let err = encode_and_sign_router_desc(&config, keys, now).unwrap_err();
+        assert!(format!("{err:#}").contains("Ed25519 signing key does not match"));
+    }
+
+    #[test]
+    fn mismatched_cert_type() {
+        let (config, mut keys, now) = descriptor_fixture();
+        let identity_kp =
+            RelayIdentityKeypair::generate(&mut tor_llcrypto::rng::CautiousRng).unwrap();
+        keys.ed_identity = identity_kp.to_ed25519_id();
+        keys.ed_signing_cert = tor_cert::Ed25519Cert::builder()
+            .cert_type(tor_cert::CertType::SIGNING_V_LINK_AUTH)
+            .expiration(now + Duration::from_secs(24 * 60 * 60))
+            .signing_key(keys.ed_identity)
+            .cert_key(tor_cert::CertifiedKey::Ed25519(
+                keys.relay_sign_kp.to_ed25519_id(),
+            ))
+            .encode_and_sign(&identity_kp)
+            .unwrap()
+            .into();
+        let err = encode_and_sign_router_desc(&config, keys, now).unwrap_err();
+        assert_eq!(err.to_string(), "Failed to verify relay signing cert");
+    }
+}
