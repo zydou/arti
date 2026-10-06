@@ -16,9 +16,10 @@
 //! to directory mirrors.
 
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     fmt::Debug,
     hash::Hash,
+    iter,
     marker::PhantomData,
     mem,
     net::SocketAddr,
@@ -35,14 +36,15 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_checkable::TimeBound;
 use tor_dirclient::{
     Error as DirClientError, RequestError, RequestFailedError,
-    request::{AuthCertRequest, ConsensusRequest, Requestable},
+    request::{AuthCertRequest, ConsensusRequest, Requestable, RouterDescRequest},
 };
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::internal;
 use tor_netdoc::{
     doc::{
         authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
-        netstatus::ConsensusVerifiabilityError,
+        netstatus::{ConsensusFlavor, ConsensusVerifiabilityError},
+        routerdesc::RouterDescUnverified,
     },
     parse2::{
         self, NetdocParseable, NetdocParseableUnverified, ParseError, ParseInput, VerifyFailed,
@@ -52,9 +54,12 @@ use tor_rtcompat::PreferredRuntime;
 use tracing::{debug, warn};
 
 use crate::{
-    database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Sha1, Sha256, Timestamp},
+    database::{
+        self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, DescriptorMeta, Sha1, Sha256,
+        Timestamp,
+    },
     err::{AuthorityRequestError, DatabaseError, OperationError},
-    types::FlavoredConsensusUnverified,
+    types::{FlavoredConsensusUnverified, FlavoredDescriptorPlain},
 };
 
 mod poc;
@@ -71,6 +76,9 @@ mod poc;
 /// Obviously, we cannot use the values inside the consensus, as they are
 /// untrusted.
 const UNVERIFIED_TTL: Duration = Duration::from_mins(10);
+
+/// Query a maximum.
+const DESCRIPTOR_LIMIT: Option<u64> = Some(92);
 
 /// The endpoint(s) of a download authority identifying it.
 type DownloadAuthority = [SocketAddr];
@@ -413,7 +421,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             State::FetchConsensus => Ok(self.fetch_consensus(data, endpoint, now).await?),
             State::AuthCerts => self.auth_certs(pool, data, endpoint, now).await,
             State::StoreConsensus => self.store_consensus(pool, data, now),
-            State::Descriptors => todo!(),
+            State::Descriptors => self.descriptors(pool, data, endpoint, now).await,
             State::Hibernate => self.hibernate(data, now).await,
         }
     }
@@ -640,6 +648,190 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             )?;
             Ok::<_, OperationError>(())
         })?
+    }
+
+    /// Downloads, verifies, and inserts the descriptors associated with the
+    /// currently served consensus.
+    async fn descriptors(
+        &self,
+        pool: &Pool<SqliteConnectionManager>,
+        data: &mut ConsensusBoundData<T>,
+        endpoint: &DownloadAuthority,
+        now: Timestamp,
+    ) -> Result<(), OperationError> {
+        match T::flavor() {
+            ConsensusFlavor::Plain => {
+                // TODO DIRMIRROR: Add extras.
+                self.descriptors_rd(pool, data, endpoint, now).await
+            }
+            ConsensusFlavor::Microdesc => {
+                // TODO DIRMIRROR: Add micros.
+                todo!()
+            }
+        }
+    }
+
+    /// Router descriptor part of [`StaticEngine::descriptors()`].
+    async fn descriptors_rd(
+        &self,
+        pool: &Pool<SqliteConnectionManager>,
+        data: &mut ConsensusBoundData<T>,
+        endpoint: &DownloadAuthority,
+        now: Timestamp,
+    ) -> Result<(), OperationError> {
+        debug_assert_eq!(T::flavor(), ConsensusFlavor::Plain);
+        let (meta, futile) = match data {
+            ConsensusBoundData::Verified {
+                consensus, futile, ..
+            } => (consensus, futile),
+            _ => return Err(OperationError::Bug(internal!("data not verified"))),
+        };
+
+        // Obtain the missing descriptors.
+        let routers = db::read_tx(pool, |tx| {
+            meta.missing_routers(tx, futile.routers.excluded(endpoint), DESCRIPTOR_LIMIT)
+        })??;
+        if routers.is_empty() {
+            // This is equivalent to sending off an empty request and failing
+            // afterwards because no progress was made, but it saves us
+            // bandwidth by not doing a redundant HTTP request.  We may enter
+            // this branch if there are no descriptors left that are not marked
+            // as not found or refused, in which case we must try the next
+            // authority as it may have the not found descriptors.
+            debug!("not downloading any router descriptors");
+            Err(OperationError::AuthorityRequest(
+                AuthorityRequestError::NoRequestedDocumentsReturned,
+            ))?;
+        }
+
+        debug!("downloading the following router descriptors: {routers:?}");
+        let requ = RouterDescRequest::from_iter(routers.iter().map(|sha1| sha1.0));
+        let (raw, docs) = self
+            .send_request::<_, RouterDescUnverified>(endpoint, requ)
+            .await?;
+
+        // Verify each router descriptor.
+        //
+        // It is important that we do not return early inside here, because
+        // we must mark the futile descriptors as such, for which the loop
+        // needs to be finished first.  A cleaner approach might be to use
+        // .filter_map(), but that would involve an external variable for
+        // detecting duplicate responses as well, leading to an equally
+        // mediocre solution.
+        let mut obtained = HashMap::new();
+        let mut refused = HashSet::new();
+        for (unverified, start, end) in docs {
+            let Ok(unverified) = unverified else {
+                // TODO DIRMIRROR: Handle parser failures as potentially futile.
+                //
+                // This is going to be a big can of worms, because in the case
+                // of a parser failure, we must check whether the part between
+                // "router" and "router-signature" matches the digest of a
+                // requested descriptor, while checking that the body and
+                // signature parts of the document alone parse just fine.
+                //
+                // body_ok && signature_ok => the parser has not failed, unreachable
+                // body_ok && !signature_ok => not futile
+                // !body_ok && signature_ok => futile
+                // !body_ok && !signature_ok => futile
+                //
+                // (with ok meaning that the parser suceeded, no statement
+                // of cryptographic validity is being made here)
+                //
+                continue;
+            };
+
+            // Defensive internal checks.
+            let Some(raw) = raw.get(start..end) else {
+                warn!("parse2 returned invalid string slice: {start}..{end}");
+                continue;
+            };
+            let Some(sha1) = unverified.sigs.hashes.sha1 else {
+                warn!("accumulator contains no SHA-1?");
+                continue;
+            };
+            let sha1 = Sha1(sha1);
+
+            // Checks whether the response is weird, as in containing
+            // unrequested or duplicate descriptors.
+            if !routers.contains(&sha1) {
+                debug!("ignoring unrequested router descriptor: {sha1:?}");
+                continue;
+            }
+            if obtained.contains_key(&sha1) || refused.contains(&sha1) {
+                debug!("{sha1:?} contained multiple times in response");
+                continue;
+            }
+
+            // Perform the relevant cryptographic checks.
+            let sigs = unverified.sigs.clone();
+            let verified = match unverified.verify() {
+                Ok(verified) => verified,
+                Err(e) => {
+                    // Continuing here implicitly marks the descriptor as not
+                    // found after the loop ends.
+                    debug!("ignoring invalid router descriptor: {sha1:?}: {e}");
+                    continue;
+                }
+            };
+            let timely = match self
+                .tolerance
+                .extend_tolerance(verified)
+                .if_valid_at(&now.into())
+            {
+                Ok(timely) => timely,
+                Err(e) => {
+                    // Untimely is considered as refused for the lifespan of the
+                    // current consensus.
+                    debug!("ignoring untimely router descriptor: {sha1:?}: {e}");
+                    refused.insert(sha1);
+                    continue;
+                }
+            };
+
+            obtained.insert(sha1, (timely, sigs, raw));
+        }
+
+        // found = obtained ∪ refused
+        // not_found = "requested routers" \ found
+        let found: HashSet<_> = iter::chain(obtained.keys(), refused.iter())
+            .copied()
+            .collect();
+        let not_found: HashSet<_> = routers.difference(&found).copied().collect();
+
+        // Mark the futile digests as such; afterwards we can return again.
+        refused.iter().for_each(|d| futile.routers.set_refused(*d));
+        not_found
+            .iter()
+            .for_each(|d| futile.routers.set_not_found(*d, endpoint));
+
+        // We consider the emptiness of the found descriptors as the indicator
+        // for no progress.  It is important to use "found" rather than
+        // "obtained" because a response consisting only of refused descriptors
+        // is our fault and not a reason to return an AuthorityRequestError, as
+        // they are not the source of this error.
+        if found.is_empty() {
+            debug_assert!(obtained.is_empty());
+            debug_assert!(refused.is_empty());
+            Err(OperationError::AuthorityRequest(
+                AuthorityRequestError::NoRequestedDocumentsReturned,
+            ))?;
+        }
+
+        // Insert the obtained descriptors in one large bulk transaction.
+        db::rw_tx(pool, |tx| {
+            for (body, sigs, raw) in obtained.into_values() {
+                DescriptorMeta::<FlavoredDescriptorPlain>::insert(
+                    tx,
+                    self.encodings.iter().copied(),
+                    &(body, sigs),
+                    raw,
+                )?;
+            }
+            Ok::<_, DatabaseError>(())
+        })??;
+
+        Ok(())
     }
 
     /// Hibernates for the remaining ttl of the consensus.
