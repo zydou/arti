@@ -26,7 +26,7 @@ full = ["compiler", "hashx/full"]
 compiler = ["hashx/compiler"]
 experimental = ["bucket-array"]
 # For fuzzing only: expose the unstable 'bucket-array' API.
-bucket-array = ["__is_experimental"]
+bucket-array = ["__is_experimental", "dep:visibility"]
 __is_experimental = []
 
 [dependencies]
@@ -34,7 +34,7 @@ arrayvec = "0.7.4"
 hashx = { path = "../hashx", version = "0.10.0", default-features = false }
 num-traits = "0.2.15"
 thiserror = "2"
-visibility = "0.1.0"
+visibility = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
 permutohedron = "0.2.4"

@@ -31,7 +31,6 @@ tor-error = { version = "0.47.0", path = "../tor-error", features = ["tracing"] 
 tor-general-addr = { version = "0.47.0", path = "../tor-general-addr" }
 tor-rtcompat = { version = "0.47.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
-tracing-test = "0.2.4"
 void = "1"
 web-time-compat = { version = "0.3.0", path = "../web-time-compat" }
 
@@ -41,6 +40,7 @@ rand = "0.10.1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-general-addr = { path = "../tor-general-addr", version = "0.47.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0", features = ["tokio", "native-tls"] }
+tracing-test = "0.2.4"
 
 [features]
 full = [
