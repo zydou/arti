@@ -217,6 +217,8 @@ pub(crate) mod test {
 
     #[test]
     fn is_more_than_half_all_auths() {
+        // This test case is rather like is_for_more_than_half_of_t in functions.rs
+
         let mut context = ConsensusCommonContext::new_for_test();
 
         let mut check = |n_authorities, minimum_that_is_more_than_half| {
