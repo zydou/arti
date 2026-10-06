@@ -358,7 +358,7 @@ impl StorageConfig {
 // as otherwise the default config file would generate an unknown section warning.
 #[derive(Debug, Clone, Deftly, Eq, PartialEq)]
 #[derive_deftly(TorConfig)]
-#[deftly(tor_config(pre_build = "validate_bridges_config", attr = "non_exhaustive"))]
+#[deftly(tor_config(pre_build = "validate_bridges_config"))]
 #[non_exhaustive]
 pub struct BridgesConfig {
     /// Should we use configured bridges?
