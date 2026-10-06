@@ -60,7 +60,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::{
-    ToSql, Transaction, TransactionBehavior, named_params, params,
+    OptionalExtension, ToSql, Transaction, TransactionBehavior, named_params, params,
     types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, Value, ValueRef},
 };
 use saturating_time::SaturatingTime;
@@ -70,7 +70,10 @@ use tor_netdoc::doc::{authcert::AuthCert, netstatus::ConsensusFlavor};
 
 use crate::{
     err::DatabaseError,
-    types::{FlavoredConsensusBody, FlavoredConsensusSignatures, FlavoredConsensusUnverified},
+    types::{
+        FlavoredConsensusBody, FlavoredConsensusSignatures, FlavoredConsensusUnverified,
+        FlavoredDescriptor,
+    },
 };
 
 /// Version 1 of the database schema.
@@ -827,6 +830,117 @@ impl AuthCertMeta {
         })?;
 
         Ok(())
+    }
+}
+
+/// Representation of a descriptor from the database.
+#[derive(Educe)]
+#[educe(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct DescriptorMeta<T> {
+    /// The document id uniquely identifying the document.
+    pub docid: DocumentId,
+
+    /// The SHA-1 as found in the signature.
+    pub sha1: Sha1,
+
+    /// The SHA-256 as found in the signature.
+    pub sha2: Sha256,
+
+    /// The RSA identity fingerprint, if present.
+    pub kp_relay_id_rsa_sha1: Option<Sha1>,
+
+    /// Use of the generic for determining the flavor.
+    flavor: PhantomData<T>,
+
+    /// The SHA-1 of the extra-info document, if present.
+    pub extra_sha1: Option<Sha1>,
+}
+
+impl<T: FlavoredDescriptor> DescriptorMeta<T> {
+    /// Queries a [`DescriptorMeta`] by it's [`DocumentId`], mostly for internal
+    /// use.
+    fn query_docid(
+        tx: &Transaction<'_>,
+        docid: DocumentId,
+    ) -> Result<Option<DescriptorMeta<T>>, DatabaseError> {
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            SELECT docid, sha1, sha2, kp_relay_id_rsa_sha1, extra_sha1
+            FROM descriptor
+            WHERE docid = :docid AND flavor = :flavor
+            "
+        ))?;
+
+        stmt.query_one(
+            named_params! {
+                ":docid": docid,
+                ":flavor": T::flavor().name()
+            },
+            |row| {
+                Ok(DescriptorMeta::<T> {
+                    docid: row.get(0)?,
+                    sha1: row.get(1)?,
+                    sha2: row.get(2)?,
+                    kp_relay_id_rsa_sha1: row.get(3)?,
+                    extra_sha1: row.get(4)?,
+                    flavor: Default::default(),
+                })
+            },
+        )
+        .optional()
+        .map_err(|e| e.into())
+    }
+
+    /// Inserts a [`FlavoredDescriptor`] into the database.
+    pub(crate) fn insert<I>(
+        tx: &Transaction<'_>,
+        encodings: I,
+        descriptor: &T,
+        data: &str,
+    ) -> Result<(), DatabaseError>
+    where
+        I: Iterator<Item = ContentEncoding>,
+    {
+        // Insertion statement of a single descriptor.
+        //
+        // Parameters:
+        // :docid - The document id.
+        // :sha1 - The SHA-1 as found in the signature.
+        // :sha256 - The SHA-256 as found in the signature.
+        // :id_rsa - The RSA identity key fingerprint, if present.
+        // :flavor - The ConsensusFlavor associated with it.
+        // :extra_info - The extra-info SHA-1, if present.
+        let mut stmt = tx.prepare_cached(sql!(
+            "
+            INSERT INTO descriptor
+            (docid, sha1, sha2, kp_relay_id_rsa_sha1, flavor, extra_sha1)
+            VALUES
+            (:docid, :sha1, :sha256, :id_rsa, :flavor, :extra_info)
+            "
+        ))?;
+
+        let docid = store_insert(tx, data.as_bytes(), encodings)?;
+        stmt.execute(named_params! {
+            ":docid": docid,
+            ":sha1": descriptor.sha1()?,
+            ":sha256": descriptor.sha256()?,
+            ":id_rsa": descriptor.id_rsa().map(|rsa| Sha1(rsa.to_bytes())),
+            ":flavor": T::flavor().name(),
+            ":extra_info": descriptor.extra_info_sha1().map(|extra| Sha1(extra.sha1.0)),
+        })?;
+
+        Ok(())
+    }
+
+    /// Queries the raw data of a [`DescriptorMeta`].
+    pub(crate) fn data(&self, tx: &Transaction<'_>) -> Result<String, DatabaseError> {
+        let mut stmt = tx.prepare_cached(sql!("SELECT content FROM store WHERE docid = :docid"))?;
+
+        let raw = stmt.query_one(named_params! {":docid": self.docid}, |row| {
+            row.get::<_, Vec<u8>>(0)
+        })?;
+        let raw = String::from_utf8(raw).map_err(into_internal!("utf-8 constraint violated?"))?;
+        Ok(raw)
     }
 }
 
