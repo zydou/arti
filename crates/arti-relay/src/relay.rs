@@ -30,7 +30,7 @@ use tor_proto::relay::{CircuitIncomingStreamReceiver, CreateRequestHandler};
 use tor_rtcompat::{DynTimeProvider, NetStreamProvider, Runtime};
 
 use crate::client::RelayClient;
-use crate::config::{DnsConfig, TorRelayConfig};
+use crate::config::{DnsConfig, RelayConfig, TorRelayConfig};
 use crate::stream::RequestFilter;
 use crate::stream::dns::resolver::DnsResolverReactor;
 use crate::tasks::channel::build_circ_net_params;
@@ -185,6 +185,11 @@ pub(crate) struct TorRelay<R: Runtime> {
     /// exposed by a [`tor_dirmgr::DirProvider`] hence why we keep that copy from the config.
     authorities: AuthorityContacts,
 
+    /// Relay configuration used to build our descriptor.
+    ///
+    /// We keep a copy here from the config so we can pass it to the descriptor publisher task.
+    relay_config: RelayConfig,
+
     /// The directory mirror object, used for handling BEGIN_DIR.
     dir_mirror: DirMirrorWithBackend<DirPlugin>,
 
@@ -255,6 +260,7 @@ impl<R: Runtime> TorRelay<R> {
         );
 
         let authorities = inert.dirmgr_config.authorities().clone();
+        let relay_config = inert.config.relay.clone();
 
         // Init the relay's client.
         let client = RelayClient::new(
@@ -368,6 +374,7 @@ impl<R: Runtime> TorRelay<R> {
             memquota,
             client,
             authorities,
+            relay_config,
             dir_mirror,
             chanmgr,
             create_request_handler,
@@ -498,11 +505,13 @@ impl<R: Runtime> TorRelay<R> {
         task_handles.spawn({
             let netdir = Arc::clone(self.client.dirmgr()) as Arc<_>;
             let authorities = self.authorities;
+            let relay_config = self.relay_config;
             async move {
                 crate::tasks::RelayDescriptorPublisherTask::new(
                     &self.runtime,
                     netdir,
                     authorities,
+                    relay_config,
                     crypto_command_tx,
                     desc_command_rx,
                 )

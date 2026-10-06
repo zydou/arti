@@ -101,6 +101,15 @@ use tracing_subscriber::util::SubscriberInitExt;
 use crate::config::{DEFAULT_LOG_LEVEL, TorRelayConfig, base_resolver};
 use crate::relay::InertTorRelay;
 
+/// Return the protocol capabilities supported by this relay.
+pub(crate) fn supported_protocols() -> tor_protover::Protocols {
+    // WARNING: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+    // SEE [`tor_protover::doc_changing`]
+    //
+    // TODO(relay): No DirCache capabilities just yet. Missing HSDir/HSRend/HSIntro.
+    tor_proto::supported_relay_protocols().union(&tor_netdoc::supported_protocols())
+}
+
 fn main() {
     // Will exit if '--help' used or there's a parse error.
     let cli = cli::Cli::parse();

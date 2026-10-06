@@ -13,7 +13,7 @@ use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::path::PathBuf;
 
 use derive_deftly::Deftly;
-use derive_more::AsRef;
+use derive_more::{AsRef, Constructor};
 use directories::ProjectDirs;
 use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
@@ -281,7 +281,7 @@ pub(crate) struct RelayConfig {
 // testing tor network. We also don't want to do the validation too late (for example when uploading
 // the server descriptor) as it's better to validate at startup. A better place might be to perform
 // the validation in the `RelayConfig` builder validate.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Constructor)]
 pub(crate) struct Advertise {
     /// All relays must advertise an IPv4 address.
     ipv4: NonEmptyList<SocketAddrV4>,
@@ -302,15 +302,8 @@ impl Advertise {
     /// Return the primary IPv4 address.
     ///
     /// This is used to get the `router` line of our server descriptor.
-    #[expect(unused)] // TODO(relay)
     pub(crate) fn primary_ipv4(&self) -> &SocketAddrV4 {
         self.ipv4.iter().next().expect("No primary IPv4")
-    }
-
-    /// Return the IPv6 addresses.
-    #[expect(unused)] // TODO(relay)
-    pub(crate) fn ipv6(&self) -> &[SocketAddrV6] {
-        &self.ipv6
     }
 }
 

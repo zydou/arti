@@ -20,12 +20,14 @@ full = [
     "safelog/full",
     "tor-async-utils/full",
     "tor-chanmgr/full",
+    "tor-checkable/full",
     "tor-config/full",
     "tor-error/full",
     "tor-keymgr/full",
     "tor-netdir/full",
     "tor-netdoc/full",
     "tor-proto/full",
+    "tor-protover/full",
     "tor-relay-crypto/full",
     "tor-rtcompat/full",
     "tor-memquota/full",
@@ -108,6 +110,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-cell = { path = "../tor-cell", version = "0.47.0", features = ["relay"] }
 tor-cert = { path = "../tor-cert", version = "0.47.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.47.0", features = ["relay"] }
+tor-checkable = { path = "../tor-checkable", version = "0.47.0" }
 tor-circmgr = { version = "0.47.0", path = "../tor-circmgr" }
 tor-config = { path = "../tor-config", version = "0.47.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.47.0" }
@@ -129,6 +132,7 @@ tor-netdir = { path = "../tor-netdir", version = "0.47.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.47.0" }
 tor-persist = { path = "../tor-persist", version = "0.47.0", features = ["state-dir"] }
 tor-proto = { path = "../tor-proto", version = "0.47.0", features = ["tokio"] }
+tor-protover = { path = "../tor-protover", version = "0.47.0" }
 tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.47.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0", features = ["rustls", "tokio", "tls-server"] }
 tor-units = { path = "../tor-units", version = "0.47.0" }

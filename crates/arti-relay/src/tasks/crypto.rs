@@ -56,20 +56,8 @@ const NTOR_CROSSCERT_LIFETIME: Duration = Duration::from_secs(30 * 24 * 60 * 60)
 /// A command sent handled by the [`Reactor`] over a command channel.
 #[derive(Debug)]
 #[non_exhaustive]
-#[allow(clippy::enum_variant_names)] // TODO(relay): Remove with the old key lookup commands.
 pub(crate) enum CryptoCommand {
-    /// Request to get the latest ntor key.
-    GetLatestNtorKey {
-        /// Reply channel for the key.
-        tx: oneshot::Sender<RelayNtorPublicKey>,
-    },
-    /// Request to get the relay signing key.
-    GetSignKey {
-        /// Reply channel for the key.
-        tx: oneshot::Sender<RelaySigningKeypair>,
-    },
     /// Request a consistent snapshot of the material needed to encode and sign a router descriptor.
-    #[expect(unused)] // TODO(relay): Used when descriptor encoding is implemented.
     GetRouterDescKeyMaterial {
         /// Reply channel for the key material or error.
         tx: oneshot::Sender<anyhow::Result<RouterDescKeyMaterial>>,
@@ -85,7 +73,6 @@ pub(crate) enum CryptoCommand {
 /// sent in this struct.
 //
 // TODO(relay): Wrap the private keypairs in `Arc` so they are never copied.
-#[expect(unused)] // TODO(relay): Used when descriptor encoding is implemented.
 pub(crate) struct RouterDescKeyMaterial {
     /// Public Ed25519 identity.
     pub(crate) ed_identity: Ed25519Identity,
@@ -98,6 +85,9 @@ pub(crate) struct RouterDescKeyMaterial {
     /// Relay Ed25519 signing keypair.
     pub(crate) relay_sign_kp: RelaySigningKeypair,
     /// RSA identity keypair.
+    ///
+    /// The identity private key is required to sign the router descriptor.
+    /// Offline RSA identity keys are not supported.
     pub(crate) rsa_identity_kp: RelayIdentityRsaKeypair,
 }
 
@@ -253,16 +243,6 @@ impl<R: Runtime> Reactor<R> {
     /// Handle a [`CryptoCommand`] received by the reactor.
     fn handle_command(&mut self, cmd: CryptoCommand) -> anyhow::Result<()> {
         match cmd {
-            CryptoCommand::GetLatestNtorKey { tx } => {
-                let pubkey = self.view.ks_ntor_keys()?.latest().public();
-                tx.send(pubkey)
-                    .map_err(|_| anyhow!("GetLatestNtorKey replay tx failed"))?;
-            }
-            CryptoCommand::GetSignKey { tx } => {
-                let keypair = self.view.ks_relaysign_ed()?;
-                tx.send(keypair)
-                    .map_err(|_| anyhow!("GetSignKey replay tx failed"))?;
-            }
             CryptoCommand::GetRouterDescKeyMaterial { tx } => {
                 let material = self.router_desc_key_material();
                 tx.send(material)
