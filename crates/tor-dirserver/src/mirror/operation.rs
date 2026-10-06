@@ -17,12 +17,15 @@
 
 use std::{
     collections::{HashSet, VecDeque},
+    fmt::Debug,
+    hash::Hash,
     marker::PhantomData,
     mem,
     net::SocketAddr,
     time::Duration,
 };
 
+use educe::Educe;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
@@ -44,7 +47,7 @@ use tor_rtcompat::PreferredRuntime;
 use tracing::debug;
 
 use crate::{
-    database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Timestamp},
+    database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Sha1, Sha256, Timestamp},
     err::{AuthorityRequestError, DatabaseError, OperationError},
     types::FlavoredConsensusUnverified,
 };
@@ -244,6 +247,13 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
 
         /// When to stop dealing with this consensus and fetching a new one.
         ttl: Timestamp,
+
+        /// Descriptors we refuse to further download.
+        ///
+        /// Right now, this state gets cleaned, everytime we restart or obtain
+        /// a new consensus.  This is probably okay, as we most likely do not
+        /// want to store it on disk.
+        futile: Box<FutileDescriptors>,
     },
 }
 
@@ -397,8 +407,13 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         let consensus = db::read_tx(pool, |tx| self.recent_consensus(tx, now))??
             .ok_or(internal!("database externally modified?"))?;
         let ttl = consensus.ttl(rng);
+        let futile = Box::new(FutileDescriptors::default());
 
-        *data = ConsensusBoundData::Verified { consensus, ttl };
+        *data = ConsensusBoundData::Verified {
+            consensus,
+            ttl,
+            futile,
+        };
         Ok(())
     }
 
@@ -777,6 +792,59 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             certs_already.push(timely);
         }
         Ok(certs_already)
+    }
+}
+
+/// Top-level collections storing which descriptors are futile.
+#[derive(Debug, Clone, Default)]
+struct FutileDescriptors {
+    /// The futile router descriptors.
+    routers: FutileDescriptorSet<Sha1>,
+
+    /// The futile extra-infos.
+    extras: FutileDescriptorSet<Sha1>,
+
+    /// The futile micro descriptors.
+    micros: FutileDescriptorSet<Sha256>,
+}
+
+/// A generic struct storing which descriptors are futile for which reason.
+#[derive(Educe)]
+#[educe(Debug, Clone, Default)]
+struct FutileDescriptorSet<T: Debug + Clone + Copy + Eq + Hash> {
+    /// The descriptors that are not found on a given endpoint.
+    not_found: HashSet<(T, Box<DownloadAuthority>)>,
+    /// The descriptor that are outright refused.
+    refused: HashSet<T>,
+}
+
+impl<T: Debug + Clone + Copy + Eq + Hash> FutileDescriptorSet<T> {
+    /// Returns an iterator over the digest that are not found.
+    fn not_found(&self, endpoint: &DownloadAuthority) -> impl Iterator<Item = T> {
+        self.not_found
+            .iter()
+            .filter(|(_, this_endpoint)| **this_endpoint == *endpoint)
+            .map(|(d, _)| *d)
+    }
+
+    /// Returns an iterator over the digest that are refused.
+    fn refused(&self) -> impl Iterator<Item = T> {
+        self.refused.iter().copied()
+    }
+
+    /// Chaining of `.not_found()` and `.refused()`.
+    fn excluded(&self, endpoint: &DownloadAuthority) -> impl Iterator<Item = T> {
+        self.not_found(endpoint).chain(self.refused())
+    }
+
+    /// Marks a digest in combination with an authority as not found.
+    fn set_not_found(&mut self, digest: T, endpoint: &DownloadAuthority) {
+        self.not_found.insert((digest, endpoint.into()));
+    }
+
+    /// Marks a digest as refused.
+    fn set_refused(&mut self, digest: T) {
+        self.refused.insert(digest);
     }
 }
 
