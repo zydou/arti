@@ -7577,6 +7577,7 @@ dependencies = [
  "rand 0.10.2",
  "retry-error",
  "rusqlite",
+ "rustls",
  "saturating-time",
  "strum",
  "tempfile",

@@ -60,14 +60,15 @@ tor-dirclient = { version = "0.47.0", path = "../tor-dirclient" }
 tor-dircommon = { version = "0.47.0", path = "../tor-dircommon", features = ["experimental"] }
 tor-error = { version = "0.47.0", path = "../tor-error" }
 tor-llcrypto = { version = "0.47.0", path = "../tor-llcrypto" }
-tor-netdoc = { version = "0.47.0", path = "../tor-netdoc", features = ["full", "experimental"] }
-tor-rtcompat = { version = "0.47.0", path = "../tor-rtcompat", features = [ "tokio", "native-tls", "rustls" ] }
+tor-netdoc = { version = "0.47.0", path = "../tor-netdoc", features = ["experimental"] }
+tor-rtcompat = { version = "0.47.0", path = "../tor-rtcompat", features = [ "tokio", "rustls" ] }
 tracing = "0.1.41"
 weak-table = "0.4.0"
 zstd = "0.13.3"
 
 [dev-dependencies]
 lazy_static = "1.5.0"
+rustls = { version = "0.23.5", default-features = false, features = ["aws_lc_rs"] }
 tempfile = "3.23.0"
 tokio-stream = { version = "0.1.17", features = ["full"] }
 
