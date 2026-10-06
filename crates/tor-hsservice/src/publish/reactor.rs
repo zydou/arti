@@ -78,7 +78,7 @@ use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
 use tor_config_path::{CfgPath, CfgPathResolver};
-use tor_dirclient::SourceInfo;
+use tor_dirclient::{RequestError, SourceInfo};
 use tor_netdir::{DirEvent, NetDir};
 use tracing::instrument;
 
@@ -1812,6 +1812,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         ed_id,
                         rsa_id
                     );
+                }
+
+                if let UploadError::Request(req_err) = e {
+                    if let RequestError::HttpStatus(status, _msg) = &req_err.error {
+                        if (400..500).contains(status) {
+                            // This should never happen (it's a bug if it does!)
+                            log_ratelim!(
+                                "The peer says our HS descriptor upload request was invalid. This is a bug (maybe theirs; maybe ours)";
+                                Err::<(), _>(e.clone());
+                            );
+                        }
+
+                        // XXX if the status code is 400, dump the hsdesc to disk
+                    }
                 }
             }
             r
