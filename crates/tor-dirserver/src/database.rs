@@ -1618,7 +1618,9 @@ mod test {
 
             let empty = Rc::new(Vec::<Value>::new());
             let res = stmt
-                .query_map(params![meta[0].docid, empty, -1], |row| row.get::<_, i64>(1))
+                .query_map(params![meta[0].docid, empty, -1], |row| {
+                    row.get::<_, i64>(1)
+                })
                 .unwrap()
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();

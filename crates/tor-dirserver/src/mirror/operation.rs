@@ -317,7 +317,11 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             // State::LoadConsensus.  Depending on this, we download the missing
             // network documents (descriptors) from a directory authority, if
             // any.
-            ConsensusBoundData::Verified { consensus, ttl, futile } => {
+            ConsensusBoundData::Verified {
+                consensus,
+                ttl,
+                futile,
+            } => {
                 // See if there are any missing descriptors that are not Refused
                 // yet.  It is important to not exclude the NotFound descriptors
                 // here because they may be available at a different authority.
@@ -970,8 +974,18 @@ mod test {
                         consensus.missing_routers(tx, iter::empty(), None).unwrap(),
                         HashSet::from([relay_to_remove])
                     );
-                    assert!(consensus.missing_extras(tx, iter::empty(), None).unwrap().is_empty());
-                    assert!(consensus.missing_micros(tx, iter::empty(), None).unwrap().is_empty());
+                    assert!(
+                        consensus
+                            .missing_extras(tx, iter::empty(), None)
+                            .unwrap()
+                            .is_empty()
+                    );
+                    assert!(
+                        consensus
+                            .missing_micros(tx, iter::empty(), None)
+                            .unwrap()
+                            .is_empty()
+                    );
                 })
                 .unwrap();
                 assert!(ttl >= fresh_until);
