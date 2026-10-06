@@ -25,8 +25,8 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
         // TODO DIRAUTH replace dummy values
         calc! { both.proto_statuses = Default::default() }
         calc! { both.voting_delay }
-        calc! { both.client_versions = Default::default() }
-        calc! { both.server_versions = Default::default() }
+        calc! { both.client_versions }
+        calc! { both.server_versions }
         calc! { both.shared_rand = Default::default() }
 
         Ok(construct_both! {
@@ -132,4 +132,34 @@ pub(super) fn netparams_preamble_aggregate<'i>(
             Some((String::from(k), out))
         })
         .collect())
+}
+
+impl<AC> Aggregate<AC> for netstatus::RecommendedTorVersions {
+    type Output = Self;
+
+    fn aggregate<'i>(
+        _context: ConsensusContextRefs<AC>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self, ConsensusError>
+    where
+        Self: 'i,
+    {
+        let inputs = inputs.map(|(_vnum, i)| i).filter(|i| i.is_known());
+
+        Ok(inputs
+            .clone()
+            .flat_map(|i| i.iter())
+            .unique()
+            .try_filter(|k| {
+                is_true_for_more_than_half_of(
+                    //
+                    inputs.clone(),
+                    |i| Ok::<_, Bug>(i.contains(&**k)),
+                )
+            })
+            .process_results(|ks| netstatus::RecommendedTorVersions::from_iter(ks))?
+            .map_err(into_internal!(
+                "passed through software version was invalid"
+            ))?)
+    }
 }
