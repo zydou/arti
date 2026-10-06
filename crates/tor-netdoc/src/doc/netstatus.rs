@@ -3078,7 +3078,7 @@ mod test {
 
         let doc = verify(doc, &authorities, &certs)?.if_valid_at(&now)?;
 
-        println!("{doc:?}");
+        println!("{doc:#?}");
 
         let mut enc = NetdocEncoder::new();
         doc.encode_unsigned(&mut enc)?;
