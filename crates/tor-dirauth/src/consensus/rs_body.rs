@@ -18,8 +18,10 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         &self,
         context: ConsensusContextRefs<PlainPreamble>,
     ) -> Result<
-            Option<(netstatus::plain::RouterStatus,
-            Option<netstatus::md::RouterStatus>)>,
+        Option<(
+            netstatus::plain::RouterStatus,
+            Option<netstatus::md::RouterStatus>,
+        )>,
         ConsensusError,
     > {
         let inputs = self
