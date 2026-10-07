@@ -197,7 +197,7 @@ macro_rules! calc_internal {
     { { both. $f:ident $(;)?
     } $let:tt } => {
         calc_internal! { {
-            both. $f <+ $crate::consensus::framework::ConsensusesFromVotes::consensuses
+            both. $f <+ $crate::consensus::framework::ConsensusesFromVotes::consensuses ;
         } $let }
     };
 
@@ -205,7 +205,7 @@ macro_rules! calc_internal {
     { { $($out:ident),+ $(,)? . $f:ident $(;)?
     } $let:tt } => {
         calc_internal! { {
-            $($out),+ . $f <+ $crate::consensus::framework::Aggregate::aggregate
+            $($out),+ . $f <+ $crate::consensus::framework::Aggregate::aggregate ;
         } $let }
     };
 
@@ -214,7 +214,7 @@ macro_rules! calc_internal {
     } $let:tt } => {
         calc_internal! {
             @ 1 {$} $let
-            $($out),+ . $f { <+ $func }
+            $($out),+ . $f { <+ $func ; }
         }
     };
 
@@ -283,8 +283,8 @@ macro_rules! calc_internal {
     //
     // Expands to an expression.
 
-    // RHS is `<+ FUNC`
-    { @ 2 {$D:tt} $f:ident { <+ $func:expr } } => {
+    // RHS is `<+ FUNC ;`
+    { @ 2 {$D:tt} $f:ident { <+ $func:expr ; } } => {
         derive_deftly::derive_deftly_adhoc! {
             DummyForMacrology beta_deftly:
             ($func) (
