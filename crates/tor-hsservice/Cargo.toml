@@ -156,6 +156,7 @@ test-temp-dir = { version = "0.9.0", path = "../test-temp-dir" }
 tor-config = { version = "0.47.0", path = "../tor-config", features = ["testing"] }
 tor-key-forge = { version = "0.47.0", path = "../tor-key-forge" }
 tor-keymgr = { version = "0.47.0", path = "../tor-keymgr", features = ["keymgr", "testing"] }
+tor-llcrypto = { version = "0.47.0", path = "../tor-llcrypto", features = ["testing"] }
 tor-netdir = { version = "0.47.0", path = "../tor-netdir", features = ["hs-service", "testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.47.0", features = ["testing"] }
 tor-persist = { version = "0.47.0", path = "../tor-persist", features = ["testing"] }
