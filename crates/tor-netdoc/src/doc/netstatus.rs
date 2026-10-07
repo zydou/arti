@@ -441,18 +441,25 @@ where
 /// Each consensus has two of these: one for relays, and one for clients.
 ///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:required-relay-protocols>
-#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, Deftly)]
+#[derive_deftly(Constructor)]
+#[allow(clippy::exhaustive_structs)]
 pub struct ProtoStatus {
     /// Set of protocols that are recommended; if we're missing a protocol
     /// in this list we should warn the user.
     ///
     /// `recommended-client-protocols` or `recommended-relay-protocols`
-    recommended: Protocols,
+    pub recommended: Protocols,
+
     /// Set of protocols that are required; if we're missing a protocol
     /// in this list we should refuse to start.
     ///
     /// `required-client-protocols` or `required-relay-protocols`
-    required: Protocols,
+    pub required: Protocols,
+
+    #[doc(hidden)]
+    #[serde(skip)]
+    pub __non_exhaustive: (),
 }
 
 impl ProtoStatus {
@@ -1678,6 +1685,7 @@ impl ProtoStatus {
         Ok(ProtoStatus {
             recommended,
             required,
+            __non_exhaustive: (),
         })
     }
 
@@ -2903,6 +2911,7 @@ mod test {
         let outcome = ProtoStatus {
             recommended: "Link=7".parse().unwrap(),
             required: "Desc=5".parse().unwrap(),
+            __non_exhaustive: (),
         }
         .check_protocols(&my_protocols);
         assert!(outcome.is_ok());
@@ -2910,6 +2919,7 @@ mod test {
         let outcome = ProtoStatus {
             recommended: "Microdesc=4 Link=7".parse().unwrap(),
             required: "Desc=5".parse().unwrap(),
+            __non_exhaustive: (),
         }
         .check_protocols(&my_protocols);
         assert_eq!(
@@ -2922,6 +2932,7 @@ mod test {
         let outcome = ProtoStatus {
             recommended: "Microdesc=4 Link=7".parse().unwrap(),
             required: "Desc=5 Cons=5-12 Wombat=15".parse().unwrap(),
+            __non_exhaustive: (),
         }
         .check_protocols(&my_protocols);
         assert_eq!(
@@ -2938,10 +2949,12 @@ mod test {
             client: ProtoStatus {
                 recommended: "Link=1-5 LinkAuth=2-5".parse().unwrap(),
                 required: "Link=5 LinkAuth=3".parse().unwrap(),
+                __non_exhaustive: (),
             },
             relay: ProtoStatus {
                 recommended: "Wombat=20-30 Knish=20-30".parse().unwrap(),
                 required: "Wombat=20-22 Knish=25-27".parse().unwrap(),
+                __non_exhaustive: (),
             },
             __non_exhaustive: (),
         };

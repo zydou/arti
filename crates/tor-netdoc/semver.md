@@ -8,3 +8,4 @@ ADDED: `netstatus::ConsensusAuthoritySectionConstructor`, `DirSourceConstructor`
 ADDED: `IdentifiedDigest` is now exhaustive, with fields `pub`
 ADDED: `{FixedB64, FixedB16U}::from_byte_slice`
 ADDED: `ProtoStatusesConstructor`; `ProtoStatuses` fields are now `pub`
+ADDED: `ProtoStatusConstructor`; `ProtoStatus` fields are now `pub`
