@@ -44,6 +44,9 @@ variables:
   CHUTNEY_COMMIT: "d6659ac34c36122ed2590714e37269d1b983c336"
   # Rust doesn't do backtraces on panic by default, but we do want them in CI
   RUST_BACKTRACE: 1
+  # Disable Cargo's incremental compilation to hopefully reduce load on CI runners.
+  # https://gitlab.torproject.org/tpo/core/arti/-/work_items/2793
+  CARGO_INCREMENTAL: "0"
 
 default:
   image:
