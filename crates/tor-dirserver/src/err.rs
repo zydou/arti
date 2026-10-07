@@ -41,6 +41,17 @@ pub(crate) enum AuthorityRequestError {
     #[error("response error: {0}")]
     Response(&'static str),
 
+    /// A request led to no progress being made.
+    ///
+    /// This is the case if the response only consists of netdocs we did not
+    /// request or no netdocs at all, leading to no progress.
+    ///
+    /// The correct error handling strategy for this case is to pick a different
+    /// endpoint, as the current one is either not useful for us anymore or
+    /// is maliciously tricking us into something that should not happen.
+    #[error("request resulted in no progress")]
+    NoRequestedDocumentsReturned,
+
     /// An internal error.
     #[error("internal error")]
     Bug(#[from] tor_error::Bug),
@@ -112,7 +123,7 @@ pub(crate) enum DatabaseError {
 pub(crate) enum OperationError {
     /// Request to a directory authority failed.
     #[error("authority request error: {0}")]
-    AuthorityRequest(#[from] Box<AuthorityRequestError>),
+    AuthorityRequest(#[from] AuthorityRequestError),
 
     /// Access to the database failed for good.
     #[error("database error: {0}")]
@@ -132,19 +143,18 @@ pub(crate) enum OperationError {
     Bug(#[from] tor_error::Bug),
 }
 
-impl From<AuthorityRequestError> for OperationError {
-    fn from(value: AuthorityRequestError) -> Self {
-        Self::AuthorityRequest(Box::new(value))
-    }
-}
-
 impl IsFatal for OperationError {
     /// The [`OperationError`] is considered to be fatal.
     ///
     /// Right now, the following variants are considered to be fatal:
     /// * [`OperationError::Database`]
     /// * [`OperationError::Bug`]
+    /// * [`OperationError::AuthorityRequest`] if [`IsFatal`]
     fn is_fatal(&self) -> bool {
-        matches!(&self, Self::Database(_) | Self::Bug(_))
+        match self {
+            Self::Database(_) | Self::Bug(_) => true,
+            Self::AuthorityRequest(e) => e.is_fatal(),
+            _ => false,
+        }
     }
 }

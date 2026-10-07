@@ -518,9 +518,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // i.e. the authority only returned certificates we were not interested
         // in.
         if certs.is_empty() {
-            Err(Box::new(AuthorityRequestError::Response(
-                "response lead to no progress",
-            )))?;
+            Err(AuthorityRequestError::NoRequestedDocumentsReturned)?;
         }
 
         // Finally, insert them all into the database.
