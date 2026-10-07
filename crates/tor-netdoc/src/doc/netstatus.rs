@@ -520,12 +520,19 @@ impl HasKind for ProtocolSupportError {
 /// Represents the collection of four items: `{recommended,required}-{client,relay}-protocols`.
 ///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:required-relay-protocols>
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, Deftly)]
+#[derive_deftly(Constructor)]
+#[allow(clippy::exhaustive_structs)]
 pub struct ProtoStatuses {
     /// Lists of recommended and required subprotocol versions for clients
-    client: ProtoStatus,
+    pub client: ProtoStatus,
+
     /// Lists of recommended and required subprotocol versions for relays
-    relay: ProtoStatus,
+    pub relay: ProtoStatus,
+
+    #[doc(hidden)]
+    #[serde(skip)]
+    pub __non_exhaustive: (),
 }
 
 impl ProtoStatuses {
@@ -2936,6 +2943,7 @@ mod test {
                 recommended: "Wombat=20-30 Knish=20-30".parse().unwrap(),
                 required: "Wombat=20-22 Knish=25-27".parse().unwrap(),
             },
+            __non_exhaustive: (),
         };
         let json = serde_json::to_string(&ps).unwrap();
         let ps2 = serde_json::from_str(json.as_str()).unwrap();

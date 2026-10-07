@@ -237,6 +237,7 @@ impl ConsensusBuilder {
         let proto_statuses = Arc::new(ProtoStatuses {
             client: self.client_protos.clone(),
             relay: self.relay_protos.clone(),
+            __non_exhaustive: (),
         });
 
         let consensus_method = self
