@@ -12,16 +12,14 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
     /// from the resolution part of the algorithm.
     ///
     /// Can return `None` to mean that this router should not be listed after all
-    /// (eg, because its listing would lack the Running flag).
+    /// (eg, because its listing would lack the Running flag),
+    /// or `Some((md, None))` to list in the plain consensus, but not in the md consensus.
     pub(super) fn consensuses(
         &self,
         context: ConsensusContextRefs<PlainPreamble>,
     ) -> Result<
-        (
-            //
-            Option<netstatus::plain::RouterStatus>,
-            Option<netstatus::md::RouterStatus>,
-        ),
+            Option<(netstatus::plain::RouterStatus,
+            Option<netstatus::md::RouterStatus>)>,
         ConsensusError,
     > {
         let inputs = self
@@ -69,7 +67,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         calc! { out.flags }
         // "routers that do not have the Running flag are not listed at all."
         if !out_flags.contains(RelayFlag::Running) {
-            return Ok((None, None));
+            return Ok(None);
         }
         calc! { both.flags = out_flags.clone() }
 
@@ -84,7 +82,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
                 // TODO DIRAUTH routerstatus fields missing
             }
         };
-        Ok((Some(plain), Some(md)))
+        Ok(Some((plain, Some(md))))
     }
 }
 
