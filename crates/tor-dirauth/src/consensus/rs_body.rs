@@ -160,7 +160,7 @@ impl Aggregate<PlainPreamble> for DocRelayFlags {
     where
         Self: 'i,
     {
-        Ok(context
+        let mut out: DocRelayFlags = context
             .computed
             .known_flags
             // "A routerstatus has a flag set if that is included by more than half of the
@@ -188,7 +188,26 @@ impl Aggregate<PlainPreamble> for DocRelayFlags {
                 })()
                 .transpose()
             })
-            .try_collect()?)
+            .try_collect()?;
+
+        #[allow(clippy::single_element_loop)] // more uniform this way
+        {
+            // TODO DIRAUTH this needs to be tested somehow
+            use RelayFlag as F;
+            let out = &mut out.known;
+            if out.contains(F::MiddleOnly) {
+                for clear in [F::Exit, F::Guard, F::V2Dir, F::HSDir] {
+                    out.remove(clear);
+                }
+                for set in [F::BadExit] {
+                    if context.computed.known_flags.contains(set) {
+                        out.insert(set);
+                    }
+                }
+            }
+        }
+
+        Ok(out)
     }
 }
 
