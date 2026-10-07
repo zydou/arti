@@ -505,6 +505,7 @@ mod test {
             let state_handle = state_dir.acquire_instance(&nickname).unwrap();
             let pow_nonce_dir = state_handle.raw_subdir("pow_nonces").unwrap();
             let pow_manager_storage_handle = state_handle.storage_handle("pow_manager").unwrap();
+            let bad_hsdescs_dir = state_handle.raw_subdir("bad_hsdescs").unwrap();
 
             let NewPowManager {
                 pow_manager,
@@ -535,6 +536,7 @@ mod test {
                 Arc::new(CfgPathResolver::default()),
                 pow_manager,
                 update_from_pow_manager_rx,
+                bad_hsdescs_dir,
             );
 
             publisher.launch().unwrap();
