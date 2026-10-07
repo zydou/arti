@@ -163,3 +163,71 @@ impl<AC> Aggregate<AC> for netstatus::RecommendedTorVersions {
             ))?)
     }
 }
+
+impl Aggregate<()> for netstatus::ProtoStatuses {
+    type Output = Self;
+
+    fn aggregate<'i>(
+        context: ConsensusContextRefs<()>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self, ConsensusError>
+    where
+        Self: 'i,
+    {
+        calc! { out.client <+ protostatus_preamble_aggregate }
+        calc! { out.relay <+ protostatus_preamble_aggregate }
+        Ok(construct! {
+            netstatus::ProtoStatuses {
+            } {
+                out. client, relay;
+            }
+        })
+    }
+}
+
+/// Calculate the `{recommended,required}-*-protocols` items in a consensus
+//
+// Not `impl Aggregate` because `ProtoStatus` wants to be
+// handled quite differently in a routerstatus.
+#[allow(clippy::needless_pass_by_value, clippy::unnecessary_wraps)]
+fn protostatus_preamble_aggregate<'i>(
+    context: ConsensusContextRefs<()>,
+    inputs: impl ComponentInVotes<&'i netstatus::ProtoStatus>,
+) -> Result<netstatus::ProtoStatus, ConsensusError> {
+    fn aggregate_by_threshold<'i, 'r>(
+        context: ConsensusContextRefs<'r, ()>,
+        inputs: impl ComponentInVotes<&'i tor_protover::Protocols>,
+        threshold: impl Fn(&ConsensusCommonContext<'r>, usize) -> bool,
+    ) -> Result<tor_protover::Protocols, ConsensusError> {
+        let inputs: Vec<HashSet<(tor_protover::Protocol, u8)>> = inputs
+            .map(|(_vnum, i)| i.iter_all().collect())
+            .collect_vec();
+
+        Ok(inputs
+            .iter()
+            .flatten()
+            .unique()
+            .filter(|k| {
+                let n_y = inputs.iter().filter(|i| i.contains(k)).count();
+                threshold(&context, n_y)
+            })
+            .cloned()
+            .collect())
+    }
+
+    calc! {
+        out.recommended <+ aggregate_by_threshold;
+        , ConsensusCommonContext::is_more_than_half_all_auths
+    }
+    calc! {
+        out.required <+ aggregate_by_threshold;
+        , ConsensusCommonContext::is_at_least_two_thirds_all_auths
+    }
+
+    Ok(construct! {
+        netstatus::ProtoStatus {
+        } {
+            out. recommended, required;
+        }
+    })
+}

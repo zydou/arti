@@ -7425,6 +7425,7 @@ dependencies = [
  "tor-checkable",
  "tor-error",
  "tor-netdoc",
+ "tor-protover",
  "tracing",
  "tracing-test",
  "typed-index-collections",
