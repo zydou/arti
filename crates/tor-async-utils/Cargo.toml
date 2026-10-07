@@ -31,7 +31,7 @@ bench = ["dep:visibility"]
 
 [dependencies]
 cfg-if = "1.0.0"
-derive-deftly = { version = "~1.12.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
 educe = "0.4.22"
 extend = "1.2.0"
 futures = "0.3.14"
