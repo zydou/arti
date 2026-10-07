@@ -112,6 +112,9 @@ impl ConsensusesFromVotes<PlainPreamble> for Vec<RouterStatusVote> {
 
         output_rs_inputs
             .map(|resolved_rs_input| resolved_rs_input.consensuses(context))
-            .process_results(|rss_iter| rss_iter.filter_collect_unzip())
+            .process_results(|rss_iter| {
+                rss_iter
+                    .filter_collect_unzip()
+            })
     }
 }
