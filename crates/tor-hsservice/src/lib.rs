@@ -414,14 +414,6 @@ impl OnionService {
         onion_address(&self.keymgr, &self.config.nickname)
     }
 
-    /// Return the onion address of this service.
-    ///
-    /// See [`onion_address`](Self::onion_address)
-    #[deprecated = "Use the new onion_address method instead"]
-    pub fn onion_name(&self) -> Option<HsId> {
-        self.onion_address()
-    }
-
     /// Generate an identity key (KP_hs_id) for this service.
     ///
     /// If the keystore specified by `selector` contains an entry for the identity key
@@ -573,14 +565,6 @@ impl RunningOnionService {
     /// keystores.
     pub fn onion_address(&self) -> Option<HsId> {
         onion_address(&self.keymgr, &self.nickname)
-    }
-
-    /// Return the onion address of this service.
-    ///
-    /// See [`onion_address`](Self::onion_address)
-    #[deprecated = "Use the new onion_address method instead"]
-    pub fn onion_name(&self) -> Option<HsId> {
-        self.onion_address()
     }
 }
 
