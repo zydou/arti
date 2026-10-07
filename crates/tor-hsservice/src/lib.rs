@@ -679,6 +679,16 @@ pub fn supported_hsservice_protocols() -> tor_protover::Protocols {
 }
 
 /// Returns all the keys (as [`KeystoreEntry`]) of the service
+/// identified by `nickname`.
+fn list_keys_for_service<'a>(
+    nickname: &HsNickname,
+    keymgr: &'a KeyMgr,
+) -> tor_keymgr::Result<Vec<KeystoreEntry<'a>>> {
+    let arti_pat = tor_keymgr::KeyPathPattern::Arti(format!("hss/{}/*", nickname));
+    keymgr.list_matching(&arti_pat)
+}
+
+/// Returns all the keys (as [`KeystoreEntry`]) of the service
 /// identified by `nickname` that are expired according to the
 /// provided [`HsDirParams`].
 fn list_expired_keys_for_service<'a>(
@@ -686,8 +696,7 @@ fn list_expired_keys_for_service<'a>(
     nickname: &HsNickname,
     keymgr: &'a KeyMgr,
 ) -> tor_keymgr::Result<Vec<KeystoreEntry<'a>>> {
-    let arti_pat = tor_keymgr::KeyPathPattern::Arti(format!("hss/{}/*", nickname));
-    let possibly_relevant_keys = keymgr.list_matching(&arti_pat)?;
+    let possibly_relevant_keys = list_keys_for_service(nickname, keymgr)?;
     let mut expired_keys = Vec::new();
 
     for entry in possibly_relevant_keys {
@@ -695,7 +704,7 @@ fn list_expired_keys_for_service<'a>(
         let mut append_if_expired = |spec: &dyn HsTimePeriodKeySpecifier| {
             if spec.nickname() != nickname {
                 return Err(internal!(
-                    "keymgr gave us key {spec:?} that doesn't match our pattern {arti_pat:?}"
+                    "keymgr gave us key {spec:?} belonging to another service?!"
                 )
                 .into());
             }
