@@ -594,6 +594,21 @@ fn maybe_generate_hsid(
     let (hsid, generated) = match kp {
         Some(kp) => (kp.id(), false),
         None => {
+            // There is no HsId, but there *may* be some leftover keys
+            // associated with the old identity.
+            //
+            // If we've reached this point, it means our HsId is *not*
+            // stored offline, so any leftover keys must have been
+            // generated from an old HsId that was removed at some point.
+            //
+            // Since we're going to generate a new key, we really need to
+            // remove the old descriptor signing keys and blinded identity keys,
+            // because otherwise the publisher will happily use the old keys,
+            // essentially continuing to publish for the old identity instead
+            // of the new one.
+            //
+            // XXX: remove the keys
+
             // Note: there is a race here. If the HsId is generated through some other means
             // (e.g. via the CLI) at some point between the time we looked up the keypair and
             // now, we will return an error.
