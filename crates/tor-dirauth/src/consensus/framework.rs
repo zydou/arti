@@ -210,6 +210,13 @@ impl<'r> ConsensusCommonContext<'r> {
         // This way of writing it avoids any possibility of over/under-flow
         n_some_voters > self.n_authorities / 2
     }
+
+    /// Is `n_some_voters` strictly more than half of all the authorities?
+    #[allow(dead_code)] // XXXX
+    pub(super) fn is_at_least_two_thirds_all_auths(&self, n_some_voters: usize) -> bool {
+        // This way of writing it avoids any possibility of over/under-flow
+        n_some_voters >= self.n_authorities.saturating_mul(2).saturating_add(2) / 3
+    }
 }
 
 #[cfg(test)]
@@ -264,5 +271,25 @@ pub(crate) mod test {
         check(3, 2);
         check(4, 3);
         check(5, 3);
+    }
+
+    #[test]
+    fn is_at_least_two_thirds_all_auths() {
+        let mut context = ConsensusCommonContext::new_for_test();
+
+        let mut check = |t, n_authorities| {
+            context.n_authorities = n_authorities;
+            assert_eq!(
+                context.is_at_least_two_thirds_all_auths(t),
+                t * 3 >= 2 * n_authorities,
+                "{t} out of {n_authorities}",
+            );
+        };
+
+        for n_authorities in 0..20 {
+            for t in 0..n_authorities {
+                check(t, n_authorities);
+            }
+        }
     }
 }
