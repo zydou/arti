@@ -337,6 +337,10 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // themselves.  Either way, we want to wait to hibernate and
                 // wait for the next consensus in the case that no authority
                 // is left.
+                //
+                // TODO DIRMIRROR: This appears to be prone to copy and paste
+                // errors, we should do something about it, as in macros and/or
+                // traits.
                 let (missing_routers, missing_micros, missing_extras) = (
                     consensus.missing_routers(tx, futile.routers.refused(), Some(1))?,
                     consensus.missing_micros(tx, futile.micros.refused(), Some(1))?,
