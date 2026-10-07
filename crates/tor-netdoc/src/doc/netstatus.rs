@@ -329,6 +329,26 @@ pub mod consensus_methods_comma_separated {
     }
 }
 
+/// Contents of a `voting-delay` item in the network status preamble
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:voting-delay>
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Copy, Deftly)]
+#[derive_deftly(Constructor, ItemValueEncodable, ItemValueParseable)]
+#[allow(clippy::exhaustive_structs)]
+pub struct VotingDelay {
+    /// VoteSeconds
+    #[deftly(constructor)]
+    pub vote_seconds: u32,
+
+    /// DistSeconds
+    #[deftly(constructor)]
+    pub dist_seconds: u32,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
+}
+
 /// A set of named network parameters.
 ///
 /// These are used to describe current settings for the Tor network,
