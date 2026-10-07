@@ -439,7 +439,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     ///
     /// <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4378#note_3467300>
     // TODO DIRMIRROR: This has a large overlap with missing_extras and
-    // missing_micros, we should macrofy this at one point.
+    // missing_micros, we should genericise or macrofy this at one point.
     pub(crate) fn missing_routers(
         &self,
         tx: &Transaction<'_>,
