@@ -49,6 +49,7 @@ use std::{
     num::NonZero,
     ops::{Add, Sub},
     path::Path,
+    rc::Rc,
     time::{Duration, SystemTime},
 };
 
@@ -60,7 +61,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::{
     ToSql, Transaction, TransactionBehavior, named_params, params,
-    types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef},
+    types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, Value, ValueRef},
 };
 use saturating_time::SaturatingTime;
 use tor_basic_utils::RngExt;
@@ -158,6 +159,12 @@ macro_rules! impl_hash_wrapper {
                 // Because Self is only constructed with FromSql and digest
                 // data, it is safe to assume it is valid.
                 Ok(ToSqlOutput::from(self.to_string()))
+            }
+        }
+
+        impl From<$name> for Value {
+            fn from(value: $name) -> Value {
+                Value::Text(value.to_string())
             }
         }
 
@@ -329,6 +336,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     ///
     /// Parameters:
     /// :docid - The docid of the consensus.
+    /// :exclude - The descriptors to skip.
     /// :limit - The maximum number of descriptors to return.
     //
     // TODO DIRMIRROR: Potentially constify more queries.
@@ -340,6 +348,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         WHERE
           cr.consensus_docid = :docid
           AND cr.sha1 IS NOT NULL
+          AND cr.sha1 NOT IN rarray(:exclude)
           AND router.sha1 IS NULL
         ORDER BY rand
         LIMIT :limit
@@ -429,9 +438,12 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     /// on performance related matters:
     ///
     /// <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4378#note_3467300>
+    // TODO DIRMIRROR: This has a large overlap with missing_extras and
+    // missing_micros, we should genericise or macrofy this at one point.
     pub(crate) fn missing_routers(
         &self,
         tx: &Transaction<'_>,
+        exclude: impl Iterator<Item = Sha1>,
         limit: Option<u64>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Plain {
@@ -440,10 +452,12 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
 
         let mut stmt = tx.prepare_cached(Self::MISSING_ROUTERS_QUERY)?;
 
+        let exclude = exclude.map(Value::from).collect();
+        let exclude: Rc<Vec<Value>> = Rc::new(exclude);
         let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
             .query_map(
-                named_params! {":docid": self.docid, ":limit": limit},
+                named_params! {":docid": self.docid, ":limit": limit, ":exclude": exclude},
                 |row| row.get(0),
             )?
             .collect::<Result<HashSet<_>, _>>()?;
@@ -463,6 +477,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     pub(crate) fn missing_extras(
         &self,
         tx: &Transaction<'_>,
+        exclude: impl Iterator<Item = Sha1>,
         limit: Option<u64>,
     ) -> Result<HashSet<Sha1>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Plain {
@@ -486,6 +501,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         //
         // Parameters:
         // :docid - The docid of the consensus.
+        // :exclude - The descriptors to skip.
         // :limit - The maximum number of descriptors to return.
         let mut stmt = tx.prepare_cached(sql!(
             "
@@ -497,15 +513,18 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND router.extra_sha1 IS NOT NULL
               AND extra.sha1 IS NULL
+              AND extra.sha1 NOT IN rarray(:exclude)
             ORDER BY rand
             LIMIT :limit
             "
         ))?;
 
+        let exclude = exclude.map(Value::from).collect();
+        let exclude: Rc<Vec<Value>> = Rc::new(exclude);
         let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
             .query_map(
-                named_params! {":docid": self.docid, ":limit": limit},
+                named_params! {":docid": self.docid, ":limit": limit, ":exclude": exclude},
                 |row| row.get(0),
             )?
             .collect::<Result<HashSet<_>, _>>()?;
@@ -522,6 +541,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
     pub(crate) fn missing_micros(
         &self,
         tx: &Transaction<'_>,
+        exclude: impl Iterator<Item = Sha256>,
         limit: Option<u64>,
     ) -> Result<HashSet<Sha256>, DatabaseError> {
         if T::flavor() != ConsensusFlavor::Microdesc {
@@ -551,15 +571,18 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
               cr.consensus_docid = :docid
               AND cr.sha2 IS NOT NULL
               AND micro.sha2 IS NULL
+              AND micro.sha2 NOT IN rarray(:exclude)
             ORDER BY rand
             LIMIT :limit
             "
         ))?;
 
+        let exclude = exclude.map(Value::from).collect();
+        let exclude: Rc<Vec<Value>> = Rc::new(exclude);
         let limit = limit.map_or(-1, |n| n.try_into().unwrap_or(i64::MAX));
         let missing = stmt
             .query_map(
-                named_params! {":docid": self.docid, ":limit": limit},
+                named_params! {":docid": self.docid, ":limit": limit, ":exclude": exclude},
                 |row| row.get(0),
             )?
             .collect::<Result<HashSet<_>, _>>()?;
@@ -854,7 +877,8 @@ pub(crate) fn open<P: AsRef<Path>>(
         .unwrap_or(NonZero::new(8).expect("8 == 0?"))
         .get() as u32;
 
-    let manager = r2d2_sqlite::SqliteConnectionManager::file(&path);
+    let manager = r2d2_sqlite::SqliteConnectionManager::file(&path)
+        .with_init(|c| rusqlite::vtab::array::load_module(c));
     let pool = Pool::builder().max_size(num_cores).build(manager)?;
 
     rw_tx(&pool, |tx| {
@@ -1447,7 +1471,7 @@ mod test {
         );
         let meta2 = ConsensusMeta::<Plain>::query(&tx).unwrap();
         assert_eq!(meta2, vec![meta]);
-        let missing_descs = meta.missing_routers(&tx, None).unwrap();
+        let missing_descs = meta.missing_routers(&tx, iter::empty(), None).unwrap();
         let missing_descs2 = body.routers.iter().map(|r| Sha1(*r.doc_digest())).collect();
         assert_eq!(missing_descs, missing_descs2);
     }
@@ -1522,10 +1546,18 @@ mod test {
             .unwrap();
 
         // Only one should be returned.
-        let missing_routers = read_tx(&pool, |tx| meta.missing_routers(tx, None))
+        let missing_routers = read_tx(&pool, |tx| meta.missing_routers(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         assert_eq!(missing_routers, HashSet::from([removed_descriptor]));
+
+        // None should be returned if we exclude the descriptor we just removed.
+        let missing_routers = read_tx(&pool, |tx| {
+            meta.missing_routers(tx, iter::once(removed_descriptor), None)
+        })
+        .unwrap()
+        .unwrap();
+        assert!(missing_routers.is_empty());
 
         // If we delete all router descriptors we have, we should get all.
         rw_tx(&pool, |tx| {
@@ -1536,7 +1568,7 @@ mod test {
 
         // Now all should be returned; we verify this by checking that the
         // result is present in all_descriptors, which is a superset.
-        let missing_routers = read_tx(&pool, |tx| meta.missing_routers(tx, None))
+        let missing_routers = read_tx(&pool, |tx| meta.missing_routers(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         // This is a superset of missing_routers because it includes router
@@ -1550,6 +1582,28 @@ mod test {
                 .iter()
                 .all(|sha1| all_descriptors.contains(sha1))
         );
+
+        // If we exclude one random descriptor, only that one should be missing.
+        let to_exclude = missing_routers.iter().copied().next().unwrap();
+        let missing_routers2 = read_tx(&pool, |tx| {
+            meta.missing_routers(tx, iter::once(to_exclude), None)
+        })
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            missing_routers
+                .difference(&missing_routers2)
+                .collect::<HashSet<_>>(),
+            [&to_exclude].into()
+        );
+
+        // If we exclude all descriptors, it should be empty too.
+        let missing_routers = read_tx(&pool, |tx| {
+            meta.missing_routers(tx, all_descriptors.iter().copied(), None)
+        })
+        .unwrap()
+        .unwrap();
+        assert!(missing_routers.is_empty());
     }
 
     /// Tests whether or not the missing descriptors are actually random.
@@ -1561,13 +1615,13 @@ mod test {
             let meta = ConsensusMeta::<Plain>::query(tx).unwrap()[0];
 
             // Ensure there are more than 1 missing descriptors now.
-            let n = meta.missing_routers(tx, None).unwrap().len();
+            let n = meta.missing_routers(tx, iter::empty(), None).unwrap().len();
             assert!(n > 1);
 
             let mut prev = HashSet::new();
             let mut randomness_works = false;
             for _ in 0..100 {
-                let cur = meta.missing_routers(tx, Some(1)).unwrap();
+                let cur = meta.missing_routers(tx, iter::empty(), Some(1)).unwrap();
                 if prev != cur {
                     randomness_works = true;
                     break;
@@ -1592,8 +1646,11 @@ mod test {
                 .prepare_cached(ConsensusMeta::<Plain>::MISSING_ROUTERS_QUERY)
                 .unwrap();
 
+            let empty = Rc::new(Vec::<Value>::new());
             let res = stmt
-                .query_map(params![meta[0].docid, -1], |row| row.get::<_, i64>(1))
+                .query_map(params![meta[0].docid, empty, -1], |row| {
+                    row.get::<_, i64>(1)
+                })
                 .unwrap()
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();
@@ -1623,7 +1680,7 @@ mod test {
         );
 
         // We should have no missing extra-infos.
-        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx, None))
+        let missing_extras = read_tx(&pool, |tx| meta.missing_extras(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         assert!(missing_extras.is_empty());
@@ -1666,7 +1723,7 @@ mod test {
             .unwrap();
 
         // Only one should be returned.
-        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, None))
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         assert_eq!(missing_micros, HashSet::from([removed_descriptor]));
@@ -1680,7 +1737,7 @@ mod test {
 
         // Now all should be returned; we verify this by checking that the
         // result is present in all_descriptors, which is a superset.
-        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, None))
+        let missing_micros = read_tx(&pool, |tx| meta.missing_micros(tx, iter::empty(), None))
             .unwrap()
             .unwrap();
         // This is a superset of missing_micros because it includes micro

@@ -17,12 +17,15 @@
 
 use std::{
     collections::{HashSet, VecDeque},
+    fmt::Debug,
+    hash::Hash,
     marker::PhantomData,
     mem,
     net::SocketAddr,
     time::Duration,
 };
 
+use educe::Educe;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
@@ -44,7 +47,7 @@ use tor_rtcompat::PreferredRuntime;
 use tracing::debug;
 
 use crate::{
-    database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Timestamp},
+    database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Sha1, Sha256, Timestamp},
     err::{AuthorityRequestError, DatabaseError, OperationError},
     types::FlavoredConsensusUnverified,
 };
@@ -63,6 +66,9 @@ mod poc;
 /// Obviously, we cannot use the values inside the consensus, as they are
 /// untrusted.
 const UNVERIFIED_TTL: Duration = Duration::from_mins(10);
+
+/// The endpoint(s) of a download authority identifying it.
+type DownloadAuthority = [SocketAddr];
 
 /// The various states for the [`StaticEngine`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
@@ -241,6 +247,13 @@ enum ConsensusBoundData<T: FlavoredConsensusUnverified> {
 
         /// When to stop dealing with this consensus and fetching a new one.
         ttl: Timestamp,
+
+        /// Descriptors we refuse to further download.
+        ///
+        /// Right now, this state gets cleaned, everytime we restart or obtain
+        /// a new consensus.  This is probably okay, as we most likely do not
+        /// want to store it on disk.
+        futile: Box<FutileDescriptors>,
     },
 }
 
@@ -304,7 +317,36 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             // State::LoadConsensus.  Depending on this, we download the missing
             // network documents (descriptors) from a directory authority, if
             // any.
-            ConsensusBoundData::Verified { consensus, ttl, .. } => {
+            ConsensusBoundData::Verified {
+                consensus,
+                ttl,
+                futile,
+            } => {
+                // See if there are any missing descriptors that are not Refused
+                // yet.  It is important to not exclude the NotFound descriptors
+                // here because they may be available at a different authority.
+                //
+                // TODO DIRMIRROR: What to do in the case there is no authority
+                // left in our list of endpoints?  Right now, this module of the
+                // code is not aware of the endpoints to try and it is the
+                // responsibility of the caller to check this.  Perhaps we
+                // should provide a possibility to force hibernate, as in passing
+                // an Option<DownloadAuthority> or an empty list.  An alternative
+                // worth exploring might also be to perform the RetryDelay
+                // wait logic, as in to not let the caller perform any timeouts
+                // themselves.  Either way, we want to wait to hibernate and
+                // wait for the next consensus in the case that no authority
+                // is left.
+                //
+                // TODO DIRMIRROR: This appears to be prone to copy and paste
+                // errors, we should do something about it, as in macros and/or
+                // traits.
+                let (missing_routers, missing_micros, missing_extras) = (
+                    consensus.missing_routers(tx, futile.routers.refused(), Some(1))?,
+                    consensus.missing_micros(tx, futile.micros.refused(), Some(1))?,
+                    consensus.missing_extras(tx, futile.extras.refused(), Some(1))?,
+                );
+
                 if *ttl <= now {
                     // The ttl has been surpassed, download a new
                     // consensus.  It is very important TO NOT transition to
@@ -314,9 +356,9 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                     // database until valid-after has been surpassed, which is
                     // most definitely not what we want.
                     State::FetchConsensus
-                } else if consensus.missing_routers(tx, Some(1))?.is_empty()
-                    && consensus.missing_micros(tx, Some(1))?.is_empty()
-                    && consensus.missing_extras(tx, Some(1))?.is_empty()
+                } else if missing_routers.is_empty()
+                    && missing_micros.is_empty()
+                    && missing_extras.is_empty()
                 {
                     // All queues are empty, meaning we are done, until ttl
                     // ends.
@@ -346,7 +388,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         &self,
         pool: &Pool<SqliteConnectionManager>,
         data: &mut ConsensusBoundData<T>,
-        endpoint: &[SocketAddr],
+        endpoint: &DownloadAuthority,
         now: Timestamp,
         rng: &mut R,
     ) -> Result<(), OperationError> {
@@ -394,8 +436,13 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         let consensus = db::read_tx(pool, |tx| self.recent_consensus(tx, now))??
             .ok_or(internal!("database externally modified?"))?;
         let ttl = consensus.ttl(rng);
+        let futile = Box::new(FutileDescriptors::default());
 
-        *data = ConsensusBoundData::Verified { consensus, ttl };
+        *data = ConsensusBoundData::Verified {
+            consensus,
+            ttl,
+            futile,
+        };
         Ok(())
     }
 
@@ -405,7 +452,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     async fn fetch_consensus(
         &self,
         data: &mut ConsensusBoundData<T>,
-        endpoint: &[SocketAddr],
+        endpoint: &DownloadAuthority,
         now: Timestamp,
     ) -> Result<(), AuthorityRequestError> {
         // Obtain the consensus.
@@ -445,7 +492,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         &self,
         pool: &Pool<SqliteConnectionManager>,
         data: &mut ConsensusBoundData<T>,
-        endpoint: &[SocketAddr],
+        endpoint: &DownloadAuthority,
         now: Timestamp,
     ) -> Result<(), OperationError> {
         let certs_already = db::read_tx(pool, |tx| self.certs_already(tx, now))??;
@@ -607,7 +654,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     /// on.
     async fn send_request<R: Requestable, D: NetdocParseable>(
         &self,
-        endpoint: &[SocketAddr],
+        endpoint: &DownloadAuthority,
         requ: R,
     ) -> Result<(String, Vec<(D, usize, usize)>), AuthorityRequestError> {
         // The check is required to not let Tokio panic.
@@ -775,6 +822,59 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 }
 
+/// Top-level collections storing which descriptors are futile.
+#[derive(Debug, Clone, Default)]
+struct FutileDescriptors {
+    /// The futile router descriptors.
+    routers: FutileDescriptorSet<Sha1>,
+
+    /// The futile extra-infos.
+    extras: FutileDescriptorSet<Sha1>,
+
+    /// The futile micro descriptors.
+    micros: FutileDescriptorSet<Sha256>,
+}
+
+/// A generic struct storing which descriptors are futile for which reason.
+#[derive(Educe)]
+#[educe(Debug, Clone, Default)]
+struct FutileDescriptorSet<T: Debug + Clone + Copy + Eq + Hash> {
+    /// The descriptors that are not found on a given endpoint.
+    not_found: HashSet<(T, Box<DownloadAuthority>)>,
+    /// The descriptor that are outright refused.
+    refused: HashSet<T>,
+}
+
+impl<T: Debug + Clone + Copy + Eq + Hash> FutileDescriptorSet<T> {
+    /// Returns an iterator over the digest that are not found.
+    fn not_found(&self, endpoint: &DownloadAuthority) -> impl Iterator<Item = T> {
+        self.not_found
+            .iter()
+            .filter(|(_, this_endpoint)| **this_endpoint == *endpoint)
+            .map(|(d, _)| *d)
+    }
+
+    /// Returns an iterator over the digest that are refused.
+    fn refused(&self) -> impl Iterator<Item = T> {
+        self.refused.iter().copied()
+    }
+
+    /// Chaining of `.not_found()` and `.refused()`.
+    fn excluded(&self, endpoint: &DownloadAuthority) -> impl Iterator<Item = T> {
+        self.not_found(endpoint).chain(self.refused())
+    }
+
+    /// Marks a digest in combination with an authority as not found.
+    fn set_not_found(&mut self, digest: T, endpoint: &DownloadAuthority) {
+        self.not_found.insert((digest, endpoint.into()));
+    }
+
+    /// Marks a digest as refused.
+    fn set_refused(&mut self, digest: T) {
+        self.refused.insert(digest);
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -792,7 +892,7 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::collections::HashSet;
+    use std::{collections::HashSet, iter};
 
     use rusqlite::params;
     use strum::IntoEnumIterator;
@@ -873,11 +973,21 @@ mod test {
                 // contain the relay we removed, because that is missing now.
                 db::read_tx(&pool, |tx| {
                     assert_eq!(
-                        consensus.missing_routers(tx, None).unwrap(),
+                        consensus.missing_routers(tx, iter::empty(), None).unwrap(),
                         HashSet::from([relay_to_remove])
                     );
-                    assert!(consensus.missing_extras(tx, None).unwrap().is_empty());
-                    assert!(consensus.missing_micros(tx, None).unwrap().is_empty());
+                    assert!(
+                        consensus
+                            .missing_extras(tx, iter::empty(), None)
+                            .unwrap()
+                            .is_empty()
+                    );
+                    assert!(
+                        consensus
+                            .missing_micros(tx, iter::empty(), None)
+                            .unwrap()
+                            .is_empty()
+                    );
                 })
                 .unwrap();
                 assert!(ttl >= fresh_until);
