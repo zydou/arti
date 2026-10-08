@@ -55,6 +55,7 @@
 use caret::caret_int;
 
 use derive_deftly::Deftly;
+use std::borrow::Cow;
 use thiserror::Error;
 use tor_basic_utils::intern::{GloballyInternable as _, Intern};
 
@@ -207,11 +208,11 @@ impl tor_bytes::Writeable for NumberedSubver {
 /// Known or unknown protocol
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd, derive_more::Display)]
 #[display("{_0}")]
-pub struct Protocol(ProtocolInner);
+pub struct Protocol(ProtocolInner<'static>);
 
 /// Representation for a known or unknown protocol.
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd, derive_more::Display)]
-enum ProtocolInner {
+enum ProtocolInner<'s> {
     /// A known protocol; represented by one of ProtoKind.
     ///
     /// ProtoKind must always be in the range 0..N_RECOGNIZED.
@@ -221,7 +222,7 @@ enum ProtocolInner {
     ///
     /// Invariant: is legal syntax, is not a recognized name
     #[display("{_0}")]
-    Unrecognized(String),
+    Unrecognized(Cow<'s, str>),
 }
 
 impl Protocol {
@@ -230,6 +231,32 @@ impl Protocol {
         match &self.0 {
             ProtocolInner::Unrecognized(s2) => s2 == s,
             _ => false,
+        }
+    }
+}
+
+impl<'s> ProtocolInner<'s> {
+    /// Borrow from a `ProtocolInner`
+    ///
+    /// Gives a new owned `ProtocolInner` which borrows from `self`.
+    #[allow(unused)] // XXXX
+    fn as_ref(&self) -> ProtocolInner<'_> {
+        use ProtocolInner as PI;
+        match self {
+            PI::Proto(p) => PI::Proto(*p),
+            PI::Unrecognized(u) => PI::Unrecognized(Cow::Borrowed(u.as_ref())),
+        }
+    }
+
+    /// Borrow from a `ProtocolInner`
+    ///
+    /// Gives a new owned `ProtocolInner` which borrows from `self`.
+    #[allow(unused)] // XXXX
+    fn into_static(self) -> ProtocolInner<'static> {
+        use ProtocolInner as PI;
+        match self {
+            PI::Proto(p) => PI::Proto(p),
+            PI::Unrecognized(u) => PI::Unrecognized(u.to_string().into()),
         }
     }
 }
@@ -247,7 +274,7 @@ impl std::str::FromStr for Protocol {
             Some(p) => Ok(Protocol(ProtocolInner::Proto(p))),
             None => {
                 if is_valid_proto_name(s) {
-                    Ok(Protocol(ProtocolInner::Unrecognized(s.to_string())))
+                    Ok(Protocol(ProtocolInner::Unrecognized(s.to_string().into())))
                 } else {
                     Err(ParseError::Malformed)
                 }
