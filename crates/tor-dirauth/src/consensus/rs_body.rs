@@ -169,7 +169,7 @@ impl Aggregate<PlainPreamble> for DocRelayFlags {
             .filter_map(|flag| {
                 (|| {
                     // Check the votes' opinions about `flag`
-                    let mut tally = [0_usize; 2];
+                    let mut tally = BoolIndexedArray::<usize>::default();
                     for (vnum, vote_rs_flags) in inputs.clone() {
                         let vote_known_flags = &context.votes.vote(vnum)?.preamble.known_flags;
                         if !vote_known_flags.contains_incl_unknown(&flag)? {
@@ -179,11 +179,11 @@ impl Aggregate<PlainPreamble> for DocRelayFlags {
                             continue;
                         }
                         let is_in_favour: bool = vote_rs_flags.contains_incl_unknown(&flag)?;
-                        let update = &mut tally[usize::from(is_in_favour)];
+                        let update = &mut tally[is_in_favour];
                         // can't overflow, but let's use saturating add anyway
                         *update = update.saturating_add(1);
                     }
-                    let y = tally[1] > tally[0];
+                    let y = tally.more_yes_than_no();
                     Ok::<_, Bug>(y.then_some(flag))
                 })()
                 .transpose()
