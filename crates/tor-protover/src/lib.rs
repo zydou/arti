@@ -204,30 +204,36 @@ impl tor_bytes::Writeable for NumberedSubver {
     }
 }
 
+/// Known or unknown protocol
+#[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
+pub struct Protocol(ProtocolInner);
+
 /// Representation for a known or unknown protocol.
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
-enum Protocol {
+enum ProtocolInner {
     /// A known protocol; represented by one of ProtoKind.
     ///
     /// ProtoKind must always be in the range 0..N_RECOGNIZED.
     Proto(ProtoKind),
     /// An unknown protocol; represented by its name.
+    ///
+    /// Invariant: is legal syntax, is not a recognized name
     Unrecognized(String),
 }
 
 impl Protocol {
     /// Return true iff `s` is the name of a protocol we do not recognize.
     fn is_unrecognized(&self, s: &str) -> bool {
-        match self {
-            Protocol::Unrecognized(s2) => s2 == s,
+        match &self.0 {
+            ProtocolInner::Unrecognized(s2) => s2 == s,
             _ => false,
         }
     }
     /// Return a string representation of this protocol.
     fn to_str(&self) -> &str {
-        match self {
-            Protocol::Proto(k) => k.to_str().unwrap_or("<bug>"),
-            Protocol::Unrecognized(s) => s,
+        match &self.0 {
+            ProtocolInner::Proto(k) => k.to_str().unwrap_or("<bug>"),
+            ProtocolInner::Unrecognized(s) => s,
         }
     }
 }
@@ -242,10 +248,10 @@ impl std::str::FromStr for Protocol {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match ProtoKind::from_name(s) {
-            Some(p) => Ok(Protocol::Proto(p)),
+            Some(p) => Ok(Protocol(ProtocolInner::Proto(p))),
             None => {
                 if is_valid_proto_name(s) {
-                    Ok(Protocol::Unrecognized(s.to_string()))
+                    Ok(Protocol(ProtocolInner::Unrecognized(s.to_string())))
                 } else {
                     Err(ParseError::Malformed)
                 }
@@ -569,8 +575,8 @@ impl ProtocolsInner {
         ent: SubprotocolEntry,
         strictness: ParseStrictness,
     ) -> Result<(), ParseError> {
-        match ent.proto {
-            Protocol::Proto(k) => {
+        match &ent.proto.0 {
+            ProtocolInner::Proto(k) => {
                 let idx = k.get() as usize;
                 assert!(idx < N_RECOGNIZED); // guaranteed by invariant on Protocol::Proto
                 let bit = 1 << u64::from(k.get());
@@ -583,7 +589,7 @@ impl ProtocolsInner {
                 *foundmask |= bit;
                 self.recognized[idx] = ent.supported;
             }
-            Protocol::Unrecognized(_) => {
+            ProtocolInner::Unrecognized(_) => {
                 if ent.supported != 0 {
                     self.unrecognized.push(ent);
                 }
