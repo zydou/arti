@@ -8326,6 +8326,7 @@ dependencies = [
  "caret",
  "derive-deftly",
  "derive_more",
+ "itertools 0.15.0",
  "paste",
  "serde_with",
  "thiserror 2.0.21",

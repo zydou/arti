@@ -55,6 +55,7 @@
 use caret::caret_int;
 
 use derive_deftly::Deftly;
+use itertools::chain;
 use std::borrow::Cow;
 use thiserror::Error;
 use tor_basic_utils::intern::{GloballyInternable as _, Intern};
@@ -239,7 +240,6 @@ impl<'s> ProtocolInner<'s> {
     /// Borrow from a `ProtocolInner`
     ///
     /// Gives a new owned `ProtocolInner` which borrows from `self`.
-    #[allow(unused)] // XXXX
     fn as_ref(&self) -> ProtocolInner<'_> {
         use ProtocolInner as PI;
         match self {
@@ -847,24 +847,32 @@ fn dumpmask(mut mask: u64) -> String {
 impl std::fmt::Display for Protocols {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut entries = Vec::new();
-        for (idx, mask) in self.0.recognized.iter().enumerate() {
-            if *mask != 0 {
-                let pk: ProtoKind = (idx as u8).into();
+        for (pk, mask) in self.iter_masks() {
+                let mask = &mask;
                 entries.push(format!("{}={}", pk, dumpmask(*mask)));
-            }
-        }
-        for ent in &self.0.unrecognized {
-            if ent.supported != 0 {
-                entries.push(format!(
-                    "{}={}",
-                    ent.proto,
-                    dumpmask(ent.supported)
-                ));
-            }
         }
         // This sort is required.
         entries.sort();
         write!(f, "{}", entries.join(" "))
+    }
+}
+
+impl Protocols {
+    /// Iterate over all capabilities, known and unknown
+    ///
+    /// Yields each capability separately, as name (`Protocol`) and and number
+    fn iter_masks(&self) -> impl Iterator<Item = (ProtocolInner<'_>, u64)> + Clone {
+        chain!(
+            self.0.recognized.iter().enumerate().map(|(idx, mask)| {
+                let pk = ProtocolInner::Proto((idx as u8).into());
+                (pk, *mask)
+            }),
+            self.0
+                .unrecognized
+                .iter()
+                .map(|ent| (ent.proto.0.as_ref(), ent.supported)),
+        )
+        .filter(|(_idx, mask)| *mask != 0)
     }
 }
 
