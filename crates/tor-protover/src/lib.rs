@@ -57,6 +57,7 @@ use caret::caret_int;
 use derive_deftly::Deftly;
 use itertools::chain;
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use thiserror::Error;
 use tor_basic_utils::intern::{GloballyInternable as _, Intern};
 
@@ -251,7 +252,6 @@ impl<'s> ProtocolInner<'s> {
     /// Borrow from a `ProtocolInner`
     ///
     /// Gives a new owned `ProtocolInner` which borrows from `self`.
-    #[allow(unused)] // XXXX
     fn into_static(self) -> ProtocolInner<'static> {
         use ProtocolInner as PI;
         match self {
@@ -874,6 +874,49 @@ impl Protocols {
         )
         .filter(|(_idx, mask)| *mask != 0)
     }
+
+    /// Iterate over all the specified capabilities
+    ///
+    /// Yields each capability separately, as name (`Protocol`) and and number.
+    /// Output is in an arbitrary order.
+    pub fn iter_all(&self) -> impl Iterator<Item = (Protocol, u8)> + Clone {
+        self.iter_masks().flat_map(|(kind, mask)| {
+            (0..64)
+                .into_iter()
+                .filter(move |bit_index| {
+                    let bit = 1_u64 << bit_index;
+                    (mask & bit) != 0
+                })
+                .map(move |bit_index| (Protocol(kind.clone().into_static()), bit_index))
+        })
+    }
+}
+
+impl FromIterator<(Protocol, u8)> for Protocols {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = (Protocol, u8)>,
+    {
+        let mut out = BTreeMap::<Protocol, u64>::new();
+        for (proto, bit_index) in iter {
+            *out.entry(proto).or_default() |= 1_u64 << bit_index;
+        }
+        let mut recognized = [0_u64; N_RECOGNIZED];
+        let mut unrecognized = vec![];
+        for (proto, supported) in out {
+            match proto.0 {
+                ProtocolInner::Proto(proto) => recognized[proto.get() as usize] = supported,
+                ProtocolInner::Unrecognized(_) => {
+                    unrecognized.push(SubprotocolEntry { proto, supported });
+                }
+            };
+        }
+        ProtocolsInner {
+            recognized,
+            unrecognized,
+        }
+        .into()
+    }
 }
 
 impl FromIterator<NamedSubver> for Protocols {
@@ -1170,6 +1213,19 @@ mod test {
         .into_iter()
         .collect::<Protocols>();
         assert_eq!(prs, "Link=3-5 HSDir=2 Conflux=1".parse().unwrap());
+    }
+
+    #[test]
+    fn from_iter_all() -> Result<(), ParseError> {
+        let p1: Protocols = "Link=1-10 Desc=5-10 Relay=1,3,5,7,9 Other=7-60 Mine=1-20".parse()?;
+        let p2 = p1.iter_all().collect::<Protocols>();
+        assert_eq!(p1, p2);
+
+        let p3 = std::iter::repeat_n(p1.iter_all(), 3)
+            .flatten()
+            .collect::<Protocols>();
+        assert_eq!(p1, p3);
+        Ok(())
     }
 
     #[test]
