@@ -29,7 +29,6 @@ pub(crate) fn map_range<T, U>(
 //   fn is_for_more_than_half_of(some: usize, all: usize)
 // but makes it impossible to accidentally swap the arguments, or get the wrong
 // total value, or some such.
-#[allow(unused)] // XXXX
 pub(super) fn is_true_for_more_than_half_of<I, E>(
     iterator: impl IntoIterator<Item = I>,
     predicate: impl Fn(I) -> Result<bool, E>,
