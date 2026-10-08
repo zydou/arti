@@ -2,8 +2,6 @@
 
 use super::*;
 
-use tor_netdoc::doc::netstatus;
-
 // TODO DIRAUTH tests of consensus calculation
 
 impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
