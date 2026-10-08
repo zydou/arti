@@ -21,9 +21,9 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
         calc! { both.consensus_method = ((*context.method).into(),) }
         calc! { both.consensus_methods = NotPresent }
         calc! { both.published = NotPresent }
+        calc! { md,plain .known_flags <+ doc_relay_flags_union }
 
         // TODO DIRAUTH replace dummy values
-        calc! { both.known_flags = DocRelayFlags::new_empty_unknown_discarded() }
         calc! { both.params = Default::default() }
         calc! { both.proto_statuses = Default::default() }
         calc! { both.voting_delay }
@@ -86,4 +86,15 @@ impl<AC> Aggregate<AC> for netstatus::VotingDelay {
             }
         })
     }
+}
+
+/// Calculate the union of two `DocRelayFlags`z
+pub(super) fn doc_relay_flags_union<'i>(
+    _context: ConsensusContextRefs<()>,
+    inputs: impl ComponentInVotes<&'i DocRelayFlags>,
+) -> Result<DocRelayFlags, ConsensusError> {
+    Ok(inputs
+        .map(|(_vnum, flags)| flags.iter_incl_unknown())
+        .flatten_ok()
+        .process_results(|flag_iters| flag_iters.unique().collect())?)
 }
