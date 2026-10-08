@@ -190,6 +190,7 @@ impl Aggregate<PlainPreamble> for DocRelayFlags {
             })
             .try_collect()?;
 
+        // https://spec.torproject.org/dir-spec/computing-consensus.html#routerstatuses
         #[allow(clippy::single_element_loop)] // more uniform this way
         {
             // TODO DIRAUTH this needs to be tested somehow
