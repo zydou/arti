@@ -205,19 +205,22 @@ impl tor_bytes::Writeable for NumberedSubver {
 }
 
 /// Known or unknown protocol
-#[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd, derive_more::Display)]
+#[display("{_0}")]
 pub struct Protocol(ProtocolInner);
 
 /// Representation for a known or unknown protocol.
-#[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd, derive_more::Display)]
 enum ProtocolInner {
     /// A known protocol; represented by one of ProtoKind.
     ///
     /// ProtoKind must always be in the range 0..N_RECOGNIZED.
+    #[display("{_0}")]
     Proto(ProtoKind),
     /// An unknown protocol; represented by its name.
     ///
     /// Invariant: is legal syntax, is not a recognized name
+    #[display("{_0}")]
     Unrecognized(String),
 }
 
@@ -227,13 +230,6 @@ impl Protocol {
         match &self.0 {
             ProtocolInner::Unrecognized(s2) => s2 == s,
             _ => false,
-        }
-    }
-    /// Return a string representation of this protocol.
-    fn to_str(&self) -> &str {
-        match &self.0 {
-            ProtocolInner::Proto(k) => k.to_str().unwrap_or("<bug>"),
-            ProtocolInner::Unrecognized(s) => s,
         }
     }
 }
@@ -834,7 +830,7 @@ impl std::fmt::Display for Protocols {
             if ent.supported != 0 {
                 entries.push(format!(
                     "{}={}",
-                    ent.proto.to_str(),
+                    ent.proto,
                     dumpmask(ent.supported)
                 ));
             }

@@ -8325,6 +8325,7 @@ version = "0.47.0"
 dependencies = [
  "caret",
  "derive-deftly",
+ "derive_more",
  "paste",
  "serde_with",
  "thiserror 2.0.21",
