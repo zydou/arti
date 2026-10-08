@@ -33,7 +33,10 @@ use rusqlite::Transaction;
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_checkable::TimeBound;
-use tor_dirclient::request::{AuthCertRequest, ConsensusRequest, Requestable};
+use tor_dirclient::{
+    Error as DirClientError, RequestError, RequestFailedError,
+    request::{AuthCertRequest, ConsensusRequest, Requestable},
+};
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::internal;
 use tor_netdoc::{
@@ -44,7 +47,7 @@ use tor_netdoc::{
     parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput, VerifyFailed},
 };
 use tor_rtcompat::PreferredRuntime;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{
     database::{self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, Sha1, Sha256, Timestamp},
@@ -647,7 +650,14 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     /// [`parse2::parse_netdoc_multiple_sophisticated()`] with the results being
     /// filtered.
     ///
-    /// Invalid documents are ignored but a warning is logged.
+    /// An important distinction towards [`tor_dirclient::send_request()`] is,
+    /// that we do not consider an empty response or a 404 response as an error.
+    /// Instead, we just return [`Ok`] with an empty [`String`] and an empty
+    /// [`Vec`] instead.  The reason for this is, that the futile document
+    /// strategy (i.e. determing which documents of the request are missing)
+    /// should be the same for responses containing zero (requested) documents
+    /// and responses containing at least one but less than the number of
+    /// the originally requested documents.
     ///
     /// The output is required because we need the raw document alongside the
     /// offsets to have the actual data we will insert into the database later
@@ -671,25 +681,49 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // Perform the request and map the result nicely.
         let resp = tor_dirclient::send_request(&self.rt, &requ, &mut stream, None)
             .await
-            .map(|resp| resp.output_string().map(|resp| resp.to_owned()));
+            .map(|resp| {
+                resp.output_string()
+                    .map(|resp| resp.to_owned())
+                    // Allows us to flatten the result.
+                    .map_err(tor_dirclient::Error::from)
+            });
 
         // We can immediately drop the connection now, no need to occupy even
         // more resources from the authority.  Doing so is fine, it is HTTP/1.0
         // and there is no connection reuse anyways.
         drop(stream);
 
-        // Returning all request failed errors is okay; they all imply that
-        // retrying from a different authority is fine.
-        // TODO MSRV: If possible, use Result::flatten once MSRV 1.89.
-        let resp = match resp {
-            Ok(Ok(r)) => Ok(r),
-            Ok(Err(e)) => Err(e),
-            Err(tor_dirclient::Error::RequestFailed(e)) => Err(e),
-            Err(e) => {
-                return Err(AuthorityRequestError::Bug(internal!(
-                    "unhandled dirclient error: {e}"
-                )));
-            }
+        // Non-trivial error handling strategy explained in the rustdoc comment
+        // above.
+        let resp = match resp.flatten() {
+            Ok(resp) => Ok(resp),
+
+            // This error might actually be Ok in certain cases.
+            Err(DirClientError::RequestFailed(
+                ref outer @ RequestFailedError {
+                    error: ref inner, ..
+                },
+            )) => match inner {
+                // If one of these errors occurs, do not fail but rather return
+                // no documents.
+                RequestError::EmptyRequest => {
+                    warn!("we should not send an empty request");
+                    return Ok(Default::default());
+                }
+                RequestError::EmptyResponse | RequestError::HttpStatus(404, _) => {
+                    return Ok(Default::default());
+                }
+
+                // All other errors imply an underlying error with the
+                // respective endpoint, suggesting a switch.
+                _ => Err(outer.clone().into()),
+            },
+
+            // Should not happen because the other DirClientErrors are either
+            // Bug or related to CircMgr, which we do not use.
+            Err(e) => Err(AuthorityRequestError::Bug(internal!(
+                "unhandled dirclient error: {e}"
+            ))),
         }?;
 
         // Parse the response.
