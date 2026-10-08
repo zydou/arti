@@ -848,8 +848,8 @@ impl std::fmt::Display for Protocols {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut entries = Vec::new();
         for (pk, mask) in self.iter_masks() {
-                let mask = &mask;
-                entries.push(format!("{}={}", pk, dumpmask(*mask)));
+            let mask = &mask;
+            entries.push(format!("{}={}", pk, dumpmask(*mask)));
         }
         // This sort is required.
         entries.sort();
