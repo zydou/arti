@@ -30,6 +30,9 @@ use crate::stream::dns::resolver::{
 /// The hickory stub resolver.
 pub(crate) type HickoryResolver = hickory_resolver::Resolver<TokioRuntimeProvider>;
 
+/// The ASCII-encoded hostname from a RESOLVE, in canonical form.
+type Query = Arc<str>;
+
 /// A reactor that performs DNS lookups on behalf of incoming streams (RESOLVE, BEGIN).
 ///
 /// De-duplicates queries, and uses hickory-resolver under the hood.
@@ -173,7 +176,7 @@ struct DnsCache {
     // TODO(relay): make this memquota-aware, and have memquota
     // evict entries using an LRU policy if we're under
     // memory pressure
-    inner: HashMap<Arc<str>, DnsResponse>,
+    inner: HashMap<Query, DnsResponse>,
 }
 
 impl DnsCache {
@@ -182,7 +185,7 @@ impl DnsCache {
     ///
     /// If the query response is cached, but is expired at `now`,
     /// this will remove it from the cache.
-    fn get_or_remove_expired(&mut self, query: &Arc<str>, now: Instant) -> Option<DnsResponse> {
+    fn get_or_remove_expired(&mut self, query: &Query, now: Instant) -> Option<DnsResponse> {
         match self.inner.entry(Arc::clone(query)) {
             Entry::Occupied(e) => {
                 let entry = e.get();
@@ -199,7 +202,7 @@ impl DnsCache {
     }
 
     /// Insert the specified response into the cache.
-    fn insert(&mut self, query: Arc<str>, res: DnsResponse) {
+    fn insert(&mut self, query: Query, res: DnsResponse) {
         self.inner.insert(query, res);
     }
 }
@@ -214,14 +217,14 @@ struct PendingQueries {
     /// Each of these has an entry in self.inflight.
     ///
     /// Keyed by the ASCII-encoded hostname from the RESOLVE, in canonical form.
-    pending_response: HashMap<Arc<str>, oneshot_broadcast::Sender<DnsResponse>>,
+    pending_response: HashMap<Query, oneshot_broadcast::Sender<DnsResponse>>,
     /// DNS queries we're currently waiting a response for.
     //
     // TODO(relay): this uses a tokio JoinSet, as opposed to a runtime-agnotic
     // tor-rtcompat thing. Eventually, we might want to eventually replace this
     // with an equivalent tor-rtcompat type, so that we can control the execution
     // of these tasks in the tests.
-    inflight: JoinSet<(Arc<str>, DnsResponse)>,
+    inflight: JoinSet<(Query, DnsResponse)>,
 }
 
 impl PendingQueries {
@@ -230,7 +233,7 @@ impl PendingQueries {
     /// or spawn a new lookup, returning the [`DnsResponseReceiver`] for awaiting the response.
     fn get_or_insert<M: MockableAsyncResolver>(
         &mut self,
-        query: Arc<str>,
+        query: Query,
         resolver: &Arc<M>,
         now: Instant,
     ) -> DnsResponseReceiver {
@@ -304,7 +307,7 @@ impl PendingQueries {
 // which will be used for deciding how long to cache the response for.
 // Currently unused
 async fn resolve_query<M: MockableAsyncResolver>(
-    host: Arc<str>,
+    host: Query,
     resolver: Arc<M>,
     now: Instant,
 ) -> DnsResponse {
@@ -436,7 +439,7 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
     }
 
     /// Called when one of our pending queries completes.
-    fn handle_response(&mut self, query: Arc<str>, res: DnsResponse) -> Result<(), Bug> {
+    fn handle_response(&mut self, query: Query, res: DnsResponse) -> Result<(), Bug> {
         let response_tx = self.pending.remove(&query)?;
 
         // Update the cache
