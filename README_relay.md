@@ -44,6 +44,7 @@ to check things off, or add missing items.
 - [ ] **Exit support**
   - [x] Basic DNS support
   - [ ] DNS cacheing
+  - [ ] Timeless side-channel mitigation
   - [ ] Handle BEGIN requests
   - [x] Handle RESOLVE requests
   - [ ] Exit policies
