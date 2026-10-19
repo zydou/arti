@@ -231,7 +231,7 @@ impl PendingQueries {
     /// Returns a [`DnsResponseReceiver`] for the specified `query`
     /// if there is currently an in-flight lookup for it,
     /// or spawn a new lookup, returning the [`DnsResponseReceiver`] for awaiting the response.
-    fn get_or_insert<M: MockableAsyncResolver>(
+    fn get_or_launch_lookup<M: MockableAsyncResolver>(
         &mut self,
         query: Query,
         resolver: &Arc<M>,
@@ -432,7 +432,7 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
             // If we don't have a cached answer,
             // we need to launch a new lookup,
             // unless we already have a pending one for this query
-            self.pending.get_or_insert(query, &self.resolver, now)
+            self.pending.get_or_launch_lookup(query, &self.resolver, now)
         };
 
         let _ = tx.send(response_rx);
