@@ -57,8 +57,6 @@ pub(crate) struct DnsResolverReactor<M: MockableAsyncResolver = HickoryResolver>
 /// We cache the response as a whole, not the individual answers.
 #[derive(Clone, Debug, Constructor)]
 pub(crate) struct DnsResponse {
-    /// The query this response was for.
-    query: Arc<str>,
     /// The answer records.
     pub(crate) answers: Result<LookupAnswers<RecordData>, LookupError>,
     /// The timestamp when this response becomes invalid.
@@ -175,9 +173,6 @@ struct DnsCache {
     // TODO(relay): make this memquota-aware, and have memquota
     // evict entries using an LRU policy if we're under
     // memory pressure
-    //
-    // XXX: the DnsResponse contains a clone of the Arc<str> key,
-    // which is wasteful (this type needs to be reworked a bit...)
     inner: HashMap<Arc<str>, DnsResponse>,
 }
 
@@ -204,8 +199,8 @@ impl DnsCache {
     }
 
     /// Insert the specified response into the cache.
-    fn insert(&mut self, res: DnsResponse) {
-        self.inner.insert(Arc::clone(&res.query), res);
+    fn insert(&mut self, query: Arc<str>, res: DnsResponse) {
+        self.inner.insert(query, res);
     }
 }
 
@@ -226,7 +221,7 @@ struct PendingQueries {
     // tor-rtcompat thing. Eventually, we might want to eventually replace this
     // with an equivalent tor-rtcompat type, so that we can control the execution
     // of these tasks in the tests.
-    inflight: JoinSet<DnsResponse>,
+    inflight: JoinSet<(Arc<str>, DnsResponse)>,
 }
 
 impl PendingQueries {
@@ -283,7 +278,10 @@ impl PendingQueries {
 
             // Time to launch a new lookup
             self.inflight
-                .spawn(async move { resolve_query(query, resolver, now).await });
+                .spawn(async move {
+                    let res = resolve_query(Arc::clone(&query), resolver, now).await;
+                    (query, res)
+                });
         }
 
         DnsResponseReceiver::from(res_rx)
@@ -335,7 +333,7 @@ async fn resolve_query<M: MockableAsyncResolver>(
         }
     };
 
-    DnsResponse::new(host, answers, valid_until)
+    DnsResponse::new(answers, valid_until)
 }
 
 impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
@@ -394,9 +392,9 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
 
                     // This can only happen if a task panics, or is aborted.
                     // We never abort tasks, so this can only happen on panic.
-                    let response = res.map_err(into_internal!("A DNS lookup panicked?!"))?;
+                    let (query, response) = res.map_err(into_internal!("A DNS lookup panicked?!"))?;
 
-                    self.handle_response(response)?;
+                    self.handle_response(query, response)?;
                 },
                 query = self.query_rx.next() => {
                     let Some(query) = query else {
@@ -439,11 +437,11 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
     }
 
     /// Called when one of our pending queries completes.
-    fn handle_response(&mut self, res: DnsResponse) -> Result<(), Bug> {
-        let response_tx = self.pending.remove(&res.query)?;
+    fn handle_response(&mut self, query: Arc<str>, res: DnsResponse) -> Result<(), Bug> {
+        let response_tx = self.pending.remove(&query)?;
 
         // Update the cache
-        self.cache.insert(res.clone());
+        self.cache.insert(query, res.clone());
 
         // Notify all the tasks waiting on this response.
         // If all the receivers have gone away, this will be ignored
