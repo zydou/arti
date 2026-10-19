@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use derive_more::Constructor;
@@ -17,6 +17,7 @@ use futures::select_biased;
 use futures::stream::StreamExt as _;
 use hickory_resolver::lookup::Lookup;
 use hickory_resolver::net::runtime::TokioRuntimeProvider;
+use smallvec::SmallVec;
 use tokio::task::JoinSet;
 
 use tor_async_utils::oneshot_broadcast;
@@ -32,6 +33,25 @@ pub(crate) type HickoryResolver = hickory_resolver::Resolver<TokioRuntimeProvide
 
 /// The ASCII-encoded hostname from a RESOLVE, in canonical form.
 type Query = Arc<str>;
+
+/// The TTL to use for responses that have an empty answer section (not NXDOMAIN).
+const TTL_FOR_EMPTY_ANS: Duration = Duration::from_mins(5);
+
+/// The TTL for error responses.
+const TTL_FOR_ERRORS: Duration = Duration::from_mins(5);
+
+/// Our "low" TTL value. Any TTLs below this are clipped to this value.
+///
+/// Must be greater than FUZZY_DNS_TTL_SECONDS, otherwise our calculations can underflow.
+const MIN_DNS_TTL: Duration = Duration::from_mins(5);
+
+/// Our "high" TTL value. Any TTLs above MIN_DNS_TTL are clipped to this value.
+const MAX_DNS_TTL: Duration = Duration::from_mins(60);
+
+/// The amount we +- to the clipped TTL to make it "fuzzy".
+///
+/// Must be less than MIN_DNS_TTL, otherwise our calculations can underflow.
+const FUZZY_DNS_TTL: Duration = Duration::from_mins(4);
 
 /// A reactor that performs DNS lookups on behalf of incoming streams (RESOLVE, BEGIN).
 ///
@@ -85,8 +105,7 @@ pub(crate) struct DnsResponse {
 pub(crate) struct AnswerRecord {
     /// The answer record.
     data: RecordData,
-    /// The TTL
-    #[expect(unused)] // TODO(relay): use this to compute the valid_until of the DnsResponse
+    /// The TTL, used to compute the valid_until of the corresponding [`DnsResponse`].
     ttl: u32,
 }
 
@@ -302,10 +321,6 @@ impl PendingQueries {
 ///
 /// The `host` must be a hostname.
 /// If it ends in `in-addr.arpa.` or `ip6.arpa.`, this function will perform a reverse lookup.
-///
-// TODO(relay): The returned `DnsResponse` has an associated `valid_until`,
-// which will be used for deciding how long to cache the response for.
-// Currently unused
 async fn resolve_query<M: MockableAsyncResolver>(
     host: Query,
     resolver: Arc<M>,
@@ -319,23 +334,79 @@ async fn resolve_query<M: MockableAsyncResolver>(
         resolver.lookup_ip(&host)
     };
 
-    let (answers, valid_until) = match lookup.await {
+    let (answers, ttl) = match lookup.await {
         Ok(res) => {
-            // TODO(relay): compute valid_until based on the TTLs of the answers
-            // Note: see C Tor's clip_dns_fuzzy_ttl(ttl)
-            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4420#note_3471238
-            let valid_until = now;
-            let answers = res.into_iter().map(|res| res.data).collect();
-            (Ok(answers), valid_until)
+            let answers: SmallVec<_> = res;
+            let ttl = if answers.is_empty() {
+                TTL_FOR_EMPTY_ANS
+            } else {
+                // Use the max TTL of all the answers
+                let ttl = answers
+                    .iter()
+                    .map(|ans: &AnswerRecord| ans.ttl)
+                    .max()
+                    .expect("answers cannot be empty");
+
+                Duration::from_secs(ttl.into())
+            };
+            let answers = answers.into_iter().map(|res| res.data).collect();
+
+            (Ok(answers), ttl)
         }
-        Err(e) => {
-            // TODO(relay): declare a constant for the TTL of negative answers
-            let valid_until = now;
-            (Err(e), valid_until)
-        }
+        Err(e) => (Err(e), TTL_FOR_ERRORS),
     };
 
+    let valid_until = now + clip_dns_fuzzy_ttl(ttl);
     DnsResponse::new(answers, valid_until)
+}
+
+/// Clip the `ttl` to be either 5 minutes or 60 minutes.
+///
+/// If `ttl` is below 5 minutes, returns a TTL of 5 minutes.
+/// If `ttl` is 5 minutes or above, returns a TTL of 60 minutes.
+///
+/// Like in C Tor, this logic is a defense against [DefectTor]
+/// DNS-based traffic confirmation attacks.
+///
+/// [DefectTor]: https://nymity.ch/tor-dns/tor-dns.pdf
+fn clip_dns_ttl(ttl: Duration) -> Duration {
+    if ttl < MIN_DNS_TTL {
+        MIN_DNS_TTL
+    } else {
+        MAX_DNS_TTL
+    }
+}
+
+/// Clip and randomize the specified `ttl`.
+///
+/// This clips the `ttl` (see [`clip_dns_ttl`]),
+/// and adds a random duration (sampled uniformly from [-4 min, 4min]),
+/// in order to make it harder to infer when the corresponding domain
+/// was visited from this exit relay (see "Website Fingerprinting with Website Oracles").
+fn clip_dns_fuzzy_ttl(ttl: Duration) -> Duration {
+    use tor_basic_utils::RngExt;
+
+    // XXX: Make the rng mockable
+    let mut rng = rand::rng();
+
+    let fuzzy_ttl_seconds = FUZZY_DNS_TTL.as_secs() as i32;
+
+    let fuzz: i32 = rng
+        .gen_range_checked(-fuzzy_ttl_seconds..=fuzzy_ttl_seconds)
+        .expect("low as not < high");
+
+    let ttl_secs: i32 = clip_dns_ttl(ttl)
+        .as_secs()
+        .try_into()
+        .expect("clip_dns_ttl returned a humonguous TTL?!");
+
+    debug_assert!(ttl_secs > fuzz, "FUZZY_DNS_TTL > MIN_DNS_TTL?!");
+
+    let fuzzed_ttl_secs: u64 = (ttl_secs + fuzz)
+        .try_into()
+        .expect("a TTL of minutes does not fit in a u64?!");
+
+    Duration::from_secs(fuzzed_ttl_secs)
 }
 
 impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
