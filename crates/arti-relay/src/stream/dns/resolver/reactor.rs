@@ -76,7 +76,6 @@ pub(crate) struct DnsResponse {
     //
     // "If the data is unable to be authoritatively refreshed when the TTL expires,
     // the record MAY be used as though it is unexpired"
-    #[allow(dead_code)]
     valid_until: Instant,
 }
 
