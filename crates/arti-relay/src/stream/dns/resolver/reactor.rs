@@ -169,7 +169,18 @@ fn extract_hickory_answers(lookup: &Lookup) -> Result<LookupAnswers<AnswerRecord
 
 /// A response cache for the [`DnsResolverReactor`].
 #[derive(Default)]
-struct DnsCache {/* TODO(#2697): implement */}
+struct DnsCache {
+    /// Our DNS cache, keyed by the ASCII encoded address extracted
+    /// from RESOLVE queries.
+    //
+    // TODO(relay): make this memquota-aware, and have memquota
+    // evict entries using an LRU policy if we're under
+    // memory pressure
+    //
+    // XXX: the DnsResponse contains a clone of the Arc<str> key,
+    // which is wasteful (this type needs to be reworked a bit...)
+    inner: HashMap<Arc<str>, DnsResponse>,
+}
 
 impl DnsCache {
     /// Return the cached response for `query` if it still fresh at `now`,
@@ -177,9 +188,25 @@ impl DnsCache {
     ///
     /// If the query response is cached, but is expired at `now`,
     /// this will remove it from the cache.
-    fn get_or_remove_expired(&mut self, _query: &Arc<str>, _now: Instant) -> Option<DnsResponse> {
-        // TODO(#2697): implement
-        None
+    fn get_or_remove_expired(&mut self, query: &Arc<str>, now: Instant) -> Option<DnsResponse> {
+        match self.inner.entry(Arc::clone(query)) {
+            Entry::Occupied(e) => {
+                let entry = e.get();
+                if entry.valid_until > now {
+                    Some(entry.clone())
+                } else {
+                    // The entry is expired, we should remove it from the cache
+                    let _ = e.remove();
+                    None
+                }
+            }
+            Entry::Vacant(_) => None,
+        }
+    }
+
+    /// Insert the specified response into the cache.
+    fn insert(&mut self, res: DnsResponse) {
+        self.inner.insert(Arc::clone(&res.query), res);
     }
 }
 
@@ -416,7 +443,8 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
     fn handle_response(&mut self, res: DnsResponse) -> Result<(), Bug> {
         let response_tx = self.pending.remove(&res.query)?;
 
-        // TODO(relay): Insert the response into the cache
+        // Update the cache
+        self.cache.insert(res.clone());
 
         // Notify all the tasks waiting on this response.
         // If all the receivers have gone away, this will be ignored
