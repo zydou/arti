@@ -291,7 +291,7 @@ impl Writing {
             .files
             .as_ref()
             .map(|files| format!("write to {:?}", files.tmp))
-            .unwrap_or("write to stdout".into());
+            .unwrap_or_else(|| "write to stdout".into());
         move |e| convert_output_error(anyhow::Error::from(e).context(msg))
     }
 }
