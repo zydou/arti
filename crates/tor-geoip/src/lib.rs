@@ -24,6 +24,7 @@
 #![warn(clippy::needless_borrow)]
 #![warn(clippy::needless_pass_by_value)]
 #![warn(clippy::option_option)]
+#![warn(clippy::or_fun_call)]
 #![deny(clippy::print_stderr)]
 #![deny(clippy::print_stdout)]
 #![warn(clippy::rc_buffer)]
@@ -390,17 +391,17 @@ where
     let mut split = line.split(',');
     let from = split
         .next()
-        .ok_or(Error::BadFormat("empty line somehow?".into()))?
+        .ok_or_else(|| Error::BadFormat("empty line somehow?".into()))?
         .parse::<T>()?
         .to_int();
     let to = split
         .next()
-        .ok_or(Error::BadFormat("line with insufficient commas".into()))?
+        .ok_or_else(|| Error::BadFormat("line with insufficient commas".into()))?
         .parse::<T>()?
         .to_int();
     let cc = split
         .next()
-        .ok_or(Error::BadFormat("line with insufficient commas".into()))?;
+        .ok_or_else(|| Error::BadFormat("line with insufficient commas".into()))?;
     let cc = match cc {
         "" => None,
         cc => OptionCc::from_str(cc)?.0,

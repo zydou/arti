@@ -131,7 +131,8 @@ impl<
             self.recv_cells_from_responder(AuthLogAction::Take).await?;
 
         // TODO: It would be nice to come up with a better design for getting the SLOG.
-        let slog_digest = slog_digest.ok_or(internal!("Asked for SLOG, but `None` returned?"))?;
+        let slog_digest =
+            slog_digest.ok_or_else(|| internal!("Asked for SLOG, but `None` returned?"))?;
 
         trace!(stream_id = %self.unique_id,
             "received handshake, ready to verify.",

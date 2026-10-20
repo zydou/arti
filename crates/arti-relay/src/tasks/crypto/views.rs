@@ -179,7 +179,7 @@ impl<K: Borrow<KeyMgr>> FullKeyView<K> {
         let valid_until = self
             .keys_valid_until
             .link_ed
-            .ok_or(anyhow::anyhow!("No link authentication key"))?;
+            .ok_or_else(|| anyhow::anyhow!("No link authentication key"))?;
         self.keymgr
             .borrow()
             .get(&RelayLinkSigningKeypairSpecifier::new(valid_until))?
@@ -191,7 +191,7 @@ impl<K: Borrow<KeyMgr>> FullKeyView<K> {
         let valid_until = self
             .keys_valid_until
             .ntor_latest
-            .ok_or(anyhow::anyhow!("No latest ntor key"))?;
+            .ok_or_else(|| anyhow::anyhow!("No latest ntor key"))?;
         let latest = self
             .keymgr
             .borrow()
@@ -216,7 +216,7 @@ impl<K: Borrow<KeyMgr>> FullKeyView<K> {
         let valid_until = self
             .keys_valid_until
             .relaysign_ed
-            .ok_or(anyhow::anyhow!("No relay signing key"))?;
+            .ok_or_else(|| anyhow::anyhow!("No relay signing key"))?;
         self.keymgr
             .borrow()
             .get(&RelaySigningKeypairSpecifier::new(valid_until))?
@@ -228,7 +228,7 @@ impl<K: Borrow<KeyMgr>> FullKeyView<K> {
         let valid_until = self
             .keys_valid_until
             .relaysign_ed
-            .ok_or(anyhow::anyhow!("No relay signing key"))?;
+            .ok_or_else(|| anyhow::anyhow!("No relay signing key"))?;
         let (_key, cert) = self
             .keymgr
             .borrow()

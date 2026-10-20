@@ -67,6 +67,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
                 .long("tcp-failure")
                 .action(ArgAction::Set)
                 .value_name("none|timeout|error|blackhole")
+                .default_value("none")
                 .global(true),
         )
         .arg(
@@ -74,6 +75,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
                 .long("tcp-failure-on")
                 .action(ArgAction::Set)
                 .value_name("all|v4|v6|non443")
+                .default_value("all")
                 .global(true),
         )
         .arg(
@@ -81,6 +83,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
                 .long("tcp-failure-stage")
                 .action(ArgAction::Set)
                 .value_name("bootstrap|connect")
+                .default_value("bootstrap")
                 .global(true),
         )
         .arg(
@@ -169,11 +172,11 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
     let tcp_breakage = {
         let action = matches
             .get_one::<String>("tcp-failure")
-            .unwrap_or(&"none".to_string())
+            .expect("default value not provided!?")
             .parse()?;
         let stage = matches
             .get_one::<String>("tcp-failure-stage")
-            .unwrap_or(&"bootstrap".to_string())
+            .expect("default value not provided!?")
             .parse()?;
         let delay = matches
             .get_one::<String>("tcp-failure-delay")
@@ -181,7 +184,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
             .transpose()?;
         let when = matches
             .get_one::<String>("tcp-failure-on")
-            .unwrap_or(&"all".to_string())
+            .expect("default value not provided!?")
             .parse()?;
         let action = ConditionalAction { action, when };
 

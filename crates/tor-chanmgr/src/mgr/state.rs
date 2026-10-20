@@ -508,7 +508,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         let any_relay_id = target
             .identities()
             .next()
-            .ok_or(internal!("relay target had no id"))?
+            .ok_or_else(|| internal!("relay target had no id"))?
             .to_owned();
         let (new_state, send, unique_id) = setup_launch(RelayIds::from_relay_ids(target));
         inner

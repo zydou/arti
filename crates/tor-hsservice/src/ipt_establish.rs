@@ -752,7 +752,7 @@ impl<R: Runtime> Reactor<R> {
                 .binding_key(TargetHop::LastHop)
                 .await
                 .map_err(IptEstablisherError::CircuitState)?
-                .ok_or(internal!("No binding key for introduction point!?"))?;
+                .ok_or_else(|| internal!("No binding key for introduction point!?"))?;
             let body: Vec<u8> = details
                 .sign_and_encode((*self.k_sid).as_ref(), circuit_binding_key.hs_mac())
                 .map_err(IptEstablisherError::CreateEstablishIntro)?;

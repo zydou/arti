@@ -26,6 +26,6 @@ impl ReplayLogType for PowNonceReplayLogType {
     fn parse_log_leafname(leaf: &OsStr) -> Result<Seed, Cow<'static, str>> {
         let leaf = leaf.to_str().ok_or("not proper unicode")?;
         let seed = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
-        seed.parse().or(Err("invalid seed".into()))
+        seed.parse().map_err(|_| "invalid seed".into())
     }
 }

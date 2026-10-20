@@ -1037,7 +1037,7 @@ impl RouterDesc {
             let signed_end = ed_sig_pos + b"router-sig-ed25519 ".len();
             d.update(
                 s.get(start_offset..signed_end)
-                    .ok_or(internal!("chopped utf8"))?,
+                    .ok_or_else(|| internal!("chopped utf8"))?,
             );
             let d = d.finalize();
             let sig: [u8; 64] = ed_sig
@@ -1054,7 +1054,7 @@ impl RouterDesc {
             let signed_end = rsa_sig_pos + b"router-signature\n".len();
             d.update(
                 s.get(start_offset..signed_end)
-                    .ok_or(internal!("chopped utf8"))?,
+                    .ok_or_else(|| internal!("chopped utf8"))?,
             );
             let d = d.finalize();
             let sig = rsa_sig.obj("SIGNATURE")?;

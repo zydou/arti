@@ -174,7 +174,7 @@ impl PaddingRules {
             enforce_max_after: self
                 .enforce_inbound_padding_after_cells
                 .try_into()
-                .unwrap_or(1.try_into().expect("1 was not nonzero!?")),
+                .unwrap_or_else(|_| 1.try_into().expect("1 was not nonzero!?")),
         }
     }
 }

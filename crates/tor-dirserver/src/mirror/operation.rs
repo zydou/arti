@@ -434,7 +434,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // applications arbitrarily modifying the database while we are running
         // leaves too much room for wrong/weird behavior.
         let consensus = db::read_tx(pool, |tx| self.recent_consensus(tx, now))??
-            .ok_or(internal!("database externally modified?"))?;
+            .ok_or_else(|| internal!("database externally modified?"))?;
         let ttl = consensus.ttl(rng);
         let futile = Box::new(FutileDescriptors::default());
 

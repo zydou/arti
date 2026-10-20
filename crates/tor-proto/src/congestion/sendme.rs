@@ -180,7 +180,7 @@ where
         let new_window = self
             .window
             .checked_add(P::increment())
-            .ok_or(Error::from(internal!("Overflow on SENDME window")))?;
+            .ok_or_else(|| Error::from(internal!("Overflow on SENDME window")))?;
         // Make sure we never go above our maximum else this wasn't expected.
         if new_window > P::maximum() {
             return Err(Error::CircProto("Unexpected stream SENDME".into()));

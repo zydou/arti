@@ -410,7 +410,9 @@ impl MicrodescAndHash {
             })?
         };
 
-        let text = s.get(start_pos..end_pos).ok_or(internal!("chopped utf8"))?;
+        let text = s
+            .get(start_pos..end_pos)
+            .ok_or_else(|| internal!("chopped utf8"))?;
         let sha256 = d::Sha256::digest(text.as_bytes()).into();
 
         let location = Extent::new(s, text);

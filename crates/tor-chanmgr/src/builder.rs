@@ -256,16 +256,14 @@ where
         let tls = self
             .tls_acceptor
             .as_ref()
-            .ok_or(internal!("Accepting connection without TLS acceptor"))?
+            .ok_or_else(|| internal!("Accepting connection without TLS acceptor"))?
             .negotiate_unvalidated(stream, "ignored")
             .await
             .map_err(|e| map_ioe(e.into(), "TLS negotiation"))?;
         let auth_material = self
             .auth_material
             .as_ref()
-            .ok_or(internal!(
-                "Unable to build relay channel without auth material"
-            ))?
+            .ok_or_else(|| internal!("Unable to build relay channel without auth material"))?
             .clone();
 
         let our_cert = tls
@@ -627,9 +625,7 @@ where
         let auth_material = self
             .auth_material
             .as_ref()
-            .ok_or(internal!(
-                "Unable to build relay channel without auth material"
-            ))?
+            .ok_or_else(|| internal!("Unable to build relay channel without auth material"))?
             .clone();
 
         let create_request_handler = self.create_request_handler.as_ref().ok_or_else(|| {

@@ -24,6 +24,7 @@
 #![warn(clippy::needless_borrow)]
 #![warn(clippy::needless_pass_by_value)]
 #![warn(clippy::option_option)]
+#![warn(clippy::or_fun_call)]
 #![deny(clippy::print_stderr)]
 #![deny(clippy::print_stdout)]
 #![warn(clippy::rc_buffer)]
@@ -397,7 +398,7 @@ impl<R: Runtime> ConnectorBuilder<R> {
             None => TorClient::with_runtime(self.runtime).create_unbootstrapped()?,
         };
 
-        let tls_provider = self.tls_provider.unwrap_or(get_default_tls_provider());
+        let tls_provider = self.tls_provider.unwrap_or_else(get_default_tls_provider);
 
         Ok(Connector {
             client,

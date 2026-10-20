@@ -242,7 +242,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let on_disk_state = storage_handle
             .load()
             .map_err(StartupError::LoadState)?
-            .unwrap_or(PowManagerStateRecord::default());
+            .unwrap_or_else(PowManagerStateRecord::default);
 
         let seeds: HashMap<TimePeriod, SeedsForTimePeriod> =
             on_disk_state.seeds.into_iter().collect();
@@ -1372,15 +1372,14 @@ mod test {
         let netdir_provider: Arc<TestNetDirProvider> = Arc::new(netdir.into());
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown()).into();
         let nickname = HsNickname::new("test-hs".to_string()).unwrap();
-        let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(
-            config.unwrap_or(
+        let (config_tx, config_rx) =
+            postage::watch::channel_with(Arc::new(config.unwrap_or_else(|| {
                 OnionServiceConfigBuilder::default()
                     .nickname(nickname.clone())
                     .enable_pow(true)
                     .build()
-                    .unwrap(),
-            ),
-        ));
+                    .unwrap()
+            })));
         let receiver: RendRequestReceiver<_, MockRendRequest> = RendRequestReceiver::new(
             runtime.clone(),
             nickname.clone(),

@@ -476,7 +476,7 @@ pub(super) fn try_rotate_keys(
         .into_iter()
         .flatten()
         .min()
-        .ok_or(internal!("No relay keys after rotation task loop"))?)
+        .ok_or_else(|| internal!("No relay keys after rotation task loop"))?)
 }
 
 #[cfg(test)]

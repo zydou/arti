@@ -662,7 +662,7 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
         let sha3_256 = Sha3_256::digest(
             data.split_inclusive("\ndirectory-signature ")
                 .next()
-                .ok_or(internal!("verified document without signatures?"))?
+                .ok_or_else(|| internal!("verified document without signatures?"))?
                 .as_bytes(),
         );
 
