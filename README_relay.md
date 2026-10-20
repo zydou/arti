@@ -42,10 +42,11 @@ to check things off, or add missing items.
   - [ ] Cap overall bandwidth usage
 
 - [ ] **Exit support**
-  - [ ] Basic DNS support
+  - [x] Basic DNS support
   - [ ] DNS cacheing
+  - [ ] Timeless side-channel mitigation
   - [ ] Handle BEGIN requests
-  - [ ] Handle RESOLVE requests
+  - [x] Handle RESOLVE requests
   - [ ] Exit policies
 
 - [ ] **Directory cache**
