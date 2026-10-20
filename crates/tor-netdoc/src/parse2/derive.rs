@@ -1081,7 +1081,7 @@ define_derive_deftly! {
     /// as part of a signed document,
     /// but the signatures aren't embodied here, and have not been verified.
     ///
-    /// Not very useful to callers, who should use the `BodyUnverified` type instead,
+   $/// Not very useful to callers, who should use the `${tname}Unverified` type instead,
     /// and its implementation of `NetdocParseable`.
     //
     // We implement NetdocParseable on FooUnverified using ItemStream::parse_signed.
