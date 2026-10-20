@@ -68,8 +68,6 @@ pub(crate) struct DnsResolverReactor<M: MockableAsyncResolver = HickoryResolver>
     /// The DNS lookups we have launched that we are still waiting on.
     pending: PendingQueries,
     /// The DNS cache.
-    ///
-    /// The exactly details of its implementation are TODO(#2697)
     cache: DnsCache,
     /// MPSC channel for receiving DNS queries.
     query_rx: mpsc::Receiver<DnsRequest>,
@@ -199,6 +197,19 @@ fn extract_hickory_answers(lookup: &Lookup) -> Result<LookupAnswers<AnswerRecord
 }
 
 /// A response cache for the [`DnsResolverReactor`].
+///
+/// Maps [`Query`]s to [`DnsResponse`]s. In other words, we cache whole responses,
+/// which may contain multiple answer records, each with its own TTL.
+/// The TTL of a *cache entry* is calculated using the TTLs of the answers it contains:
+///
+///   * if the lookup failed, we use [`TTL_FOR_ERRORS`]
+///   * if the lookup succeeded, but the answer section is empty,
+///     we use [`TTL_FOR_EMPTY_ANS`]
+///   * if the lookup succeded, and we got some answers, we calculate the TTL of the response
+///     by taking the maximum TTL of the answers it contains
+///
+/// Finally, we clip and fuzz the resulting TTL before using it to calculate the
+/// `valid_until` expiration timestamp of the cache entry (see [`clip_dns_fuzzy_ttl`]).
 #[derive(Default)]
 struct DnsCache {
     /// Our DNS cache, keyed by the ASCII encoded address extracted
