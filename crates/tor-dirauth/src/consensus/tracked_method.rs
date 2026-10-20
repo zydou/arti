@@ -268,7 +268,7 @@ pub(crate) mod test {
             eprintln!("probe {probe}");
             let range = tracker.finish_get_equivalent();
             assert!(range.contains(&probe), "{probe} not in {range:?}");
-            let before = results.entry(range).or_insert(output.clone());
+            let before = results.entry(range).or_insert_with(|| output.clone());
             assert_eq!(before, &output, "{probe} discrepancy for {range:?}");
         }
         dbg!(&results);
