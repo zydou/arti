@@ -44,7 +44,9 @@ use tor_netdoc::{
         authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
         netstatus::ConsensusVerifiabilityError,
     },
-    parse2::{self, NetdocParseable, NetdocParseableUnverified, ParseInput, VerifyFailed},
+    parse2::{
+        self, NetdocParseable, NetdocParseableUnverified, ParseError, ParseInput, VerifyFailed,
+    },
 };
 use tor_rtcompat::PreferredRuntime;
 use tracing::{debug, warn};
@@ -464,7 +466,6 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             .await?;
         let mut consensus = consensus
             .into_iter()
-            .map(|(doc, start, end)| (raw[start..end].to_owned(), doc))
             .collect::<VecDeque<_>>();
 
         // Check for the correct number of results.
@@ -473,9 +474,22 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 "invalid number of consensus?",
             ));
         }
-
-        // expect is fine because we checked the length for one above.
-        let (raw, consensus) = consensus.pop_front().expect("pop_front");
+        let (consensus, start, end) = match consensus.pop_front().expect("pop failed?") {
+            (Ok(consensus), start, end) => (consensus, start, end),
+            // We do not mark unparseable consensuses as futile because they
+            // cannot be referenced in a semi-unique fashion but rather depend
+            // on the time only.
+            //
+            // TODO DIRMIRROR: Return a more descriptive error; ideally in
+            // all places where only one document was returned and that document
+            // failed to parse.
+            (Err(_), _, _) => {
+                return Err(AuthorityRequestError::Response(
+                    "invalid consensus received",
+                ));
+            }
+        };
+        let raw = raw[start..end].to_string();
 
         let ttl = now + UNVERIFIED_TTL;
 
@@ -528,6 +542,16 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         let certs = certs
             .into_iter()
             .filter_map(|(unverified, start, end)| {
+                let unverified = match unverified {
+                    Ok(v) => v,
+                    Err(e) => {
+                        // We do not mark unparseable authority certificates as
+                        // futile because they do not have an authoritative
+                        // digest we could ad-hoc compare them against.
+                        debug!("ignoring invalid authority certificate: {e}");
+                        return None;
+                    }
+                };
                 let kp = unverified.inspect_unverified().0.key_ids();
 
                 // Skip certificates we did not asked for.
@@ -647,8 +671,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     /// It opens a TCP connection, performs the request, and parses the result.
     ///
     /// Returns the raw response alongside the output of
-    /// [`parse2::parse_netdoc_multiple_sophisticated()`] with the results being
-    /// filtered.
+    /// [`parse2::parse_netdoc_multiple_sophisticated()`].
     ///
     /// An important distinction towards [`tor_dirclient::send_request()`] is,
     /// that we do not consider an empty response or a 404 response as an error.
@@ -666,7 +689,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         &self,
         endpoint: &DownloadAuthority,
         requ: R,
-    ) -> Result<(String, Vec<(D, usize, usize)>), AuthorityRequestError> {
+    ) -> Result<(String, Vec<(Result<D, ParseError>, usize, usize)>), AuthorityRequestError> {
         // The check is required to not let Tokio panic.
         if endpoint.is_empty() {
             return Err(AuthorityRequestError::Bug(internal!("empty endpoint?")));
@@ -727,16 +750,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         }?;
 
         // Parse the response.
-        let parsed = parse2::parse_netdoc_multiple_sophisticated(&ParseInput::new(&resp, ""))?
-            .into_iter()
-            .filter_map(|(res, start, end)| match res {
-                Ok(doc) => Some((doc, start, end)),
-                Err(e) => {
-                    debug!("ignoring invalid netdoc: {e}");
-                    None
-                }
-            })
-            .collect();
+        let parsed = parse2::parse_netdoc_multiple_sophisticated(&ParseInput::new(&resp, ""))?;
 
         Ok((resp, parsed))
     }
