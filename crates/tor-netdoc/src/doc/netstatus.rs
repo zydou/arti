@@ -3319,7 +3319,7 @@ $2
         let var = "TOR_NETDOC_TESTDATA_LIVE_PREFIX";
         let prefix = std::env::var_os(var)
             .map(|s| s.into_string().expect(var))
-            .unwrap_or("testdata-live/".into());
+            .unwrap_or_else(|| "testdata-live/".into());
         format!("{prefix}{f}")
     }
 

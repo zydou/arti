@@ -269,8 +269,14 @@ impl Consensus {
         };
 
         // Find the appropriate digest.
-        let signed_str = r.str().get(start_pos..end_pos).ok_or(internal!("chopped utf8"))?;
-        let remainder = r.str().get(end_pos..).ok_or(internal!("chopped utf8"))?;
+        let signed_str = r
+            .str()
+            .get(start_pos..end_pos)
+            .ok_or_else(|| internal!("chopped utf8"))?;
+        let remainder = r
+            .str()
+            .get(end_pos..)
+            .ok_or_else(|| internal!("chopped utf8"))?;
         let (sha256, sha1) = match RouterStatus::flavor() {
             ConsensusFlavor::Plain => (
                 None,

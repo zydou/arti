@@ -161,7 +161,7 @@ impl RouterStatus {
             .get(RS_W)
             .map(RelayWeightsItem::from_item)
             .transpose()?
-            .unwrap_or(RelayWeightsItem::new_no_info());
+            .unwrap_or_else(RelayWeightsItem::new_no_info);
 
         // No p line
         // no ID line

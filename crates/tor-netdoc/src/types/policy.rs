@@ -346,7 +346,7 @@ impl ItemArgumentParseable for PortRanges {
     fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError> {
         args.next()
             .map(Self::from_str)
-            .unwrap_or(Ok(Self::new()))
+            .unwrap_or_else(|| Ok(Self::new()))
             .map_err(|_| ArgumentError::Invalid)
     }
 }
