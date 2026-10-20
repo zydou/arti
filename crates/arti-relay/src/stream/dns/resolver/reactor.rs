@@ -129,12 +129,18 @@ impl TryFrom<&HickoryRecord> for AnswerRecord {
 /// [`DnsResolverReactor`] tests.
 #[async_trait]
 pub(crate) trait MockableAsyncResolver: Send + Sync + 'static {
+    /// A random number generator
+    type Rng: rand::Rng + rand::CryptoRng;
+
     /// Performs a dual-stack DNS lookup for the IP for the given hostname.
     async fn lookup_ip(&self, query: &str) -> Result<LookupAnswers<AnswerRecord>, LookupError>;
 
     /// Performs a lookup for the associated type.
     async fn reverse_lookup(&self, query: &str)
     -> Result<LookupAnswers<AnswerRecord>, LookupError>;
+
+    /// Return a random number generator
+    fn thread_rng(&self) -> Self::Rng;
 }
 
 // TODO(relay): do we want hickory_resolver::ConnectionProvider to be a supertrait of tor_rtcompat::Runtime?
@@ -145,6 +151,8 @@ pub(crate) trait MockableAsyncResolver: Send + Sync + 'static {
 
 #[async_trait]
 impl MockableAsyncResolver for HickoryResolver {
+    type Rng = rand::rngs::ThreadRng;
+
     async fn lookup_ip(&self, query: &str) -> Result<LookupAnswers<AnswerRecord>, LookupError> {
         let lookup = self.lookup_ip(query).await?;
 
@@ -158,6 +166,10 @@ impl MockableAsyncResolver for HickoryResolver {
         let lookup = self.reverse_lookup(query).await?;
 
         extract_hickory_answers(&lookup)
+    }
+
+    fn thread_rng(&self) -> Self::Rng {
+        rand::rng()
     }
 }
 
@@ -356,7 +368,7 @@ async fn resolve_query<M: MockableAsyncResolver>(
         Err(e) => (Err(e), TTL_FOR_ERRORS),
     };
 
-    let valid_until = now + clip_dns_fuzzy_ttl(ttl);
+    let valid_until = now + clip_dns_fuzzy_ttl(ttl, &mut resolver.thread_rng());
     DnsResponse::new(answers, valid_until)
 }
 
@@ -383,11 +395,8 @@ fn clip_dns_ttl(ttl: Duration) -> Duration {
 /// and adds a random duration (sampled uniformly from [-4 min, 4min]),
 /// in order to make it harder to infer when the corresponding domain
 /// was visited from this exit relay (see "Website Fingerprinting with Website Oracles").
-fn clip_dns_fuzzy_ttl(ttl: Duration) -> Duration {
+fn clip_dns_fuzzy_ttl<R: rand::Rng + rand::CryptoRng>(ttl: Duration, rng: &mut R) -> Duration {
     use tor_basic_utils::RngExt;
-
-    // XXX: Make the rng mockable
-    let mut rng = rand::rng();
 
     let fuzzy_ttl_seconds = FUZZY_DNS_TTL.as_secs() as i32;
 
