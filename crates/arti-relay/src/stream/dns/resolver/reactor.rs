@@ -432,7 +432,8 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
             // If we don't have a cached answer,
             // we need to launch a new lookup,
             // unless we already have a pending one for this query
-            self.pending.get_or_launch_lookup(query, &self.resolver, now)
+            self.pending
+                .get_or_launch_lookup(query, &self.resolver, now)
         };
 
         let _ = tx.send(response_rx);
