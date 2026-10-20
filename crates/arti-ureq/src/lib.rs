@@ -397,7 +397,7 @@ impl<R: Runtime> ConnectorBuilder<R> {
             None => TorClient::with_runtime(self.runtime).create_unbootstrapped()?,
         };
 
-        let tls_provider = self.tls_provider.unwrap_or(get_default_tls_provider());
+        let tls_provider = self.tls_provider.unwrap_or_else(get_default_tls_provider);
 
         Ok(Connector {
             client,
