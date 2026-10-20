@@ -1077,7 +1077,7 @@ define_derive_deftly! {
 
     /// The parsed but unverified body part of a signed network document (working type)
     ///
-   $/// Contains a $tname which has been parsed
+   $/// Contains a [`$tname`] which has been parsed
     /// as part of a signed document,
     /// but the signatures aren't embodied here, and have not been verified.
     ///
