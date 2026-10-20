@@ -20,9 +20,9 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
         calc! { both.consensus_methods = NotPresent }
         calc! { both.published = NotPresent }
         calc! { md,plain .known_flags <+ doc_relay_flags_union }
+        calc! { md,plain .params <+ netparams_preamble_aggregate }
 
         // TODO DIRAUTH replace dummy values
-        calc! { both.params = Default::default() }
         calc! { both.proto_statuses = Default::default() }
         calc! { both.voting_delay }
 
@@ -95,4 +95,38 @@ pub(super) fn doc_relay_flags_union<'i>(
         .map(|(_vnum, flags)| flags.iter_incl_unknown())
         .flatten_ok()
         .process_results(|flag_iters| flag_iters.unique().collect())?)
+}
+
+/// Calculate the `params` line in a consensus
+//
+// Not `impl Aggregate` because NetParams is a very general type used in all sorts of
+// places, and we don't want them to get this impl by mistake.
+#[allow(clippy::needless_pass_by_value, clippy::unnecessary_wraps)]
+pub(super) fn netparams_preamble_aggregate<'i>(
+    context: ConsensusContextRefs<()>,
+    inputs: impl ComponentInVotes<&'i NetParams<i32>>,
+) -> Result<NetParams<i32>, ConsensusError> {
+    Ok(inputs
+        .clone()
+        .flat_map(|(_vnum, i)| i.iter().map(|(k, _v)| k))
+        .unique()
+        .filter_map(|k| {
+            // "every keyword on which a majority of authorities (total
+            // authorities, not just those participating in this vote) voted
+            // on, or if at least three authorities voted for that parameter.
+            const MIN_THRESH: usize = 3;
+
+            let opinions = inputs.clone().filter_map(|(_vnum, i)| i.get(k)).copied();
+            let n_opinions = opinions.clone().count();
+            let want = context.is_more_than_half_all_auths(n_opinions) || n_opinions >= MIN_THRESH;
+            if !want {
+                return None;
+            }
+
+            const_assert!(MIN_THRESH > 0);
+            let out = functions::low_median_raw(opinions)
+                .expect("more than half is always >0, and so is MIN_THRESH");
+            Some((String::from(k), out))
+        })
+        .collect())
 }
