@@ -770,10 +770,9 @@ impl<'a> ControlHandler<'a> {
                         bad_api_usage!("cannot query send window of non-existent circuit")
                     })?;
 
-                    let hop = leg.hop_mut(hop).ok_or(bad_api_usage!(
-                        "received QuerySendWindow for unknown hop {}",
-                        hop.display()
-                    ))?;
+                    let hop = leg.hop_mut(hop).ok_or_else(|| {
+                        bad_api_usage!("received QuerySendWindow for unknown hop {}", hop.display())
+                    })?;
 
                     Ok(hop.send_window_and_expected_tags())
                 })());
