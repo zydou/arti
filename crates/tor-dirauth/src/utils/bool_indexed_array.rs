@@ -11,7 +11,7 @@ use super::*;
 ///
 /// Ordering compares first the `true` value, then the `false` one.
 //
-// We use tuple rather than array, because in Rust an array is always better than a tuple
+// We use array rather than tuple, because in Rust an array is always better than a tuple
 // if the values are known to be of the same type.
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)] //
 #[derive(derive_more::Into, derive_more::From)]
