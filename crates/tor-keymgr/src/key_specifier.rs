@@ -322,7 +322,7 @@ impl KeyPathInfoBuilder {
     ///
     /// The preexisting `extra_info` is preserved.
     pub fn extra_info(&mut self, key: impl Into<String>, value: impl Into<String>) -> &mut Self {
-        let extra_info = self.extra_info.get_or_insert(Default::default());
+        let extra_info = self.extra_info.get_or_insert_default();
         extra_info.insert(key.into(), value.into());
         self
     }

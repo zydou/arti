@@ -132,7 +132,7 @@ impl KeyMgrBuilder {
     /// constructed and a mutable reference to the now-defaulted list of builders
     /// will be returned.
     pub fn secondary_stores(&mut self) -> &mut Vec<BoxedKeystore> {
-        self.secondary_stores.get_or_insert(Default::default())
+        self.secondary_stores.get_or_insert_default()
     }
 
     /// Set the whole list (overriding the default)
