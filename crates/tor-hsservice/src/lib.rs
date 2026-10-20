@@ -366,6 +366,10 @@ impl OnionService {
             status_tx.clone().into(),
         )?;
 
+        let bad_hsdescs_dir = state_handle
+            .raw_subdir("bad_hsdescs")
+            .map_err(StartupError::StateDirectoryInaccessible)?;
+
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime,
             nickname.clone(),
@@ -378,6 +382,7 @@ impl OnionService {
             path_resolver,
             pow_manager.clone(),
             publisher_update_rx,
+            bad_hsdescs_dir,
         );
 
         let svc = Arc::new(RunningOnionService {

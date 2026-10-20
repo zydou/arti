@@ -78,8 +78,9 @@ use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
 use tor_config_path::{CfgPath, CfgPathResolver};
-use tor_dirclient::SourceInfo;
+use tor_dirclient::{RequestError, SourceInfo};
 use tor_netdir::{DirEvent, NetDir};
+use tor_persist::state_dir::InstanceRawSubdir;
 use tracing::instrument;
 
 use crate::config::OnionServiceConfigPublisherView;
@@ -90,6 +91,7 @@ use crate::status::{DescUploadRetryError, Problem};
 
 use super::*;
 use derive_more::From;
+use fs_mistrust::anon_home::PathExt;
 
 // TODO-CLIENT-AUTH: perhaps we should add a separate CONFIG_CHANGE_REPUBLISH_DEBOUNCE_INTERVAL
 // for rate-limiting the publish jobs triggered by a change in the config?
@@ -208,6 +210,8 @@ struct Immutable<R: Runtime, M: Mockable> {
     status_tx: PublisherStatusSender,
     /// Proof-of-work state.
     pow_manager: Arc<PowManager<R>>,
+    /// The directory to dump invalid HS descriptors to.
+    bad_hsdescs_dir: InstanceRawSubdir,
 }
 
 impl<R: Runtime, M: Mockable> Immutable<R, M> {
@@ -585,6 +589,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         path_resolver: Arc<CfgPathResolver>,
         pow_manager: Arc<PowManager<R>>,
         update_from_pow_manager_rx: mpsc::Receiver<TimePeriod>,
+        bad_hsdescs_dir: InstanceRawSubdir,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
         ///
@@ -616,6 +621,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             keymgr,
             status_tx,
             pow_manager,
+            bad_hsdescs_dir,
         };
 
         let inner = Inner {
@@ -1813,6 +1819,34 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         rsa_id
                     );
                 }
+
+                if let UploadError::Request(req_err) = e {
+                    if let RequestError::HttpStatus(status, _msg) = &req_err.error {
+                        if (400..500).contains(status) {
+                            // This should never happen (it's a bug if it does!)
+                            log_ratelim!(
+                                "The peer says our HS descriptor upload request was invalid. This is a bug (maybe theirs; maybe ours)";
+                                Err::<(), _>(e.clone());
+                            );
+                        }
+
+                        // C Tor HsDirs return a 400 status code if they deem
+                        // the descriptor to be invalid.
+                        if *status == 400 {
+                            let res = dump_invalid_hsdesc(&hsdesc, &imm);
+
+                            log_ratelim!(
+                                "Dumping rejected HS descriptor to {}",
+                                imm.bad_hsdescs_dir.as_path().display_lossy();
+                                res;
+                            );
+
+                            // TODO: we might want to garbage-collect this at some point
+                            // (e.g. if the mtime of the last dumped
+                            // bad descriptor is far enough into the past?)
+                        }
+                    }
+                }
             }
             r
         };
@@ -1893,6 +1927,75 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
     }
+}
+
+/// Dump an invalid HS descriptor to disk, for debugging purposes.
+///
+/// The descriptor will get written to the state directory,
+/// in `hss/<HS_NICKNAME>/bad_hsdescs/current`.
+///
+// TODO(#2760): this is a quick and dirty hack for debugging #2760.
+// We may want to eventually replace this with a more principled
+// "invalid descriptor" dumping utility, like the one C Tor has
+// in dirparse/unparseable.c.
+fn dump_invalid_hsdesc<R, M>(
+    hsdesc: &Arc<str>,
+    imm: &Arc<Immutable<R, M>>,
+) -> Result<(), HsDescDumpError>
+where
+    R: Runtime,
+    M: Mockable,
+{
+    use rand::distr::{Alphanumeric, SampleString};
+    // If multiple upload tasks have an invalid
+    // descriptor, they will all race to write to "filename.tmp",
+    // so we need a unique id for the temporary file
+    // (TODO: maybe it would be useful to have a FileAccess API for this?):
+    //
+    // Case-insensitive file systems are going to have a higher risk
+    // of tmpname collisions for the tasks trying to write an invalid descriptor,
+    // but we can try mitigate that by generating a relatively long string
+    // (in practice, the chances of this happening are going to be very slim).
+    let mut rng = imm.mockable.thread_rng();
+    let tmpname = Alphanumeric.sample_string(&mut rng, 16);
+    imm.bad_hsdescs_dir
+        .write_and_replace(&tmpname, hsdesc.as_ref())?;
+
+    let tmp_path = imm.bad_hsdescs_dir.as_path().join(tmpname);
+    let target = imm.bad_hsdescs_dir.as_path().join("current");
+
+    // This rename() bypasses the fs-mistrust checks, but I believe that's okay,
+    // because the write_and_replace() above already checked the permissions
+    // of the parent dir.
+    let res = std::fs::rename(&tmp_path, &target).map_err(|err| HsDescDumpError::Rename {
+        filename: target,
+        err: Arc::new(err),
+    });
+
+    if res.is_err() {
+        // Try to at least clean up the temp file...
+        let _ = std::fs::remove_file(tmp_path);
+    }
+
+    Ok(())
+}
+
+/// An error returned when trying to dump an invalid HS desc to disk.
+#[derive(Clone, Debug, thiserror::Error)]
+enum HsDescDumpError {
+    /// We encountered a problem while inspecting or creating a directory.
+    #[error("Problem accessing filesystem")]
+    FsMistrust(#[from] fs_mistrust::Error),
+
+    /// We encountered an error while attempting an IO operation on a file.
+    #[error(r#"IO error while attempting to rename file to {}"#, filename.anonymize_home())]
+    Rename {
+        /// The file that we were trying to modify or inspect
+        filename: PathBuf,
+        /// The error that we got when trying to perform the operation.
+        #[source]
+        err: Arc<std::io::Error>,
+    },
 }
 
 /// Try to expand a path, logging a warning on failure.
