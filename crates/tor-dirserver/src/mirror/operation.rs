@@ -472,9 +472,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         let (raw, consensus) = self
             .send_request(endpoint, ConsensusRequest::new(T::flavor()))
             .await?;
-        let mut consensus = consensus
-            .into_iter()
-            .collect::<VecDeque<_>>();
+        let mut consensus = consensus.into_iter().collect::<VecDeque<_>>();
 
         // Check for the correct number of results.
         if consensus.len() != 1 {
