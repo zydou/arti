@@ -277,11 +277,10 @@ impl PendingQueries {
             let resolver = Arc::clone(resolver);
 
             // Time to launch a new lookup
-            self.inflight
-                .spawn(async move {
-                    let res = resolve_query(Arc::clone(&query), resolver, now).await;
-                    (query, res)
-                });
+            self.inflight.spawn(async move {
+                let res = resolve_query(Arc::clone(&query), resolver, now).await;
+                (query, res)
+            });
         }
 
         DnsResponseReceiver::from(res_rx)
