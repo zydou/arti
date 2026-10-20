@@ -348,10 +348,10 @@ impl MistrustBuilder {
 
         // Otherwise, we use our "disable_by_environment" setting to see whether
         // we should check the environment.
-        self.disable_by_environment
-            .as_ref()
-            .unwrap_or(&disable::Disable::default())
-            .should_disable_checks()
+        match &self.disable_by_environment {
+            Some(d) => d.should_disable_checks(),
+            None => disable::Disable::default().should_disable_checks(),
+        }
     }
 
     /// Fill in any values for this `MistrustBuilder` that have defaults,
