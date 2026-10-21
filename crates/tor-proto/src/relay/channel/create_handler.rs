@@ -20,8 +20,8 @@ use crate::crypto::cell::{
 use crate::crypto::handshake::RelayHandshakeError;
 use crate::crypto::handshake::ServerHandshake as _;
 use crate::crypto::handshake::fast::CreateFastServer;
-use crate::crypto::handshake::ntor::{NtorSecretKey, NtorServer};
-use crate::crypto::handshake::ntor_v3::{NtorV3SecretKey, NtorV3Server};
+use crate::crypto::handshake::ntor::{NtorServer, NtorServerKeys};
+use crate::crypto::handshake::ntor_v3::{NtorV3Server, NtorV3ServerKeys};
 use crate::memquota::SpecificAccount as _;
 use crate::memquota::{ChannelAccount, CircuitAccount};
 use crate::relay::channel_provider::ChannelProvider;
@@ -43,6 +43,7 @@ use tor_cell::relaycell::extend::{
 };
 use tor_error::{ErrorKind, HasKind, debug_report, internal, into_internal, warn_report};
 use tor_linkspec::OwnedChanTarget;
+use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_memquota::mq_queue::ChannelSpec as _;
@@ -365,9 +366,7 @@ impl CreateRequestHandler {
         msg_body: &[u8],
         our_rsa_id: &RsaIdentity,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
-        let ntor_keys = self.ntor_keys(|k| {
-            NtorSecretKey::new(k.secret().clone(), *k.public().inner(), *our_rsa_id)
-        });
+        let ntor_keys = self.ntor_keys(|k| NtorKeypair::new(our_rsa_id, Arc::clone(k)));
 
         // TODO(relay): We might want to offload this to a CPU worker in the future.
         let (keygen, handshake_msg) = NtorServer::server(
@@ -419,9 +418,7 @@ impl CreateRequestHandler {
         msg_body: &[u8],
         our_ed25519_id: &Ed25519Identity,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
-        let ntor_keys = self.ntor_keys(|k| {
-            NtorV3SecretKey::new(k.secret().clone(), *k.public().inner(), *our_ed25519_id)
-        });
+        let ntor_keys = self.ntor_keys(|k| NtorV3Keypair::new(our_ed25519_id, Arc::clone(k)));
 
         let circ_net_params = self
             .circ_net_params
@@ -554,18 +551,72 @@ impl CreateRequestHandler {
     ///
     /// It would be nice if this just returned an iterator,
     /// but the read lock prevents this.
-    fn ntor_keys<T>(&self, map: impl FnMut(&RelayNtorKeypair) -> T) -> impl AsRef<[T]> {
+    fn ntor_keys<T>(&self, map: impl FnMut(&Arc<RelayNtorKeypair>) -> T) -> impl AsRef<[T]> {
         let ntor_keys = self.ntor_keys.read().expect("rwlock poisoned");
-        // XXX: This will be nicer later when we actually use the outer `Arc`.
-        let ntor_keys = [
-            Some(&**ntor_keys.latest()),
-            ntor_keys.previous().map(|x| &**x),
-        ];
+        let ntor_keys = [Some(ntor_keys.latest()), ntor_keys.previous()];
         ntor_keys
             .into_iter()
             .flatten()
             .map(map)
             .collect::<SmallVec<[T; 2]>>()
+    }
+}
+
+/// The server's RSA identity and ntor keypair.
+struct NtorKeypair<'a> {
+    /// The server's RSA identity.
+    ident: &'a RsaIdentity,
+    /// The server's ntor keypair.
+    keys: Arc<RelayNtorKeypair>,
+}
+
+impl<'a> NtorKeypair<'a> {
+    /// Create a new [`NtorKeypair`].
+    fn new(ident: &'a RsaIdentity, keys: Arc<RelayNtorKeypair>) -> Self {
+        Self { ident, keys }
+    }
+}
+
+impl<'a> NtorServerKeys for NtorKeypair<'a> {
+    fn ident(&self) -> &RsaIdentity {
+        self.ident
+    }
+
+    fn public_key(&self) -> &curve25519::PublicKey {
+        self.keys.public_raw()
+    }
+
+    fn secret_key(&self) -> &curve25519::StaticSecret {
+        self.keys.secret()
+    }
+}
+
+/// The server's Ed25519 identity and ntor keypair.
+struct NtorV3Keypair<'a> {
+    /// The server's Ed25519 identity.
+    ident: &'a Ed25519Identity,
+    /// The server's ntor keypair.
+    keys: Arc<RelayNtorKeypair>,
+}
+
+impl<'a> NtorV3Keypair<'a> {
+    /// Create a new [`NtorV3Keypair`].
+    fn new(ident: &'a Ed25519Identity, keys: Arc<RelayNtorKeypair>) -> Self {
+        Self { ident, keys }
+    }
+}
+
+impl<'a> NtorV3ServerKeys for NtorV3Keypair<'a> {
+    fn ident(&self) -> &Ed25519Identity {
+        self.ident
+    }
+
+    fn public_key(&self) -> &curve25519::PublicKey {
+        self.keys.public_raw()
+    }
+
+    fn secret_key(&self) -> &curve25519::StaticSecret {
+        self.keys.secret()
     }
 }
 
