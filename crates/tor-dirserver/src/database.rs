@@ -843,7 +843,7 @@ impl AuthCertMeta {
 /// to obtain the flavor from it.
 #[derive(Educe)]
 #[educe(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct DescriptorMeta<T> {
+pub(crate) struct DescriptorMeta<Flavor> {
     /// The document id uniquely identifying the document.
     pub docid: DocumentId,
 
@@ -857,19 +857,19 @@ pub(crate) struct DescriptorMeta<T> {
     pub kp_relay_id_rsa_sha1: Option<Sha1>,
 
     /// Use of the generic for determining the flavor.
-    flavor: PhantomData<T>,
+    flavor: PhantomData<Flavor>,
 
     /// The SHA-1 of the extra-info document, if present.
     pub extra_sha1: Option<Sha1>,
 }
 
-impl<T: FlavoredDescriptor> DescriptorMeta<T> {
+impl<Flavor: FlavoredDescriptor> DescriptorMeta<Flavor> {
     /// Queries a [`DescriptorMeta`] by it's [`DocumentId`], mostly for internal
     /// use.
     fn query_docid(
         tx: &Transaction<'_>,
         docid: DocumentId,
-    ) -> Result<Option<DescriptorMeta<T>>, DatabaseError> {
+    ) -> Result<Option<DescriptorMeta<Flavor>>, DatabaseError> {
         let mut stmt = tx.prepare_cached(sql!(
             "
             SELECT docid, sha1, sha2, kp_relay_id_rsa_sha1, extra_sha1
@@ -881,10 +881,10 @@ impl<T: FlavoredDescriptor> DescriptorMeta<T> {
         stmt.query_one(
             named_params! {
                 ":docid": docid,
-                ":flavor": T::flavor().name()
+                ":flavor": Flavor::flavor().name()
             },
             |row| {
-                Ok(DescriptorMeta::<T> {
+                Ok(DescriptorMeta::<Flavor> {
                     docid: row.get(0)?,
                     sha1: row.get(1)?,
                     sha2: row.get(2)?,
@@ -902,7 +902,7 @@ impl<T: FlavoredDescriptor> DescriptorMeta<T> {
     pub(crate) fn insert<I>(
         tx: &Transaction<'_>,
         encodings: I,
-        descriptor: &T,
+        descriptor: &Flavor,
         data: &str,
     ) -> Result<(), DatabaseError>
     where
@@ -932,7 +932,7 @@ impl<T: FlavoredDescriptor> DescriptorMeta<T> {
             ":sha1": descriptor.sha1()?,
             ":sha256": descriptor.sha256()?,
             ":id_rsa": descriptor.id_rsa().map(|rsa| Sha1(rsa.to_bytes())),
-            ":flavor": T::flavor().name(),
+            ":flavor": Flavor::flavor().name(),
             ":extra_info": descriptor.extra_info_sha1().map(|extra| Sha1(extra.sha1.0)),
         })?;
 
