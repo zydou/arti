@@ -100,6 +100,7 @@ pub(crate) struct NtorPublicKey {
 }
 
 /// A secret key used by a relay to answer an ntor request
+#[cfg(test)]
 pub(crate) struct NtorSecretKey {
     /// Public key components; must match those held by the client.
     pk: NtorPublicKey,
@@ -108,9 +109,9 @@ pub(crate) struct NtorSecretKey {
     sk: StaticSecret,
 }
 
+#[cfg(test)]
 impl NtorSecretKey {
     /// Construct a new NtorSecretKey from its components.
-    #[allow(unused)]
     pub(crate) fn new(sk: StaticSecret, pk: PublicKey, id: RsaIdentity) -> Self {
         NtorSecretKey {
             pk: NtorPublicKey { id, pk },
@@ -119,6 +120,7 @@ impl NtorSecretKey {
     }
 }
 
+#[cfg(test)]
 impl NtorServerKeys for NtorSecretKey {
     fn ident(&self) -> &RsaIdentity {
         &self.pk.id

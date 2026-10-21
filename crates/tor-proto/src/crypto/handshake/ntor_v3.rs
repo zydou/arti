@@ -348,6 +348,7 @@ pub(crate) struct NtorV3PublicKey {
 }
 
 /// Secret key information used by a relay for the ntor v3 handshake.
+#[cfg(test)]
 pub(crate) struct NtorV3SecretKey {
     /// The relay's public key information
     pk: NtorV3PublicKey,
@@ -355,9 +356,9 @@ pub(crate) struct NtorV3SecretKey {
     sk: curve25519::StaticSecret,
 }
 
+#[cfg(test)]
 impl NtorV3SecretKey {
     /// Construct a new NtorV3SecretKey from its components.
-    #[allow(unused)]
     pub(crate) fn new(
         sk: curve25519::StaticSecret,
         pk: curve25519::PublicKey,
@@ -370,7 +371,6 @@ impl NtorV3SecretKey {
     }
 
     /// Generate a key using the given `rng`, suitable for testing.
-    #[cfg(test)]
     pub(crate) fn generate_for_test<R: Rng + CryptoRng>(rng: &mut R) -> Self {
         let mut id = [0_u8; 32];
         // Random bytes will work for testing, but aren't necessarily actually a valid id.
@@ -386,6 +386,7 @@ impl NtorV3SecretKey {
     }
 }
 
+#[cfg(test)]
 impl NtorV3ServerKeys for NtorV3SecretKey {
     fn ident(&self) -> &Ed25519Identity {
         &self.pk.id
