@@ -319,7 +319,6 @@ pub(crate) struct PublisherStatusSender(StatusSender);
 /// A handle that can be used by the [`Publisher`]
 /// to update the [`OnionServiceStatus`].
 #[derive(Clone, derive_more::From)]
-#[cfg(feature = "hs-pow-full")]
 pub(crate) struct PowManagerStatusSender(StatusSender);
 
 /// A helper for implementing [`PublisherStatusSender`], [`IptMgrStatusSender`], etc.

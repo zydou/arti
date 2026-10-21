@@ -138,6 +138,7 @@ pub(crate) fn negotiated_capabilities(
 ///
 // TODO: Remove this, and make the entire negotiate-extensions feature always-on.
 #[cfg(not(feature = "negotiate-extensions"))]
+#[allow(clippy::unnecessary_wraps)]
 pub(crate) fn negotiated_capabilities(
     intro: &IntroduceHandshakePayload,
 ) -> Result<Protocols, IntroRequestError> {

@@ -14,7 +14,7 @@ use tor_persist::{
 };
 use tor_rtcompat::Runtime;
 
-use crate::{OnionServiceConfig, RendRequest, StartupError, status::StatusSender};
+use crate::{OnionServiceConfig, RendRequest, StartupError, status::PowManagerStatusSender};
 
 use super::NewPowManager;
 
@@ -27,10 +27,15 @@ pub(crate) struct PowManager<R> {
     runtime: PhantomData<R>,
 }
 
+/// Dummy PoW manager state, feature compiled out
 #[derive(Serialize, Deserialize, Debug)]
+#[non_exhaustive]
 pub(crate) struct PowManagerStateRecord;
 
 impl<R: Runtime> PowManager<R> {
+    /// Return a new dummy PoW manager
+    #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
+    #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn new(
         _runtime: R,
         _nickname: HsNickname,
@@ -38,7 +43,7 @@ impl<R: Runtime> PowManager<R> {
         _keymgr: Arc<KeyMgr>,
         _storage_handle: StorageHandle<PowManagerStateRecord>,
         _netdir_provider: Arc<dyn NetDirProvider>,
-        _status_tx: StatusSender,
+        _status_tx: PowManagerStatusSender,
         _config_rx: postage::watch::Receiver<Arc<OnionServiceConfig>>,
     ) -> Result<NewPowManager<R>, StartupError> {
         let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
@@ -55,6 +60,8 @@ impl<R: Runtime> PowManager<R> {
         })
     }
 
+    /// "Launch" the dummy PoW manager, doing nothing
+    #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn launch(self: Arc<Self>) -> Result<(), StartupError> {
         Ok(())
     }
