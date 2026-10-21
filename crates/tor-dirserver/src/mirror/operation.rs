@@ -19,7 +19,6 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     fmt::Debug,
     hash::Hash,
-    iter,
     marker::PhantomData,
     mem,
     net::SocketAddr,
@@ -716,8 +715,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // .filter_map(), but that would involve an external variable for
         // detecting duplicate responses as well, leading to an equally
         // mediocre solution.
-        let mut obtained = HashMap::new();
-        let mut refused = HashSet::new();
+        let mut downloads =
+            DescriptorDownloads::<Sha1, FlavoredDescriptorPlain>::from_missing(routers.into_iter());
         for (unverified, start, end) in docs {
             let Ok(unverified) = unverified else {
                 // TODO DIRMIRROR: Handle parser failures as potentially futile.
@@ -746,6 +745,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 warn!("parse2 returned invalid string slice: {start}..{end}");
                 continue;
             };
+            let raw = raw.to_string();
             let Some(sha1) = unverified.sigs.hashes.sha1 else {
                 warn!("accumulator contains no SHA-1?");
                 continue;
@@ -754,14 +754,17 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
 
             // Checks whether the response is weird, as in containing
             // unrequested or duplicate descriptors.
-            if !routers.contains(&sha1) {
-                debug!("ignoring unrequested router descriptor: {sha1:?}");
-                continue;
-            }
-            if obtained.contains_key(&sha1) || refused.contains(&sha1) {
-                debug!("{sha1:?} contained multiple times in response");
-                continue;
-            }
+            match downloads.get(&sha1) {
+                Some(DescriptorDownloadResult::NotFound) => {}
+                Some(DescriptorDownloadResult::Found(_, _) | DescriptorDownloadResult::Refused) => {
+                    debug!("{sha1:?} contained multiple times in response");
+                    continue;
+                }
+                None => {
+                    debug!("ignoring unrequested router descriptor: {sha1:?}");
+                    continue;
+                }
+            };
 
             // Perform the relevant cryptographic checks.
             let sigs = unverified.sigs.clone();
@@ -784,52 +787,60 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                     // Untimely is considered as refused for the lifespan of the
                     // current consensus.
                     debug!("ignoring untimely router descriptor: {sha1:?}: {e}");
-                    refused.insert(sha1);
+                    let prev = downloads.insert(sha1, DescriptorDownloadResult::Refused);
+                    debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
                     continue;
                 }
             };
 
-            obtained.insert(sha1, (timely, sigs, raw));
+            let prev = downloads.insert(sha1, DescriptorDownloadResult::Found((timely, sigs), raw));
+            debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
         }
 
-        // found = obtained ∪ refused
-        // not_found = "requested routers" \ found
-        let found: HashSet<_> = iter::chain(obtained.keys(), refused.iter())
-            .copied()
-            .collect();
-        let not_found: HashSet<_> = routers.difference(&found).copied().collect();
+        // Determine if we made progress by checking whether we have any
+        // descriptors that are either found or refused.  If this is the case,
+        // we will return later, once the descriptors are marked as such.
+        let progress = downloads
+            .values()
+            .find(|x| !matches!(x, DescriptorDownloadResult::NotFound))
+            .map(|_| ()); // Do not borrow.
 
-        // Mark the futile digests as such; afterwards we can return again.
-        refused.iter().for_each(|d| futile.routers.set_refused(*d));
-        not_found
-            .iter()
-            .for_each(|d| futile.routers.set_not_found(*d, endpoint));
+        // Insert the obtained descriptors in one large bulk transaction or
+        // mark them as futile.
+        //
+        // It is okay if we fail before setting the descriptors as futile here,
+        // because database failures are pretty much irrecoverable anyways.
+        // Doing this together in the same loop saves us from having to
+        // filter and split the large HashMap into multiple ones.  It should be
+        // secure because the inner closure has the return error type of
+        // DatabaseError, meaning only these fatal errors can return early.
+        db::rw_tx(pool, |tx| {
+            for (digest, res) in downloads.into_iter() {
+                match res {
+                    DescriptorDownloadResult::NotFound => {
+                        futile.routers.set_not_found(digest, endpoint);
+                    }
+                    DescriptorDownloadResult::Refused => futile.routers.set_refused(digest),
+                    DescriptorDownloadResult::Found(descriptor, raw) => {
+                        DescriptorMeta::insert(
+                            tx,
+                            self.encodings.iter().copied(),
+                            &descriptor,
+                            &raw,
+                        )?;
+                    }
+                }
+            }
+            Ok::<_, DatabaseError>(())
+        })??;
 
-        // We consider the emptiness of the found descriptors as the indicator
-        // for no progress.  It is important to use "found" rather than
-        // "obtained" because a response consisting only of refused descriptors
-        // is our fault and not a reason to return an AuthorityRequestError, as
-        // they are not the source of this error.
-        if found.is_empty() {
-            debug_assert!(obtained.is_empty());
-            debug_assert!(refused.is_empty());
+        // If no progress, return with an error.  We can do so here because
+        // we have finally marked descriptors as futile.
+        if let None = progress {
             Err(OperationError::AuthorityRequest(
                 AuthorityRequestError::NoRequestedDocumentsReturned,
             ))?;
         }
-
-        // Insert the obtained descriptors in one large bulk transaction.
-        db::rw_tx(pool, |tx| {
-            for (body, sigs, raw) in obtained.into_values() {
-                DescriptorMeta::<FlavoredDescriptorPlain>::insert(
-                    tx,
-                    self.encodings.iter().copied(),
-                    &(body, sigs),
-                    raw,
-                )?;
-            }
-            Ok::<_, DatabaseError>(())
-        })??;
 
         Ok(())
     }
