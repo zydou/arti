@@ -70,6 +70,7 @@ pub trait Runtime:
     + Send
     + Spawn
     + Blocking
+    + JoinSetProvider
     + Clone
     + SleepProvider
     + CoarseTimeProvider
@@ -87,6 +88,7 @@ impl<T> Runtime for T where
         + Send
         + Spawn
         + Blocking
+        + JoinSetProvider
         + Clone
         + SleepProvider
         + CoarseTimeProvider
