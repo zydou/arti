@@ -181,14 +181,6 @@ fn extract_hickory_answers(lookup: &Lookup) -> Result<LookupAnswers<AnswerRecord
     // from the Lookup object here. However, that wouldn't give us
     // the real TTL, because hickory-resolver always sets this to the maximum
     // allowed TTL of 1 day (see the Future impl for LookupIpFuture in hickory_resolver).
-    //
-    // TODO(gabi): This *might* be tolerable for our use case, but I am not sure.
-    // We might want to compute our own valid_until timestamp for the lookup,
-    // based on the individual TTLs of the answers. This has the added benefit
-    // of allowing us to make the valid_until relative to the `now` timestamp
-    // (which will make it easier to write tests for the cache expiry logic,
-    // when we implement that).
-
     lookup
         .answers()
         .iter()
