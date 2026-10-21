@@ -200,6 +200,7 @@ use futures::{Future, FutureExt};
 use std::pin::Pin;
 use std::time::Duration;
 
+use crate::join_set::FuturesJoinSet;
 use crate::traits::*;
 
 /// Create and return a new `async_std` runtime.
@@ -233,5 +234,16 @@ impl Blocking for async_executors::AsyncStd {
 
     fn reenter_block_on<F: Future>(&self, f: F) -> F::Output {
         async_executors::AsyncStd::block_on(f)
+    }
+}
+
+impl JoinSetProvider for async_executors::AsyncStd {
+    type JoinSet<T: Send + Sync + 'static> = FuturesJoinSet<T, Self>;
+
+    fn new_join_set<T>(&self) -> Self::JoinSet<T>
+    where
+        T: Send + Sync + 'static,
+    {
+        FuturesJoinSet::new(*self)
     }
 }
