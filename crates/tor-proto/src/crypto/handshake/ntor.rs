@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use super::{AuxDataReply, KeyGenerator, RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
 use crate::{Error, Result};
+use subtle::{Choice, ConstantTimeEq};
 use tor_bytes::{EncodeResult, Reader, SecretBuf, Writer};
 use tor_error::into_internal;
 use tor_llcrypto::d;
@@ -107,7 +108,6 @@ pub(crate) struct NtorSecretKey {
     sk: StaticSecret,
 }
 
-use subtle::{Choice, ConstantTimeEq};
 impl NtorSecretKey {
     /// Construct a new NtorSecretKey from its components.
     #[allow(unused)]
