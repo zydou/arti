@@ -285,7 +285,19 @@ define_derive_deftly! {
     impl $ttype {
         /// Build the raw inner public key into the wrapper public key object.
         $tvis fn public(&self) -> $PK_NAME {
-            $PK_NAME(self.$KP_NAME.public.clone())
+            $PK_NAME(self.public_raw().clone())
+        }
+
+        /// The raw inner public key.
+        ///
+        /// It's expected that this method will be called only just before the key is needed,
+        /// in situations where [`public()`](Self::public) would be inconvenient.
+        ///
+        /// If you intend to keep an owned version of the key around,
+        /// prefer `public()` to store its wrapper type
+        /// which gives semantic information indicating the purpose of the key.
+        $tvis fn public_raw(&self) -> &$crate::macro_deps::curve25519::PublicKey {
+            &self.$KP_NAME.public
         }
 
         /// The raw inner secret key.
