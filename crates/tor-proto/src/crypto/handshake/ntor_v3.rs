@@ -10,6 +10,7 @@
 //    Make terminology and variable names consistent with spec.
 
 use std::borrow::Borrow;
+use std::marker::PhantomData;
 
 use super::{RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
@@ -274,10 +275,14 @@ impl super::ClientHandshake for NtorV3Client {
 }
 
 /// Server side of the ntor v3 handshake.
-pub(crate) struct NtorV3Server;
+pub(crate) struct NtorV3Server<K: NtorV3ServerKeys> {
+    /// The `ServerHandshake` trait requires the `KeyType` to be a property of the implementer,
+    /// so this generic needs to go here. ¯\_(ツ)_/¯
+    _phantom: PhantomData<K>,
+}
 
-impl super::ServerHandshake for NtorV3Server {
-    type KeyType = NtorV3SecretKey;
+impl<K: NtorV3ServerKeys> super::ServerHandshake for NtorV3Server<K> {
+    type KeyType = K;
     type KeyGen = NtorV3KeyGenerator;
     type ClientAuxData = [CircRequestExt];
     type ServerAuxData = Vec<CircResponseExt>;
@@ -317,6 +322,17 @@ pub(crate) trait NtorV3ServerKeys {
 
     /// The server's secret key.
     fn secret_key(&self) -> &curve25519::StaticSecret;
+
+    /// Checks whether `id` and `pk` match this set of keys.
+    ///
+    /// Used to perform a constant-time secret key lookup.
+    ///
+    /// This should not be implemented manually.
+    fn matches(&self, id: Ed25519Identity, pk: curve25519::PublicKey) -> Choice {
+        // TODO: use similar pattern in ntor_v1!
+        id.as_bytes().ct_eq(self.ident().as_bytes())
+            & pk.as_bytes().ct_eq(self.public_key().as_bytes())
+    }
 }
 
 /// Key information about a relay used for the ntor v3 handshake.
@@ -367,14 +383,6 @@ impl NtorV3SecretKey {
             id: id.into(),
         };
         Self { pk, sk }
-    }
-
-    /// Checks whether `id` and `pk` match this secret key.
-    ///
-    /// Used to perform a constant-time secret key lookup.
-    fn matches(&self, id: Ed25519Identity, pk: curve25519::PublicKey) -> Choice {
-        // TODO: use similar pattern in ntor_v1!
-        id.as_bytes().ct_eq(self.pk.id.as_bytes()) & pk.as_bytes().ct_eq(self.pk.pk.as_bytes())
     }
 }
 
@@ -511,11 +519,11 @@ where
 ///
 /// On success, return the server handshake message to send, and an XofReader
 /// to use in generating circuit keys.
-fn server_handshake_ntor_v3<RNG: CryptoRng + Rng, REPLY: MsgReply>(
+fn server_handshake_ntor_v3<RNG: CryptoRng + Rng, REPLY: MsgReply, K: NtorV3ServerKeys>(
     rng: &mut RNG,
     reply_fn: &mut REPLY,
     message: &[u8],
-    keys: &[NtorV3SecretKey],
+    keys: &[K],
     verification: &[u8],
 ) -> RelayHandshakeResult<(Vec<u8>, NtorV3XofReader)> {
     let secret_key_y = curve25519::StaticSecret::random_from_rng(rng);
@@ -523,11 +531,11 @@ fn server_handshake_ntor_v3<RNG: CryptoRng + Rng, REPLY: MsgReply>(
 }
 
 /// As `server_handshake_ntor_v3`, but take a secret key instead of an RNG.
-fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
+fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply, K: NtorV3ServerKeys>(
     reply_fn: &mut REPLY,
     secret_key_y: &curve25519::StaticSecret,
     message: &[u8],
-    keys: &[NtorV3SecretKey],
+    keys: &[K],
     verification: &[u8],
 ) -> RelayHandshakeResult<(Vec<u8>, NtorV3XofReader)> {
     // Decode the message.
@@ -546,8 +554,13 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
         None => return Err(RelayHandshakeError::MissingKey),
     };
 
-    let xb = keypair.sk.diffie_hellman(&client_pk);
-    let (enc_key, mut mac) = kdf_msgkdf(&xb, &keypair.pk, &client_pk, verification)
+    let xb = keypair.secret_key().diffie_hellman(&client_pk);
+    // TODO: Update `kdf_msgkdf()` so that we don't need to copy these bytes.
+    let relay_pk = NtorV3PublicKey {
+        id: *keypair.ident(),
+        pk: *keypair.public_key(),
+    };
+    let (enc_key, mut mac) = kdf_msgkdf(&xb, &relay_pk, &client_pk, verification)
         .map_err(into_internal!("Can't apply ntor3 kdf."))?;
     // Verify the message we received.
     let computed_mac: DigestVal = {
@@ -581,8 +594,8 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
         let mut si = SecretBuf::new();
         si.write(&xy)
             .and_then(|_| si.write(&xb))
-            .and_then(|_| si.write(&keypair.pk.id))
-            .and_then(|_| si.write(&keypair.pk.pk))
+            .and_then(|_| si.write(keypair.ident()))
+            .and_then(|_| si.write(keypair.public_key()))
             .and_then(|_| si.write(&client_pk))
             .and_then(|_| si.write(&y_pk))
             .and_then(|_| si.write(PROTOID))
@@ -610,8 +623,8 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
         let mut auth = DigestWriter(Sha3_256::default());
         auth.write(&T_AUTH)
             .and_then(|_| auth.write(&verify))
-            .and_then(|_| auth.write(&keypair.pk.id))
-            .and_then(|_| auth.write(&keypair.pk.pk))
+            .and_then(|_| auth.write(keypair.ident()))
+            .and_then(|_| auth.write(keypair.public_key()))
             .and_then(|_| auth.write(&y_pk))
             .and_then(|_| auth.write(&client_pk))
             .and_then(|_| auth.write(&msg_mac))

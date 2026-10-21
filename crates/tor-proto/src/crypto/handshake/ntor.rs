@@ -1,6 +1,7 @@
 //! Implements the ntor handshake, as used in modern Tor.
 
 use std::borrow::Borrow;
+use std::marker::PhantomData;
 
 use super::{AuxDataReply, KeyGenerator, RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
@@ -40,10 +41,14 @@ impl super::ClientHandshake for NtorClient {
 }
 
 /// Server side of the ntor handshake.
-pub(crate) struct NtorServer;
+pub(crate) struct NtorServer<K: NtorServerKeys> {
+    /// The `ServerHandshake` trait requires the `KeyType` to be a property of the implementer,
+    /// so this generic needs to go here. ¯\_(ツ)_/¯
+    _phantom: PhantomData<K>,
+}
 
-impl super::ServerHandshake for NtorServer {
-    type KeyType = NtorSecretKey;
+impl<K: NtorServerKeys> super::ServerHandshake for NtorServer<K> {
+    type KeyType = K;
     type KeyGen = NtorHkdfKeyGenerator;
     type ClientAuxData = ();
     type ServerAuxData = ();
@@ -72,6 +77,15 @@ pub(crate) trait NtorServerKeys {
 
     /// The server's secret key.
     fn secret_key(&self) -> &StaticSecret;
+
+    /// Return true if the curve25519 public key in `self` matches `pk`.
+    ///
+    /// Used for looking up keys in an array.
+    ///
+    /// This should not be implemented manually.
+    fn matches_pk(&self, pk: &PublicKey) -> Choice {
+        self.public_key().as_bytes().ct_eq(pk.as_bytes())
+    }
 }
 
 /// A set of public keys used by a client to initiate an ntor handshake.
@@ -102,12 +116,6 @@ impl NtorSecretKey {
             pk: NtorPublicKey { id, pk },
             sk,
         }
-    }
-    /// Return true if the curve25519 public key in `self` matches `pk`.
-    ///
-    /// Used for looking up keys in an array.
-    fn matches_pk(&self, pk: &PublicKey) -> Choice {
-        self.pk.pk.as_bytes().ct_eq(pk.as_bytes())
     }
 }
 
@@ -290,10 +298,10 @@ fn ntor_derive(
 /// Perform a server-side ntor handshake.
 ///
 /// On success returns a key generator and a server onionskin.
-fn server_handshake_ntor_v1<R, T>(
+fn server_handshake_ntor_v1<R, T, K: NtorServerKeys>(
     rng: &mut R,
     msg: T,
-    keys: &[NtorSecretKey],
+    keys: &[K],
 ) -> RelayHandshakeResult<(NtorHkdfKeyGenerator, Vec<u8>)>
 where
     R: Rng + CryptoRng,
@@ -310,11 +318,11 @@ where
 }
 
 /// Helper: perform a server handshake without generating any new keys.
-fn server_handshake_ntor_v1_no_keygen<T>(
+fn server_handshake_ntor_v1_no_keygen<T, K: NtorServerKeys>(
     ephem_pub: PublicKey,
     ephem: EphemeralSecret,
     msg: T,
-    keys: &[NtorSecretKey],
+    keys: &[K],
 ) -> RelayHandshakeResult<(NtorHkdfKeyGenerator, Vec<u8>)>
 where
     T: AsRef<[u8]>,
@@ -331,17 +339,22 @@ where
         None => return Err(RelayHandshakeError::MissingKey),
     };
 
-    if my_id != keypair.pk.id {
+    if &my_id != keypair.ident() {
         return Err(RelayHandshakeError::MissingKey);
     }
 
     let xy = ephem.diffie_hellman(&their_pk);
-    let xb = keypair.sk.diffie_hellman(&their_pk);
+    let xb = keypair.secret_key().diffie_hellman(&their_pk);
 
     let okay =
         ct::bool_to_choice(xy.was_contributory()) & ct::bool_to_choice(xb.was_contributory());
 
-    let (keygen, authcode) = ntor_derive(&xy, &xb, &keypair.pk, &their_pk, &ephem_pub)
+    // TODO: Update `ntor_derive()` so that we don't need to copy these bytes.
+    let relay_pk = NtorPublicKey {
+        id: *keypair.ident(),
+        pk: *keypair.public_key(),
+    };
+    let (keygen, authcode) = ntor_derive(&xy, &xb, &relay_pk, &their_pk, &ephem_pub)
         .map_err(into_internal!("Error deriving keys"))?;
 
     let mut reply: Vec<u8> = Vec::new();
