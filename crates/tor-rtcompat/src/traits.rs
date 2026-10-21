@@ -5,6 +5,7 @@ use futures::future::{FutureExt, RemoteHandle};
 use futures::stream;
 use futures::task::{Spawn, SpawnError};
 use futures::{AsyncRead, AsyncWrite, Future};
+use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::Debug;
 use std::io::{self, Result as IoResult};
@@ -96,6 +97,53 @@ impl<T> Runtime for T where
         + Debug
         + 'static
 {
+}
+
+/// Trait representing a collection of tasks spawned on a [`Runtime`].
+#[async_trait]
+pub trait JoinSet<T>: Send + Sync + 'static {
+    /// Spawn the provided `task` on the runtime.
+    ///
+    /// The provided `task` will start executing in the background immediately,
+    /// even if you don't call [`JoinSet::join_next`].
+    fn spawn<F>(&mut self, task: F) -> Result<(), SpawnError>
+    where
+        F: Future<Output = T> + Send + 'static;
+
+    /// Wait until one of the tasks completes, and return its output.
+    ///
+    /// Returns `None` if there are currently no tasks in this set.
+    ///
+    /// This function is cancel-safe, and therefore safe to use in a `select!` branch.
+    ///
+    /// # Limitations
+    ///
+    /// If a task panics, this function will yield a `Some(Err(..)` result.
+    /// However, this API doesn't provide a way of telling *which* task has panicked.
+    /// Callers wishing to keep track of panics can work around this limitation
+    /// by wrapping the task's code in [`catch_unwind`](std::panic::catch_unwind),
+    /// and arranging for the result returned from this function to contain
+    /// some additional information identifying the task it originated from
+    /// (either in a `Some(Ok(..))`, or in a `Some(Er(..))`,
+    /// although the latter would involve downcasting the `dyn Any`
+    /// to the concrete error type).
+    async fn join_next(&mut self) -> Option<Result<T, Box<dyn Any + Send>>>;
+}
+
+/// Trait for a runtime that can create [`JoinSet`]s.
+pub trait JoinSetProvider: Clone + Send + Sync + 'static {
+    /// The [`JoinSet`] type of this runtime.
+    type JoinSet<T: Send + Sync + 'static>: JoinSet<T>;
+
+    /// Create a new [`JoinSet`] for use with this runtime.
+    ///
+    /// Important: the resulting `JoinSet` should only be used
+    /// from the context of the runtime it was created for.
+    /// Using the `JoinSet` with a different runtime can lead to panics,
+    /// or erroneous behavior.
+    fn new_join_set<T>(&self) -> Self::JoinSet<T>
+    where
+        T: Send + Sync + 'static;
 }
 
 /// A runtime that we can use to run Tor as a client.
