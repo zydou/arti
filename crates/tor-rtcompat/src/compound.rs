@@ -345,6 +345,28 @@ where
     }
 }
 
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> JoinSetProvider
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+where
+    UdpR: Send + Sync + 'static,
+    TaskR: JoinSetProvider + Send + Sync + 'static,
+    SleepR: Send + Sync + 'static,
+    CoarseTimeR: Send + Sync + 'static,
+    TcpR: Send + Sync + 'static,
+    UnixR: Clone + Send + Sync + 'static,
+    TlsR: Send + Sync + 'static,
+{
+    type JoinSet<T: Send + Sync + 'static> = TaskR::JoinSet<T>;
+
+    #[inline]
+    fn new_join_set<T>(&self) -> Self::JoinSet<T>
+    where
+        T: Send + Sync + 'static,
+    {
+        self.inner.spawn.new_join_set()
+    }
+}
+
 /// Module to seal RuntimeSubstExt
 mod sealed {
     /// Helper for sealing RuntimeSubstExt
