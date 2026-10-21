@@ -62,6 +62,18 @@ impl super::ServerHandshake for NtorServer {
     }
 }
 
+/// The identity and keys for an ntor server.
+pub(crate) trait NtorServerKeys {
+    /// The server's identity.
+    fn ident(&self) -> &RsaIdentity;
+
+    /// The server's public key.
+    fn public_key(&self) -> &PublicKey;
+
+    /// The server's secret key.
+    fn secret_key(&self) -> &StaticSecret;
+}
+
 /// A set of public keys used by a client to initiate an ntor handshake.
 #[derive(Clone, Debug)]
 pub(crate) struct NtorPublicKey {
@@ -96,6 +108,20 @@ impl NtorSecretKey {
     /// Used for looking up keys in an array.
     fn matches_pk(&self, pk: &PublicKey) -> Choice {
         self.pk.pk.as_bytes().ct_eq(pk.as_bytes())
+    }
+}
+
+impl NtorServerKeys for NtorSecretKey {
+    fn ident(&self) -> &RsaIdentity {
+        &self.pk.id
+    }
+
+    fn public_key(&self) -> &PublicKey {
+        &self.pk.pk
+    }
+
+    fn secret_key(&self) -> &StaticSecret {
+        &self.sk
     }
 }
 

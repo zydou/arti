@@ -307,6 +307,18 @@ impl super::ServerHandshake for NtorV3Server {
     }
 }
 
+/// The identity and keys for an ntor v3 server.
+pub(crate) trait NtorV3ServerKeys {
+    /// The server's identity.
+    fn ident(&self) -> &Ed25519Identity;
+
+    /// The server's public key.
+    fn public_key(&self) -> &curve25519::PublicKey;
+
+    /// The server's secret key.
+    fn secret_key(&self) -> &curve25519::StaticSecret;
+}
+
 /// Key information about a relay used for the ntor v3 handshake.
 ///
 /// Contains a single curve25519 ntor onion key, and the relay's ed25519
@@ -363,6 +375,20 @@ impl NtorV3SecretKey {
     fn matches(&self, id: Ed25519Identity, pk: curve25519::PublicKey) -> Choice {
         // TODO: use similar pattern in ntor_v1!
         id.as_bytes().ct_eq(self.pk.id.as_bytes()) & pk.as_bytes().ct_eq(self.pk.pk.as_bytes())
+    }
+}
+
+impl NtorV3ServerKeys for NtorV3SecretKey {
+    fn ident(&self) -> &Ed25519Identity {
+        &self.pk.id
+    }
+
+    fn public_key(&self) -> &curve25519::PublicKey {
+        &self.pk.pk
+    }
+
+    fn secret_key(&self) -> &curve25519::StaticSecret {
+        &self.sk
     }
 }
 
