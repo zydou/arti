@@ -556,7 +556,11 @@ impl CreateRequestHandler {
     /// but the read lock prevents this.
     fn ntor_keys<T>(&self, map: impl FnMut(&RelayNtorKeypair) -> T) -> impl AsRef<[T]> {
         let ntor_keys = self.ntor_keys.read().expect("rwlock poisoned");
-        let ntor_keys = [Some(ntor_keys.latest()), ntor_keys.previous()];
+        // XXX: This will be nicer later when we actually use the outer `Arc`.
+        let ntor_keys = [
+            Some(&**ntor_keys.latest()),
+            ntor_keys.previous().map(|x| &**x),
+        ];
         ntor_keys
             .into_iter()
             .flatten()

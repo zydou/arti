@@ -218,7 +218,7 @@ pub(crate) fn new_channel_pair_with_keys<R: Runtime>(
         .unwrap();
 
     let relay_ntor_keys = tor_llcrypto::pk::curve25519::StaticKeypair::generate(&mut rng).unwrap();
-    let relay_ntor_keys = RelayNtorKeys::new(relay_ntor_keys.into());
+    let relay_ntor_keys = RelayNtorKeys::new(Arc::new(relay_ntor_keys.into()));
 
     // Since channels only take a `Weak`, it means we need to keep the `Arc` around.
     // This is just a test and the channel provider is a no-op,

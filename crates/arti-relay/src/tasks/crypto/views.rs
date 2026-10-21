@@ -3,6 +3,7 @@
 
 use anyhow::{Context, Result};
 use std::borrow::Borrow;
+use std::sync::Arc;
 
 use tor_keymgr::{KeyMgr, KeySpecifierPattern};
 use tor_relay_crypto::{
@@ -197,7 +198,7 @@ impl<K: Borrow<KeyMgr>> FullKeyView<K> {
             .borrow()
             .get(&RelayNtorKeypairSpecifier::new(valid_until))?
             .context("Missing latest ntor key")?;
-        let mut keys = RelayNtorKeys::new(latest);
+        let mut keys = RelayNtorKeys::new(Arc::new(latest));
 
         // Might not have a previous all the time.
         if let Some(valid_until) = self.keys_valid_until.ntor_previous {
@@ -206,7 +207,7 @@ impl<K: Borrow<KeyMgr>> FullKeyView<K> {
                 .borrow()
                 .get(&RelayNtorKeypairSpecifier::new(valid_until))?
                 .context("Missing previous ntor key")?;
-            keys = keys.with_previous(previous);
+            keys = keys.with_previous(Arc::new(previous));
         }
         Ok(keys)
     }

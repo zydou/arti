@@ -1,6 +1,8 @@
 //! This module is where all relay related keys are declared along their key specifier for the
 //! KeyMgr so some of them can be stored on disk.
 
+use std::sync::Arc;
+
 use tor_key_forge::{define_curve25519_keypair, define_ed25519_keypair, define_rsa_keypair};
 
 define_ed25519_keypair!(
@@ -34,14 +36,14 @@ define_curve25519_keypair!(
 #[derive(Clone)]
 pub struct RelayNtorKeys {
     /// The latest Ntor key.
-    latest: RelayNtorKeypair,
+    latest: Arc<RelayNtorKeypair>,
     /// The previous Ntor key. First run, not previous key or if expired.
-    previous: Option<RelayNtorKeypair>,
+    previous: Option<Arc<RelayNtorKeypair>>,
 }
 
 impl RelayNtorKeys {
     /// Constructor.
-    pub fn new(latest: RelayNtorKeypair) -> Self {
+    pub fn new(latest: Arc<RelayNtorKeypair>) -> Self {
         Self {
             latest,
             previous: None,
@@ -49,18 +51,18 @@ impl RelayNtorKeys {
     }
 
     /// Set the previous Ntor key.
-    pub fn with_previous(mut self, previous: RelayNtorKeypair) -> Self {
+    pub fn with_previous(mut self, previous: Arc<RelayNtorKeypair>) -> Self {
         self.previous = Some(previous);
         self
     }
 
     /// Return the latest.
-    pub fn latest(&self) -> &RelayNtorKeypair {
+    pub fn latest(&self) -> &Arc<RelayNtorKeypair> {
         &self.latest
     }
 
     /// Return the previous key, if any.
-    pub fn previous(&self) -> Option<&RelayNtorKeypair> {
+    pub fn previous(&self) -> Option<&Arc<RelayNtorKeypair>> {
         self.previous.as_ref()
     }
 }
