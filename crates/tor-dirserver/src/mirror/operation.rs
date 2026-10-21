@@ -736,6 +736,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // (with ok meaning that the parser suceeded, no statement
                 // of cryptographic validity is being made here)
                 //
+                // The `RoutereDescUnverifiedParsedBody as NetdocParseable`
+                // pattern may be useful for this check.
                 continue;
             };
 
