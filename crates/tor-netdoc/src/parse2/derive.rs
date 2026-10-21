@@ -1077,11 +1077,11 @@ define_derive_deftly! {
 
     /// The parsed but unverified body part of a signed network document (working type)
     ///
-   $/// Contains a $tname which has been parsed
+   $/// Contains a [`$tname`] which has been parsed
     /// as part of a signed document,
     /// but the signatures aren't embodied here, and have not been verified.
     ///
-    /// Not very useful to callers, who should use the `BodyUnverified` type instead,
+   $/// Not very useful to callers, who should use the `${tname}Unverified` type instead,
     /// and its implementation of `NetdocParseable`.
     //
     // We implement NetdocParseable on FooUnverified using ItemStream::parse_signed.
