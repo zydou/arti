@@ -712,89 +712,90 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // We do this in a closure so we do not accidentially return early,
         // because we must mark the not found and refused descriptors as such
         // prior to a return, even in an error case.
-        let process_downloads =
-            || -> DescriptorDownloads::<Sha1, FlavoredDescriptorPlain> {
-        let mut downloads =
-            DescriptorDownloads::from_missing(routers.into_iter());
-        for (unverified, start, end) in docs {
-            let Ok(unverified) = unverified else {
-                // TODO DIRMIRROR: Handle parser failures as potentially futile.
-                //
-                // This is going to be a big can of worms, because in the case
-                // of a parser failure, we must check whether the part between
-                // "router" and "router-signature" matches the digest of a
-                // requested descriptor, while checking that the body and
-                // signature parts of the document alone parse just fine.
-                //
-                // body_ok && signature_ok => the parser has not failed, unreachable
-                // body_ok && !signature_ok => not futile
-                // !body_ok && signature_ok => futile
-                // !body_ok && !signature_ok => futile
-                //
-                // (with ok meaning that the parser suceeded, no statement
-                // of cryptographic validity is being made here)
-                //
-                // The `RoutereDescUnverifiedParsedBody as NetdocParseable`
-                // pattern may be useful for this check.
-                continue;
-            };
-
-            // Defensive internal checks.
-            let Some(raw) = raw.get(start..end) else {
-                warn!("parse2 returned invalid string slice: {start}..{end}");
-                continue;
-            };
-            let raw = raw.to_string();
-            let Some(sha1) = unverified.sigs.hashes.sha1 else {
-                warn!("accumulator contains no SHA-1?");
-                continue;
-            };
-            let sha1 = Sha1(sha1);
-
-            // Checks whether the response is weird, as in containing
-            // unrequested or duplicate descriptors.
-            match downloads.get(&sha1) {
-                Some(DescriptorDownloadResult::NotFound) => {}
-                Some(DescriptorDownloadResult::Found(_, _) | DescriptorDownloadResult::Refused) => {
-                    debug!("{sha1:?} contained multiple times in response");
+        let process_downloads = || -> DescriptorDownloads<Sha1, FlavoredDescriptorPlain> {
+            let mut downloads = DescriptorDownloads::from_missing(routers.into_iter());
+            for (unverified, start, end) in docs {
+                let Ok(unverified) = unverified else {
+                    // TODO DIRMIRROR: Handle parser failures as potentially futile.
+                    //
+                    // This is going to be a big can of worms, because in the case
+                    // of a parser failure, we must check whether the part between
+                    // "router" and "router-signature" matches the digest of a
+                    // requested descriptor, while checking that the body and
+                    // signature parts of the document alone parse just fine.
+                    //
+                    // body_ok && signature_ok => the parser has not failed, unreachable
+                    // body_ok && !signature_ok => not futile
+                    // !body_ok && signature_ok => futile
+                    // !body_ok && !signature_ok => futile
+                    //
+                    // (with ok meaning that the parser suceeded, no statement
+                    // of cryptographic validity is being made here)
+                    //
+                    // The `RoutereDescUnverifiedParsedBody as NetdocParseable`
+                    // pattern may be useful for this check.
                     continue;
-                }
-                None => {
-                    debug!("ignoring unrequested router descriptor: {sha1:?}");
-                    continue;
-                }
-            };
+                };
 
-            // Perform the relevant cryptographic checks.
-            let sigs = unverified.sigs.clone();
-            let verified = match unverified.verify() {
-                Ok(verified) => verified,
-                Err(e) => {
-                    // Continuing here implicitly marks the descriptor as not
-                    // found after the loop ends.
-                    debug!("ignoring invalid router descriptor: {sha1:?}: {e}");
+                // Defensive internal checks.
+                let Some(raw) = raw.get(start..end) else {
+                    warn!("parse2 returned invalid string slice: {start}..{end}");
                     continue;
-                }
-            };
-            let timely = match self
-                .tolerance
-                .extend_tolerance(verified)
-                .if_valid_at(&now.into())
-            {
-                Ok(timely) => timely,
-                Err(e) => {
-                    // Untimely is considered as refused for the lifespan of the
-                    // current consensus.
-                    debug!("ignoring untimely router descriptor: {sha1:?}: {e}");
-                    let prev = downloads.insert(sha1, DescriptorDownloadResult::Refused);
-                    debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
+                };
+                let raw = raw.to_string();
+                let Some(sha1) = unverified.sigs.hashes.sha1 else {
+                    warn!("accumulator contains no SHA-1?");
                     continue;
-                }
-            };
+                };
+                let sha1 = Sha1(sha1);
 
-            let prev = downloads.insert(sha1, DescriptorDownloadResult::Found((timely, sigs), raw));
-            debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
-        }
+                // Checks whether the response is weird, as in containing
+                // unrequested or duplicate descriptors.
+                match downloads.get(&sha1) {
+                    Some(DescriptorDownloadResult::NotFound) => {}
+                    Some(
+                        DescriptorDownloadResult::Found(_, _) | DescriptorDownloadResult::Refused,
+                    ) => {
+                        debug!("{sha1:?} contained multiple times in response");
+                        continue;
+                    }
+                    None => {
+                        debug!("ignoring unrequested router descriptor: {sha1:?}");
+                        continue;
+                    }
+                };
+
+                // Perform the relevant cryptographic checks.
+                let sigs = unverified.sigs.clone();
+                let verified = match unverified.verify() {
+                    Ok(verified) => verified,
+                    Err(e) => {
+                        // Continuing here implicitly marks the descriptor as not
+                        // found after the loop ends.
+                        debug!("ignoring invalid router descriptor: {sha1:?}: {e}");
+                        continue;
+                    }
+                };
+                let timely = match self
+                    .tolerance
+                    .extend_tolerance(verified)
+                    .if_valid_at(&now.into())
+                {
+                    Ok(timely) => timely,
+                    Err(e) => {
+                        // Untimely is considered as refused for the lifespan of the
+                        // current consensus.
+                        debug!("ignoring untimely router descriptor: {sha1:?}: {e}");
+                        let prev = downloads.insert(sha1, DescriptorDownloadResult::Refused);
+                        debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
+                        continue;
+                    }
+                };
+
+                let prev =
+                    downloads.insert(sha1, DescriptorDownloadResult::Found((timely, sigs), raw));
+                debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
+            }
             return downloads;
         };
 
