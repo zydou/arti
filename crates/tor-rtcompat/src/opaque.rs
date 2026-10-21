@@ -150,6 +150,15 @@ macro_rules! implement_opaque_runtime {
         }
     }
 
+    impl $crate::traits::JoinSetProvider for $t {
+        type JoinSet<T: Send + Sync + 'static> = <$mty as $crate::traits::JoinSetProvider>::JoinSet<T>;
+
+        fn new_join_set<T>(&self) -> Self::JoinSet<T>
+        where T: Send + Sync + 'static {
+            self.$member.new_join_set::<T>()
+        }
+    }
+
     impl std::fmt::Debug for $t {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct(stringify!($t)).finish_non_exhaustive()
