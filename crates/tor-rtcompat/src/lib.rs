@@ -63,6 +63,7 @@ mod coarse_time;
 mod compound;
 mod dyn_time;
 pub mod general;
+pub mod join_set;
 mod network;
 mod opaque;
 pub mod scheduler;
