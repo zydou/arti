@@ -104,6 +104,9 @@ Arti security issues.
 - `tor-socksproto`: Changed the `SocksVersion::try_from()` function to return a
   new `InvalidSocksVersion` error type.
   ([!4388])
+- `tor-consdiff`: Added a new `size_strictness` argument to `gen_cons_diff()`
+  and `apply_diff()`.
+  ([!4455])
 
 ### Relay development
 
@@ -320,6 +323,7 @@ for funding the development of Arti!
 [!4442]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4442
 [!4443]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4443
 [!4452]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4452
+[!4455]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4455
 [#2599]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2599
 [#2600]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2600
 [#2680]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2680
