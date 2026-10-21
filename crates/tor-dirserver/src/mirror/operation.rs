@@ -59,7 +59,7 @@ use crate::{
         Timestamp,
     },
     err::{AuthorityRequestError, DatabaseError, OperationError},
-    types::{FlavoredConsensusUnverified, FlavoredDescriptorPlain},
+    types::{FlavoredConsensusUnverified, FlavoredDescriptor, FlavoredDescriptorPlain},
 };
 
 mod poc;
@@ -1112,6 +1112,43 @@ impl<T: Debug + Clone + Copy + Eq + Hash> FutileDescriptorSet<T> {
     /// Marks a digest as refused.
     fn set_refused(&mut self, digest: T) {
         self.refused.insert(digest);
+    }
+}
+
+/// Intermediate data structure for storing the result of a downloaded
+/// descriptor within a batch of downloads.
+///
+/// Populated before the insertion into [`FutileDescriptors`] takes place,
+/// so that the actual population of [`FutileDescriptors`] remains atomic.
+#[derive(Debug, Clone)]
+enum DescriptorDownloadResult<D: FlavoredDescriptor> {
+    /// The descriptor was found and verified.
+    Found(D, String),
+    /// The descriptor was not found; implicit default.
+    NotFound,
+    /// We do not accept this descriptor.
+    Refused,
+}
+
+/// Collection of [`DescriptorDownloadResult`] values indexed by their digest.
+///
+/// Used during downloading a batch in order to atomically update
+/// [`FutileDesciptors`].
+#[derive(Debug, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::IntoIterator)]
+struct DescriptorDownloads<K, D: FlavoredDescriptor>(HashMap<K, DescriptorDownloadResult<D>>);
+
+impl<K: Eq + Hash, D: FlavoredDescriptor> DescriptorDownloads<K, D> {
+    /// Creates a [`DescriptorDownloads`] from a set of all missing descriptors.
+    ///
+    /// The idea is to call this right after the database call and before
+    /// any downloads are actually being made, as it initializes the data
+    /// structure with all the keys to [`DescriptorDownloadResult::NotFound`].
+    fn from_missing(digests: impl Iterator<Item = K>) -> Self {
+        Self(
+            digests
+                .map(|digest| (digest, DescriptorDownloadResult::NotFound))
+                .collect(),
+        )
     }
 }
 
