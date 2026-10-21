@@ -709,14 +709,13 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
 
         // Verify each router descriptor.
         //
-        // It is important that we do not return early inside here, because
-        // we must mark the futile descriptors as such, for which the loop
-        // needs to be finished first.  A cleaner approach might be to use
-        // .filter_map(), but that would involve an external variable for
-        // detecting duplicate responses as well, leading to an equally
-        // mediocre solution.
+        // We do this in a closure so we do not accidentially return early,
+        // because we must mark the not found and refused descriptors as such
+        // prior to a return, even in an error case.
+        let process_downloads =
+            || -> DescriptorDownloads::<Sha1, FlavoredDescriptorPlain> {
         let mut downloads =
-            DescriptorDownloads::<Sha1, FlavoredDescriptorPlain>::from_missing(routers.into_iter());
+            DescriptorDownloads::from_missing(routers.into_iter());
         for (unverified, start, end) in docs {
             let Ok(unverified) = unverified else {
                 // TODO DIRMIRROR: Handle parser failures as potentially futile.
@@ -796,6 +795,13 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
             let prev = downloads.insert(sha1, DescriptorDownloadResult::Found((timely, sigs), raw));
             debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
         }
+            return downloads;
+        };
+
+        // Process all downloads isolated, so that we do not return early
+        // on accident.  While we still have one minor exception below with
+        // regard to DatabaseError, that one is well documented.
+        let downloads = process_downloads();
 
         // Determine if we made progress by checking whether we have any
         // descriptors that are either found or refused.  If this is the case,
