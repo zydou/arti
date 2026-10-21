@@ -7405,6 +7405,7 @@ dependencies = [
  "extend",
  "ipnet",
  "itertools 0.15.0",
+ "num-traits",
  "paste",
  "rangemap",
  "static_assertions",
