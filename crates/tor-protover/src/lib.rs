@@ -1095,6 +1095,9 @@ mod test {
             // Duplicate bits are permitted
             ("Foo=1-10,2-20,3-5", "Foo=1-20"),
             ("Link=1-10,2-20,3-5", "Link=1-20"),
+            // Value zero is invalid and discarded
+            ("Link=0-1", "Link=1"),
+            ("Link=0", ""),
         ] {
             let p1 = Protocols::from_str_c_compatible(loose).unwrap();
             let p2 = Protocols::from_str(strict).unwrap();
