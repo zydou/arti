@@ -66,26 +66,26 @@ __is_nonadditive = []
 __is_experimental = []
 
 [dependencies]
-async-trait = "0.1.54"
-base64ct = "1.5.1"
+async-trait = "0.1.92"
+base64ct = "1.8.3"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = { version = "2.0.1", features = ["full"] }
-digest = "0.10.0"
-educe = "0.4.22"
+derive_more = { version = "2.1.1", features = ["full"] }
+digest = "0.10.7"
+educe = "0.4.23"
 event-listener = "5"
 fs-mistrust = { path = "../fs-mistrust", version = "0.16.0" }
 fslock-guard = { path = "../fslock-guard", version = "0.9.0" }
-futures = "0.3.14"
+futures = "0.3.34"
 hex = "0.4"
 httpdate = { version = "1", optional = true }
 humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.15.0"
-memmap2 = { version = "0.9.0", optional = true }
+memmap2 = { version = "0.9.12", optional = true }
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.8.0" }
-paste = "1.0.3"
+paste = "1.0.15"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
-rand = "0.10.1"
+rand = "0.10.3"
 # NOTE: Indirectly relax `libsqlite3-sys` version to a range because only one version can appear in a dependent
 # project's tree due to linking the native SQLite 3 library. This gives Cargo a wider set of compatible versions to
 # choose from for projects that directly or indirectly require different `libsqlite3-sys` versions.
@@ -93,13 +93,13 @@ rand = "0.10.1"
 rusqlite = { version = ">=0.36.0, <0.41.0", features = ["time"] }
 safelog = { path = "../safelog", version = "0.10.0" }
 scopeguard = "1"
-serde = { version = "1.0.103", features = ["derive"] }
-serde_json = "1.0.50"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 signature = "2"
 static_assertions = "1"
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
-time = { version = "0.3.52", features = ["formatting", "parsing"] }
+time = { version = "0.3.55", features = ["formatting", "parsing"] }
 tor-async-utils = { version = "0.47.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.47.0" }
@@ -118,17 +118,17 @@ tor-persist = { path = "../tor-persist", version = "0.47.0" }
 tor-proto = { path = "../tor-proto", version = "0.47.0" }
 tor-protover = { path = "../tor-protover", version = "0.47.0", features = ["serde"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0" }
-tracing = "0.1.36"
+tracing = "0.1.44"
 void = "1"
 web-time-compat = { path = "../web-time-compat", version = "0.3.0" }
 
 [dev-dependencies]
-anyhow = "1.0.23"
+anyhow = "1.0.104"
 filetime = "0.2"
-float_eq = "1.0.0"
-hex-literal = "1.0"
+float_eq = "1.0.1"
+hex-literal = "1.1"
 tempfile = "3"
 tor-linkspec = { path = "../tor-linkspec", version = "0.47.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.47.0" }
-tracing-test = "0.2.4"
+tracing-test = "0.2.6"

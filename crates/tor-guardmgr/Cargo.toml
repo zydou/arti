@@ -61,13 +61,13 @@ __is_experimental = []
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
-base64ct = "1.5.1"
+base64ct = "1.8.3"
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
-derive_more = { version = "2.0.1", features = ["full"] }
-dyn-clone = "1.0.4"
-educe = "0.4.22"
-futures = "0.3.14"
+derive_more = { version = "2.1.1", features = ["full"] }
+dyn-clone = "1.0.20"
+educe = "0.4.23"
+futures = "0.3.34"
 humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.15.0"
@@ -75,9 +75,9 @@ num_enum = "0.7"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.8.0" }
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
-rand = "0.10.1"
+rand = "0.10.3"
 safelog = { path = "../safelog", version = "0.10.0" }
-serde = { version = "1.0.103", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
 tor-async-utils = { version = "0.47.0", path = "../tor-async-utils" }
@@ -96,15 +96,15 @@ tor-relay-selection = { path = "../tor-relay-selection", version = "0.47.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.47.0", optional = true }
 tor-units = { path = "../tor-units", version = "0.47.0" }
-tracing = "0.1.36"
+tracing = "0.1.44"
 web-time-compat = { path = "../web-time-compat", version = "0.3.0" }
 
 [dev-dependencies]
-float_eq = "1.0.0"
+float_eq = "1.0.1"
 fs-mistrust = { path = "../fs-mistrust", version = "0.16.0" }
-serde_json = "1.0.50"
+serde_json = "1.0.154"
 tempfile = "3"
-toml = "1.0.3"
+toml = "1.1.8"
 tor-netdir = { path = "../tor-netdir", version = "0.47.0", features = ["testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.47.0" }
 tor-persist = { path = "../tor-persist", version = "0.47.0", features = ["testing"] }

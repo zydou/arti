@@ -17,15 +17,15 @@ default = []
 full = []
 
 [dependencies]
-derive_more = { version = "2.0.1", features = ["full"] }
-educe = "0.4.22"
+derive_more = { version = "2.1.1", features = ["full"] }
+educe = "0.4.23"
 either = "1"
 fluid-let = "1"
-serde = { version = "1.0.103", optional = true, features = ["derive"] }
+serde = { version = "1.0.229", optional = true, features = ["derive"] }
 thiserror = "2"
 
 [dev-dependencies]
-serial_test = "3.0.0"
+serial_test = "3.5.0"
 static_assertions = "1"
 [package.metadata.docs.rs]
 all-features = true

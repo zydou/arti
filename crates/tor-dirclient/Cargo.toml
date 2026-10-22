@@ -49,13 +49,13 @@ experimental = []
 __is_experimental = []
 
 [dependencies]
-async-compression = { version = "0.4.5", features = ["futures-io", "zlib"] }
-base64ct = "1.5.1"
-derive_more = { version = "2.0.1", features = ["full"] }
-futures = "0.3.14"
+async-compression = { version = "0.4.51", features = ["futures-io", "zlib"] }
+base64ct = "1.8.3"
+derive_more = { version = "2.1.1", features = ["full"] }
+futures = "0.3.34"
 hex = "0.4"
-http = "1.0"
-httparse = "1.2"
+http = "1.5"
+httparse = "1.10"
 httpdate = "1.0"
 itertools = "0.15.0"
 thiserror = "2"
@@ -67,7 +67,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.47.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.47.0" }
 tor-proto = { path = "../tor-proto", version = "0.47.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0" }
-tracing = "0.1.36"
+tracing = "0.1.44"
 web-time-compat = { path = "../web-time-compat", version = "0.3.0" }
 
 [dev-dependencies]

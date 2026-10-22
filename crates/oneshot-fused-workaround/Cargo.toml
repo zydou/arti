@@ -13,7 +13,7 @@ categories = ["rust-patterns"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-futures = "0.3.14"
+futures = "0.3.34"
 
 [features]
 full = []

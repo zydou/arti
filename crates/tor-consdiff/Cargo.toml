@@ -21,7 +21,7 @@ __is_experimental = []
 
 [dependencies]
 derive_more = "2.1.1"
-digest = "0.10.0"
+digest = "0.10.7"
 hex = "0.4"
 imara-diff = "0.2.0"
 static_assertions = "1.1.0"
@@ -32,7 +32,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.47.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.47.0", features = ["incomplete"] }
 
 [dev-dependencies]
-rand = "0.10.1"
+rand = "0.10.3"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 
 [package.metadata.docs.rs]

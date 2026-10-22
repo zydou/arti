@@ -10,10 +10,10 @@ homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Tool used by arti to enforce certain properties in our Cargo features"
 
 [dependencies]
-anyhow = "1.0.69"
+anyhow = "1.0.104"
 itertools = "0.15.0"
 pico-args = "0.5.0"
-toml_edit = "0.25.3"
+toml_edit = "0.25.17"
 
 [features]
 full = []

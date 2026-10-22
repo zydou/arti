@@ -31,17 +31,17 @@ verbatim = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
-base64ct = "1.5.1"
+base64ct = "1.8.3"
 by_address = "1"
 caret = { path = "../caret", version = "0.11.0" }
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = { version = "2.0.1", features = ["full"] }
+derive_more = { version = "2.1.1", features = ["full"] }
 hex = "0.4"
 itertools = "0.15.0"
 safelog = { path = "../safelog", version = "0.10.0" }
-serde = { version = "1.0.103", features = ["derive"] }
-serde_with = "3.0.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_with = "3.24.0"
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
@@ -52,9 +52,9 @@ tor-memquota = { version = "0.47.0", path = "../tor-memquota", default-features 
 tor-protover = { path = "../tor-protover", version = "0.47.0" }
 
 [dev-dependencies]
-hex-literal = "1.0"
+hex-literal = "1.1"
 itertools = "0.15.0"
-serde_test = "1.0.124"
+serde_test = "1.0.177"
 
 [package.metadata.docs.rs]
 all-features = true

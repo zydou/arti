@@ -18,12 +18,12 @@ full = ["tor-error/full", "tor-rtcompat/full", "web-time-compat/full"]
 
 [dependencies]
 
-futures = "0.3.14"
+futures = "0.3.34"
 humantime = "2"
 thiserror = "2"
 tor-error = { path = "../tor-error", version = "0.47.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0" }
-tracing = "0.1.36"
+tracing = "0.1.44"
 weak-table = "0.4.0"
 web-time-compat = { path = "../web-time-compat", version = "0.3.0" }
 

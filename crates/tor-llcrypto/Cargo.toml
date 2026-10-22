@@ -48,44 +48,44 @@ __is_experimental = []
 
 [dependencies]
 aes = { version = "0.9", features = ["zeroize"] }
-base64ct = "1.5.1"
+base64ct = "1.8.3"
 cipher = { version = "0.5.2", optional = true, features = ["zeroize"] }
 ctr = { version = "0.10", features = ["zeroize"] }
 curve25519-dalek = "4.1"
 der-parser = { version = "10", features = ["serialize"] }
 derive-deftly = { version = "~1.14.0" }
-derive_more = { version = "2.0.1", features = ["full"] }
-digest = "0.10.0"
+derive_more = { version = "2.1.1", features = ["full"] }
+digest = "0.10.7"
 ed25519-dalek = { version = "2.2", features = ["batch", "hazmat"] }
-educe = "0.4.22"
+educe = "0.4.23"
 hex = "0.4"
-openssl = { version = "0.10.48", optional = true }
-rand = "0.10.1"
+openssl = { version = "0.10.81", optional = true }
+rand = "0.10.3"
 rand_core = "0.10.1"
 rand_core_06 = { package = "rand_core", version = "0.6", default-features = false }
 rand_jitter = { version = "0.6", features = ["std"] }
-reseeding_rng = "0.10.6"
-rsa = "0.9.0"
+reseeding_rng = "0.10.7"
+rsa = "0.9.10"
 safelog = { version = "0.10.0", path = "../safelog" }
-serde = "1.0.103"
-sha1 = "0.10.0"
-sha2 = "0.10.0"
-sha3 = "0.10.6"
+serde = "1.0.229"
+sha1 = "0.10.7"
+sha2 = "0.10.9"
+sha3 = "0.10.9"
 signature = "2"
 subtle = "2"
 thiserror = "2"
 tor-error = { version = "0.47.0", path = "../tor-error" }
 tor-memquota-cost = { version = "0.47.0", path = "../tor-memquota-cost", default-features = false, optional = true }
-typenum = { version = "1.15.0", optional = true }
-visibility = "0.1.0"
-x25519-dalek = { version = "2.0.0", features = ["static_secrets"] }
+typenum = { version = "1.20.1", optional = true }
+visibility = "0.1.1"
+x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
 zeroize = "1"
 
 [dev-dependencies]
 cipher = "0.5.2"
-hex-literal = "1.0"
-rand = "0.10.1"
-serde_test = "1.0.124"
+hex-literal = "1.1"
+rand = "0.10.3"
+serde_test = "1.0.177"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 [package.metadata.docs.rs]
 all-features = true
@@ -97,10 +97,10 @@ rdrand = "0.9"
 rand_chacha = "0.10.0"
 
 [target.wasm32-unknown-unknown.dependencies]
-getrandom = { version = "0.4.0", features = ["wasm_js"] }
+getrandom = { version = "0.4.3", features = ["wasm_js"] }
 # rand_core 0.6 needs this version of getrandom, and we need to tell it to use
 # the js feature.
-getrandom_02 = { package = "getrandom", version = "0.2.0", features = ["js"] }
+getrandom_02 = { package = "getrandom", version = "0.2.17", features = ["js"] }
 # rand_core 0.9 needs this version of getrandom, and we need to tell it to use
 # the wasm_js feature.
-getrandom_03 = { package = "getrandom", version = "0.3.0", features = ["wasm_js"] }
+getrandom_03 = { package = "getrandom", version = "0.3.4", features = ["wasm_js"] }

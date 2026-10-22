@@ -12,10 +12,10 @@ categories = ["development-tools::profiling", "development-tools::debugging"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-futures = "0.3.14"
-opentelemetry-proto = "0.32.0"
-opentelemetry_sdk = "0.32.1"
-serde_json = "1.0.50"
+futures = "0.3.34"
+opentelemetry-proto = "0.33.1"
+opentelemetry_sdk = "0.33.1"
+serde_json = "1.0.154"
 
 [features]
 full = []

@@ -56,17 +56,17 @@ experimental = ["keymgr", "hs-pow-full", "negotiate-extensions"]
 negotiate-extensions = ["__is_experimental"]
 
 [dependencies]
-async-trait = "0.1.54"
-cfg-if = "1.0.0"
+async-trait = "0.1.92"
+cfg-if = "1.0.5"
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
-derive_more = { version = "2.0.1", features = ["full"] }
-educe = "0.4.22"
+derive_more = { version = "2.1.1", features = ["full"] }
+educe = "0.4.23"
 either = "1"
-futures = "0.3.14"
+futures = "0.3.34"
 itertools = "0.15.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.8.0" }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
-rand = "0.10.1"
+rand = "0.10.3"
 retry-error = { path = "../retry-error", version = "0.14.0" }
 safelog = { path = "../safelog", version = "0.10.0" }
 slotmap-careful = { path = "../slotmap-careful", version = "0.9.0" }
@@ -92,12 +92,12 @@ tor-persist = { path = "../tor-persist", version = "0.47.0" }
 tor-proto = { version = "0.47.0", path = "../tor-proto", features = ["hs-client", "send-control-msg"] }
 tor-protover = { version = "0.47.0", path = "../tor-protover" }
 tor-rtcompat = { version = "0.47.0", path = "../tor-rtcompat" }
-tracing = "0.1.36"
+tracing = "0.1.44"
 web-time-compat = { version = "0.3.0", path = "../web-time-compat" }
 
 [dev-dependencies]
 humantime = "2"
-tokio-crate = { package = "tokio", version = "1.47.1", features = ["full"] }
+tokio-crate = { package = "tokio", version = "1.54.1", features = ["full"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.47.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.47.0" }
@@ -108,7 +108,7 @@ tor-netdoc = { path = "../tor-netdoc", version = "0.47.0", features = ["testing"
 tor-persist = { path = "../tor-persist", version = "0.47.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.47.0" }
-tracing-test = "0.2.4"
+tracing-test = "0.2.6"
 
 [package.metadata.docs.rs]
 all-features = true

@@ -32,24 +32,24 @@ __is_experimental = []
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
-derive_more = { version = "2.0.1", features = ["full"] }
-educe = "0.4.22"
+derive_more = { version = "2.1.1", features = ["full"] }
+educe = "0.4.23"
 extend = "1.2.0"
-ipnet = "2.10"
+ipnet = "2.12"
 itertools = "0.15.0"
-num-traits = "0.2.15"
-paste = "1.0.3"
-rangemap = "1.7"
+num-traits = "0.2.19"
+paste = "1.0.15"
+rangemap = "1.8"
 static_assertions = "1"
 thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.47.0" }
 tor-error = { path = "../tor-error", version = "0.47.0" }
 tor-netdoc = { version = "0.47.0", path = "../tor-netdoc", features = ["full", "retain-unknown"] }
-tracing = "0.1.36"
-typed-index-collections = "3.2.3"
+tracing = "0.1.44"
+typed-index-collections = "3.5.0"
 
 [dev-dependencies]
-anyhow = "1.0.23"
+anyhow = "1.0.104"
 tor-netdoc = { version = "0.47.0", path = "../tor-netdoc", features = ["full", "testing"] }
-tracing-test = "0.2.4"
+tracing-test = "0.2.6"

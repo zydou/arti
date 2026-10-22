@@ -12,11 +12,11 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 arti-client = { path = "../arti-client", version = "0.47.0" }
-async-std = { version = "1.7.0", optional = true }
-educe = "0.4.6"
-futures = "0.3.14"
+async-std = { version = "1.13.2", optional = true }
+educe = "0.4.23"
+futures = "0.3.34"
 thiserror = "2"
-tokio = { version = "1.47.1", optional = true }
+tokio = { version = "1.54.1", optional = true }
 tor-error = { path = "../tor-error", version = "0.47.0" }
 tor-proto = { path = "../tor-proto", features = [ "stream-ctrl" ], version = "0.47.0" }
 tor-rtcompat = { path = "../tor-rtcompat", default-features = false, version = "0.47.0" }
@@ -25,10 +25,10 @@ tor-rtcompat = { path = "../tor-rtcompat", default-features = false, version = "
 # we will only get patchlevel updates.
 #
 # See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2724#note_3162496
-ureq = { version = "~3.3.0", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
+ureq = { version = "~3.5.0", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
 
 [dev-dependencies]
-serde_json = "1.0.104"
+serde_json = "1.0.154"
 test-temp-dir = { version = "0.9.0", path = "../test-temp-dir" }
 
 [features]
