@@ -207,7 +207,11 @@ impl tor_bytes::Writeable for NumberedSubver {
     }
 }
 
-/// Known or unknown protocol
+/// A single recognized or unrecognized protocol.
+///
+/// This does not include the "version" part of a capability;
+/// in a capability like `Relay=7` or `Wombat=42`,
+/// this only represents the `Relay` or `Wombat` part.
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd, derive_more::Display)]
 #[display("{_0}")]
 pub struct Protocol(ProtocolInner<'static>);
