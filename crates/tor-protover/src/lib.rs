@@ -883,8 +883,26 @@ impl Protocols {
     ///
     /// Yields each capability separately, as name (`Protocol`) and value.
     /// Output is in an arbitrary order.
+    ///
+    /// The output representation is far from compact.
+    /// Depending on the input this could allocate up to 64 a separate `String`s
+    /// for each unknown keyword in `self`.
+    //
+    // We could reduce the separate allocations for each keyword by interning the keywords
+    // individually (but we already intern `Self`) or by inventing a borrowed form of
+    // `Protocol`.  (`Protocol` contains an enum which isn't actually present in `self`,
+    // so we can't yield `&Protocol` here.)
+    //
+    // Or we could allow callers to take advantage of our internal bitmask representation,
+    // perhaps by providing a way to iterate over the `Preotocol`s and the contained `Value`s
+    // separately, and a way to look up whether a `Protocols` contains a `(Protocol, Value)`.
+    //
+    // See also `protostatus_preamble_aggregate` in `tor-dirauth/src/consensus/preamble.rs`
+    // for discussion of the perf at what is currently the only call site.
     pub fn iter_all(&self) -> impl Iterator<Item = (Protocol, Value)> + Clone {
         self.iter_masks().flat_map(|(kind, mask)| {
+            // Possibly we could optimise this with `bit-iter` or some such,
+            // if it supports newtypes nicely.
             Value::iter_all()
                 .filter(move |value| {
                     let bit = value.to_bit();

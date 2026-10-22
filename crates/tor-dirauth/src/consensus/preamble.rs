@@ -199,6 +199,21 @@ fn protostatus_preamble_aggregate<'i>(
         inputs: impl ComponentInVotes<&'i tor_protover::Protocols>,
         threshold: impl Fn(&ConsensusCommonContext<'r>, usize) -> bool,
     ) -> Result<tor_protover::Protocols, ConsensusError> {
+        // Uncompress the inputs into sets of `(Protocol, Value)`.
+        //
+        // This is kind of flabby, especially in allocations, but it has the virtue
+        // of making the output calculation very obvious.
+        //
+        // Worst case total allocations (and number of cpu operations) is
+        //   O( unknown_keyword_length * n_keywords * n_authorities * 64 )
+        // or alternatively
+        //   O( total_length_of_all_input_doc_items * 64 )
+        // and the constant factor is 3 or 4 words.  See the comments for `Preotocols::iter_all`.
+        //
+        // We could save a factor of up to 64 in the worst case by using a bitmask representation
+        // but tor-protover does not currently expose that in a suitable form,
+        // and it would make the calculation less obvious.
+        //
         let inputs: Vec<HashSet<(tor_protover::Protocol, tor_protover::Value)>> = inputs
             .map(|(_vnum, i)| i.iter_all().collect())
             .collect_vec();
