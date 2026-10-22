@@ -22,7 +22,10 @@ macro_rules! def_named {
     } => {paste!{
         $($(
             $(#[$meta])*
-            pub const [<$protocol:upper _ $subver>] : NamedSubver = NamedSubver::new(ProtoKind::$protocol, $num);
+            pub const [<$protocol:upper _ $subver>] : NamedSubver = NamedSubver::new(
+                ProtoKind::$protocol,
+                $num,
+            );
         )*)*
     }}
 }
