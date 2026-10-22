@@ -351,7 +351,7 @@ pub struct InstancePurgeInfo<'i> {
 
 /// Is an instance still relevant?
 ///
-/// Returned by [`InstancePurgeHandler::name_filter`].
+/// Returned by [`InstancePurgeHandler::name_filter`] and [`InstancePurgeHandler::age_filter`].
 ///
 /// See [`StateDirectory::purge_instances`] for details of the semantics.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
