@@ -74,9 +74,9 @@ pub mod unix;
 #[cfg(any(feature = "async-std", feature = "tokio", feature = "smol"))]
 use std::io;
 pub use traits::{
-    Blocking, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider,
-    NoOpStreamOpsHandle, Runtime, SleepProvider, SpawnExt, StreamOps, TlsProvider, ToplevelBlockOn,
-    ToplevelRuntime, UdpProvider, UdpSocket, UnsupportedStreamOp, JoinSet, JoinSetProvider,
+    Blocking, CertifiedConn, CoarseTimeProvider, JoinSet, JoinSetProvider, NetStreamListener,
+    NetStreamProvider, NoOpStreamOpsHandle, Runtime, SleepProvider, SpawnExt, StreamOps,
+    TlsProvider, ToplevelBlockOn, ToplevelRuntime, UdpProvider, UdpSocket, UnsupportedStreamOp,
 };
 
 pub use coarse_time::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};
