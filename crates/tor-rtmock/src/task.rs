@@ -34,7 +34,8 @@ use tracing::{error, trace};
 
 use oneshot_fused_workaround::{self as oneshot, Canceled};
 use tor_error::error_report;
-use tor_rtcompat::{Blocking, ToplevelBlockOn};
+use tor_rtcompat::join_set::FuturesJoinSet;
+use tor_rtcompat::{Blocking, JoinSetProvider, ToplevelBlockOn};
 
 use Poll::*;
 use TaskState::*;
@@ -475,6 +476,17 @@ impl Blocking for MockExecutor {
         F::Output: Send + 'static,
     {
         self.subthread_block_on_future(future)
+    }
+}
+
+impl JoinSetProvider for MockExecutor {
+    type JoinSet<T: Send + Sync + 'static> = FuturesJoinSet<T, Self>;
+
+    fn new_join_set<T>(&self) -> Self::JoinSet<T>
+    where
+        T: Send + Sync + 'static,
+    {
+        FuturesJoinSet::new(self.clone())
     }
 }
 
