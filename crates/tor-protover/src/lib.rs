@@ -62,6 +62,8 @@ use thiserror::Error;
 use tor_basic_utils::intern::{GloballyInternable as _, Intern};
 
 pub mod named;
+pub mod value;
+pub use value::*;
 
 /// Types we export for macros.
 #[doc(hidden)]
@@ -112,9 +114,6 @@ caret_int! {
 /// How many recognized protocols are there?
 const N_RECOGNIZED: usize = 13;
 
-/// Maximum allowable value for a protocol's version field.
-const MAX_VER: usize = 63;
-
 /// A specific, named subversion of a protocol.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub struct NamedSubver {
@@ -125,6 +124,8 @@ pub struct NamedSubver {
     /// The version of the protocol
     ///
     /// Must be in 1..=MAX_VER
+    //
+    // XXXX ought to be `Value`
     version: u8,
 }
 
@@ -153,6 +154,8 @@ impl NamedSubver {
 //
 // TODO: As with most other types in the crate, we should decide how to rename them as as part
 // of #1934.
+//
+// TODO ought use `Value` so as to have an invariant that version is within range?
 #[derive(Clone, Copy, Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub struct NumberedSubver {
     /// The protocol in question
