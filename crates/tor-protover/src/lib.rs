@@ -880,7 +880,7 @@ impl Protocols {
 
     /// Iterate over all the specified capabilities
     ///
-    /// Yields each capability separately, as name (`Protocol`) and and number.
+    /// Yields each capability separately, as name (`Protocol`) and value.
     /// Output is in an arbitrary order.
     pub fn iter_all(&self) -> impl Iterator<Item = (Protocol, Value)> + Clone {
         self.iter_masks().flat_map(|(kind, mask)| {
