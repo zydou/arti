@@ -253,9 +253,9 @@ impl<'s> ProtocolInner<'s> {
         }
     }
 
-    /// Borrow from a `ProtocolInner`
+    /// Make a static `ProtocolInner`
     ///
-    /// Gives a new owned `ProtocolInner` which borrows from `self`.
+    /// Returns a new owned `ProtocolInner` describing the same Protocol as `self`.
     fn into_static(self) -> ProtocolInner<'static> {
         use ProtocolInner as PI;
         match self {
