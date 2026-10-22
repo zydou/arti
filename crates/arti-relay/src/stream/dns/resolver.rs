@@ -29,7 +29,6 @@ pub(crate) type LookupAnswers<T> = SmallVec<[T; 10]>;
 /// is quite big (272 bytes) and includes various fields we don't actually use
 /// (such as the domain name that was looked up and the DNS record class).
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub(crate) enum RecordData {
     /// An A or AAAA record.
     Ip(IpAddr),
