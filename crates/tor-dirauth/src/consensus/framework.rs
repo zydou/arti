@@ -214,7 +214,7 @@ impl<'r> ConsensusCommonContext<'r> {
     /// Is `n_some_voters` strictly more than half of all the authorities?
     pub(super) fn is_at_least_two_thirds_all_auths(&self, n_some_voters: usize) -> bool {
         // This way of writing it avoids any possibility of over/under-flow
-        n_some_voters >= self.n_authorities.saturating_mul(2).saturating_add(2) / 3
+        n_some_voters >= self.n_authorities.saturating_mul(2).div_ceil(3)
     }
 }
 
