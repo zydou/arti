@@ -34,6 +34,9 @@ pub(crate) type HickoryResolver = hickory_resolver::Resolver<TokioRuntimeProvide
 /// The ASCII-encoded hostname from a RESOLVE, in canonical form.
 type Query = Arc<str>;
 
+// TODO(relay): check the TTLs against C Tor and the relevant DNS RFCs
+// to make sure they're fit for purpose
+
 /// The TTL to use for responses that have an empty answer section (not NXDOMAIN).
 const TTL_FOR_EMPTY_ANS: Duration = Duration::from_mins(5);
 
