@@ -239,10 +239,10 @@ metrics-exporter-prometheus = { version = "0.18.3", optional = true, default-fea
     "http-listener",
 ] }
 notify = { version = "8", default-features = false, features = ["macos_kqueue"] }
-opentelemetry = { version = "0.32.0", optional = true }
-opentelemetry-otlp = { version = "0.32.0", optional = true }
-opentelemetry-proto = { version = "0.32.0", optional = true }
-opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
+opentelemetry = { version = "0.33.1", optional = true }
+opentelemetry-otlp = { version = "0.33.1", optional = true }
+opentelemetry-proto = { version = "0.33.1", optional = true }
+opentelemetry_sdk = { version = "0.33.1", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
 otlp-file-exporter = { path = "../otlp-file-exporter", version = "0.2.0", optional = true }
 paste = "1.0.15"
 pin-project = "1"
@@ -283,7 +283,7 @@ tor-socksproto = { path = "../tor-socksproto", version = "0.47.0" }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-journald = { version = "0.3.2", optional = true }
-tracing-opentelemetry = { version = "0.33.0", optional = true }
+tracing-opentelemetry = { version = "0.34.0", optional = true }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 visibility = { version = "0.1.1", optional = true }
 web-time-compat = { path = "../web-time-compat", version = "0.3.0" }
