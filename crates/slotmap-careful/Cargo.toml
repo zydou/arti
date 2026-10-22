@@ -12,13 +12,13 @@ categories = ["data-structures"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-paste = "1.0.3"
+paste = "1.0.15"
 serde = "1.0"
-slotmap = { version = "1.0.7", features = ["serde"] }
+slotmap = { version = "1.1.1", features = ["serde"] }
 thiserror = "2"
 
 [dev-dependencies]
-serde_json = "1.0.50"
+serde_json = "1.0.154"
 
 [features]
 full = []

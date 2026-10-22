@@ -38,15 +38,15 @@ experimental-api = ["visibility", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
-async-trait = "0.1.54"
-cfg-if = "1.0.0"
+async-trait = "0.1.92"
+cfg-if = "1.0.5"
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 fs-mistrust = { version = "0.16.0", path = "../fs-mistrust" }
-futures = "0.3.14"
+futures = "0.3.34"
 itertools = "0.15.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.8.0" }
-serde = { version = "1.0.103", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2"
 tor-async-utils = { version = "0.47.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
@@ -58,15 +58,15 @@ tor-linkspec = { version = "0.47.0", path = "../tor-linkspec", features = ["pt-c
 tor-proto = { version = "0.47.0", path = "../tor-proto" }
 tor-rtcompat = { version = "0.47.0", path = "../tor-rtcompat" }
 tor-socksproto = { version = "0.47.0", path = "../tor-socksproto" }
-tracing = "0.1.36"
-visibility = { version = "0.1.0", optional = true }
+tracing = "0.1.44"
+visibility = { version = "0.1.1", optional = true }
 web-time-compat = { version = "0.3.0", path = "../web-time-compat" }
 
 [dev-dependencies]
-anyhow = "1.0.23"
-tokio = { version = "1.47.1", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros"] }
+anyhow = "1.0.104"
+tokio = { version = "1.54.1", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0", features = ["tokio", "native-tls"] }
-tracing-subscriber = "0.3.20"
+tracing-subscriber = "0.3.23"
 
 [[example]]
 name = "run-pt"

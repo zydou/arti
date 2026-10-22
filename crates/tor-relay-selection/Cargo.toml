@@ -29,8 +29,8 @@ geoip = ["tor-geoip", "tor-netdir/geoip", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
-rand = "0.10.1"
-serde = { version = "1.0.103", features = ["derive"] }
+rand = "0.10.3"
+serde = { version = "1.0.229", features = ["derive"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-geoip = { path = "../tor-geoip", version = "0.47.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.47.0" }

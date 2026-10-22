@@ -8,7 +8,7 @@ description = "Examples demonstrating the usage of the arti-ureq crate"
 publish = false
 
 [dependencies]
-anyhow = "1.0.75"
+anyhow = "1.0.104"
 arti-ureq = { path = "../../crates/arti-ureq", version = "0.47" }
 
 [features]

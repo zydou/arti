@@ -90,45 +90,45 @@ __is_experimental = []
 [dependencies]
 aes = { version = "0.9" }
 amplify = { version = "4", default-features = false, features = ["derive"] }
-async-trait = "0.1.54"
+async-trait = "0.1.92"
 asynchronous-codec = "0.7.0"
-bitvec = "1.0.1"
+bitvec = "1.1.1"
 bytes = "1"
 caret = { path = "../caret", version = "0.11.0" }
-cfg-if = "1.0.0"
+cfg-if = "1.0.5"
 cipher = { version = "0.5.2", features = ["zeroize"] }
-coarsetime = "0.1.20"
+coarsetime = "0.1.38"
 ctr = { version = "0.10", features = ["zeroize"] }
 derive-deftly = "~1.14.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = { version = "2.0.1", features = ["full"] }
-digest = "0.10.0"
-educe = "0.4.22"
+derive_more = { version = "2.1.1", features = ["full"] }
+digest = "0.10.7"
+educe = "0.4.23"
 enum_dispatch = "0.3.13"
-futures = "0.3.32"
-futures-util = "0.3.31"
-hkdf = "0.12.0"
-hmac = "0.12.0"
+futures = "0.3.34"
+futures-util = "0.3.34"
+hkdf = "0.12.4"
+hmac = "0.12.1"
 itertools = "0.15.0"
-maybenot = { version = "2.2.1", optional = true }
+maybenot = { version = "2.2.2", optional = true }
 nonany = "0.3"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.8.0" }
 pin-project = "1"
 polyval = { version = "0.7" }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
-rand = "0.10.1"
+rand = "0.10.3"
 rand09 = { package = "rand", version = "0.9", optional = true }
 rand_core = "0.10.1"
 safelog = { path = "../safelog", version = "0.10.0" }
-serde = { version = "1.0.103", features = ["derive"], optional = true }
+serde = { version = "1.0.229", features = ["derive"], optional = true }
 slotmap-careful = { path = "../slotmap-careful", version = "0.9.0" }
-smallvec = { version = "1.10", features = ["const_generics"] }
+smallvec = { version = "1.16", features = ["const_generics"] }
 static_assertions = "1"
 strum = { version = "0.28.0", features = ["derive"] }
 subtle = "2"
 thiserror = "2"
-tokio-crate = { package = "tokio", version = "1.47.1", optional = true }
-tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
+tokio-crate = { package = "tokio", version = "1.54.1", optional = true }
+tokio-util = { version = "0.7.20", features = ["compat"], optional = true }
 tor-async-utils = { path = "../tor-async-utils", version = "0.47.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.47.0" }
@@ -148,28 +148,28 @@ tor-rpcbase = { version = "0.47.0", path = "../tor-rpcbase", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.47.0", optional = true }
 tor-units = { path = "../tor-units", version = "0.47.0", features = ["memquota-memcost"] }
-tracing = "0.1.36"
-typenum = "1.12"
-visibility = { version = "0.1.0" }
+tracing = "0.1.44"
+typenum = "1.20"
+visibility = { version = "0.1.1" }
 void = "1"
 web-time-compat = { path = "../web-time-compat", version = "0.3.0" }
 zeroize = "1"
 
 [dev-dependencies]
 assert_matches = "1.5.0"
-criterion = "0.8.0"
+criterion = "0.8.2"
 hex = "0.4"
-hex-literal = "1.0"
+hex-literal = "1.1"
 humantime = "2"
 itertools = "0.15.0"
 regex = { version = "1", default-features = false, features = ["std"] }
-statrs = { version = "0.19.0", default-features = false }
-tokio-crate = { package = "tokio", version = "1.47.1", features = ["full"] }
+statrs = { version = "0.19.1", default-features = false }
+tokio-crate = { package = "tokio", version = "1.54.1", features = ["full"] }
 tor-key-forge = { path = "../tor-key-forge", version = "0.47.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.47.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.47.0" }
-tracing-test = "0.2.4"
+tracing-test = "0.2.6"
 
 [target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dev-dependencies]
 criterion-cycles-per-byte = "0.8.0"

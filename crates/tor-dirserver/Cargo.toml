@@ -30,30 +30,30 @@ dir-plugin-backend = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
-bytes = "1.10.1"
+bytes = "1.12.1"
 digest = "0.10.7"
-educe = "0.4.22"
-flate2 = "1.1.5"
-futures = "0.3.31"
+educe = "0.4.23"
+flate2 = "1.1.10"
+futures = "0.3.34"
 hex = "0.4.3"
-http = "1.3.1"
-http-body = "1.0.1"
-http-body-util = "0.1.3"
-hyper = { version = "1.7.0", default-features = false, features = ["server", "http1"] }
-hyper-util = { version = "0.1.16", features = ["full"] }
+http = "1.5.0"
+http-body = "1.1.0"
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", default-features = false, features = ["server", "http1"] }
+hyper-util = { version = "0.1.21", features = ["full"] }
 lzma-rs = "0.3.0"
 r2d2 = "0.8.10"
 # NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
 r2d2_sqlite = ">=0.29.0, <0.36.0"
-rand = "0.10.1"
+rand = "0.10.3"
 retry-error = { version = "0.14.0", path = "../retry-error" }
 # NOTE: See the note for `rusqlite` in `../tor-dirmgr/Cargo.toml`.
 rusqlite = { version = ">=0.36.0, <0.41.0", features = ["vtab", "array"] }
 saturating-time = { path = "../saturating-time", version = "0.5.0" }
 strum = { version = "0.28.0", features = ["derive"] }
-thiserror = "2.0.16"
-tokio = { version = "1.47.1", features = ["full", "test-util"] }
-tokio-util = { version = "0.7.16", features = ["compat"] }
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["full", "test-util"] }
+tokio-util = { version = "0.7.20", features = ["compat"] }
 tor-basic-utils = { version = "0.47.0", path = "../tor-basic-utils" }
 tor-checkable = { path = "../tor-checkable", version = "0.47.0" }
 tor-dirclient = { version = "0.47.0", path = "../tor-dirclient" }
@@ -62,15 +62,15 @@ tor-error = { version = "0.47.0", path = "../tor-error" }
 tor-llcrypto = { version = "0.47.0", path = "../tor-llcrypto" }
 tor-netdoc = { version = "0.47.0", path = "../tor-netdoc", features = ["experimental"] }
 tor-rtcompat = { version = "0.47.0", path = "../tor-rtcompat", features = [ "tokio", "rustls" ] }
-tracing = "0.1.41"
+tracing = "0.1.44"
 weak-table = "0.4.0"
 zstd = "0.13.3"
 
 [dev-dependencies]
-lazy_static = "1.5.0"
-rustls = { version = "0.23.5", default-features = false, features = ["aws_lc_rs"] }
-tempfile = "3.23.0"
-tokio-stream = { version = "0.1.17", features = ["full"] }
+lazy_static = "1.5.1"
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs"] }
+tempfile = "3.27.0"
+tokio-stream = { version = "0.1.19", features = ["full"] }
 
 [package.metadata.docs.rs]
 all-features = true

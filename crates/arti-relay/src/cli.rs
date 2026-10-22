@@ -23,7 +23,7 @@ static DEFAULT_CONFIG_PATHS: LazyLock<Result<Vec<PathBuf>, CfgPathError>> =
 #[derive(Clone, Debug, Parser)]
 #[command(author = "The Tor Project Developers")]
 #[command(version)]
-#[command(defer = cli_cmd_post_processing)]
+#[command(defer(cli_cmd_post_processing))]
 pub(crate) struct Cli {
     /// Sub-commands.
     #[command(subcommand)]

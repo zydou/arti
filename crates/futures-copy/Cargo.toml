@@ -17,11 +17,11 @@ full = []
 
 [dependencies]
 extend = "1.2.0"
-futures = "0.3.14"
+futures = "0.3.34"
 pin-project = "1"
 
 [dev-dependencies]
-tokio = { version = "1.47.1", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
+tokio = { version = "1.54.1", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
 tor-error = { path = "../tor-error", version = "0.47.0" }
 tor-rtcompat = { version = "0.47.0", path = "../tor-rtcompat" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.47.0" }

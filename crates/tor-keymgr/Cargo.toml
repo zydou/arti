@@ -51,22 +51,22 @@ __is_experimental = []
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
-arrayvec = "0.7.3"
-cfg-if = "1.0.0"
-data-encoding = { version = "2.3.1", optional = true }
+arrayvec = "0.7.8"
+cfg-if = "1.0.5"
+data-encoding = { version = "2.11.1", optional = true }
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = { version = "2.0.1", features = ["full"] }
-downcast-rs = "2.0.1"
-dyn-clone = "1.0.11"
+derive_more = { version = "2.1.1", features = ["full"] }
+downcast-rs = "2.0.2"
+dyn-clone = "1.0.20"
 fs-mistrust = { path = "../fs-mistrust", version = "0.16.0", features = ["serde", "walkdir"] }
 glob-match = "0.2.1"
 humantime = "2"
-inventory = "0.3.13"
+inventory = "0.3.25"
 itertools = "0.15.0"
-rand = "0.10.1"
+rand = "0.10.3"
 safelog = { path = "../safelog", version = "0.10.0" }
-serde = { version = "1.0.103", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
 signature = "2"
 ssh-key = { version = "0.6.7", package = "ssh-key-fork-arti", features = ["std"] }
 thiserror = "2"
@@ -79,15 +79,15 @@ tor-hscrypto = { path = "../tor-hscrypto", version = "0.47.0" }
 tor-key-forge = { path = "../tor-key-forge", version = "0.47.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.47.0", features = ["keymgr"] }
 tor-persist = { path = "../tor-persist", version = "0.47.0" }
-tracing = "0.1.36"
-visibility = { version = "0.1.0" }
+tracing = "0.1.44"
+visibility = { version = "0.1.1" }
 walkdir = { version = "2" }
 web-time-compat = { path = "../web-time-compat", version = "0.3.0" }
 zeroize = "1"
 
 [dev-dependencies]
-paste = "1.0.3"
-serde_json = "1.0.104"
+paste = "1.0.15"
+serde_json = "1.0.154"
 tempfile = "3"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-cert = { path = "../tor-cert", version = "0.47.0" }

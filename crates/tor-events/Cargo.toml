@@ -15,14 +15,14 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 publish = false
 
 [dependencies]
-async-broadcast = "0.7.0"
-futures = "0.3.14"
-serde = { version = "1.0.103", features = ["derive"] }
+async-broadcast = "0.7.2"
+futures = "0.3.34"
+serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2"
-tracing = "0.1.36"
+tracing = "0.1.44"
 
 [dev-dependencies]
-tokio = { version = "1.47.1", features = ["macros", "rt", "rt-multi-thread", "time"] }
+tokio = { version = "1.54.1", features = ["macros", "rt", "rt-multi-thread", "time"] }
 
 [features]
 full = []

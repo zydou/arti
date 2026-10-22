@@ -41,8 +41,8 @@ __is_experimental = []
 
 [dependencies]
 directories = { version = "6", optional = true }
-serde = { version = "1.0.103", features = ["derive"] }
-shellexpand = { version = "3.0", optional = true, features = ["path"] }
+serde = { version = "1.0.229", features = ["derive"] }
+shellexpand = { version = "3.1", optional = true, features = ["path"] }
 thiserror = "2"
 tor-error = { path = "../tor-error", version = "0.47.0" }
 tor-general-addr = { path = "../tor-general-addr", version = "0.47.0", optional = true }
@@ -52,8 +52,8 @@ assert_matches = "1.5.0"
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
 dirs = "6.0.0"
 rmp-serde = "1"
-serde_json = "1.0.50"
-toml = "1.0.3"
+serde_json = "1.0.154"
+toml = "1.1.8"
 tor-config = { path = "../tor-config", version = "0.47.0" }
 
 [package.metadata.docs.rs]

@@ -24,15 +24,15 @@ full = [
 ]
 
 [dependencies]
-anyhow = "1.0.23"
+anyhow = "1.0.104"
 arti = { package = "arti", path = "../arti", version = "2.7.0", features = ["experimental-api"] }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.47.0", features = ["dirfilter"] }
-async-trait = "0.1.54"
-clap = { version = "4.3.24", features = ["wrap_help"] }
-futures = "0.3.14"
+async-trait = "0.1.92"
+clap = { version = "4.6.7", features = ["wrap_help"] }
+futures = "0.3.34"
 pin-project = "1"
-rand = "0.10.1"
-tokio = { version = "1.47.1", features = ["signal", "macros"] }
+rand = "0.10.3"
+tokio = { version = "1.54.1", features = ["signal", "macros"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-config = { path = "../tor-config", version = "0.47.0" }
 tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.47.0", features = ["dirfilter"] }
@@ -40,7 +40,7 @@ tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.47.0
     "experimental-api",
 ] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.47.0" }
-tracing = "0.1.36"
-tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 [package.metadata.docs.rs]
 all-features = true
