@@ -199,7 +199,7 @@ fn protostatus_preamble_aggregate<'i>(
         inputs: impl ComponentInVotes<&'i tor_protover::Protocols>,
         threshold: impl Fn(&ConsensusCommonContext<'r>, usize) -> bool,
     ) -> Result<tor_protover::Protocols, ConsensusError> {
-        let inputs: Vec<HashSet<(tor_protover::Protocol, u8)>> = inputs
+        let inputs: Vec<HashSet<(tor_protover::Protocol, tor_protover::Value)>> = inputs
             .map(|(_vnum, i)| i.iter_all().collect())
             .collect_vec();
 

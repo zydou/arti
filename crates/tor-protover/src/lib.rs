@@ -886,27 +886,26 @@ impl Protocols {
     ///
     /// Yields each capability separately, as name (`Protocol`) and and number.
     /// Output is in an arbitrary order.
-    pub fn iter_all(&self) -> impl Iterator<Item = (Protocol, u8)> + Clone {
+    pub fn iter_all(&self) -> impl Iterator<Item = (Protocol, Value)> + Clone {
         self.iter_masks().flat_map(|(kind, mask)| {
-            (0..64)
-                .into_iter()
-                .filter(move |bit_index| {
-                    let bit = 1_u64 << bit_index;
+            Value::iter_all()
+                .filter(move |value| {
+                    let bit = value.to_bit();
                     (mask & bit) != 0
                 })
-                .map(move |bit_index| (Protocol(kind.clone().into_static()), bit_index))
+                .map(move |value| (Protocol(kind.clone().into_static()), value.into()))
         })
     }
 }
 
-impl FromIterator<(Protocol, u8)> for Protocols {
+impl FromIterator<(Protocol, Value)> for Protocols {
     fn from_iter<I>(iter: I) -> Self
     where
-        I: IntoIterator<Item = (Protocol, u8)>,
+        I: IntoIterator<Item = (Protocol, Value)>,
     {
         let mut out = BTreeMap::<Protocol, u64>::new();
-        for (proto, bit_index) in iter {
-            *out.entry(proto).or_default() |= 1_u64 << bit_index;
+        for (proto, value) in iter {
+            *out.entry(proto).or_default() |= value.to_bit();
         }
         let mut recognized = [0_u64; N_RECOGNIZED];
         let mut unrecognized = vec![];
