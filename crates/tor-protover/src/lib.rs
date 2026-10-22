@@ -124,9 +124,7 @@ pub struct NamedSubver {
     /// The version of the protocol
     ///
     /// Must be in 1..=MAX_VER
-    //
-    // XXXX ought to be `Value`
-    version: u8,
+    version: Value,
 }
 
 impl NamedSubver {
@@ -134,10 +132,9 @@ impl NamedSubver {
     ///
     /// # Panics
     ///
-    /// Panics if `kind` is unrecognized or `version` is invalid.
-    const fn new(kind: ProtoKind, version: u8) -> Self {
+    /// Panics if `kind` is unrecognized.
+    const fn new(kind: ProtoKind, version: Value) -> Self {
         assert!((kind.0 as usize) < N_RECOGNIZED);
-        assert!((version as usize) <= MAX_VER);
         Self { kind, version }
     }
 }
@@ -181,7 +178,7 @@ impl From<NamedSubver> for NumberedSubver {
     fn from(value: NamedSubver) -> Self {
         Self {
             kind: value.kind,
-            version: value.version,
+            version: value.version.into(),
         }
     }
 }
@@ -473,7 +470,7 @@ impl Protocols {
     /// assert!(! protos.supports_named_subver(named::CONFLUX_BASE)); // Conflux=1
     /// ```
     pub fn supports_named_subver(&self, protover: NamedSubver) -> bool {
-        self.supports_known_subver(protover.kind, protover.version)
+        self.supports_known_subver(protover.kind, protover.version.into())
     }
 
     /// Check whether a numbered subprotocol capability is supported.
@@ -893,7 +890,7 @@ impl Protocols {
                     let bit = value.to_bit();
                     (mask & bit) != 0
                 })
-                .map(move |value| (Protocol(kind.clone().into_static()), value.into()))
+                .map(move |value| (Protocol(kind.clone().into_static()), value))
         })
     }
 }
@@ -934,8 +931,7 @@ impl FromIterator<NamedSubver> for Protocols {
 
             // These are guaranteed by invariants on NamedSubver.
             assert!(proto_idx < N_RECOGNIZED);
-            assert!(usize::from(proto_ver) <= MAX_VER);
-            r.recognized[proto_idx] |= 1_u64 << proto_ver;
+            r.recognized[proto_idx] |= proto_ver.to_bit();
         }
         Protocols::from(r)
     }
