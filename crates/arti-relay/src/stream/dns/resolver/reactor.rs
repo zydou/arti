@@ -54,6 +54,8 @@ const MAX_DNS_TTL: Duration = Duration::from_mins(60);
 /// The amount we +- to the clipped TTL to make it "fuzzy".
 ///
 /// Must be less than MIN_DNS_TTL, otherwise our calculations can underflow.
+///
+/// See "The effect of DNS on Tor's Anonymity" by Greschbach et al.
 const FUZZY_DNS_TTL: Duration = Duration::from_mins(4);
 
 /// A reactor that performs DNS lookups on behalf of incoming streams (RESOLVE, BEGIN).
