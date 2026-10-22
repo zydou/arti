@@ -863,7 +863,8 @@ impl std::fmt::Display for Protocols {
 impl Protocols {
     /// Iterate over all capabilities, known and unknown
     ///
-    /// Yields each capability separately, as name (`Protocol`) and and number
+    /// Yields each protocol separately, but with all values combined,
+    /// so yields a name (`Protocol`) and bitmask.
     fn iter_masks(&self) -> impl Iterator<Item = (ProtocolInner<'_>, u64)> + Clone {
         chain!(
             self.0.recognized.iter().enumerate().map(|(idx, mask)| {
