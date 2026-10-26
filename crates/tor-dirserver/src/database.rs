@@ -835,7 +835,7 @@ impl AuthCertMeta {
 
 /// Representation of a descriptor from the database.
 ///
-/// This is different from [`FlaovredDescriptor`] in the sense that it represents
+/// This is different from [`FlavoredDescriptor`] in the sense that it represents
 /// a row in the `descriptor` table of the database, whereas [`FlavoredDescriptor`]
 /// represents an agnostic wrapper around the [`tor_netdoc`] equivalent.
 ///

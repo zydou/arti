@@ -796,7 +796,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                     downloads.insert(sha1, DescriptorDownloadResult::Found((timely, sigs), raw));
                 debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
             }
-            return downloads;
+            downloads
         };
 
         // Process all downloads isolated, so that we do not return early
@@ -843,7 +843,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
 
         // If no progress, return with an error.  We can do so here because
         // we have finally marked descriptors as futile.
-        if let None = progress {
+        if progress.is_none() {
             Err(OperationError::AuthorityRequest(
                 AuthorityRequestError::NoRequestedDocumentsReturned,
             ))?;
@@ -1165,7 +1165,7 @@ enum DescriptorDownloadResult<D: FlavoredDescriptor> {
 /// Collection of [`DescriptorDownloadResult`] values indexed by their digest.
 ///
 /// Used during downloading a batch in order to atomically update
-/// [`FutileDesciptors`].
+/// [`FutileDescriptors`].
 #[derive(Debug, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::IntoIterator)]
 struct DescriptorDownloads<K, D: FlavoredDescriptor>(HashMap<K, DescriptorDownloadResult<D>>);
 
