@@ -238,8 +238,7 @@ impl BandwidthRefiller {
     /// by a refill. That is because each iteration of the loop sleeps the exact amount
     /// of time to fulfill the pending request.
     ///
-    /// Returns when the pool is closed or if the config rate is zero or if the requested
-    /// amount of token is above the pool capacity.
+    /// Returns when the pool is closed or if the config rate is zero.
     pub async fn run<SP: SleepProvider>(mut self, sleep: SP, rate: u64) {
         let config = TokenBucketConfig {
             rate,
@@ -278,8 +277,8 @@ impl BandwidthRefiller {
                             let d = at.saturating_duration_since(sleep.now());
                             sleep.sleep(d).await;
                         }
-                        // Zero rate or a deficit above the burst. We can never fulfill
-                        // that request so error else we are stuck.
+                        // Zero rate. We can never fulfill that request so error else we
+                        // are stuck. The deficit is never above the burst.
                         Err(_) => return,
                     },
                 }
@@ -308,8 +307,6 @@ impl BandwidthRefiller {
                 self.head = Some(req);
                 true
             }
-            // TODO(relay): Need to fix this with partial permit else this will make the
-            // whole bucket fail if a request above capacity shows up.
             None => false,
         }
     }
