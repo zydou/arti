@@ -478,7 +478,7 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
                 res = self.pending.inflight.join_next().fuse() => {
                     // inflight can never yield None because
                     // we pushed a forever pending future in it
-                    let res = res.expect("pending future resolvewd?!");
+                    let res = res.expect("pending future resolved?!");
 
                     // This can only happen if a task panics, or is aborted.
                     // We never abort tasks, so this can only happen on panic.
