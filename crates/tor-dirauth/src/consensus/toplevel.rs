@@ -221,7 +221,6 @@ pub(crate) mod test {
     }
 
     #[test]
-    #[ignore] // TODO DIRAUTH un-ignore when todo()'s removed
     fn compute_for_test_vanilla() {
         compute_test(3, 4, |_, _| Ok(()), |_| Ok(()));
     }

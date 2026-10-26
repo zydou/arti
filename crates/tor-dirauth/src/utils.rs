@@ -5,14 +5,6 @@ use crate::internal_prelude::*;
 pub mod bool_indexed_array;
 pub(crate) use bool_indexed_array::*;
 
-/// Wrapper for `todo!` which avoids daft warnings everywhere
-///
-/// TOOD DIRAUTH abolish `todo` wrapper, getting rid of panics.
-#[allow(dead_code)]
-pub(super) fn todo<T>() -> T {
-    todo!()
-}
-
 /// What `RangeInclusive::map` ought to be
 ///
 /// Open-coding this at the call site would risk accidental change of the range type,
