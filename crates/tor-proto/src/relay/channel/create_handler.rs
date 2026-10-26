@@ -366,7 +366,7 @@ impl CreateRequestHandler {
         msg_body: &[u8],
         our_rsa_id: &RsaIdentity,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
-        let ntor_keys = self.ntor_keys(|k| NtorKeypair::new(our_rsa_id, Arc::clone(k)));
+        let ntor_keys = self.with_ntor_keys(|k| NtorKeypair::new(our_rsa_id, Arc::clone(k)));
 
         // TODO(relay): We might want to offload this to a CPU worker in the future.
         let (keygen, handshake_msg) = NtorServer::server(
@@ -418,7 +418,7 @@ impl CreateRequestHandler {
         msg_body: &[u8],
         our_ed25519_id: &Ed25519Identity,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
-        let ntor_keys = self.ntor_keys(|k| NtorV3Keypair::new(our_ed25519_id, Arc::clone(k)));
+        let ntor_keys = self.with_ntor_keys(|k| NtorV3Keypair::new(our_ed25519_id, Arc::clone(k)));
 
         let circ_net_params = self
             .circ_net_params
@@ -551,7 +551,7 @@ impl CreateRequestHandler {
     ///
     /// It would be nice if this just returned an iterator,
     /// but the read lock prevents this.
-    fn ntor_keys<T>(&self, map: impl FnMut(&Arc<RelayNtorKeypair>) -> T) -> impl AsRef<[T]> {
+    fn with_ntor_keys<T>(&self, map: impl FnMut(&Arc<RelayNtorKeypair>) -> T) -> impl AsRef<[T]> {
         let ntor_keys = self.ntor_keys.read().expect("rwlock poisoned");
         let ntor_keys = [Some(ntor_keys.latest()), ntor_keys.previous()];
         ntor_keys
