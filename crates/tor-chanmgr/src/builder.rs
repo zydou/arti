@@ -25,8 +25,9 @@ use tor_rtcompat::{CertifiedConn, Runtime, StreamOps, TlsProvider, tls::TlsConne
 
 #[cfg(feature = "relay")]
 use {
-    safelog::Sensitive, std::net::SocketAddr, tor_error::bad_api_usage,
-    tor_proto::RelayChannelAuthMaterial, tor_proto::relay::CreateRequestHandler,
+    crate::mgr::ChannelBandwidthPools, safelog::Sensitive, std::net::SocketAddr,
+    tor_error::bad_api_usage, tor_proto::RelayChannelAuthMaterial,
+    tor_proto::relay::CreateRequestHandler,
 };
 
 /// TLS-based channel builder.
@@ -65,6 +66,10 @@ where
     /// Provided to each new channel so that they can handle CREATE* requests.
     #[cfg(feature = "relay")]
     create_request_handler: Option<Arc<CreateRequestHandler>>,
+    /// Bandwidth pools shared by all channels for global rate limiting.
+    #[cfg(feature = "relay")]
+    #[allow(dead_code)] // TODO(relay): Use it to rate limit channels.
+    bw_pools: Option<ChannelBandwidthPools>,
 }
 
 impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
@@ -86,6 +91,8 @@ where
             my_addrs: Vec::new(),
             #[cfg(feature = "relay")]
             create_request_handler: None,
+            #[cfg(feature = "relay")]
+            bw_pools: None,
         }
     }
 
@@ -117,6 +124,13 @@ where
         Ok(builder)
     }
 
+    /// Set the bandwidth pools used to rate limit all channels.
+    #[cfg(feature = "relay")]
+    pub(crate) fn with_bandwidth_pools(mut self, bw_pools: Option<ChannelBandwidthPools>) -> Self {
+        self.bw_pools = bw_pools;
+        self
+    }
+
     /// Build a new `ChanBuilder` with the given `auth_material`,
     /// cloning everything else.
     ///
@@ -136,6 +150,7 @@ where
             self.my_addrs.clone(),
             self.create_request_handler.as_ref().map(Arc::clone),
         )
+        .map(|b| b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share)))
     }
 
     /// Build a new `ChanBuilder` with the given CREATE* request `handler`,
@@ -162,6 +177,7 @@ where
             self.my_addrs.clone(),
             Some(handler),
         )
+        .map(|b| b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share)))
     }
 
     /// Return the outbound channel type of this config.

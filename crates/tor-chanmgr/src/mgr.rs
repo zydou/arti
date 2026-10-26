@@ -119,7 +119,6 @@ pub struct ChanMgrConfig {
     pub(crate) my_addrs: Vec<SocketAddr>,
     /// Bandwidth pools shared by all channels for global rate limiting.
     #[cfg(feature = "relay")]
-    #[allow(dead_code)] // TODO(relay): Use it in the channel builder.
     pub(crate) bw_pools: Option<ChannelBandwidthPools>,
     // TODO: Would be good to add more things such as NetParameters and Dormancy maybe?
 }
@@ -162,12 +161,22 @@ impl ChanMgrConfig {
 
 /// Global read and write bandwidth pools shared by all channels.
 #[cfg(feature = "relay")]
-#[allow(dead_code)] // TODO(relay): Use it in the channel builder.
 pub(crate) struct ChannelBandwidthPools {
     /// Pool for bytes read from channels.
     pub(crate) read: BandwidthPool,
     /// Pool for bytes written to channels.
     pub(crate) write: BandwidthPool,
+}
+
+#[cfg(feature = "relay")]
+impl ChannelBandwidthPools {
+    /// Return another [`ChannelBandwidthPools`] sharing the same pools.
+    pub(crate) fn share(&self) -> Self {
+        Self {
+            read: self.read.share(),
+            write: self.write.share(),
+        }
+    }
 }
 
 /// A type- and network-agnostic implementation for [`ChanMgr`](crate::ChanMgr).

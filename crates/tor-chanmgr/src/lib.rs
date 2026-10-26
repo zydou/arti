@@ -245,6 +245,7 @@ impl<R: Runtime> ChanMgr<R> {
             if #[cfg(feature = "relay")] {
                 let builder = if let Some(auth_material) = &config.auth_material {
                     builder::ChanBuilder::new_relay(runtime.clone(), transport, auth_material.clone(), config.my_addrs, None)?
+                        .with_bandwidth_pools(config.bw_pools)
                 } else {
                     // Yes, clients can have the "relay" feature enabled (unit tests).
                     builder::ChanBuilder::new_client(runtime.clone(), transport)
