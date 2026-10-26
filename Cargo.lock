@@ -225,7 +225,6 @@ dependencies = [
  "rlimit",
  "rustls",
  "safelog",
- "secmem-proc",
  "serde",
  "serde_json",
  "syslog-tracing",
@@ -238,6 +237,7 @@ dependencies = [
  "toml 1.1.8+spec-1.1.0",
  "tor-async-utils",
  "tor-basic-utils",
+ "tor-bin-common",
  "tor-cell",
  "tor-config",
  "tor-config-path",
@@ -7113,6 +7113,14 @@ dependencies = [
  "tracing",
  "weak-table",
  "web-time-compat",
+]
+
+[[package]]
+name = "tor-bin-common"
+version = "0.47.0"
+dependencies = [
+ "secmem-proc",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

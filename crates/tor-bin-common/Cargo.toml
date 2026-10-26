@@ -1,0 +1,29 @@
+[package]
+name = "tor-bin-common"
+version = "0.47.0"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2024"
+rust-version = "1.92"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Functionality shared among high-level arti binaries "
+keywords = ["tor", "arti", "privacy", "anonymity"]
+categories = ["network-programming"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+
+full = ["harden-process"]
+
+harden-process = ["dep:secmem-proc"]
+
+__is_nonadditive = []
+__is_experimental = []
+
+[dependencies]
+secmem-proc = { version = "0.3.8", optional = true }
+thiserror = "2"

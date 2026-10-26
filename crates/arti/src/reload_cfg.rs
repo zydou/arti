@@ -597,7 +597,7 @@ impl ReconfigurableModule for Application {
         // Note that this is the only config transition we actually perform so far.
         if !dry_run && !config.application().permit_debugging {
             #[cfg(feature = "harden")]
-            crate::process::enable_process_hardening()
+            tor_bin_common::process::harden::enable_process_hardening()
                 .map_err(into_internal!("can't disable debugging"))?;
         }
 

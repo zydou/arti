@@ -459,7 +459,7 @@ where
 
     #[cfg(feature = "harden")]
     if !config.application().permit_debugging {
-        if let Err(e) = process::enable_process_hardening() {
+        if let Err(e) = tor_bin_common::process::harden::enable_process_hardening() {
             error!(
                 "Encountered a problem while enabling hardening. To disable this feature, set application.permit_debugging to true."
             );
