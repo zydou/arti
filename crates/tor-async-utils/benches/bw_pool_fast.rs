@@ -27,7 +27,7 @@ const CLAIM: u64 = 514;
 fn new_bandwidth_pool(n_iter: u64) -> (BandwidthPool, BandwidthRefiller) {
     // Number of iteration times the claim size plus an extra.
     let capacity = n_iter.saturating_mul(CLAIM).saturating_add(CLAIM);
-    BandwidthPool::new(capacity)
+    BandwidthPool::new(capacity, CLAIM)
 }
 
 /// Helper: Get the number of cores available and return a list of power of 2 up to that

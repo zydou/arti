@@ -177,6 +177,9 @@ mod test {
     /// Max chunk used by the tests that don't exercise the cap itself.
     const MAX_CHUNK: NonZero<usize> = NonZero::new(1024).unwrap();
 
+    /// Minimum partial grant used by the tests.
+    const MIN_GRANT: u64 = 10;
+
     /// Build a conn over a [`Cursor`] with a 100 bytes length vector.
     fn new_conn(
         read_pool: &BandwidthPool,
@@ -192,8 +195,8 @@ mod test {
 
     #[test]
     fn basic_conn() {
-        let (read_pool, _rr) = BandwidthPool::new(100);
-        let (write_pool, _wr) = BandwidthPool::new(100);
+        let (read_pool, _rr) = BandwidthPool::new(100, MIN_GRANT);
+        let (write_pool, _wr) = BandwidthPool::new(100, MIN_GRANT);
         let mut conn = new_conn(&read_pool, &write_pool);
 
         // A read of 30 only spends from the read pool.
@@ -210,8 +213,8 @@ mod test {
 
     #[test]
     fn write_no_read_block() {
-        let (read_pool, _rr) = BandwidthPool::new(50);
-        let (write_pool, _wr) = BandwidthPool::new(50);
+        let (read_pool, _rr) = BandwidthPool::new(50, MIN_GRANT);
+        let (write_pool, _wr) = BandwidthPool::new(50, MIN_GRANT);
         let mut conn = new_conn(&read_pool, &write_pool);
 
         // Drain the write pool.

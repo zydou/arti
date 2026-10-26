@@ -11,7 +11,7 @@
 //! # Example
 //!
 //! ```ignore
-//! let (pool, refiller) = BandwidthPool::new(capacity);
+//! let (pool, refiller) = BandwidthPool::new(capacity, min_grant);
 //! let config = TokenBucketConfig { rate, bucket_max: capacity };
 //! runtime.spawn(refiller.run(runtime.clone(), config))?;
 //! ```
@@ -438,11 +438,14 @@ mod test {
     use futures::task::{ArcWake, waker};
     use std::sync::atomic::AtomicUsize;
 
+    /// Minimum partial grant used by the tests.
+    const MIN_GRANT: u64 = 10;
+
     /// Build a new drained refiller of `capacity` and the request channel sender used to
     /// enqueue requests.
     fn drained_refiller(capacity: u64) -> (mpsc::UnboundedSender<BwRequest>, BandwidthRefiller) {
         let (tx, rx) = mpsc::unbounded();
-        let bucket = Arc::new(AtomicTokenBucket::new(capacity));
+        let bucket = Arc::new(AtomicTokenBucket::new(capacity, MIN_GRANT));
         assert_eq!(bucket.claim(capacity), Some(capacity)); // the bucket starts full; empty it
         (tx, BandwidthRefiller::new(bucket, rx))
     }
@@ -504,7 +507,7 @@ mod test {
     fn reclaim_fast_path() {
         // The bucket holds 40 tokens that a failed fast-path attempt for 50 could not claim.
         let (tx, rx) = mpsc::unbounded();
-        let bucket = Arc::new(AtomicTokenBucket::new(100));
+        let bucket = Arc::new(AtomicTokenBucket::new(100, MIN_GRANT));
         assert_eq!(bucket.claim(60), Some(60));
         // Pool has 40 now. Enqueue a request for 50.
         let mut r = BandwidthRefiller::new(Arc::clone(&bucket), rx);

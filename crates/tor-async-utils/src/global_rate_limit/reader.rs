@@ -12,7 +12,7 @@
 //! use tor_async_utils::bw_pool::BandwidthPool;
 //!
 //! futures::executor::block_on(async {
-//!     let (pool, _refiller) = BandwidthPool::new(64 * 1024);
+//!     let (pool, _refiller) = BandwidthPool::new(64 * 1024, 512);
 //!     let max_chunk = NonZero::new(1024).unwrap();
 //!     let mut reader =
 //!         GlobalRateLimitedReader::new(&b"hello world"[..], pool.new_acquirer(), max_chunk);
@@ -133,9 +133,12 @@ mod test {
     /// Max chunk used by the tests that don't exercise the cap itself.
     const MAX_CHUNK: NonZero<usize> = NonZero::new(1024).unwrap();
 
+    /// Minimum partial grant used by the tests.
+    const MIN_GRANT: u64 = 10;
+
     #[test]
     fn fast_path() {
-        let (pool, _refiller) = BandwidthPool::new(100);
+        let (pool, _refiller) = BandwidthPool::new(100, MIN_GRANT);
         let mut reader =
             GlobalRateLimitedReader::new(&[1_u8; 50][..], pool.new_acquirer(), MAX_CHUNK);
 
@@ -148,7 +151,7 @@ mod test {
 
     #[test]
     fn capped_pool_capacity() {
-        let (pool, _refiller) = BandwidthPool::new(30);
+        let (pool, _refiller) = BandwidthPool::new(30, MIN_GRANT);
         let mut reader =
             GlobalRateLimitedReader::new(&[1_u8; 100][..], pool.new_acquirer(), MAX_CHUNK);
 
@@ -160,7 +163,7 @@ mod test {
 
     #[test]
     fn max_chunk() {
-        let (pool, _refiller) = BandwidthPool::new(100);
+        let (pool, _refiller) = BandwidthPool::new(100, MIN_GRANT);
         let cap = NonZero::new(10).unwrap();
         let mut reader = GlobalRateLimitedReader::new(&[1_u8; 50][..], pool.new_acquirer(), cap);
 
@@ -172,7 +175,7 @@ mod test {
 
     #[test]
     fn pending() {
-        let (pool, mut refiller) = BandwidthPool::new(30);
+        let (pool, mut refiller) = BandwidthPool::new(30, MIN_GRANT);
         let mut reader =
             GlobalRateLimitedReader::new(&[1_u8; 100][..], pool.new_acquirer(), MAX_CHUNK);
 
@@ -189,7 +192,7 @@ mod test {
 
     #[test]
     fn pool_closed() {
-        let (pool, refiller) = BandwidthPool::new(30);
+        let (pool, refiller) = BandwidthPool::new(30, MIN_GRANT);
         let mut reader =
             GlobalRateLimitedReader::new(&[1_u8; 200][..], pool.new_acquirer(), MAX_CHUNK);
 

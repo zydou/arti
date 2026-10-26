@@ -68,7 +68,7 @@ fn slow_path(c: &mut Criterion) {
     let mut group = c.benchmark_group(BENCH_GROUP_NAME);
 
     // Capacity only needs to cover a single claim.
-    let (pool, mut refiller) = BandwidthPool::new(CLAIM);
+    let (pool, mut refiller) = BandwidthPool::new(CLAIM, CLAIM);
     let mut acq = pool.new_acquirer();
     let mut cx = Context::from_waker(noop_waker_ref());
     // Empty the pool before we start.
