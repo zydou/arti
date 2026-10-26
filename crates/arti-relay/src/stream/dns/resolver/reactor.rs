@@ -357,18 +357,14 @@ async fn resolve_query<M: MockableAsyncResolver>(
     let (answers, ttl) = match lookup.await {
         Ok(res) => {
             let answers: SmallVec<_> = res;
-            let ttl = if answers.is_empty() {
-                TTL_FOR_EMPTY_ANS
-            } else {
-                // Use the max TTL of all the answers
-                let ttl = answers
-                    .iter()
-                    .map(|ans: &AnswerRecord| ans.ttl)
-                    .max()
-                    .expect("answers cannot be empty");
+            // Use the max TTL of all the answers
+            let ttl = answers
+                .iter()
+                .map(|ans: &AnswerRecord| u64::from(ans.ttl))
+                .max()
+                .map(Duration::from_secs)
+                .unwrap_or(TTL_FOR_EMPTY_ANS);
 
-                Duration::from_secs(ttl.into())
-            };
             let answers = answers.into_iter().map(|res| res.data).collect();
 
             (Ok(answers), ttl)
