@@ -6,6 +6,7 @@
 
 mod dns;
 mod listen;
+mod relay;
 
 use std::borrow::Cow;
 use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
@@ -30,6 +31,7 @@ use tor_dircommon::fallback::FallbackList;
 use tor_guardmgr::bridge::BridgeConfig;
 use tor_guardmgr::{VanguardConfig, VanguardConfigBuilder, VanguardMode};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
+use tor_netdoc::types::{ContactInfo, Nickname};
 use tracing::metadata::Level;
 use tracing_subscriber::filter::EnvFilter;
 
@@ -231,6 +233,31 @@ impl tor_guardmgr::GuardMgrConfig for TorRelayConfig {
 #[derive_deftly(TorConfig)]
 #[deftly(tor_config(no_default_trait))]
 pub(crate) struct RelayConfig {
+    /// The nickname of this relay.
+    ///
+    /// Nicknames are a legacy (and fun!) mechanism that is occasionally useful for
+    /// debugging. They should never be used to uniquely identify a relay. Nothing
+    /// prevents two relays from having the same nickname.
+    ///
+    /// It must be between 1 and 19 ASCII alphanumeric characters inclusive. Default
+    /// value is `Unnamed`.
+    #[deftly(tor_config(default = "relay::default_nickname()"))]
+    pub(crate) nickname: Nickname,
+
+    /// Contact information for the operator(s) of this relay.
+    ///
+    /// This is published in the descriptor so that the network health team can reach you
+    /// if there is a problem with the relay. It is free-form text but it must be a
+    /// single line and must not start with whitespace.
+    ///
+    /// If unset, the descriptor is published without a contact information.
+    //
+    // TODO(relay): Before stable, we need to settle with Network Health team on the
+    // format of that contact info. It will still be a free-form string in the descriptor
+    // but we'll likely enforce a format at the config level.
+    #[deftly(tor_config(default))]
+    pub(crate) contact: Option<ContactInfo>,
+
     /// Addresses to listen on for incoming OR connections.
     #[deftly(tor_config(no_default))]
     pub(crate) listen: Listen,

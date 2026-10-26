@@ -2286,7 +2286,17 @@ mod nickname {
     ///
     /// Nicknames are required to be ASCII, alphanumeric, and between 1 and 19
     /// characters inclusive.
-    #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
+    #[derive(
+        Clone,
+        Debug,
+        PartialEq,
+        Eq,
+        Ord,
+        PartialOrd,
+        Hash,
+        serde_with::SerializeDisplay,
+        serde_with::DeserializeFromStr,
+    )]
     pub struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
 
     /// Invalid nickname
@@ -2471,7 +2481,14 @@ mod contact_info {
     ///
     /// Also used for authority entries in netstatus documents.
     #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash, Deftly)] //
-    #[derive(derive_more::Into, derive_more::AsRef, derive_more::Deref, derive_more::Display)]
+    #[derive(
+        derive_more::Into,
+        derive_more::AsRef,
+        derive_more::Deref,
+        derive_more::Display,
+        serde_with::SerializeDisplay,
+        serde_with::DeserializeFromStr,
+    )]
     #[derive_deftly(ItemValueEncodable)]
     #[non_exhaustive]
     pub struct ContactInfo(#[deftly(netdoc(rest))] String);
