@@ -323,7 +323,7 @@ pub(crate) trait NtorV3ServerKeys {
     /// The server's secret key.
     fn secret_key(&self) -> &curve25519::StaticSecret;
 
-    /// Checks whether `id` and `pk` match this set of keys.
+    /// Return true if `id` and `pk` match this set of keys.
     ///
     /// Used to perform a constant-time secret key lookup.
     ///
