@@ -99,42 +99,6 @@ pub(crate) struct NtorPublicKey {
     pub(crate) pk: PublicKey,
 }
 
-/// A secret key used by a relay to answer an ntor request
-#[cfg(test)]
-pub(crate) struct NtorSecretKey {
-    /// Public key components; must match those held by the client.
-    pk: NtorPublicKey,
-    /// Secret curve25519 ntor key for the relay; must correspond to
-    /// the public key in pk.pk.
-    sk: StaticSecret,
-}
-
-#[cfg(test)]
-impl NtorSecretKey {
-    /// Construct a new NtorSecretKey from its components.
-    pub(crate) fn new(sk: StaticSecret, pk: PublicKey, id: RsaIdentity) -> Self {
-        NtorSecretKey {
-            pk: NtorPublicKey { id, pk },
-            sk,
-        }
-    }
-}
-
-#[cfg(test)]
-impl NtorServerKeys for NtorSecretKey {
-    fn ident(&self) -> &RsaIdentity {
-        &self.pk.id
-    }
-
-    fn public_key(&self) -> &PublicKey {
-        &self.pk.pk
-    }
-
-    fn secret_key(&self) -> &StaticSecret {
-        &self.sk
-    }
-}
-
 /// Client state for an ntor handshake.
 pub(crate) struct NtorHandshakeState {
     /// The relay's public key.  We need to remember this since it is
@@ -375,11 +339,47 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::crypto::testing::FakePRNG;
     use tor_basic_utils::test_rng::testing_rng;
+
+    /// A secret key used by a relay to answer an ntor request
+    #[cfg(test)]
+    pub(crate) struct NtorSecretKey {
+        /// Public key components; must match those held by the client.
+        pk: NtorPublicKey,
+        /// Secret curve25519 ntor key for the relay; must correspond to
+        /// the public key in pk.pk.
+        sk: StaticSecret,
+    }
+
+    #[cfg(test)]
+    impl NtorSecretKey {
+        /// Construct a new NtorSecretKey from its components.
+        pub(crate) fn new(sk: StaticSecret, pk: PublicKey, id: RsaIdentity) -> Self {
+            NtorSecretKey {
+                pk: NtorPublicKey { id, pk },
+                sk,
+            }
+        }
+    }
+
+    #[cfg(test)]
+    impl NtorServerKeys for NtorSecretKey {
+        fn ident(&self) -> &RsaIdentity {
+            &self.pk.id
+        }
+
+        fn public_key(&self) -> &PublicKey {
+            &self.pk.pk
+        }
+
+        fn secret_key(&self) -> &StaticSecret {
+            &self.sk
+        }
+    }
 
     #[test]
     fn simple() -> Result<()> {

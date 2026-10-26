@@ -347,60 +347,6 @@ pub(crate) struct NtorV3PublicKey {
     pub(crate) pk: curve25519::PublicKey,
 }
 
-/// Secret key information used by a relay for the ntor v3 handshake.
-#[cfg(test)]
-pub(crate) struct NtorV3SecretKey {
-    /// The relay's public key information
-    pk: NtorV3PublicKey,
-    /// The secret onion key.
-    sk: curve25519::StaticSecret,
-}
-
-#[cfg(test)]
-impl NtorV3SecretKey {
-    /// Construct a new NtorV3SecretKey from its components.
-    pub(crate) fn new(
-        sk: curve25519::StaticSecret,
-        pk: curve25519::PublicKey,
-        id: Ed25519Identity,
-    ) -> Self {
-        Self {
-            pk: NtorV3PublicKey { id, pk },
-            sk,
-        }
-    }
-
-    /// Generate a key using the given `rng`, suitable for testing.
-    pub(crate) fn generate_for_test<R: Rng + CryptoRng>(rng: &mut R) -> Self {
-        let mut id = [0_u8; 32];
-        // Random bytes will work for testing, but aren't necessarily actually a valid id.
-        rng.fill_bytes(&mut id);
-
-        let sk = curve25519::StaticSecret::random_from_rng(rng);
-
-        let pk = NtorV3PublicKey {
-            pk: (&sk).into(),
-            id: id.into(),
-        };
-        Self { pk, sk }
-    }
-}
-
-#[cfg(test)]
-impl NtorV3ServerKeys for NtorV3SecretKey {
-    fn ident(&self) -> &Ed25519Identity {
-        &self.pk.id
-    }
-
-    fn public_key(&self) -> &curve25519::PublicKey {
-        &self.pk.pk
-    }
-
-    fn secret_key(&self) -> &curve25519::StaticSecret {
-        &self.sk
-    }
-}
-
 /// Client state for the ntor v3 handshake.
 ///
 /// The client needs to hold this state between when it sends its part
@@ -737,7 +683,7 @@ fn client_handshake_ntor_v3_part2(
 #[cfg(test)]
 #[allow(non_snake_case)] // to enable variable names matching the spec.
 #[allow(clippy::many_single_char_names)] // ibid
-mod test {
+pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -758,6 +704,60 @@ mod test {
     use hex_literal::hex;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::relaycell::extend::{CcRequest, CcResponse, CircResponseExt};
+
+    /// Secret key information used by a relay for the ntor v3 handshake.
+    #[cfg(test)]
+    pub(crate) struct NtorV3SecretKey {
+        /// The relay's public key information
+        pk: NtorV3PublicKey,
+        /// The secret onion key.
+        sk: curve25519::StaticSecret,
+    }
+
+    #[cfg(test)]
+    impl NtorV3SecretKey {
+        /// Construct a new NtorV3SecretKey from its components.
+        pub(crate) fn new(
+            sk: curve25519::StaticSecret,
+            pk: curve25519::PublicKey,
+            id: Ed25519Identity,
+        ) -> Self {
+            Self {
+                pk: NtorV3PublicKey { id, pk },
+                sk,
+            }
+        }
+
+        /// Generate a key using the given `rng`, suitable for testing.
+        pub(crate) fn generate_for_test<R: Rng + CryptoRng>(rng: &mut R) -> Self {
+            let mut id = [0_u8; 32];
+            // Random bytes will work for testing, but aren't necessarily actually a valid id.
+            rng.fill_bytes(&mut id);
+
+            let sk = curve25519::StaticSecret::random_from_rng(rng);
+
+            let pk = NtorV3PublicKey {
+                pk: (&sk).into(),
+                id: id.into(),
+            };
+            Self { pk, sk }
+        }
+    }
+
+    #[cfg(test)]
+    impl NtorV3ServerKeys for NtorV3SecretKey {
+        fn ident(&self) -> &Ed25519Identity {
+            &self.pk.id
+        }
+
+        fn public_key(&self) -> &curve25519::PublicKey {
+            &self.pk.pk
+        }
+
+        fn secret_key(&self) -> &curve25519::StaticSecret {
+            &self.sk
+        }
+    }
 
     #[test]
     fn test_ntor3_roundtrip() {
