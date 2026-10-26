@@ -247,3 +247,81 @@ fn protostatus_preamble_aggregate<'i>(
         }
     })
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    #![allow(clippy::string_slice)] // See arti#2571
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use crate::consensus::test::compute_test;
+
+    #[test]
+    #[ignore] // TODO DIRAUTH un-ignore when todo()'s removed
+    fn protocols() {
+        use tor_protover::Protocols;
+
+        let p = |s| Protocols::from_str_c_compatible(s).unwrap();
+
+        let inputs = [
+            // 6 voters
+            //
+            // For capabilities `counting=K-6`, value K is voted for by K voters.
+            p("Link=1 counting=1-6"),
+            p("Link=1 counting=2-6 req=1 rec=1 neither=1"),
+            p("Link=1 counting=3-6 req=1 rec=1 neither=1"),
+            p("Link=1 counting=4-6 req=1 rec=1 neither=1"),
+            p("Link=1 counting=5-6 req=1 rec=1"),
+            p("Link=1 counting=6 req=1"),
+        ];
+
+        let (exp_recommended, exp_required) = (
+            p("Link=1 counting=4-6 req=1 rec=1"),
+            p("Link=1 counting=5-6 req=1"),
+        );
+
+        macro_rules! field { { $cs:ident, $field:ident } => { paste! {
+
+            compute_test(
+                inputs.len(),
+                7,
+                |vnum, vote| {
+                    let mut ps = (*vote.preamble.proto_statuses).clone();
+                    ps.$cs.$field = inputs[vnum].clone();
+                    vote.preamble.proto_statuses = ps.into();
+                    Ok(())
+                },
+                |(plain, _md)| {
+                    let got = &plain.preamble.proto_statuses.$cs.$field;
+                    let exp = &[< exp_ $field >];
+                    assert_eq!(
+                        got,
+                        exp,
+                        "{}\n got={}\n exp={}",
+                        stringify!($cs $field),
+                        got.to_string(),
+                        exp.to_string(),
+                    );
+                    Ok(())
+                },
+            );
+
+        } } }
+
+        field! { client, recommended }
+        field! { client, required }
+        field! { relay, recommended }
+        field! { relay, required }
+    }
+}
