@@ -837,7 +837,7 @@ impl AuthCertMeta {
 ///
 /// This is different from [`FlaovredDescriptor`] in the sense that it represents
 /// a row in the `descriptor` table of the database, whereas [`FlavoredDescriptor`]
-/// represents an agnostic wrapper around the [`tor_netdoc`] pedant.
+/// represents an agnostic wrapper around the [`tor_netdoc`] equivalent.
 ///
 /// Yet, it still accepts a [`FlavoredDescriptor`] as a type parameter in order
 /// to obtain the flavor from it.
