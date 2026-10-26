@@ -8,6 +8,7 @@ pub(crate) use bool_indexed_array::*;
 /// Wrapper for `todo!` which avoids daft warnings everywhere
 ///
 /// TOOD DIRAUTH abolish `todo` wrapper, getting rid of panics.
+#[allow(dead_code)]
 pub(super) fn todo<T>() -> T {
     todo!()
 }

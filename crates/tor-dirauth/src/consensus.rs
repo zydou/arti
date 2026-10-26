@@ -19,6 +19,7 @@ mod tracked_method;
 // consensus calculations
 #[macro_use]
 mod calculate_macros;
+mod footer;
 mod framework;
 mod functions;
 mod preamble;
