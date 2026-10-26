@@ -117,9 +117,6 @@ impl Permit {
     }
 
     /// Claim everything this permit holds.
-    ///
-    /// Used in the for a Sink implementation that gets its permit in the poll_ready()
-    /// which is before the start_send().
     pub fn claim_all(&mut self) {
         let r = self.claim(self.granted);
         debug_assert!(r.is_ok());
