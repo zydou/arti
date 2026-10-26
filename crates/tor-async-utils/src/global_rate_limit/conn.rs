@@ -22,16 +22,19 @@ use crate::bw_pool::BandwidthAcquirer;
 /// bidirectional byte stream.
 ///
 /// Every byte read or written costs one token per direction pool.
+///
+/// A connection built with [`Self::unlimited`] is not rate limited and forwards
+/// everything to the underlying stream.
 #[derive(Debug)]
 #[pin_project]
 pub struct GlobalRateLimitedConn<S> {
     /// The underlying stream.
     #[pin]
     inner: S,
-    /// Rate-limiting state for the read direction.
-    read_state: DirectionState,
-    /// Rate-limiting state for the write direction.
-    write_state: DirectionState,
+    /// Rate-limiting state for the read direction. `None` means unlimited.
+    read_state: Option<DirectionState>,
+    /// Rate-limiting state for the write direction. `None` means unlimited.
+    write_state: Option<DirectionState>,
 }
 
 impl<S> GlobalRateLimitedConn<S> {
@@ -50,8 +53,17 @@ impl<S> GlobalRateLimitedConn<S> {
     ) -> Self {
         Self {
             inner,
-            read_state: DirectionState::new(read_acquirer, max_chunk),
-            write_state: DirectionState::new(write_acquirer, max_chunk),
+            read_state: Some(DirectionState::new(read_acquirer, max_chunk)),
+            write_state: Some(DirectionState::new(write_acquirer, max_chunk)),
+        }
+    }
+
+    /// Constructor of a connection that is not rate limited in either direction.
+    pub fn unlimited(inner: S) -> Self {
+        Self {
+            inner,
+            read_state: None,
+            write_state: None,
         }
     }
 }
@@ -66,7 +78,10 @@ where
         buf: &mut [u8],
     ) -> Poll<Result<usize, Error>> {
         let this = self.project();
-        super::reader::poll_read_limited(this.inner, this.read_state, cx, buf)
+        match this.read_state {
+            Some(state) => super::reader::poll_read_limited(this.inner, state, cx, buf),
+            None => this.inner.poll_read(cx, buf),
+        }
     }
 }
 
@@ -80,7 +95,10 @@ where
         buf: &[u8],
     ) -> Poll<Result<usize, Error>> {
         let this = self.project();
-        super::writer::poll_write_limited(this.inner, this.write_state, cx, buf)
+        match this.write_state {
+            Some(state) => super::writer::poll_write_limited(this.inner, state, cx, buf),
+            None => this.inner.poll_write(cx, buf),
+        }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
