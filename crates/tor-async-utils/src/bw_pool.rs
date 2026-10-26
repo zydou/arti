@@ -370,9 +370,8 @@ impl BandwidthPool {
 
     /// Try to take `tokens` from the pool without waiting.
     ///
-    /// A request above the pool capacity is clamped to it by the bucket it self so the
-    /// permit can hold less than what was asked. The caller learns what it got with
-    /// [`Permit::granted`].
+    /// The claim is partial: if the pool holds less than `tokens`, the permit gets
+    /// everything it holds. The caller learns what it got with [`Permit::granted`].
     ///
     /// Returns `Some(permit)` if there were tokens available right now, or `None` if the
     /// bucket is empty.

@@ -45,30 +45,34 @@ impl AtomicTokenBucket {
         }
     }
 
-    /// Claim all `tokens` from the bucket or nothing if not enough available.
+    /// Claim up to `tokens` from the bucket.
     ///
-    /// The request is first clamped to the capacity because the bucket can never hold
-    /// more than its burst.
+    /// This is a partial claim: if the bucket holds less than `tokens`, everything it
+    /// holds is claimed.
     ///
-    /// Returns `Some(claimed)` if the bucket held at least the clamped request which indicates
-    /// that they are now granted to the caller. Note that `claimed` can be lower than `tokens`
-    /// hence why the caller needs to use that value and not what it asked for.
+    /// Return `None` if something is not right as in `tokens` is 0 or below `min_grant`
+    /// or above the pool capacity. In other words, the caller should be aware that
+    /// something wrong happened.
     ///
-    /// Returns `None` otherwise, nothing is taken.
+    /// Return `Some(0)` indicate that the pool is empty or disabled. This tells the
+    /// caller to come back safely where `None` would indicate the caller to change
+    /// something to its original request.
+    ///
+    /// Returns `Some(claimed)` with the number of tokens now granted to the caller. Note
+    /// that `claimed` can be lower than `tokens` hence why the caller needs to use that
+    /// value and not what it asked for.
     #[must_use]
     pub(super) fn claim(&self, tokens: u64) -> Option<u64> {
-        let tokens = tokens.min(self.capacity);
-
         // NOTE: fetch_update() is deprecated in 1.99.0 and replaced by try_update()
         // starting in 1.95.0. Our current MSRV is 1.89.0.
         //
         // Relaxed: only the atomic subtract matters, the counter gates no other memory.
         self.available
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |cur| {
-                cur.checked_sub(tokens)
+                (cur != 0).then(|| cur.saturating_sub(tokens))
             })
-            .is_ok()
-            .then_some(tokens)
+            .ok()
+            .map(|prev| prev.min(tokens))
     }
 
     /// Add `tokens` to the bucket which is capped at the capacity.
@@ -149,10 +153,9 @@ mod test {
         assert_eq!(b.capacity(), 100);
 
         assert_eq!(b.claim(60), Some(60));
-        // Only 40 left. All or nothing.
-        assert_eq!(b.claim(50), None);
-        assert_eq!(b.available(), 40);
-        assert_eq!(b.claim(40), Some(40));
+        // Only 40 left. Partial claim takes them all.
+        assert_eq!(b.claim(50), Some(40));
+        assert_eq!(b.available(), 0);
         assert_eq!(b.claim(1), None);
 
         // Refill is capped at capacity.
@@ -164,14 +167,14 @@ mod test {
     fn claim_above_capacity() {
         let b = AtomicTokenBucket::new(100);
 
-        // A claim above the burst is clamped to it and not refused.
+        // A claim above the burst gets what the bucket holds and is not refused.
         assert_eq!(b.claim(1000), Some(100));
         assert_eq!(b.available(), 0);
 
-        // Even clamped, it is all or nothing.
+        // Same when the bucket is partially filled.
         b.refill(50);
-        assert_eq!(b.claim(1000), None);
-        assert_eq!(b.available(), 50);
+        assert_eq!(b.claim(1000), Some(50));
+        assert_eq!(b.available(), 0);
     }
 
     #[test]
