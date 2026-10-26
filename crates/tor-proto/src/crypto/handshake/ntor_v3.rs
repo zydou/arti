@@ -329,9 +329,12 @@ pub(crate) trait NtorV3ServerKeys {
     ///
     /// This should not be implemented manually.
     fn matches(&self, id: Ed25519Identity, pk: curve25519::PublicKey) -> Choice {
-        // TODO: use similar pattern in ntor_v1!
-        id.as_bytes().ct_eq(self.ident().as_bytes())
-            & pk.as_bytes().ct_eq(self.public_key().as_bytes())
+        let pk_self = NtorV3PublicKey {
+            id: *self.ident(),
+            pk: *self.public_key(),
+        };
+        let pk_other = NtorV3PublicKey { id, pk };
+        pk_self.ct_eq(&pk_other)
     }
 }
 
@@ -345,6 +348,14 @@ pub(crate) struct NtorV3PublicKey {
     pub(crate) id: Ed25519Identity,
     /// The relay's onion key.
     pub(crate) pk: curve25519::PublicKey,
+}
+
+impl ConstantTimeEq for NtorV3PublicKey {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        // TODO: use similar pattern in ntor_v1!
+        self.id.as_bytes().ct_eq(other.id.as_bytes())
+            & self.pk.as_bytes().ct_eq(other.pk.as_bytes())
+    }
 }
 
 /// Client state for the ntor v3 handshake.
