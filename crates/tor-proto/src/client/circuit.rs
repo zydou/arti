@@ -1024,7 +1024,9 @@ pub(crate) mod test {
     use crate::congestion::params::CongestionControlParams;
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
+    use crate::crypto::handshake::ntor::tests::NtorSecretKey;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
+    use crate::crypto::handshake::ntor_v3::test::NtorV3SecretKey;
     use crate::memquota::SpecificAccount as _;
     use crate::stream::flow_ctrl::params::FlowCtrlParameters;
     use crate::util::DummyTimeoutEstimator;
@@ -1118,19 +1120,11 @@ pub(crate) mod test {
             .build()
             .unwrap()
     }
-    fn example_ntor_key() -> crate::crypto::handshake::ntor::NtorSecretKey {
-        crate::crypto::handshake::ntor::NtorSecretKey::new(
-            EXAMPLE_SK.into(),
-            EXAMPLE_PK.into(),
-            EXAMPLE_RSA_ID.into(),
-        )
+    fn example_ntor_key() -> NtorSecretKey {
+        NtorSecretKey::new(EXAMPLE_SK.into(), EXAMPLE_PK.into(), EXAMPLE_RSA_ID.into())
     }
-    fn example_ntor_v3_key() -> crate::crypto::handshake::ntor_v3::NtorV3SecretKey {
-        crate::crypto::handshake::ntor_v3::NtorV3SecretKey::new(
-            EXAMPLE_SK.into(),
-            EXAMPLE_PK.into(),
-            EXAMPLE_ED_ID.into(),
-        )
+    fn example_ntor_v3_key() -> NtorV3SecretKey {
+        NtorV3SecretKey::new(EXAMPLE_SK.into(), EXAMPLE_PK.into(), EXAMPLE_ED_ID.into())
     }
 
     /// Which handshake type to use.

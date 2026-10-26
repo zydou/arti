@@ -1307,7 +1307,7 @@ pub(crate) mod test {
                     let ntor = RelayNtorKeypair::from(
                         tor_llcrypto::pk::curve25519::StaticKeypair::generate(&mut rng).unwrap(),
                     );
-                    RelayNtorKeys::new(ntor)
+                    RelayNtorKeys::new(Arc::new(ntor))
                 };
 
                 let (create_handler, _stream_rx) = CreateRequestHandler::new(

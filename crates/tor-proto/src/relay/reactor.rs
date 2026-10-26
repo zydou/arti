@@ -539,7 +539,7 @@ pub(crate) mod test {
         let (create_request_handler, _circuit_stream_rx) = CreateRequestHandler::new(
             Arc::downgrade(&chan_provider) as Weak<_>,
             new_circ_net_params(),
-            RelayNtorKeys::new(relay_ntor_keys.into()),
+            RelayNtorKeys::new(Arc::new(relay_ntor_keys.into())),
             // Don't filter any stream requests.
             Box::new(|| Box::new(NoOpRequestFilter) as Box<_>),
             allowed_stream_cmds,

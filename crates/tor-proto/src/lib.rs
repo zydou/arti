@@ -49,6 +49,9 @@
 #![allow(recursion_depth_exceeding_limit)] // arti#2715, rust/issues/159228
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+#![allow(clippy::redundant_field_names)]
+// TODO beta clippy bug, rust-clippy/issues/17525
+
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(
     not(all(feature = "full", feature = "experimental")),
