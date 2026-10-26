@@ -19,11 +19,11 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
         calc! { both.consensus_method = ((*context.method).into(),) }
         calc! { both.consensus_methods = NotPresent }
         calc! { both.published = NotPresent }
+        calc! { both.proto_statuses }
         calc! { md,plain .known_flags <+ doc_relay_flags_union }
         calc! { md,plain .params <+ netparams_preamble_aggregate }
 
         // TODO DIRAUTH replace dummy values
-        calc! { both.proto_statuses = Default::default() }
         calc! { both.voting_delay }
         calc! { both.client_versions }
         calc! { both.server_versions }
@@ -164,7 +164,7 @@ impl<AC> Aggregate<AC> for netstatus::RecommendedTorVersions {
     }
 }
 
-impl Aggregate<()> for netstatus::ProtoStatuses {
+impl Aggregate<()> for Arc<netstatus::ProtoStatuses> {
     type Output = Self;
 
     fn aggregate<'i>(
@@ -181,7 +181,8 @@ impl Aggregate<()> for netstatus::ProtoStatuses {
             } {
                 out. client, relay;
             }
-        })
+        }
+        .into())
     }
 }
 
