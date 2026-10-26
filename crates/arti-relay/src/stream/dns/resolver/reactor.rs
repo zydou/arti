@@ -103,6 +103,13 @@ pub(crate) struct DnsResponse {
     valid_until: Instant,
 }
 
+impl DnsResponse {
+    /// Returns `true` if this response is expired at `now`.
+    fn is_expired(&self, now: Instant) -> bool {
+        self.valid_until <= now
+    }
+}
+
 /// An answer record.
 #[derive(Clone, Debug, Constructor)]
 pub(crate) struct AnswerRecord {
@@ -228,7 +235,7 @@ impl DnsCache {
         match self.inner.entry(Arc::clone(query)) {
             Entry::Occupied(e) => {
                 let entry = e.get();
-                if entry.valid_until > now {
+                if !entry.is_expired(now) {
                     Some(entry.clone())
                 } else {
                     // The entry is expired, we should remove it from the cache
@@ -243,6 +250,16 @@ impl DnsCache {
     /// Insert the specified response into the cache.
     fn insert(&mut self, query: Query, res: DnsResponse) {
         self.inner.insert(query, res);
+    }
+
+    /// Remove all the entries that are expired at `now`.
+    ///
+    /// This is an O(n) operation, so it should be used sparingly.
+    /// Currently called on a timer from the main loop of the reactor.
+    ///
+    // XXX: ^ this is not true yet
+    fn remove_expired(&mut self, now: Instant) {
+        self.inner.retain(|_, res| !res.is_expired(now));
     }
 }
 
