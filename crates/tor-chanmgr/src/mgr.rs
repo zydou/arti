@@ -19,7 +19,10 @@ use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount}
 use tracing::{instrument, trace};
 
 #[cfg(feature = "relay")]
-use {safelog::Sensitive, std::net::SocketAddr, tor_proto::RelayChannelAuthMaterial};
+use {
+    safelog::Sensitive, std::net::SocketAddr, tor_async_utils::bw_pool::BandwidthPool,
+    tor_proto::RelayChannelAuthMaterial,
+};
 
 mod select;
 mod state;
@@ -114,6 +117,10 @@ pub struct ChanMgrConfig {
     /// them in the NETINFO cell. It will also be used to validate initiator channel target.
     #[cfg(feature = "relay")]
     pub(crate) my_addrs: Vec<SocketAddr>,
+    /// Bandwidth pools shared by all channels for global rate limiting.
+    #[cfg(feature = "relay")]
+    #[allow(dead_code)] // TODO(relay): Use it in the channel builder.
+    pub(crate) bw_pools: Option<ChannelBandwidthPools>,
     // TODO: Would be good to add more things such as NetParameters and Dormancy maybe?
 }
 
@@ -126,6 +133,8 @@ impl ChanMgrConfig {
             auth_material: None,
             #[cfg(feature = "relay")]
             my_addrs: Vec::new(),
+            #[cfg(feature = "relay")]
+            bw_pools: None,
         }
     }
 
@@ -142,6 +151,23 @@ impl ChanMgrConfig {
         self.my_addrs = my_addrs;
         self
     }
+
+    /// Set the read and write bandwidth pools shared by all channels.
+    #[cfg(feature = "relay")]
+    pub fn with_bandwidth_pools(mut self, read: BandwidthPool, write: BandwidthPool) -> Self {
+        self.bw_pools = Some(ChannelBandwidthPools { read, write });
+        self
+    }
+}
+
+/// Global read and write bandwidth pools shared by all channels.
+#[cfg(feature = "relay")]
+#[allow(dead_code)] // TODO(relay): Use it in the channel builder.
+pub(crate) struct ChannelBandwidthPools {
+    /// Pool for bytes read from channels.
+    pub(crate) read: BandwidthPool,
+    /// Pool for bytes written to channels.
+    pub(crate) write: BandwidthPool,
 }
 
 /// A type- and network-agnostic implementation for [`ChanMgr`](crate::ChanMgr).
