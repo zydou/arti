@@ -16,6 +16,8 @@ pub(super) type VoterSet = HashSet<VoterNum>;
 /// Components within a vote (trait alias)
 ///
 /// Input to [`ConsensusesFromVotes::consensuses`] and [`Aggregate::aggregate`].
+///
+/// Do not implement this trait manually.
 //
 // Normally it is a better API to take `IntoIterator` than `Iterator`, since that is
 // more convenient to use.
