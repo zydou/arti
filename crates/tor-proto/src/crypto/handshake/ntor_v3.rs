@@ -706,7 +706,6 @@ pub(crate) mod test {
     use tor_cell::relaycell::extend::{CcRequest, CcResponse, CircResponseExt};
 
     /// Secret key information used by a relay for the ntor v3 handshake.
-    #[cfg(test)]
     pub(crate) struct NtorV3SecretKey {
         /// The relay's public key information
         pk: NtorV3PublicKey,
@@ -714,7 +713,6 @@ pub(crate) mod test {
         sk: curve25519::StaticSecret,
     }
 
-    #[cfg(test)]
     impl NtorV3SecretKey {
         /// Construct a new NtorV3SecretKey from its components.
         pub(crate) fn new(
@@ -744,7 +742,6 @@ pub(crate) mod test {
         }
     }
 
-    #[cfg(test)]
     impl NtorV3ServerKeys for NtorV3SecretKey {
         fn ident(&self) -> &Ed25519Identity {
             &self.pk.id

@@ -346,7 +346,6 @@ pub(crate) mod tests {
     use tor_basic_utils::test_rng::testing_rng;
 
     /// A secret key used by a relay to answer an ntor request
-    #[cfg(test)]
     pub(crate) struct NtorSecretKey {
         /// Public key components; must match those held by the client.
         pk: NtorPublicKey,
@@ -355,7 +354,6 @@ pub(crate) mod tests {
         sk: StaticSecret,
     }
 
-    #[cfg(test)]
     impl NtorSecretKey {
         /// Construct a new NtorSecretKey from its components.
         pub(crate) fn new(sk: StaticSecret, pk: PublicKey, id: RsaIdentity) -> Self {
@@ -366,7 +364,6 @@ pub(crate) mod tests {
         }
     }
 
-    #[cfg(test)]
     impl NtorServerKeys for NtorSecretKey {
         fn ident(&self) -> &RsaIdentity {
             &self.pk.id
