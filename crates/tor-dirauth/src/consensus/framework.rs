@@ -32,7 +32,8 @@ pub(super) type VoterSet = HashSet<VoterNum>;
 // Worse, we don't want to insist on `Copy` iterators
 // since there might be cases where the iterator would be only `Clone`;
 // and, `IntoIterator + Clone` would mean writing `.clone().into_iter()` or some such.
-pub(super) trait ComponentInVotes<T>: Iterator<Item = (VoterNum, T)> + Clone {}
+pub(super) trait ComponentInVotes<T>: Iterator<Item = (VoterNum, T)> + Clone {
+}
 impl<I, T> ComponentInVotes<T> for I where I: Iterator<Item = (VoterNum, T)> + Clone {}
 
 /// Actual context for computing a field: global context, plus already-computed values
