@@ -564,18 +564,12 @@ impl CreateRequestHandler {
 }
 
 /// The server's RSA identity and ntor keypair.
+#[derive(derive_more::Constructor)]
 struct NtorSecretKey<'a> {
     /// The server's RSA identity.
     ident: &'a RsaIdentity,
     /// The server's ntor keypair.
     keys: Arc<RelayNtorKeypair>,
-}
-
-impl<'a> NtorSecretKey<'a> {
-    /// Create a new [`NtorSecretKey`].
-    fn new(ident: &'a RsaIdentity, keys: Arc<RelayNtorKeypair>) -> Self {
-        Self { ident, keys }
-    }
 }
 
 impl<'a> NtorServerKeys for NtorSecretKey<'a> {
@@ -593,18 +587,12 @@ impl<'a> NtorServerKeys for NtorSecretKey<'a> {
 }
 
 /// The server's Ed25519 identity and ntor keypair.
+#[derive(derive_more::Constructor)]
 struct NtorV3SecretKey<'a> {
     /// The server's Ed25519 identity.
     ident: &'a Ed25519Identity,
     /// The server's ntor keypair.
     keys: Arc<RelayNtorKeypair>,
-}
-
-impl<'a> NtorV3SecretKey<'a> {
-    /// Create a new [`NtorV3SecretKey`].
-    fn new(ident: &'a Ed25519Identity, keys: Arc<RelayNtorKeypair>) -> Self {
-        Self { ident, keys }
-    }
 }
 
 impl<'a> NtorV3ServerKeys for NtorV3SecretKey<'a> {
