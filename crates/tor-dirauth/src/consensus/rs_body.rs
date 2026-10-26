@@ -110,7 +110,7 @@ impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
 
         let get_inputs = |k| {
             inputs
-                .clone()
+                .iter()
                 .filter_map(move |(_vnum, rwi)| rwi.w.as_ref()?.get(k).copied())
         };
         let calc_median = |k| functions::low_median_raw(get_inputs(k));
@@ -169,7 +169,7 @@ impl Aggregate<PlainPreamble> for DocRelayFlags {
             .try_filter(|flag| {
                 // Check the votes' opinions about `flag`
                 let mut tally = BoolIndexedArray::<usize>::default();
-                for (vnum, vote_rs_flags) in inputs.clone() {
+                for (vnum, vote_rs_flags) in inputs.iter() {
                     let vote_known_flags = &context.votes.vote(vnum)?.preamble.known_flags;
                     if !vote_known_flags.contains_incl_unknown(flag)? {
                         // This authority didn't advertise this flag as one it knows about.

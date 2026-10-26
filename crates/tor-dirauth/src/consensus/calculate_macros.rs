@@ -289,7 +289,7 @@ macro_rules! calc_internal {
             DummyForMacrology beta_deftly:
             ($func) (
                 $D{paste_spanned $f context},
-                $D{paste_spanned $f inputs}.clone().map(|(vnum, i)| (vnum, &i.$f)),
+                $D{paste_spanned $f inputs}.iter().map(|(vnum, i)| (vnum, &i.$f)),
             )?
         }
     };
