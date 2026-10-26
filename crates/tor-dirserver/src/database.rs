@@ -841,6 +841,10 @@ impl AuthCertMeta {
 ///
 /// Yet, it still accepts a [`FlavoredDescriptor`] as a type parameter in order
 /// to obtain the flavor from it.
+// TODO DIRMIRROR: Is it possible to change this generic type somehow?
+// Potentially a const ConsensusFlavor?  After all, this is not a wrapper
+// type but rather a unit marker which we only use to call ::flavor().
+// Similar logic probably also applies to ConsensusMeta.
 #[derive(Educe)]
 #[educe(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct DescriptorMeta<Flavor> {
