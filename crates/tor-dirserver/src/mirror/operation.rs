@@ -1080,7 +1080,9 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 }
 
-/// Top-level collections storing which descriptors are futile.
+/// Records which allow us to avoid futile download attempts
+///
+/// One set of records of "futile" documents, for each kind of document.
 #[derive(Debug, Clone, Default)]
 struct FutileDescriptors {
     /// The futile router descriptors.
@@ -1093,7 +1095,19 @@ struct FutileDescriptors {
     micros: FutileDescriptorSet<Sha256>,
 }
 
-/// A generic struct storing which descriptors are futile for which reason.
+/// A generic struct storing which document are futile for which reason.
+///
+/// A document is "futile" if there is no point retrying its download.
+/// More precisely,
+///
+///   * We note which authorities didn't have a document when we tried to download it.
+///     This avoids us trying that same document again, uselessly.
+// TODO DIRMIRROR but what if the authority acquires the document in the meantime?
+//
+///   * We note the hashes of documents we couldn't parse.
+///     If the hash matched, but the parse failed, there is no point trying to get
+///     this document at all because the same hash means the same document
+///     and therefore the same parse error.
 #[derive(Educe)]
 #[educe(Debug, Clone, Default)]
 struct FutileDescriptorSet<T: Debug + Clone + Copy + Eq + Hash> {
