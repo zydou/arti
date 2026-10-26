@@ -312,7 +312,7 @@ impl<K: NtorV3ServerKeys> super::ServerHandshake for NtorV3Server<K> {
     }
 }
 
-/// The identity and keys for an ntor v3 server.
+/// An object holding the keys necessary for a server-side ntor v3 handshake.
 pub(crate) trait NtorV3ServerKeys {
     /// The server's identity.
     fn ident(&self) -> &Ed25519Identity;

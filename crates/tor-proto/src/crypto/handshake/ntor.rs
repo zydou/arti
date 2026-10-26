@@ -68,7 +68,7 @@ impl<K: NtorServerKeys> super::ServerHandshake for NtorServer<K> {
     }
 }
 
-/// The identity and keys for an ntor server.
+/// An object holding the keys necessary for a server-side ntor handshake.
 pub(crate) trait NtorServerKeys {
     /// The server's identity.
     fn ident(&self) -> &RsaIdentity;
