@@ -7,12 +7,13 @@
 
 use futures::{AsyncRead, AsyncWrite};
 use pin_project::pin_project;
+use std::borrow::Cow;
 use std::io::Error;
 use std::num::NonZero;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use tor_rtcompat::StreamOps;
+use tor_rtcompat::{CertifiedConn, StreamOps};
 
 use super::DirectionState;
 use crate::bw_pool::BandwidthAcquirer;
@@ -104,6 +105,31 @@ where
 
     fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
         self.inner.new_handle()
+    }
+}
+
+/// Implement [`CertifiedConn`] and forward it to the inner stream.
+///
+/// This allows wrapping a TLS stream.
+impl<S> CertifiedConn for GlobalRateLimitedConn<S>
+where
+    S: CertifiedConn,
+{
+    fn export_keying_material(
+        &self,
+        len: usize,
+        label: &[u8],
+        context: Option<&[u8]>,
+    ) -> std::io::Result<Vec<u8>> {
+        self.inner.export_keying_material(len, label, context)
+    }
+
+    fn peer_certificate(&self) -> std::io::Result<Option<Cow<'_, [u8]>>> {
+        self.inner.peer_certificate()
+    }
+
+    fn own_certificate(&self) -> std::io::Result<Option<Cow<'_, [u8]>>> {
+        self.inner.own_certificate()
     }
 }
 
