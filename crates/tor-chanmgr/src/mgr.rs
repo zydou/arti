@@ -20,8 +20,9 @@ use tracing::{instrument, trace};
 
 #[cfg(feature = "relay")]
 use {
-    safelog::Sensitive, std::net::SocketAddr, tor_async_utils::bw_pool::BandwidthPool,
-    tor_proto::RelayChannelAuthMaterial,
+    safelog::Sensitive, std::net::SocketAddr, std::num::NonZero,
+    tor_async_utils::bw_pool::BandwidthPool,
+    tor_async_utils::global_rate_limit::GlobalRateLimitedConn, tor_proto::RelayChannelAuthMaterial,
 };
 
 mod select;
@@ -159,6 +160,14 @@ impl ChanMgrConfig {
     }
 }
 
+/// Maximum number of bytes a single channel requests from the bandwidth pool.
+///
+/// This is the maximum TLS record plaintext size of 16KiB. See:
+/// [RFC 8446 section 5.1](https://www.rfc-editor.org/rfc/rfc8446#section-5.1) (TLS 1.3) and
+/// [RFC 5246 section 6.2.1](https://www.rfc-editor.org/rfc/rfc5246#section-6.2.1) (TLS 1.2).
+#[cfg(feature = "relay")]
+const BW_MAX_CHUNK: NonZero<usize> = NonZero::new(16 * 1024).expect("bandwidth max chunk is zero");
+
 /// Global read and write bandwidth pools shared by all channels.
 #[cfg(feature = "relay")]
 pub(crate) struct ChannelBandwidthPools {
@@ -176,6 +185,16 @@ impl ChannelBandwidthPools {
             read: self.read.share(),
             write: self.write.share(),
         }
+    }
+
+    /// Return `stream` rate limited by these pools.
+    pub(crate) fn rate_limit<S>(&self, stream: S) -> GlobalRateLimitedConn<S> {
+        GlobalRateLimitedConn::new(
+            stream,
+            self.read.new_acquirer(),
+            self.write.new_acquirer(),
+            BW_MAX_CHUNK,
+        )
     }
 }
 

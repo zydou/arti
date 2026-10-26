@@ -26,8 +26,8 @@ use tor_rtcompat::{CertifiedConn, Runtime, StreamOps, TlsProvider, tls::TlsConne
 #[cfg(feature = "relay")]
 use {
     crate::mgr::ChannelBandwidthPools, safelog::Sensitive, std::net::SocketAddr,
-    tor_error::bad_api_usage, tor_proto::RelayChannelAuthMaterial,
-    tor_proto::relay::CreateRequestHandler,
+    tor_async_utils::global_rate_limit::GlobalRateLimitedConn, tor_error::bad_api_usage,
+    tor_proto::RelayChannelAuthMaterial, tor_proto::relay::CreateRequestHandler,
 };
 
 /// TLS-based channel builder.
@@ -68,7 +68,6 @@ where
     create_request_handler: Option<Arc<CreateRequestHandler>>,
     /// Bandwidth pools shared by all channels for global rate limiting.
     #[cfg(feature = "relay")]
-    #[allow(dead_code)] // TODO(relay): Use it to rate limit channels.
     bw_pools: Option<ChannelBandwidthPools>,
 }
 
@@ -178,6 +177,15 @@ where
             Some(handler),
         )
         .map(|b| b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share)))
+    }
+
+    /// Return `stream` rate limited by our bandwidth pools, or unlimited if we have none.
+    #[cfg(feature = "relay")]
+    fn rate_limit<S>(&self, stream: S) -> GlobalRateLimitedConn<S> {
+        match &self.bw_pools {
+            Some(bw_pools) => bw_pools.rate_limit(stream),
+            None => GlobalRateLimitedConn::unlimited(stream),
+        }
     }
 
     /// Return the outbound channel type of this config.
@@ -298,7 +306,7 @@ where
             .accept(
                 Sensitive::new(peer_addr.inner()),
                 self.my_addrs.clone(),
-                tls,
+                self.rate_limit(tls),
                 self.runtime.clone(),
                 auth_material,
                 memquota,
@@ -433,7 +441,7 @@ where
             #[cfg(feature = "relay")]
             ChannelType::RelayInitiator => {
                 self.build_relay_channel(
-                    tls,
+                    self.rate_limit(tls),
                     peer_addr,
                     target,
                     &peer_tls_cert,
