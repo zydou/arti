@@ -366,7 +366,7 @@ impl CreateRequestHandler {
         msg_body: &[u8],
         our_rsa_id: &RsaIdentity,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
-        let ntor_keys = self.with_ntor_keys(|k| NtorKeypair::new(our_rsa_id, Arc::clone(k)));
+        let ntor_keys = self.with_ntor_keys(|k| NtorSecretKey::new(our_rsa_id, Arc::clone(k)));
 
         // TODO(relay): We might want to offload this to a CPU worker in the future.
         let (keygen, handshake_msg) = NtorServer::server(
@@ -418,7 +418,8 @@ impl CreateRequestHandler {
         msg_body: &[u8],
         our_ed25519_id: &Ed25519Identity,
     ) -> Result<CompletedHandshakeComponents, HandleCreateError> {
-        let ntor_keys = self.with_ntor_keys(|k| NtorV3Keypair::new(our_ed25519_id, Arc::clone(k)));
+        let ntor_keys =
+            self.with_ntor_keys(|k| NtorV3SecretKey::new(our_ed25519_id, Arc::clone(k)));
 
         let circ_net_params = self
             .circ_net_params
@@ -563,21 +564,21 @@ impl CreateRequestHandler {
 }
 
 /// The server's RSA identity and ntor keypair.
-struct NtorKeypair<'a> {
+struct NtorSecretKey<'a> {
     /// The server's RSA identity.
     ident: &'a RsaIdentity,
     /// The server's ntor keypair.
     keys: Arc<RelayNtorKeypair>,
 }
 
-impl<'a> NtorKeypair<'a> {
-    /// Create a new [`NtorKeypair`].
+impl<'a> NtorSecretKey<'a> {
+    /// Create a new [`NtorSecretKey`].
     fn new(ident: &'a RsaIdentity, keys: Arc<RelayNtorKeypair>) -> Self {
         Self { ident, keys }
     }
 }
 
-impl<'a> NtorServerKeys for NtorKeypair<'a> {
+impl<'a> NtorServerKeys for NtorSecretKey<'a> {
     fn ident(&self) -> &RsaIdentity {
         self.ident
     }
@@ -592,21 +593,21 @@ impl<'a> NtorServerKeys for NtorKeypair<'a> {
 }
 
 /// The server's Ed25519 identity and ntor keypair.
-struct NtorV3Keypair<'a> {
+struct NtorV3SecretKey<'a> {
     /// The server's Ed25519 identity.
     ident: &'a Ed25519Identity,
     /// The server's ntor keypair.
     keys: Arc<RelayNtorKeypair>,
 }
 
-impl<'a> NtorV3Keypair<'a> {
-    /// Create a new [`NtorV3Keypair`].
+impl<'a> NtorV3SecretKey<'a> {
+    /// Create a new [`NtorV3SecretKey`].
     fn new(ident: &'a Ed25519Identity, keys: Arc<RelayNtorKeypair>) -> Self {
         Self { ident, keys }
     }
 }
 
-impl<'a> NtorV3ServerKeys for NtorV3Keypair<'a> {
+impl<'a> NtorV3ServerKeys for NtorV3SecretKey<'a> {
     fn ident(&self) -> &Ed25519Identity {
         self.ident
     }
