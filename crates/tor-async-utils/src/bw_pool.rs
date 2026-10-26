@@ -76,6 +76,9 @@ pub enum BwPoolError {
     /// The bandwidth pool is closed.
     #[error("bandwidth pool is closed")]
     PoolClosed,
+    /// A request that can only be granted zero tokens.
+    #[error("bandwidth request of zero tokens")]
+    ZeroTokens,
 }
 
 /// Proof that the requested number of tokens were granted.
@@ -192,6 +195,9 @@ impl BandwidthAcquirer {
     ///
     /// Returns a [`BwPoolError::PoolClosed`] error if the [`BandwidthRefiller`] has been
     /// dropped.
+    ///
+    /// Returns a [`BwPoolError::ZeroTokens`] error if `tokens` or the pool capacity is
+    /// zero.
     pub fn poll_acquire(
         &mut self,
         cx: &mut Context<'_>,
@@ -272,7 +278,13 @@ impl BandwidthAcquirer {
     /// The clamping is localized to the refiller for correctness.
     ///
     /// Return a [`BwPoolError::PoolClosed`] error if the refiller is gone.
+    ///
+    /// Return a [`BwPoolError::ZeroTokens`] error if the request would be clamped to zero.
     fn enqueue_request(&mut self, cx: &mut Context<'_>, tokens: u64) -> Result<(), BwPoolError> {
+        // Never enqueue a request the refiller would grant zero tokens.
+        if tokens.min(self.pool.capacity()) == 0 {
+            return Err(BwPoolError::ZeroTokens);
+        }
         // Prepare the waiter for this new request.
         self.waiter.prepare(cx.waker());
         // Send the requested amount along with the waiter. The amount never changes for

@@ -63,6 +63,11 @@ impl AtomicTokenBucket {
     /// value and not what it asked for.
     #[must_use]
     pub(super) fn claim(&self, tokens: u64) -> Option<u64> {
+        // Never claim a zero amount.
+        if tokens == 0 {
+            return None;
+        }
+
         // NOTE: fetch_update() is deprecated in 1.99.0 and replaced by try_update()
         // starting in 1.95.0. Our current MSRV is 1.89.0.
         //
