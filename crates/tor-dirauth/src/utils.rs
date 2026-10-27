@@ -120,6 +120,93 @@ pub(crate) impl<T: num_traits::CheckedAdd> T {
     }
 }
 
+/// Helper for deferring handling of `None`, temporarily substituting dummy values
+///
+/// Our macros like things to be uniform.  For exaempl, when calculating a pair of
+/// routerstatuses, they want us to generate both in parallel.
+///
+/// But sometimes we want to be able to "early exit" from calculating an md rs,
+/// for example if we discover that voters don't agree enough on the md hash.
+///
+/// This utility type allows us to "defer the early exit":
+/// instead of returning early, we make a note in the
+/// `NoneDefer` that we ought to be returning early.
+///
+/// And then we can safely fill in dummy values, knowing that they won't leak.
+///
+/// # Correctness - manual checks needed!
+///
+///  * You must ensure to call `.finish()` in your return path.
+///    There is no engineered safeguard against forgetting to do so.
+///
+///  * The return from every call to `handle` must *only*
+///    go into the output value that will be fed to `.finish()`.
+///    Again, there is no engineered safeguard against getting this wrong.
+///
+///  * Do not attempt to have multiple `NoneDefer` in the same function.
+///    There is nothing stopping you using the wrong one.
+//
+// Still, this is better than something more ad-hoc, such as "just a local boolean".
+// And given that there's only one call site atm, this is probably a reasonable compromise.
+pub(crate) struct NoneDefer<O> {
+    /// Are we live?
+    ///
+    /// `Some` means we can still return `Some` from `finish`,
+    /// and no dummy values have been substituted.
+    ///
+    /// `None` means we've `handle`d a `Noen`.
+    ok: Option<()>,
+
+    /// Bind this to the output type.
+    ///
+    /// This is not strictly necessary to uphold the promised assurances,
+    /// but it seems like a good idea.
+    marker: PhantomData<fn(O) -> O>,
+}
+
+impl<O> NoneDefer<O> {
+    /// Create a new `NoneDefer`, which is initialised as "all is good, we'll return `Some`"
+    pub(crate) fn new() -> Self {
+        NoneDefer {
+            ok: Some(()),
+            marker: PhantomData,
+        }
+    }
+
+    /// Handle a value that might be `None`, deferring and substituting if necessary
+    ///
+    /// If `v` is `Ok(Some(_))` or `Err()`, it is passed through.
+    ///
+    /// If `v` is `Ok(None`, remembers in `self` that we should be returning `None`.
+    /// and then calls `fallback` to generate a dummy value.
+    ///
+    /// # Correctness
+    ///
+    /// The returned `Ok` value must only flow into the input to `finish`.
+    /// See the [type-level docs](NoneDefer).
+    pub(crate) fn handle<V, E, F>(&mut self, v: Result<Option<V>, E>, fallback: F) -> Result<V, E>
+    where
+        F: FnOnce() -> V,
+    {
+        Ok(match v? {
+            Some(v) => v,
+            None => {
+                self.ok = None;
+                fallback()
+            }
+        })
+    }
+
+    /// End the deferral of `Noen`s
+    ///
+    /// If we substituted any dummy value in a `handle` call, returns `None`.
+    ///
+    /// Otherwise returns `Some(o)`.
+    pub(crate) fn finish(self, o: O) -> Option<O> {
+        self.ok.map(|()| o)
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

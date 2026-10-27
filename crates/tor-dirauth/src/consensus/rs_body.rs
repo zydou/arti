@@ -41,6 +41,8 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
             };
         }
 
+        let mut md_none_defer = NoneDefer::new();
+
         let (plain_r, md_r) = {
             calc! { both.identity    = self.id.rsa }
             calc! { both.publication = netstatus::IgnoredPublicationTimeSp }
@@ -83,8 +85,15 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         calc! { plain.port_policy = Default:: default() }
         calc! { both.version = None }
 
+        let md_m = md_none_defer.handle(
+            {
+                let md_m = None; // XXXX
+                Ok::<_, Bug>(md_m)
+            },
+            || [0; 32].into(),
+        )?;
+
         // TODO DIRAUTH replace routerstatus dummy values
-        calc! { md.m = [0; 32].into() }
 
         let (plain, md) = construct_both! {
             netstatus::plain::RouterStatus, netstatus::md::RouterStatus {
@@ -93,7 +102,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
                 both. a, version, port_policy, stats;
             }
         };
-        Ok(Some((plain, Some(md))))
+        Ok(Some((plain, md_none_defer.finish(md))))
     }
 }
 
@@ -367,7 +376,11 @@ mod test {
             },
             |(plain, md)| {
                 assert_eq!(plain.routers[0].protos, inputs[0].clone());
-                assert_eq!(md.routers[0].protos, inputs[0].clone());
+                let _ = md; // XXXX delete this, uncomment the assert_eq
+                // (At the current state of the tree we don't have any md digests in votes,
+                // so there are no routers in the md output.  Previously, this was fudged
+                // by dummy all-zeroes md digests.)
+                //     assert_eq!(md.routers[0].protos, inputs[0].clone());
                 Ok(())
             },
         );

@@ -5,6 +5,7 @@ pub(crate) use std::cmp::{self, Ordering};
 pub(crate) use std::collections::{BTreeMap, HashMap, HashSet};
 pub(crate) use std::fmt::{self, Debug};
 pub(crate) use std::hash::Hash;
+pub(crate) use std::marker::PhantomData;
 pub(crate) use std::net::Ipv4Addr;
 pub(crate) use std::ops::{RangeBounds, RangeInclusive};
 pub(crate) use std::sync::Arc;
