@@ -31,6 +31,7 @@ __is_experimental = []
 
 [dependencies]
 bytes = "1.12.1"
+derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.7"
 educe = "0.4.23"
 flate2 = "1.1.10"
@@ -56,7 +57,7 @@ tokio = { version = "1.54.1", features = ["full", "test-util"] }
 tokio-util = { version = "0.7.20", features = ["compat"] }
 tor-basic-utils = { version = "0.47.0", path = "../tor-basic-utils" }
 tor-checkable = { path = "../tor-checkable", version = "0.47.0" }
-tor-dirclient = { version = "0.47.0", path = "../tor-dirclient" }
+tor-dirclient = { version = "0.47.0", path = "../tor-dirclient", features = ["routerdesc"] }
 tor-dircommon = { version = "0.47.0", path = "../tor-dircommon", features = ["experimental"] }
 tor-error = { version = "0.47.0", path = "../tor-error" }
 tor-llcrypto = { version = "0.47.0", path = "../tor-llcrypto" }
