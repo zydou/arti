@@ -41,6 +41,7 @@ full = [
     "syslog",
     "arti-client/full",
     "dns-proxy",
+    "geoip",
     "harden",
     "compression",
     "bridge-client",
@@ -65,6 +66,7 @@ full = [
     "tor-hsservice?/full",
     "tor-async-utils/full",
     "tor-config-path/full",
+    "tor-geoip?/full",
     "tor-basic-utils/full",
     "tor-rpc-connect?/full",
     "tor-key-forge/full",
@@ -120,6 +122,10 @@ restricted-discovery = ["tor-hsservice/restricted-discovery"]
 vanguards = ["arti-client/vanguards"]
 hs-pow-full = ["arti-client/hs-pow-full", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
+
+# Currently this feature flag only adds geoip support for use with RPC;
+# there is not currently any other kind of client-visible geoip support.
+geoip = ["dep:tor-geoip"]
 
 # This feature flag does nothing; CC flow control is always on.
 # We are leaving this feature flag here so as not to break backward compatibility.
@@ -286,6 +292,7 @@ tor-config-path = { path = "../tor-config-path", version = "0.48.0" }
 tor-config-shared = { path = "../tor-config-shared", version = "0.48.0" }
 tor-error = { path = "../tor-error", version = "0.48.0", default-features = false, features = ["tracing"] }
 tor-general-addr = { path = "../tor-general-addr", version = "0.48.0" }
+tor-geoip = { path = "../tor-geoip", version = "0.48.0", optional = true }
 tor-hsclient = { path = "../tor-hsclient", version = "0.48.0", optional = true }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.48.0", optional = true }
 tor-hsrproxy = { path = "../tor-hsrproxy", version = "0.48.0", optional = true }

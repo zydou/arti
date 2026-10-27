@@ -17,6 +17,7 @@ use tor_rtcompat::{NetStreamListener as _, Runtime, SpawnExt, general};
 
 semipublic_mod! { pub(crate) mod configuration; }
 pub(crate) mod conntarget;
+mod geoip;
 pub(crate) mod listener;
 mod proxyinfo;
 mod session;
