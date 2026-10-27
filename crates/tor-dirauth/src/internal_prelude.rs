@@ -36,4 +36,9 @@ pub(crate) use tor_netdoc::{
 pub(crate) use crate::utils::*;
 
 #[cfg(test)]
+pub(crate) use tor_netdoc::{
+    derive_deftly_template_NetdocParseable,
+    parse2::{ParseInput, parse_netdoc_multiple},
+};
+#[cfg(test)]
 pub(crate) use tracing_test::traced_test;
