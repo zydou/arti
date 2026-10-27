@@ -7,7 +7,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-use web_time_compat::{Duration, SystemTime};
+use web_time_compat::{Duration, Instant, SystemTime};
 
 /// An error value given when a function times out.
 ///
@@ -77,6 +77,17 @@ pub trait SleepProviderExt: SleepProvider {
             target: when,
             sleep_future: None,
         }
+    }
+
+    /// Return a future that will be ready when `deadline` is reached.
+    ///
+    /// # Limitations
+    ///
+    /// This uses [`SleepProvider::sleep`] for its timer, and is
+    /// subject to the same limitations.
+    #[must_use = "sleep_until() returns a future, which does nothing unless used"]
+    fn sleep_until(&self, deadline: Instant) -> Self::SleepFuture {
+        self.sleep(deadline.saturating_duration_since(self.now()))
     }
 }
 
