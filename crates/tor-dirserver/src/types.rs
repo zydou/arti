@@ -183,6 +183,8 @@ impl FlavoredConsensusUnverified for md::NetworkStatusUnverified {
 ///
 /// Only implemented in combination with an accompanying data type from which
 /// the hashes can be derived.
+// TODO DIRMIRROR: Make the names align with DescriptorMeta and additionally
+// change the database column names.
 pub(crate) trait FlavoredDescriptor: Clone {
     /// Returns the [`ConsensusFlavor`] this descriptor is associated with.
     fn flavor() -> ConsensusFlavor;
