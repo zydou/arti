@@ -826,7 +826,7 @@ pub(crate) mod test {
     fn dummy_begin(addr: impl Into<relaymsg::BeginAddr>, port: u16) -> relaymsg::Begin {
         let addr = addr.into();
         let port = NonZero::new(port).unwrap();
-        relaymsg::Begin::new(addr.encode(), port, 0).unwrap()
+        relaymsg::Begin::new(addr.encode(), port, 0)
     }
 
     macro_rules! assert_cell_is_destroy {

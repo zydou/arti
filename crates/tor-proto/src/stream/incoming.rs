@@ -399,7 +399,7 @@ mod test {
         };
         let addr = BeginAddr::Hostname(BeginHostname::new("allium.example.com").unwrap());
         let port = NonZero::new(443).unwrap();
-        let begin = u(Begin::new(addr.encode(), port, 0).unwrap().into());
+        let begin = u(Begin::new(addr.encode(), port, 0).into());
         let begin_dir = u(BeginDir::default().into());
         let resolve = u(Resolve::new("allium.example.com").into());
         let data = u(Data::new(&[1, 2, 3]).unwrap().into());

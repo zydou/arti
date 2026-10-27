@@ -220,17 +220,17 @@ impl Begin {
     /// # use tor_cell::relaycell::msg::*;
     /// let hostname = BeginHostname::new("example.com").unwrap();
     /// let addr = BeginAddr::Hostname(hostname);
-    /// let begin = Begin::new(addr.encode(), NonZero::new(80).unwrap(), 0).unwrap();
+    /// let begin = Begin::new(addr.encode(), NonZero::new(80).unwrap(), 0);
     /// ```
-    pub fn new<F>(addr: EncodedBeginAddr, port: NonZero<u16>, flags: F) -> crate::Result<Self>
+    pub fn new<F>(addr: EncodedBeginAddr, port: NonZero<u16>, flags: F) -> Self
     where
         F: Into<BeginFlags>,
     {
-        Ok(Begin {
+        Begin {
             addr,
             port,
             flags: flags.into(),
-        })
+        }
     }
 
     /// Return the address requested in this message.

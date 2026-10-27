@@ -512,8 +512,7 @@ impl ClientTunnel {
         // and I don't think it's worth making this breaking change at this time.
         let port = NonZero::new(port).ok_or(Error::BadStreamAddress)?;
 
-        let beginmsg = Begin::new(target.encode(), port, begin_flags)
-            .map_err(|e| Error::from_cell_enc(e, "begin message"))?;
+        let beginmsg = Begin::new(target.encode(), port, begin_flags);
         self.begin_data_stream(beginmsg.into(), optimistic).await
     }
 

@@ -2396,8 +2396,7 @@ pub(crate) mod test {
             let simulate_client = async move {
                 let addr = BeginAddr::Hostname(BeginHostname::new("localhost").unwrap());
                 let port = NonZero::new(80).unwrap();
-                let begin =
-                    relaymsg::Begin::new(addr.encode(), port, BeginFlags::IPV6_OKAY).unwrap();
+                let begin = relaymsg::Begin::new(addr.encode(), port, BeginFlags::IPV6_OKAY);
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(rfmt, &mut testing_rng())
@@ -2497,8 +2496,7 @@ pub(crate) mod test {
             let simulate_client = async move {
                 let addr = BeginAddr::Hostname(BeginHostname::new("localhost").unwrap());
                 let port = NonZero::new(80).unwrap();
-                let begin =
-                    relaymsg::Begin::new(addr.encode(), port, BeginFlags::IPV6_OKAY).unwrap();
+                let begin = relaymsg::Begin::new(addr.encode(), port, BeginFlags::IPV6_OKAY);
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(rfmt, &mut testing_rng())
@@ -2576,8 +2574,7 @@ pub(crate) mod test {
             let simulate_client = async move {
                 let addr = BeginAddr::Hostname(BeginHostname::new("localhost").unwrap());
                 let port = NonZero::new(80).unwrap();
-                let begin =
-                    relaymsg::Begin::new(addr.encode(), port, BeginFlags::IPV6_OKAY).unwrap();
+                let begin = relaymsg::Begin::new(addr.encode(), port, BeginFlags::IPV6_OKAY);
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(rfmt, &mut testing_rng())

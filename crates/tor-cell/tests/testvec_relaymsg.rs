@@ -123,13 +123,13 @@ fn test_begin() {
 
     // check that we convert to lowercase when encoding
     let addr = msg::BeginAddr::Hostname(msg::BeginHostname::new("EFF.org").unwrap());
-    let begin = msg::Begin::new(addr.encode(), port(22), 0).unwrap();
+    let begin = msg::Begin::new(addr.encode(), port(22), 0);
     assert_eq!(encode(begin.into()), b"eff.org:22\0");
 
     msg_begin(
         cmd,
         "3132372E302E302E313A3730303300",
-        msg::Begin::new(ipv4("127.0.0.1"), port(7003), 0).unwrap(),
+        msg::Begin::new(ipv4("127.0.0.1"), port(7003), 0),
         msg::BeginAddr::Ip(Ipv4Addr::LOCALHOST.into()),
     );
 
@@ -137,7 +137,7 @@ fn test_begin() {
     msg_begin(
         cmd,
         "7777772e786b63642e636f6d3a34343300 00000003",
-        msg::Begin::new(hostname("www.xkcd.com"), port(443), 3).unwrap(),
+        msg::Begin::new(hostname("www.xkcd.com"), port(443), 3),
         msg::BeginAddr::Hostname(msg::BeginHostname::new("www.xkcd.com").unwrap()),
     );
 
@@ -145,7 +145,7 @@ fn test_begin() {
     msg_begin(
         cmd,
         "5b323030313a6462383a3a315d3a323200",
-        msg::Begin::new(ipv6("2001:db8::1"), port(22), 0).unwrap(),
+        msg::Begin::new(ipv6("2001:db8::1"), port(22), 0),
         msg::BeginAddr::Ip(IpAddr::V6("2001:db8::1".parse().unwrap())),
     );
 
@@ -153,7 +153,7 @@ fn test_begin() {
     msg_begin(
         cmd,
         "5b617364665d3a323200",
-        msg::Begin::new(hostname("[asdf]"), port(22), 0).unwrap(),
+        msg::Begin::new(hostname("[asdf]"), port(22), 0),
         msg::BeginAddr::Hostname(msg::BeginHostname::new("[asdf]").unwrap()),
     );
 
@@ -161,7 +161,7 @@ fn test_begin() {
     msg_begin(
         cmd,
         "546f7250726f6a6563742e6e6574 3a 3232 00", // TorProject.net:22\0
-        msg::Begin::new(hostname_raw("TorProject.net"), port(22), 0).unwrap(),
+        msg::Begin::new(hostname_raw("TorProject.net"), port(22), 0),
         msg::BeginAddr::Hostname(msg::BeginHostname::new("TorProject.net").unwrap()),
     );
 
