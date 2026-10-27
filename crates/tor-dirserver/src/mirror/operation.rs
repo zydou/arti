@@ -1108,6 +1108,11 @@ struct FutileDescriptors {
 ///     If the hash matched, but the parse failed, there is no point trying to get
 ///     this document at all because the same hash means the same document
 ///     and therefore the same parse error.
+// TODO: Right now, we allow a value to be present in both: not_found and refused.
+// Do we want to allow this or should we potentially change the representation
+// similar to the way we are doing it in DescriptorDownloadResult?  Not blocking,
+// as a hazard here is not the end of the world, but solving it may be more
+// elegant.
 #[derive(Educe)]
 #[educe(Debug, Clone, Default)]
 struct FutileDescriptorSet<T: Debug + Clone + Copy + Eq + Hash> {
