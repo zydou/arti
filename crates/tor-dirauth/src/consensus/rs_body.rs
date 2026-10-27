@@ -110,8 +110,8 @@ impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
 
         let get_inputs = |k| {
             inputs
-                .iter()
-                .filter_map(move |(_vnum, rwi)| rwi.w.as_ref()?.get(k).copied())
+                .votes()
+                .filter_map(move |rwi| rwi.w.as_ref()?.get(k).copied())
         };
         let calc_median = |k| functions::low_median_raw(get_inputs(k));
 

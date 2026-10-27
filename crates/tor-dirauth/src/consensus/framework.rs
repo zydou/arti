@@ -43,6 +43,13 @@ pub(super) trait ComponentInVotes<T>: Iterator<Item = (VoterNum, T)> + Clone {
     fn iter(&self) -> Self {
         self.clone()
     }
+
+    /// Iterate over the voted values
+    ///
+    /// Convenience method equivalent to `.iter().map(|(_vnum, v)| v)`.
+    fn votes(&self) -> impl Iterator<Item = T> + Clone {
+        self.clone().map(|(_vnum, v)| v)
+    }
 }
 impl<I, T> ComponentInVotes<T> for I where I: Iterator<Item = (VoterNum, T)> + Clone {}
 
