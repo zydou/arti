@@ -185,6 +185,8 @@ impl FlavoredConsensusUnverified for md::NetworkStatusUnverified {
 /// the hashes can be derived.
 // TODO DIRMIRROR: Make the names align with DescriptorMeta and additionally
 // change the database column names.
+// TODO DIRMIRROR: How about we implement this for a unit token type instead
+// because the tuple implementation may not be ideal?
 pub(crate) trait FlavoredDescriptor: Clone {
     /// Returns the [`ConsensusFlavor`] this descriptor is associated with.
     fn flavor() -> ConsensusFlavor;
