@@ -677,7 +677,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         now: Timestamp,
     ) -> Result<(), OperationError> {
         debug_assert_eq!(T::flavor(), ConsensusFlavor::Plain);
-        self.descriptors_agnostic::<RdDownloader>(pool, data, endpoint, now).await
+        self.descriptors_agnostic::<RdDownloader>(pool, data, endpoint, now)
+            .await
     }
 
     /// Descriptor flavor agnostic engine driving the download, verification,
@@ -697,9 +698,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         };
 
         // Obtain the missing descriptors.
-        let descriptors = db::read_tx(pool, |tx| {
-            D::query(tx, meta, futile, endpoint)
-        })??;
+        let descriptors = db::read_tx(pool, |tx| D::query(tx, meta, futile, endpoint))??;
         if descriptors.is_empty() {
             // This is equivalent to sending off an empty request and failing
             // afterwards because no progress was made, but it saves us
@@ -715,9 +714,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
 
         debug!("downloading the following descriptors: {descriptors:?}");
         let requ = D::make_request(&descriptors);
-        let (raw, docs) = self
-            .send_request::<_, D::Response>(endpoint, requ)
-            .await?;
+        let (raw, docs) = self.send_request::<_, D::Response>(endpoint, requ).await?;
 
         // Verify each descriptor.
         // Process all downloads isolated, so that we do not return early
@@ -743,9 +740,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // filter and split the large HashMap into multiple ones.  It should be
         // secure because the inner closure has the return error type of
         // DatabaseError, meaning only these fatal errors can return early.
-        db::rw_tx(pool, |tx| {
-            D::insert(self, tx, futile, downloads, endpoint)
-        })??;
+        db::rw_tx(pool, |tx| D::insert(self, tx, futile, downloads, endpoint))??;
 
         // If no progress, return with an error.  We can do so here because
         // we have finally marked descriptors as futile.
@@ -1115,9 +1110,7 @@ impl<T: FlavoredConsensusUnverified> DescriptorDownloader<T> for RdDownloader {
             // unrequested or duplicate descriptors.
             match downloads.get(&sha1) {
                 Some(DescriptorDownloadResult::NotFound) => {}
-                Some(
-                    DescriptorDownloadResult::Found(_, _) | DescriptorDownloadResult::Refused,
-                ) => {
+                Some(DescriptorDownloadResult::Found(_, _) | DescriptorDownloadResult::Refused) => {
                     debug!("{sha1:?} contained multiple times in response");
                     continue;
                 }
@@ -1154,8 +1147,7 @@ impl<T: FlavoredConsensusUnverified> DescriptorDownloader<T> for RdDownloader {
                 }
             };
 
-            let prev =
-                downloads.insert(sha1, DescriptorDownloadResult::Found((timely, sigs), raw));
+            let prev = downloads.insert(sha1, DescriptorDownloadResult::Found((timely, sigs), raw));
             debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
         }
         downloads
