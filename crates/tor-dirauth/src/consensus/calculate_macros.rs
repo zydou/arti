@@ -111,7 +111,7 @@ pub(super) struct DummyForMacrology;
 /// using [`Aggregate::aggregate`],
 /// or two values (one per flavour) using [`ConsensusesFromVotes::consensuses`].
 ///
-/// Uses the values **`votes`** and `**context**` from the surrounding scope,
+/// Uses the values **`inputs`** and `**context**` from the surrounding scope,
 /// **unhygienically**.
 ///
 /// Intended for use in implementations of `Aggregate` and `ConsensusesFromVotes`.
