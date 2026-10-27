@@ -36,15 +36,15 @@ pub(super) fn is_true_for_more_than_half_of<I, E>(
 where
     E: From<Bug>,
 {
-    let mut n = 0;
-    let mut y = 0;
+    let mut all = 0;
+    let mut yes = 0;
     for i in iterator {
-        n.try_add_assign(1)?;
+        all.try_add_assign(1)?;
         if predicate(i)? {
-            y.try_add_assign(1)?;
+            yes.try_add_assign(1)?;
         }
     }
-    Ok(y > n / 2)
+    Ok(yes > all / 2)
 }
 
 #[ext(name = IteratorExtUnzip)]
