@@ -17,7 +17,8 @@ pub(crate) use itertools::{Itertools, chain};
 pub(crate) use paste::paste;
 pub(crate) use rangemap::RangeInclusiveMap;
 pub(crate) use static_assertions::const_assert;
-pub(crate) use tracing::info;
+#[allow(unused)] // XXXX
+pub(crate) use tracing::{debug, info};
 pub(crate) use typed_index_collections::{TiSlice, TiVec, ti_vec};
 
 pub(crate) use tor_basic_utils::intern::GloballyInternable as _;
