@@ -669,6 +669,8 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 
     /// Router descriptor part of [`StaticEngine::descriptors()`].
+    // XXX: Rename to descriptors_agnostic or something and eventually
+    // utilize the DescriptorsDownloader trait.
     async fn descriptors_rd(
         &self,
         pool: &Pool<SqliteConnectionManager>,
@@ -676,7 +678,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         endpoint: &DownloadAuthority,
         now: Timestamp,
     ) -> Result<(), OperationError> {
-        debug_assert_eq!(T::flavor(), ConsensusFlavor::Plain);
+        debug_assert_eq!(T::flavor(), ConsensusFlavor::Plain); // XXX: Take care of this.
         let (meta, futile) = match data {
             ConsensusBoundData::Verified {
                 consensus, futile, ..
@@ -685,35 +687,35 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         };
 
         // Obtain the missing descriptors.
-        let routers = db::read_tx(pool, |tx| {
+        let descriptors = db::read_tx(pool, |tx| {
             meta.missing_routers(tx, futile.routers.excluded(endpoint), DESCRIPTOR_LIMIT)
         })??;
-        if routers.is_empty() {
+        if descriptors.is_empty() {
             // This is equivalent to sending off an empty request and failing
             // afterwards because no progress was made, but it saves us
             // bandwidth by not doing a redundant HTTP request.  We may enter
             // this branch if there are no descriptors left that are not marked
             // as not found or refused, in which case we must try the next
             // authority as it may have the not found descriptors.
-            debug!("not downloading any router descriptors");
+            debug!("not downloading any descriptors");
             Err(OperationError::AuthorityRequest(
                 AuthorityRequestError::NoRequestedDocumentsReturned,
             ))?;
         }
 
-        debug!("downloading the following router descriptors: {routers:?}");
-        let requ = RouterDescRequest::from_iter(routers.iter().map(|sha1| sha1.0));
+        debug!("downloading the following descriptors: {descriptors:?}");
+        let requ = RouterDescRequest::from_iter(descriptors.iter().map(|sha1| sha1.0));
         let (raw, docs) = self
             .send_request::<_, RouterDescUnverified>(endpoint, requ)
             .await?;
 
-        // Verify each router descriptor.
+        // Verify each descriptor.
         //
         // We do this in a closure so we do not accidentially return early,
         // because we must mark the not found and refused descriptors as such
         // prior to a return, even in an error case.
         let process_downloads = || -> DescriptorDownloads<Sha1, FlavoredDescriptorPlain> {
-            let mut downloads = DescriptorDownloads::from_missing(routers.into_iter());
+            let mut downloads = DescriptorDownloads::from_missing(descriptors.into_iter());
             for (unverified, start, end) in docs {
                 let Ok(unverified) = unverified else {
                     // TODO DIRMIRROR: Handle parser failures as potentially futile.
