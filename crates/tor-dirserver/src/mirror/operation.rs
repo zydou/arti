@@ -1080,6 +1080,67 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 }
 
+/// Helper trait for reducing the copy and paste we have to do in the
+/// [`StaticEngine::descriptors`] method, as parts of the logic overlap a lot
+/// between router and micro descriptors.
+trait DescriptorDownloader<T: FlavoredConsensusUnverified> {
+    /// The document digest by which we query the respective descriptors.
+    type DocDigest: Debug + Hash + Eq;
+
+    /// The actual descriptor type we are working with.
+    type Descriptor: FlavoredDescriptor;
+
+    /// The [`tor_dirclient`] request data type we are emitting.
+    type Request: Requestable;
+
+    /// The response data type we expect from the dirserver we are contacting.
+    type Response: NetdocParseable;
+
+    /// Queries the database for the missing descriptor document digests
+    /// contained within a [`HashSet`].
+    ///
+    /// This is usually just a wrapper around [`ConsensusMeta::missing_routers()`]
+    /// and similar methods.
+    fn query(
+        tx: &Transaction<'_>,
+        meta: &ConsensusMeta<T>,
+        futile: &FutileDescriptors,
+        endpoint: &DownloadAuthority,
+    ) -> Result<HashSet<Self::DocDigest>, DatabaseError>;
+
+    /// Creates a [`Requestable`] from the missing descriptors returned through
+    /// [`Self::query()`].
+    fn make_request(digests: &HashSet<Self::DocDigest>) -> Self::Request;
+
+    /// Processes the response after it has been received.
+    ///
+    /// It's inputs are a [`DescriptorDownloads`] that contains all the
+    /// requested digests set to [`DescriptorDownloadResult::NotFound`].
+    ///
+    /// The purpose of this function is to populate this struct accordingly and
+    /// return it in the end.  The function itself must not fail, hence why
+    /// it does not return a Result.
+    fn process_downloads(
+        engine: &StaticEngine<T>,
+        downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
+        docs: Vec<(Result<Self::Response, ParseError>, usize, usize)>,
+        raw: String,
+        now: Timestamp,
+    ) -> DescriptorDownloads<Self::DocDigest, Self::Descriptor>;
+
+    /// Finally, insert all descriptors either into the database or populate
+    /// [`FutileDescriptors`] accordingly.  This function may still leave the
+    /// [`FutileDescriptors`] in an inconsistent state, but only in the case
+    /// of an irrecoverable [`DatabaseError`], which is ok.
+    fn insert(
+        engine: &StaticEngine<T>,
+        tx: &Transaction<'_>,
+        futile: &mut FutileDescriptors,
+        downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
+        endpoint: &DownloadAuthority,
+    ) -> Result<(), DatabaseError>;
+}
+
 /// Records which allow us to avoid futile download attempts
 ///
 /// One set of records of "futile" documents, for each kind of document.
