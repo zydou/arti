@@ -13,4 +13,8 @@ for `arti` (the client binary) or `arti-relay`,
 but which doesn't necessarily belong in Rust code
 that is only using e.g. `arti-client` as a library.
 
+This is not a general-purpose crate:
+if you are using this functionality in your own programs,
+you are probably doing something risky.
+
 License: MIT OR Apache-2.0
