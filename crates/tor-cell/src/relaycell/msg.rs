@@ -16,6 +16,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::num::{NonZero, NonZeroU8};
 use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
+use tor_error::internal;
 use tor_linkspec::EncodedLinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_llcrypto::util::ct::CtByteArray;
@@ -288,9 +289,13 @@ impl Readable for BeginAddrPort {
         // (Alternatively, the bstr crate also has this functionality.)
         let mut addr_port_iter = r.take_until(0)?.rsplitn(2, |c| *c == b':');
 
+        // The `rsplitn(2, ...)` seems to always return at least one item,
+        // so this error should never happen.
+        // But we return an error instead of panicking just in case that changes since
+        // the behaviour for edge cases like an empty string isn't documented.
         let port = addr_port_iter
             .next()
-            .ok_or_else(|| Error::InvalidMessage("port in begin cell missing".into()))?;
+            .ok_or_else(|| internal!("expected at least one item from rsplitn()"))?;
         let addr = addr_port_iter
             .next()
             .ok_or_else(|| Error::InvalidMessage("target address in begin cell missing".into()))?;
