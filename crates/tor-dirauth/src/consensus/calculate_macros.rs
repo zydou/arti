@@ -119,7 +119,7 @@ pub(super) struct DummyForMacrology;
 /// ### Input syntaxes and semantics summary
 ///
 /// ```rust,ignore
-/// calc!{ OUT.FIELD <+ FUNC }       // calls FUNC on `ConsensusContext` and `ComponentInVotes`
+/// calc!{ OUT.FIELD <+ FUNC }       // calls FUNC on `context` and `inputs`
 /// calc!{ OUT.FIELD <+ FUNC; ,X1,X2 } // calls FUNC with extra arguments
 /// calc!{ OUT.FIELD }               // uses Aggregate (or ConsensusesFromVotes)
 /// calc!{ OUT.FIELD = EXPR }
