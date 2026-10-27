@@ -22,7 +22,7 @@ impl ConsensusesFromVotes<PlainPreamble> for Vec<RouterStatusVote> {
         let voters_per_id; // buffer; TODO want to use super let instead
         {
             let mut per_id = HashMap::<IdTuple, VoterSet>::new();
-            for (vnum, voter_rs_list) in inputs.clone() {
+            for (vnum, voter_rs_list) in inputs.iter() {
                 for rs in voter_rs_list {
                     let id = IdTuple::from_rs(rs);
                     per_id.entry(id).or_default().insert(vnum);
@@ -70,7 +70,7 @@ impl ConsensusesFromVotes<PlainPreamble> for Vec<RouterStatusVote> {
                 // for each possible output status-tuple, who voted for it:
                 HashMap<StatusTuple, Box<RouterStatusPerRelevantVoter>>,
             >::new();
-            for (vnum, voter_rs_list) in inputs.clone() {
+            for (vnum, voter_rs_list) in inputs.iter() {
                 for rs in voter_rs_list {
                     let id = IdTuple::from_rs(rs);
                     if !output_ids.contains(&id) {
