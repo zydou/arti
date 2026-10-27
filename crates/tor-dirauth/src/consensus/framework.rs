@@ -158,6 +158,18 @@ impl<AC, V: Aggregate<AC>> ConsensusesFromVotes<AC> for V {
     }
 }
 
+impl<'r> ConsensusCommonContext<'r> {
+    /// Construct a `ConsensusContextRefs` with a particular "already computed" value
+    ///
+    /// (Also available on `ConsensusContextRefs` via deref.)
+    pub(super) fn with_computed<AC>(&'r self, ac: &'r AC) -> ConsensusContextRefs<'r, AC> {
+        ConsensusContextRefs {
+            context: self,
+            computed: ac,
+        }
+    }
+}
+
 /// Error during calculation of a consensus
 ///
 /// Normally errors at this stage should be avoided, because that would prevent

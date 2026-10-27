@@ -15,10 +15,7 @@ impl ConsensusesFromVotes<()> for netstatus::vote::NetworkStatus {
     {
         calc! { both.preamble }
 
-        let context = ConsensusContextRefs {
-            context: *context,
-            computed: &plain_preamble,
-        };
+        let context = context.with_computed(&plain_preamble);
 
         calc! { both.routers }
         calc! { both.authority }

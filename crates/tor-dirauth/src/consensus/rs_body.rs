@@ -284,20 +284,14 @@ mod test {
         // will want to be reused/simplified as we add more test cases.
 
         let (plain_preamble, _) = netstatus::vote::Preamble::consensuses(
-            ConsensusContextRefs {
-                context: &cc,
-                computed: &(),
-            },
+            cc.with_computed(&()),
             cc.votes
                 .iter_enumerated()
                 .map(|(vnum, vote)| (vnum, &vote.preamble)),
         )?;
 
         let output = DocRelayFlags::aggregate(
-            ConsensusContextRefs {
-                context: &cc,
-                computed: &plain_preamble,
-            },
+            cc.with_computed(&plain_preamble),
             cc.votes
                 .iter_enumerated()
                 .map(|(vnum, vote)| (vnum, &vote.routers[0].flags)),
