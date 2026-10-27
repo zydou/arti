@@ -49,9 +49,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
             from_status_tuple! { plain.doc_digest; .into() }
             from_status_tuple! { both.or_port }
             from_status_tuple! { both.dir_port }
-
-            // TODO DIRAUTH replace dummy value; actually calculate which md digest to include
-            calc! { md.doc_digest = Default::default() }
+            calc! { md.doc_digest = NotPresent }
 
             construct_both! {
                 netstatus::plain::RouterStatusIntroItem, netstatus::md::RouterStatusIntroItem {
