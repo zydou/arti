@@ -6,3 +6,4 @@ ADDED: `DocRelayFlags` impl `FromIterator<DocRelayFlag>`
 ADDED: `SupersededAuthorityKey::from_dir_source_and_key`
 ADDED: `netstatus::ConsensusAuthoritySectionConstructor`, `DirSourceConstructor`
 ADDED: `IdentifiedDigest` is now exhaustive, with fields `pub`
+ADDED: `{FixedB64, FixedB16U}::from_byte_slice`
