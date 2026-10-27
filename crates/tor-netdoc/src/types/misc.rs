@@ -2048,15 +2048,14 @@ mod identified_digest {
     /// A single digest made with a nominated digest algorithm, `ALGORITHM=DIGEST`
     #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, derive_more::Display)]
     #[display("{alg}={value}")]
-    #[non_exhaustive]
     pub struct IdentifiedDigest {
         /// The algorithm name.
-        alg: DigestName,
+        pub alg: DigestName,
 
         /// The digest value.
         ///
         /// Invariant: length is correct for `alg`, assuming `alg` is known.
-        value: B64,
+        pub value: B64,
     }
 
     impl NormalItemArgument for DigestName {}
