@@ -71,7 +71,9 @@ pub struct SleepFuture {
 /// | DROPPED     | dropped          | absent           | absent             |
 #[derive(Debug, AsMut)]
 struct State {
-    /// Current time (coarse)
+    /// Current time
+    ///
+    /// Contains an `Instant`, `SystemTime` and `CoarseTimeProvider`.
     core: MockTimeCore,
 
     /// Futures; record of every existing [`SleepFuture`], including any `Waker`
