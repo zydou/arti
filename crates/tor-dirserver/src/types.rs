@@ -229,12 +229,12 @@ impl FlavoredDescriptor for FlavoredDescriptorPlain {
             self.1
                 .hashes
                 .sha1
-                .ok_or(internal!("router-signature should be present"))?,
+                .ok_or_else(|| internal!("router-signature should be present"))?,
         ))
     }
 
     fn sha256(&self) -> Result<Sha256, tor_error::Bug> {
-        Ok(Sha256(self.1.hashes.sha256.ok_or(internal!(
+        Ok(Sha256(self.1.hashes.sha256.ok_or_else(|| internal!(
             "router-sig-ed25519 should be present"
         ))?))
     }
