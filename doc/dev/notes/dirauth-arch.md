@@ -39,12 +39,22 @@ in the same transaction, and to manage those transactions.
 
 ### Tasks
 
-Tasks that relate to a specific area of the state
-can be near the module for that database state,
+Async tasks that relate to a specific area of the state
+can be implemented near the Rust module for that database state,
 or even part of the same module.
 
 But there are also tasks that straddle various aspects,
 including notably the task which makes our own vote.
+
+### External programs
+
+The database will be accessed only by Rust code
+in the dirauth (and dirserver) implementation.
+Most of the work will be done within the single dirauth process.
+
+External processes, data sources, etgc. (eg, the bandwidth scanner)
+will have corresponding code (and, if necessary, tasks)
+within the dirauth implementation.
 
 ## Principal components (tasks, modules, etc.)
 
