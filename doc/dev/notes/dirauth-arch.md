@@ -22,7 +22,8 @@ and attempt to make forward progress on its objectives.
 As a general rule, tables (or groups of tables)
 in the database will be considered
 owned by a particular Rust module in the source code.
-Queries and updates should be built by the module for that table.
+Queries and updates should be built only by the module for that table,
+since other modules should not assume knowledge of those parts of the schema.
 
 Such a module will exchange data with other modules
 using normal Rust types.
