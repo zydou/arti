@@ -1176,7 +1176,7 @@ impl<T: FlavoredConsensusUnverified> DescriptorDownloader<T> for RdDownloader {
                 }
             }
         }
-        Ok::<_, DatabaseError>(())
+        Ok(())
     }
 }
 
