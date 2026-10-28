@@ -198,7 +198,7 @@ mod test {
                     .unwrap();
 
             // Here we list any recommended protocols that are not yet always-on.
-            let permitted_missing: tor_protover::Protocols = [].into_iter().collect();
+            let permitted_missing = tor_protover::Protocols::new();
             let unsupported = rec.difference(&pr);
             assert!(unsupported.difference(&permitted_missing).is_empty());
         }

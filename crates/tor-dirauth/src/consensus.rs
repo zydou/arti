@@ -55,7 +55,7 @@ pub const SUPPORTED_METHODS: &[RangeInclusive<ConsensusMethod>] = {
 };
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -71,6 +71,8 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+
+    pub(crate) use toplevel::test::compute_test;
 
     #[test]
     fn supported_well_formed() {

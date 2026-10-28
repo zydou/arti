@@ -19,11 +19,11 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
         calc! { both.consensus_method = ((*context.method).into(),) }
         calc! { both.consensus_methods = NotPresent }
         calc! { both.published = NotPresent }
+        calc! { both.proto_statuses }
         calc! { md,plain .known_flags <+ doc_relay_flags_union }
         calc! { md,plain .params <+ netparams_preamble_aggregate }
 
         // TODO DIRAUTH replace dummy values
-        calc! { both.proto_statuses = Default::default() }
         calc! { both.voting_delay }
         calc! { both.client_versions }
         calc! { both.server_versions }
@@ -161,5 +161,167 @@ impl<AC> Aggregate<AC> for netstatus::RecommendedTorVersions {
             .map_err(into_internal!(
                 "passed through software version was invalid"
             ))?)
+    }
+}
+
+impl Aggregate<()> for Arc<netstatus::ProtoStatuses> {
+    type Output = Self;
+
+    fn aggregate<'i>(
+        context: ConsensusContextRefs<()>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self, ConsensusError>
+    where
+        Self: 'i,
+    {
+        calc! { out.client <+ protostatus_preamble_aggregate }
+        calc! { out.relay <+ protostatus_preamble_aggregate }
+        Ok(construct! {
+            netstatus::ProtoStatuses {
+            } {
+                out. client, relay;
+            }
+        }
+        .into())
+    }
+}
+
+/// Calculate the `{recommended,required}-*-protocols` items in a consensus
+//
+// Not `impl Aggregate` because `ProtoStatus` wants to be
+// handled quite differently in a routerstatus.
+#[allow(clippy::needless_pass_by_value, clippy::unnecessary_wraps)]
+fn protostatus_preamble_aggregate<'i>(
+    context: ConsensusContextRefs<()>,
+    inputs: impl ComponentInVotes<&'i netstatus::ProtoStatus>,
+) -> Result<netstatus::ProtoStatus, ConsensusError> {
+    fn aggregate_by_threshold<'i, 'r>(
+        context: ConsensusContextRefs<'r, ()>,
+        inputs: impl ComponentInVotes<&'i tor_protover::Protocols>,
+        threshold: impl Fn(&ConsensusCommonContext<'r>, usize) -> bool,
+    ) -> Result<tor_protover::Protocols, ConsensusError> {
+        // Uncompress the inputs into sets of `(Protocol, Value)`.
+        //
+        // This is kind of flabby, especially in allocations, but it has the virtue
+        // of making the output calculation very obvious.
+        //
+        // Worst case total allocations (and number of cpu operations) is
+        //   O( unknown_keyword_length * n_keywords * n_authorities * 64 )
+        // or alternatively
+        //   O( total_length_of_all_input_doc_items * 64 )
+        // and the constant factor is 3 or 4 words.  See the comments for `Preotocols::iter_all`.
+        //
+        // We could save a factor of up to 64 in the worst case by using a bitmask representation
+        // but tor-protover does not currently expose that in a suitable form,
+        // and it would make the calculation less obvious.
+        //
+        let inputs: Vec<HashSet<(tor_protover::Protocol, tor_protover::Value)>> = inputs
+            .map(|(_vnum, i)| i.iter_all().collect())
+            .collect_vec();
+
+        Ok(inputs
+            .iter()
+            .flatten()
+            .unique()
+            .filter(|k| {
+                let n_y = inputs.iter().filter(|i| i.contains(k)).count();
+                threshold(&context, n_y)
+            })
+            .cloned()
+            .collect())
+    }
+
+    calc! {
+        out.recommended <+ aggregate_by_threshold;
+        , ConsensusCommonContext::is_more_than_half_all_auths
+    }
+    calc! {
+        out.required <+ aggregate_by_threshold;
+        , ConsensusCommonContext::is_at_least_two_thirds_all_auths
+    }
+
+    Ok(construct! {
+        netstatus::ProtoStatus {
+        } {
+            out. recommended, required;
+        }
+    })
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    #![allow(clippy::string_slice)] // See arti#2571
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use crate::consensus::test::compute_test;
+
+    #[test]
+    #[ignore] // TODO DIRAUTH un-ignore when todo()'s removed
+    fn protocols() {
+        use tor_protover::Protocols;
+
+        let p = |s| Protocols::from_str_c_compatible(s).unwrap();
+
+        let inputs = [
+            // 6 voters
+            //
+            // For capabilities `counting=K-6`, value K is voted for by K voters.
+            p("Link=1 counting=1-6"),
+            p("Link=1 counting=2-6 req=1 rec=1 neither=1"),
+            p("Link=1 counting=3-6 req=1 rec=1 neither=1"),
+            p("Link=1 counting=4-6 req=1 rec=1 neither=1"),
+            p("Link=1 counting=5-6 req=1 rec=1"),
+            p("Link=1 counting=6 req=1"),
+        ];
+
+        let (exp_recommended, exp_required) = (
+            p("Link=1 counting=4-6 req=1 rec=1"),
+            p("Link=1 counting=5-6 req=1"),
+        );
+
+        macro_rules! field { { $cs:ident, $field:ident } => { paste! {
+
+            compute_test(
+                inputs.len(),
+                7,
+                |vnum, vote| {
+                    let mut ps = (*vote.preamble.proto_statuses).clone();
+                    ps.$cs.$field = inputs[vnum].clone();
+                    vote.preamble.proto_statuses = ps.into();
+                    Ok(())
+                },
+                |(plain, _md)| {
+                    let got = &plain.preamble.proto_statuses.$cs.$field;
+                    let exp = &[< exp_ $field >];
+                    assert_eq!(
+                        got,
+                        exp,
+                        "{}\n got={}\n exp={}",
+                        stringify!($cs $field),
+                        got.to_string(),
+                        exp.to_string(),
+                    );
+                    Ok(())
+                },
+            );
+
+        } } }
+
+        field! { client, recommended }
+        field! { client, required }
+        field! { relay, recommended }
+        field! { relay, required }
     }
 }

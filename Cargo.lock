@@ -7425,6 +7425,7 @@ dependencies = [
  "tor-checkable",
  "tor-error",
  "tor-netdoc",
+ "tor-protover",
  "tracing",
  "tracing-test",
  "typed-index-collections",
@@ -8325,6 +8326,8 @@ version = "0.47.0"
 dependencies = [
  "caret",
  "derive-deftly",
+ "derive_more",
+ "itertools 0.15.0",
  "paste",
  "serde_with",
  "thiserror 2.0.21",

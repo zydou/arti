@@ -8,7 +8,7 @@
 //!
 //! [spec]: https://spec.torproject.org/tor-spec/subprotocol-versioning.html
 
-use super::{NamedSubver, ProtoKind};
+use super::{NamedSubver, ProtoKind, Value};
 use paste::paste;
 
 /// Helper: define a set of named aliases for specific subprotocol versions
@@ -22,7 +22,10 @@ macro_rules! def_named {
     } => {paste!{
         $($(
             $(#[$meta])*
-            pub const [<$protocol:upper _ $subver>] : NamedSubver = NamedSubver::new(ProtoKind::$protocol, $num);
+            pub const [<$protocol:upper _ $subver>] : NamedSubver = NamedSubver::new(
+                ProtoKind::$protocol,
+                Value::new_const($num),
+            );
         )*)*
     }}
 }

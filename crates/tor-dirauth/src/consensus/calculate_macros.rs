@@ -120,6 +120,7 @@ pub(super) struct DummyForMacrology;
 ///
 /// ```rust,ignore
 /// calc!{ OUT.FIELD <+ FUNC }       // calls FUNC on `ConsensusContext` and `ComponentInVotes`
+/// calc!{ OUT.FIELD <+ FUNC; ,X1,X2 } // calls FUNC with extra arguments
 /// calc!{ OUT.FIELD }               // uses Aggregate (or ConsensusesFromVotes)
 /// calc!{ OUT.FIELD = EXPR }
 /// calc!{ both.FIELD      .. .. }   // special, sets (plain_FIELD, md_FIELD)
@@ -156,6 +157,11 @@ pub(super) struct DummyForMacrology;
 ///
 ///  * **`FUNC`** must have the signature of `Aggregate::aggregate`,
 ///    (or `ConsensusesFromVotes::consensuses` with `both`).
+///
+///    With **`,X1,X2`**, those arguments are passed after `inputs`.
+//     In theory this shouldn't be necessary, since a closure which returns a function
+//     could be passed instead.  But in practice Rust's closures are too janky for this:
+//     they can't be generic, and you end up with lifetime problems too.
 ///
 ///  * **`both`**  for `OUT` (on its own) means to bind the tuple
 ///    `(plain_FIELD, md_FIELD)`; and the default `FUNC` is `ConsensusesFromVotes`.
@@ -197,7 +203,7 @@ macro_rules! calc_internal {
     { { both. $f:ident $(;)?
     } $let:tt } => {
         calc_internal! { {
-            both. $f <+ $crate::consensus::framework::ConsensusesFromVotes::consensuses
+            both. $f <+ $crate::consensus::framework::ConsensusesFromVotes::consensuses ;
         } $let }
     };
 
@@ -205,16 +211,16 @@ macro_rules! calc_internal {
     { { $($out:ident),+ $(,)? . $f:ident $(;)?
     } $let:tt } => {
         calc_internal! { {
-            $($out),+ . $f <+ $crate::consensus::framework::Aggregate::aggregate
+            $($out),+ . $f <+ $crate::consensus::framework::Aggregate::aggregate ;
         } $let }
     };
 
     // function specified, RHS uses `<+`; convert into internal syntax
-    { { $($out:ident),+ $(,)? . $f:ident <+ $func:expr $(;)?
+    { { $($out:ident),+ $(,)? . $f:ident <+ $func:expr $(; $(,$xargs:expr)* $(,)? )?
     } $let:tt } => {
         calc_internal! {
             @ 1 {$} $let
-            $($out),+ . $f { <+ $func }
+            $($out),+ . $f { <+ $func ; $($(,$xargs)*)? }
         }
     };
 
@@ -283,13 +289,14 @@ macro_rules! calc_internal {
     //
     // Expands to an expression.
 
-    // RHS is `<+ FUNC`
-    { @ 2 {$D:tt} $f:ident { <+ $func:expr } } => {
+    // RHS is `<+ FUNC ; XARGS`
+    { @ 2 {$D:tt} $f:ident { <+ $func:expr ; $(,$xargs:expr)* } } => {
         derive_deftly::derive_deftly_adhoc! {
             DummyForMacrology beta_deftly:
             ($func) (
                 $D{paste_spanned $f context},
                 $D{paste_spanned $f inputs}.iter().map(|(vnum, i)| (vnum, &i.$f)),
+                $($xargs,)*
             )?
         }
     };

@@ -381,7 +381,7 @@ impl Preamble {
                 RECOMMENDED_RELAY_PROTOCOLS,
                 REQUIRED_RELAY_PROTOCOLS,
             )?;
-            Arc::new(ProtoStatuses { client, relay })
+            Arc::new(ProtoStatuses { client, relay, __non_exhaustive: () })
         };
 
         let params = sec.maybe(PARAMS).args_as_str().unwrap_or("").parse()?;

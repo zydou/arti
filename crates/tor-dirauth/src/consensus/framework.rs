@@ -210,6 +210,21 @@ impl<'r> ConsensusCommonContext<'r> {
         // This way of writing it avoids any possibility of over/under-flow
         n_some_voters > self.n_authorities / 2
     }
+
+    /// Is `n_some_voters` strictly more than half of all the authorities?
+    pub(super) fn is_at_least_two_thirds_all_auths(&self, n_some_voters: usize) -> bool {
+        // Overflow ought to be impossible since it would involve an unreasonable number
+        // of authorities, but in that case return `fale`.
+        //
+        // The alternative would be to suppress the rule against possibly-panicking arithmetic,
+        // which would impose an additional review burden.
+        let thresh = match self.n_authorities.checked_mul(2) {
+            Some(y) => y,
+            None => return false,
+        }
+        .div_ceil(3);
+        n_some_voters >= thresh
+    }
 }
 
 #[cfg(test)]
@@ -264,5 +279,25 @@ pub(crate) mod test {
         check(3, 2);
         check(4, 3);
         check(5, 3);
+    }
+
+    #[test]
+    fn is_at_least_two_thirds_all_auths() {
+        let mut context = ConsensusCommonContext::new_for_test();
+
+        let mut check = |t, n_authorities| {
+            context.n_authorities = n_authorities;
+            assert_eq!(
+                context.is_at_least_two_thirds_all_auths(t),
+                t * 3 >= 2 * n_authorities,
+                "{t} out of {n_authorities}",
+            );
+        };
+
+        for n_authorities in 0..20 {
+            for t in 0..n_authorities {
+                check(t, n_authorities);
+            }
+        }
     }
 }

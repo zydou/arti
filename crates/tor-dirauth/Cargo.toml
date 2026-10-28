@@ -46,6 +46,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.47.0" }
 tor-error = { path = "../tor-error", version = "0.47.0" }
 tor-netdoc = { version = "0.47.0", path = "../tor-netdoc", features = ["full", "retain-unknown"] }
+tor-protover = { version = "0.47.0", path = "../tor-protover" }
 tracing = "0.1.44"
 typed-index-collections = "3.5.0"
 

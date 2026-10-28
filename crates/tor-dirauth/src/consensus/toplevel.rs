@@ -151,3 +151,76 @@ pub fn compute_consensus_from_votes<'v>(
             .map(|(vnum, vote)| (vnum, *vote)),
     )
 }
+
+#[cfg(test)]
+pub(crate) mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    #![allow(clippy::string_slice)] // See arti#2571
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use tor_netdoc::parse2::NetdocParseableUnverified;
+
+    /// Compute a consensus from votes, allowing mutation of test data and bespoke checks
+    ///
+    /// Can be used for testing individual consensus elements:
+    ///
+    ///  * Use `edit_votes` to install test data into vote fields.
+    ///  * Use `check_output` to check the output field is as expected.
+    ///
+    /// `edit_vote` gets the vote index (within `0..n_votes`),
+    /// (as a `usize` rather than `VoterNum`, for test cases' convenience.)
+    ///
+    /// The basis votes are all the same: the vote from `testata-live`.
+    pub(crate) fn compute_test(
+        n_votes: usize,
+        n_authorities: usize,
+        mut edit_vote: impl FnMut(usize, &mut netstatus::vote::NetworkStatus) -> anyhow::Result<()>,
+        check_output: impl FnOnce(
+            (
+                netstatus::plain::NetworkStatus,
+                netstatus::md::NetworkStatus,
+            ),
+        ) -> anyhow::Result<()>,
+    ) {
+        assert!(n_votes <= n_authorities);
+
+        let (vote_base, sigs) =
+            tor_netdoc::testdata_live::netstatus_vote_unverified().inspect_unverified();
+        let hashes = &sigs.hashes;
+
+        let votes = (0..n_votes)
+            .into_iter()
+            .map(move |vnum| {
+                let mut vote = vote_base.clone();
+                edit_vote(vnum, &mut vote).expect("vote edit failed");
+                vote
+            })
+            .collect_vec();
+
+        let output = compute_consensus_from_votes(
+            SupportedConsensusMethod::MAX,
+            n_authorities,
+            votes.iter().map(|v| (v, hashes)),
+        )
+        .expect("compute consensus");
+
+        check_output(output).expect("check output");
+    }
+
+    #[test]
+    #[ignore] // TODO DIRAUTH un-ignore when todo()'s removed
+    fn compute_for_test_vanilla() {
+        compute_test(3, 4, |_, _| Ok(()), |_| Ok(()));
+    }
+}
