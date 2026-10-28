@@ -496,7 +496,7 @@ impl CircHopOutbound {
             WithSidechannelMitigations::Enabled,
             rate_limit_tx,
             drain_rate_request_tx,
-        )?;
+        );
 
         let stream_queue_max_len = flow_ctrl.inbound_queue_max_len();
 
@@ -734,7 +734,7 @@ impl CircHopOutbound {
             with_sidechannel_mitigations,
             rate_limit_tx,
             drain_rate_request_tx,
-        )?;
+        );
 
         let stream_queue_max_len = flow_ctrl.inbound_queue_max_len();
 
@@ -757,14 +757,12 @@ impl CircHopOutbound {
     }
 
     /// Builds the reactor's flow control handler for a new stream.
-    // TODO: remove the `Result` once we remove the "flowctl-cc" feature
-    #[expect(clippy::unnecessary_wraps)]
     fn build_flow_ctrl(
         &self,
         with_sidechannel_mitigations: WithSidechannelMitigations,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
-    ) -> Result<StreamFlowCtrl> {
+    ) -> StreamFlowCtrl {
         let params = Arc::clone(&self.flow_ctrl_params);
 
         if self
@@ -774,14 +772,14 @@ impl CircHopOutbound {
             .uses_stream_sendme()
         {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-            Ok(StreamFlowCtrl::new_window(window))
+            StreamFlowCtrl::new_window(window)
         } else {
-            Ok(StreamFlowCtrl::new_xon_xoff(
+            StreamFlowCtrl::new_xon_xoff(
                 params,
                 with_sidechannel_mitigations,
                 rate_limit_updater,
                 drain_rate_requester,
-            ))
+            )
         }
     }
 
