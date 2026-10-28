@@ -102,6 +102,16 @@ impl<T> Runtime for T where
 }
 
 /// Trait representing a collection of tasks spawned on a [`Runtime`].
+///
+/// This is inspired by Tokio's [`JoinSet` API], which provides a convenient
+/// way to spawn tasks and receive their output asynchronously.
+///
+// Note: Our API is much smaller than Tokio's, because it only contains
+// the JoinSet functionality we actually need in Arti right now.
+// Parity with Tokio's API is a non-goal, but we can later extend
+// this API if it makes sense to do so. -gabi
+//
+/// [`JoinSet` API]: https://docs.rs/tokio/1.54.1/tokio/task/struct.JoinSet.html
 #[async_trait]
 pub trait JoinSet<T>: Send + Sync + 'static {
     /// Spawn the provided `task` on the runtime.
@@ -133,6 +143,22 @@ pub trait JoinSet<T>: Send + Sync + 'static {
 }
 
 /// Trait for a runtime that can create [`JoinSet`]s.
+///
+// Note: Tokio's `JoinSet` panics if you try to use it from the
+// context of a non-tokio runtime, so we've had to invent our our own
+// runtime-agnostic `JoinSet` type for testing, and for use with `async-std` and `smol`.
+// The `JoinSetProvider` and `JoinSet` enable us to customize the `JoinSet` type
+// for each runtime.
+//
+// All of this `JoinSetProvider`/`JoinSet` indirection could have been
+// avoided by using the same (hand-rolled) `JoinSet` type for all our
+// runtimes. However, that would've meant doing away with Tokio's `JoinSet`
+// entirely, which in my opinion would be a bad idea,
+// because Tokio's implementation is more battle-tested, and has more eyes on it
+// (so one would hope this implies someone is also scrutinizing its performance!).
+//
+// I have also considered porting Tokio's `JoinSet` to `tor-tcompat,
+// but it's non-trivial enough that we wouldn't want to do that.  -gabi
 pub trait JoinSetProvider: Clone + Send + Sync + 'static {
     /// The [`JoinSet`] type of this runtime.
     type JoinSet<T: Send + Sync + 'static>: JoinSet<T>;
