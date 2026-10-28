@@ -50,7 +50,7 @@ including notably the task which makes our own vote.
 
 ### Principal contents of the DB
 
- * Router identity key persistence.
+ * Router identity key pinning.
  * Routerdescs.  Similar requirements to dirmirror, but:
    - we can insert things other than via the fetcher
    - expiry is handled differently.
