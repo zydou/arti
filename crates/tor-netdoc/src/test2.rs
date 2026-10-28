@@ -1042,6 +1042,8 @@ body 999
         parse_netdoc_multiple_sophisticated::<Doc>(&input).unwrap(),
         expecteds,
     ) {
+        println!("{start}..{end}: {:?}", got);
+
         match exp {
             Ok(n) => {
                 let exp_doc = Doc {
