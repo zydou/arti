@@ -149,6 +149,9 @@ not ignored.
 The `dir-config.git` machinery may need to be adjusted/enhanced
 slightly for dirauth operators' convenience.
 
+In the future we hope to change the format read by Arti dirauth,
+replacing the torrc-format file(s) with something better, probably TOML.
+
 ### Errors reading input files
 
 If the bandwidth or operational data is not processable for whatever reason,
