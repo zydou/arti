@@ -78,7 +78,7 @@ tor-error = { version = "0.47.0", path = "../tor-error" }
 tor-memquota-cost = { version = "0.47.0", path = "../tor-memquota-cost", default-features = false, optional = true }
 typenum = { version = "1.20.1", optional = true }
 visibility = "0.1.1"
-x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
+x25519-dalek = { version = "3.0.0", features = ["static_secrets"] }
 zeroize = "1"
 
 [dev-dependencies]

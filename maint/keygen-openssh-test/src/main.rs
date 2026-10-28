@@ -84,8 +84,8 @@ fn generate_dsa(args: &Args) -> (PrivateKey, PublicKey) {
 
 /// Generate an x25519 ssh key.
 fn generate_x25519(args: &Args) -> (PrivateKey, PublicKey) {
-    let rng = testing_rng();
-    let x25519_sk = curve25519::StaticSecret::random_from_rng(rng);
+    let mut rng = testing_rng();
+    let x25519_sk = curve25519::StaticSecret::random_from_rng(&mut rng);
     let x25519_pk = curve25519::PublicKey::from(&x25519_sk);
 
     let algo = args

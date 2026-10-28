@@ -6,7 +6,6 @@ use clap::Parser;
 use safelog::DisplayRedacted;
 use tor_basic_utils::test_rng::testing_rng;
 use tor_hsservice::HsId;
-use tor_llcrypto::util::rng::RngCompat;
 use x25519_dalek::{PublicKey, StaticSecret};
 
 /// Generates a KP_hsc_desc_enc / KS_hsc_desc_enc keypair.
@@ -40,7 +39,7 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let private_key = StaticSecret::random_from_rng(RngCompat::new(testing_rng()));
+    let private_key = StaticSecret::random_from_rng(&mut testing_rng());
     let public_key = PublicKey::from(&private_key).to_bytes();
     let private_key = private_key.to_bytes();
 
