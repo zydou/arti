@@ -344,28 +344,56 @@ pub fn parse_netdoc_multiple_sophisticated<D: NetdocParseable>(
         let doc = D::from_items(&mut items, StopAt(false)) //
             .map_err(error_handler::<D>(input, &items));
 
-        let is_err = doc.is_err();
-        let end_pos = items.byte_position();
-        push_doc(doc, start_pos, end_pos)?;
+        /// How did we find the end of this document?
+        enum EndedBy {
+            /// `D::from_items` succeeded, or error recovery found intro item for the next doc
+            ///
+            /// The `ItemStream` can tell us where this document ends,
+            /// and we can continue looking for another document.
+            Normal,
 
-        if is_err {
+            /// Eof during error recovery
+            ///
+            /// We must exit the document loop.
+            Eof,
+        }
+
+        let ended_by = (|| {
+            if doc.is_ok() {
+                return EndedBy::Normal;
+            }
+
             // Skip the rest of the erroneous document until we find the next intro item.
             //
             // If we get lexical errors during error recovery, we don't *also* report them
             // and instead, just stop processing the input; hence the `.unwrap_or(None)`.
-            // (And this is why we insist on `break 'docs`, rather than just break.)
+            // (And this is why we insist on `return EndedBy::Eof`, rather than just `break`.)
             //
             // Insisting on KeywordRef and UnparsedItem helps prevent mistakes.
             let _next_intro_kw: KeywordRef = 'skip: loop {
                 let _discard_item: UnparsedItem = match items.peek_keyword().unwrap_or(None) {
-                    None => break 'docs,
+                    None => return EndedBy::Eof,
                     Some(kw) if D::is_intro_item_keyword(kw) => break 'skip kw,
                     Some(_other_kw) => match items.next().transpose().unwrap_or(None) {
                         Some(item) => item,
-                        None => break 'docs,
+                        None => return EndedBy::Eof,
                     },
                 };
             };
+
+            EndedBy::Normal
+        })(); // <- infallible; IEFE prevents failure to push output doc (or error)
+
+        let end_pos = match ended_by {
+            EndedBy::Normal => items.byte_position(),
+            EndedBy::Eof => input.input().len(),
+        };
+
+        push_doc(doc, start_pos, end_pos)?;
+
+        match ended_by {
+            EndedBy::Normal => {}
+            EndedBy::Eof => break 'docs,
         }
     }
     Ok(docs)
