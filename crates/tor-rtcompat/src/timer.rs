@@ -7,7 +7,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-use web_time_compat::{Duration, SystemTime};
+use web_time_compat::{Duration, Instant, SystemTime};
 
 /// An error value given when a function times out.
 ///
@@ -38,10 +38,7 @@ pub trait SleepProviderExt: SleepProvider {
     /// `future` if it completes within `duration`.  Otherwise, it
     /// will be `Err(TimeoutError)`.
     ///
-    /// # Limitations
-    ///
-    /// This uses [`SleepProvider::sleep`] for its timer, and is
-    /// subject to the same limitations.
+    /// This uses [`SleepProvider::sleep`] for its timer.
     #[must_use = "timeout() returns a future, which does nothing unless used"]
     fn timeout<F: Future>(&self, duration: Duration, future: F) -> Timeout<F, Self::SleepFuture> {
         let sleep_future = self.sleep(duration);
@@ -55,6 +52,7 @@ pub trait SleepProviderExt: SleepProvider {
     /// Pause until the wall-clock is at `when` or later, trying to
     /// recover from clock jumps.
     ///
+    /// This uses [`SleepProvider::sleep`] for its timer.
     /// Unlike [`SleepProvider::sleep()`], the future returned by this function will
     /// wake up periodically to check the current time, and see if
     /// it is at or past the target.
@@ -67,9 +65,6 @@ pub trait SleepProviderExt: SleepProvider {
     ///
     /// This function does not detect backward clock jumps; arguably,
     /// we should have another function to do that.
-    ///
-    /// This uses [`SleepProvider::sleep`] for its timer, and is
-    /// subject to the same limitations.
     #[must_use = "sleep_until_wallclock() returns a future, which does nothing unless used"]
     fn sleep_until_wallclock(&self, when: SystemTime) -> SleepUntilWallclock<'_, Self> {
         SleepUntilWallclock {
@@ -77,6 +72,14 @@ pub trait SleepProviderExt: SleepProvider {
             target: when,
             sleep_future: None,
         }
+    }
+
+    /// Return a future that will be ready when `deadline` is reached.
+    ///
+    /// This uses [`SleepProvider::sleep`] for its timer.
+    #[must_use = "sleep_until() returns a future, which does nothing unless used"]
+    fn sleep_until(&self, deadline: Instant) -> Self::SleepFuture {
+        self.sleep(deadline.saturating_duration_since(self.now()))
     }
 }
 
