@@ -255,6 +255,38 @@ define_derive_deftly! {
     }
 }
 
+define_derive_deftly! {
+    /// Implement useful methods for a fixed-size byte array wrapper
+    ///
+    /// Typically used in conjunction with deriving `BytesTransparent`.
+    ///
+    /// # Requirements
+    ///
+    ///  * Self must be a single-field struct wrapping a byte array
+    ///
+    /// # Generated code
+    ///
+    ///  * `Self::from_byte_slice`
+    FixedBytes beta_deftly:
+
+    $impl {
+        $/// Construct a `$$ttype` from a byte slice
+        $///
+        $/// Copies the contents.  Returns `None` if the length is wrong.
+        //
+        // Provided because the alternative involving constructors, try_into(),
+        // etc., is very clumsy.
+        pub fn from_byte_slice(slice: &[u8]) -> Option<Self> {
+            let array: &[u8; _] = slice.try_into().ok()?;
+
+            Some(Self { $(
+                ${loop_exactly_1 "must be applied to a single-field struct"}
+                $fname: *array,
+            ) })
+        }
+    }
+}
+
 /// Types for decoding base64-encoded values.
 mod b64impl {
     use super::*;
@@ -328,7 +360,7 @@ mod b64impl {
     ///
     /// As with [`B64`], padding is optional when parsing, but omitted when encoding.
     #[derive(Clone, Hash, Deftly)]
-    #[derive_deftly(BytesTransparent)]
+    #[derive_deftly(BytesTransparent, FixedBytes)]
     #[allow(clippy::derived_hash_with_manual_eq)]
     #[derive(derive_more::Debug)]
     #[debug(r#"FixedB64::<{N}>("{self}")"#)]
@@ -386,7 +418,7 @@ mod b16impl {
 
     /// A fixed-length version of [`B16U`].
     #[derive(Clone, Hash, Deftly)]
-    #[derive_deftly(BytesTransparent)]
+    #[derive_deftly(BytesTransparent, FixedBytes)]
     #[allow(clippy::derived_hash_with_manual_eq)]
     #[derive(derive_more::Debug)]
     #[debug(r#"FixedB16U("{self}")"#)]
@@ -2048,15 +2080,15 @@ mod identified_digest {
     /// A single digest made with a nominated digest algorithm, `ALGORITHM=DIGEST`
     #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, derive_more::Display)]
     #[display("{alg}={value}")]
-    #[non_exhaustive]
+    #[allow(clippy::exhaustive_structs)] // Seems very unlikely to grow
     pub struct IdentifiedDigest {
         /// The algorithm name.
-        alg: DigestName,
+        pub alg: DigestName,
 
         /// The digest value.
         ///
         /// Invariant: length is correct for `alg`, assuming `alg` is known.
-        value: B64,
+        pub value: B64,
     }
 
     impl NormalItemArgument for DigestName {}
