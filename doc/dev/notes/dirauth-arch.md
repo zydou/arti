@@ -184,6 +184,9 @@ a public one, and one for other dirauths.
 These are thin HTTP endpoints which access our database.
 (Documents we receive via the dirport are checked at reception time.)
 
+Unlike a dirmirror dirport, a public dirauth dirport also
+accepts uploads, of routerdescs and extra-info docs.
+
 ## Exposure, defence in depth
 
 A directory authority communicates in real-time
