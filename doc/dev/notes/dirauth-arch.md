@@ -73,13 +73,12 @@ within the dirauth implementation.
  * Extra-info.  TBD.
    Will probably be a dirauth-specific wrapper around shared dirserver code.
  * Votes for the current voting period (other authorities', and our own).
- * Previous and current consensus.
-   Unlike dirmirror, dirauth does not retain many consensus versions
-   and does not compute diffs.
-   We leave that to downstream dirmirrors.
+ * Previous and current consensus,
    So we have three network statuses in play: previous consensus,
    current consensus, and the consensus currently being built and
    voted on ("nascent consensus").
+ * Consensus diffs.
+   Computed and managed with code shared with dirmirror.
 
 ### dirauth-dirauth data pump(s)
 
