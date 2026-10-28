@@ -68,6 +68,8 @@ within the dirauth implementation.
    - routerdesc fetches must be triggered by mentions in votes,
      not just in consensuses.
  * Microdescs.  Almost identical to the dirmirror.
+   But we must be able to retain multiple microdescs
+   for each router (for different consensus methods).
  * Extra-info.  TBD.
    Will probably be a dirauth-specific wrapper around shared dirserver code.
  * Votes for the current voting period (other authorities', and our own).
