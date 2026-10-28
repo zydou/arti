@@ -14,7 +14,7 @@ use tor_llcrypto::pk::curve25519::*;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_llcrypto::util::ct::ct_lookup;
 
-use digest::Mac;
+use digest::{KeyInit, Mac};
 use rand_core::{CryptoRng, Rng};
 
 /// Client side of the Ntor handshake.
@@ -197,7 +197,7 @@ where
         ntor_derive(&xy, &xb, &state.relay_public, &state.my_public, &their_pk)
             .map_err(into_internal!("Error deriving keys"))?;
 
-    let okay = authcode.ct_eq(&auth)
+    let okay = ct::bool_to_choice(authcode == auth)
         & ct::bool_to_choice(xy.was_contributory())
         & ct::bool_to_choice(xb.was_contributory());
 
@@ -412,8 +412,8 @@ pub(crate) mod tests {
 
     fn make_fake_ephem_key(bytes: &[u8]) -> EphemeralSecret {
         assert_eq!(bytes.len(), 32);
-        let rng = FakePRNG::new(bytes);
-        EphemeralSecret::random_from_rng(rng)
+        let mut rng = FakePRNG::new(bytes);
+        EphemeralSecret::random_from_rng(&mut rng)
     }
 
     #[test]

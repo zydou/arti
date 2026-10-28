@@ -39,7 +39,7 @@ __is_experimental = []
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["string", "wrap_help", "derive"] }
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
-digest = "0.10.7"
+digest = "0.11.3"
 educe = "0.4.23"
 thiserror = "2"
 tor-checkable = { path = "../tor-checkable", version = "0.47.0" }

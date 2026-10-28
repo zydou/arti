@@ -20,7 +20,7 @@ __is_experimental = []
 [dependencies]
 humantime = "2"
 itertools = "0.15.0"
-signature = "2"
+signature = "3"
 thiserror = "2"
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.47.0" }
 web-time-compat = { path = "../web-time-compat", version = "0.3.0" }

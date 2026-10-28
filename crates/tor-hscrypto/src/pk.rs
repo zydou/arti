@@ -984,7 +984,7 @@ mod test {
 
         // Roundtrip
         let desc_enc_key = HsClientDescEncKey::from(curve25519::PublicKey::from(
-            &curve25519::StaticSecret::random_from_rng(testing_rng()),
+            &curve25519::StaticSecret::random_from_rng(&mut testing_rng()),
         ));
 
         assert_eq!(

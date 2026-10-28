@@ -855,7 +855,7 @@ impl<'a> DiffResult<'a> {
             d.update(line.as_bytes());
             d.update(b"\n");
         }
-        if d.finalize() == self.d_post.into() {
+        if d.finalize() == self.d_post {
             Ok(())
         } else {
             Err(Error::CantApply("Wrong digest after applying diff"))

@@ -260,11 +260,12 @@ pub fn blind_keypair(
     let blinded_secret_scalar = keypair.secret.scalar * blinding_factor;
 
     let blinded_secret_hash_prefix = {
+        use std::ops::DerefMut;
         let mut h = d::Sha512::new();
         h.update(RH_BLIND_STRING);
         h.update(keypair.secret.hash_prefix);
         let mut d = Zeroizing::new([0_u8; 64]);
-        h.finalize_into(d.as_mut().into());
+        h.finalize_into(d.deref_mut().into());
         d[0..32].try_into().expect("slice cast failed")
     };
 
@@ -309,9 +310,9 @@ mod tests {
         use crate::pk::{curve25519, ed25519};
         use tor_basic_utils::test_rng::testing_rng;
 
-        let rng = testing_rng();
+        let mut rng = testing_rng();
 
-        let curve_sk = curve25519::StaticSecret::random_from_rng(rng);
+        let curve_sk = curve25519::StaticSecret::random_from_rng(&mut rng);
         let curve_pk = curve25519::PublicKey::from(&curve_sk);
 
         let (ed_kp, signbit) = convert_curve25519_to_ed25519_private(&curve_sk).unwrap();
