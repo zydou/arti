@@ -1038,10 +1038,14 @@ body 999
 
     let input = ParseInput::new(text, "<test data>");
 
-    for ((got, _, _), exp) in izip!(
+    let mut last_end = 0;
+
+    for ((got, start, end), exp) in izip!(
         parse_netdoc_multiple_sophisticated::<Doc>(&input).unwrap(),
         expecteds,
     ) {
+        println!("{start}..{end}: {:?}", got);
+
         match exp {
             Ok(n) => {
                 let exp_doc = Doc {
@@ -1055,5 +1059,10 @@ body 999
                 assert!(m.contains(e), "exp={exp:?} got=Err({m:?})");
             }
         }
+
+        assert_eq!(start, last_end);
+        last_end = end;
     }
+
+    assert_eq!(last_end, text.len());
 }
