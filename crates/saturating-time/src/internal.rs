@@ -126,6 +126,7 @@ fn find_min<T: SaturatingTime>() -> T {
 ///     1. If [`Some`], set `res` to the returned value and continue.
 ///         * A [`Some`] that is equal to the previous value is considered as a
 ///           [`None`] due to a long lived bug in the Rust standard library.
+///         * See Also: <https://github.com/rust-lang/rust/issues/149995>
 ///     2. If [`None`] and `step == 1ns`, return `res`.
 ///     3. Else, set `step` to `MAX{1ns, step / 2}` and continue.
 fn find_limit<T, F>(f: F) -> T
