@@ -25,7 +25,8 @@ use tor_rtcompat::{CertifiedConn, Runtime, StreamOps, TlsProvider, tls::TlsConne
 
 #[cfg(feature = "relay")]
 use {
-    safelog::Sensitive, std::net::SocketAddr, tor_error::bad_api_usage,
+    crate::mgr::ChannelBandwidthPools, safelog::Sensitive, std::net::SocketAddr,
+    tor_async_utils::global_rate_limit::GlobalRateLimitedConn, tor_error::bad_api_usage,
     tor_proto::RelayChannelAuthMaterial, tor_proto::relay::CreateRequestHandler,
 };
 
@@ -65,6 +66,9 @@ where
     /// Provided to each new channel so that they can handle CREATE* requests.
     #[cfg(feature = "relay")]
     create_request_handler: Option<Arc<CreateRequestHandler>>,
+    /// Bandwidth pools shared by all channels for global rate limiting.
+    #[cfg(feature = "relay")]
+    bw_pools: Option<ChannelBandwidthPools>,
 }
 
 impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
@@ -86,6 +90,8 @@ where
             my_addrs: Vec::new(),
             #[cfg(feature = "relay")]
             create_request_handler: None,
+            #[cfg(feature = "relay")]
+            bw_pools: None,
         }
     }
 
@@ -117,6 +123,13 @@ where
         Ok(builder)
     }
 
+    /// Set the bandwidth pools used to rate limit all channels.
+    #[cfg(feature = "relay")]
+    pub(crate) fn with_bandwidth_pools(mut self, bw_pools: Option<ChannelBandwidthPools>) -> Self {
+        self.bw_pools = bw_pools;
+        self
+    }
+
     /// Build a new `ChanBuilder` with the given `auth_material`,
     /// cloning everything else.
     ///
@@ -136,6 +149,7 @@ where
             self.my_addrs.clone(),
             self.create_request_handler.as_ref().map(Arc::clone),
         )
+        .map(|b| b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share)))
     }
 
     /// Build a new `ChanBuilder` with the given CREATE* request `handler`,
@@ -162,6 +176,16 @@ where
             self.my_addrs.clone(),
             Some(handler),
         )
+        .map(|b| b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share)))
+    }
+
+    /// Return `stream` rate limited by our bandwidth pools, or unlimited if we have none.
+    #[cfg(feature = "relay")]
+    fn rate_limit<S>(&self, stream: S) -> GlobalRateLimitedConn<S> {
+        match &self.bw_pools {
+            Some(bw_pools) => bw_pools.rate_limit(stream),
+            None => GlobalRateLimitedConn::unlimited(stream),
+        }
     }
 
     /// Return the outbound channel type of this config.
@@ -282,7 +306,7 @@ where
             .accept(
                 Sensitive::new(peer_addr.inner()),
                 self.my_addrs.clone(),
-                tls,
+                self.rate_limit(tls),
                 self.runtime.clone(),
                 auth_material,
                 memquota,
@@ -417,7 +441,7 @@ where
             #[cfg(feature = "relay")]
             ChannelType::RelayInitiator => {
                 self.build_relay_channel(
-                    tls,
+                    self.rate_limit(tls),
                     peer_addr,
                     target,
                     &peer_tls_cert,

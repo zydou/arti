@@ -7,12 +7,13 @@
 
 use futures::{AsyncRead, AsyncWrite};
 use pin_project::pin_project;
+use std::borrow::Cow;
 use std::io::Error;
 use std::num::NonZero;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use tor_rtcompat::StreamOps;
+use tor_rtcompat::{CertifiedConn, StreamOps};
 
 use super::DirectionState;
 use crate::bw_pool::BandwidthAcquirer;
@@ -21,16 +22,19 @@ use crate::bw_pool::BandwidthAcquirer;
 /// bidirectional byte stream.
 ///
 /// Every byte read or written costs one token per direction pool.
+///
+/// A connection built with [`Self::unlimited`] is not rate limited and forwards
+/// everything to the underlying stream.
 #[derive(Debug)]
 #[pin_project]
 pub struct GlobalRateLimitedConn<S> {
     /// The underlying stream.
     #[pin]
     inner: S,
-    /// Rate-limiting state for the read direction.
-    read_state: DirectionState,
-    /// Rate-limiting state for the write direction.
-    write_state: DirectionState,
+    /// Rate-limiting state for the read direction. `None` means unlimited.
+    read_state: Option<DirectionState>,
+    /// Rate-limiting state for the write direction. `None` means unlimited.
+    write_state: Option<DirectionState>,
 }
 
 impl<S> GlobalRateLimitedConn<S> {
@@ -49,8 +53,17 @@ impl<S> GlobalRateLimitedConn<S> {
     ) -> Self {
         Self {
             inner,
-            read_state: DirectionState::new(read_acquirer, max_chunk),
-            write_state: DirectionState::new(write_acquirer, max_chunk),
+            read_state: Some(DirectionState::new(read_acquirer, max_chunk)),
+            write_state: Some(DirectionState::new(write_acquirer, max_chunk)),
+        }
+    }
+
+    /// Constructor of a connection that is not rate limited in either direction.
+    pub fn unlimited(inner: S) -> Self {
+        Self {
+            inner,
+            read_state: None,
+            write_state: None,
         }
     }
 }
@@ -65,7 +78,10 @@ where
         buf: &mut [u8],
     ) -> Poll<Result<usize, Error>> {
         let this = self.project();
-        super::reader::poll_read_limited(this.inner, this.read_state, cx, buf)
+        match this.read_state {
+            Some(state) => super::reader::poll_read_limited(this.inner, state, cx, buf),
+            None => this.inner.poll_read(cx, buf),
+        }
     }
 }
 
@@ -79,7 +95,10 @@ where
         buf: &[u8],
     ) -> Poll<Result<usize, Error>> {
         let this = self.project();
-        super::writer::poll_write_limited(this.inner, this.write_state, cx, buf)
+        match this.write_state {
+            Some(state) => super::writer::poll_write_limited(this.inner, state, cx, buf),
+            None => this.inner.poll_write(cx, buf),
+        }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
@@ -104,6 +123,31 @@ where
 
     fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
         self.inner.new_handle()
+    }
+}
+
+/// Implement [`CertifiedConn`] and forward it to the inner stream.
+///
+/// This allows wrapping a TLS stream.
+impl<S> CertifiedConn for GlobalRateLimitedConn<S>
+where
+    S: CertifiedConn,
+{
+    fn export_keying_material(
+        &self,
+        len: usize,
+        label: &[u8],
+        context: Option<&[u8]>,
+    ) -> std::io::Result<Vec<u8>> {
+        self.inner.export_keying_material(len, label, context)
+    }
+
+    fn peer_certificate(&self) -> std::io::Result<Option<Cow<'_, [u8]>>> {
+        self.inner.peer_certificate()
+    }
+
+    fn own_certificate(&self) -> std::io::Result<Option<Cow<'_, [u8]>>> {
+        self.inner.own_certificate()
     }
 }
 

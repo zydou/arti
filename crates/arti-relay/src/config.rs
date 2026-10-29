@@ -4,6 +4,7 @@
 // them for arti-relay. But I don't think we can do so while still using tor-config. See:
 // https://gitlab.torproject.org/tpo/core/arti/-/issues/2253
 
+mod bandwidth;
 mod dns;
 mod listen;
 mod relay;
@@ -32,6 +33,7 @@ use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 use tracing::metadata::Level;
 use tracing_subscriber::filter::EnvFilter;
 
+pub(crate) use bandwidth::{BandwidthConfig, BandwidthConfigBuilder};
 pub(crate) use dns::{DnsConfig, DnsConfigBuilder};
 pub(crate) use listen::Listen;
 pub(crate) use relay::Advertise;

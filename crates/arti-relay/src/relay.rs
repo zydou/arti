@@ -8,11 +8,12 @@ use anyhow::Context;
 use hickory_net::runtime::TokioRuntimeProvider;
 use hickory_resolver::{Resolver, ResolverBuilder};
 use tokio::task::JoinSet;
-use tracing::debug;
 #[cfg(unix)]
 use tracing::warn;
+use tracing::{debug, info};
 
 use fs_mistrust::Mistrust;
+use tor_async_utils::bw_pool::{BandwidthPool, BandwidthRefiller};
 use tor_basic_utils::iter_join;
 use tor_cell::relaycell::RelayCmd;
 use tor_chanmgr::{ChanMgr, ChanMgrConfig, Dormancy};
@@ -196,6 +197,9 @@ pub(crate) struct TorRelay<R: Runtime> {
     /// Channel manager, used by circuits etc.
     chanmgr: Arc<ChanMgr<R>>,
 
+    /// Refillers of the global bandwidth pools. None if unlimited bandwidth.
+    bw_refillers: Option<BandwidthRefillers>,
+
     /// Handles CREATE* requests on channels.
     ///
     /// Given to the [`ChanMgr`],
@@ -242,9 +246,31 @@ impl<R: Runtime> TorRelay<R> {
             .context("Failed to initialize memquota tracker")?;
 
         // Init the channel manager.
-        let config = ChanMgrConfig::new(inert.config.channel.clone())
+        let mut config = ChanMgrConfig::new(inert.config.channel.clone())
             .with_my_addrs(inert.config.relay.advertise.all_addr())
             .with_auth_material(Arc::new(init_key_material.chan_auth_keys));
+
+        // Global bandwidth rate limiting with one pool per direction. This is what C-tor
+        // does as sharing a bw pool with both directions is usually not a great idea
+        // because clogging one side then clogs the other side creating all sorts of side
+        // channel possibilities or DoS vector.
+        let bw = &inert.config.relay.bandwidth;
+        let bw_refillers = if let (Some(rate), Some(burst)) = (bw.rate, bw.burst) {
+            info!("Bandwidth rate limit per direction: rate {rate}/s, burst {burst}");
+            let rate = u64::try_from(*rate).expect("bw rate to u64");
+            let burst = u64::try_from(*burst).expect("bw burst to u64");
+            let (read_pool, read_refiller) = BandwidthPool::new(burst);
+            let (write_pool, write_refiller) = BandwidthPool::new(burst);
+            config = config.with_bandwidth_pools(read_pool, write_pool);
+            Some(BandwidthRefillers {
+                read: read_refiller,
+                write: write_refiller,
+                rate,
+            })
+        } else {
+            info!("No bandwidth rate limit configured, bandwidth is unlimited");
+            None
+        };
         let chanmgr = Arc::new(
             ChanMgr::new(
                 runtime.clone(),
@@ -381,6 +407,7 @@ impl<R: Runtime> TorRelay<R> {
             desc_info,
             dir_mirror,
             chanmgr,
+            bw_refillers,
             create_request_handler,
             keymgr: inert.keymgr,
             or_listeners,
@@ -405,6 +432,11 @@ impl<R: Runtime> TorRelay<R> {
                     .context("Failed to run channel house keeping task")
             }
         });
+
+        // Launch the refillers of the global bandwidth pool if any.
+        if let Some(bw_refillers) = self.bw_refillers {
+            bw_refillers.spawn(&self.runtime, &mut task_handles);
+        }
 
         // Update the CREATE* request handler when there are new network parameters.
         task_handles.spawn({
@@ -558,6 +590,34 @@ impl<R: Runtime> TorRelay<R> {
 
         // We can never get here since a `Void` cannot be constructed.
         void::unreachable(void);
+    }
+}
+
+/// Refillers of the global read and write bandwidth pools.
+struct BandwidthRefillers {
+    /// Refiller of the read pool.
+    read: BandwidthRefiller,
+    /// Refiller of the write pool.
+    write: BandwidthRefiller,
+    /// Refill rate in bytes per second for both pools.
+    rate: u64,
+}
+
+impl BandwidthRefillers {
+    /// Spawn the read and write refiller tasks into `task_handles`, a tokio [`JoinSet`].
+    fn spawn<R: Runtime>(
+        self,
+        runtime: &R,
+        task_handles: &mut JoinSet<anyhow::Result<void::Void>>,
+    ) {
+        let rate = self.rate;
+        for (refiller, name) in [(self.read, "read"), (self.write, "write")] {
+            let runtime = runtime.clone();
+            task_handles.spawn(async move {
+                refiller.run(runtime, rate).await;
+                Err(anyhow::anyhow!("{name} bandwidth refiller exited"))
+            });
+        }
     }
 }
 

@@ -19,7 +19,11 @@ use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount}
 use tracing::{instrument, trace};
 
 #[cfg(feature = "relay")]
-use {safelog::Sensitive, std::net::SocketAddr, tor_proto::RelayChannelAuthMaterial};
+use {
+    safelog::Sensitive, std::net::SocketAddr, std::num::NonZero,
+    tor_async_utils::bw_pool::BandwidthPool,
+    tor_async_utils::global_rate_limit::GlobalRateLimitedConn, tor_proto::RelayChannelAuthMaterial,
+};
 
 mod select;
 mod state;
@@ -114,6 +118,9 @@ pub struct ChanMgrConfig {
     /// them in the NETINFO cell. It will also be used to validate initiator channel target.
     #[cfg(feature = "relay")]
     pub(crate) my_addrs: Vec<SocketAddr>,
+    /// Bandwidth pools shared by all channels for global rate limiting.
+    #[cfg(feature = "relay")]
+    pub(crate) bw_pools: Option<ChannelBandwidthPools>,
     // TODO: Would be good to add more things such as NetParameters and Dormancy maybe?
 }
 
@@ -126,6 +133,8 @@ impl ChanMgrConfig {
             auth_material: None,
             #[cfg(feature = "relay")]
             my_addrs: Vec::new(),
+            #[cfg(feature = "relay")]
+            bw_pools: None,
         }
     }
 
@@ -141,6 +150,51 @@ impl ChanMgrConfig {
     pub fn with_my_addrs(mut self, my_addrs: Vec<SocketAddr>) -> Self {
         self.my_addrs = my_addrs;
         self
+    }
+
+    /// Set the read and write bandwidth pools shared by all channels.
+    #[cfg(feature = "relay")]
+    pub fn with_bandwidth_pools(mut self, read: BandwidthPool, write: BandwidthPool) -> Self {
+        self.bw_pools = Some(ChannelBandwidthPools { read, write });
+        self
+    }
+}
+
+/// Maximum number of bytes a single channel requests from the bandwidth pool.
+///
+/// This is the maximum TLS record plaintext size of 16KiB. See:
+/// [RFC 8446 section 5.1](https://www.rfc-editor.org/rfc/rfc8446#section-5.1) (TLS 1.3) and
+/// [RFC 5246 section 6.2.1](https://www.rfc-editor.org/rfc/rfc5246#section-6.2.1) (TLS 1.2).
+#[cfg(feature = "relay")]
+const BW_MAX_CHUNK: NonZero<usize> = NonZero::new(16 * 1024).expect("bandwidth max chunk is zero");
+
+/// Global read and write bandwidth pools shared by all channels.
+#[cfg(feature = "relay")]
+pub(crate) struct ChannelBandwidthPools {
+    /// Pool for bytes read from channels.
+    pub(crate) read: BandwidthPool,
+    /// Pool for bytes written to channels.
+    pub(crate) write: BandwidthPool,
+}
+
+#[cfg(feature = "relay")]
+impl ChannelBandwidthPools {
+    /// Return another [`ChannelBandwidthPools`] sharing the same pools.
+    pub(crate) fn share(&self) -> Self {
+        Self {
+            read: self.read.share(),
+            write: self.write.share(),
+        }
+    }
+
+    /// Return `stream` rate limited by these pools.
+    pub(crate) fn rate_limit<S>(&self, stream: S) -> GlobalRateLimitedConn<S> {
+        GlobalRateLimitedConn::new(
+            stream,
+            self.read.new_acquirer(),
+            self.write.new_acquirer(),
+            BW_MAX_CHUNK,
+        )
     }
 }
 

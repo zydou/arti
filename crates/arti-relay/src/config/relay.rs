@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tor_config::derive::prelude::*;
 use tor_netdoc::types::{ContactInfo, Nickname};
 
-use super::{DnsConfig, DnsConfigBuilder, Listen};
+use super::{BandwidthConfig, BandwidthConfigBuilder, DnsConfig, DnsConfigBuilder, Listen};
 use crate::util::NonEmptyList;
 
 /// Configuration for the "relay" part of the relay.
@@ -54,6 +54,10 @@ pub(crate) struct RelayConfig {
     /// The DNS configuration.
     #[deftly(tor_config(sub_builder))]
     pub(crate) dns: DnsConfig,
+
+    /// The bandwidth rate limiting configuration.
+    #[deftly(tor_config(sub_builder))]
+    pub(crate) bandwidth: BandwidthConfig,
 
     /// Addresses to advertise on the network for receiving OR connections.
     // For now, we've decided that we don't want to include any IP address auto-detection in
