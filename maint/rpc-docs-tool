@@ -485,6 +485,7 @@ class RpcUniverse:
         """
         Write to `f` an index of all known RPC methods.
         """
+        f.write('<div class="method-index">\n')
         f.write(mdheader("### Method index", "idx:methods"))
         for m, obj in sorted(self.methods.items()):
             m_str = m
@@ -492,7 +493,7 @@ class RpcUniverse:
             m_ident = obj["method_type"]
             m_summary = doc_subject(self.get_doc(m_ident))
             f.write(f"- [`{m_str}`](#{m_anchor}) — {m_summary}\n")
-        f.write("\n\n")
+        f.write("\n\n</div>\n\n")
 
     def emit_single_method(self, f, m_str, obj):
         """
@@ -505,10 +506,12 @@ class RpcUniverse:
         m_summary = doc_subject(m_doc)
         m_anchor = "method:" + m_str
         header = f"### `{m_str}` — {m_summary}"
-        f.write(mdheader(header, m_anchor))
-        f.write(adjust_doc(m_doc, link_table))
-        f.write("\n\n")
 
+        f.write('<div class="method-doc">\n')
+        f.write(mdheader(header, m_anchor))
+        f.write('\n\n<div class="entry-body">\n\n')
+        f.write(adjust_doc(m_doc, link_table))
+        f.write('\n\n</div><div class="entry-footer">\n\n')
         rustdoc_url = self.get_rustdoc_url(m_ident)
         f.write(f"- [Rustdoc]({rustdoc_url})\n")
         if self.rustdoc[m_ident.crate()].type_has_no_fields(m_ident):
@@ -534,7 +537,7 @@ class RpcUniverse:
                 anchor = f"object:{itype}"
                 f.write(f"    - [`{itype}`](#{anchor}) ([Rustdoc]({itype_url}))\n")
 
-        f.write("\n\n")
+        f.write("\n\n</div></div>\n\n")
 
     def emit_methods(self, f):
         """
@@ -547,13 +550,14 @@ class RpcUniverse:
         """
         Write to `f` an index of all known RPC object types.
         """
+        f.write('<div class="object-index">\n')
         f.write(mdheader("### Object index", "idx:objects"))
 
         for o_name in sorted(self.object_types()):
             o_anchor = f"object:{o_name}"
             o_summary = doc_subject(self.get_doc(o_name))
             f.write(f"- [`{o_name}`](#{o_anchor}) — {o_summary}\n")
-        f.write("\n\n")
+        f.write("\n\n</div>\n\n")
 
     def emit_single_object(self, f, o_name):
         """
@@ -564,9 +568,11 @@ class RpcUniverse:
         link_table = self.get_link_table(o_name)
         o_summary = doc_subject(o_doc)
         header = f"### `{o_name}` — {o_summary}"
+        f.write('<div class="object-doc">\n\n')
         f.write(mdheader(header, o_anchor))
+        f.write('\n\n<div class="entry-body">\n\n')
         f.write(adjust_doc(o_doc, link_table))
-        f.write("\n\n")
+        f.write('\n\n</div><div class="entry-footer">\n\n')
         rustdoc_url = self.get_rustdoc_url(o_name)
         f.write(f"- [Rustdoc]({rustdoc_url})\n")
         f.write("- **Implements methods**\n")
@@ -574,7 +580,7 @@ class RpcUniverse:
         for m_name in sorted(list(self.get_methods_for_obj(o_name))):
             m_anchor = "method:" + m_name
             f.write(f"   - [`{m_name}`](#{m_anchor})\n")
-        f.write("\n\n")
+        f.write("\n\n</div></div>\n\n")
 
     def emit_objects(self, f):
         """
@@ -587,14 +593,16 @@ class RpcUniverse:
         """
         Write all markdown documentation to `f`
         """
+        f.write('<div id="methods-sec">\n')
         f.write(mdheader("## Methods", "methods"))
         self.emit_method_index(f)
         self.emit_methods(f)
-        f.write("\n----\n")
 
+        f.write('</div><div id="objects-sec">\n')
         f.write(mdheader("## Objects", "objects"))
         self.emit_object_index(f)
         self.emit_objects(f)
+        f.write("</div>")
 
 
 have_warned_about_json_version = False
