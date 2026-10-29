@@ -986,7 +986,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
 /// between router and micro descriptors.
 trait DescriptorDownloader<T: FlavoredConsensusUnverified> {
     /// The document digest by which we query the respective descriptors.
-    type DocDigest: Debug + Hash + Eq;
+    type DocDigest: Debug + Hash + Eq + Clone + Copy;
 
     /// The actual descriptor type we are working with.
     type Descriptor: FlavoredDescriptor;
