@@ -5,6 +5,7 @@ use futures::future::{FutureExt, RemoteHandle};
 use futures::stream;
 use futures::task::{Spawn, SpawnError};
 use futures::{AsyncRead, AsyncWrite, Future};
+use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::Debug;
 use std::io::{self, Result as IoResult};
@@ -69,6 +70,7 @@ pub trait Runtime:
     + Send
     + Spawn
     + Blocking
+    + JoinSetProvider
     + Clone
     + SleepProvider
     + CoarseTimeProvider
@@ -86,6 +88,7 @@ impl<T> Runtime for T where
         + Send
         + Spawn
         + Blocking
+        + JoinSetProvider
         + Clone
         + SleepProvider
         + CoarseTimeProvider
@@ -96,6 +99,79 @@ impl<T> Runtime for T where
         + Debug
         + 'static
 {
+}
+
+/// Trait representing a collection of tasks spawned on a [`Runtime`].
+///
+/// This is inspired by Tokio's [`JoinSet` API], which provides a convenient
+/// way to spawn tasks and receive their output asynchronously.
+///
+// Note: Our API is much smaller than Tokio's, because it only contains
+// the JoinSet functionality we actually need in Arti right now.
+// Parity with Tokio's API is a non-goal, but we can later extend
+// this API if it makes sense to do so. -gabi
+//
+/// [`JoinSet` API]: https://docs.rs/tokio/1.54.1/tokio/task/struct.JoinSet.html
+#[async_trait]
+pub trait JoinSet<T>: Send + Sync + 'static {
+    /// Spawn the provided `task` on the runtime.
+    ///
+    /// The provided `task` will start executing in the background immediately,
+    /// even if you don't call [`JoinSet::join_next`].
+    fn spawn<F>(&mut self, task: F) -> Result<(), SpawnError>
+    where
+        F: Future<Output = T> + Send + 'static;
+
+    /// Wait until one of the tasks completes, and return its output.
+    ///
+    /// Returns `None` if there are currently no tasks in this set.
+    ///
+    /// This function is cancel-safe, and therefore safe to use in a `select!` branch.
+    ///
+    /// # Limitations
+    ///
+    /// If a task panics, this function will yield a `Some(Err(..)` result.
+    /// However, this API doesn't provide a way of telling *which* task has panicked.
+    /// Callers wishing to keep track of panics can work around this limitation
+    /// by wrapping the task's code in [`catch_unwind`](std::panic::catch_unwind),
+    /// and arranging for the result returned from this function to contain
+    /// some additional information identifying the task it originated from
+    /// (either in a `Some(Ok(..))`, or in a `Some(Er(..))`,
+    /// although the latter would involve downcasting the `dyn Any`
+    /// to the concrete error type).
+    async fn join_next(&mut self) -> Option<Result<T, Box<dyn Any + Send>>>;
+}
+
+/// Trait for a runtime that can create [`JoinSet`]s.
+///
+// Note: Tokio's `JoinSet` panics if you try to use it from the
+// context of a non-tokio runtime, so we've had to invent our our own
+// runtime-agnostic `JoinSet` type for testing, and for use with `async-std` and `smol`.
+// The `JoinSetProvider` and `JoinSet` enable us to customize the `JoinSet` type
+// for each runtime.
+//
+// All of this `JoinSetProvider`/`JoinSet` indirection could have been
+// avoided by using the same (hand-rolled) `JoinSet` type for all our
+// runtimes. However, that would've meant doing away with Tokio's `JoinSet`
+// entirely, which in my opinion would be a bad idea,
+// because Tokio's implementation is more battle-tested, and has more eyes on it
+// (so one would hope this implies someone is also scrutinizing its performance!).
+//
+// I have also considered porting Tokio's `JoinSet` to `tor-tcompat,
+// but it's non-trivial enough that we wouldn't want to do that.  -gabi
+pub trait JoinSetProvider: Clone + Send + Sync + 'static {
+    /// The [`JoinSet`] type of this runtime.
+    type JoinSet<T: Send + Sync + 'static>: JoinSet<T>;
+
+    /// Create a new [`JoinSet`] for use with this runtime.
+    ///
+    /// Important: the resulting `JoinSet` should only be used
+    /// from the context of the runtime it was created for.
+    /// Using the `JoinSet` with a different runtime can lead to panics,
+    /// or erroneous behavior.
+    fn new_join_set<T>(&self) -> Self::JoinSet<T>
+    where
+        T: Send + Sync + 'static;
 }
 
 /// A runtime that we can use to run Tor as a client.

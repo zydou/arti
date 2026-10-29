@@ -207,6 +207,7 @@ pub(crate) mod net {
 
 // ==============================
 
+use crate::join_set::FuturesJoinSet;
 use crate::traits::*;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::{Future, FutureExt};
@@ -262,5 +263,16 @@ impl Spawn for SmolRuntime {
     fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
         self.executor.spawn(future).detach();
         Ok(())
+    }
+}
+
+impl JoinSetProvider for SmolRuntime {
+    type JoinSet<T: Send + Sync + 'static> = FuturesJoinSet<T, Self>;
+
+    fn new_join_set<T>(&self) -> Self::JoinSet<T>
+    where
+        T: Send + Sync + 'static,
+    {
+        FuturesJoinSet::new(self.clone())
     }
 }

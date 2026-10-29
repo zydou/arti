@@ -11,7 +11,8 @@ define_derive_deftly! {
 ///
 /// The corresponding fields must be decorated with:
 ///
-///  * `#[deftly(mock(task))]` to indicate the field implementing `Spawn + BlockOn`
+///  * `#[deftly(mock(task))]` to indicate the field implementing
+///    `Spawn + BlockOn + JoinSetProvider`
 ///  * `#[deftly(mock(net))]` to indicate the field implementing `NetProvider`
 ///  * `#[deftly(mock(sleep))]` to indicate the field implementing `SleepProvider`
 ///     and `CoarseTimeProvider`.
@@ -49,6 +50,15 @@ define_derive_deftly! {
             F::Output: Send + 'static
         {
             self.$fname.reenter_block_on(future)
+        }
+    }
+
+    impl <$tgens> JoinSetProvider for $ttype {
+        type JoinSet<T: Send + Sync + 'static> = <$ftype as JoinSetProvider>::JoinSet<T>;
+
+        fn new_join_set<T>(&self) -> Self::JoinSet<T>
+        where T: Send + Sync + 'static {
+            self.$fname.new_join_set()
         }
     }
 
@@ -211,8 +221,9 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::io::Result as IoResult;
     pub(crate) use std::net::SocketAddr;
     pub(crate) use tor_rtcompat::{
-        Blocking, CoarseInstant, CoarseTimeProvider, NetStreamProvider, Runtime, SleepProvider,
-        TlsProvider, ToplevelBlockOn, UdpProvider, unimpl::FakeListener, unimpl::FakeStream,
+        Blocking, CoarseInstant, CoarseTimeProvider, JoinSetProvider, NetStreamProvider, Runtime,
+        SleepProvider, TlsProvider, ToplevelBlockOn, UdpProvider, unimpl::FakeListener,
+        unimpl::FakeStream,
     };
     pub(crate) use web_time_compat::{Duration, Instant, SystemTime, SystemTimeExt};
 }

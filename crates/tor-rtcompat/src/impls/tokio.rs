@@ -205,6 +205,7 @@ use crate::network::{UnixConnectOptions, UnixListenOptions};
 use crate::traits::*;
 use async_trait::async_trait;
 use futures::Future;
+use std::any::Any;
 use std::io::Result as IoResult;
 use std::time::Duration;
 #[cfg(unix)]
@@ -427,5 +428,42 @@ impl futures::task::Spawn for TokioRuntimeHandle {
         let join_handle = self.handle.spawn(future);
         drop(join_handle); // this makes the task detached.
         Ok(())
+    }
+}
+
+#[async_trait]
+impl<T: Send + 'static> JoinSet<T> for tokio_crate::task::JoinSet<T> {
+    fn spawn<F>(&mut self, task: F) -> Result<(), futures::task::SpawnError>
+    where
+        F: Future<Output = T> + Send + 'static,
+    {
+        let _ = self.spawn(task);
+        Ok(())
+    }
+
+    async fn join_next(&mut self) -> Option<Result<T, Box<dyn Any + Send>>> {
+        Some(self.join_next().await?.map_err(|e| {
+            // Note: this will panic if the error was not caused
+            // by the task panicking (i.e. if the task was cancelled).
+            // In practice, however, our API doesn't expose any way
+            // of cancelling the tasks added to a JoinSet,
+            // so this can never panic.
+            //
+            // If we ever *do* implement cancellation facilities,
+            // we need to avoid calling into_panic() without checking
+            // if e.is_panic() first.
+            e.into_panic()
+        }))
+    }
+}
+
+impl JoinSetProvider for TokioRuntimeHandle {
+    type JoinSet<T: Send + Sync + 'static> = tokio_crate::task::JoinSet<T>;
+
+    fn new_join_set<T>(&self) -> Self::JoinSet<T>
+    where
+        T: Send + Sync + 'static,
+    {
+        tokio_crate::task::JoinSet::new()
     }
 }
