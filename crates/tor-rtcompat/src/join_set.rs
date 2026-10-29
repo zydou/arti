@@ -58,7 +58,13 @@ where
     }
 }
 
-#[cfg(test)]
+// test_with_all_runtimes! only exists if these features are satisfied.
+#[cfg(all(
+    test,
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "tokio", feature = "async-std", feature = "smol"),
+    not(miri), // Several of these use real SystemTime
+))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
