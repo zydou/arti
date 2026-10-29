@@ -1316,7 +1316,7 @@ mod test {
     };
     use tor_basic_utils::test_rng::testing_rng;
 
-    use crate::{database::sql, err::IsFatal, testdata2};
+    use crate::{database::sql, testdata2};
 
     use super::*;
 
@@ -1643,32 +1643,34 @@ mod test {
         assert!(matches!(data, ConsensusBoundData::Verified { .. }));
     }
 
-    /// Tests the descriptor bootstrapping for router descriptors.
-    #[tokio::test]
-    async fn state_descriptors_plain() {
+    /// Agnostic test for the descriptor state.
+    async fn state_descriptors_agnostic<T: FlavoredConsensusUnverified, D: DescriptorDownloader<T>>(
+        descriptors: Vec<String>,
+        get_futile: fn(&FutileDescriptors) -> &FutileDescriptorSet<D::DocDigest>,
+    ) {
         let pool = testdata2::test_db();
-        let engine = static_engine::<Plain>();
+        let engine = static_engine::<T>();
         let now = Timestamp::from(testdata2::valid_system_time());
         let mut data = ConsensusBoundData::None;
         let rng = &mut testing_rng();
 
         // Server task that can at most handle two requests.
         //
-        // The first response contains all available router descriptors
-        // statically, whereas the second one only contains a single router
+        // The first response contains all available descriptors
+        // statically, whereas the second one only contains a single
         // descriptor.
         let listener = TcpListener::bind("[::1]:0").await.unwrap();
         let endpoint = listener.local_addr().unwrap();
         tokio::spawn(async move {
             let mut buf = [0; 1024];
-            let full = testdata2::current_router_descs()
-                .into_iter()
-                .map(|(_, _, raw)| raw)
+            let full = descriptors
+                .iter()
+                .cloned()
                 .collect::<String>();
-            let single = testdata2::current_router_descs()
-                .into_iter()
+            let single = descriptors
+                .iter()
                 .take(1)
-                .map(|(_, _, raw)| raw)
+                .cloned()
                 .collect::<String>();
 
             let (mut stream, _) = listener.accept().await.unwrap();
@@ -1701,7 +1703,7 @@ mod test {
                 .unwrap();
         });
 
-        // Delete all router descriptors from the database and then load
+        // Delete all descriptors from the database and then load
         // a consensus into ConsensusBoundData.
         db::rw_tx(&pool, |tx| tx.execute(sql!("DELETE FROM descriptor"), ()))
             .unwrap()
@@ -1714,11 +1716,11 @@ mod test {
 
         // Successful bootstrap of all descriptors.
         engine
-            .descriptors_rd(&pool, &mut data, &[endpoint], now)
+            .descriptors(&pool, &mut data, &[endpoint], now)
             .await
             .unwrap();
 
-        // Afterwards, the queue for missing router descriptors should be empty
+        // Afterwards, the queue for missing descriptors should be empty
         // as well as futile.
         let (meta, futile) = match &data {
             ConsensusBoundData::Verified {
@@ -1728,43 +1730,47 @@ mod test {
             } => (*meta, futile.clone()),
             _ => panic!(),
         };
-        let missing_routers =
-            db::read_tx(&pool, |tx| meta.missing_routers(tx, iter::empty(), None))
+        let missing =
+            db::read_tx(&pool, |tx| D::query(tx, &meta, &futile, &[endpoint]))
                 .unwrap()
                 .unwrap();
-        assert!(missing_routers.is_empty());
-        assert!(futile.routers.not_found.is_empty());
-        assert!(futile.routers.refused.is_empty());
+        assert!(missing.is_empty());
+        assert!(get_futile(&futile).not_found.is_empty());
+        assert!(get_futile(&futile).refused.is_empty());
 
         // Now, if we do this again, futile should be populated.
         db::rw_tx(&pool, |tx| tx.execute(sql!("DELETE FROM descriptor"), ()))
             .unwrap()
             .unwrap();
 
-        // This will yield a non-fatal error because it makes no progress, but
-        // that is okay; we primarily want to test whether the futile
-        // descriptor handling works.
-        let err = engine
-            .descriptors_rd(&pool, &mut data, &[endpoint], now)
-            .await
-            .unwrap_err();
-        assert!(!err.is_fatal());
+        // Because this time the server will only return a single descriptor,
+        // it may either succeed or fail because it returned a descriptor that
+        // we did not asked for.  Either way, it does not really matter because
+        // we want to test whether the remaining ones get set as missing or not,
+        // which is done in the next step.
+        let res = engine.descriptors(&pool, &mut data, &[endpoint], now).await;
+        assert!(matches!(
+            res,
+            Ok(())
+                | Err(OperationError::AuthorityRequest(
+                    AuthorityRequestError::NoRequestedDocumentsReturned
+                ))
+        ));
 
         // Now, the missing descriptors should equal the ones that were not
         // found on the authority, as in being in the futile set.
-        let missing_routers =
-            db::read_tx(&pool, |tx| meta.missing_routers(tx, iter::empty(), None))
+        let missing =
+            db::read_tx(&pool, |tx| D::query(tx, &meta, &futile, &[endpoint]))
                 .unwrap()
                 .unwrap();
         let futile = match &data {
             ConsensusBoundData::Verified { futile, .. } => futile,
             _ => panic!(),
         };
-        assert!(!missing_routers.is_empty());
+        assert!(!missing.is_empty());
         assert_eq!(
-            missing_routers,
-            futile
-                .routers
+            missing,
+            get_futile(futile)
                 .not_found
                 .iter()
                 .filter_map(|(digest, this_endpoint)| if **this_endpoint == [endpoint] {
@@ -1774,6 +1780,18 @@ mod test {
                 })
                 .collect::<HashSet<_>>()
         );
-        assert!(futile.routers.refused.is_empty());
+        assert!(get_futile(futile).refused.is_empty());
+    }
+
+    /// Tests the descriptor bootstrapping for router descriptors.
+    #[tokio::test]
+    async fn state_descriptors_plain() {
+        state_descriptors_agnostic::<Plain, RdDownloader>(
+            testdata2::current_router_descs()
+                .into_iter()
+                .map(|(_, _, raw)| raw)
+                .collect(),
+            |futile| &futile.routers
+        ).await;
     }
 }
