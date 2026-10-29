@@ -1644,7 +1644,10 @@ mod test {
     }
 
     /// Agnostic test for the descriptor state.
-    async fn state_descriptors_agnostic<T: FlavoredConsensusUnverified, D: DescriptorDownloader<T>>(
+    async fn state_descriptors_agnostic<
+        T: FlavoredConsensusUnverified,
+        D: DescriptorDownloader<T>,
+    >(
         descriptors: Vec<String>,
         get_futile: fn(&FutileDescriptors) -> &FutileDescriptorSet<D::DocDigest>,
     ) {
@@ -1663,15 +1666,8 @@ mod test {
         let endpoint = listener.local_addr().unwrap();
         tokio::spawn(async move {
             let mut buf = [0; 1024];
-            let full = descriptors
-                .iter()
-                .cloned()
-                .collect::<String>();
-            let single = descriptors
-                .iter()
-                .take(1)
-                .cloned()
-                .collect::<String>();
+            let full = descriptors.iter().cloned().collect::<String>();
+            let single = descriptors.iter().take(1).cloned().collect::<String>();
 
             let (mut stream, _) = listener.accept().await.unwrap();
             let _ = stream.read(&mut buf).await.unwrap();
@@ -1730,10 +1726,9 @@ mod test {
             } => (*meta, futile.clone()),
             _ => panic!(),
         };
-        let missing =
-            db::read_tx(&pool, |tx| D::query(tx, &meta, &futile, &[endpoint]))
-                .unwrap()
-                .unwrap();
+        let missing = db::read_tx(&pool, |tx| D::query(tx, &meta, &futile, &[endpoint]))
+            .unwrap()
+            .unwrap();
         assert!(missing.is_empty());
         assert!(get_futile(&futile).not_found.is_empty());
         assert!(get_futile(&futile).refused.is_empty());
@@ -1759,10 +1754,9 @@ mod test {
 
         // Now, the missing descriptors should equal the ones that were not
         // found on the authority, as in being in the futile set.
-        let missing =
-            db::read_tx(&pool, |tx| D::query(tx, &meta, &futile, &[endpoint]))
-                .unwrap()
-                .unwrap();
+        let missing = db::read_tx(&pool, |tx| D::query(tx, &meta, &futile, &[endpoint]))
+            .unwrap()
+            .unwrap();
         let futile = match &data {
             ConsensusBoundData::Verified { futile, .. } => futile,
             _ => panic!(),
@@ -1791,7 +1785,8 @@ mod test {
                 .into_iter()
                 .map(|(_, _, raw)| raw)
                 .collect(),
-            |futile| &futile.routers
-        ).await;
+            |futile| &futile.routers,
+        )
+        .await;
     }
 }
