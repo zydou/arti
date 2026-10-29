@@ -238,7 +238,10 @@ impl FlavoredDescriptor for FlavoredDescriptorPlain {
 }
 
 /// Wrapper for [`Microdesc`] with it's associated type.
-pub(crate) type FlavoredDescriptorMd = (Microdesc, String);
+///
+/// SHA-1 here is technically not required but our database schema mandates it.
+// TODO DIRMIRROR: This is getting a bit opaque, we should perhaps structify it?
+pub(crate) type FlavoredDescriptorMd = (Microdesc, Sha1, Sha256);
 
 impl FlavoredDescriptor for FlavoredDescriptorMd {
     fn flavor() -> ConsensusFlavor {
@@ -254,10 +257,10 @@ impl FlavoredDescriptor for FlavoredDescriptorMd {
     }
 
     fn sha1(&self) -> Result<Sha1, tor_error::Bug> {
-        Ok(Sha1::digest(self.1.as_bytes()))
+        Ok(self.1)
     }
 
     fn sha256(&self) -> Result<Sha256, tor_error::Bug> {
-        Ok(Sha256::digest(self.1.as_bytes()))
+        Ok(self.2)
     }
 }

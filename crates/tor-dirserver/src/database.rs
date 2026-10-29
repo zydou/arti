@@ -573,8 +573,8 @@ impl<T: FlavoredConsensusUnverified> ConsensusMeta<T> {
             WHERE
               cr.consensus_docid = :docid
               AND cr.sha2 IS NOT NULL
+              AND cr.sha2 NOT IN rarray(:exclude)
               AND micro.sha2 IS NULL
-              AND micro.sha2 NOT IN rarray(:exclude)
             ORDER BY rand
             LIMIT :limit
             "
