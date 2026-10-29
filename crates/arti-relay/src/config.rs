@@ -239,8 +239,7 @@ pub(crate) struct RelayConfig {
     /// debugging. They should never be used to uniquely identify a relay. Nothing
     /// prevents two relays from having the same nickname.
     ///
-    /// It must be between 1 and 19 ASCII alphanumeric characters inclusive. Default
-    /// value is `Unnamed`.
+    /// It must be between 1 and 19 ASCII alphanumeric characters inclusive.
     #[deftly(tor_config(default = "relay::default_nickname()"))]
     pub(crate) nickname: Nickname,
 
