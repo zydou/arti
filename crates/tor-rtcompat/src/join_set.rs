@@ -46,7 +46,9 @@ where
     where
         F: Future<Output = T> + Send + 'static,
     {
-        let handle = self.runtime.spawn_with_handle(AssertUnwindSafe(task).catch_unwind())?;
+        let handle = self
+            .runtime
+            .spawn_with_handle(AssertUnwindSafe(task).catch_unwind())?;
         self.pending.push(handle);
         Ok(())
     }
