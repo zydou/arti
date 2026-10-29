@@ -17,7 +17,7 @@ use std::time::Duration;
 use anyhow::Context;
 use futures::channel::mpsc;
 use futures::{StreamExt as _, select_biased};
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 
 use tor_async_utils::{mpsc_channel_no_memquota, oneshot};
 use tor_dirclient::request::{Requestable, UploadRouterDesc};
@@ -191,6 +191,12 @@ impl RelayDescriptorPublisherTask {
         // Turn the encoded descriptor into a request and erase its concrete type for the
         // generic HTTP publisher.
         let doc = desc.map(|desc| Arc::new(UploadRouterDesc::new(desc)) as Arc<dyn Requestable>);
+
+        // TODO(relay): Temporary gate so a default run doesn't upload to the authorities.
+        if std::env::var("ARTI_PUBLISH_DESC").as_deref() != Ok("1") {
+            info!("Descriptor publishing disabled; set ARTI_PUBLISH_DESC=1 to enable");
+            return Ok(());
+        }
 
         // Tell the publisher to publish the new document. Failing to build the descriptor, as in a
         // None value, will make the publisher wait and do nothing.
