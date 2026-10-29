@@ -29,6 +29,7 @@ default = [
 ]
 
 full = [
+    "tor-bin-common/harden-process",
     "default-runtime",
     "onion-service-client",
     "onion-service-service",
@@ -91,7 +92,7 @@ default-runtime = ["tokio", "native-tls"]
 derive-deftly = []
 dns-proxy = ["hickory-proto"]
 experimental-api = ["arti-client/experimental-api", "visibility", "__is_experimental"]
-harden = ["secmem-proc"]
+harden = ["tor-bin-common/harden-process"]
 tokio = [
     "tokio-crate",
     "arti-client/tokio",
@@ -210,6 +211,7 @@ __is_experimental = []
 
 [dependencies]
 anyhow = "1.0.104"
+tor-bin-common = { path = "../tor-bin-common", version = "0.47.0" }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.47.0", default-features = false, features = [
     "anyhow",
 ] }
@@ -250,7 +252,6 @@ rustls-crate = { package = "rustls", version = "0.23.46", optional = true, defau
     "logging",
 ] }
 safelog = { path = "../safelog", version = "0.10.0" }
-secmem-proc = { version = "0.3.8", optional = true }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 syslog-tracing = { version = "0.3.1", optional = true }

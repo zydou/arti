@@ -21,34 +21,6 @@ pub(crate) fn use_max_file_limit(config: &ArtiConfig) {
     }
 }
 
-/// Enable process hardening, to make it harder for low-privilege users to
-/// extract information from Arti.
-///
-/// This function only has effect the first time it is called.  If it returns an
-/// error, the caller should probably exit the process.
-///
-/// # Limitations
-///
-/// See notes from the [`secmem_proc`] crate: this is a best-effort defense, and
-/// only makes these attacks _harder_.  It can interfere with debugging.
-#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[cfg(feature = "harden")]
-pub(crate) fn enable_process_hardening() -> secmem_proc::Result {
-    use anyhow::Context as _;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    /// Have we called this method before?
-    static ENABLED: AtomicBool = AtomicBool::new(false);
-
-    if ENABLED.swap(true, Ordering::SeqCst) {
-        // Already enabled, or tried to enable.
-        return Ok(());
-    }
-
-    secmem_proc::harden_process().context("Problem while hardening process")?;
-
-    Ok(())
-}
-
 /// Check that we are not running as "root".
 ///
 /// If we are, give an error message, and exit.
