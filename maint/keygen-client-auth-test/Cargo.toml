@@ -18,7 +18,7 @@ safelog = { path = "../../crates/safelog", version = "0.10" }
 tor-basic-utils = { path = "../../crates/tor-basic-utils", version = "0.47" }
 tor-hsservice = { path = "../../crates/tor-hsservice", version = "0.47" }
 tor-llcrypto = { path = "../../crates/tor-llcrypto", version = "0.47", features = ["rng-compat"] }
-x25519-dalek = { version = "2", features = ["static_secrets"] }
+x25519-dalek = { version = "3", features = ["static_secrets"] }
 
 [features]
 full = [

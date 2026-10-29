@@ -76,7 +76,7 @@ cipher = { version = "0.5.2", features = ["zeroize"] }
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.1.1", features = ["full"] }
-digest = "0.10.7"
+digest = "0.11.3"
 educe = "0.4.23"
 enumset = "1.1.14"
 extend = "1.2.0"
@@ -97,7 +97,7 @@ regex = { version = "1", optional = true }
 saturating-time = { path = "../saturating-time", version = "0.5.0" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_with = "3.24.0"
-signature = "2"
+signature = "3"
 smallvec = "1.16"
 strum = { version = "0.28.0", features = ["derive"] }
 subtle = "2"
@@ -126,7 +126,7 @@ assert_matches = "1.5.0"
 hex-literal = "1.1"
 imara-diff = "0.2.0"
 itertools = "0.15.0"
-pem = "3.0.6"
+pem = "4.0.0"
 regex = "1"
 serde_json = "1.0.154"
 testresult = "0.4.2"

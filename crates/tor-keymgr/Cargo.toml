@@ -67,7 +67,7 @@ itertools = "0.15.0"
 rand = "0.10.3"
 safelog = { path = "../safelog", version = "0.10.0" }
 serde = { version = "1.0.229", features = ["derive"] }
-signature = "2"
+signature = "3"
 ssh-key = { version = "0.6.7", package = "ssh-key-fork-arti", features = ["std"] }
 thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }

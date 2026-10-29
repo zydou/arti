@@ -76,8 +76,7 @@ mod hash {
         // compatibility, so it's okay to use something a bit odd, since we can
         // change it later if we want.
         use digest::{ExtendableOutput, Update};
-        use k12::KangarooTwelve;
-        let mut d = KangarooTwelve::default();
+        let mut d = k12::Kt128::default();
         let mut output = [0; OUTPUT_LEN];
         d.update(s);
         d.finalize_xof_into(&mut output);

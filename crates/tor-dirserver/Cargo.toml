@@ -32,7 +32,7 @@ __is_experimental = []
 [dependencies]
 bytes = "1.12.1"
 derive_more = { version = "2.0.1", features = ["full"] }
-digest = "0.10.7"
+digest = "0.11.3"
 educe = "0.4.23"
 flate2 = "1.1.10"
 futures = "0.3.34"

@@ -59,7 +59,7 @@ __is_experimental = []
 async-trait = "0.1.92"
 bitflags = "2"
 derive_more = { version = "2.1.1", features = ["full"] }
-digest = { version = "0.10.7", optional = true }
+digest = { version = "0.11.3", optional = true }
 futures = "0.3.34"
 hex = { version = "0.4", optional = true }
 humantime = "2"

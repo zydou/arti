@@ -22,7 +22,7 @@ use digest::{ExtendableOutput, Update};
 
 use rand::rngs::SysRng;
 use rand_core::TryRng;
-use sha3::Shake256;
+use shake::Shake256;
 use zeroize::Zeroizing;
 
 /// Trait representing an Rng where every output is derived from

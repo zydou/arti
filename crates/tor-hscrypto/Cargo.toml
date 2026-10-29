@@ -43,12 +43,12 @@ __is_experimental = []
 
 [dependencies]
 arrayvec = { version = "0.7.8", optional = true }
-blake2 = { version = "0.10.6", optional = true }
+blake2 = { version = "0.11.0", optional = true }
 cipher = { version = "0.5.2", features = ["zeroize"], optional = true }
 data-encoding = "2.11.1"                                                                                    # want MSVC i686 build fix, data-encoding/issues/33
 derive-deftly = { version = "~1.14.0" }
 derive_more = { version = "2.1.1", features = ["full"] }
-digest = "0.10.7"
+digest = "0.11.3"
 equix = { path = "../equix", version = "0.8.0", optional = true }
 hex = "0.4"
 humantime = "2"
@@ -57,7 +57,7 @@ paste = "1.0.15"
 rand = "0.10.3"
 safelog = { path = "../safelog", version = "0.10.0" }
 serde = { version = "1.0.229", features = ["derive"] }
-signature = "2"
+signature = "3"
 subtle = "2"
 thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
