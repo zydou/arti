@@ -106,7 +106,7 @@ mod test {
             let mut actual = vec![];
             while let Some(res) = join_set.join_next().await {
                 if let Ok(res) = res {
-                    actual.push(res)
+                    actual.push(res);
                 }
                 num_tasks += 1;
             }
