@@ -73,6 +73,10 @@ pub(super) struct ConsensusContextRefs<'r, AlreadyComputed> {
     /// (as found in the preamble of *this* consensus).
     ///
     /// impls that don't need any precomputed data should be blanket over `AlreadyComputed`.
+    ///
+    /// Generally, when this isn't `()`, we have both the plain and md flavours
+    /// available, but they basically contain the same information.
+    /// So in each case we pass only the plain flavour as the "already computed".
     //
     // The alternatives to this would be:
     //  a. Build the consensus in mutable variables.  But there are a lot of required

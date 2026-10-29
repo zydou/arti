@@ -2,7 +2,7 @@
 
 use super::*;
 
-// TODO DIRAUTH tests of consensus calculation
+// TODO DIRAUTH integration tests of consensus calculation
 
 impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
     type PlainOutput = netstatus::plain::Preamble;
@@ -270,7 +270,6 @@ mod test {
     use crate::consensus::test::compute_test;
 
     #[test]
-    #[ignore] // TODO DIRAUTH un-ignore when todo()'s removed
     fn protocols() {
         use tor_protover::Protocols;
 
