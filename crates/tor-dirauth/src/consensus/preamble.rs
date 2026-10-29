@@ -90,12 +90,14 @@ impl<AC> Aggregate<AC> for netstatus::VotingDelay {
 }
 
 /// Calculate the union of two `DocRelayFlags`z
+#[allow(clippy::needless_pass_by_value)]
 pub(super) fn doc_relay_flags_union<'i>(
     _context: ConsensusContextRefs<()>,
     inputs: impl ComponentInVotes<&'i DocRelayFlags>,
 ) -> Result<DocRelayFlags, ConsensusError> {
     Ok(inputs
-        .map(|(_vnum, flags)| flags.iter_incl_unknown())
+        .votes()
+        .map(|flags| flags.iter_incl_unknown())
         .flatten_ok()
         .process_results(|flag_iters| flag_iters.unique().collect())?)
 }
@@ -110,8 +112,8 @@ pub(super) fn netparams_preamble_aggregate<'i>(
     inputs: impl ComponentInVotes<&'i NetParams<i32>>,
 ) -> Result<NetParams<i32>, ConsensusError> {
     Ok(inputs
-        .iter()
-        .flat_map(|(_vnum, i)| i.iter().map(|(k, _v)| k))
+        .votes()
+        .flat_map(|i| i.iter().map(|(k, _v)| k))
         .unique()
         .filter_map(|k| {
             // "every keyword on which a majority of authorities (total
@@ -119,7 +121,7 @@ pub(super) fn netparams_preamble_aggregate<'i>(
             // on, or if at least three authorities voted for that parameter.
             const MIN_THRESH: usize = 3;
 
-            let opinions = inputs.iter().filter_map(|(_vnum, i)| i.get(k)).copied();
+            let opinions = inputs.votes().filter_map(|i| i.get(k)).copied();
             let n_opinions = opinions.clone().count();
             let want = context.is_more_than_half_all_auths(n_opinions) || n_opinions >= MIN_THRESH;
             if !want {

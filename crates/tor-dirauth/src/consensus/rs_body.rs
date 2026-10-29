@@ -16,7 +16,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
     /// or `Some((md, None))` to list in the plain consensus, but not in the md consensus.
     pub(super) fn consensuses(
         &self,
-        context: ConsensusContextRefs<PlainPreamble>,
+        context: ConsensusContextRefs<RouterStatusAC<'_>>,
     ) -> Result<
         Option<(
             netstatus::plain::RouterStatus,
@@ -88,12 +88,12 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
     }
 }
 
-impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
+impl Aggregate<RouterStatusAC<'_>> for VoteRelayWeightsItem {
     type Output = RelayWeightsItem;
 
     #[allow(clippy::needless_late_init)] // re median_inputs and unmeasured; clearer this way
     fn aggregate<'i>(
-        context: ConsensusContextRefs<PlainPreamble>,
+        context: ConsensusContextRefs<RouterStatusAC<'_>>,
         inputs: impl ComponentInVotes<&'i VoteRelayWeightsItem>,
     ) -> Result<RelayWeightsItem, ConsensusError>
     where
@@ -110,8 +110,8 @@ impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
 
         let get_inputs = |k| {
             inputs
-                .iter()
-                .filter_map(move |(_vnum, rwi)| rwi.w.as_ref()?.get(k).copied())
+                .votes()
+                .filter_map(move |rwi| rwi.w.as_ref()?.get(k).copied())
         };
         let calc_median = |k| functions::low_median_raw(get_inputs(k));
 
@@ -150,11 +150,11 @@ impl Aggregate<PlainPreamble> for VoteRelayWeightsItem {
     }
 }
 
-impl Aggregate<PlainPreamble> for DocRelayFlags {
+impl Aggregate<RouterStatusAC<'_>> for DocRelayFlags {
     type Output = DocRelayFlags;
 
     fn aggregate<'i>(
-        context: ConsensusContextRefs<PlainPreamble>,
+        context: ConsensusContextRefs<RouterStatusAC<'_>>,
         inputs: impl ComponentInVotes<&'i Self>,
     ) -> Result<Self::Output, ConsensusError>
     where
@@ -284,20 +284,14 @@ mod test {
         // will want to be reused/simplified as we add more test cases.
 
         let (plain_preamble, _) = netstatus::vote::Preamble::consensuses(
-            ConsensusContextRefs {
-                context: &cc,
-                computed: &(),
-            },
+            cc.with_computed(&()),
             cc.votes
                 .iter_enumerated()
                 .map(|(vnum, vote)| (vnum, &vote.preamble)),
         )?;
 
         let output = DocRelayFlags::aggregate(
-            ConsensusContextRefs {
-                context: &cc,
-                computed: &plain_preamble,
-            },
+            cc.with_computed(&RouterStatusAC(&plain_preamble)),
             cc.votes
                 .iter_enumerated()
                 .map(|(vnum, vote)| (vnum, &vote.routers[0].flags)),

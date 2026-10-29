@@ -23,6 +23,23 @@ pub(crate) fn map_range<T, U>(
     f(r.start())..=f(r.end())
 }
 
+/// Is `n_y` strictly more than half of `n_total` ?
+///
+/// Use this instead of open-coding, to avoid rounding and off-by-one bugs.
+///
+/// # Correctness - take care with argument order!
+///
+/// Prefer [`is_true_for_more_than_half_of`] or
+/// `ConsensusesCommonContext::is_more_than_half_all_auths`
+/// because those functions eliminate that possible error.
+pub(super) fn is_more_than_half_of(n_y: usize, n_total: usize) -> bool {
+    // This way of writing it avoids any possibility of over/under-flow
+    //
+    // Tested via ConsensusCommonContext.is_more_than_half_all_auths.
+    //
+    n_y > n_total / 2
+}
+
 /// Is `predicate` true for more than half the values in `iterator`?
 //
 // The signature of this function is complicated, compared to the alternative
@@ -36,15 +53,15 @@ pub(super) fn is_true_for_more_than_half_of<I, E>(
 where
     E: From<Bug>,
 {
-    let mut n = 0;
-    let mut y = 0;
+    let mut all = 0;
+    let mut yes = 0;
     for i in iterator {
-        n.try_add_assign(1)?;
+        all.try_add_assign(1)?;
         if predicate(i)? {
-            y.try_add_assign(1)?;
+            yes.try_add_assign(1)?;
         }
     }
-    Ok(y > n / 2)
+    Ok(is_more_than_half_of(yes, all))
 }
 
 #[ext(name = IteratorExtUnzip)]
