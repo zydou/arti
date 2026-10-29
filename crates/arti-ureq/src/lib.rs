@@ -460,7 +460,7 @@ impl<R: Runtime + ToplevelBlockOn> UreqResolver for Resolver<R> {
             .block_on(async { self.client.resolve(&host).await })
             .map_err(Error::from)?;
 
-        let mut array_vec: ArrayVec<core::net::SocketAddr, _> = ArrayVec::from_fn(|_| {
+        let mut array_vec: ResolvedSocketAddrs = ArrayVec::from_fn(|_| {
             core::net::SocketAddr::new(core::net::IpAddr::V4(core::net::Ipv4Addr::UNSPECIFIED), 0)
         });
 
