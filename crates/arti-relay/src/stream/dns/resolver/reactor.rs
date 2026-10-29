@@ -22,7 +22,7 @@ use tokio::task::JoinSet;
 
 use tor_async_utils::oneshot_broadcast;
 use tor_error::{Bug, internal, into_internal};
-use tor_rtcompat::{DynTimeProvider, SleepProvider as _};
+use tor_rtcompat::{DynTimeProvider, SleepProvider as _, SleepProviderExt as _};
 
 use crate::stream::dns::resolver::{
     DnsRequest, DnsResolver, DnsResponseReceiver, LookupAnswers, LookupError, RecordData,
@@ -101,6 +101,13 @@ pub(crate) struct DnsResponse {
     // "If the data is unable to be authoritatively refreshed when the TTL expires,
     // the record MAY be used as though it is unexpired"
     valid_until: Instant,
+}
+
+impl DnsResponse {
+    /// Returns `true` if this response is expired at `now`.
+    fn is_expired(&self, now: Instant) -> bool {
+        self.valid_until <= now
+    }
 }
 
 /// An answer record.
@@ -207,7 +214,6 @@ fn extract_hickory_answers(lookup: &Lookup) -> Result<LookupAnswers<AnswerRecord
 ///
 /// Finally, we clip and fuzz the resulting TTL before using it to calculate the
 /// `valid_until` expiration timestamp of the cache entry (see [`clip_dns_fuzzy_ttl`]).
-#[derive(Default)]
 struct DnsCache {
     /// Our DNS cache, keyed by the ASCII encoded address extracted
     /// from RESOLVE queries.
@@ -216,9 +222,25 @@ struct DnsCache {
     // evict entries using an LRU policy if we're under
     // memory pressure
     inner: HashMap<Query, DnsResponse>,
+    /// The timestamp when the expired entries should be purged using
+    /// [`remove_expired`](Self::remove_expired).
+    ///
+    /// This is recalculated each time `remove_expired is called.
+    ///
+    /// This shouldn't happen too frequently, because it's an O(n) operation
+    /// that blocks all incoming requests until it completes.
+    purge_expired_at: Instant,
 }
 
 impl DnsCache {
+    /// Create an empty [`DnsCache`].
+    fn new(now: Instant) -> Self {
+        Self {
+            inner: Default::default(),
+            purge_expired_at: Self::next_expired_purge(now),
+        }
+    }
+
     /// Return the cached response for `query` if it still fresh at `now`,
     /// or `None` otherwise.
     ///
@@ -228,7 +250,7 @@ impl DnsCache {
         match self.inner.entry(Arc::clone(query)) {
             Entry::Occupied(e) => {
                 let entry = e.get();
-                if entry.valid_until > now {
+                if !entry.is_expired(now) {
                     Some(entry.clone())
                 } else {
                     // The entry is expired, we should remove it from the cache
@@ -243,6 +265,45 @@ impl DnsCache {
     /// Insert the specified response into the cache.
     fn insert(&mut self, query: Query, res: DnsResponse) {
         self.inner.insert(query, res);
+    }
+
+    /// Remove all the entries that are expired at `now`.
+    ///
+    /// This is an O(n) operation, so it should be used sparingly.
+    /// Currently called on a timer from the main loop of the reactor.
+    fn remove_expired(&mut self, now: Instant) {
+        self.inner.retain(|_, res| !res.is_expired(now));
+        self.purge_expired_at = Self::next_expired_purge(now);
+    }
+
+    /// When remove_expired() should be called next to purge leftover expired entries.
+    fn next_expired_purge(now: Instant) -> Instant {
+        /// How frequently do we want to garbage-collect the expired entries?
+        ///
+        /// Note(gabi): doing this every 1h seems sensible, although we could
+        /// probably do it even less frequently.
+        ///
+        /// Eventually, we might want a more principled approach here.
+        /// For example, we might want to remove the expired entries
+        /// from the cache as soon as their TTL runs out,
+        /// but there are some trade-offs:
+        ///
+        ///   * we would need some sort of data structure for determining
+        ///     when the next cache entry is due to expire.
+        ///     This would likely be a min-heap, so it would be an additional
+        ///     O(n) space to store
+        ///   * in addition to the extra memory usage, removing the expired
+        ///     entries right away will likely have an impact on performance too.
+        ///     If our cache regularly fills up with lots of short-lived (TTL = 5 min)
+        ///     unpopular entries (possibly tracking domains?), the reactor will
+        ///     have to a bunch of frequent removals, essentially interrupting
+        ///     its incoming request handling
+        ///
+        /// For these reasons, right now, it seems better to remove the expired
+        /// entries in batches.
+        const CACHE_PURGE_INTERVAL: Duration = Duration::from_mins(60);
+
+        now + CACHE_PURGE_INTERVAL
     }
 }
 
@@ -357,18 +418,14 @@ async fn resolve_query<M: MockableAsyncResolver>(
     let (answers, ttl) = match lookup.await {
         Ok(res) => {
             let answers: SmallVec<_> = res;
-            let ttl = if answers.is_empty() {
-                TTL_FOR_EMPTY_ANS
-            } else {
-                // Use the max TTL of all the answers
-                let ttl = answers
-                    .iter()
-                    .map(|ans: &AnswerRecord| ans.ttl)
-                    .max()
-                    .expect("answers cannot be empty");
+            // Use the max TTL of all the answers
+            let ttl = answers
+                .iter()
+                .map(|ans: &AnswerRecord| u64::from(ans.ttl))
+                .max()
+                .map(Duration::from_secs)
+                .unwrap_or(TTL_FOR_EMPTY_ANS);
 
-                Duration::from_secs(ttl.into())
-            };
             let answers = answers.into_iter().map(|res| res.data).collect();
 
             (Ok(answers), ttl)
@@ -458,11 +515,12 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
             inflight,
         };
 
+        let now = runtime.now();
         let reactor = Self {
             resolver,
             runtime,
             pending,
-            cache: Default::default(),
+            cache: DnsCache::new(now),
             query_rx,
         };
 
@@ -473,12 +531,16 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
 
     /// Run the reactor.
     pub(crate) async fn run(mut self) -> Result<(), Bug> {
+        let now = self.runtime.now();
         loop {
             select_biased! {
+                () = self.runtime.sleep_until(self.cache.purge_expired_at).fuse() => {
+                    self.cache.remove_expired(now);
+                },
                 res = self.pending.inflight.join_next().fuse() => {
                     // inflight can never yield None because
                     // we pushed a forever pending future in it
-                    let res = res.expect("pending future resolvewd?!");
+                    let res = res.expect("pending future resolved?!");
 
                     // This can only happen if a task panics, or is aborted.
                     // We never abort tasks, so this can only happen on panic.
