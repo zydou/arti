@@ -155,6 +155,7 @@ rpc = [
     "dep:tor-rpc-connect",
     "arti-client/rpc",
     "derive-deftly",
+    "tor-geoip?/rpc",
     # (this comment is here to prevent reformatting)
 ]
 
