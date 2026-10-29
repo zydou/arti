@@ -677,6 +677,19 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         now: Timestamp,
     ) -> Result<(), OperationError> {
         debug_assert_eq!(T::flavor(), ConsensusFlavor::Plain);
+        self.descriptors_agnostic::<RdDownloader>(pool, data, endpoint, now)
+            .await
+    }
+
+    /// Descriptor flavor agnostic engine driving the download, verification,
+    /// and insertion of descriptors using [`DescriptorDownloader`].
+    async fn descriptors_agnostic<D: DescriptorDownloader<T>>(
+        &self,
+        pool: &Pool<SqliteConnectionManager>,
+        data: &mut ConsensusBoundData<T>,
+        endpoint: &DownloadAuthority,
+        now: Timestamp,
+    ) -> Result<(), OperationError> {
         let (meta, futile) = match data {
             ConsensusBoundData::Verified {
                 consensus, futile, ..
@@ -685,124 +698,30 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         };
 
         // Obtain the missing descriptors.
-        let routers = db::read_tx(pool, |tx| {
-            meta.missing_routers(tx, futile.routers.excluded(endpoint), DESCRIPTOR_LIMIT)
-        })??;
-        if routers.is_empty() {
+        let descriptors = db::read_tx(pool, |tx| D::query(tx, meta, futile, endpoint))??;
+        if descriptors.is_empty() {
             // This is equivalent to sending off an empty request and failing
             // afterwards because no progress was made, but it saves us
             // bandwidth by not doing a redundant HTTP request.  We may enter
             // this branch if there are no descriptors left that are not marked
             // as not found or refused, in which case we must try the next
             // authority as it may have the not found descriptors.
-            debug!("not downloading any router descriptors");
+            debug!("not downloading any descriptors");
             Err(OperationError::AuthorityRequest(
                 AuthorityRequestError::NoRequestedDocumentsReturned,
             ))?;
         }
 
-        debug!("downloading the following router descriptors: {routers:?}");
-        let requ = RouterDescRequest::from_iter(routers.iter().map(|sha1| sha1.0));
-        let (raw, docs) = self
-            .send_request::<_, RouterDescUnverified>(endpoint, requ)
-            .await?;
+        debug!("downloading the following descriptors: {descriptors:?}");
+        let requ = D::make_request(&descriptors);
+        let (raw, docs) = self.send_request::<_, D::Response>(endpoint, requ).await?;
 
-        // Verify each router descriptor.
-        //
-        // We do this in a closure so we do not accidentially return early,
-        // because we must mark the not found and refused descriptors as such
-        // prior to a return, even in an error case.
-        let process_downloads = || -> DescriptorDownloads<Sha1, FlavoredDescriptorPlain> {
-            let mut downloads = DescriptorDownloads::from_missing(routers.into_iter());
-            for (unverified, start, end) in docs {
-                let Ok(unverified) = unverified else {
-                    // TODO DIRMIRROR: Handle parser failures as potentially futile.
-                    //
-                    // This is going to be a big can of worms, because in the case
-                    // of a parser failure, we must check whether the part between
-                    // "router" and "router-signature" matches the digest of a
-                    // requested descriptor, while checking that the body and
-                    // signature parts of the document alone parse just fine.
-                    //
-                    // body_ok && signature_ok => the parser has not failed, unreachable
-                    // body_ok && !signature_ok => not futile
-                    // !body_ok && signature_ok => futile
-                    // !body_ok && !signature_ok => futile
-                    //
-                    // (with ok meaning that the parser suceeded, no statement
-                    // of cryptographic validity is being made here)
-                    //
-                    // The `RoutereDescUnverifiedParsedBody as NetdocParseable`
-                    // pattern may be useful for this check.
-                    continue;
-                };
-
-                // Defensive internal checks.
-                let Some(raw) = raw.get(start..end) else {
-                    warn!("parse2 returned invalid string slice: {start}..{end}");
-                    continue;
-                };
-                let raw = raw.to_string();
-                let Some(sha1) = unverified.sigs.hashes.sha1 else {
-                    warn!("accumulator contains no SHA-1?");
-                    continue;
-                };
-                let sha1 = Sha1(sha1);
-
-                // Checks whether the response is weird, as in containing
-                // unrequested or duplicate descriptors.
-                match downloads.get(&sha1) {
-                    Some(DescriptorDownloadResult::NotFound) => {}
-                    Some(
-                        DescriptorDownloadResult::Found(_, _) | DescriptorDownloadResult::Refused,
-                    ) => {
-                        debug!("{sha1:?} contained multiple times in response");
-                        continue;
-                    }
-                    None => {
-                        debug!("ignoring unrequested router descriptor: {sha1:?}");
-                        continue;
-                    }
-                };
-
-                // Perform the relevant cryptographic checks.
-                let sigs = unverified.sigs.clone();
-                let verified = match unverified.verify() {
-                    Ok(verified) => verified,
-                    Err(e) => {
-                        // Continuing here implicitly marks the descriptor as not
-                        // found after the loop ends.
-                        debug!("ignoring invalid router descriptor: {sha1:?}: {e}");
-                        continue;
-                    }
-                };
-                let timely = match self
-                    .tolerance
-                    .extend_tolerance(verified)
-                    .if_valid_at(&now.into())
-                {
-                    Ok(timely) => timely,
-                    Err(e) => {
-                        // Untimely is considered as refused for the lifespan of the
-                        // current consensus.
-                        debug!("ignoring untimely router descriptor: {sha1:?}: {e}");
-                        let prev = downloads.insert(sha1, DescriptorDownloadResult::Refused);
-                        debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
-                        continue;
-                    }
-                };
-
-                let prev =
-                    downloads.insert(sha1, DescriptorDownloadResult::Found((timely, sigs), raw));
-                debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
-            }
-            downloads
-        };
-
+        // Verify each descriptor.
         // Process all downloads isolated, so that we do not return early
         // on accident.  While we still have one minor exception below with
         // regard to DatabaseError, that one is well documented.
-        let downloads = process_downloads();
+        let downloads = DescriptorDownloads::from_missing(descriptors.into_iter());
+        let downloads = D::process_downloads(self, downloads, docs, raw, now);
 
         // Determine if we made progress by checking whether we have any
         // descriptors that are either found or refused.  If this is the case,
@@ -821,25 +740,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
         // filter and split the large HashMap into multiple ones.  It should be
         // secure because the inner closure has the return error type of
         // DatabaseError, meaning only these fatal errors can return early.
-        db::rw_tx(pool, |tx| {
-            for (digest, res) in downloads.into_iter() {
-                match res {
-                    DescriptorDownloadResult::NotFound => {
-                        futile.routers.set_not_found(digest, endpoint);
-                    }
-                    DescriptorDownloadResult::Refused => futile.routers.set_refused(digest),
-                    DescriptorDownloadResult::Found(descriptor, raw) => {
-                        DescriptorMeta::insert(
-                            tx,
-                            self.encodings.iter().copied(),
-                            &descriptor,
-                            &raw,
-                        )?;
-                    }
-                }
-            }
-            Ok::<_, DatabaseError>(())
-        })??;
+        db::rw_tx(pool, |tx| D::insert(self, tx, futile, downloads, endpoint))??;
 
         // If no progress, return with an error.  We can do so here because
         // we have finally marked descriptors as futile.
@@ -1080,6 +981,205 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 }
 
+/// Helper trait for reducing the copy and paste we have to do in the
+/// [`StaticEngine::descriptors`] method, as parts of the logic overlap a lot
+/// between router and micro descriptors.
+trait DescriptorDownloader<T: FlavoredConsensusUnverified> {
+    /// The document digest by which we query the respective descriptors.
+    type DocDigest: Debug + Hash + Eq + Clone + Copy;
+
+    /// The actual descriptor type we are working with.
+    type Descriptor: FlavoredDescriptor;
+
+    /// The [`tor_dirclient`] request data type we are emitting.
+    type Request: Requestable;
+
+    /// The response data type we expect from the dirserver we are contacting.
+    type Response: NetdocParseable;
+
+    /// Queries the database for the missing descriptor document digests
+    /// contained within a [`HashSet`].
+    ///
+    /// This is usually just a wrapper around [`ConsensusMeta::missing_routers()`]
+    /// and similar methods.
+    fn query(
+        tx: &Transaction<'_>,
+        meta: &ConsensusMeta<T>,
+        futile: &FutileDescriptors,
+        endpoint: &DownloadAuthority,
+    ) -> Result<HashSet<Self::DocDigest>, DatabaseError>;
+
+    /// Creates a [`Requestable`] from the missing descriptors returned through
+    /// [`Self::query()`].
+    fn make_request(digests: &HashSet<Self::DocDigest>) -> Self::Request;
+
+    /// Processes the response after it has been received.
+    ///
+    /// It's inputs are a [`DescriptorDownloads`] that contains all the
+    /// requested digests set to [`DescriptorDownloadResult::NotFound`].
+    ///
+    /// The purpose of this function is to populate this struct accordingly and
+    /// return it in the end.  The function itself must not fail, hence why
+    /// it does not return a Result.
+    fn process_downloads(
+        engine: &StaticEngine<T>,
+        downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
+        docs: Vec<(Result<Self::Response, ParseError>, usize, usize)>,
+        raw: String,
+        now: Timestamp,
+    ) -> DescriptorDownloads<Self::DocDigest, Self::Descriptor>;
+
+    /// Finally, insert all descriptors either into the database or populate
+    /// [`FutileDescriptors`] accordingly.  This function may still leave the
+    /// [`FutileDescriptors`] in an inconsistent state, but only in the case
+    /// of an irrecoverable [`DatabaseError`], which is ok.
+    fn insert(
+        engine: &StaticEngine<T>,
+        tx: &Transaction<'_>,
+        futile: &mut FutileDescriptors,
+        downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
+        endpoint: &DownloadAuthority,
+    ) -> Result<(), DatabaseError>;
+}
+
+/// Unit type implementing [`DescriptorDownloader`] for router descriptors.
+struct RdDownloader;
+
+impl<T: FlavoredConsensusUnverified> DescriptorDownloader<T> for RdDownloader {
+    type DocDigest = Sha1;
+    type Descriptor = FlavoredDescriptorPlain;
+    type Request = RouterDescRequest;
+    type Response = RouterDescUnverified;
+
+    fn query(
+        tx: &Transaction<'_>,
+        meta: &ConsensusMeta<T>,
+        futile: &FutileDescriptors,
+        endpoint: &DownloadAuthority,
+    ) -> Result<HashSet<Self::DocDigest>, DatabaseError> {
+        meta.missing_routers(tx, futile.routers.excluded(endpoint), DESCRIPTOR_LIMIT)
+    }
+
+    fn make_request(digests: &HashSet<Self::DocDigest>) -> Self::Request {
+        RouterDescRequest::from_iter(digests.iter().map(|sha1| sha1.0))
+    }
+
+    fn process_downloads(
+        engine: &StaticEngine<T>,
+        mut downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
+        docs: Vec<(Result<Self::Response, ParseError>, usize, usize)>,
+        raw: String,
+        now: Timestamp,
+    ) -> DescriptorDownloads<Self::DocDigest, Self::Descriptor> {
+        for (unverified, start, end) in docs {
+            let Ok(unverified) = unverified else {
+                // TODO DIRMIRROR: Handle parser failures as potentially futile.
+                //
+                // This is going to be a big can of worms, because in the case
+                // of a parser failure, we must check whether the part between
+                // "router" and "router-signature" matches the digest of a
+                // requested descriptor, while checking that the body and
+                // signature parts of the document alone parse just fine.
+                //
+                // body_ok && signature_ok => the parser has not failed, unreachable
+                // body_ok && !signature_ok => not futile
+                // !body_ok && signature_ok => futile
+                // !body_ok && !signature_ok => futile
+                //
+                // (with ok meaning that the parser suceeded, no statement
+                // of cryptographic validity is being made here)
+                //
+                // The `RoutereDescUnverifiedParsedBody as NetdocParseable`
+                // pattern may be useful for this check.
+                continue;
+            };
+
+            // Defensive internal checks.
+            let Some(raw) = raw.get(start..end) else {
+                warn!("parse2 returned invalid string slice: {start}..{end}");
+                continue;
+            };
+            let raw = raw.to_string();
+            let Some(sha1) = unverified.sigs.hashes.sha1 else {
+                warn!("accumulator contains no SHA-1?");
+                continue;
+            };
+            let sha1 = Sha1(sha1);
+
+            // Checks whether the response is weird, as in containing
+            // unrequested or duplicate descriptors.
+            match downloads.get(&sha1) {
+                Some(DescriptorDownloadResult::NotFound) => {}
+                Some(DescriptorDownloadResult::Found(_, _) | DescriptorDownloadResult::Refused) => {
+                    debug!("{sha1:?} contained multiple times in response");
+                    continue;
+                }
+                None => {
+                    debug!("ignoring unrequested router descriptor: {sha1:?}");
+                    continue;
+                }
+            };
+
+            // Perform the relevant cryptographic checks.
+            let sigs = unverified.sigs.clone();
+            let verified = match unverified.verify() {
+                Ok(verified) => verified,
+                Err(e) => {
+                    // Continuing here implicitly marks the descriptor as not
+                    // found after the loop ends.
+                    debug!("ignoring invalid router descriptor: {sha1:?}: {e}");
+                    continue;
+                }
+            };
+            let timely = match engine
+                .tolerance
+                .extend_tolerance(verified)
+                .if_valid_at(&now.into())
+            {
+                Ok(timely) => timely,
+                Err(e) => {
+                    // Untimely is considered as refused for the lifespan of the
+                    // current consensus.
+                    debug!("ignoring untimely router descriptor: {sha1:?}: {e}");
+                    let prev = downloads.insert(sha1, DescriptorDownloadResult::Refused);
+                    debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
+                    continue;
+                }
+            };
+
+            let prev = downloads.insert(sha1, DescriptorDownloadResult::Found((timely, sigs), raw));
+            debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
+        }
+        downloads
+    }
+
+    fn insert(
+        engine: &StaticEngine<T>,
+        tx: &Transaction<'_>,
+        futile: &mut FutileDescriptors,
+        downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
+        endpoint: &DownloadAuthority,
+    ) -> Result<(), DatabaseError> {
+        for (digest, res) in downloads.into_iter() {
+            match res {
+                DescriptorDownloadResult::NotFound => {
+                    futile.routers.set_not_found(digest, endpoint);
+                }
+                DescriptorDownloadResult::Refused => futile.routers.set_refused(digest),
+                DescriptorDownloadResult::Found(descriptor, raw) => {
+                    DescriptorMeta::insert(
+                        tx,
+                        engine.encodings.iter().copied(),
+                        &descriptor,
+                        &raw,
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Records which allow us to avoid futile download attempts
 ///
 /// One set of records of "futile" documents, for each kind of document.
@@ -1216,7 +1316,7 @@ mod test {
     };
     use tor_basic_utils::test_rng::testing_rng;
 
-    use crate::{database::sql, err::IsFatal, testdata2};
+    use crate::{database::sql, testdata2};
 
     use super::*;
 
@@ -1543,33 +1643,31 @@ mod test {
         assert!(matches!(data, ConsensusBoundData::Verified { .. }));
     }
 
-    /// Tests the descriptor bootstrapping for router descriptors.
-    #[tokio::test]
-    async fn state_descriptors_plain() {
+    /// Agnostic test for the descriptor state.
+    async fn state_descriptors_agnostic<
+        T: FlavoredConsensusUnverified,
+        D: DescriptorDownloader<T>,
+    >(
+        descriptors: Vec<String>,
+        get_futile: fn(&FutileDescriptors) -> &FutileDescriptorSet<D::DocDigest>,
+    ) {
         let pool = testdata2::test_db();
-        let engine = static_engine::<Plain>();
+        let engine = static_engine::<T>();
         let now = Timestamp::from(testdata2::valid_system_time());
         let mut data = ConsensusBoundData::None;
         let rng = &mut testing_rng();
 
         // Server task that can at most handle two requests.
         //
-        // The first response contains all available router descriptors
-        // statically, whereas the second one only contains a single router
+        // The first response contains all available descriptors
+        // statically, whereas the second one only contains a single
         // descriptor.
         let listener = TcpListener::bind("[::1]:0").await.unwrap();
         let endpoint = listener.local_addr().unwrap();
         tokio::spawn(async move {
             let mut buf = [0; 1024];
-            let full = testdata2::current_router_descs()
-                .into_iter()
-                .map(|(_, _, raw)| raw)
-                .collect::<String>();
-            let single = testdata2::current_router_descs()
-                .into_iter()
-                .take(1)
-                .map(|(_, _, raw)| raw)
-                .collect::<String>();
+            let full = descriptors.iter().cloned().collect::<String>();
+            let single = descriptors.iter().take(1).cloned().collect::<String>();
 
             let (mut stream, _) = listener.accept().await.unwrap();
             let _ = stream.read(&mut buf).await.unwrap();
@@ -1601,7 +1699,7 @@ mod test {
                 .unwrap();
         });
 
-        // Delete all router descriptors from the database and then load
+        // Delete all descriptors from the database and then load
         // a consensus into ConsensusBoundData.
         db::rw_tx(&pool, |tx| tx.execute(sql!("DELETE FROM descriptor"), ()))
             .unwrap()
@@ -1614,11 +1712,11 @@ mod test {
 
         // Successful bootstrap of all descriptors.
         engine
-            .descriptors_rd(&pool, &mut data, &[endpoint], now)
+            .descriptors(&pool, &mut data, &[endpoint], now)
             .await
             .unwrap();
 
-        // Afterwards, the queue for missing router descriptors should be empty
+        // Afterwards, the queue for missing descriptors should be empty
         // as well as futile.
         let (meta, futile) = match &data {
             ConsensusBoundData::Verified {
@@ -1628,43 +1726,45 @@ mod test {
             } => (*meta, futile.clone()),
             _ => panic!(),
         };
-        let missing_routers =
-            db::read_tx(&pool, |tx| meta.missing_routers(tx, iter::empty(), None))
-                .unwrap()
-                .unwrap();
-        assert!(missing_routers.is_empty());
-        assert!(futile.routers.not_found.is_empty());
-        assert!(futile.routers.refused.is_empty());
+        let missing = db::read_tx(&pool, |tx| D::query(tx, &meta, &futile, &[endpoint]))
+            .unwrap()
+            .unwrap();
+        assert!(missing.is_empty());
+        assert!(get_futile(&futile).not_found.is_empty());
+        assert!(get_futile(&futile).refused.is_empty());
 
         // Now, if we do this again, futile should be populated.
         db::rw_tx(&pool, |tx| tx.execute(sql!("DELETE FROM descriptor"), ()))
             .unwrap()
             .unwrap();
 
-        // This will yield a non-fatal error because it makes no progress, but
-        // that is okay; we primarily want to test whether the futile
-        // descriptor handling works.
-        let err = engine
-            .descriptors_rd(&pool, &mut data, &[endpoint], now)
-            .await
-            .unwrap_err();
-        assert!(!err.is_fatal());
+        // Because this time the server will only return a single descriptor,
+        // it may either succeed or fail because it returned a descriptor that
+        // we did not asked for.  Either way, it does not really matter because
+        // we want to test whether the remaining ones get set as missing or not,
+        // which is done in the next step.
+        let res = engine.descriptors(&pool, &mut data, &[endpoint], now).await;
+        assert!(matches!(
+            res,
+            Ok(())
+                | Err(OperationError::AuthorityRequest(
+                    AuthorityRequestError::NoRequestedDocumentsReturned
+                ))
+        ));
 
         // Now, the missing descriptors should equal the ones that were not
         // found on the authority, as in being in the futile set.
-        let missing_routers =
-            db::read_tx(&pool, |tx| meta.missing_routers(tx, iter::empty(), None))
-                .unwrap()
-                .unwrap();
+        let missing = db::read_tx(&pool, |tx| D::query(tx, &meta, &futile, &[endpoint]))
+            .unwrap()
+            .unwrap();
         let futile = match &data {
             ConsensusBoundData::Verified { futile, .. } => futile,
             _ => panic!(),
         };
-        assert!(!missing_routers.is_empty());
+        assert!(!missing.is_empty());
         assert_eq!(
-            missing_routers,
-            futile
-                .routers
+            missing,
+            get_futile(futile)
                 .not_found
                 .iter()
                 .filter_map(|(digest, this_endpoint)| if **this_endpoint == [endpoint] {
@@ -1674,6 +1774,19 @@ mod test {
                 })
                 .collect::<HashSet<_>>()
         );
-        assert!(futile.routers.refused.is_empty());
+        assert!(get_futile(futile).refused.is_empty());
+    }
+
+    /// Tests the descriptor bootstrapping for router descriptors.
+    #[tokio::test]
+    async fn state_descriptors_plain() {
+        state_descriptors_agnostic::<Plain, RdDownloader>(
+            testdata2::current_router_descs()
+                .into_iter()
+                .map(|(_, _, raw)| raw)
+                .collect(),
+            |futile| &futile.routers,
+        )
+        .await;
     }
 }
