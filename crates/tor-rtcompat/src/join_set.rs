@@ -57,3 +57,63 @@ where
         self.pending.next().await
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    #![allow(clippy::string_slice)] // See arti#2571
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use crate::test_with_all_runtimes;
+
+    #[test]
+    fn catch_unwinding_panics() {
+        test_with_all_runtimes!(|rt| async move {
+            let mut join_set = FuturesJoinSet::new(rt);
+
+            // Dummy values to return from the JoinSet tasks
+            let task_results = (1..=10).collect::<Vec<_>>();
+            for res in task_results.clone() {
+                join_set
+                    .spawn(async move {
+                        // Does not panic, returns immediately
+                        res
+                    })
+                    .unwrap();
+            }
+
+            join_set
+                .spawn(async {
+                    // This panic should be mapped to an Err(),
+                    // and not cause the task awaiting the JoinSet to unwind
+                    panic!("")
+                })
+                .unwrap();
+
+            let mut num_tasks = 0;
+            let mut actual = vec![];
+            while let Some(res) = join_set.join_next().await {
+                if let Ok(res) = res {
+                    actual.push(res)
+                }
+                num_tasks += 1;
+            }
+            actual.sort();
+
+            assert_eq!(num_tasks, task_results.len() + 1);
+            assert_eq!(actual, task_results);
+        });
+    }
+}
