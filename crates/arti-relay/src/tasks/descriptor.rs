@@ -24,6 +24,7 @@ use tor_dirclient::request::{Requestable, UploadRouterDesc};
 use tor_dircommon::authority::AuthorityContacts;
 use tor_dirpublish::{Publisher, http::DirectHttpUploader};
 use tor_netdir::{DirEvent, NetDirProvider};
+use tor_netdoc::types::{ContactInfo, Nickname};
 use tor_rtcompat::{DynTimeProvider, Runtime, SleepProvider as _};
 
 use crate::config;
@@ -62,6 +63,17 @@ pub(crate) fn new_command_channel() -> (DescriptorCommandSender, DescriptorComma
     mpsc_channel_no_memquota(16)
 }
 
+/// Relay information used by the [`RelayDescriptorPublisherTask`] to build our descriptor.
+#[derive(Clone, Debug)]
+pub(crate) struct RouterDescInfo {
+    /// The nickname of this relay.
+    pub(crate) nickname: Nickname,
+    /// Contact information for the operator(s) of this relay.
+    pub(crate) contact: Option<ContactInfo>,
+    /// Addresses advertised on the network for receiving OR connections.
+    pub(crate) advertise: config::Advertise,
+}
+
 /// Background task that builds and publishes the relay's descriptor.
 pub(crate) struct RelayDescriptorPublisherTask {
     /// Time provider for descriptor publication timestamps.
@@ -84,8 +96,8 @@ pub(crate) struct RelayDescriptorPublisherTask {
     /// The crypto task sender channel.
     crypto_tx: CryptoCommandSender,
 
-    /// Relay configuration used to build our descriptor.
-    config: config::RelayConfig,
+    /// Relay information used to build our descriptor.
+    desc_info: RouterDescInfo,
 }
 
 impl RelayDescriptorPublisherTask {
@@ -100,7 +112,7 @@ impl RelayDescriptorPublisherTask {
         runtime: &R,
         netdir: Arc<dyn NetDirProvider>,
         authorities: AuthorityContacts,
-        config: config::RelayConfig,
+        desc_info: RouterDescInfo,
         crypto_tx: CryptoCommandSender,
         command_rx: DescriptorCommandReceiver,
     ) -> anyhow::Result<Self> {
@@ -125,7 +137,7 @@ impl RelayDescriptorPublisherTask {
             command_rx,
             publisher,
             crypto_tx,
-            config,
+            desc_info,
         })
     }
 
@@ -144,7 +156,7 @@ impl RelayDescriptorPublisherTask {
             .context("Unable to get router descriptor key material")?;
 
         let encoded = encode::encode_and_sign_router_desc(
-            &self.config,
+            &self.desc_info,
             key_material,
             self.runtime.wallclock(),
         )?;

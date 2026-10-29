@@ -25,14 +25,6 @@ impl Listen {
     }
 }
 
-#[cfg(test)]
-impl Listen {
-    /// Listen on `port` for all IPv4 and IPv6.
-    pub(crate) fn from_port(port: u16) -> Result<Self, ListenError> {
-        UncheckedListen::Port(port).try_into()
-    }
-}
-
 /// A deserialize helper for [`Listen`].
 ///
 /// This is a `Listen` that has not yet been validated.

@@ -10,22 +10,21 @@ use tor_netdoc::doc::routerdesc::{
 use tor_netdoc::types::Curve25519Public;
 use web_time_compat::SystemTime;
 
-use crate::config;
 use crate::tasks::crypto::RouterDescKeyMaterial;
 
-use super::cert;
+use super::{RouterDescInfo, cert};
 
-/// Encode and sign a [`RouterDesc`] with the given relay config and key material.
+/// Encode and sign a [`RouterDesc`] with the given descriptor info and key material.
 ///
 /// Return a result of the encoded descriptor as a [`String`].
 pub(super) fn encode_and_sign_router_desc(
-    config: &config::RelayConfig,
+    info: &RouterDescInfo,
     keys: RouterDescKeyMaterial,
     now: SystemTime,
 ) -> anyhow::Result<String> {
     // TODO(relay): Need to decide what we do for IPv6 only relays as in with an explicit
     // flag in the config or just parsing the available IPs is enough.
-    let primary_addr = config.advertise.primary_ipv4();
+    let primary_addr = info.advertise.primary_ipv4();
     let identity_ed25519 = cert::build_identity_cert(keys.ed_signing_cert, keys.ed_identity, now)?;
     // TODO(relay): Need bandwidth, uptime, extrainfo, family, overload general and exit
     // policy.
@@ -33,7 +32,7 @@ pub(super) fn encode_and_sign_router_desc(
     // tor-netdoc "Constructor" pattern holds only the required fields and `construct()`
     // fills the rest with default values.
     let desc = RouterDesc {
-        contact: config.contact.clone(),
+        contact: info.contact.clone(),
         platform: Some(RelayPlatform::Other(format!(
             "Arti {}",
             env!("CARGO_PKG_VERSION")
@@ -42,7 +41,7 @@ pub(super) fn encode_and_sign_router_desc(
         tunnelled_dir_server: Some(Default::default()),
         proto: crate::supported_protocols(),
         // These are all other IPs except the primary one.
-        or_address: config
+        or_address: info
             .advertise
             .all_addr()
             .into_iter()
@@ -50,7 +49,7 @@ pub(super) fn encode_and_sign_router_desc(
             .collect(),
         ..RouterDescConstructor {
             router: RouterDescIntroItemConstructor {
-                nickname: config.nickname.clone(),
+                nickname: info.nickname.clone(),
                 address: *primary_addr.ip(),
                 orport: primary_addr.port(),
             }
@@ -91,6 +90,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use crate::config;
     use std::time::Duration;
     use tor_key_forge::Keygen as _;
     use tor_netdoc::doc::routerdesc::{NtorOnionKeyCrossCertConstructor, RouterDescUnverified};
@@ -100,10 +100,10 @@ mod test {
         RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayNtorKeypair, RelaySigningKeypair,
     };
 
-    /// Build what we need to build a descriptor as in config and key material.
+    /// Build what we need to build a descriptor as in descriptor info and key material.
     ///
     /// Return all this along the now time used for the certificates.
-    fn descriptor_fixture() -> (config::RelayConfig, RouterDescKeyMaterial, SystemTime) {
+    fn descriptor_fixture() -> (RouterDescInfo, RouterDescKeyMaterial, SystemTime) {
         let advertise = config::Advertise::new(
             ["192.0.2.1:9001", "192.0.2.1:9003", "192.0.2.2:9001"]
                 .map(|addr| addr.parse().unwrap())
@@ -114,13 +114,11 @@ mod test {
                 .map(|addr| addr.parse().unwrap())
                 .to_vec(),
         );
-        let config = config::RelayConfigBuilder::default()
-            .nickname("Compassion".parse().unwrap())
-            .contact(Some("Abed Nadir<abed.nadir@foo.bar>".parse().unwrap()))
-            .listen(config::Listen::from_port(9001).unwrap())
-            .advertise(advertise)
-            .build()
-            .unwrap();
+        let info = RouterDescInfo {
+            nickname: "Compassion".parse().unwrap(),
+            contact: Some("Abed Nadir<abed.nadir@foo.bar>".parse().unwrap()),
+            advertise,
+        };
         let rng = &mut tor_llcrypto::rng::CautiousRng;
         let now = SystemTime::UNIX_EPOCH;
         let expiry = now + Duration::from_secs(7 * 24 * 60 * 60);
@@ -148,16 +146,16 @@ mod test {
             relay_sign_kp,
             rsa_identity_kp,
         };
-        (config, keys, now)
+        (info, keys, now)
     }
 
     #[test]
     fn signed_descriptor_roundtrip() {
-        let (config, keys, now) = descriptor_fixture();
+        let (info, keys, now) = descriptor_fixture();
         let ed_identity = keys.ed_identity;
         let rsa_identity = keys.rsa_identity_kp.to_rsa_identity();
         let ntor_key = *keys.ntor_key.inner();
-        let encoded = encode_and_sign_router_desc(&config, keys, now).unwrap();
+        let encoded = encode_and_sign_router_desc(&info, keys, now).unwrap();
         let verified = parse_netdoc::<RouterDescUnverified>(&ParseInput::new(&encoded, "encoded"))
             .unwrap()
             .verify()
@@ -167,12 +165,12 @@ mod test {
         assert_eq!(desc.rsa_identity(), rsa_identity);
         assert_eq!(desc.ntor_onion_key(), &ntor_key);
         assert_eq!(desc.published(), now);
-        assert_eq!(desc.router.nickname, config.nickname);
-        assert_eq!(desc.router.address, *config.advertise.primary_ipv4().ip());
+        assert_eq!(desc.router.nickname, info.nickname);
+        assert_eq!(desc.router.address, *info.advertise.primary_ipv4().ip());
         assert_eq!(desc.router.orport, 9001);
         assert_eq!(desc.router.socksport, 0);
         assert_eq!(desc.router.dirport, 0);
-        assert_eq!(desc.contact, config.contact);
+        assert_eq!(desc.contact, info.contact);
         assert!(desc.tunnelled_dir_server.is_some());
         // TODO(relay): For now we don't support it.
         assert!(desc.hidden_service_dir.is_none());
@@ -204,9 +202,9 @@ mod test {
     /// Test that using an expired certificate is caught.
     #[test]
     fn expired_signing_cert() {
-        let (config, keys, now) = descriptor_fixture();
+        let (info, keys, now) = descriptor_fixture();
         let after_expiry = now + Duration::from_secs(8 * 24 * 60 * 60);
-        let err = encode_and_sign_router_desc(&config, keys, after_expiry).unwrap_err();
+        let err = encode_and_sign_router_desc(&info, keys, after_expiry).unwrap_err();
         assert!(matches!(
             err.downcast_ref::<tor_checkable::TimeValidityError>(),
             Some(tor_checkable::TimeValidityError::Expired(_))
@@ -215,11 +213,11 @@ mod test {
 
     #[test]
     fn mismatched_cert_identity() {
-        let (config, mut keys, now) = descriptor_fixture();
+        let (info, mut keys, now) = descriptor_fixture();
         keys.ed_identity = RelayIdentityKeypair::generate(&mut tor_llcrypto::rng::CautiousRng)
             .unwrap()
             .to_ed25519_id();
-        let err = encode_and_sign_router_desc(&config, keys, now).unwrap_err();
+        let err = encode_and_sign_router_desc(&info, keys, now).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Relay signing cert does not match relay identity"
@@ -228,16 +226,16 @@ mod test {
 
     #[test]
     fn mismatched_cert_signing_key() {
-        let (config, mut keys, now) = descriptor_fixture();
+        let (info, mut keys, now) = descriptor_fixture();
         keys.relay_sign_kp =
             RelaySigningKeypair::generate(&mut tor_llcrypto::rng::CautiousRng).unwrap();
-        let err = encode_and_sign_router_desc(&config, keys, now).unwrap_err();
+        let err = encode_and_sign_router_desc(&info, keys, now).unwrap_err();
         assert!(format!("{err:#}").contains("Ed25519 signing key does not match"));
     }
 
     #[test]
     fn mismatched_cert_type() {
-        let (config, mut keys, now) = descriptor_fixture();
+        let (info, mut keys, now) = descriptor_fixture();
         let identity_kp =
             RelayIdentityKeypair::generate(&mut tor_llcrypto::rng::CautiousRng).unwrap();
         keys.ed_identity = identity_kp.to_ed25519_id();
@@ -251,7 +249,7 @@ mod test {
             .encode_and_sign(&identity_kp)
             .unwrap()
             .into();
-        let err = encode_and_sign_router_desc(&config, keys, now).unwrap_err();
+        let err = encode_and_sign_router_desc(&info, keys, now).unwrap_err();
         assert_eq!(err.to_string(), "Failed to verify relay signing cert");
     }
 }

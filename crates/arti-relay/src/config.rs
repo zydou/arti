@@ -34,7 +34,6 @@ use tracing_subscriber::filter::EnvFilter;
 
 pub(crate) use dns::{DnsConfig, DnsConfigBuilder};
 pub(crate) use listen::Listen;
-#[cfg(test)]
 pub(crate) use relay::Advertise;
 pub(crate) use relay::{RelayConfig, RelayConfigBuilder};
 
