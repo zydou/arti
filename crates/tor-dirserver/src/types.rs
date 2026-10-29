@@ -240,6 +240,7 @@ impl FlavoredDescriptor for FlavoredDescriptorPlain {
 /// Wrapper for [`Microdesc`] with it's associated type.
 ///
 /// SHA-1 here is technically not required but our database schema mandates it.
+// TODO DIRMIRROR: This is getting a bit opaque, we should perhaps structify it?
 pub(crate) type FlavoredDescriptorMd = (Microdesc, Sha1, Sha256);
 
 impl FlavoredDescriptor for FlavoredDescriptorMd {
