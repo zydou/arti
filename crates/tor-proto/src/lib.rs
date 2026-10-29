@@ -177,6 +177,31 @@ pub fn supported_client_protocols() -> tor_protover::Protocols {
     protocols.into_iter().collect()
 }
 
+/// Return a list of the protocols [supported](tor_protover::doc_supported)
+/// by this crate, running as a relay.
+#[cfg(feature = "relay")]
+pub fn supported_relay_protocols() -> tor_protover::Protocols {
+    use tor_protover::named::*;
+    // WARNING: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+    // SEE [`tor_protover::doc_changing`]
+    let protocols = vec![
+        LINK_V4,
+        LINK_V5,
+        LINKAUTH_ED25519_SHA256_EXPORTER,
+        FLOWCTRL_AUTH_SENDME,
+        FLOWCTRL_CC,
+        RELAY_NTOR,
+        RELAY_EXTEND_IPv6,
+        RELAY_NTORV3,
+        RELAY_NEGOTIATE_SUBPROTO,
+        RELAY_CRYPT_CGO,
+    ];
+
+    // TODO(relay): Conflux, circuit padding, and onion-service introduction and
+    // rendezvous handling are not implemented yet.
+    protocols.into_iter().collect()
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

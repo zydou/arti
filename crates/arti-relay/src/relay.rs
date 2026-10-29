@@ -185,6 +185,11 @@ pub(crate) struct TorRelay<R: Runtime> {
     /// exposed by a [`tor_dirmgr::DirProvider`] hence why we keep that copy from the config.
     authorities: AuthorityContacts,
 
+    /// Relay information used to build our descriptor.
+    ///
+    /// We keep a copy here from the config so we can pass it to the descriptor publisher task.
+    desc_info: crate::tasks::descriptor::RouterDescInfo,
+
     /// The directory mirror object, used for handling BEGIN_DIR.
     dir_mirror: DirMirrorWithBackend<DirPlugin>,
 
@@ -255,6 +260,11 @@ impl<R: Runtime> TorRelay<R> {
         );
 
         let authorities = inert.dirmgr_config.authorities().clone();
+        let desc_info = crate::tasks::descriptor::RouterDescInfo {
+            nickname: inert.config.relay.nickname.clone(),
+            contact: inert.config.relay.contact.clone(),
+            advertise: inert.config.relay.advertise.clone(),
+        };
 
         // Init the relay's client.
         let client = RelayClient::new(
@@ -368,6 +378,7 @@ impl<R: Runtime> TorRelay<R> {
             memquota,
             client,
             authorities,
+            desc_info,
             dir_mirror,
             chanmgr,
             create_request_handler,
@@ -498,11 +509,13 @@ impl<R: Runtime> TorRelay<R> {
         task_handles.spawn({
             let netdir = Arc::clone(self.client.dirmgr()) as Arc<_>;
             let authorities = self.authorities;
+            let desc_info = self.desc_info;
             async move {
                 crate::tasks::RelayDescriptorPublisherTask::new(
                     &self.runtime,
                     netdir,
                     authorities,
+                    desc_info,
                     crypto_command_tx,
                     desc_command_rx,
                 )

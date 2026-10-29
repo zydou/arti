@@ -16,12 +16,18 @@ use tor_async_utils::{mpsc_channel_no_memquota, oneshot};
 use tor_chanmgr::ChanMgr;
 use tor_error::warn_report;
 use tor_keymgr::KeyMgr;
+use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{DirEvent, NetDirProvider};
+use tor_netdoc::doc::routerdesc::{NtorOnionKeyCrossCert, NtorOnionKeyCrossCertConstructor};
+use tor_netdoc::types::{Ed25519NtorCrossCert, NumericBoolean};
 use tor_proto::RelayChannelAuthMaterial;
 use tor_proto::relay::CreateRequestHandler;
-use tor_relay_crypto::pk::{
-    RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayNtorKeys, RelayNtorPublicKey,
-    RelaySigningKeypair,
+use tor_relay_crypto::{
+    RelaySigningKeyCert,
+    pk::{
+        RelayIdentityKeypair, RelayIdentityRsaKeypair, RelayNtorKeys, RelayNtorPublicKey,
+        RelaySigningKeypair,
+    },
 };
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
@@ -40,20 +46,49 @@ use crate::{
 /// it should be plenty to make it happen even if hiccups happen.
 const KEY_ROTATION_EXPIRE_BUFFER: Duration = Duration::from_secs(3 * 60 * 60);
 
+/// Lifetime of the ntor onion key cross-certificate (`ntor-onion-key-crosscert`).
+///
+/// Taken from C-tor.
+// TODO(relay): Tie this to the ntor key rotation schedule so the certificate
+// expires at the same time as the key.
+const NTOR_CROSSCERT_LIFETIME: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+
 /// A command sent handled by the [`Reactor`] over a command channel.
 #[derive(Debug)]
 #[non_exhaustive]
 pub(crate) enum CryptoCommand {
-    /// Request to get the latest ntor key.
-    GetLatestNtorKey {
-        /// Reply channel for the key.
-        tx: oneshot::Sender<RelayNtorPublicKey>,
+    /// Request a consistent snapshot of the material needed to encode and sign a router descriptor.
+    GetRouterDescKeyMaterial {
+        /// Reply channel for the key material or error.
+        tx: oneshot::Sender<anyhow::Result<RouterDescKeyMaterial>>,
     },
-    /// Request to get the relay signing key.
-    GetSignKey {
-        /// Reply channel for the key.
-        tx: oneshot::Sender<RelaySigningKeypair>,
-    },
+}
+
+/// Key material needed to build, encode, and sign a
+/// [`tor_netdoc::doc::routerdesc::RouterDesc`].
+///
+/// Collected in one crypto command so key rotation cannot race with the lookups.
+///
+/// The ntor cross-certificate is signed in the crypto task so no Ntor private keys are
+/// sent in this struct.
+//
+// TODO(relay): Wrap the private keypairs in `Arc` so they are never copied.
+pub(crate) struct RouterDescKeyMaterial {
+    /// Public Ed25519 identity.
+    pub(crate) ed_identity: Ed25519Identity,
+    /// Signing key cert.
+    pub(crate) ed_signing_cert: RelaySigningKeyCert,
+    /// Ntor cross-certificate and the sign bit.
+    pub(crate) ntor_crosscert: NtorOnionKeyCrossCert,
+    /// Latest ntor public onion key.
+    pub(crate) ntor_key: RelayNtorPublicKey,
+    /// Relay Ed25519 signing keypair.
+    pub(crate) relay_sign_kp: RelaySigningKeypair,
+    /// RSA identity keypair.
+    ///
+    /// The identity private key is required to sign the router descriptor.
+    /// Offline RSA identity keys are not supported.
+    pub(crate) rsa_identity_kp: RelayIdentityRsaKeypair,
 }
 
 /// The sending side of the [`DescriptorCommand`] channel.
@@ -208,19 +243,49 @@ impl<R: Runtime> Reactor<R> {
     /// Handle a [`CryptoCommand`] received by the reactor.
     fn handle_command(&mut self, cmd: CryptoCommand) -> anyhow::Result<()> {
         match cmd {
-            CryptoCommand::GetLatestNtorKey { tx } => {
-                let pubkey = self.view.ks_ntor_keys()?.latest().public();
-                tx.send(pubkey)
-                    .map_err(|_| anyhow!("GetLatestNtorKey replay tx failed"))?;
-            }
-            CryptoCommand::GetSignKey { tx } => {
-                let keypair = self.view.ks_relaysign_ed()?;
-                tx.send(keypair)
-                    .map_err(|_| anyhow!("GetSignKey replay tx failed"))?;
+            CryptoCommand::GetRouterDescKeyMaterial { tx } => {
+                let material = self.router_desc_key_material();
+                tx.send(material)
+                    .map_err(|_| anyhow!("GetRouterDescKeyMaterial reply tx failed"))?;
             }
         }
 
         Ok(())
+    }
+
+    /// Collect the latest key material needed for router descriptor encoding and
+    /// signature.
+    ///
+    /// This is called upong receiving a [`CryptoCommand::GetRouterDescKeyMaterial`] from
+    /// the descriptor task.
+    fn router_desc_key_material(&self) -> anyhow::Result<RouterDescKeyMaterial> {
+        let ed_identity = self.view.ks_relayid_ed()?.to_ed25519_id();
+        let ntor_keys = self.view.ks_ntor_keys()?;
+        let ntor_keypair = ntor_keys.latest();
+        let (ntor_ed_kp, ntor_signbit) =
+            tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_private(
+                ntor_keypair.secret(),
+            )
+            .ok_or_else(|| anyhow!("Failed to convert ed25519 key from ntor key"))?;
+        let ntor_crosscert = Ed25519NtorCrossCert::new_signed(
+            &ntor_ed_kp,
+            ed_identity,
+            self.runtime.wallclock() + NTOR_CROSSCERT_LIFETIME,
+        )
+        .context("Failed to build ntor crosscert")?;
+
+        Ok(RouterDescKeyMaterial {
+            ed_identity,
+            relay_sign_kp: self.view.ks_relaysign_ed()?,
+            ed_signing_cert: self.view.cert_relaysign_ed()?,
+            rsa_identity_kp: self.view.ks_relayid_rsa()?,
+            ntor_key: ntor_keypair.public(),
+            ntor_crosscert: NtorOnionKeyCrossCertConstructor {
+                bit: NumericBoolean(ntor_signbit != 0),
+                cert: ntor_crosscert,
+            }
+            .construct(),
+        })
     }
 
     /// Launch the reactor, and run until an error is encountered.

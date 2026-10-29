@@ -17,16 +17,21 @@ use std::time::Duration;
 use anyhow::Context;
 use futures::channel::mpsc;
 use futures::{StreamExt as _, select_biased};
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 
 use tor_async_utils::{mpsc_channel_no_memquota, oneshot};
 use tor_dirclient::request::{Requestable, UploadRouterDesc};
 use tor_dircommon::authority::AuthorityContacts;
 use tor_dirpublish::{Publisher, http::DirectHttpUploader};
 use tor_netdir::{DirEvent, NetDirProvider};
-use tor_rtcompat::Runtime;
+use tor_netdoc::types::{ContactInfo, Nickname};
+use tor_rtcompat::{DynTimeProvider, Runtime, SleepProvider as _};
 
+use crate::config;
 use crate::tasks::crypto::{CryptoCommand, CryptoCommandSender};
+
+mod cert;
+mod encode;
 
 /// Initial delay before retrying a failed descriptor upload.
 ///
@@ -58,8 +63,22 @@ pub(crate) fn new_command_channel() -> (DescriptorCommandSender, DescriptorComma
     mpsc_channel_no_memquota(16)
 }
 
+/// Relay information used by the [`RelayDescriptorPublisherTask`] to build our descriptor.
+#[derive(Clone, Debug)]
+pub(crate) struct RouterDescInfo {
+    /// The nickname of this relay.
+    pub(crate) nickname: Nickname,
+    /// Contact information for the operator(s) of this relay.
+    pub(crate) contact: Option<ContactInfo>,
+    /// Addresses advertised on the network for receiving OR connections.
+    pub(crate) advertise: config::Advertise,
+}
+
 /// Background task that builds and publishes the relay's descriptor.
 pub(crate) struct RelayDescriptorPublisherTask {
+    /// Time provider for descriptor publication timestamps.
+    runtime: DynTimeProvider,
+
     /// Directory provider, used to learn about new consensus documents and parameters.
     netdir: Arc<dyn NetDirProvider>,
 
@@ -76,6 +95,9 @@ pub(crate) struct RelayDescriptorPublisherTask {
 
     /// The crypto task sender channel.
     crypto_tx: CryptoCommandSender,
+
+    /// Relay information used to build our descriptor.
+    desc_info: RouterDescInfo,
 }
 
 impl RelayDescriptorPublisherTask {
@@ -90,6 +112,7 @@ impl RelayDescriptorPublisherTask {
         runtime: &R,
         netdir: Arc<dyn NetDirProvider>,
         authorities: AuthorityContacts,
+        desc_info: RouterDescInfo,
         crypto_tx: CryptoCommandSender,
         command_rx: DescriptorCommandReceiver,
     ) -> anyhow::Result<Self> {
@@ -108,40 +131,36 @@ impl RelayDescriptorPublisherTask {
         .context("Failed to launch descriptor publisher")?;
 
         Ok(Self {
+            runtime: DynTimeProvider::new(runtime.clone()),
             netdir,
             authorities,
             command_rx,
             publisher,
             crypto_tx,
+            desc_info,
         })
     }
 
     /// Build the relay's descriptor document as ready to be uploaded.
     ///
     /// Returns `None` if we don't have everything we need to build a descriptor.
-    #[allow(clippy::unused_async)] // TODO(relay): remove once used.
     async fn build_descriptor(&mut self) -> anyhow::Result<Option<Arc<str>>> {
-        // TODO(relay): No relay desc encoding support yet from tor-netdoc.
-        //
-        // Once encoding exists, this should:
-        //   * encode and sign the descriptor,
-
-        // Get the latest ntor key (onion key) from the crypto task.
+        // Get all descriptor key material in one snapshot from the crypto task.
         let (tx, rx) = oneshot::channel();
         self.crypto_tx
-            .try_send(CryptoCommand::GetLatestNtorKey { tx })
+            .try_send(CryptoCommand::GetRouterDescKeyMaterial { tx })
             .context("Crypto task try_send failed")?;
-        let _ntor_key = rx.await.context("Unable to get ntor key")?;
+        let key_material = rx
+            .await
+            .context("Crypto task key material reply channel closed")?
+            .context("Unable to get router descriptor key material")?;
 
-        // Get the relay signing key from the crypto task.
-        let (tx, rx) = oneshot::channel();
-        self.crypto_tx
-            .try_send(CryptoCommand::GetSignKey { tx })
-            .context("Crypto task try_send failed")?;
-        let _relay_sign_kp = rx.await.context("Unable to get relay sign keypair")?;
-
-        // Keep the publisher idle until descriptor encoding is implemented.
-        Ok(None)
+        let encoded = encode::encode_and_sign_router_desc(
+            &self.desc_info,
+            key_material,
+            self.runtime.wallclock(),
+        )?;
+        Ok(Some(encoded.into()))
     }
 
     /// Recompute the set of directory authorities we upload to.
@@ -184,6 +203,12 @@ impl RelayDescriptorPublisherTask {
         // Turn the encoded descriptor into a request and erase its concrete type for the
         // generic HTTP publisher.
         let doc = desc.map(|desc| Arc::new(UploadRouterDesc::new(desc)) as Arc<dyn Requestable>);
+
+        // TODO(relay): Temporary gate so a default run doesn't upload to the authorities.
+        if std::env::var("ARTI_PUBLISH_DESC").as_deref() != Ok("1") {
+            info!("Descriptor publishing disabled; set ARTI_PUBLISH_DESC=1 to enable");
+            return Ok(());
+        }
 
         // Tell the publisher to publish the new document. Failing to build the descriptor, as in a
         // None value, will make the publisher wait and do nothing.
