@@ -176,8 +176,7 @@ opentelemetry = [
 
 # Deprecated, no longer supported upstream.
 
-# XXXX Mark as full, experimental, or non-additive!
-accel-sha1-asm = []
+accel-sha1-asm = ["__is_nonadditive"]
 accel-openssl = ["arti-client/accel-openssl", "__is_nonadditive"]
 
 __is_nonadditive = []
