@@ -176,6 +176,16 @@ impl<H: HasRelayIds> ByRelayIds<H> {
 
         items.into_iter().map(|by_addr| by_addr.0).collect()
     }
+
+    /// Return true if any element in this set shares _any_ ID with `key`.
+    pub fn contains_any_overlapping<T>(&self, key: &T) -> bool
+    where
+        T: HasRelayIds,
+    {
+        // NOTE: If this ever shows up in profiles, we can add a more efficient
+        // implementation, but for now this is fine.
+        !self.all_overlapping(key).is_empty()
+    }
 }
 
 impl<H: HasRelayIds> ListByRelayIds<H> {

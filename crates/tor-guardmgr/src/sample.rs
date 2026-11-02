@@ -12,6 +12,7 @@ use crate::{
 use crate::{FirstHop, GuardSetSelector};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
 use tor_basic_utils::onionperf_types::{OnionperfEvent, OnionperfGuardStatus};
+use tor_error::{internal, warn_report};
 use tor_linkspec::{ByRelayIds, HasRelayIds};
 
 use itertools::Itertools;
@@ -212,14 +213,25 @@ impl GuardSet {
         fix_id_list(&self.guards, &mut self.primary);
     }
 
-    /// Assert that this `GuardSet` is internally consistent.
+    /// Log an internal error if this `GuardSet` is not internally consistent.
+    ///
+    /// If debug assertions are enabled, panic on failure.
     ///
     /// Incidentally fixes the consistency of this `GuardSet` if needed.
     fn assert_consistency(&mut self) {
         let len_pre = self.inner_lengths();
         self.fix_consistency();
         let len_post = self.inner_lengths();
-        assert_eq!(len_pre, len_post);
+        if len_pre != len_post {
+            // This is the most convenient way to get a backtrace.  We want a backtrace so that
+            // we can blame the function where the error actually occurred.
+            let e = internal!("Inner length changed from {len_pre:?} to {len_post:?}");
+            warn_report!(
+                e,
+                "Found guard sample in an inconsistent state, and restored it"
+            );
+            debug_assert_eq!(len_pre, len_post);
+        }
     }
 
     /// Return the guard that has every identity in `id`, if any.
@@ -463,10 +475,11 @@ impl GuardSet {
 
     /// Add `relay` as a new guard.
     ///
-    /// Does nothing if it is already a guard.
+    /// Does nothing if it is already a guard, or if there is an existing guard
+    /// with any of the same ID keys.
     fn add_guard(&mut self, relay: Candidate, now: SystemTime, params: &GuardParams) {
         let id = GuardId::from_relay_ids(&relay.owned_target);
-        if self.guards.by_all_ids(&id).is_some() {
+        if self.guards.contains_any_overlapping(&id) {
             return;
         }
         debug!(guard_id=?id, "Adding guard to sample.");
@@ -1585,5 +1598,35 @@ mod test {
             .map(|g| g.guard_id().clone())
             .collect();
         assert_eq!(g1_set, g1_set_new);
+    }
+
+    #[test]
+    // This is far easier to test with bridge-client support.
+    #[cfg(feature = "bridge-client")]
+    fn partial_identity_collision() {
+        use crate::bridge::BridgeSet;
+        use std::sync::Arc;
+        // Construct a configuration with 2 bridges whose IDs overlap partially:
+        // Same RSA, but different Ed25519.
+        let bc = Arc::new([
+            "192.168.0.1:80 $0bac39417268b69b9f514e7f63fa6fba1a788958
+             ed25519:S2Fya2F0ICBXaGF0ICBJcyAgSGUgIERvaW5nIEhlcmU"
+                .parse()
+                .unwrap(),
+            "192.168.0.2:80 $0bac39417268b69b9f514e7f63fa6fba1a788958
+             ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA"
+                .parse()
+                .unwrap(),
+        ]);
+        let bs = BridgeSet::new(bc, None);
+        // Here we rely on GuardSet not filtering out anything by default, and
+        // on GuardParamas having a max_sample_size >=2.
+        // Otherwise the test won't actually check for correct behavior here.
+        let mut gs = GuardSet::default();
+        let params = GuardParams::default();
+        assert!(params.max_sample_size >= 2);
+        assert_eq!(gs.active_filter, GuardFilter::unfiltered());
+        gs.extend_sample_as_needed(SystemTime::get(), &params, &bs);
+        gs.assert_consistency();
     }
 }
