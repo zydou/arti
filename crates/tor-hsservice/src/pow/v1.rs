@@ -167,6 +167,13 @@ impl<R: Runtime, Q> State<R, Q> {
             suggested_effort: *self.suggested_effort.lock().expect("Lock poisoned"),
         }
     }
+
+    /// Remove a verifier and delete the backing file.
+    fn remove_verifier(&mut self, seed: &SeedHead) {
+        if let Some((_, replay_log)) = self.verifiers.remove(seed) {
+            let _ = replay_log.into_inner().expect("Lock poisoned").delete();
+        }
+    }
 }
 
 /// How frequently the suggested effort should be recalculated.
@@ -572,7 +579,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             for time_period in expired_tps {
                 if let Some(seeds) = state.seeds.remove(&time_period) {
                     for seed in seeds.seeds {
-                        state.verifiers.remove(&seed.head());
+                        state.remove_verifier(&seed.head());
                     }
                 }
             }
@@ -586,7 +593,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             }
 
             for seed_head in expired_verifiers {
-                state.verifiers.remove(&seed_head);
+                state.remove_verifier(&seed_head);
             }
 
             let record = state.to_record();
