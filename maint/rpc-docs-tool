@@ -131,13 +131,18 @@ def add_additional_methods(methods):
     }
 
 
-def mdheader(s, anchor):
+def mdheader(s, anchor, html_class=None):
     """
     Return Text for a markdown header with
     text `s` (including the ##### header prefix), marking it with a given HTML anchor.
     """
+    if html_class is None:
+        class_attribute = ""
+    else:
+        class_attribute = f" class={html_class}"
+
     return f"""
-<div id="{anchor}">
+<div id="{anchor}"{class_attribute}>
 
 {s}
 
@@ -491,15 +496,17 @@ class RpcUniverse:
         """
         Write to `f` an index of all known RPC methods.
         """
-        f.write('<div class="method-index">\n')
+        f.write('<div class="method-index" id="method-index">\n')
         f.write(mdheader("### Method index", "idx:methods"))
+        f.write("\n\n<dl>\n")
         for m, obj in sorted(self.methods.items()):
             m_str = m
             m_anchor = "method:" + m_str
             m_ident = obj["method_type"]
             m_summary = doc_subject(self.get_doc(m_ident))
-            f.write(f"- [`{m_str}`](#{m_anchor}) — {m_summary}\n")
-        f.write("\n\n</div>\n\n")
+            f.write(f'<dt><a href="#{m_anchor}">{m_str}</a></dt>\n')
+            f.write(f"<dd>{m_summary}</dd>\n")
+        f.write("\n\n</dl></div>\n\n")
 
     def emit_single_method(self, f, m_str, obj):
         """
@@ -511,10 +518,10 @@ class RpcUniverse:
         link_table = self.get_link_table(m_ident)
         m_summary = doc_subject(m_doc)
         m_anchor = "method:" + m_str
-        header = f"### `{m_str}` — {m_summary}"
+        header = f"### {m_str} — {m_summary}"
 
         f.write('<div class="method-doc">\n')
-        f.write(mdheader(header, m_anchor))
+        f.write(mdheader(header, m_anchor, "entry-header"))
         f.write('\n\n<div class="entry-body">\n\n')
         f.write(adjust_doc(m_doc, link_table))
         f.write('\n\n</div><div class="entry-footer">\n\n')
@@ -556,14 +563,15 @@ class RpcUniverse:
         """
         Write to `f` an index of all known RPC object types.
         """
-        f.write('<div class="object-index">\n')
+        f.write('<div class="object-index" id="object-index">\n')
         f.write(mdheader("### Object index", "idx:objects"))
-
+        f.write("\n\n<dl>\n")
         for o_name in sorted(self.object_types()):
             o_anchor = f"object:{o_name}"
             o_summary = doc_subject(self.get_doc(o_name))
-            f.write(f"- [`{o_name}`](#{o_anchor}) — {o_summary}\n")
-        f.write("\n\n</div>\n\n")
+            f.write(f'<dt><a href="#{o_anchor}">{o_name}</a></dt>\n')
+            f.write(f"<dd>{o_summary}</dd>\n")
+        f.write("\n\n</dl></div>\n\n")
 
     def emit_single_object(self, f, o_name):
         """
@@ -575,7 +583,7 @@ class RpcUniverse:
         o_summary = doc_subject(o_doc)
         header = f"### `{o_name}` — {o_summary}"
         f.write('<div class="object-doc">\n\n')
-        f.write(mdheader(header, o_anchor))
+        f.write(mdheader(header, o_anchor, "entry-header"))
         f.write('\n\n<div class="entry-body">\n\n')
         f.write(adjust_doc(o_doc, link_table))
         f.write('\n\n</div><div class="entry-footer">\n\n')
