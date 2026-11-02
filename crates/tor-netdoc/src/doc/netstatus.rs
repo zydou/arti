@@ -1111,23 +1111,30 @@ pub struct SharedRandVal([u8; 32]);
 /// A shared-random value produced by the directory authorities,
 /// along with meta-information about that value.
 #[derive(Debug, Clone, Deftly, Eq, PartialEq, Hash)]
-#[non_exhaustive]
-#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
+#[derive_deftly(Constructor, ItemValueEncodable, ItemValueParseable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
+    #[deftly(constructor)]
     pub n_reveals: u8,
+
     /// The current random value.
     ///
     /// The properties of the secure shared-random system guarantee
     /// that this value isn't predictable before it first becomes
     /// live, and that a hostile party could not have forced it to
     /// have any more than a small number of possible random values.
+    #[deftly(constructor)]
     pub value: SharedRandVal,
 
     /// The time when this SharedRandVal becomes (or became) the latest.
     ///
     /// (This is added per proposal 342, assuming that gets accepted.)
     pub timestamp: Option<Iso8601TimeNoSp>,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// The two shared random values, `shared-rand-*-value`
@@ -1888,6 +1895,7 @@ impl SharedRandStatus {
             n_reveals,
             value,
             timestamp,
+            __non_exhaustive: (),
         })
     }
 

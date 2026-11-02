@@ -167,6 +167,7 @@ impl ConsensusBuilder {
             n_reveals,
             value,
             timestamp: timestamp.map(Iso8601TimeNoSp),
+            __non_exhaustive: (),
         });
         self
     }
@@ -183,6 +184,7 @@ impl ConsensusBuilder {
             n_reveals,
             value,
             timestamp: timestamp.map(Iso8601TimeNoSp),
+            __non_exhaustive: (),
         });
         self
     }
