@@ -77,18 +77,13 @@ $CARGO build \
        -p arti-rpc-client-core
 
 # Start arti
-$CARGO run \
-       --profile=quicktest \
-       --all-features \
-       -p arti \
-       -- \
-       proxy -c "$ARTI_TMP/arti.toml" &
+"$TOPLEVEL/target/quicktest/arti" proxy -c "$ARTI_TMP/arti.toml" &
+
+ARTI_PID=$!
 
 while ! [ -e "$ARTI_TMP/sock/rpc_socket" ]; do 
     sleep 1
 done
-
-ARTI_PID=$!
 
 export LIBARTI_RPC_CLIENT_CORE="$TOPLEVEL/target/quicktest/libarti_rpc_client_core.so"
 export ARTI_RPC_CONNECT_PATH_OVERRIDE="$ARTI_TMP/connpt.json"
