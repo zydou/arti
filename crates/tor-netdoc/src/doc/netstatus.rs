@@ -133,7 +133,7 @@ pub use RelayBandwidthItem as RelayWeightsItem;
 #[deprecated]
 pub use VoteRelayBandwidthItem as VoteRelayWeightsItem;
 
-pub use rs::{RouterStatusMdDigestsVote, SoftwareVersion};
+pub use rs::{RouterStatusMdDigestsVote, RouterStatusMdDigestsVoteConstructor, SoftwareVersion};
 
 pub use dir_source::{
     ConsensusAuthoritySection, ConsensusAuthoritySectionConstructor, DirSource,

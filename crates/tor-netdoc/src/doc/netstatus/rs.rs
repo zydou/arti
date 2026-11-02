@@ -73,15 +73,21 @@ static OTHER_VERSION_CACHE: InternCache<str> = InternCache::new();
 ///  * These non-invariants apply both within one instance of this struct,
 ///    and across multiple instances of it within a `RouterStatus`.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Deftly)]
-#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueEncodable, ItemValueParseable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct RouterStatusMdDigestsVote {
     /// The methods for which this document is applicable.
     #[deftly(netdoc(with = consensus_methods_comma_separated))]
+    #[deftly(constructor)]
     pub consensus_methods: ConsensusMethods,
 
     /// The various hashes of this document.
+    #[deftly(constructor)]
     pub digests: Vec<IdentifiedDigest>,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 impl std::str::FromStr for SoftwareVersion {
