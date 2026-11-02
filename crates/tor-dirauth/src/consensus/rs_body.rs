@@ -72,16 +72,27 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
             return Ok(None);
         }
         calc! { both.flags = out_flags.clone() }
+        calc! { both.protos }
+
+        // In principle we could omit writing these, and let Constructor default them,
+        // but this way it's clearer that we've thought of every field,
+        // and it might catch mistakes.
+        calc! { md.port_policy = NotPresent }
+        calc! { both.stats = NotPresent }
+
+        // TODO DIRAUTH replace dummy values
+        calc! { both.a = Default:: default() }
+        calc! { plain.port_policy = Default:: default() }
+        calc! { both.version = None }
 
         // TODO DIRAUTH replace routerstatus dummy values
-        calc! { both.protos = Default::default() }
         calc! { md.m = [0; 32].into() }
 
         let (plain, md) = construct_both! {
             netstatus::plain::RouterStatus, netstatus::md::RouterStatus {
                 both. r, m, flags, protos, weight, ed25519_id;
             } {
-                // TODO DIRAUTH routerstatus fields missing
+                both. a, version, port_policy, stats;
             }
         };
         Ok(Some((plain, Some(md))))
@@ -209,6 +220,25 @@ impl Aggregate<RouterStatusAC<'_>> for DocRelayFlags {
     }
 }
 
+impl Aggregate<RouterStatusAC<'_>> for tor_protover::Protocols {
+    type Output = Self;
+
+    fn aggregate<'i>(
+        context: ConsensusContextRefs<RouterStatusAC<'_>>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self::Output, ConsensusError>
+    where
+        Self: 'i,
+    {
+        Ok(functions::choose_most_popular_amongst_votes(
+            context,
+            inputs,
+            |pr: &tor_protover::Protocols| pr.to_string(),
+        )?
+        .unwrap_or_default())
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -226,6 +256,7 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::consensus::test::compute_test;
 
     #[test]
     fn relay_flags() -> Result<(), ConsensusError> {
@@ -311,5 +342,33 @@ mod test {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn protocols() {
+        use tor_protover::Protocols;
+
+        let p = |s| Protocols::from_str_c_compatible(s).unwrap();
+
+        let inputs = [
+            p("Link=1 counting=2-6 req=1 rec=1 neither=1"), // majority, first
+            p("Link=1 counting=2-6 req=1 rec=1 neither=1"),
+            p("Link=1"),
+        ];
+
+        compute_test(
+            inputs.len(),
+            4,
+            |vnum, vote| {
+                vote.routers.truncate(1);
+                vote.routers[0].protos = inputs[vnum].clone();
+                Ok(())
+            },
+            |(plain, md)| {
+                assert_eq!(plain.routers[0].protos, inputs[0].clone());
+                assert_eq!(md.routers[0].protos, inputs[0].clone());
+                Ok(())
+            },
+        );
     }
 }
