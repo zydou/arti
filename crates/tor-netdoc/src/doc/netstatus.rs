@@ -305,9 +305,12 @@ impl NormalItemArgument for ConsensusMethod {}
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-methods>
 ///
 /// There is also [`consensus_methods_comma_separated`] for `m` lines in votes.
-#[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Deftly)]
+///
+/// This is a parsing helper, a thin wrapper around `BTreeSet`
+#[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Deftly)] //
+#[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_structs)]
 pub struct ConsensusMethods {
     /// Consensus methods.
     pub methods: BTreeSet<ConsensusMethod>,

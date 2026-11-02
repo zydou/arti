@@ -9,7 +9,7 @@ pub(crate) mod md;
 pub(crate) mod plain;
 pub(crate) mod vote;
 
-use super::{ConsensusFlavor, ConsensusMethods, consensus_methods_comma_separated};
+use super::{ConsensusFlavor, ConsensusMethod, ConsensusMethods, consensus_methods_comma_separated};
 use crate::doc::netstatus::{
     IgnoredPublicationTimeSp, NetstatusKwd, ParamValues, Protocols, RelayBandwidth,
     RelayBandwidthItem, VoteRelayBandwidthItem,
@@ -23,7 +23,7 @@ use crate::types::relay_flags::{self, DocRelayFlags, RelayFlag, RelayFlags};
 use crate::types::version::TorVersion;
 use crate::{Error, NetdocErrorKind as EK, Result};
 use derive_deftly::Deftly;
-use itertools::chain;
+use itertools::{Itertools, chain};
 use std::cmp::Ordering;
 use std::result::Result as StdResult;
 use std::{net, time};
@@ -88,6 +88,26 @@ pub struct RouterStatusMdDigestsVote {
     #[doc(hidden)]
     #[deftly(netdoc(skip))]
     pub __non_exhaustive: (),
+}
+
+impl RouterStatusMdDigestsVote {
+    /// Yields every `(method, digests)` pair from the `m` items in a vote
+    ///
+    /// ### Performance / security
+    ///
+    /// This iterator can yield many more elements than the vote's textual size,
+    /// and could allocate a string for each one.
+    /// There is a risk of DoS if used on untrusted input.
+    pub fn iter_cross_product_digests(
+        items: &[Self],
+    ) -> impl Iterator<Item = (ConsensusMethod, IdentifiedDigest)> {
+        items.iter().flat_map(|item| {
+            Itertools::cartesian_product(
+                item.consensus_methods.iter().copied(),
+                item.digests.iter().cloned(),
+            )
+        })
+    }
 }
 
 impl std::str::FromStr for SoftwareVersion {
