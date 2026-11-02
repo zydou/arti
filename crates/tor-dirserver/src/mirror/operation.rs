@@ -1058,6 +1058,34 @@ trait DescriptorDownloader<T: FlavoredConsensusUnverified> {
     ) -> Result<(), DatabaseError>;
 }
 
+/// Common implementation of [`DescriptorDownloader::insert()`].
+///
+/// Signature is almost identical to the respective origianl one, except that it
+/// additionally accepts a function item that returns the respective
+/// [`FutileDescriptorSet`] item out of [`FutileDescriptors`]; this is to avoid
+/// duplication.
+fn downloader_common_insert<T: FlavoredConsensusUnverified, D: DescriptorDownloader<T>>(
+    engine: &StaticEngine<T>,
+    tx: &Transaction<'_>,
+    futile: &mut FutileDescriptors,
+    downloads: DescriptorDownloads<D::DocDigest, D::Descriptor>,
+    endpoint: &DownloadAuthority,
+    get_futile: fn(&mut FutileDescriptors) -> &mut FutileDescriptorSet<D::DocDigest>,
+) -> Result<(), DatabaseError> {
+    for (digest, res) in downloads.into_iter() {
+        match res {
+            DescriptorDownloadResult::NotFound => {
+                get_futile(futile).set_not_found(digest, endpoint);
+            }
+            DescriptorDownloadResult::Refused => get_futile(futile).set_refused(digest),
+            DescriptorDownloadResult::Found(descriptor, raw) => {
+                DescriptorMeta::insert(tx, engine.encodings.iter().copied(), &descriptor, &raw)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Unit type implementing [`DescriptorDownloader`] for router descriptors.
 struct RdDownloader;
 
@@ -1176,23 +1204,14 @@ impl<T: FlavoredConsensusUnverified> DescriptorDownloader<T> for RdDownloader {
         downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
         endpoint: &DownloadAuthority,
     ) -> Result<(), DatabaseError> {
-        for (digest, res) in downloads.into_iter() {
-            match res {
-                DescriptorDownloadResult::NotFound => {
-                    futile.routers.set_not_found(digest, endpoint);
-                }
-                DescriptorDownloadResult::Refused => futile.routers.set_refused(digest),
-                DescriptorDownloadResult::Found(descriptor, raw) => {
-                    DescriptorMeta::insert(
-                        tx,
-                        engine.encodings.iter().copied(),
-                        &descriptor,
-                        &raw,
-                    )?;
-                }
-            }
-        }
-        Ok(())
+        downloader_common_insert::<T, RdDownloader>(
+            engine,
+            tx,
+            futile,
+            downloads,
+            endpoint,
+            |futile| &mut futile.routers,
+        )
     }
 }
 
@@ -1275,23 +1294,14 @@ impl<T: FlavoredConsensusUnverified> DescriptorDownloader<T> for MdDownloader {
         downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
         endpoint: &DownloadAuthority,
     ) -> Result<(), DatabaseError> {
-        for (digest, res) in downloads.into_iter() {
-            match res {
-                DescriptorDownloadResult::NotFound => {
-                    futile.micros.set_not_found(digest, endpoint);
-                }
-                DescriptorDownloadResult::Refused => futile.micros.set_refused(digest),
-                DescriptorDownloadResult::Found(descriptor, raw) => {
-                    DescriptorMeta::insert(
-                        tx,
-                        engine.encodings.iter().copied(),
-                        &descriptor,
-                        &raw,
-                    )?;
-                }
-            }
-        }
-        Ok(())
+        downloader_common_insert::<T, MdDownloader>(
+            engine,
+            tx,
+            futile,
+            downloads,
+            endpoint,
+            |futile| &mut futile.micros,
+        )
     }
 }
 
