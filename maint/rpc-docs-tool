@@ -54,8 +54,14 @@ HTML_HEADER = """\
 <meta charset="UTF-8">
 <title>Arti RPC: methods and objects</title>
 </head>
+<body>
+<ul class="navbar">
+<li><a href="#methods">Method index</a>
+<li><a href="#objects">Object index</a>
+</ul>
 """
 HTML_FOOTER = """\
+</body>
 </html>
 """
 
