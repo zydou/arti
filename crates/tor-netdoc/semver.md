@@ -6,3 +6,4 @@ ADDED: `RouterStatusMdDigestsVoteConstructor`
 ADDED: `RouterStatusMdDigestsVote::iter_cross_product_digests`
 ADDED: `ConsensusMethods` convertible to/from, and derefs to, `BTreeSet`; is exhaustive
 ADDED: `SharedRandVal` impls `Hash`
+ADDED: `SharedRandStatus` impls `Eq, PartialEq, Hash`

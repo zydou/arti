@@ -1110,7 +1110,7 @@ pub struct SharedRandVal([u8; 32]);
 
 /// A shared-random value produced by the directory authorities,
 /// along with meta-information about that value.
-#[derive(Debug, Clone, Deftly)]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 pub struct SharedRandStatus {
