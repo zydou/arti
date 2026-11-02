@@ -169,7 +169,60 @@ pub(crate) mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use std::collections::BTreeSet;
     use tor_netdoc::parse2::NetdocParseableUnverified;
+
+    /// Ensure that every rs that has an md digest, has one for `method`
+    ///
+    /// Needed because sometimes the test data (which is from the live network)
+    /// will have votes none of which advertise (and thus, contain md hashes for)
+    /// our selected consensus method (usually, the maximum *we* support).
+    ///
+    /// Fudge every rs in the vote, copying the digest(s) from the maximum supported.
+    ///
+    /// Of course the resulting digests might be lies, since the actual new method might
+    /// involve generating *different* mds.  But that doesn't matter here
+    /// in the consensus calculation, where we sees only md digests, not actual mds.
+    /// And, discrepancies due to different voters voting different methods
+    /// and thus different digests, are impossible with for `compute-test`,
+    /// since tht bases all the test votes on the same input vote.
+    fn populate_md_digests_for_method(
+        our_method: SupportedConsensusMethod,
+        vote: &mut netstatus::vote::NetworkStatus,
+    ) {
+        let vote_max_method = vote
+            .preamble
+            .consensus_methods
+            .iter()
+            .copied()
+            .max()
+            .expect("no methods in vote");
+        for rs in &mut vote.routers {
+            // `IdentifiedDigest`s in this rs for consensus method `needle`
+            let for_method = |needle| {
+                netstatus::RouterStatusMdDigestsVote::iter_cross_product_digests(&rs.m)
+                    .filter(move |(m, _)| *m == needle)
+                    .map(|(_, d)| d)
+            };
+
+            if for_method(*our_method).next().is_some() {
+                continue;
+            }
+            let add_consensus_methods = [*our_method].into_iter().collect::<BTreeSet<_>>().into();
+
+            let add_digests = for_method(vote_max_method).collect_vec();
+            if add_digests.is_empty() {
+                continue;
+            };
+
+            rs.m.push(construct! {
+                netstatus::RouterStatusMdDigestsVote {
+                    add. consensus_methods, digests;
+                } {
+                }
+            });
+        }
+    }
 
     /// Compute a consensus from votes, allowing mutation of test data and bespoke checks
     ///
@@ -204,6 +257,7 @@ pub(crate) mod test {
             .into_iter()
             .map(move |vnum| {
                 let mut vote = vote_base.clone();
+                populate_md_digests_for_method(method, &mut vote);
                 edit_vote(vnum, &mut vote).expect("vote edit failed");
                 vote
             })
