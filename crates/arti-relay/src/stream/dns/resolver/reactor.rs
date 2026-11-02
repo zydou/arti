@@ -530,10 +530,10 @@ impl<R: Runtime, M: MockableAsyncResolver> DnsResolverReactor<R, M> {
 
     /// Run the reactor.
     pub(crate) async fn run(mut self) -> Result<(), Bug> {
-        let now = self.runtime.now();
         loop {
             select_biased! {
                 () = self.runtime.sleep_until(self.cache.purge_expired_at).fuse() => {
+                    let now = self.runtime.now();
                     self.cache.remove_expired(now);
                 },
                 res = self.pending.inflight.join_next().fuse() => {
