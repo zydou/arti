@@ -1103,9 +1103,8 @@ pub enum VoteVerifyFailed {
 }
 
 /// A shared random value produced by the directory authorities.
-#[derive(
-    Debug, Clone, Copy, Eq, PartialEq, derive_more::From, derive_more::Into, derive_more::AsRef,
-)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)] //
+#[derive(derive_more::From, derive_more::Into, derive_more::AsRef)]
 // (This doesn't need to use CtByteArray; we don't really need to compare these.)
 pub struct SharedRandVal([u8; 32]);
 
