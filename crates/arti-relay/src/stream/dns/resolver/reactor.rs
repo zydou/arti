@@ -59,6 +59,31 @@ const MAX_DNS_TTL: Duration = Duration::from_mins(60);
 /// See "The effect of DNS on Tor's Anonymity" by Greschbach et al.
 const FUZZY_DNS_TTL: Duration = Duration::from_mins(4);
 
+/// How frequently do we want to garbage-collect the expired entries?
+///
+/// Note(gabi): doing this every 1h seems sensible, although we could
+/// probably do it even less frequently.
+///
+/// Eventually, we might want a more principled approach here.
+/// For example, we might want to remove the expired entries
+/// from the cache as soon as their TTL runs out,
+/// but there are some trade-offs:
+///
+///   * we would need some sort of data structure for determining
+///     when the next cache entry is due to expire.
+///     This would likely be a min-heap, so it would be an additional
+///     O(n) space to store
+///   * in addition to the extra memory usage, removing the expired
+///     entries right away will likely have an impact on performance too.
+///     If our cache regularly fills up with lots of short-lived (TTL = 5 min)
+///     unpopular entries (possibly tracking domains?), the reactor will
+///     have to a bunch of frequent removals, essentially interrupting
+///     its incoming request handling
+///
+/// For these reasons, right now, it seems better to remove the expired
+/// entries in batches.
+const CACHE_PURGE_INTERVAL: Duration = Duration::from_mins(60);
+
 /// A reactor that performs DNS lookups on behalf of incoming streams (RESOLVE, BEGIN).
 ///
 /// De-duplicates queries, and uses hickory-resolver under the hood.
@@ -279,31 +304,6 @@ impl DnsCache {
 
     /// When remove_expired() should be called next to purge leftover expired entries.
     fn next_expired_purge(now: Instant) -> Instant {
-        /// How frequently do we want to garbage-collect the expired entries?
-        ///
-        /// Note(gabi): doing this every 1h seems sensible, although we could
-        /// probably do it even less frequently.
-        ///
-        /// Eventually, we might want a more principled approach here.
-        /// For example, we might want to remove the expired entries
-        /// from the cache as soon as their TTL runs out,
-        /// but there are some trade-offs:
-        ///
-        ///   * we would need some sort of data structure for determining
-        ///     when the next cache entry is due to expire.
-        ///     This would likely be a min-heap, so it would be an additional
-        ///     O(n) space to store
-        ///   * in addition to the extra memory usage, removing the expired
-        ///     entries right away will likely have an impact on performance too.
-        ///     If our cache regularly fills up with lots of short-lived (TTL = 5 min)
-        ///     unpopular entries (possibly tracking domains?), the reactor will
-        ///     have to a bunch of frequent removals, essentially interrupting
-        ///     its incoming request handling
-        ///
-        /// For these reasons, right now, it seems better to remove the expired
-        /// entries in batches.
-        const CACHE_PURGE_INTERVAL: Duration = Duration::from_mins(60);
-
         now + CACHE_PURGE_INTERVAL
     }
 }
