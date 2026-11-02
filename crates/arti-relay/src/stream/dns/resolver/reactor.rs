@@ -612,4 +612,36 @@ fn canonicalize_hostname(hostname: &str) -> String {
     hostname
 }
 
-// TODO(relay): tests!
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    #![allow(clippy::string_slice)] // See arti#2571
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn canonicalize_hostname() {
+        use super::canonicalize_hostname as ch;
+
+        assert_eq!(ch("example.com"), "example.com.");
+        assert_eq!(ch("example.com."), "example.com.");
+        assert_eq!(ch("eXaMple.com"), "example.com.");
+        assert_eq!(ch("   \t  eXaMple.com \t\r\n"), "example.com.");
+        assert_eq!(
+            ch("   \t  1.2.3.4.in-addr.arpa \t\r\n"),
+            "1.2.3.4.in-addr.arpa."
+        );
+    }
+}
