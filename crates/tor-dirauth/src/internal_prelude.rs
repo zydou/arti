@@ -18,7 +18,6 @@ pub(crate) use itertools::{Itertools, chain};
 pub(crate) use paste::paste;
 pub(crate) use rangemap::RangeInclusiveMap;
 pub(crate) use static_assertions::const_assert;
-#[allow(unused)] // XXXX
 pub(crate) use tracing::{debug, info};
 pub(crate) use typed_index_collections::{TiSlice, TiVec, ti_vec};
 
@@ -31,7 +30,7 @@ pub(crate) use tor_netdoc::{
     encode::encode_netdoc_unsigned,
     rangemap_mutate_range,
     types::family::{RelayFamily, RelayFamilyIds},
-    types::{Base64Fingerprint, Ed25519Public, Iso8601TimeSp, Nickname},
+    types::{Base64Fingerprint, Ed25519Public, FixedB64, Iso8601TimeSp, Nickname},
 };
 
 pub(crate) use crate::utils::*;

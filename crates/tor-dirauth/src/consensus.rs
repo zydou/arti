@@ -17,7 +17,7 @@ use tor_netdoc::doc::netstatus::{
     VoteRelayBandwidthItem,
 };
 use tor_netdoc::types::{
-    NotPresent,
+    DigestName, NotPresent,
     relay_flags::{DocRelayFlags, RelayFlag},
 };
 

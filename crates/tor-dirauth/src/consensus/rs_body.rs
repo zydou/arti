@@ -3,6 +3,11 @@
 use super::*;
 use rs_common::*;
 
+/// md digest as it appears in the consensus
+//
+// TODO arguably this should be in tor-netdoc somewhere, but where?
+type MdDigest = FixedB64<{ tor_netdoc::doc::microdesc::DOC_DIGEST_LEN }>;
+
 impl<'i> ResolvedRouterStatusInputs<'i> {
     /// Calculate the plain and md routerstatuses
     ///
@@ -87,7 +92,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
 
         let md_m = md_none_defer.handle(
             {
-                let md_m = None; // XXXX
+                calc! { md.m }
                 Ok::<_, Bug>(md_m)
             },
             || [0; 32].into(),
@@ -227,6 +232,58 @@ impl Aggregate<RouterStatusAC<'_>> for DocRelayFlags {
         }
 
         Ok(out)
+    }
+}
+
+/// Obtain the relevant md digest from a vote rs
+///
+/// Returns `Ok(None)` if this voter didn't provide a relevant md digest for this method.
+///
+/// Throws `Err` if the vote was erroneous.  (This should then be logged.)
+fn md_digest_from_vote(
+    context: ConsensusContextRefs<RouterStatusAC<'_>>,
+    vote: &[netstatus::RouterStatusMdDigestsVote],
+) -> Result<Option<MdDigest>, String> {
+    Ok(vote
+        .iter()
+        .filter(|e| e.consensus_methods.methods.contains(&context.method))
+        .flat_map(|e| &e.digests)
+        .filter(|d| matches!(d.alg, DigestName::Sha256))
+        .map(|d| &*d.value)
+        .at_most_one()
+        .map_err(|_: itertools::ExactlyOneError<_>| "multiple md digests for same router")?
+        .map(|d| FixedB64::from_byte_slice(d).ok_or("wrong md digest len"))
+        .transpose()?)
+}
+
+impl Aggregate<RouterStatusAC<'_>> for Vec<netstatus::RouterStatusMdDigestsVote> {
+    type Output = Option<MdDigest>;
+
+    fn aggregate<'i>(
+        context: ConsensusContextRefs<RouterStatusAC<'_>>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self::Output, ConsensusError>
+    where
+        Self: 'i,
+    {
+        let counts: HashMap<MdDigest, usize> = inputs
+            .iter()
+            .filter_map(|(vnum, v)| {
+                md_digest_from_vote(context, v).unwrap_or_else(|e: String| {
+                    bad_vote!(vnum, "{e}");
+                    None
+                })
+            })
+            .counts();
+
+        let n_opinions = counts.values().sum();
+
+        let selected = counts
+            .into_iter()
+            .find(|(_md, count)| is_more_than_half_of(*count, n_opinions))
+            .map(|(md, _count)| md);
+
+        Ok(selected)
     }
 }
 
@@ -376,11 +433,7 @@ mod test {
             },
             |(plain, md)| {
                 assert_eq!(plain.routers[0].protos, inputs[0].clone());
-                let _ = md; // XXXX delete this, uncomment the assert_eq
-                // (At the current state of the tree we don't have any md digests in votes,
-                // so there are no routers in the md output.  Previously, this was fudged
-                // by dummy all-zeroes md digests.)
-                //     assert_eq!(md.routers[0].protos, inputs[0].clone());
+                assert_eq!(md.routers[0].protos, inputs[0].clone());
                 Ok(())
             },
         );
