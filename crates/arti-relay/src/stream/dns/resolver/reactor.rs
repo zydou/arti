@@ -15,14 +15,14 @@ use futures::FutureExt as _;
 use futures::channel::mpsc;
 use futures::select_biased;
 use futures::stream::StreamExt as _;
+use futures::task::SpawnError;
 use hickory_resolver::lookup::Lookup;
 use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use smallvec::SmallVec;
-use tokio::task::JoinSet;
 
 use tor_async_utils::oneshot_broadcast;
-use tor_error::{Bug, internal, into_internal};
-use tor_rtcompat::{DynTimeProvider, SleepProvider as _, SleepProviderExt as _};
+use tor_error::{Bug, internal};
+use tor_rtcompat::{JoinSet, JoinSetProvider, Runtime, SleepProviderExt as _};
 
 use crate::stream::dns::resolver::{
     DnsRequest, DnsResolver, DnsResponseReceiver, LookupAnswers, LookupError, RecordData,
@@ -65,13 +65,13 @@ const FUZZY_DNS_TTL: Duration = Duration::from_mins(4);
 /// Queries are de-duplicated using [`PendingQueries`], which keeps track
 /// of all the currently running lookup tasks.
 #[must_use = "the reactor doesn't do anything unless you run it"]
-pub(crate) struct DnsResolverReactor<M: MockableAsyncResolver = HickoryResolver> {
+pub(crate) struct DnsResolverReactor<R: Runtime, M: MockableAsyncResolver = HickoryResolver> {
     /// The async stub resolver.
     resolver: Arc<M>,
-    /// The time provider.
-    runtime: DynTimeProvider,
+    /// The runtime.
+    runtime: R,
     /// The DNS lookups we have launched that we are still waiting on.
-    pending: PendingQueries,
+    pending: PendingQueries<<R as JoinSetProvider>::JoinSet<(Query, DnsResponse)>>,
     /// The DNS cache.
     cache: DnsCache,
     /// MPSC channel for receiving DNS queries.
@@ -310,7 +310,7 @@ impl DnsCache {
 /// A collection of in-flight DNS queries.
 ///
 /// Used by the [`DnsResolverReactor`] to prevent launching multiple lookups for the same query.
-struct PendingQueries {
+struct PendingQueries<J: JoinSet<(Query, DnsResponse)>> {
     // TODO(relay): investigate if it would make sense to use the InternCache
     // from tor-basic-utils for the for the hostnames
     /// A list of streams that are waiting on responses to the DNS queries.
@@ -319,15 +319,10 @@ struct PendingQueries {
     /// Keyed by the ASCII-encoded hostname from the RESOLVE, in canonical form.
     pending_response: HashMap<Query, oneshot_broadcast::Sender<DnsResponse>>,
     /// DNS queries we're currently waiting a response for.
-    //
-    // TODO(relay): this uses a tokio JoinSet, as opposed to a runtime-agnotic
-    // tor-rtcompat thing. Eventually, we might want to eventually replace this
-    // with an equivalent tor-rtcompat type, so that we can control the execution
-    // of these tasks in the tests.
-    inflight: JoinSet<(Query, DnsResponse)>,
+    inflight: J,
 }
 
-impl PendingQueries {
+impl<J: JoinSet<(Query, DnsResponse)>> PendingQueries<J> {
     /// Returns a [`DnsResponseReceiver`] for the specified `query`
     /// if there is currently an in-flight lookup for it,
     /// or spawn a new lookup, returning the [`DnsResponseReceiver`] for awaiting the response.
@@ -380,10 +375,14 @@ impl PendingQueries {
             let resolver = Arc::clone(resolver);
 
             // Time to launch a new lookup
-            self.inflight.spawn(async move {
+            let res = self.inflight.spawn(async move {
                 let res = resolve_query(Arc::clone(&query), resolver, now).await;
                 (query, res)
             });
+
+            // XXX: if spawn() returns an error,
+            // we need to return an error to the caller
+            // via DnsResponseReceiver
         }
 
         DnsResponseReceiver::from(res_rx)
@@ -483,7 +482,7 @@ fn clip_dns_fuzzy_ttl<R: rand::Rng + rand::CryptoRng>(ttl: Duration, rng: &mut R
     Duration::from_secs(fuzzed_ttl_secs)
 }
 
-impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
+impl<R: Runtime, M: MockableAsyncResolver> DnsResolverReactor<R, M> {
     /// Build a new reactor that uses the specified mockable resolver.
     ///
     /// Note: for per-circuit caches (option 3),
@@ -494,7 +493,7 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
     // Question: should we try to make to make this generic over
     // the runtime? If so, we will need to add a (hickory) RuntimeProvider
     // trait bound to tor_rtcompat::Runtime.
-    pub(crate) fn new(runtime: DynTimeProvider, resolver: Arc<M>) -> (Self, DnsResolver) {
+    pub(crate) fn new(runtime: R, resolver: Arc<M>) -> Result<(Self, DnsResolver), SpawnError> {
         // TODO(relay-tuning): pick an appropriate buffer size here
         //
         // Alternatively, we might want to rework this so that this cannot becomes a bottleneck
@@ -505,10 +504,10 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
         #[allow(clippy::disallowed_methods)]
         let (query_tx, query_rx) = mpsc::channel(DNS_QUERY_BUF_SIZE);
 
-        let mut inflight = JoinSet::new();
+        let mut inflight = runtime.new_join_set();
         // The inflight list has an always-pending task to prevent it from
         // yielding None when empty
-        inflight.spawn(std::future::pending());
+        inflight.spawn(std::future::pending())?;
 
         let pending = PendingQueries {
             pending_response: Default::default(),
@@ -526,7 +525,7 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
 
         let handle = DnsResolver::new(query_tx);
 
-        (reactor, handle)
+        Ok((reactor, handle))
     }
 
     /// Run the reactor.
@@ -544,7 +543,7 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
 
                     // This can only happen if a task panics, or is aborted.
                     // We never abort tasks, so this can only happen on panic.
-                    let (query, response) = res.map_err(into_internal!("A DNS lookup panicked?!"))?;
+                    let (query, response) = res.map_err(|_| internal!("A DNS lookup panicked?!"))?;
 
                     self.handle_response(query, response)?;
                 },
