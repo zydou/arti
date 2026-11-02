@@ -105,9 +105,7 @@ impl DnsResponseReceiver {
                 // from [0, rolling_avg_lookup_time].
                 Ok(res)
             }
-            Either::Right(watch_rx) => watch_rx
-                .await
-                .map_err(into_internal!("DNS task exited?!")),
+            Either::Right(watch_rx) => watch_rx.await.map_err(into_internal!("DNS task exited?!")),
         }
     }
 }
