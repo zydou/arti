@@ -94,10 +94,10 @@ os.makedirs(ARTI_RPC_TEST_DIR, mode=0o700, exist_ok=True)
 cargo_build(["arti", "arti-rpc-client-core"], ["--all-features"])
 
 if not os.path.exists(ARTI):
-    print("whoops no arti at", ARTI)
+    print(f"Didn't find arti at {ARTI} even though we tried to build it.")
     sys.exit(1)
-if not os.path.exists(ARTI):
-    print("whoops no librpc at", LIBRPC)
+if not os.path.exists(LIBRPC):
+    print(f"Didn't find rpc library at {LIBRPC} even though we tried to build it.")
     sys.exit(1)
 
 #####
