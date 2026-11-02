@@ -1064,6 +1064,8 @@ trait DescriptorDownloader<T: FlavoredConsensusUnverified> {
 /// additionally accepts a function item that returns the respective
 /// [`FutileDescriptorSet`] item out of [`FutileDescriptors`]; this is to avoid
 /// duplication.
+// TODO: Once we have extra-info support, consider moving this implementation
+// into the trait method.
 fn downloader_common_insert<T: FlavoredConsensusUnverified, D: DescriptorDownloader<T>>(
     engine: &StaticEngine<T>,
     tx: &Transaction<'_>,
