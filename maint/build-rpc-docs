@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+# Build arti RPC API reference.
+#
+# Stores its result in $TOPLEVEL/rpc-reference.html
+#
+# Unix-only. (Relies on shared libraries being called .so,
+# unix sockets existing.)
+#
+# Uses 'rpc-docs-tool', which works by:
+#  - Extracting information from rustdoc json
+#  - Finding which types are RPC-relevant by connecting to Arti
+#    over RPC, and asking which types and methods exist.
+#
+# To support this, this tool makes usre that arti and arti-rpc-client-core
+# are built, launches arti in an offline mode with a temporary working
+# directory, and then invokes 'rpc-rust-docs-tool'.
+
+set -eoux pipefail
+
+TOPLEVEL=$(dirname "$0")/..
+: "${CARGO:=cargo}"
+
+cd "$TOPLEVEL"
+
+ARTI_TMP=$(mktemp -d)
+ARTI_PID=none
+
+on_unwanted_exit() {
+    if [ "$ARTI_PID" != "none" ] ; then
+	kill "$ARTI_PID"
+    fi
+    echo "Unexpected exit. Temporary files are in $ARTI_TMP"
+}
+trap on_unwanted_exit 0
+
+umask 077
+mkdir -p "$ARTI_TMP/cache"
+mkdir -p "$ARTI_TMP/state"
+mkdir -p "$ARTI_TMP/sock"
+
+cat >"$ARTI_TMP/connpt.json" <<EOF
+[connect]
+socket = "unix:$ARTI_TMP/sock/rpc_socket"
+auth = "none"
+EOF
+
+cat >"$ARTI_TMP/arti.toml" <<EOF
+[application]
+defer_bootstrap = true
+
+[proxy]
+socks_listen = "auto"
+
+[storage]
+cache_dir = "$ARTI_TMP/cache"
+state_dir = "$ARTI_TMP/state"
+
+[rpc]
+enable = true
+
+[rpc.listen."user-default"]
+enable = false
+[rpc.listen."system-default"]
+enable = false
+
+[rpc.listen."build-rpc-docs"]
+enable = true
+file = "$ARTI_TMP/connpt.json"
+EOF
+
+# Build arti and arti-rpc-client-core with necessary features
+$CARGO build \
+       --profile=quicktest \
+       --all-features \
+       -p arti \
+       -p arti-rpc-client-core
+
+# Start arti
+"$TOPLEVEL/target/quicktest/arti" proxy -c "$ARTI_TMP/arti.toml" &
+
+ARTI_PID=$!
+
+while ! [ -e "$ARTI_TMP/sock/rpc_socket" ]; do 
+    sleep 1
+done
+
+export LIBARTI_RPC_CLIENT_CORE="$TOPLEVEL/target/quicktest/libarti_rpc_client_core.so"
+export ARTI_RPC_CONNECT_PATH_OVERRIDE="$ARTI_TMP/connpt.json"
+
+./maint/rpc-docs-tool rpc-reference.html
+
+echo "Success. Output in rpc-reference.html"
+
+trap '' 0
+
+kill "$ARTI_PID"
+rm -rf "$ARTI_TMP"

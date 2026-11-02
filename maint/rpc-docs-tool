@@ -12,7 +12,7 @@ Requires rustdoc nightly, for json support.
 May require specific versions of rustdoc nightly,
 since the json format is unstable.
 
-Known to work with nightly from 2024-10-22.
+Known to work with nightly from 2026-10-23.
 """
 
 import io
@@ -22,10 +22,10 @@ import re
 import subprocess
 import sys
 
-# What version of rustdoc json do we know?
-SUPPORTED_FORMAT_VERSION = 38
+# What version of rustdoc json do we know that we know?
+SUPPORTED_FORMAT_VERSION = 61
 # What nightly do we know to provide that version?
-KNOWN_GOOD_NIGHTLY = "nightly-2025-01-17"
+KNOWN_GOOD_NIGHTLY = "nightly-2026-10-23"
 
 # Tricky bits, unsolved
 #   - Converting links in the md to be correct.
