@@ -35,13 +35,16 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_checkable::TimeBound;
 use tor_dirclient::{
     Error as DirClientError, RequestError, RequestFailedError,
-    request::{AuthCertRequest, ConsensusRequest, Requestable, RouterDescRequest},
+    request::{
+        AuthCertRequest, ConsensusRequest, MicrodescRequest, Requestable, RouterDescRequest,
+    },
 };
 use tor_dircommon::{authority::AuthorityContacts, config::DirTolerance};
 use tor_error::internal;
 use tor_netdoc::{
     doc::{
         authcert::{AuthCert, AuthCertKeyIds, AuthCertUnverified},
+        microdesc::Microdesc,
         netstatus::{ConsensusFlavor, ConsensusVerifiabilityError},
         routerdesc::RouterDescUnverified,
     },
@@ -58,7 +61,10 @@ use crate::{
         Timestamp,
     },
     err::{AuthorityRequestError, DatabaseError, OperationError},
-    types::{FlavoredConsensusUnverified, FlavoredDescriptor, FlavoredDescriptorPlain},
+    types::{
+        FlavoredConsensusUnverified, FlavoredDescriptor, FlavoredDescriptorMd,
+        FlavoredDescriptorPlain,
+    },
 };
 
 mod poc;
@@ -661,10 +667,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
                 // TODO DIRMIRROR: Add extras.
                 self.descriptors_rd(pool, data, endpoint, now).await
             }
-            ConsensusFlavor::Microdesc => {
-                // TODO DIRMIRROR: Add micros.
-                todo!()
-            }
+            ConsensusFlavor::Microdesc => self.descriptors_md(pool, data, endpoint, now).await,
         }
     }
 
@@ -678,6 +681,19 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     ) -> Result<(), OperationError> {
         debug_assert_eq!(T::flavor(), ConsensusFlavor::Plain);
         self.descriptors_agnostic::<RdDownloader>(pool, data, endpoint, now)
+            .await
+    }
+
+    /// Micro descriptor part of [`StaticEngine::descriptors()`].
+    async fn descriptors_md(
+        &self,
+        pool: &Pool<SqliteConnectionManager>,
+        data: &mut ConsensusBoundData<T>,
+        endpoint: &DownloadAuthority,
+        now: Timestamp,
+    ) -> Result<(), OperationError> {
+        debug_assert_eq!(T::flavor(), ConsensusFlavor::Microdesc);
+        self.descriptors_agnostic::<MdDownloader>(pool, data, endpoint, now)
             .await
     }
 
@@ -1042,6 +1058,36 @@ trait DescriptorDownloader<T: FlavoredConsensusUnverified> {
     ) -> Result<(), DatabaseError>;
 }
 
+/// Common implementation of [`DescriptorDownloader::insert()`].
+///
+/// Signature is almost identical to the respective origianl one, except that it
+/// additionally accepts a function item that returns the respective
+/// [`FutileDescriptorSet`] item out of [`FutileDescriptors`]; this is to avoid
+/// duplication.
+// TODO: Once we have extra-info support, consider moving this implementation
+// into the trait method.
+fn downloader_common_insert<T: FlavoredConsensusUnverified, D: DescriptorDownloader<T>>(
+    engine: &StaticEngine<T>,
+    tx: &Transaction<'_>,
+    futile: &mut FutileDescriptors,
+    downloads: DescriptorDownloads<D::DocDigest, D::Descriptor>,
+    endpoint: &DownloadAuthority,
+    get_futile: fn(&mut FutileDescriptors) -> &mut FutileDescriptorSet<D::DocDigest>,
+) -> Result<(), DatabaseError> {
+    for (digest, res) in downloads.into_iter() {
+        match res {
+            DescriptorDownloadResult::NotFound => {
+                get_futile(futile).set_not_found(digest, endpoint);
+            }
+            DescriptorDownloadResult::Refused => get_futile(futile).set_refused(digest),
+            DescriptorDownloadResult::Found(descriptor, raw) => {
+                DescriptorMeta::insert(tx, engine.encodings.iter().copied(), &descriptor, &raw)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Unit type implementing [`DescriptorDownloader`] for router descriptors.
 struct RdDownloader;
 
@@ -1160,23 +1206,104 @@ impl<T: FlavoredConsensusUnverified> DescriptorDownloader<T> for RdDownloader {
         downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
         endpoint: &DownloadAuthority,
     ) -> Result<(), DatabaseError> {
-        for (digest, res) in downloads.into_iter() {
-            match res {
-                DescriptorDownloadResult::NotFound => {
-                    futile.routers.set_not_found(digest, endpoint);
+        downloader_common_insert::<T, RdDownloader>(
+            engine,
+            tx,
+            futile,
+            downloads,
+            endpoint,
+            |futile| &mut futile.routers,
+        )
+    }
+}
+
+/// Unit type implementing [`DescriptorDownloader`] for micro descriptors.
+struct MdDownloader;
+
+impl<T: FlavoredConsensusUnverified> DescriptorDownloader<T> for MdDownloader {
+    type DocDigest = Sha256;
+    type Descriptor = FlavoredDescriptorMd;
+    type Request = MicrodescRequest;
+    type Response = Microdesc;
+
+    fn query(
+        tx: &Transaction<'_>,
+        meta: &ConsensusMeta<T>,
+        futile: &FutileDescriptors,
+        endpoint: &DownloadAuthority,
+    ) -> Result<HashSet<Self::DocDigest>, DatabaseError> {
+        meta.missing_micros(tx, futile.micros.excluded(endpoint), DESCRIPTOR_LIMIT)
+    }
+
+    fn make_request(digests: &HashSet<Self::DocDigest>) -> Self::Request {
+        MicrodescRequest::from_iter(digests.iter().map(|sha256| sha256.0))
+    }
+
+    fn process_downloads(
+        _engine: &StaticEngine<T>,
+        mut downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
+        docs: Vec<(Result<Self::Response, ParseError>, usize, usize)>,
+        raw: String,
+        _now: Timestamp,
+    ) -> DescriptorDownloads<Self::DocDigest, Self::Descriptor> {
+        for (md, start, end) in docs {
+            // Defensive internal check.
+            let Some(raw) = raw.get(start..end) else {
+                warn!("parse2 returned invalid string slice: {start}..{end}");
+                continue;
+            };
+            let raw = raw.to_string();
+
+            // Calculate the SHA-256 over the entire document; we can do this
+            // before accessing the parsed result.
+            let sha256 = Sha256::digest(raw.as_bytes());
+            match downloads.get(&sha256) {
+                Some(DescriptorDownloadResult::NotFound) => {}
+                Some(DescriptorDownloadResult::Found(_, _) | DescriptorDownloadResult::Refused) => {
+                    debug!("{sha256:?} contained multiple times in response");
+                    continue;
                 }
-                DescriptorDownloadResult::Refused => futile.routers.set_refused(digest),
-                DescriptorDownloadResult::Found(descriptor, raw) => {
-                    DescriptorMeta::insert(
-                        tx,
-                        engine.encodings.iter().copied(),
-                        &descriptor,
-                        &raw,
-                    )?;
+                None => {
+                    debug!("ignoring unrequested micro descriptor: {sha256:?}");
+                    continue;
                 }
             }
+
+            // Check whether the parsing was successful in the first place.
+            // If not, we mark the descriptor as refused, because we have
+            // implicitly verified it's cryptographic integrity above through
+            // the digest.
+            let Ok(md) = md else {
+                let prev = downloads.insert(sha256, DescriptorDownloadResult::Refused);
+                debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
+                continue;
+            };
+
+            let sha1 = Sha1::digest(raw.as_bytes());
+            let prev = downloads.insert(
+                sha256,
+                DescriptorDownloadResult::Found((md, sha1, sha256), raw),
+            );
+            debug_assert!(matches!(prev, Some(DescriptorDownloadResult::NotFound)));
         }
-        Ok(())
+        downloads
+    }
+
+    fn insert(
+        engine: &StaticEngine<T>,
+        tx: &Transaction<'_>,
+        futile: &mut FutileDescriptors,
+        downloads: DescriptorDownloads<Self::DocDigest, Self::Descriptor>,
+        endpoint: &DownloadAuthority,
+    ) -> Result<(), DatabaseError> {
+        downloader_common_insert::<T, MdDownloader>(
+            engine,
+            tx,
+            futile,
+            downloads,
+            endpoint,
+            |futile| &mut futile.micros,
+        )
     }
 }
 
@@ -1786,6 +1913,18 @@ mod test {
                 .map(|(_, _, raw)| raw)
                 .collect(),
             |futile| &futile.routers,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn state_descriptors_md() {
+        state_descriptors_agnostic::<Md, MdDownloader>(
+            testdata2::current_micro_descs()
+                .into_iter()
+                .map(|(_, raw)| raw)
+                .collect(),
+            |futile| &futile.micros,
         )
         .await;
     }
