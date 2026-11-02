@@ -107,7 +107,7 @@ impl DnsResponseReceiver {
             }
             Either::Right(watch_rx) => watch_rx
                 .await
-                .map_err(into_internal!("DNS reactor task exited?!")),
+                .map_err(into_internal!("DNS task exited?!")),
         }
     }
 }

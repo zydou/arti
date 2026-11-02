@@ -22,7 +22,8 @@ use smallvec::SmallVec;
 use tracing::debug;
 
 use tor_async_utils::oneshot_broadcast;
-use tor_error::{Bug, internal};
+use tor_error::{Bug, internal, into_internal};
+use tor_log_ratelim::log_ratelim;
 use tor_rtcompat::{JoinSet, JoinSetProvider, Runtime, SleepProviderExt as _};
 
 use crate::stream::dns::resolver::{
@@ -367,23 +368,34 @@ impl<J: JoinSet<(Query, DnsResponse)>> PendingQueries<J> {
         // (used for deduplicating queries)
         let (res_tx, res_rx) = oneshot_broadcast::channel();
 
-        let previous = self.pending_response.insert(Arc::clone(&query), res_tx);
-
-        // This should be impossible, because we remove any dangling channels above
-        debug_assert!(previous.is_none());
-
         if should_spawn_lookup {
             let resolver = Arc::clone(resolver);
 
             // Time to launch a new lookup
-            let res = self.inflight.spawn(async move {
-                let res = resolve_query(Arc::clone(&query), resolver, now).await;
-                (query, res)
+            let res = self.inflight.spawn({
+                let query = Arc::clone(&query);
+                async move {
+                    let res = resolve_query(Arc::clone(&query), resolver, now).await;
+                    (query, res)
+                }
             });
 
-            // XXX: if spawn() returns an error,
-            // we need to return an error to the caller
-            // via DnsResponseReceiver
+            if res.is_ok() {
+                let previous = self.pending_response.insert(query, res_tx);
+
+                // This should be impossible, because we remove any dangling channels above
+                debug_assert!(previous.is_none());
+            }
+
+            // If we failed to spawn the task, we drop the res_tx channel,
+            // which will cause its receiver to error.
+
+            // This roundabout way of reporting the error is because SpawnError is not cloneable,
+            // but log_ratelim! expects an owned Result.
+            //
+            // See also https://gitlab.torproject.org/tpo/core/arti/-/work_items/2632
+            let report_outcome: Result<(), _> = res.map_err(into_internal!("spawn failed"));
+            log_ratelim!("spawning DNS task"; report_outcome);
         }
 
         DnsResponseReceiver::from(res_rx)
