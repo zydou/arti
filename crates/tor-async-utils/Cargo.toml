@@ -27,7 +27,9 @@ full = [
 tokio = ["dep:tokio", "dep:tokio-util"]
 # Use visibility dependency so we can change the some functions that our
 # benchmarks require from pub(crate) to pub.
-bench = ["dep:visibility"]
+bench = ["dep:visibility", "__is_experimental"]
+experimental = ["bench"]
+__is_experimental = []
 
 [dependencies]
 cfg-if = "1.0.5"

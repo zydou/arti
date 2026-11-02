@@ -26,6 +26,7 @@ full = [
     "tor-error/full",
     "tor-basic-utils/full",
     "tor-checkable/full",
+    "tor-protover/full",
 ]
 __is_experimental = []
 
