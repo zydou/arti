@@ -5,14 +5,17 @@ use super::*;
 /// "Already computed" for footer calculoations
 ///
 /// The footer can depend on all the previous consensus, notably the preamble and the routers.
-type FooterAC = netstatus::plain::Preamble;
+type FooterAC<'r> = (
+    &'r netstatus::plain::Preamble,
+    &'r [netstatus::plain::RouterStatus],
+);
 
-impl ConsensusesFromVotes<FooterAC> for netstatus::vote::Footer {
+impl<'f> ConsensusesFromVotes<FooterAC<'f>> for netstatus::vote::Footer {
     type PlainOutput = netstatus::plain::Footer;
     type MdOutput = netstatus::md::Footer;
 
     fn consensuses<'i>(
-        context: ConsensusContextRefs<FooterAC>,
+        context: ConsensusContextRefs<FooterAC<'f>>,
         _inputs: impl ComponentInVotes<&'i Self>,
     ) -> Result<(Self::PlainOutput, Self::MdOutput), ConsensusError>
     where
@@ -34,8 +37,8 @@ impl ConsensusesFromVotes<FooterAC> for netstatus::vote::Footer {
 /// Not `Aggregate` and doesn't take any inputs, because votes don't have footers
 /// (so that field in a vote is `NotPresent`.)
 #[allow(clippy::unnecessary_wraps)] // for uniformity
-fn make_footer_fields(
-    _context: ConsensusContextRefs<FooterAC>,
+fn make_footer_fields<'f>(
+    _context: ConsensusContextRefs<FooterAC<'f>>,
 ) -> Result<netstatus::ConsensusFooterFields, ConsensusError> {
     let out_bandwidth_weights = NetParams::default(); // TODO DIRAUTH
 

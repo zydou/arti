@@ -33,3 +33,6 @@ pub(crate) use tor_netdoc::{
 };
 
 pub(crate) use crate::utils::*;
+
+#[cfg(test)]
+pub(crate) use tracing_test::traced_test;

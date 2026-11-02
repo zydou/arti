@@ -146,7 +146,7 @@ impl<AC> Aggregate<AC> for netstatus::RecommendedTorVersions {
     where
         Self: 'i,
     {
-        let inputs = inputs.map(|(_vnum, i)| i).filter(|i| i.is_known());
+        let inputs = inputs.votes().filter(|i| i.is_known());
 
         Ok(inputs
             .clone()
@@ -217,9 +217,8 @@ fn protostatus_preamble_aggregate<'i>(
         // but tor-protover does not currently expose that in a suitable form,
         // and it would make the calculation less obvious.
         //
-        let inputs: Vec<HashSet<(tor_protover::Protocol, tor_protover::Value)>> = inputs
-            .map(|(_vnum, i)| i.iter_all().collect())
-            .collect_vec();
+        let inputs: Vec<HashSet<(tor_protover::Protocol, tor_protover::Value)>> =
+            inputs.votes().map(|i| i.iter_all().collect()).collect_vec();
 
         Ok(inputs
             .iter()
