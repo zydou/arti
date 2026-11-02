@@ -194,6 +194,7 @@ pub(crate) mod test {
         ) -> anyhow::Result<()>,
     ) {
         assert!(n_votes <= n_authorities);
+        let method = SupportedConsensusMethod::MAX;
 
         let (vote_base, sigs) =
             tor_netdoc::testdata_live::netstatus_vote_unverified().inspect_unverified();
@@ -209,7 +210,7 @@ pub(crate) mod test {
             .collect_vec();
 
         let output = compute_consensus_from_votes(
-            SupportedConsensusMethod::MAX,
+            method,
             n_authorities,
             votes.iter().map(|v| (v, hashes)),
         )
