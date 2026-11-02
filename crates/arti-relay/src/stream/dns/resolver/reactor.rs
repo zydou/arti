@@ -631,6 +631,8 @@ mod test {
 
     use super::*;
 
+    use tor_basic_utils::test_rng::testing_rng;
+
     #[test]
     fn canonicalize_hostname() {
         use super::canonicalize_hostname as ch;
@@ -643,5 +645,38 @@ mod test {
             ch("   \t  1.2.3.4.in-addr.arpa \t\r\n"),
             "1.2.3.4.in-addr.arpa."
         );
+    }
+
+    #[test]
+    fn clip_ttl() {
+        assert_eq!(clip_dns_ttl(Duration::from_mins(0)), Duration::from_mins(5));
+        assert_eq!(clip_dns_ttl(Duration::from_mins(1)), Duration::from_mins(5));
+        assert_eq!(
+            clip_dns_ttl(Duration::from_mins(5)),
+            Duration::from_mins(60)
+        );
+        assert_eq!(
+            clip_dns_ttl(Duration::from_mins(15)),
+            Duration::from_mins(60)
+        );
+    }
+
+    /// Assert that `fuzzy` is within the range
+    /// [clip_dns_ttl(ttl) - FUZZY_DNS_TTL, clip_dns_ttl(ttl) + FUZZY_DNS_TTL]
+    fn assert_in_fuzzy_range(fuzzy: Duration, ttl: Duration) {
+        let clipped = clip_dns_ttl(ttl);
+        assert!(fuzzy >= clipped - FUZZY_DNS_TTL);
+        assert!(fuzzy <= clipped + FUZZY_DNS_TTL);
+    }
+
+    #[test]
+    fn clip_and_fuzz_ttl() {
+        let mut rng = testing_rng();
+
+        for ttl_mins in [0, 5, 15, 60, 120] {
+            let ttl = Duration::from_mins(ttl_mins);
+            let fuzzy_ttl = clip_dns_fuzzy_ttl(ttl, &mut rng);
+            assert_in_fuzzy_range(fuzzy_ttl, ttl);
+        }
     }
 }
