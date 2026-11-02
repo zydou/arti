@@ -4,6 +4,197 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
 
+# Arti 2.8.0 — 3 November 2026
+
+Arti 2.8.0 continues our steady progress on relay and directory authority development,
+including on computing the consensus from votes,
+bootstrapping router and micro descriptors,
+as well as relay bandwidth rate-limiting,
+descriptor encoding, and the relay DNS cache implementation.
+Additionally, we have made a number of cleanups and
+clarifications to the Tor specification.
+
+As usual, there are also many under-the-hood improvements and bug fixes,
+which are documented below.
+
+### Security fixes
+
+- Upgraded our `webpki-root-certs`, `webpki-roots`, and `rustls-webpki`
+  dependencies to address [`CVE-2026-113470`]. ([!4493])
+- Upgraded our dependencies to resolve a large number of RUSTSECs
+  regarding non-constant-time operations.
+  ([#2831], [!4507], [RUSTSEC-2026-0385], [RUSTSEC-2026-0387],
+   [RUSTSEC-2026-0391], [RUSTSEC-2026-0403], [RUSTSEC-2026-0399],
+   [RUSTSEC-2026-0396], [RUSTSEC-2026-0406], [RUSTSEC-2026-0395],
+   [RUSTSEC-2026-0405], [RUSTSEC-2026-0404], [RUSTSEC-2026-0397],
+   [RUSTSEC-2026-0402], [RUSTSEC-2026-0400], [RUSTSEC-2026-0401])
+
+### Network updates
+
+- Updated to the latest list of Tor fallback directories. ([!4479])
+
+### Breaking changes in lower-level crates
+
+- In `arti-client`, the `accel-sha1-asm` feature, which is deprecated upstream,
+  was removed.
+- In `tor-llcrypto`, the `with-sha1-asm` feature, which is deprecated upstream,
+  was removed.
+- In `tor-config`, deriving `TorConfig` now passes through any
+  `#[non_exhaustive]` (bugfix).
+- In `tor-config-shared`, `OpentelemetryConfig`, `OpentelemetryFileExporterConfig`
+  and their `Builder`s are now non-exhaustive even without `feature = "opentelemetry"`.
+- In `tor-dirclient`, `RequestableInner::check_circuit()`
+  is renamed to `RequestableInner::check_circuit_skip_optimization()`.
+  ([!4440])
+- In `tor-netdoc`,`voting_delay` is now a custom `VotingDelay` type,
+  and a mandatory field in the `PreambleConstructor`. ([!4467])
+- In `tor-netdoc`, the `sha1_unnamed` field of `DirectorySignaturesHashesAccu`
+  was removed.
+- In `tor-hsservice`, removed the deprecated `OnionService::onion_name()`
+  and `Running OnionService::onion_name()` functions. ([!4480])
+- In `tor-units`, `From<BoundedInt32<L, H>> for u32` now fails to build
+  if `L` is negative. ([#2487], [!4422])
+- In `tor-protover`, `NamedSubver` now contains `Value`.
+- In `tor-rtcompat`, `Runtime` now requires `JoinSetProvider`.
+
+### Onion service development
+
+- Added temporary support for dumping rejected HS descriptors to disk,
+  to help investigate a potential bug in our descriptor encoder
+  or in the C Tor HsDir implementation. ([#2760], [!4478])
+- Fixed a bug where, following the manual removal of an onion service's identity key
+  from the keystore, the onion service would continue publishing descriptors
+  for its old (removed) identity, until the blinded identity keys and descriptor
+  signing keys of the old identity expired. ([#2065], [!4486])
+
+### Relay development
+
+- New configuration options for the relay DNS resolver. ([#2643], [!4456])
+- Added a cache for the relay DNS resolver.
+  ([#2697], [#2041], [#2826], [!4500], [!4522])
+- Added relay configuration options for the nickname and contact information.
+  ([#2658], [!4289])
+- Reworked our key handling logic to avoid cloning the `ntor` keys in the
+  `CREATE*` handler. ([#2665], [!4497], [!4512])
+- Added support for encoding and publishing router descriptors. ([#2783], [!4471])
+- Implemented global bandwidth rate-limiting for relay channels.
+  ([#2815], [!4508])
+
+### Directory authority development
+
+- Renamed various `tor-dirserver` database tables. ([!4431], [#2765])
+- Removed erroneous `sha1_unnamed` field from `DirectorySignaturesHashesAccu`.
+  ([#2530], [!4450])
+- `ContentEncoding`s are now configurable in `tor-dirserver`. ([#2764], [!4430])
+- Internal cleanup to clarify and improve some existing test cases. ([!4462])
+- Wired up the top-level calculation, and fixed `w`. ([!4445])
+- Improved whitespace handling in `tor-netdoc`'s parser. ([#1733], [!4439])
+- New APIs for building `RouterDesc`s. ([!4454])
+- Fixed the previously incorrect handling of the `ENCODE_OMIT` `ReprMode`.
+  ([!4465])
+- Made `tor-dirserver` no longer depend on `native-tls`. ([#2794], [!4475])
+- Support for calculating the voting delay. ([!4467])
+- Reworked a number of `tor-dirserver` errors to be more accurate. ([!4438])
+- Support for calculating relay flags in the consensus. ([!4466])
+- Support for calculating the consensus authority sections. ([!4463])
+- Support for handling of futile descriptors. ([!4464])
+- Support for calculating the preamble netparams and software versions.
+  ([!4481], [!4482])
+- New `BoolIndexedArray` type for representing flag tallies in `tor-dirauth`.
+  ([!4483])
+- Support for bootstrapping router descriptors and micro descriptors in `tor-dirserver`.
+  ([!4476], [!4531])
+- In `tor-netdoc`, `IdentifiedDigest` is now exhaustive, with fields `pub`.
+  ([!4516])
+- New `{FixedB64, FixedB16U}::from_byte_slice` APIs in `tor-netdoc`. ([!4516])
+- Support for calculating the `recommended`/`required-client`/`server-protocols`
+  in the consensus preamble. ([!4484])
+- Various micro descriptor improvements. ([!4528])
+- Internal refactorings in `tor-dirauth` to make the code more idiomatic.
+  ([!4514], [!4534])
+- Preliminary support for calculating the consensus footer. ([!4521])
+- New `DescriptorDownloader` trait for bootstrapping. ([!4529])
+- Suppressed two clippy lints in the whole `consensus` module. ([!4532])
+- Support for calculating `pr` items in router statuses. ([!4533])
+
+### Testing
+
+- Fixed a copy-paste bug in the RPC test runner. ([!4537])
+
+### Documentation
+
+- Updated the documentation for the `arti hss` command to no longer call
+  the the C Tor key format "experimental". ([!4441])
+- Generated documentation for the `rpc:clone_id` RPC method. ([!4451])
+- Updated our `arti-relay` checklist with the latest developments. ([!4489])
+- Fixed a broken doc link in the `tor_netdoc::parse2`-derived documentation.
+  ([!4492])
+- Updated the outdated `Liveness` documentation in `tor-persist`. ([!4498])
+- Adjusted an outdated doc comment in `tor-rtmock`. ([!4519])
+- Added a missing quote in a `tor-netdoc` doc comment. ([!4517])
+
+### Infrastructure
+
+- In CI, `CARGO_INCREMENTAL` is now set to `0`. ([#2793], [!4474])
+- Our script for building Arti in a Nix environment no longer uses flakes.
+  ([!4496])
+- New script for building the RPC reference documentation in CI.
+  ([#1829], [!4538])
+
+### Cleanups, minor features, and bugfixes
+
+- Fixed a bug where some methods from the `RequestableInner`
+  implementation for `Arc<dyn Requestable>` were not delegated.
+  ([#2778], [!4440])
+- Internal refactoring to use [`derive-deftly`]'s new `$impl` syntax
+  throughout `tor-netdoc`. ([!4437])
+- Removed a number of no-longer relevant TODOs and dead code `allow`s
+  in the `arti-relay` implementation. ([!4461])
+- Changed various test-only dependencies to be dev-dependencies. ([!4469])
+- Resolved a number of clippy lints in our configuration crates. ([!4470])
+- Bumped [`derive-deftly`] to 1.14.0. ([!4473])
+- Bumped our [`rustls`] dependency to 0.23.64 in the `Cargo.lock` file.
+  ([!4488], [RUSTSEC-2026-0346], [RUSTSEC-2026-0347], [RUSTSEC-2026-0348],
+  [RUSTSEC-2026-0349])
+- Added a new clippy lint to our standard lint block,
+  and resolved the resulting warnings. ([#2804], [#2813], [!4491])
+- Removed a number of outdated exceptions from our `maint/cargo-audit` script.
+  ([!4494])
+- Resolved unused warnings in the onion service PoW implementation stubs.
+  ([!4468])
+- Added new iterator APIs in `tor-dirauth` to replace the un-idiomatic-looking
+  `.clone()` calls. ([!4511])
+- Removed the unnecessary `ecdsa` dependency. ([!4509])
+- In `arti`, the no-op `flowctl-cc` feature is no longer a default feature.
+  ([!4527])
+- Resolved a clippy warning in `tor-proto`. ([!4527])
+- In `tor-netdoc`, the document parser now gets the `end_pos` right after error.
+  ([!4526])
+- New `SleepProviderExt::sleep_until()` API for sleeping until an `Instant`.
+  ([#2041], [!4515])
+- In `saturating-time`, fixed a bug causing an infinite loop on Windows.
+  ([!4520])
+- Updated `arti-ureq` to use the new, non-panicking `ArrayVec::try_push()` API.
+  ([!4536])
+- New `tor-bin-common` crate to hold common high-level functionality. ([!4506])
+- Added the `JoinSet` and `JoinSetProvider` traits to `tor-rtcompat`
+  to provide runtime-specific functionality akin to `tokio`'s `JoinSet`.
+  ([!4499])
+- Upgraded our crypto dependencies to the latest versions. ([#2392], [!4530])
+- Upgraded `async-executor` to 1.14.1. ([!4543])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+5225225, Gaith Hallak, ManthanNimodiya, ghallak, manthan-lab.
+
+Also, our deep thanks to
+the [Bureau of Democracy, Human Rights, and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+<!-- links go here -->
+
 # Arti 2.7.0 — 01 October 2026
 
 Arti 2.7.0 continues our steady progress on relay and directory authority
@@ -207,6 +398,8 @@ Arti security issues.
   ([!4361])
 - Upgraded some container image versions used in the CI environment.
   ([!4363], [!4428])
+- Added a number of missing feature flags to `cargo-check-targets`.
+  ([#2361], [!4487])
 
 ### Cleanups, minor features, and bugfixes
 
