@@ -51,6 +51,7 @@ full = [
     "tor-dirserver/full",
     "otlp-file-exporter?/full",
     "tor-config-shared/full",
+    "oneshot-fused-workaround/full",
 ]
 
 # This feature flag enables experimental features that are not supported. Turning it on may

@@ -78,6 +78,7 @@ full = [
     "web-time-compat/full",
     "otlp-file-exporter?/full",
     "tor-config-shared/full",
+    "tor-bin-common/full",
 ]
 
 async-std = [
@@ -134,7 +135,8 @@ keymgr = []
 # Client C Tor keystore support can be turned on by enabling onion-service-client.
 # Onion Service C Tor keystore support can be turned on by enabling onion-service-service.
 # We are leaving this feature flag here so as not to break backward compatibility.
-ctor-keystore = []
+ctor-keystore = [
+    "__is_experimental"]
 
 # This feature does nothing, and only exists for backwards compat.
 opentelemetry-appender-tracing = []
@@ -173,6 +175,8 @@ opentelemetry = [
 ]
 
 # Deprecated, no longer supported upstream.
+
+# XXXX Mark as full, experimental, or non-additive!
 accel-sha1-asm = []
 accel-openssl = ["arti-client/accel-openssl", "__is_nonadditive"]
 

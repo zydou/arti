@@ -27,6 +27,8 @@ full = [
 tokio = ["dep:tokio", "dep:tokio-util"]
 # Use visibility dependency so we can change the some functions that our
 # benchmarks require from pub(crate) to pub.
+
+# XXXX Mark as full, experimental, or non-additive!
 bench = ["dep:visibility"]
 
 [dependencies]
