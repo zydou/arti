@@ -209,12 +209,9 @@ pub(crate) mod test {
             })
             .collect_vec();
 
-        let output = compute_consensus_from_votes(
-            method,
-            n_authorities,
-            votes.iter().map(|v| (v, hashes)),
-        )
-        .expect("compute consensus");
+        let output =
+            compute_consensus_from_votes(method, n_authorities, votes.iter().map(|v| (v, hashes)))
+                .expect("compute consensus");
 
         check_output(output).expect("check output");
     }
