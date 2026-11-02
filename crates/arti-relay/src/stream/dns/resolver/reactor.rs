@@ -19,6 +19,7 @@ use futures::task::SpawnError;
 use hickory_resolver::lookup::Lookup;
 use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use smallvec::SmallVec;
+use tracing::debug;
 
 use tor_async_utils::oneshot_broadcast;
 use tor_error::{Bug, internal};
@@ -534,6 +535,7 @@ impl<R: Runtime, M: MockableAsyncResolver> DnsResolverReactor<R, M> {
             select_biased! {
                 () = self.runtime.sleep_until(self.cache.purge_expired_at).fuse() => {
                     let now = self.runtime.now();
+                    debug!("Purging expired entries from DNS cache...");
                     self.cache.remove_expired(now);
                 },
                 res = self.pending.inflight.join_next().fuse() => {
