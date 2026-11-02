@@ -54,6 +54,7 @@ full = [
     "flowctl-cc",
     "counter-galois-onion",
     "opentelemetry-appender-tracing",
+    "ctor-keystore",
     "safelog/full",
     "tor-config/full",
     "tor-error/full",
@@ -135,8 +136,7 @@ keymgr = []
 # Client C Tor keystore support can be turned on by enabling onion-service-client.
 # Onion Service C Tor keystore support can be turned on by enabling onion-service-service.
 # We are leaving this feature flag here so as not to break backward compatibility.
-ctor-keystore = [
-    "__is_experimental"]
+ctor-keystore = []
 
 # This feature does nothing, and only exists for backwards compat.
 opentelemetry-appender-tracing = []
@@ -195,7 +195,6 @@ experimental = [
     "metrics",
     "hsc",
     "tor-hsservice/experimental",
-    "ctor-keystore",
     "onion-service-cli-extra",
     "opentelemetry",
     "tokio-console",
