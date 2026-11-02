@@ -555,14 +555,6 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
                     };
                     self.handle_request(query);
                 }
-
-                // TODO: periodically garbage-collect the expired cache entries?
-                // get_or_remove_expired() helps a little bit, but
-                // we will still accumulate expired entries unless
-                // we remove them periodically
-                //
-                // Alternatively, we can make DnsCache a fixed-sized LRU cache,
-                // and let the LRU policy take care of any stale records
             }
         }
     }
