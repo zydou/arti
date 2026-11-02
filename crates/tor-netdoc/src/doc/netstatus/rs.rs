@@ -9,7 +9,9 @@ pub(crate) mod md;
 pub(crate) mod plain;
 pub(crate) mod vote;
 
-use super::{ConsensusFlavor, ConsensusMethod, ConsensusMethods, consensus_methods_comma_separated};
+use super::{
+    ConsensusFlavor, ConsensusMethod, ConsensusMethods, consensus_methods_comma_separated,
+};
 use crate::doc::netstatus::{
     IgnoredPublicationTimeSp, NetstatusKwd, ParamValues, Protocols, RelayBandwidth,
     RelayBandwidthItem, VoteRelayBandwidthItem,
