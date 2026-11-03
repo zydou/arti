@@ -1,5 +1,4 @@
 //! Shared random - support for calculating votes and consensuses
-#![allow(unused)] // XXXX
 
 use crate::internal_prelude::*;
 

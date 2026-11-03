@@ -23,11 +23,29 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
         calc! { md,plain .known_flags <+ doc_relay_flags_union }
         calc! { md,plain .params <+ netparams_preamble_aggregate }
 
+        // shared-rand-* in output come from:
+        //   - lifetime and therefore timing, as determined for this vote
+        //   - netparams, as determined for this vote
+        //   - authority section's shared-rand-*, in votes
+        let plain_shared_rand;
+        let md_shared_rand;
+        {
+            let computed = SrvAC {
+                lifetime: &plain_lifetime,
+                params: &plain_params,
+            };
+            let context = context.with_computed(&computed);
+            let inputs = context
+                .votes
+                .iter_enumerated()
+                .map(|(vnum, v)| (vnum, &v.authority.authority));
+            calc_assign! { both.shared_rand }
+        };
+
         // TODO DIRAUTH replace dummy values
         calc! { both.voting_delay }
         calc! { both.client_versions }
         calc! { both.server_versions }
-        calc! { both.shared_rand = Default::default() }
 
         Ok(construct_both! {
             netstatus::plain::Preamble, netstatus::md::Preamble {

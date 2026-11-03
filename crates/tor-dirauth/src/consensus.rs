@@ -39,12 +39,14 @@ mod preamble;
 mod rs_common;
 mod rs_body;
 mod rs_select;
+mod shared_random;
 mod toplevel;
 
 pub use framework::*;
 use functions::ComponentInVotesOptionExt;
 pub use method::*;
 pub use microdesc::*;
+use shared_random::*;
 pub use toplevel::*;
 pub use tracked_method::*;
 
