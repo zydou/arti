@@ -42,6 +42,7 @@ mod rs_select;
 mod toplevel;
 
 pub use framework::*;
+use functions::ComponentInVotesOptionExt;
 pub use method::*;
 pub use microdesc::*;
 pub use toplevel::*;

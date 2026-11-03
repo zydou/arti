@@ -32,7 +32,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         let inputs = self
             .per_voter
             .iter_enumerated()
-            .filter_map(|(vnum, rs_v)| Some((vnum, rs_v.as_ref()?)));
+            .with_opinions();
 
         /// Copy a field from `self.status_tuple` to the output.
         ///
