@@ -198,7 +198,7 @@ which are documented below.
 ### Acknowledgments
 
 Thanks to everybody who's contributed to this release, including
-5225225, Gaith Hallak, ManthanNimodiya, ghallak, manthan-lab.
+5225225, Gaith Hallak, ghallak, manthan-lab.
 
 Also, our deep thanks to
 the [Bureau of Democracy, Human Rights, and Labor],
