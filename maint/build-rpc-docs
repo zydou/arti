@@ -48,6 +48,7 @@ EOF
 cat >"$ARTI_TMP/arti.toml" <<EOF
 [application]
 defer_bootstrap = true
+allow_running_as_root = true
 
 [proxy]
 socks_listen = "auto"
