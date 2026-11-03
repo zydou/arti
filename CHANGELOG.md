@@ -8,7 +8,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 Arti 2.8.0 continues our steady progress on relay and directory authority development,
 including on computing the consensus from votes,
-bootstrapping router and micro descriptors,
+bootstrapping router descriptors and microdescriptors,
 as well as relay bandwidth rate-limiting,
 descriptor encoding, and the relay DNS cache implementation.
 Additionally, we have made a number of cleanups and
@@ -114,14 +114,14 @@ which are documented below.
   ([!4481], [!4482])
 - New `BoolIndexedArray` type for representing flag tallies in `tor-dirauth`.
   ([!4483])
-- Support for bootstrapping router descriptors and micro descriptors in `tor-dirserver`.
+- Support for bootstrapping router descriptors and microdescriptors in `tor-dirserver`.
   ([!4476], [!4531])
 - In `tor-netdoc`, `IdentifiedDigest` is now exhaustive, with fields `pub`.
   ([!4516])
 - New `{FixedB64, FixedB16U}::from_byte_slice` APIs in `tor-netdoc`. ([!4516])
 - Support for calculating the `recommended`/`required-client`/`server-protocols`
   in the consensus preamble. ([!4484])
-- Various micro descriptor improvements. ([!4528])
+- Various microdescriptor improvements. ([!4528])
 - Internal refactorings in `tor-dirauth` to make the code more idiomatic.
   ([!4514], [!4534])
 - Preliminary support for calculating the consensus footer. ([!4521])
