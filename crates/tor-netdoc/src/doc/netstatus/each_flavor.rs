@@ -60,8 +60,9 @@ impl Consensus {
     }
 
     /// Return the map of network parameters that this consensus advertises.
-    pub fn params(&self) -> &NetParams<i32> {
-        &self.preamble.params
+    // XXXX change return type
+    pub fn params(&self) -> &NetParamValues {
+        &self.preamble.params.params
     }
 
     /// Return the latest shared random value, if the consensus
@@ -385,6 +386,7 @@ impl Preamble {
         };
 
         let params = sec.maybe(PARAMS).args_as_str().unwrap_or("").parse()?;
+        let params = TheNetParams { params };
 
         let status: &str = sec.required(VOTE_STATUS)?.arg(0).unwrap_or("");
         if status != "consensus" {

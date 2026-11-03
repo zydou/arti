@@ -277,7 +277,7 @@ impl ConsensusBuilder {
             client_versions: mk_versions(&self.client_versions)?,
             server_versions: mk_versions(&self.server_versions)?,
             proto_statuses,
-            params: self.params.clone(),
+            params: self.params.clone().into(),
             voting_delay,
             consensus_method: (consensus_method,),
             consensus_methods: NotPresent,

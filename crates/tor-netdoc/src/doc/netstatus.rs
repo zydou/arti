@@ -411,7 +411,6 @@ pub type NetParamValues = NetParams<i32>;
 ///      - no checking of field names or values, no defaulting
 ///      - arbitrary value type - some netdoc elements have `u32`, some `i32`, etc.
 ///
-// XXXX the `params` field isn't changed yete
 // XXXX linkify when we have changed the names
 //
 /// ### In netdocs
@@ -491,8 +490,6 @@ where
 }
 
 /// The network parameters as in the `params` line
-//
-// XXXX rename to NetParams
 ///
 /// <https://spec.torproject.org/param-spec.html>
 ///

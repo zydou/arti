@@ -108,11 +108,11 @@ pub(super) fn doc_relay_flags_union<'i>(
 // places, and we don't want them to get this impl by mistake.
 pub(super) fn netparams_preamble_aggregate<'i>(
     context: ConsensusContextRefs<()>,
-    inputs: impl ComponentInVotes<&'i NetParams<i32>>,
-) -> Result<NetParams<i32>, ConsensusError> {
+    inputs: impl ComponentInVotes<&'i TheNetParams>,
+) -> Result<TheNetParams, ConsensusError> {
     Ok(inputs
         .votes()
-        .flat_map(|i| i.iter().map(|(k, _v)| k))
+        .flat_map(|i| i.without_defaults().iter().map(|(k, _v)| k))
         .unique()
         .filter_map(|k| {
             // "every keyword on which a majority of authorities (total
@@ -122,7 +122,7 @@ pub(super) fn netparams_preamble_aggregate<'i>(
 
             let opinions = inputs
                 .votes()
-                .filter_map(|i| i.get(k))
+                .filter_map(|i| i.without_defaults().get(k))
                 .copied();
             let n_opinions = opinions.clone().count();
             let want = context.is_more_than_half_all_auths(n_opinions) || n_opinions >= MIN_THRESH;
@@ -135,7 +135,8 @@ pub(super) fn netparams_preamble_aggregate<'i>(
                 .expect("more than half is always >0, and so is MIN_THRESH");
             Some((String::from(k), out))
         })
-        .collect())
+        .collect::<NetParamValues>()
+        .into())
 }
 
 impl<AC> Aggregate<AC> for netstatus::RecommendedTorVersions {

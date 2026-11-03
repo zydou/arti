@@ -14,6 +14,7 @@ use crate::internal_prelude::*;
 
 use tor_netdoc::doc::netstatus::{
     self, NetParams, PlainPreamble, RelayBandwidthItem, VoteRelayBandwidthItem,
+    TheNetParams, NetParamValues,
 };
 use tor_netdoc::types::{
     NotPresent,
