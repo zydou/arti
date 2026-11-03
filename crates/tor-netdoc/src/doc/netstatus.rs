@@ -397,9 +397,7 @@ impl<T> NetParams<T> {
     /// Create a new empty list of NetParams.
     #[allow(unused)]
     pub fn new() -> Self {
-        NetParams {
-            params: HashMap::new(),
-        }
+        NetParams::default()
     }
     /// Retrieve a given network parameter, if it is present.
     pub fn get<A: AsRef<str>>(&self, v: A) -> Option<&T> {
