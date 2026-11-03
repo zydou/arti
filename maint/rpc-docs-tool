@@ -46,13 +46,159 @@ RUSTDOC_ROOT = "https://tpo.pages.torproject.net/core/doc/rust/private/"
 # (Case-insensitive.)
 MAGIC_HEADING = "In The Arti RPC System"
 
+CSS = """\
+:root {
+    color-scheme: light dark;
+}
+
+/* font lists from the Tor UI styleguide */
+h1,h2,h3,h4,h5,h6,.navbar {
+    font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+body {
+    font-family: "Source Serif Pro", -apple-system, "Georgia", serif,
+      "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+tt,code {
+    font-family: "Source Code Pro", Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+}
+
+a code {
+    font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+/*
+ * Tweak header sizes
+ */
+#methods > h2, #objects > h2 {
+    font-size: 2.3em;
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.method-index h3, .object-index h3 {
+    font-size: 2em;
+}
+/* Kludge: the documentation we pull from rustdoc
+ * may itself contain headers, but we don't want their headers to be
+ * larger than the headers for invidual methods and objects.
+ * So we make the headers tha appear in actual entries smaller. */
+.entry-body h1 {
+    font-size: 1.33em;
+}
+.entry-body h2 {
+    font-size: 1.17em;
+}
+.entry-body h3 {
+    font-size: 1em;
+}
+.entry-body h4 {
+    font-size: 0.83em;
+}
+.entry-body h5 {
+    font-size: 0.75em;
+}
+.entry-body h6 {
+    font-size: 0.60em;
+}
+
+
+/* Use tor standard green for the header of each entry, and make it a nice oval */
+.entry-header {
+    inline-size: fit-content;
+}
+.entry-header h3 {
+    /* This dark green color is technically not in the UI styleguide,
+       but we need it for contrast. */
+    background-color: light-dark(#68B030, #3A631D);
+    padding: 0.5em 1em 0.5em 1em;
+    border-radius: 1em;
+    margin-top: 0.5em;
+}
+
+/* Style the text and indentation for our indices. */
+.method-index dt,.object-index dt  {
+    margin: 1em 0.5em 0.5em 0.5em;
+    font-weight: bold;
+    font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol";
+}
+.method-index dl, div.object-index dl {
+    padding-left: 2em;
+}
+
+/* Indent the text inside each entry to make it stand out. */
+div.entry-body {
+    padding-left: 2em;
+}
+
+/* Put a box around the entry footer. */
+.entry-footer {
+    border: 1px;
+    border-style: solid;
+    padding: 0 1em 0 1.5em;
+    margin: 0 0 2em 4em;
+    inline-size: fit-content;
+}
+.entry-footer > ul { padding: 0; }
+
+/* Define the navbar style at the top of the document */
+ul.navbar {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    position: sticky;
+    top:0;
+    width:100%;
+    z-index:100;
+    border-bottom: 1px;
+    opacity:1;
+    border-bottom-style: solid;
+    border-color: #adb5bd;
+    background-color: light-dark(#fff, #000);
+}
+.navbar li {
+    float: left;
+    background:initial;
+}
+.navbar a:link, .navbar a:visited, .navbar a:active {
+    display: block;
+    padding: 10px 13px;
+    text-decoration: none;
+    text-align: center;
+    text-decoration: none;
+    font-size: 1.3em;
+    font-weight: bold;
+    color: inherit;
+}
+.navbar a:hover {
+    color: light-dark(#fff, #000);
+    background-color: #7D4698;
+}
+"""
+# Strip comments.
+# (If we don't, I feel uncomfortable writing nice big comments in the CSS.)
+CSS = re.sub(r"/\*(?:[^\*]|\*+[^/])*\*+/", " ", CSS)
+# strip duplicate space
+CSS = re.sub(r"\s+", " ", CSS)
+
 # HTML that we'll use to decorate our markdown output.
-HTML_HEADER = """\
+HTML_HEADER = f"""\
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Arti RPC: methods and objects</title>
+<style>{CSS}</style>
 </head>
 <body>
 <ul class="navbar">
