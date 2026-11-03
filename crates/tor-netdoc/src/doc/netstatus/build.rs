@@ -5,9 +5,8 @@
 
 use super::{
     ConsensusAuthorityEntry, ConsensusFlavor, ConsensusFooterFields, DirSource, Lifetime,
-    ProtoStatus, ProtoStatuses, SharedRandStatus, SharedRandStatuses, SharedRandVal,
-    VotingDelayConstructor,
-    NetParamValues, ParamValues,
+    NetParamValues, ParamValues, ProtoStatus, ProtoStatuses, SharedRandStatus, SharedRandStatuses,
+    SharedRandVal, VotingDelayConstructor,
 };
 
 use crate::types::relay_flags::DocRelayFlags;
