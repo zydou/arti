@@ -91,6 +91,9 @@ which are documented below.
 - Added support for encoding and publishing router descriptors. ([#2783], [!4471])
 - Implemented global bandwidth rate-limiting for relay channels.
   ([#2815], [!4508])
+- Support for handling of futile descriptors. ([!4464])
+- Support for bootstrapping router descriptors and microdescriptors in `tor-dirserver`.
+  ([!4476], [!4531])
 
 ### Directory authority development
 
@@ -109,13 +112,10 @@ which are documented below.
 - Reworked a number of `tor-dirserver` errors to be more accurate. ([!4438])
 - Support for calculating relay flags in the consensus. ([!4466])
 - Support for calculating the consensus authority sections. ([!4463])
-- Support for handling of futile descriptors. ([!4464])
 - Support for calculating the preamble netparams and software versions.
   ([!4481], [!4482])
 - New `BoolIndexedArray` type for representing flag tallies in `tor-dirauth`.
   ([!4483])
-- Support for bootstrapping router descriptors and microdescriptors in `tor-dirserver`.
-  ([!4476], [!4531])
 - In `tor-netdoc`, `IdentifiedDigest` is now exhaustive, with fields `pub`.
   ([!4516])
 - New `{FixedB64, FixedB16U}::from_byte_slice` APIs in `tor-netdoc`. ([!4516])
