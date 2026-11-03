@@ -120,7 +120,10 @@ pub(super) fn netparams_preamble_aggregate<'i>(
             // on, or if at least three authorities voted for that parameter.
             const MIN_THRESH: usize = 3;
 
-            let opinions = inputs.votes().filter_map(|i| i.get(k)).copied();
+            let opinions = inputs
+                .votes()
+                .filter_map(|i| i.get(k))
+                .copied();
             let n_opinions = opinions.clone().count();
             let want = context.is_more_than_half_all_auths(n_opinions) || n_opinions >= MIN_THRESH;
             if !want {
