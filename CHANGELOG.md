@@ -22,7 +22,7 @@ which are documented below.
 ### Security fixes
 
 - Upgraded our `webpki-root-certs`, `webpki-roots`, and `rustls-webpki`
-  dependencies to address [`CVE-2026-113470`]. ([!4493])
+  dependencies. ([!4493])
 - Upgraded our dependencies to resolve a large number of RUSTSECs
   regarding non-constant-time operations.
   ([#2831], [!4507], [RUSTSEC-2026-0385], [RUSTSEC-2026-0387],
@@ -330,7 +330,6 @@ for funding the development of Arti!
 [RUSTSEC-2026-0406]: https://rustsec.org/advisories/RUSTSEC-2026-0406.html
 [TROVE-2026-069]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [TROVE-2026-070]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
-[`CVE-2026-113470`]: XXXX
 [`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
 [`rustls`]: https://crates.io/crates/rustls
 [other sponsors]: https://www.torproject.org/about/sponsors/
