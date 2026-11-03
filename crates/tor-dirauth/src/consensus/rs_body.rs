@@ -96,9 +96,6 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         calc! { md.port_policy = NotPresent }
         calc! { both.stats = NotPresent }
 
-        // TODO DIRAUTH replace routerstatus dummy values:
-        calc! { plain.port_policy = Default:: default() }
-
         let md_m = md_none_defer.handle(
             {
                 calc! { md.m }
@@ -117,7 +114,8 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         let computed = SameStatusTupleAC {};
         let context = context.with_computed(&computed);
 
-        calc! { plain, md .a <+ aggregate_a_items }
+        calc! { plain,md .a <+ aggregate_a_items }
+        calc! { plain.port_policy }
 
         //---------- assemble the output ----------
 
@@ -362,6 +360,24 @@ fn aggregate_a_items<'i>(
     .cloned();
 
     Ok(output.into_iter().collect())
+}
+
+impl Aggregate<SameStatusTupleAC> for Option<Intern<PortPolicy>> {
+    type Output = Self;
+
+    fn aggregate<'i>(
+        context: ConsensusContextRefs<SameStatusTupleAC>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self::Output, ConsensusError>
+    where
+        Self: 'i,
+    {
+        functions::choose_most_popular_amongst_votes(
+            context,
+            inputs.with_opinions(),
+            functions::ord_string_reverse_choose_lexically_latest,
+        )
+    }
 }
 
 #[cfg(test)]
