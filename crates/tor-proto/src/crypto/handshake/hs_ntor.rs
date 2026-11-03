@@ -23,7 +23,9 @@
 
 use crate::crypto::handshake::KeyGenerator;
 use crate::crypto::ll::kdf::{Kdf, ShakeKdf};
+use crate::util::ct;
 use crate::{Error, Result};
+use std::result::Result as StdResult;
 use tor_bytes::{Reader, SecretBuf, Writer};
 use tor_hscrypto::{
     Subcredential,
@@ -35,6 +37,7 @@ use tor_llcrypto::util::ct::CtByteArray;
 
 use cipher::{KeyIvInit, StreamCipher};
 
+use subtle::ConstantTimeEq as _;
 use tor_error::into_internal;
 use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::{Zeroize as _, Zeroizing};
@@ -259,8 +262,13 @@ impl HsNtorClientState {
             &Y,
         )?;
 
+        // It isn't totally necessary to do this & as constant-time, but why tempt fate?
+        let okay = my_mac_tag.ct_eq(&mac_tag)
+            & ct::bool_to_choice(xy.was_contributory())
+            & ct::bool_to_choice(xb.was_contributory());
+
         // Validate the MAC!
-        if my_mac_tag != mac_tag {
+        if !bool::from(okay) {
             return Err(Error::BadCircHandshakeAuth);
         }
 
@@ -394,6 +402,13 @@ fn server_receive_intro_no_keygen(
     let xy = y.diffie_hellman(&X);
     let xb = k_hss_ntor.secret().as_ref().diffie_hellman(&X);
 
+    // It isn't totally necessary to do this & as constant-time, but why tempt fate?
+    let okay =
+        ct::bool_to_choice(xy.was_contributory()) & ct::bool_to_choice(xb.was_contributory());
+    if !bool::from(okay) {
+        return Err(Error::BadCircHandshakeAuth);
+    }
+
     let (keygen, auth_input_mac) =
         get_rendezvous_key_material(&xy, &xb, auth_key, k_hss_ntor.public(), &X, &Y)?;
 
@@ -485,7 +500,7 @@ fn get_rendezvous_key_material(
     B: &curve25519::PublicKey,
     X: &curve25519::PublicKey,
     Y: &curve25519::PublicKey,
-) -> Result<(HsNtorHkdfKeyGenerator, AuthInputMac)> {
+) -> StdResult<(HsNtorHkdfKeyGenerator, AuthInputMac), tor_error::Bug> {
     let hs_ntor_protoid_constant = &b"tor-hs-ntor-curve25519-sha3-256-1"[..];
     let hs_ntor_mac_constant = &b"tor-hs-ntor-curve25519-sha3-256-1:hs_mac"[..];
     let hs_ntor_verify_constant = &b"tor-hs-ntor-curve25519-sha3-256-1:hs_verify"[..];
