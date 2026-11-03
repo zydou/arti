@@ -167,15 +167,15 @@ pub struct RouterStatus {
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
     ///
-    /// In `Constructor`, you can use `RelayWeightsItem::default()`
+    /// In `Constructor`, you can use `RelayBandwidthItem::default()`
     /// if `retain-unknown` is enabled.
-    // RelayWeightsItem is only Default (meaning "no `w` item") with retain-unknown.
+    // RelayBandwidthItem is only Default (meaning "no `w` item") with retain-unknown.
     // But without that feature, that contains info not represented, so then it's not `Default`.
     // We mustn't have fields that are in Constructor if some feature is *missing*,
     // because that would be non-additive.
     #[deftly(constructor)]
     #[deftly(netdoc(flatten))]
-    pub weight: ns_type!(RelayWeightsItem, RelayWeightsItem, VoteRelayWeightsItem),
+    pub weight: ns_type!(RelayBandwidthItem, RelayBandwidthItem, VoteRelayBandwidthItem),
 
     /// `p` --- Exit ports summary
     ///

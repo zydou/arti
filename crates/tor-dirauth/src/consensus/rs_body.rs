@@ -99,14 +99,14 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
     }
 }
 
-impl Aggregate<RouterStatusAC<'_>> for VoteRelayWeightsItem {
-    type Output = RelayWeightsItem;
+impl Aggregate<RouterStatusAC<'_>> for VoteRelayBandwidthItem {
+    type Output = RelayBandwidthItem;
 
     #[allow(clippy::needless_late_init)] // re median_inputs and unmeasured; clearer this way
     fn aggregate<'i>(
         context: ConsensusContextRefs<RouterStatusAC<'_>>,
-        inputs: impl ComponentInVotes<&'i VoteRelayWeightsItem>,
-    ) -> Result<RelayWeightsItem, ConsensusError>
+        inputs: impl ComponentInVotes<&'i VoteRelayBandwidthItem>,
+    ) -> Result<RelayBandwidthItem, ConsensusError>
     where
         Self: 'i,
     {
@@ -149,7 +149,7 @@ impl Aggregate<RouterStatusAC<'_>> for VoteRelayWeightsItem {
             unmeasured = Some((UNMEASURED, 1));
         } else {
             // There were no w lines, or not enough had Measured, or none had Bandwidth
-            return Ok(RelayWeightsItem::default());
+            return Ok(RelayBandwidthItem::default());
         }
 
         let out = chain!([(BANDWIDTH, out)], unmeasured)

@@ -18,7 +18,7 @@ use std::net::SocketAddr;
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_netdoc::doc::microdesc::{MicrodescAndHash, MicrodescBuilder};
-use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayWeight};
+use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayBandwidth};
 use tor_netdoc::doc::netstatus::{MdConsensus, MdConsensusBuilder};
 use tor_netdoc::types::relay_flags::RelayFlag;
 pub use tor_netdoc::{BuildError, BuildResult};
@@ -245,7 +245,7 @@ where
         } else {
             "".parse().unwrap()
         };
-        let weight = RelayWeight::Measured(1000 * u32::from(idx % 10 + 1));
+        let weight = RelayBandwidth::Measured(1000 * u32::from(idx % 10 + 1));
         let mut rs_builder = bld.rs();
         rs_builder
             .identity([idx; 20].into())

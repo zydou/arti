@@ -1068,7 +1068,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use tor_linkspec::{HasRelayIds, RelayIdType};
     use tor_netdir::NetDir;
-    use tor_netdoc::doc::netstatus::RelayWeight;
+    use tor_netdoc::doc::netstatus::RelayBandwidth;
     use tor_netdoc::types::relay_flags::RelayFlag;
     use web_time_compat::{InstantExt, SystemTimeExt};
 
@@ -1089,7 +1089,7 @@ mod test {
         // too tricky.
         let netdir = tor_netdir::testnet::construct_custom_netdir(|idx, builder, _| {
             // Give every node equal bandwidth.
-            builder.rs.weight(RelayWeight::Measured(1000));
+            builder.rs.weight(RelayBandwidth::Measured(1000));
             // The default network has 40 relays, and the first 10 are
             // not Guard by default.
             if idx >= 10 {
