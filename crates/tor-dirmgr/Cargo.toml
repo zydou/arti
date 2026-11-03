@@ -73,7 +73,7 @@ derive_more = { version = "2.1.1", features = ["full"] }
 digest = "0.11.3"
 educe = "0.4.23"
 event-listener = "5"
-fs-mistrust = { path = "../fs-mistrust", version = "0.16.0" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.16.1" }
 fslock-guard = { path = "../fslock-guard", version = "0.9.0" }
 futures = "0.3.34"
 hex = "0.4"
@@ -91,7 +91,7 @@ rand = "0.10.3"
 # choose from for projects that directly or indirectly require different `libsqlite3-sys` versions.
 # When updating the minimum, consult the Arti Team before merging.
 rusqlite = { version = ">=0.36.0, <0.41.0", features = ["time"] }
-safelog = { path = "../safelog", version = "0.10.0" }
+safelog = { path = "../safelog", version = "0.10.1" }
 scopeguard = "1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

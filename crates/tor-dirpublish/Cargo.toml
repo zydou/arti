@@ -33,7 +33,7 @@ event-listener = "5"
 futures = "0.3.34"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.10.3"
-safelog = { path = "../safelog", version = "0.10.0" }
+safelog = { path = "../safelog", version = "0.10.1" }
 thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.48.0" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.48.0", default-features = false }

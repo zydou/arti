@@ -42,7 +42,7 @@ async-trait = "0.1.92"
 cfg-if = "1.0.5"
 derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-fs-mistrust = { version = "0.16.0", path = "../fs-mistrust" }
+fs-mistrust = { version = "0.16.1", path = "../fs-mistrust" }
 futures = "0.3.34"
 itertools = "0.15.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.8.0" }

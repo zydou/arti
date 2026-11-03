@@ -43,7 +43,7 @@ educe = "0.4.23"
 either = "1"
 extend = "1.2.0"
 figment = { version = "0.10.19", features = ["toml"] }
-fs-mistrust = { path = "../fs-mistrust", version = "0.16.0" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.16.1" }
 futures = "0.3.34"
 humantime-serde = "1.1.1"
 itertools = "0.15.0"

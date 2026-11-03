@@ -23,7 +23,7 @@ paste = "1.0.15"
 void = "1"
 
 [dev-dependencies]
-safelog = { path = "../safelog", version = "0.10.0" }
+safelog = { path = "../safelog", version = "0.10.1" }
 serde_json = "1.0.154"
 
 [package.metadata.docs.rs]

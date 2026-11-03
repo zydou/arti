@@ -119,7 +119,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.10.3"
 rand09 = { package = "rand", version = "0.9", optional = true }
 rand_core = "0.10.1"
-safelog = { path = "../safelog", version = "0.10.0" }
+safelog = { path = "../safelog", version = "0.10.1" }
 serde = { version = "1.0.229", features = ["derive"], optional = true }
 slotmap-careful = { path = "../slotmap-careful", version = "0.9.0" }
 smallvec = { version = "1.16", features = ["const_generics"] }

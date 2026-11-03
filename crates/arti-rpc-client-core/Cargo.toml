@@ -21,7 +21,7 @@ caret = { path = "../caret", version = "0.11.0" }
 cfg-if = "1.0.5"
 derive_more = { version = "2.1.1", features = ["full"] }
 educe = "0.4.23"
-fs-mistrust = { version = "0.16.0", path = "../fs-mistrust" }
+fs-mistrust = { version = "0.16.1", path = "../fs-mistrust" }
 memchr = "2.8"
 mio = { version = "1.2.4", features = ["net", "os-poll"] }
 paste = { version = "1.0.15", optional = true }

@@ -81,7 +81,7 @@ derive-deftly = { version = "~1.14.0", features = ["full", "beta"] }
 derive_more = { version = "2.1.1", features = ["full"] }
 directories = "6"
 either = "1.19.0"
-fs-mistrust = { path = "../fs-mistrust", version = "0.16.0", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.16.1", features = ["serde"] }
 futures = "0.3.34"
 hickory-net = "0.26.3"
 hickory-proto = "0.26.3"
@@ -100,7 +100,7 @@ opentelemetry_sdk = { version = "0.33.1", features = ["rt-tokio"], optional = tr
 otlp-file-exporter = { path = "../otlp-file-exporter", version = "0.2.0", optional = true }
 rand = "0.10.3"
 rustls = { version = "0.23.46", default-features = false, features = ["logging", "aws_lc_rs"] }
-safelog = { path = "../safelog", version = "0.10.0" }
+safelog = { path = "../safelog", version = "0.10.1" }
 serde = { version = "1.0.229", features = ["derive"] }
 smallvec = "1.16"
 strum = { version = "0.28.0", features = ["derive"] }

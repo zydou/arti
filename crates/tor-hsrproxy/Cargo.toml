@@ -47,7 +47,7 @@ itertools = "0.15.0"
 metrics = { version = "0.24.6", optional = true }
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.8.0" }
 rangemap = "1.8"
-safelog = { version = "0.10.0", path = "../safelog" }
+safelog = { version = "0.10.1", path = "../safelog" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_with = "3.24.0"
 strum = { version = "0.28.0", features = ["derive"] }
