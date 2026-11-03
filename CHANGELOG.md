@@ -310,29 +310,29 @@ for funding the development of Arti!
 [#2826]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2826
 [#2831]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2831
 [Bureau of Democracy, Human Rights, and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
-[RUSTSEC-2026-0346]: XXXX
-[RUSTSEC-2026-0347]: XXXX
-[RUSTSEC-2026-0348]: XXXX
-[RUSTSEC-2026-0349]: XXXX
-[RUSTSEC-2026-0385]: XXXX
-[RUSTSEC-2026-0387]: XXXX
-[RUSTSEC-2026-0391]: XXXX
-[RUSTSEC-2026-0395]: XXXX
-[RUSTSEC-2026-0396]: XXXX
-[RUSTSEC-2026-0397]: XXXX
-[RUSTSEC-2026-0399]: XXXX
-[RUSTSEC-2026-0400]: XXXX
-[RUSTSEC-2026-0401]: XXXX
-[RUSTSEC-2026-0402]: XXXX
-[RUSTSEC-2026-0403]: XXXX
-[RUSTSEC-2026-0404]: XXXX
-[RUSTSEC-2026-0405]: XXXX
-[RUSTSEC-2026-0406]: XXXX
-[TROVE-2026-069]: XXXX
-[TROVE-2026-070]: XXXX
+[RUSTSEC-2026-0346]: https://rustsec.org/advisories/RUSTSEC-2026-0346.html
+[RUSTSEC-2026-0347]: https://rustsec.org/advisories/RUSTSEC-2026-0347.html
+[RUSTSEC-2026-0348]: https://rustsec.org/advisories/RUSTSEC-2026-0348.html
+[RUSTSEC-2026-0349]: https://rustsec.org/advisories/RUSTSEC-2026-0349.html
+[RUSTSEC-2026-0385]: https://rustsec.org/advisories/RUSTSEC-2026-0385.html
+[RUSTSEC-2026-0387]: https://rustsec.org/advisories/RUSTSEC-2026-0387.html
+[RUSTSEC-2026-0391]: https://rustsec.org/advisories/RUSTSEC-2026-0391.html
+[RUSTSEC-2026-0395]: https://rustsec.org/advisories/RUSTSEC-2026-0395.html
+[RUSTSEC-2026-0396]: https://rustsec.org/advisories/RUSTSEC-2026-0396.html
+[RUSTSEC-2026-0397]: https://rustsec.org/advisories/RUSTSEC-2026-0397.html
+[RUSTSEC-2026-0399]: https://rustsec.org/advisories/RUSTSEC-2026-0399.html
+[RUSTSEC-2026-0400]: https://rustsec.org/advisories/RUSTSEC-2026-0400.html
+[RUSTSEC-2026-0401]: https://rustsec.org/advisories/RUSTSEC-2026-0401.html
+[RUSTSEC-2026-0402]: https://rustsec.org/advisories/RUSTSEC-2026-0402.html
+[RUSTSEC-2026-0403]: https://rustsec.org/advisories/RUSTSEC-2026-0403.html
+[RUSTSEC-2026-0404]: https://rustsec.org/advisories/RUSTSEC-2026-0404.html
+[RUSTSEC-2026-0405]: https://rustsec.org/advisories/RUSTSEC-2026-0405.html
+[RUSTSEC-2026-0406]: https://rustsec.org/advisories/RUSTSEC-2026-0406.html
+[TROVE-2026-069]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2026-070]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [`CVE-2026-113470`]: XXXX
 [`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
-[`rustls`]: XXXX
+[`rustls`]: https://crates.io/crates/rustls
 [other sponsors]: https://www.torproject.org/about/sponsors/
 
 
