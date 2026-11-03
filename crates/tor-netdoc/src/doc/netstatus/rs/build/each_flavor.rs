@@ -206,7 +206,7 @@ impl RouterStatusBuilder {
                 known: self.flags,
                 unknown: Unknown::new_discard(),
             },
-            weight,
+            w: weight,
             port_policy: ns_expr!(None, NotPresent, Void {}),
             ed25519_id: NotPresent,
             stats: NotPresent,

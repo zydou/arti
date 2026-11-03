@@ -23,7 +23,7 @@ impl RouterStatus {
     }
     /// Return the declared bandwidth of this routerstatus in the directory.
     pub fn bandwidth(&self) -> &RelayBandwidth {
-        &self.weight.effective
+        &self.w.effective
     }
     /// Return the declared bandwidth of this routerstatus in the directory.
     #[deprecated = "use .bandwidth()"]
@@ -210,7 +210,7 @@ impl RouterStatus {
             flags,
             version,
             protos,
-            weight,
+            w: weight,
             port_policy: ns_expr!(None, NotPresent, Void {}),
             ed25519_id: NotPresent,
             stats: NotPresent,

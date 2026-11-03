@@ -64,7 +64,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
 
         calc! { both.ed25519_id = NotPresent }
         calc! { plain.m = NotPresent }
-        calc! { plain, md .weight }
+        calc! { plain, md .w }
 
         calc! { out.flags }
         // "routers that do not have the Running flag are not listed at all."
@@ -90,7 +90,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
 
         let (plain, md) = construct_both! {
             netstatus::plain::RouterStatus, netstatus::md::RouterStatus {
-                both. r, m, flags, protos, weight, ed25519_id;
+                both. r, m, flags, protos, w, ed25519_id;
             } {
                 both. a, version, port_policy, stats;
             }
