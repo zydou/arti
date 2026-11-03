@@ -14,6 +14,8 @@ descriptor encoding, and the relay DNS cache implementation.
 Additionally, we have made a number of cleanups and
 clarifications to the Tor specification.
 
+This release has a number of security fixes; please see below.
+
 As usual, there are also many under-the-hood improvements and bug fixes,
 which are documented below.
 
@@ -28,6 +30,14 @@ which are documented below.
    [RUSTSEC-2026-0396], [RUSTSEC-2026-0406], [RUSTSEC-2026-0395],
    [RUSTSEC-2026-0405], [RUSTSEC-2026-0404], [RUSTSEC-2026-0397],
    [RUSTSEC-2026-0402], [RUSTSEC-2026-0400], [RUSTSEC-2026-0401])
+- Fixed a low-severity issue, where arti could enter an inconsistent state
+  and panic when given bridges with conflicting IDs (or if it got a sequence of
+  conflicting consensuses that forgot to enforce key ID pinning).
+  ([#2744], [TROVE-2026-070], [!4547])
+- Fixed a low-severity issue, affecting onion services with proof-of-work enabled,
+  which in some circumstances, would cause excessive descriptor uploads
+  (in the case of release builds) or panics (in the case of non-release builds).
+  ([#2779], [TROVE-2026-069], [!4547])
 
 ### Network updates
 
@@ -66,6 +76,8 @@ which are documented below.
   from the keystore, the onion service would continue publishing descriptors
   for its old (removed) identity, until the blinded identity keys and descriptor
   signing keys of the old identity expired. ([#2065], [!4486])
+- Added defense-in-depth checks in the hs_ntor handshake implementation.
+  ([#2747], [!4547])
 
 ### Relay development
 
