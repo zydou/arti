@@ -1935,7 +1935,8 @@ impl RelayBandwidthItem {
         }
 
         let params = item.args_as_str().parse()?;
-        let effective = RelayBandwidth::from_net_params(&params).map_err(|e| e.at_pos(item.pos()))?;
+        let effective =
+            RelayBandwidth::from_net_params(&params).map_err(|e| e.at_pos(item.pos()))?;
 
         Ok(RelayBandwidthItem {
             effective,
@@ -1965,7 +1966,10 @@ impl RelayBandwidth {
 
     /// Return true if this bandwidth is nonzero
     pub fn is_nonzero(&self) -> bool {
-        !matches!(self, RelayBandwidth::Unmeasured(0) | RelayBandwidth::Measured(0))
+        !matches!(
+            self,
+            RelayBandwidth::Unmeasured(0) | RelayBandwidth::Measured(0)
+        )
     }
 
     /// Parse a routerbandwidth from partially-parsed `w` line in the form of a `NetParams`
