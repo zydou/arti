@@ -46,7 +46,7 @@ pub struct ConsensusBuilder {
     /// See [`Preamble::proto_statuses`]
     relay_protos: ProtoStatus,
     /// See [`Preamble::params`]
-    params: NetParams<i32>,
+    params: NetParamValues,
     /// See [`Preamble::voting_delay`]
     voting_delay: Option<(u32, u32)>,
     /// See [`Preamble::consensus_method`]

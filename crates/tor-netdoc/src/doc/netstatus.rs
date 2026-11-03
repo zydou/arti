@@ -361,6 +361,9 @@ pub struct VotingDelay {
     pub __non_exhaustive: (),
 }
 
+/// Some map of values for network parameters, eg for overriding
+pub type NetParamValues = NetParams<i32>;
+
 /// A set of named network parameters.
 ///
 /// These are used to describe current settings for the Tor network,

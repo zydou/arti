@@ -78,7 +78,7 @@ pub struct DirMgrConfig {
     /// (The above is a limitation: we would like it to someday take effect
     /// immediately. Users should _not_ assume that the effect of changing this
     /// option will always be delayed.)
-    pub override_net_params: netstatus::NetParams<i32>,
+    pub override_net_params: netstatus::NetParamValues,
 
     /// Extra fields for extension purposes.
     ///

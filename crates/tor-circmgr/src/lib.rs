@@ -1175,7 +1175,7 @@ mod test {
     #[test]
     fn get_params() {
         use tor_netdir::{MdReceiver, PartialNetDir};
-        use tor_netdoc::doc::netstatus::NetParams;
+        use tor_netdoc::doc::netstatus::NetParamValues;
         // If it's just fallbackdir, we get the default parameters.
         let fb = FallbackList::from([]);
         let di: DirInfo<'_> = (&fb).into();
@@ -1185,7 +1185,7 @@ mod test {
 
         // Now try with a directory and configured parameters.
         let (consensus, microdescs) = tor_netdir::testnet::construct_network().unwrap();
-        let mut params = NetParams::default();
+        let mut params = NetParamValues::default();
         params.set("circwindow".into(), 100);
         params.set("ExtendByEd25519ID".into(), 1);
         let mut dir = PartialNetDir::new(consensus, Some(&params));
@@ -1199,7 +1199,7 @@ mod test {
 
         // Now try with a bogus circwindow value.
         let (consensus, microdescs) = tor_netdir::testnet::construct_network().unwrap();
-        let mut params = NetParams::default();
+        let mut params = NetParamValues::default();
         params.set("circwindow".into(), 100_000);
         params.set("ExtendByEd25519ID".into(), 1);
         let mut dir = PartialNetDir::new(consensus, Some(&params));
