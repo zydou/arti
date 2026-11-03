@@ -7537,6 +7537,7 @@ dependencies = [
  "derive_more",
  "educe",
  "extend",
+ "humantime",
  "ipnet",
  "itertools 0.15.0",
  "num-traits",

@@ -54,6 +54,7 @@
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
 mod internal_prelude;
+mod shared_random;
 
 pub mod consensus;
 pub mod utils;

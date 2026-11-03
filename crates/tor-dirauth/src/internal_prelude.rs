@@ -9,6 +9,7 @@ pub(crate) use std::marker::PhantomData;
 pub(crate) use std::net::Ipv4Addr;
 pub(crate) use std::ops::{RangeBounds, RangeInclusive};
 pub(crate) use std::sync::Arc;
+pub(crate) use std::time::{Duration, SystemTime};
 
 pub(crate) use derive_deftly::{Deftly, define_derive_deftly};
 pub(crate) use educe::Educe;

@@ -53,5 +53,6 @@ typed-index-collections = "3.5.0"
 
 [dev-dependencies]
 anyhow = "1.0.104"
+humantime = "2"
 tor-netdoc = { version = "0.48.0", path = "../tor-netdoc", features = ["full", "testing"] }
 tracing-test = "0.2.6"
