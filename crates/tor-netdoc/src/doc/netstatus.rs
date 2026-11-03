@@ -363,15 +363,13 @@ pub struct VotingDelay {
 
 /// Some map of values for network parameters, eg for overriding
 ///
-/// The whole consensus's network parameters (from the preamble) are a `NetParams`
+/// The whole consensus's network parameters (from the preamble) are a [`NetParams`]
 /// which is usually refined into a `tor_netdir::NetParameters` for use.
 ///
-/// This is a convenience alias for the generic `ParamValues`,
+/// This is a convenience alias for the generic [`ParamValues`],
 /// which is used for other netdoc elements too.
 ///
-/// See `ParamValues` for a discussion of the relationship between these types.
-//
-// XXXX linkify when we have changed the names
+/// See [`ParamValues`] for a discussion of the relationship between these types.
 pub type NetParamValues = ParamValues<i32>;
 
 /// A set of named parameter values
@@ -389,28 +387,26 @@ pub type NetParamValues = ParamValues<i32>;
 ///      - spec's defaults are applied
 ///      - values' ranges are checked
 ///
-///  * `NetParams`: network parameter settings from `params` in a consensus (or vote),
+///  * [`NetParams`]: network parameter settings from `params` in a consensus (or vote),
 ///    parsed, but without interpretation and without defaults applied.
 ///    This is the type of the `params` field in a `NetworkStatus`.
 ///      - caller must get field names right; no central keyword list
 ///      - user is reminded to apply defaults, but must do so manually
 ///      - values are all unchecked `i32`
 ///
-///  * `NetParamValues`: a set of network parameter values, for example
+///  * [`NetParamValues`]: a set of network parameter values, for example
 ///    as found in configuration for overriding netparams.
-///    `NetParams` contains one of these.
+///    [`NetParams`] contains one of these.
 ///      - no checking of field names or values
 ///      - missing values simply return `None` from `get`,
 ///        nothing to stop failure to apply a default when needed
 ///        (which is appropriate for an override set).
 ///
-///  * `ParamValues<T>`: any kind of key=values list as used in various network
+///  * [`ParamValues<T>`]: any kind of key=values list as used in various network
 ///    documents, generic over the value type `T`.
 ///      - no checking of field names or values, no defaulting
 ///      - arbitrary value type - some netdoc elements have `u32`, some `i32`, etc.
 ///
-// XXXX linkify when we have changed the names
-//
 /// ### In netdocs
 ///
 /// Syntax is that found in `params` in a network status:
@@ -494,14 +490,12 @@ where
 /// As found in `params` in a network status:
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:params>
 ///
-/// This type contains a `NetParamValues` ie a `ParamValues<i32>`.
+/// This type contains a [`NetParamValues`] ie a [`ParamValues<i32>`].
 /// That is not directly exposed in a `NetworkStatus`,
 /// because users of entries from `params` are supposed to apply default values
 /// for missing entries.
 ///
-/// See `ParamValues` for a discussion of the relationship between these types.
-//
-// XXXX linkify when we have changed the names
+/// See [`ParamValues`] for a discussion of the relationship between these types.
 #[derive(Debug, Clone, Educe, Eq, PartialEq, derive_more::From, derive_more::FromStr)]
 #[educe(Default)]
 pub struct NetParams {
