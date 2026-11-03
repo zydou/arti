@@ -29,10 +29,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         )>,
         ConsensusError,
     > {
-        let inputs = self
-            .per_voter
-            .iter_enumerated()
-            .with_opinions();
+        let inputs = self.per_voter.iter_enumerated().with_opinions();
 
         /// Copy a field from `self.status_tuple` to the output.
         ///
