@@ -362,20 +362,62 @@ pub struct VotingDelay {
 }
 
 /// Some map of values for network parameters, eg for overriding
+///
+/// The whole consensus's network parameters (from the preamble) are a `NetParams`
+/// which is usually refined into a `tor_netdir::NetParameters` for use.
+///
+/// This is a convenience alias for the generic `ParamValues`,
+/// which is used for other netdoc elements too.
+///
+/// See `ParamValues` for a discussion of the relationship between these types.
+//
+// XXXX linkify when we have changed the names
 pub type NetParamValues = NetParams<i32>;
 
-/// A set of named network parameters.
+/// A set of named parameter values
 ///
+// XXXX rename to ParamValues
+//
 /// These are used to describe current settings for the Tor network,
 /// current weighting parameters for path selection, and so on.  They're
 /// encoded with a space-separated K=V format.
 ///
-/// A `NetParams<i32>` is part of the validated directory manager configuration,
-/// where it is built (in the builder-pattern sense) from a transparent HashMap.
+/// ### Overview of types for representing (network) parameter
 ///
-/// As found in `params` in a network status:
-/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:params>
+/// This is at the root of four related types:
 ///
+///  * `tor_netdir::NetParameters`: refined consensus parameters, ready for use.
+///      - impossible to accidentally refer to undefined parameter names
+///      - spec's defaults are applied
+///      - values' ranges are checked
+///
+///  * `NetParams`: network parameter settings from `params` in a consensus (or vote),
+///    parsed, but without interpretation and without defaults applied.
+///    This is the type of the `params` field in a `NetworkStatus`.
+///      - caller must get field names right; no central keyword list
+///      - user is reminded to apply defaults, but must do so manually
+///      - values are all unchecked `i32`
+///
+///  * `NetParamValues`: a set of network parameter values, for example
+///    as found in configuration for overriding netparams.
+///    `NetParams` contains one of these.
+///      - no checking of field names or values
+///      - missing values simply return `None` from `get`,
+///        nothing to stop failure to apply a default when needed
+///        (which is appropriate for an override set).
+///
+///  * `ParamValues<T>`: any kind of key=values list as used in various network
+///    documents, generic over the value type `T`.
+///      - no checking of field names or values, no defaulting
+///      - arbitrary value type - some netdoc elements have `u32`, some `i32`, etc.
+///
+// XXXX the `params` field isn't changed yete
+// XXXX linkify when we have changed the names
+//
+/// ### In netdocs
+///
+/// Syntax is that found in `params` in a network status:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:params>,
 /// The same syntax is also used, and this type used for parsing, in various other places,
 /// for example routerstatus entry `w` items (bandwidths):
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
@@ -403,6 +445,8 @@ impl<T> NetParams<T> {
         NetParams::default()
     }
     /// Retrieve a given network parameter, if it is present.
+    ///
+    /// There is no safeguard against getting parameter names wrong.
     pub fn get<A: AsRef<str>>(&self, v: A) -> Option<&T> {
         self.params.get(v.as_ref())
     }
@@ -411,6 +455,9 @@ impl<T> NetParams<T> {
         self.params.iter()
     }
     /// Set or replace the value of a network parameter.
+    ///
+    /// There is no safeguard against getting parameter names wrong.
+    /// Prefer to refine into a cooked type such as `tor_netdir::NetParameters` if possible.
     pub fn set(&mut self, k: String, v: T) {
         self.params.insert(k, v);
     }
@@ -440,6 +487,64 @@ where
     {
         let params = HashMap::deserialize(deserializer)?;
         Ok(NetParams { params })
+    }
+}
+
+/// The network parameters as in the `params` line
+//
+// XXXX rename to NetParams
+///
+/// <https://spec.torproject.org/param-spec.html>
+///
+/// As found in `params` in a network status:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:params>
+///
+/// This type contains a `NetParamValues` ie a `ParamValues<i32>`.
+/// That is not directly exposed in a `NetworkStatus`,
+/// because users of entries from `params` are supposed to apply default values
+/// for missing entries.
+///
+/// See `ParamValues` for a discussion of the relationship between these types.
+// XXXX linkify when we have changed the names
+#[derive(Debug, Clone, Educe, Eq, PartialEq, derive_more::From, derive_more::FromStr)]
+#[educe(Default)]
+pub struct TheNetParams {
+    /// Map from keys to values.
+    params: NetParamValues,
+}
+
+impl TheNetParams {
+    /// Access the parameter set, without applying default values
+    ///
+    /// The caller must supply default values as appropriate.
+    ///
+    /// Prefer to refine into a `tor_netdir::NetParameters` if possible.
+    pub fn without_defaults(&self) -> &NetParamValues {
+        &self.params
+    }
+
+    /// Unwrap into the contained parameter set, without applying default values
+    ///
+    /// The caller must supply default values as appropriate,
+    ///
+    /// Prefer to refine into a `tor_netdir::NetParameters` if possible.
+    pub fn into_without_defaults(self) -> NetParamValues {
+        self.params
+    }
+
+    /// Set or replace the value of a network parameter.
+    ///
+    /// There is no safeguard against getting parameter names wrong.
+    pub fn set(&mut self, k: String, v: i32) {
+        self.params.set(k, v);
+    }
+}
+
+impl<K: Into<String>> FromIterator<(K, i32)> for TheNetParams {
+    fn from_iter<I: IntoIterator<Item = (K, i32)>>(i: I) -> Self {
+        TheNetParams {
+            params: i.into_iter().collect(),
+        }
     }
 }
 
@@ -2046,6 +2151,13 @@ mod parse2_impls {
         }
     }
 
+    impl ItemValueParseable for TheNetParams {
+        fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+            let params = NetParams::from_unparsed(item)?;
+            Ok(TheNetParams { params })
+        }
+    }
+
     impl NetdocParseableFields for RelayBandwidthItem {
         type Accumulator = Option<NetParams<u32>>;
 
@@ -2133,6 +2245,13 @@ mod encode_impls {
                 out.args_raw_string(&format_args!("{k}={v}"));
             }
             Ok(())
+        }
+    }
+
+    // The NormalItemArgument bound ensures that this is applied only to sane types eg integers
+    impl ItemValueEncodable for TheNetParams {
+        fn write_item_value_onto(&self, out: ItemEncoder) -> Result<(), Bug> {
+            self.params.write_item_value_onto(out)
         }
     }
 
