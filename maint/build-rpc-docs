@@ -81,7 +81,7 @@ $CARGO build \
 
 ARTI_PID=$!
 
-while ! [ -e "$ARTI_TMP/sock/rpc_socket" ]; do 
+while ! [ -e "$ARTI_TMP/sock/rpc_socket" ]; do
     sleep 1
 done
 
