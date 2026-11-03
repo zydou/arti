@@ -6,6 +6,7 @@ use super::*;
 //
 // TODO DIRAUTH this should be rate limited or something maybe?
 // TODO DIRAUTH voter number is not very useful to log here!
+// TODO DIRAUTH arguably this is more serious than debug, but what about compatibility?
 macro_rules! bad_vote { { $vnum:expr, $($msg:tt)* } => { {
     let vnum: VoterNum = $vnum;
     debug!("bad vote from {vnum:?}: {}", format_args!($($msg)*));
