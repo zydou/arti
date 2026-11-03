@@ -49,7 +49,11 @@
 #![allow(recursion_depth_exceeding_limit)] // arti#2715, rust/issues/159228
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#![allow(clippy::redundant_field_names)] // TODO beta clippy bug, rust-clippy/issues/17525
+#![allow(clippy::redundant_field_names)]
+// TODO beta clippy bug, rust-clippy/issues/17525
+
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
 
 pub mod chancell;
 mod err;

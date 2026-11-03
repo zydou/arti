@@ -51,6 +51,8 @@
 
 #![allow(non_upper_case_globals)]
 #![allow(clippy::upper_case_acronyms)]
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
 
 use caret::caret_int;
 

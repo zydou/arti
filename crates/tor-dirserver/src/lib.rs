@@ -51,6 +51,8 @@
 
 // TODO DIRMIRROR: Remove this before release.
 #![allow(dead_code)]
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
 
 mod database;
 pub mod err;

@@ -54,6 +54,8 @@
 // Overrides specific to this crate:
 #![allow(clippy::print_stderr)]
 #![allow(clippy::print_stdout)]
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
 
 mod authority_plugin;
 

@@ -49,6 +49,9 @@
 #![allow(recursion_depth_exceeding_limit)] // arti#2715, rust/issues/159228
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
+
 // This module uses the `x509-cert` crate to generate certificates;
 // if we decide to switch, `rcgen` and `x509-certificate`
 // seem like the likeliest options.
