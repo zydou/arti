@@ -11,7 +11,7 @@ pub(crate) mod vote;
 
 use super::{ConsensusFlavor, ConsensusMethods, consensus_methods_comma_separated};
 use crate::doc::netstatus::{
-    IgnoredPublicationTimeSp, NetParams, NetstatusKwd, Protocols, RelayBandwidth,
+    IgnoredPublicationTimeSp, ParamValues, NetstatusKwd, Protocols, RelayBandwidth,
     RelayBandwidthItem, VoteRelayBandwidthItem,
 };
 use crate::encode::{EncodeOrd, ItemEncoder};

@@ -182,7 +182,7 @@ pub struct Preamble {
     /// network should operator. Some of these adjust timeouts and
     /// whatnot; some features things on and off.
     #[deftly(constructor)]
-    pub params: TheNetParams,
+    pub params: NetParams,
 
     /// Global shared-random values
     #[deftly(netdoc(flatten))]

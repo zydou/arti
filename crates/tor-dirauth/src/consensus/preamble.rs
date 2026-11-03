@@ -108,8 +108,8 @@ pub(super) fn doc_relay_flags_union<'i>(
 // places, and we don't want them to get this impl by mistake.
 pub(super) fn netparams_preamble_aggregate<'i>(
     context: ConsensusContextRefs<()>,
-    inputs: impl ComponentInVotes<&'i TheNetParams>,
-) -> Result<TheNetParams, ConsensusError> {
+    inputs: impl ComponentInVotes<&'i NetParams>,
+) -> Result<NetParams, ConsensusError> {
     Ok(inputs
         .votes()
         .flat_map(|i| i.without_defaults().iter().map(|(k, _v)| k))

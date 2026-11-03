@@ -15,7 +15,7 @@
 use crate::ConsensusRelays;
 use crate::params::NetParameters;
 use bitflags::bitflags;
-use tor_netdoc::doc::netstatus::{self, MdConsensus, MdRouterStatus, NetParams};
+use tor_netdoc::doc::netstatus::{self, MdConsensus, MdRouterStatus, ParamValues};
 
 /// Helper: Calculate the function we should use to find initial relay
 /// bandwidths.
@@ -281,7 +281,7 @@ impl WeightSet {
         bandwidth_fn: BandwidthFn,
         total_bw: u64,
         weight_scale: u32,
-        p: &NetParams<i32>,
+        p: &ParamValues<i32>,
     ) -> Self {
         /// Find a single RelayWeight, given the names that its bandwidth
         /// parameters have. The `g` parameter is the weight as a guard, the
@@ -289,7 +289,7 @@ impl WeightSet {
         /// the weight as an exit, and the `d` parameter is the weight as a
         /// directory.
         #[allow(clippy::many_single_char_names)]
-        fn single(p: &NetParams<i32>, g: &str, m: &str, e: &str, d: &str) -> RelayWeight {
+        fn single(p: &ParamValues<i32>, g: &str, m: &str, e: &str, d: &str) -> RelayWeight {
             RelayWeight {
                 as_guard: w_param(p, g),
                 as_middle: w_param(p, m),
@@ -375,7 +375,7 @@ const DFLT_WEIGHT: i32 = 1;
 ///
 /// Returns DFLT_WEIGHT if there is no such parameter, and 0
 /// if `kwd` is "---".
-fn w_param(p: &NetParams<i32>, kwd: &str) -> u32 {
+fn w_param(p: &ParamValues<i32>, kwd: &str) -> u32 {
     if kwd == "---" {
         0
     } else {

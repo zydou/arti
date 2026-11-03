@@ -156,7 +156,7 @@ impl Aggregate<RouterStatusAC<'_>> for VoteRelayBandwidthItem {
         }
 
         let out = chain!([(BANDWIDTH, out)], unmeasured)
-            .collect::<NetParams<_>>()
+            .collect::<ParamValues<_>>()
             .try_into()
             .map_err(into_internal!("generated bad w item"))?;
 
