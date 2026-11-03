@@ -457,6 +457,14 @@ impl<T> ParamValues<T> {
     pub fn set(&mut self, k: String, v: T) {
         self.params.insert(k, v);
     }
+    /// Clear a network parameter from this set.
+    ///
+    /// The actual eventual value used will then be the default, or un-overridden parameter.
+    ///
+    /// There is no safeguard against getting parameter names wrong.
+    pub fn clear(&mut self, k: &str) {
+        self.params.remove(k);
+    }
 }
 
 impl<K: Into<String>, T> FromIterator<(K, T)> for ParamValues<T> {
@@ -530,6 +538,16 @@ impl NetParams {
     /// There is no safeguard against getting parameter names wrong.
     pub fn set(&mut self, k: String, v: i32) {
         self.params.set(k, v);
+    }
+
+    /// Reset a network parameter back to the default.
+    ///
+    /// If this set is later correctly used as an actual netparams set,
+    /// the actual eventual value used will then be the default.
+    ///
+    /// There is no safeguard against getting parameter names wrong.
+    pub fn clear(&mut self, k: &str) {
+        self.params.clear(k);
     }
 }
 

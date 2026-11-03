@@ -8,3 +8,4 @@ ADDED: `ConsensusMethods` convertible to/from, and derefs to, `BTreeSet`; is exh
 ADDED: `SharedRandVal` impls `Hash`
 ADDED: `SharedRandStatus` impls `Eq, PartialEq, Hash`
 ADDED: `SharedRandStatusesConstructdor`
+ADDED: `NetParams::clear`, `ParamValues::clear`
