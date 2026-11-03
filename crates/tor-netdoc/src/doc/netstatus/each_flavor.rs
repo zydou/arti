@@ -60,9 +60,8 @@ impl Consensus {
     }
 
     /// Return the map of network parameters that this consensus advertises.
-    // XXXX change return type
-    pub fn params(&self) -> &NetParamValues {
-        &self.preamble.params.params
+    pub fn params(&self) -> &NetParams {
+        &self.preamble.params
     }
 
     /// Return the latest shared random value, if the consensus
