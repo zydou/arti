@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 anyhow = { version = "1.0.104" }
-arti-client = { path = "../../crates/arti-client", version = "0.47" }
+arti-client = { path = "../../crates/arti-client", version = "0.48" }
 clap = { version = "4.6.7", features = ["derive"] }
 futures = { version = "0.3.34" }
 hex = "0.4"
@@ -24,7 +24,7 @@ tokio = { version = "1.54.1", features = [
     "fs",
 ] }
 tokio-native-tls = "0.3.1"
-tor-rtcompat = { path = "../../crates/tor-rtcompat", version = "0.47" }
+tor-rtcompat = { path = "../../crates/tor-rtcompat", version = "0.48" }
 tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 

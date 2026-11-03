@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirauth"
-version = "0.47.0"
+version = "0.48.0"
 authors = [
     "The Tor Project, Inc.",
     "Ian Jackson <iwj@torproject.org>",
@@ -43,15 +43,15 @@ paste = "1.0.15"
 rangemap = "1.8"
 static_assertions = "1"
 thiserror = "2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.47.0" }
-tor-error = { path = "../tor-error", version = "0.47.0" }
-tor-netdoc = { version = "0.47.0", path = "../tor-netdoc", features = ["full", "retain-unknown"] }
-tor-protover = { version = "0.47.0", path = "../tor-protover" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.48.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.48.0" }
+tor-error = { path = "../tor-error", version = "0.48.0" }
+tor-netdoc = { version = "0.48.0", path = "../tor-netdoc", features = ["full", "retain-unknown"] }
+tor-protover = { version = "0.48.0", path = "../tor-protover" }
 tracing = "0.1.44"
 typed-index-collections = "3.5.0"
 
 [dev-dependencies]
 anyhow = "1.0.104"
-tor-netdoc = { version = "0.47.0", path = "../tor-netdoc", features = ["full", "testing"] }
+tor-netdoc = { version = "0.48.0", path = "../tor-netdoc", features = ["full", "testing"] }
 tracing-test = "0.2.6"
