@@ -97,7 +97,6 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         calc! { both.stats = NotPresent }
 
         // TODO DIRAUTH replace routerstatus dummy values:
-        calc! { both.a = Default:: default() }
         calc! { plain.port_policy = Default:: default() }
 
         let md_m = md_none_defer.handle(
@@ -118,8 +117,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         let computed = SameStatusTupleAC {};
         let context = context.with_computed(&computed);
 
-        let _ = inputs; // XXXX
-        let _ = context; // XXXX
+        calc! { plain, md .a <+ aggregate_a_items }
 
         //---------- assemble the output ----------
 
@@ -345,6 +343,25 @@ impl Aggregate<RouterStatusAC<'_>> for Option<netstatus::SoftwareVersion> {
             functions::ord_string_reverse_choose_lexically_latest,
         )
     }
+}
+
+/// Calculate the `a` item(s) in the consensus
+#[allow(clippy::ref_option_ref)] // clippy complains about the type annotation in the closure
+fn aggregate_a_items<'i>(
+    _context: ConsensusContextRefs<SameStatusTupleAC>,
+    inputs: impl ComponentInVotes<&'i Vec<SocketAddr>>,
+) -> Result<Vec<SocketAddr>, ConsensusError> {
+    let inputs = inputs.map(|(vnum, v)| (vnum, v.first()));
+
+    let output = functions::choose_most_popular_amongst_votes_raw(
+        inputs,
+        // fallback ordering is "natural" according to Rust, which matches the spec
+        |a: &Option<&SocketAddr>| std::cmp::Reverse(*a),
+    )?
+    .flatten()
+    .cloned();
+
+    Ok(output.into_iter().collect())
 }
 
 #[cfg(test)]
