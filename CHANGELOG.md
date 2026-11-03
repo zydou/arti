@@ -168,7 +168,7 @@ which are documented below.
 - Bumped our [`rustls`] dependency to 0.23.64 in the `Cargo.lock` file.
   ([!4488], [RUSTSEC-2026-0346], [RUSTSEC-2026-0347], [RUSTSEC-2026-0348],
   [RUSTSEC-2026-0349])
-- Added a new clippy lint to our standard lint block,
+- Added `clippy::ok_or_fun` to our standard lint block,
   and resolved the resulting warnings. ([#2804], [#2813], [!4491])
 - Removed a number of outdated exceptions from our `maint/cargo-audit` script.
   ([!4494])
