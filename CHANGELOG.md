@@ -678,7 +678,7 @@ which are documented below.
 - Updated the our CI `after_script`s to clean up various build artifacts,
   reducing disk usage on the runners. ([!4316], [#2669], [#2672])
 - Rustdoc builds are now uploaded as artifacts, and are no longer preserved
-  between jobs ([!4315])
+  between jobs. ([!4315])
 
 ### Cleanups, minor features, and bugfixes
 
@@ -838,7 +838,7 @@ Arti 2.5.1 continues development on relays and directory authorities.
 It also adds some performance, security, and convenience features for
 onion services.
 
-<!-- Up to date as of 4f08464f17a2bf2c23e07028241d9aab21061bcc -->
+<!-- Up to date as of [4f08464f17a2bf2c23e07028241d9aab21061bcc] -->
 
 ### Major bugfixes
 
@@ -852,7 +852,7 @@ onion services.
   `PostageWatchSenderExt::maybe_send` to
   the blanket implementation. ([!4214])
 - `tor-basic-utils`: Moved the default implementations for some `StrExt`
-  methods to the blanket implementation ([!4214])
+  methods to the blanket implementation. ([!4214])
 - `tor-basic-utils`: `RangeBoundExt`'s type parameter must now implement Ord.
   ([!4214])
 - `tor-cell`: Renamed some `kbps` identifiers for clarity. ([!4255])
@@ -1422,7 +1422,7 @@ As usual, there are also many small changes and improvements which are detailed 
 - Fixed a bug where window-based flow control was wrongly being applied
   to XON/XOFF flow control half-streams. ([#2195], [#2505], [!3941])
 - Fixed a bug causing onion service clients to fail to refetch the service
-  descriptor after introduction failure ([#966], [!3925]).
+  descriptor after introduction failure. ([#966], [!3925])
 
 ### Breaking changes in lower-level crates
 
@@ -1807,7 +1807,7 @@ As usual, there are also many small changes and improvements which are detailed 
 ### Cleanups, minor features, and bugfixes
 
 * Switched default crypto provider to `aws-lc-rs` from `ring`. ([!3857])
-* Reduced geoip database memory usage. ([!3895], !3900)
+* Reduced geoip database memory usage. ([!3895], [!3900])
 * Added new `tor-geoip` tool for converting between geoip database formats.
   This is currently for internal use, and is expected to be merged into the existing `geoip-db-tool` eventually. ([!3909])
 * Updated dependencies. ([!3835], [!3836], [!3837], [!3855], [!3880], [!3893], [!3913], [!3942], [!3928])
