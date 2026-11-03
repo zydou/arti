@@ -83,7 +83,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         calc! { md.port_policy = NotPresent }
         calc! { both.stats = NotPresent }
 
-        // TODO DIRAUTH replace dummy values
+        // TODO DIRAUTH replace routerstatus dummy values:
         calc! { both.a = Default:: default() }
         calc! { plain.port_policy = Default:: default() }
 
@@ -94,8 +94,6 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
             },
             || [0; 32].into(),
         )?;
-
-        // TODO DIRAUTH replace routerstatus dummy values
 
         let (plain, md) = construct_both! {
             netstatus::plain::RouterStatus, netstatus::md::RouterStatus {
