@@ -468,9 +468,31 @@ where
 {
     let buffer_window_size = 1024;
     let mut written_total: usize = 0;
-    // TODO(nickm): This should be an option, and is maybe too long.
-    // Though for some users it may be too short?
-    let read_timeout = Duration::from_secs(10);
+    // TODO(cve): This should be configurable.
+    // Originally, this was set to 10s, however we have bumped it to 60s for
+    // the following reasons:
+    // 1. The largest possible netdoc to retrieve is /tor/server/all, which is
+    //    roughly 30MB = 240 Megabit with an average gzip compression applied.
+    // 2. Downloading this before the 10s timeout completes would require an
+    //    internet bandwidth of at least 24Mbit/s.
+    // 3. According to Wikipedia (Nov. 2026), there are at least 17 countries
+    //    where the average internet speed is below 24Mbit/s.  Besides, there
+    //    may be other conditions which might make the connection slower, such
+    //    as a DoS, sharing a coaxial cable with neighbors, etc.
+    // 4. Assuming a speed of 5Mbit/s, downloading /tor/server/all compressed
+    //    would take 48s.  In order to be a bit more tolerant, we round it up
+    //    to 60s.
+    //
+    // I am aware that these estimates are probably unrealistic because
+    // downloading all plain descriptors is an edge-case that almost no client
+    // uses.  However, it should still be a reasonable upper bound, given that
+    // certain bridges may even have a bandwidth as low as 1Mbit/s.
+    //
+    // For directory mirrors and authorities, this should not be a problem,
+    // because they do not download the descriptors in bulk but rather
+    // individually across multiple requests or potentially not at all, in the
+    // case of an authority, which may even get the descriptor POSTed to them.
+    let read_timeout = Duration::from_secs(60);
     let timer = runtime.sleep(read_timeout).fuse();
     futures::pin_mut!(timer);
 
