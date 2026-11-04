@@ -43,6 +43,11 @@ which are documented below.
 
 - Updated to the latest list of Tor fallback directories. ([!4479])
 
+### Deprecated functionality
+
+- In `arti`, the `secmem-proc` feature is now deprecated in favor of the
+  `harden` feature. ([2ad94d28b2d7b97a9d2f677e249c8faec680d08e])
+
 ### Breaking changes in lower-level crates
 
 - In `arti-client`, the `accel-sha1-asm` feature, which is deprecated upstream,
@@ -309,6 +314,7 @@ for funding the development of Arti!
 [#2815]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2815
 [#2826]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2826
 [#2831]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2831
+[2ad94d28b2d7b97a9d2f677e249c8faec680d08e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/2ad94d28b2d7b97a9d2f677e249c8faec680d08e
 [Bureau of Democracy, Human Rights, and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
 [RUSTSEC-2026-0346]: https://rustsec.org/advisories/RUSTSEC-2026-0346.html
 [RUSTSEC-2026-0347]: https://rustsec.org/advisories/RUSTSEC-2026-0347.html
