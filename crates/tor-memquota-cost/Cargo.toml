@@ -1,6 +1,6 @@
 [package]
 name = "tor-memquota-cost"
-version = "0.47.0"
+version = "0.48.0"
 authors = ["The Tor Project, Inc.", "Ian Jackson <iwj@torproject.org>"]
 edition = "2024"
 rust-version = "1.92"
@@ -23,7 +23,7 @@ paste = "1.0.15"
 void = "1"
 
 [dev-dependencies]
-safelog = { path = "../safelog", version = "0.10.0" }
+safelog = { path = "../safelog", version = "0.10.1" }
 serde_json = "1.0.154"
 
 [package.metadata.docs.rs]

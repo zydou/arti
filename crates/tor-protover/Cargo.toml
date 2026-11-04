@@ -1,6 +1,6 @@
 [package]
 name = "tor-protover"
-version = "0.47.0"
+version = "0.48.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.92"
@@ -19,8 +19,8 @@ itertools = "0.15.0"
 paste = "1.0.15"
 serde_with = { version = "3.24.0", optional = true }
 thiserror = "2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.47.0" }
-tor-bytes = { path = "../tor-bytes", version = "0.47.0", optional = true }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.48.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.48.0", optional = true }
 
 [features]
 default = []
