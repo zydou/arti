@@ -2,6 +2,8 @@
 #
 # List our crates as they appear in Cargo.toml.
 
+from __future__ import annotations
+
 import argparse
 import toml.decoder
 
@@ -23,6 +25,21 @@ class Crate:
     version: str
     raw_metadata: Any
 
+    @staticmethod
+    def from_raw_cargo_contents(subdir: Path, contents: str) -> Crate:
+        pt = toml.decoder.loads(contents)
+        package = pt["package"]["name"]
+        publish = pt["package"].get("publish")
+        version = pt["package"]["version"]
+        if publish is None:
+            publish = True
+        return Crate(package, str(subdir), publish, version, pt)
+
+    @staticmethod
+    def from_subdir(subdir: Path) -> Crate:
+        contents = TOPDIR.joinpath(subdir, "Cargo.toml").read_text()
+        return Crate.from_raw_cargo_contents(subdir, contents)
+
 
 def list_crates() -> Iterator[Crate]:
     """
@@ -30,13 +47,7 @@ def list_crates() -> Iterator[Crate]:
     """
     t = toml.decoder.load(WORKSPACE_TOML)
     for subdir in t["workspace"]["members"]:
-        pt = toml.decoder.load(TOPDIR.joinpath(subdir,"Cargo.toml"))
-        package = pt["package"]["name"]
-        publish = pt["package"].get("publish")
-        version = pt["package"]["version"]
-        if publish is None:
-            publish = True
-        yield Crate(package, subdir, publish, version, pt)
+        yield Crate.from_subdir(Path(subdir))
 
 
 def print_crates(args: argparse.Namespace) -> None:
