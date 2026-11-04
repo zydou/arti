@@ -114,9 +114,9 @@ default:
 check-editorconfig:
   needs: []
   stage: build
-  image: docker.io/mstruebing/editorconfig-checker:v3.11.0
+  image: docker.io/mstruebing/editorconfig-checker:4.0.2
   script:
-    - ec
+    - editorconfig-checker
 
 shellcheck:
   needs: []
