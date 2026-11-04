@@ -2083,6 +2083,14 @@ impl Default for RelayBandwidthItem {
 }
 
 impl RelayBandwidth {
+    /// Return the value, whether measured or not
+    pub fn value(&self) -> u32 {
+        match *self {
+            RelayBandwidth::Measured(v) => v,
+            RelayBandwidth::Unmeasured(v) => v,
+        }
+    }
+
     /// Return true if this bandwidth is the result of a successful measurement
     pub fn is_measured(&self) -> bool {
         matches!(self, RelayBandwidth::Measured(_))
@@ -2090,10 +2098,7 @@ impl RelayBandwidth {
 
     /// Return true if this bandwidth is nonzero
     pub fn is_nonzero(&self) -> bool {
-        !matches!(
-            self,
-            RelayBandwidth::Unmeasured(0) | RelayBandwidth::Measured(0)
-        )
+        self.value() != 0
     }
 
     /// Parse a routerbandwidth from partially-parsed `w` line in the form of a `NetParams`
