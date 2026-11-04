@@ -53,12 +53,9 @@ def list_crates() -> Iterator[Crate]:
 def print_crates(args: argparse.Namespace) -> None:
     shown_any = False
     for c in list_crates():
-        show = (
-            args.package == c.name
-            if args.package is not None
-            else args.all or c.publish
-        )
-        if not show:
+        if args.package is not None and args.package != c.name:
+            continue
+        if not args.all and not c.publish:
             continue
         shown_any = True
         if args.version:
