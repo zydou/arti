@@ -2183,6 +2183,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dirs"
+version = "7.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d57d423b3c82e89b9a24ca3091fee61f456a26edbd28d26c65906f4bc1dcd8f"
+dependencies = [
+ "dirs-sys",
+]
+
+[[package]]
 name = "dirs-sys"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2729,7 +2738,7 @@ version = "0.16.1"
 dependencies = [
  "assert_matches",
  "derive_builder_fork_arti",
- "dirs",
+ "dirs 7.0.0",
  "extend",
  "libc",
  "pwd-grp",
@@ -6286,7 +6295,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32824fab5e16e6c4d86dc1ba84489390419a39f97699852b66480bb87d297ed8"
 dependencies = [
  "bstr",
- "dirs",
+ "dirs 6.0.0",
  "os_str_bytes",
 ]
 
@@ -7485,7 +7494,7 @@ dependencies = [
  "assert_matches",
  "derive-deftly",
  "directories",
- "dirs",
+ "dirs 7.0.0",
  "rmp-serde",
  "serde",
  "serde_json",
