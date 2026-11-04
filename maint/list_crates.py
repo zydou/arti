@@ -4,14 +4,14 @@
 
 import argparse
 import toml.decoder
-import sys
 import os.path
 
 from typing import Iterator, Any
 from dataclasses import dataclass
+from pathlib import Path
 
-TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
-WORKSPACE_TOML = os.path.join(TOPDIR, "Cargo.toml")
+TOPDIR = Path(__file__).absolute().parent.parent
+WORKSPACE_TOML = TOPDIR.joinpath("Cargo.toml")
 
 
 @dataclass
