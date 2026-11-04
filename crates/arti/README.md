@@ -214,6 +214,8 @@ Note that these features will still be enabled if you build with the
   the feature flag does nothing
 * `opentelemetry-appender-tracing`: Previously enabled an optional dependency
   which was unused; the feature flag does nothing.
+* `secmem-proc`: This functionality should now be enabled via the `harden`
+  feature
 
 ## Limitations
 

@@ -178,6 +178,13 @@ opentelemetry = [
 accel-sha1-asm = ["__is_nonadditive"]
 accel-openssl = ["arti-client/accel-openssl", "__is_nonadditive"]
 
+# Deprecated. This exists for backwards-compatibility reasons
+# (to avoid breaking users that enabled `arti/secmem-proc`)
+# secmem-proc was never intended to be exposed as a user-facing feature,
+# but it was implicitly defined by cargo, because secmem-proc was an optional
+# dependency in arti (I think it was added before the "dep:" syntax existed).
+secmem-proc = ["tor-bin-common/harden-process"]
+
 __is_nonadditive = []
 
 compression = ["arti-client/compression"]
