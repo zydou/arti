@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
 import toml.decoder
 
 from typing import Iterator, Any
@@ -40,6 +42,30 @@ class Crate:
         contents = TOPDIR.joinpath(subdir, "Cargo.toml").read_text()
         return Crate.from_raw_cargo_contents(subdir, contents)
 
+    def dir(self) -> Path:
+        return TOPDIR.joinpath(self.subdir)
+
+    def is_changed_since(self, git_rev: str, base_git_rev: str = "HEAD") -> bool:
+        res = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--quiet",
+                "--exit-code",
+                f"{git_rev}..{base_git_rev}",
+                str(self.dir()),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        match res.returncode:
+            case 0:
+                return False
+            case 1:
+                return True
+            case _:
+                raise Exception(f"git diff failed: {res}")
+
 
 def list_crates() -> Iterator[Crate]:
     """
@@ -50,22 +76,42 @@ def list_crates() -> Iterator[Crate]:
         yield Crate.from_subdir(Path(subdir))
 
 
+def get_required_prev_rev(args: argparse.Namespace, dependent_arg: str) -> str:
+    rev = args.prev_rev
+    if rev is None:
+        print(
+            f"Error: PREV_REV must be set when using {dependent_arg}", file=sys.stderr
+        )
+        sys.exit(1)
+    assert isinstance(rev, str)
+    try:
+        subprocess.check_call(
+            ["git", "rev-parse", rev],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        print(f"Error: PREV_REV={rev} appears to be invalid", file=sys.stderr)
+        sys.exit(1)
+    return rev
+
+
 def print_crates(args: argparse.Namespace) -> None:
-    shown_any = False
     for c in list_crates():
         if args.package is not None and args.package != c.name:
             continue
         if not args.all and not c.publish:
             continue
-        shown_any = True
+        if args.only_changed is True:
+            prev_rev = get_required_prev_rev(args, "--only-changed")
+            if not c.is_changed_since(prev_rev):
+                continue
         if args.version:
             print("%-23s %s" % (c.name, c.version))
         elif args.subdir:
             print(c.subdir)
         else:
             print(c.name)
-
-    assert shown_any
 
 
 if __name__ == "__main__":
@@ -75,6 +121,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--all", action="store_true", help="list even unpublished crates"
+    )
+    parser.add_argument(
+        "--prev-rev", help="set PREV_REV, which is required for some other arguments."
+    )
+    parser.add_argument(
+        "--only-changed",
+        action="store_true",
+        help="only show crates changed since PREV_REV",
     )
     parser.add_argument("--version", action="store_true", help="print versions")
     parser.add_argument(
