@@ -211,9 +211,9 @@ release?" above.
    even if there have been no changes.
    For other crates, things are more complicated:
 
-   You can identify crates that have no changes using `maint/changed-crates`:
+   You can identify crates that have no changes using:
    ```
-   maint/changed-crates -v "arti-v$LAST_VERSION" 2>&1 >/dev/null | grep -i "no change"
+   maint/list-crates --prev-rev="arti-v$LAST_VERSION" --only-changed
    ```
 
    To see whether a crate has only non-functional changes,
@@ -317,8 +317,7 @@ before you continue!
    since the last version,
    but not had their versions bumped,
    with the command
-   `./maint/changed-crates -u ${LAST_VERSION}`.
-   (Note the `-u`.)
+   `./maint/list-crates --only-changed --prev-rev "arti-v${LAST_VERSION}" --only-unbumped`.
 
    Run `maint/semver-checks` again:
    It should be quiet now that you bumped all the versions.
