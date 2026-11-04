@@ -5,15 +5,16 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import subprocess
 import sys
 import toml.decoder
 
-from typing import Iterator, Any
+from typing import Iterator, Any, Optional
 from dataclasses import dataclass
 from pathlib import Path
 
-TOPDIR = Path(__file__).absolute().parent.parent
+TOPDIR = Path(__file__).resolve().parent.parent
 WORKSPACE_TOML = TOPDIR.joinpath("Cargo.toml")
 
 
@@ -42,6 +43,25 @@ class Crate:
         contents = TOPDIR.joinpath(subdir, "Cargo.toml").read_text()
         return Crate.from_raw_cargo_contents(subdir, contents)
 
+    def at_revision(self, git_rev: str) -> Optional[Crate]:
+        """Return this crate's metadata at `git_rev`, if it existed then"""
+
+        # git show doesn't seem to like absolute paths. We'll set cwd to TOPDIR,
+        # and use a relative path.
+        toml_path = Path(self.subdir, "Cargo.toml")
+        try:
+            cargo_at_rev = subprocess.check_output(
+                ["git", "show", f"{git_rev}:{str(toml_path)}"],
+                text=True,
+                cwd=TOPDIR,
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError:
+            # Presume that it didn't exist.
+            # Caller should have already ensured the `git_rev` is a valid revision.
+            return None
+        return Crate.from_raw_cargo_contents(Path(self.subdir), cargo_at_rev)
+
     def dir(self) -> Path:
         return TOPDIR.joinpath(self.subdir)
 
@@ -53,10 +73,11 @@ class Crate:
                 "--quiet",
                 "--exit-code",
                 f"{git_rev}..{base_git_rev}",
-                str(self.dir()),
+                self.subdir,
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            cwd=TOPDIR,
         )
         match res.returncode:
             case 0:
@@ -65,6 +86,13 @@ class Crate:
                 return True
             case _:
                 raise Exception(f"git diff failed: {res}")
+
+    def is_bumped_since(self, git_rev: str) -> bool:
+        prev = self.at_revision(git_rev)
+        if prev is None:
+            # bumped from non-existence to initial
+            return True
+        return prev.version != self.version
 
 
 def list_crates() -> Iterator[Crate]:
@@ -76,6 +104,20 @@ def list_crates() -> Iterator[Crate]:
         yield Crate.from_subdir(Path(subdir))
 
 
+@functools.cache
+def _rev_exists(git_rev: str) -> bool:
+    try:
+        subprocess.check_call(
+            ["git", "rev-parse", git_rev],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=TOPDIR,
+        )
+    except subprocess.CalledProcessError:
+        return False
+    return True
+
+
 def get_required_prev_rev(args: argparse.Namespace, dependent_arg: str) -> str:
     rev = args.prev_rev
     if rev is None:
@@ -84,13 +126,7 @@ def get_required_prev_rev(args: argparse.Namespace, dependent_arg: str) -> str:
         )
         sys.exit(1)
     assert isinstance(rev, str)
-    try:
-        subprocess.check_call(
-            ["git", "rev-parse", rev],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except subprocess.CalledProcessError:
+    if not _rev_exists(rev):
         print(f"Error: PREV_REV={rev} appears to be invalid", file=sys.stderr)
         sys.exit(1)
     return rev
@@ -105,6 +141,10 @@ def print_crates(args: argparse.Namespace) -> None:
         if args.only_changed is True:
             prev_rev = get_required_prev_rev(args, "--only-changed")
             if not c.is_changed_since(prev_rev):
+                continue
+        if args.only_unbumped is True:
+            prev_rev = get_required_prev_rev(args, "--only-unbumped")
+            if c.is_bumped_since(prev_rev):
                 continue
         if args.version:
             print("%-23s %s" % (c.name, c.version))
@@ -129,6 +169,11 @@ if __name__ == "__main__":
         "--only-changed",
         action="store_true",
         help="only show crates changed since PREV_REV",
+    )
+    parser.add_argument(
+        "--only-unbumped",
+        action="store_true",
+        help="only show crates whose version hasn't been bumped since PREV_REV",
     )
     parser.add_argument("--version", action="store_true", help="print versions")
     parser.add_argument(
