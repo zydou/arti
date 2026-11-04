@@ -138,6 +138,8 @@ def print_crates(args: argparse.Namespace) -> None:
             continue
         if not args.all and not c.publish:
             continue
+        if args.only_unstable is True and not c.version.startswith("0."):
+            continue
         if args.only_changed is True:
             prev_rev = get_required_prev_rev(args, "--only-changed")
             if not c.is_changed_since(prev_rev):
@@ -183,6 +185,11 @@ if __name__ == "__main__":
         "--only-unbumped",
         action="store_true",
         help="only show crates whose version hasn't been bumped since PREV_REV",
+    )
+    parser.add_argument(
+        "--only-unstable",
+        action="store_true",
+        help="only show crates whose version is 0.*",
     )
     parser.add_argument("--version", action="store_true", help="print versions")
     parser.add_argument(
