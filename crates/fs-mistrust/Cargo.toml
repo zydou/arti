@@ -19,7 +19,7 @@ anon_home = ["dirs"]
 
 [dependencies]
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
-dirs = { version = "6", optional = true }
+dirs = { version = "7", optional = true }
 extend = "1.2.0"
 serde = { version = "1.0.229", features = ["derive"], optional = true }
 thiserror = "2"
