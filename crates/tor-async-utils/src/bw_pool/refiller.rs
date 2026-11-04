@@ -1,6 +1,6 @@
 //! The refiller code that is the [`BandwidthRefiller`] is a public entity that needs to
 //! run into its own task and refill the associated [`super::BandwidthPool`] and serve
-//! any `RefillWaiter` pending on the pool to be replenished.
+//! any refill requests pending on the pool to be replenished.
 //!
 //! # Driving a pool
 //!
@@ -18,166 +18,23 @@
 
 use futures::StreamExt as _;
 use futures::channel::mpsc;
-use futures::task::AtomicWaker;
 use std::num::NonZero;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::task::Waker;
 
 use tor_basic_utils::token_bucket::{TokenBucket, TokenBucketConfig};
 use tor_rtcompat::SleepProvider;
 
 use super::bucket::AtomicTokenBucket;
+use super::reusable_oneshot;
 
 /// A bandwidth request sent on the queue to the [`BandwidthRefiller`].
 ///
 /// The amount of tokens wanted is fixed for the lifetime of a request and is only read
 /// by the refiller and thus why is travels along the waiter.
-pub(super) type BwRequest = (u64, Arc<RefillWaiter>);
-
-/// A refill waiter object through which the [`BandwidthRefiller`] signals a blocked
-/// acquirer.
-///
-/// A [`std::task::Waker`] doesn't carry any information back to the task so this waiter
-/// carries the number of granted tokens which doubles as the "was I granted" flag.
-///
-/// This lives in a [`super::BandwidthAcquirer`] and is reused at every acquire which
-/// means that once the task is launched, the steady state has no extra allocation.
-///
-/// For sake of simplicity, there is no cancellation path and so any granted bandwidth
-/// before cancellation (drop) is forfeited.
-#[derive(Debug)]
-pub(super) struct RefillWaiter {
-    /// How many tokens the refiller has granted this request with. Read by the acquirer
-    /// on each poll to distinguish a grant from a spurious wakeup.
-    ///
-    /// A zero means "not granted yet" where a non-zero value is the grant itself. A
-    /// request is only queued for a non-zero amount.
-    ///
-    /// Taken by the acquirer which then resets it to zero when it emits a permit.
-    granted: AtomicU64,
-    /// The blocked acquirer's task waker. Re-registered on every poll so it is always
-    /// current, and woken by the refiller on grant.
-    waker: AtomicWaker,
-}
-
-impl RefillWaiter {
-    /// Constructor.
-    pub(super) fn new() -> Self {
-        Self {
-            granted: AtomicU64::new(0),
-            waker: AtomicWaker::new(),
-        }
-    }
-
-    /// Return the number of tokens granted to this waiter. `None` means it
-    /// wasn't granted yet.
-    ///
-    /// See [`Self::set_granted`] for the memory ordering.
-    fn granted(&self) -> Option<NonZero<u64>> {
-        NonZero::new(self.granted.load(Ordering::Relaxed))
-    }
-
-    /// Return true iff this waiter was granted permission to use the requested
-    /// bandwidth.
-    fn is_granted(&self) -> bool {
-        self.granted().is_some()
-    }
-
-    /// Prepare this waiter for a new request with the given `waker`.
-    ///
-    /// This must be called before the waiter is enqueued with the refiller.
-    pub(super) fn prepare(&self, waker: &Waker) {
-        // Reset the waiter with this new waker.
-        self.set_granted(0);
-        self.waker.register(waker);
-    }
-
-    /// Grant a number of tokens for this waiter.
-    ///
-    /// The `granted` value is given because it might be clamped so we record what was
-    /// actually granted rather than what was asked.
-    ///
-    /// This function does the atomic work in the proper order the caller doesn't need to
-    /// bother about. The concurrency handling logic is contained.
-    ///
-    /// A `granted` value of 0 is not possible as such value indicate that the permit has
-    /// not been granted yet.
-    pub(super) fn grant(&self, granted: NonZero<u64>) {
-        // A single store publishes both the amount and the fact that we were funded.
-        self.set_granted(granted.get());
-        // We are granted, wake up the waiter!
-        self.wake();
-    }
-
-    /// Register the given `waker` and return true iff this waiter was granted.
-    ///
-    /// Note on the function name, it doesn't return a Poll state but this was done so
-    /// the function semantic carries the intent of the context.
-    pub(super) fn poll_granted(&self, waker: &Waker) -> bool {
-        // Optimization. Before re-registering the waker (see why below), check if we were
-        // granted. This is very cheap to call and avoids the waker registration complexity.
-        // However, it is NOT critical to the lockless state of this pool.
-        if self.is_granted() {
-            return true;
-        }
-
-        // The async contract here is that even if we registered a previous Waker before,
-        // the one given right now is the one that is expected to be woken. Hence, the
-        // register() again.
-        //
-        // We then check again if the tokens were granted because of the documented
-        // `AtomicWaker` pattern that goes like this:
-        //
-        //      sink:     check if granted -> false
-        //      refiller: grant the tokens. waker.wake()
-        //      sink:     register(new waker). return Pending.
-        //
-        // That new waker is never woken up because the grant was done just before hence
-        // why we re-check the granted tokens.
-        self.waker.register(waker);
-        self.is_granted()
-    }
-
-    /// Take the granted tokens out of this waiter leaving it to zero tokens.
-    ///
-    /// This is used by the acquirer to build the permit once granted.
-    pub(super) fn take_granted(&self) -> u64 {
-        // Relaxed is enough. The grant is the value of this
-        // counter, it gates no other memory in the refiller.
-        self.granted.swap(0, Ordering::Relaxed)
-    }
-
-    /// Set atomically the given `val` as the granted value.
-    ///
-    /// # Ordering
-    ///
-    /// The grant must survive the "lost wakeup" race where the refiller grants and wakes
-    /// before the acquirer has (re-)registered its waker:
-    ///
-    /// ```text
-    ///     refiller:  set_granted(n)         // grant
-    ///     refiller:  waker.wake()           // no waker registered yet => wakes nobody
-    ///     acquirer:  waker.register(cx)     // register, too late for the wake above
-    ///     acquirer:  is_granted() -> ???    // must observe the grant or stuck forever
-    /// ```
-    ///
-    /// The acquirer's re-check after `waker.register` must be forced to observe the grant.
-    /// That happens-before is actually provided by the [`AtomicWaker`].
-    ///
-    /// [`Ordering::Relaxed`] suffices because the counter gates no other memory.
-    fn set_granted(&self, val: u64) {
-        self.granted.store(val, Ordering::Relaxed);
-    }
-
-    /// Wake the waker.
-    fn wake(&self) {
-        self.waker.wake();
-    }
-}
+pub(super) type BwRequest = (u64, reusable_oneshot::Sender<NonZero<u64>>);
 
 /// A bandwidth refiller is in charge of refilling the associated
-/// [`super::BandwidthPool`] and processing any pending RefillWaiter that were enqueued
+/// [`super::BandwidthPool`] and processing any pending refill requests that were enqueued
 /// by the pool.
 ///
 /// There is exactly one refiller per pool as it owns the receiving end of the request
@@ -387,7 +244,7 @@ impl BandwidthRefiller {
             // down, the grant is forfeited but that is a documented limitation.
             self.held -= needed;
             // Grant what we took which could be a clamped value.
-            waiter.grant(NonZero::new(needed).expect("BW request is 0 tokens"));
+            waiter.send(NonZero::new(needed).expect("BW request is 0 tokens"));
         }
     }
 
@@ -395,23 +252,6 @@ impl BandwidthRefiller {
     fn publish_held(&mut self) {
         self.bucket.refill(self.held);
         self.held = 0;
-    }
-}
-
-impl Drop for BandwidthRefiller {
-    /// Wake all queued waiters on teardown so they wake up and get to realize the pool
-    /// is closed on their next poll.
-    fn drop(&mut self) {
-        // Close the receiver so any new waiter gets a pool closed error.
-        self.rx.close();
-        // The waiter we pulled off the channel as the head but never served.
-        if let Some((_, head)) = self.head.take() {
-            head.wake();
-        }
-        // Wake any enqueued waiters.
-        while let Ok((_, waiter)) = self.rx.try_recv() {
-            waiter.wake();
-        }
     }
 }
 
@@ -436,7 +276,7 @@ mod test {
 
     use futures::FutureExt as _;
     use futures::task::{ArcWake, waker};
-    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// Minimum partial grant used by the tests.
     const MIN_GRANT: u64 = 10;
@@ -453,10 +293,14 @@ mod test {
     /// Enqueue a request for `needed` tokens.
     ///
     /// Return its waiter so the test can observe the grant.
-    fn enqueue(tx: &mpsc::UnboundedSender<BwRequest>, needed: u64) -> Arc<RefillWaiter> {
-        let waiter = Arc::new(RefillWaiter::new());
-        tx.unbounded_send((needed, Arc::clone(&waiter))).unwrap();
-        waiter
+    fn enqueue(
+        tx: &mpsc::UnboundedSender<BwRequest>,
+        needed: u64,
+    ) -> reusable_oneshot::Receiver<NonZero<u64>> {
+        let mut receiver = reusable_oneshot::Receiver::new();
+        let sender = receiver.new_sender().unwrap();
+        tx.unbounded_send((needed, sender)).unwrap();
+        receiver
     }
 
     /// A waker that counts how many times it is woken.
@@ -469,38 +313,44 @@ mod test {
         }
     }
 
+    /// Helper to check if a number of tokens was granted
+    /// (if the receiver was sent some value).
+    fn is_granted(receiver: &mut reusable_oneshot::Receiver<NonZero<u64>>) -> bool {
+        receiver.try_recv().unwrap().is_some()
+    }
+
     #[test]
     fn deficit() {
         let (tx, mut r) = drained_refiller(100);
-        let w = enqueue(&tx, 50);
+        let mut w = enqueue(&tx, 50);
 
         // Partial refills which report the shrinking deficit. No grant as we don't have
         // enough.
         assert_eq!(r.refill_and_serve(20), Some(30));
         assert_eq!(r.refill_and_serve(20), Some(10));
-        assert!(!w.is_granted());
+        assert!(!is_granted(&mut w));
 
         // Last refill before reaching what is needed.
         assert_eq!(r.refill_and_serve(10), None);
-        assert!(w.is_granted());
+        assert!(is_granted(&mut w));
     }
 
     #[test]
     fn serve_fifo() {
         let (tx, mut r) = drained_refiller(100);
         // Enqueue two acquirers.
-        let a = enqueue(&tx, 30);
-        let b = enqueue(&tx, 30);
+        let mut a = enqueue(&tx, 30);
+        let mut b = enqueue(&tx, 30);
 
         // Refill with 40 tokens, A should be granted wanting 30.
         assert_eq!(r.refill_and_serve(40), Some(20));
-        assert!(a.is_granted());
+        assert!(is_granted(&mut a));
         // Not granted, 10 remains for B with a 20 deficit.
-        assert!(!b.is_granted());
+        assert!(!is_granted(&mut b));
         assert_eq!(r.bucket.available(), 0);
         // Refill the deficit and B should be granted.
         assert_eq!(r.refill_and_serve(20), None);
-        assert!(b.is_granted());
+        assert!(is_granted(&mut b));
     }
 
     #[test]
@@ -511,7 +361,7 @@ mod test {
         assert_eq!(bucket.claim(60), Some(60));
         // Pool has 40 now. Enqueue a request for 50.
         let mut r = BandwidthRefiller::new(Arc::clone(&bucket), rx);
-        let w = enqueue(&tx, 50);
+        let mut w = enqueue(&tx, 50);
 
         // A refill of 0 should take those 40 from the fast path and put them in the
         // refiller held reserve returning a deficit of 10 to grant the request of 50.
@@ -520,16 +370,21 @@ mod test {
         // Refill 20 more, the request should be granted and 10 should be put in the fast
         // path.
         assert_eq!(r.refill_and_serve(20), None);
-        assert!(w.is_granted());
+        assert!(is_granted(&mut w));
         assert_eq!(bucket.available(), 10);
     }
 
     #[test]
     fn wake_on_permit() {
         let (tx, mut r) = drained_refiller(100);
-        let w = enqueue(&tx, 50);
+        let mut w = enqueue(&tx, 50);
         let wake_counter = Arc::new(WakeCount::default());
-        w.waker.register(&waker(Arc::clone(&wake_counter)));
+
+        // Poll once with a custom waker to register that waker.
+        let waker = waker(Arc::clone(&wake_counter));
+        let mut context = std::task::Context::from_waker(&waker);
+        let pinned = std::pin::pin!(w.recv().unwrap());
+        let _ = pinned.poll(&mut context);
 
         // Not enough to wake the waiter. Request wants 50 so deficit is now 30.
         assert_eq!(r.refill_and_serve(20), Some(30));
@@ -537,7 +392,7 @@ mod test {
         // Refills with the deficit, the waker should wake up and be granted.
         assert_eq!(r.refill_and_serve(30), None);
         assert_eq!(wake_counter.0.load(Ordering::SeqCst), 1);
-        assert!(w.is_granted());
+        assert!(is_granted(&mut w));
     }
 
     #[test]
@@ -549,10 +404,10 @@ mod test {
 
         // A request rings the doorbell; it is taken as the head and served by
         // the following refill.
-        let w = enqueue(&tx, 10);
+        let mut w = enqueue(&tx, 10);
         assert_eq!(r.wait().now_or_never(), Some(true));
         assert_eq!(r.refill_and_serve(10), None);
-        assert!(w.is_granted());
+        assert!(is_granted(&mut w));
         // All senders gone, wait() should report that nothing is there.
         drop(tx);
         assert_eq!(r.wait().now_or_never(), Some(false));
