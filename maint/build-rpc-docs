@@ -48,6 +48,7 @@ EOF
 cat >"$ARTI_TMP/arti.toml" <<EOF
 [application]
 defer_bootstrap = true
+allow_running_as_root = true
 
 [proxy]
 socks_listen = "auto"
@@ -81,8 +82,14 @@ $CARGO build \
 
 ARTI_PID=$!
 
-while ! [ -e "$ARTI_TMP/sock/rpc_socket" ]; do 
+counter=0
+while ! [ -e "$ARTI_TMP/sock/rpc_socket" ]; do
     sleep 1
+    counter=$((counter+1))
+    if [[ $counter -gt 30 ]]; then
+	echo "Waited too long. Arti probably crashed without opening a socket."
+	exit 1
+    fi
 done
 
 export LIBARTI_RPC_CLIENT_CORE="$TOPLEVEL/target/quicktest/libarti_rpc_client_core.so"
