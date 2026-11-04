@@ -4,7 +4,6 @@
 
 import argparse
 import toml.decoder
-import os.path
 
 from typing import Iterator, Any
 from dataclasses import dataclass
@@ -31,7 +30,7 @@ def list_crates() -> Iterator[Crate]:
     """
     t = toml.decoder.load(WORKSPACE_TOML)
     for subdir in t["workspace"]["members"]:
-        pt = toml.decoder.load(subdir + "/Cargo.toml")
+        pt = toml.decoder.load(TOPDIR.joinpath(subdir,"Cargo.toml"))
         package = pt["package"]["name"]
         publish = pt["package"].get("publish")
         version = pt["package"]["version"]
