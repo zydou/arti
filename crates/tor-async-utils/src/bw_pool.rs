@@ -55,6 +55,8 @@
 
 mod bucket;
 mod refiller;
+#[expect(dead_code)] // XXX remove
+mod reusable_oneshot;
 
 use futures::channel::mpsc;
 use std::num::NonZero;
