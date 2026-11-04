@@ -142,6 +142,10 @@ def print_crates(args: argparse.Namespace) -> None:
             prev_rev = get_required_prev_rev(args, "--only-changed")
             if not c.is_changed_since(prev_rev):
                 continue
+        if args.only_unchanged is True:
+            prev_rev = get_required_prev_rev(args, "--only-unchanged")
+            if c.is_changed_since(prev_rev):
+                continue
         if args.only_unbumped is True:
             prev_rev = get_required_prev_rev(args, "--only-unbumped")
             if c.is_bumped_since(prev_rev):
@@ -169,6 +173,11 @@ if __name__ == "__main__":
         "--only-changed",
         action="store_true",
         help="only show crates changed since PREV_REV",
+    )
+    parser.add_argument(
+        "--only-unchanged",
+        action="store_true",
+        help="only show crates that HAVEN'T changed since PREV_REV",
     )
     parser.add_argument(
         "--only-unbumped",
