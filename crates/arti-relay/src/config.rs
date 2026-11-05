@@ -126,6 +126,7 @@ fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
 #[derive(Clone, Deftly, Debug, Eq, PartialEq, AsRef)]
 #[derive_deftly(TorConfig)]
 #[deftly(tor_config(no_default_trait))]
+#[deftly(tor_config(post_build = "TorRelayConfig::post_build_validate"))]
 #[non_exhaustive]
 pub(crate) struct TorRelayConfig {
     /// Configuration for the "relay" part of the relay.
@@ -192,6 +193,27 @@ pub(crate) struct TorRelayConfig {
     // Needed to implement `CircMgrConfig`.
     #[as_ref]
     pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
+}
+
+impl TorRelayConfig {
+    /// Validate the config after building it.
+    fn post_build_validate(self) -> Result<Self, ConfigBuildError> {
+        // The testing options are refused on the real/main network. If a single testing
+        // value is set, then we require custom authorities.
+        if self.relay.testing != TestingConfig::default()
+            && *self.tor_network.authorities()
+                == tor_dircommon::authority::AuthorityContacts::default()
+        {
+            return Err(ConfigBuildError::Inconsistent {
+                fields: vec![
+                    "relay.testing".to_owned(),
+                    "tor_network.authorities".to_owned(),
+                ],
+                problem: "Testing options require custom directory authorities".to_owned(),
+            });
+        }
+        Ok(self)
+    }
 }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
