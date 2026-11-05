@@ -341,8 +341,11 @@ rust-recent-integration:
     - section_start "build arti"
     - cargo build --profile $ARTI_CI_PROFILE --locked --target x86_64-unknown-linux-gnu -p arti
 
+    - section_start "build arti-relay"
+    - cargo build --profile $ARTI_CI_PROFILE --locked --target x86_64-unknown-linux-gnu -p arti-relay
+
     - section_end
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti-bench
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/{arti,arti-bench,arti-relay}
   artifacts:
     paths:
       - artifacts
