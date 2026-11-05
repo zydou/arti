@@ -290,6 +290,7 @@ impl<R: Runtime> TorRelay<R> {
             nickname: inert.config.relay.nickname.clone(),
             contact: inert.config.relay.contact.clone(),
             advertise: inert.config.relay.advertise.clone(),
+            bandwidth: inert.config.relay.bandwidth.clone(),
         };
 
         // Init the relay's client.

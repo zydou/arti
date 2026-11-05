@@ -72,6 +72,8 @@ pub(crate) struct RouterDescInfo {
     pub(crate) contact: Option<ContactInfo>,
     /// Addresses advertised on the network for receiving OR connections.
     pub(crate) advertise: config::Advertise,
+    /// The bandwidth rate limiting configuration.
+    pub(crate) bandwidth: config::BandwidthConfig,
 }
 
 /// Background task that builds and publishes the relay's descriptor.
