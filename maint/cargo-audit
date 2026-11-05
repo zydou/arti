@@ -43,6 +43,8 @@ IGNORE=(
     # Deprecation/removal plan:
     # <https://gitlab.torproject.org/tpo/core/arti/-/issues/2130>
     --ignore RUSTSEC-2025-0052
+    # async-std uses pin-utils which is also unmaintained.
+    --ignore RUSTSEC-2026-0441
 
     # Bincode is unmaintained.
     #
