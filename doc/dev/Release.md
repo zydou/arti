@@ -209,6 +209,11 @@ release?" above.
    and all `arti-*` crates apart from `arti` itself),
    we always bump the minor version and release,
    even if there have been no changes.
+   These can be identified with:
+   ```
+   maint/list-crates --only-unstable --only-matching-regex='^(tor|arti)-'
+   ```
+
    For other crates, things are more complicated:
 
    You can identify crates that have no changes using:
@@ -265,7 +270,7 @@ before you continue!
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
-   `maint/list-crates --version  | grep -P '^tor|^arti'`
+   `./maint/list-crates --only-unstable --only-matching-regex='^(tor|arti)-' --version`
    will show you the existing versions,
    which should usually all be the same.
    Pick the next minor version, and, for each such crate:
