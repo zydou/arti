@@ -67,6 +67,7 @@ class Crate:
         return TOPDIR.joinpath(self.subdir)
 
     def is_changed_since(self, git_rev: str, base_git_rev: str = "HEAD") -> bool:
+        """Whether the crate has any changes since `git_rev`, excluding `semver.md`"""
         res = subprocess.run(
             [
                 "git",
@@ -74,7 +75,11 @@ class Crate:
                 "--quiet",
                 "--exit-code",
                 f"{git_rev}..{base_git_rev}",
+                "--",
                 self.subdir,
+                # We delete semver.md AFTER tagging releases, so don't want to
+                # include crates whose only change is in semver.md.
+                f":(exclude){self.subdir}/semver.md",
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -187,7 +192,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--only-changed",
         action="store_true",
-        help="only show crates changed since LAST_REV",
+        # We exclude semver.md because these are deleted AFTER tagging a release.
+        # That deletion by itself shouldn't trigger another version bump in the
+        # following release.
+        help="only show crates changed since LAST_REV (excluding semver.md)",
     )
     parser.add_argument(
         "--only-unchanged",
