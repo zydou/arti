@@ -42,7 +42,6 @@ impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
             calc_assign! { both.shared_rand }
         };
 
-        // TODO DIRAUTH replace dummy values
         calc! { both.voting_delay }
         calc! { both.client_versions }
         calc! { both.server_versions }
