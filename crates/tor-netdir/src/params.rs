@@ -759,10 +759,17 @@ impl AsRef<NetParameters> for NetParameters {
 }
 
 impl NetParameters {
+    /// Construct a new NetParameters from the list of key=value parameters in a consensus.
+    ///
+    /// Unrecognized parameters are ignored.
+    pub fn from_netstatus(p: &tor_netdoc::doc::netstatus::NetParams) -> Self {
+        Self::from_map(p.without_defaults())
+    }
+
     /// Construct a new NetParameters from a given list of key=value parameters.
     ///
     /// Unrecognized parameters are ignored.
-    pub fn from_map(p: &tor_netdoc::doc::netstatus::NetParams<i32>) -> Self {
+    pub fn from_map(p: &tor_netdoc::doc::netstatus::NetParamValues) -> Self {
         let mut params = NetParameters::default();
         let unrecognized = params.saturating_update(p.iter());
         for u in unrecognized {

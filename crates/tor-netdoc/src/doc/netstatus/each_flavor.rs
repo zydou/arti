@@ -55,12 +55,12 @@ impl Consensus {
 
     /// Return a mapping from keywords to integers representing how
     /// to weight different kinds of relays in different path positions.
-    pub fn bandwidth_weights(&self) -> &NetParams<i32> {
+    pub fn bandwidth_weights(&self) -> &ParamValues<i32> {
         &self.footer.bandwidth_weights
     }
 
     /// Return the map of network parameters that this consensus advertises.
-    pub fn params(&self) -> &NetParams<i32> {
+    pub fn params(&self) -> &NetParams {
         &self.preamble.params
     }
 
@@ -385,6 +385,7 @@ impl Preamble {
         };
 
         let params = sec.maybe(PARAMS).args_as_str().unwrap_or("").parse()?;
+        let params = NetParams { params };
 
         let status: &str = sec.required(VOTE_STATUS)?.arg(0).unwrap_or("");
         if status != "consensus" {

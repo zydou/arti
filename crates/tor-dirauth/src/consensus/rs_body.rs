@@ -136,6 +136,9 @@ impl Aggregate<RouterStatusAC<'_>> for VoteRelayBandwidthItem {
             let max_unmeasured = context
                 .computed
                 .params
+                // no default in the spec, see
+                // https://spec.torproject.org/param-spec.html#voting
+                .without_defaults()
                 .get(MAX_UNMEASURED_BW_PARAM)
                 .copied()
                 // w items are unsigned 32-bit, but it's capped using netparams which are
@@ -153,7 +156,7 @@ impl Aggregate<RouterStatusAC<'_>> for VoteRelayBandwidthItem {
         }
 
         let out = chain!([(BANDWIDTH, out)], unmeasured)
-            .collect::<NetParams<_>>()
+            .collect::<ParamValues<_>>()
             .try_into()
             .map_err(into_internal!("generated bad w item"))?;
 

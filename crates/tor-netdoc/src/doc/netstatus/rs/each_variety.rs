@@ -195,7 +195,7 @@ pub struct RouterStatus {
     /// `stats` -- Statistics for this relay
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:stats>
-    pub stats: ns_type!(NotPresent, NotPresent, NetParams<F64Finite>),
+    pub stats: ns_type!(NotPresent, NotPresent, ParamValues<F64Finite>),
 
     #[doc(hidden)]
     #[deftly(netdoc(skip))]

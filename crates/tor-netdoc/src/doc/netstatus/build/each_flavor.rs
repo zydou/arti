@@ -46,7 +46,7 @@ pub struct ConsensusBuilder {
     /// See [`Preamble::proto_statuses`]
     relay_protos: ProtoStatus,
     /// See [`Preamble::params`]
-    params: NetParams<i32>,
+    params: NetParamValues,
     /// See [`Preamble::voting_delay`]
     voting_delay: Option<(u32, u32)>,
     /// See [`Preamble::consensus_method`]
@@ -60,7 +60,7 @@ pub struct ConsensusBuilder {
     /// See [`Consensus::relays`]
     relays: Vec<RouterStatus>,
     /// See [`ConsensusFooterFields::bandwidth_weights`]
-    weights: NetParams<i32>,
+    weights: ParamValues<i32>,
 }
 
 impl ConsensusBuilder {
@@ -73,14 +73,14 @@ impl ConsensusBuilder {
             server_versions: Vec::new(),
             client_protos: ProtoStatus::default(),
             relay_protos: ProtoStatus::default(),
-            params: NetParams::new(),
+            params: ParamValues::new(),
             voting_delay: None,
             consensus_method: None,
             shared_rand_previous_value: None,
             shared_rand_current_value: None,
             voters: Vec::new(),
             relays: Vec::new(),
-            weights: NetParams::new(),
+            weights: ParamValues::new(),
         }
     }
 
@@ -195,7 +195,7 @@ impl ConsensusBuilder {
         self
     }
     /// Replace all weight parameters for this consensus.
-    pub fn weights(&mut self, weights: NetParams<i32>) -> &mut Self {
+    pub fn weights(&mut self, weights: ParamValues<i32>) -> &mut Self {
         self.weights = weights;
         self
     }
@@ -277,7 +277,7 @@ impl ConsensusBuilder {
             client_versions: mk_versions(&self.client_versions)?,
             server_versions: mk_versions(&self.server_versions)?,
             proto_statuses,
-            params: self.params.clone(),
+            params: self.params.clone().into(),
             voting_delay,
             consensus_method: (consensus_method,),
             consensus_methods: NotPresent,

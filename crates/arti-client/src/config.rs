@@ -583,7 +583,7 @@ pub struct TorClientConfig {
         build = "|this: &Self| default_extend(this.override_net_params.clone())",
         extend_with = "extend_with_replace"
     ))]
-    pub(crate) override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
+    pub(crate) override_net_params: tor_netdoc::doc::netstatus::NetParamValues,
 
     /// Information about bridges, pluggable transports, and so on
     #[deftly(tor_config(sub_builder))]

@@ -528,7 +528,7 @@ mod test {
         // period and the SRV lifetime are one day long, and they are offset by
         // 12 hours.
         let consensus = example_consensus_builder().testing_consensus().unwrap();
-        let netparams = NetParameters::from_map(consensus.params());
+        let netparams = NetParameters::from_netstatus(consensus.params());
         let HsDirs { current, secondary } = HsDirParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
@@ -558,7 +558,7 @@ mod test {
             .param("hsdir_interval", 120) // 2 hours
             .testing_consensus()
             .unwrap();
-        let netparams = NetParameters::from_map(consensus.params());
+        let netparams = NetParameters::from_netstatus(consensus.params());
         let HsDirs { current, secondary } = HsDirParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(

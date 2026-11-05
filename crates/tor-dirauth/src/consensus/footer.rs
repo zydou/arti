@@ -40,7 +40,7 @@ impl<'f> ConsensusesFromVotes<FooterAC<'f>> for netstatus::vote::Footer {
 fn make_footer_fields<'f>(
     _context: ConsensusContextRefs<FooterAC<'f>>,
 ) -> Result<netstatus::ConsensusFooterFields, ConsensusError> {
-    let out_bandwidth_weights = NetParams::default(); // TODO DIRAUTH
+    let out_bandwidth_weights = ParamValues::default(); // TODO DIRAUTH
 
     Ok(construct! {
         netstatus::ConsensusFooterFields {

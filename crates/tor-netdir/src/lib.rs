@@ -867,7 +867,7 @@ impl PartialNetDir {
     /// the consensus with those from `replacement_params`.
     pub fn new(
         consensus: MdConsensus,
-        replacement_params: Option<&netstatus::NetParams<i32>>,
+        replacement_params: Option<&netstatus::NetParamValues>,
     ) -> Self {
         Self::new_inner(
             consensus,
@@ -884,7 +884,7 @@ impl PartialNetDir {
     #[cfg(feature = "geoip")]
     pub fn new_with_geoip(
         consensus: MdConsensus,
-        replacement_params: Option<&netstatus::NetParams<i32>>,
+        replacement_params: Option<&netstatus::NetParamValues>,
         geoip_db: &GeoipDb,
     ) -> Self {
         Self::new_inner(consensus, replacement_params, Some(geoip_db))
@@ -893,7 +893,7 @@ impl PartialNetDir {
     /// Implementation of the `new()` functions.
     fn new_inner(
         consensus: MdConsensus,
-        replacement_params: Option<&netstatus::NetParams<i32>>,
+        replacement_params: Option<&netstatus::NetParamValues>,
         #[cfg(feature = "geoip")] geoip_db: Option<&GeoipDb>,
     ) -> Self {
         let mut params = NetParameters::default();
@@ -901,7 +901,9 @@ impl PartialNetDir {
         // (We ignore unrecognized options here, since they come from
         // the consensus, and we don't expect to recognize everything
         // there.)
-        let _ = params.saturating_update(consensus.params().iter());
+        //
+        // TODO this is rather duplicative of NetParameters::from_netstatus
+        let _ = params.saturating_update(consensus.params().without_defaults().iter());
 
         // Now see if the user has any parameters to override.
         // (We have to do this now, or else changes won't be reflected in our
@@ -1172,10 +1174,10 @@ impl NetDir {
     /// After this function is done, the netdir's parameters will be those in
     /// the consensus, overridden by settings from `new_replacement`.  Any
     /// settings in the old replacement parameters will be discarded.
-    pub fn replace_overridden_parameters(&mut self, new_replacement: &netstatus::NetParams<i32>) {
+    pub fn replace_overridden_parameters(&mut self, new_replacement: &netstatus::NetParamValues) {
         // TODO(nickm): This is largely duplicate code from PartialNetDir::new().
         let mut new_params = NetParameters::default();
-        let _ = new_params.saturating_update(self.consensus.params().iter());
+        let _ = new_params.saturating_update(self.consensus.params().without_defaults().iter());
         for u in new_params.saturating_update(new_replacement.iter()) {
             warn!("Unrecognized option: override_net_params.{}", u);
         }
