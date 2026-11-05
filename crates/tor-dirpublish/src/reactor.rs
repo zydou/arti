@@ -441,7 +441,7 @@ where
                     return;
                 }
 
-                trace!(?target, "Document published");
+                debug!(?target, "Document published");
                 status.set_published();
             }
             ActionOutcome::Rejected(rejection) => {
@@ -655,7 +655,7 @@ where
             return;
         };
 
-        trace!(?target, "Launching {} upload request", &self.description);
+        debug!(?target, "Launching {} upload request", &self.description);
 
         let doc_version = self.latest_document.version;
         let action = ActionNum::next();
