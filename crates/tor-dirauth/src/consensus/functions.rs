@@ -55,6 +55,32 @@ where
         .cloned())
 }
 
+/// Helper for choosing the lexically last by string representation
+///
+/// Pass as `ord_key` to eg [`choose_most_popular_amongst_votes`].
+pub(super) fn ord_string_reverse_choose_lexically_latest<T: ToString>(t: &T) -> impl Ord {
+    std::cmp::Reverse(t.to_string())
+}
+
+/// Extension trait for `ComponentInVotes<Option<_>>`
+pub(super) trait ComponentInVotesOptionExt<'i, T: 'i> {
+    /// Filter out the votes with opinions
+    ///
+    /// Convenience method equivalent to `.iter().map(|(_vnum, v)| v)`.
+    fn with_opinions(self) -> impl Iterator<Item = (VoterNum, &'i T)> + Clone;
+}
+impl<'i, I, T> ComponentInVotesOptionExt<'i, T> for I
+where
+    I: Iterator<Item = (VoterNum, &'i Option<T>)> + Clone,
+    T: 'i,
+{
+    /// Yield the votes with opinions, ie, that voted `Some`
+    fn with_opinions(self) -> impl Iterator<Item = (VoterNum, &'i T)> + Clone {
+        self.clone()
+            .filter_map(|(vnum, rs_v)| Some((vnum, rs_v.as_ref()?)))
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

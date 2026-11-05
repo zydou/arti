@@ -29,10 +29,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         )>,
         ConsensusError,
     > {
-        let inputs = self
-            .per_voter
-            .iter_enumerated()
-            .filter_map(|(vnum, rs_v)| Some((vnum, rs_v.as_ref()?)));
+        let inputs = self.per_voter.iter_enumerated().with_opinions();
 
         /// Copy a field from `self.status_tuple` to the output.
         ///
@@ -78,6 +75,7 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         }
         calc! { both.flags = out_flags.clone() }
         calc! { both.protos }
+        calc! { both.version }
 
         // In principle we could omit writing these, and let Constructor default them,
         // but this way it's clearer that we've thought of every field,
@@ -88,7 +86,6 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         // TODO DIRAUTH replace dummy values
         calc! { both.a = Default:: default() }
         calc! { plain.port_policy = Default:: default() }
-        calc! { both.version = None }
 
         let md_m = md_none_defer.handle(
             {
@@ -303,6 +300,24 @@ impl Aggregate<RouterStatusAC<'_>> for tor_protover::Protocols {
             |pr: &tor_protover::Protocols| pr.to_string(),
         )?
         .unwrap_or_default())
+    }
+}
+
+impl Aggregate<RouterStatusAC<'_>> for Option<netstatus::SoftwareVersion> {
+    type Output = Self;
+
+    fn aggregate<'i>(
+        context: ConsensusContextRefs<RouterStatusAC<'_>>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self::Output, ConsensusError>
+    where
+        Self: 'i,
+    {
+        functions::choose_most_popular_amongst_votes(
+            context,
+            inputs.with_opinions(),
+            functions::ord_string_reverse_choose_lexically_latest,
+        )
     }
 }
 
