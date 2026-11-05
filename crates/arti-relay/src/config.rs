@@ -189,10 +189,20 @@ pub(crate) struct TorRelayConfig {
 
     /// Information about preemptive circuits.
     // We don't expose this field in the config.
-    #[deftly(tor_config(skip, build = "|_| Default::default()"))]
+    #[deftly(tor_config(skip, build = "|_| disabled_preemptive_circuits()"))]
     // Needed to implement `CircMgrConfig`.
     #[as_ref]
     pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
+}
+
+/// Return a [`PreemptiveCircuitConfig`] that disables preemptive circuits.
+///
+/// A threshold of 0 disables them since the relay has no use for them.
+fn disabled_preemptive_circuits() -> PreemptiveCircuitConfig {
+    PreemptiveCircuitConfig::builder()
+        .disable_at_threshold(0)
+        .build()
+        .expect("Could not build a disabled `PreemptiveCircuitConfig`")
 }
 
 impl TorRelayConfig {

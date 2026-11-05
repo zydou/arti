@@ -116,13 +116,21 @@ impl InertTorRelay {
         let keymgr = Self::create_keymgr(&state_path, config.storage.permissions())
             .context("Failed to create key manager")?;
 
+        // Disable CBT learning as the relay has no use for this. It prevents the client
+        // to continously open testing circuits.
+        //
+        // TODO(relay): We disable this via an override of the consensus parameter. Could
+        // be that the future we can do that explicitly?
+        let mut override_net_params = tor_netdoc::doc::netstatus::NetParamValues::default();
+        override_net_params.set("cbtdisabled".to_string(), 1);
+
         let dirmgr_config = DirMgrConfig {
             cache_dir: cache_path,
             cache_trust: config.storage.permissions().clone(),
             network: config.tor_network.clone(),
             schedule: Default::default(),
             tolerance: Default::default(),
-            override_net_params: Default::default(),
+            override_net_params,
             extensions: Default::default(),
         };
 
