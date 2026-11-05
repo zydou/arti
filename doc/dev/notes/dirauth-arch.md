@@ -23,7 +23,7 @@ The authority part will deal only with parts that are necessary for voting.
 
 These two parts will always run as separate instances.
 In the initial version, they'll be combined into the same single
-dirauth process, but with separate databases
+binary and OS process, but with separate databases
 (so separate copies of data that both need to have).
 
 They will share code as much as possible,
