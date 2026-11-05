@@ -286,6 +286,9 @@ impl<R: Runtime> HopMgr<R> {
         // non-zero for whatever reason, we must remember to register it with memquota
         // so that it counts towards the total memory usage for the circuit.
         //
+        // NOTE: We should be careful about the effect of buffering on flow control.
+        // See comments on `StreamReactor::cell_rx` about XON/XOFF flow control.
+        //
         // TODO(tuning): having zero buffering here is very likely suboptimal.
         // We should do *some* buffering here, and then figure out if we should it
         // up to memquota or not.

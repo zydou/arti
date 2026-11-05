@@ -98,6 +98,13 @@ pub(crate) struct StreamReactor {
     ///   * it lets the `StreamReactor` know if the `ForwardReactor` has shut down:
     ///     we select! on this MPSC channel in the main loop, so if the `ForwardReactor`
     ///     shuts down, we will get EOS upon calling `.next()`)
+    ///
+    /// NOTE: The channel should have relatively little buffering in order
+    /// for XON/XOFF-based flow control to work correctly.
+    /// This flow control requires us to know how many incoming messages are
+    /// buffered on each stream so that we can send an XOFF when appropriate.
+    /// If adding more than a relatively small amount of buffering,
+    /// we'll need to consider that buffering in the flow control code somehow.
     cell_rx: mpsc::Receiver<CtrlMsg>,
     /// Sender for sending Tor stream data to [`BackwardReactor`](super::BackwardReactor).
     bwd_tx: mpsc::Sender<ReadyStreamMsg>,
@@ -193,7 +200,7 @@ impl StreamReactor {
                 //     inside BackwardReactorCmd::HandleMsg
                 //   * XON will be initiated by StreamTarget::drain_rate_update(),
                 //     by sending a control message to the reactor
-                //     (TODO(relay): not yet implemented)\
+                //     (TODO(relay): not yet implemented)
                 return Poll::Pending;
             }
 
