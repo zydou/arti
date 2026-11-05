@@ -38,7 +38,7 @@ pub struct RouterStatusBuilder {
     /// See [`RouterStatus::protos`].
     protos: Option<Protocols>,
     /// See [`RouterStatus::weight`].
-    weight: Option<RelayWeight>,
+    weight: Option<RelayBandwidth>,
 }
 
 impl RouterStatusBuilder {
@@ -122,7 +122,7 @@ impl RouterStatusBuilder {
     /// Set the weight of this routerstatus for random selection.
     ///
     /// This value is optional; it defaults to 0.
-    pub fn weight(&mut self, weight: RelayWeight) -> &mut Self {
+    pub fn weight(&mut self, weight: RelayBandwidth) -> &mut Self {
         self.weight = Some(weight);
         self
     }
@@ -150,8 +150,8 @@ impl RouterStatusBuilder {
             .as_ref()
             .ok_or(Error::CannotBuild("Missing protocols"))?
             .clone();
-        let weight = self.weight.unwrap_or(RelayWeight::Unmeasured(0));
-        let weight = RelayWeightsItem {
+        let weight = self.weight.unwrap_or(RelayBandwidth::Unmeasured(0));
+        let weight = RelayBandwidthItem {
             effective: weight,
             params: Unknown::new_discard(),
         };
@@ -206,7 +206,7 @@ impl RouterStatusBuilder {
                 known: self.flags,
                 unknown: Unknown::new_discard(),
             },
-            weight,
+            w: weight,
             port_policy: ns_expr!(None, NotPresent, Void {}),
             ed25519_id: NotPresent,
             stats: NotPresent,

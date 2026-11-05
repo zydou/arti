@@ -21,9 +21,14 @@ impl RouterStatus {
             self.a.iter().copied(),
         )
     }
-    /// Return the declared weight of this routerstatus in the directory.
-    pub fn weight(&self) -> &RelayWeight {
-        &self.weight.effective
+    /// Return the declared bandwidth of this routerstatus in the directory.
+    pub fn bandwidth(&self) -> &RelayBandwidth {
+        &self.w.effective
+    }
+    /// Return the declared bandwidth of this routerstatus in the directory.
+    #[deprecated = "use .bandwidth()"]
+    pub fn weight(&self) -> &RelayBandwidth {
+        self.bandwidth()
     }
     /// Return the protovers that this routerstatus says it implements.
     pub fn protovers(&self) -> &Protocols {
@@ -159,9 +164,9 @@ impl RouterStatus {
         // W line
         let weight = sec
             .get(RS_W)
-            .map(RelayWeightsItem::from_item)
+            .map(RelayBandwidthItem::from_item)
             .transpose()?
-            .unwrap_or_else(RelayWeightsItem::new_no_info);
+            .unwrap_or_else(RelayBandwidthItem::new_no_info);
 
         // No p line
         // no ID line
@@ -205,7 +210,7 @@ impl RouterStatus {
             flags,
             version,
             protos,
-            weight,
+            w: weight,
             port_policy: ns_expr!(None, NotPresent, Void {}),
             ed25519_id: NotPresent,
             stats: NotPresent,

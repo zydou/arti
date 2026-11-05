@@ -427,7 +427,7 @@ mod test {
 
     use tor_linkspec::{ChannelMethod, OwnedCircTarget};
     use tor_netdir::{NetDirProvider, testnet::NodeBuilders, testprovider::TestNetDirProvider};
-    use tor_netdoc::doc::netstatus::RelayWeight;
+    use tor_netdoc::doc::netstatus::RelayBandwidth;
     use tor_netdoc::types::relay_flags::RelayFlag;
     use tor_rtcompat::SleepProvider as _;
     use tor_rtmock::MockRuntime;
@@ -459,7 +459,7 @@ mod test {
                     | RelayFlag::Fast
                     | RelayFlag::Stable;
                 nb.rs.set_flags(f | RelayFlag::Guard);
-                nb.rs.weight(RelayWeight::Measured(10_000));
+                nb.rs.weight(RelayBandwidth::Measured(10_000));
 
                 set_family(pos, nb);
             }

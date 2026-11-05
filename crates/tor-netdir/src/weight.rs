@@ -21,7 +21,7 @@ use tor_netdoc::doc::netstatus::{self, MdConsensus, MdRouterStatus, NetParams};
 /// bandwidths.
 fn pick_bandwidth_fn<'a, I>(mut weights: I) -> BandwidthFn
 where
-    I: Clone + Iterator<Item = &'a netstatus::RelayWeight>,
+    I: Clone + Iterator<Item = &'a netstatus::RelayBandwidth>,
 {
     let has_measured = weights.clone().any(|w| w.is_measured());
     let has_nonzero = weights.clone().any(|w| w.is_nonzero());
@@ -65,9 +65,9 @@ enum BandwidthFn {
 impl BandwidthFn {
     /// Apply this function to the measured or unmeasured bandwidth
     /// of a single relay.
-    fn apply(&self, w: &netstatus::RelayWeight) -> u32 {
+    fn apply(&self, w: &netstatus::RelayBandwidth) -> u32 {
         use BandwidthFn::*;
-        use netstatus::RelayWeight::*;
+        use netstatus::RelayBandwidth::*;
         match (self, w) {
             (Uniform, _) => 1,
             (IncludeUnmeasured, Unmeasured(u)) => *u,
@@ -237,7 +237,7 @@ impl WeightSet {
     /// actually matches the given role.  For example, if `role` is Guard
     /// we don't check whether or not `rs` actually has the Guard flag.
     pub(crate) fn weight_rs_for_role(&self, rs: &MdRouterStatus, role: WeightRole) -> u64 {
-        self.weight_bw_for_role(WeightKind::for_rs(rs), rs.weight(), role)
+        self.weight_bw_for_role(WeightKind::for_rs(rs), rs.bandwidth(), role)
     }
 
     /// Find the 64-bit weight to report for a relay of `kind` whose weight in
@@ -245,7 +245,7 @@ impl WeightSet {
     fn weight_bw_for_role(
         &self,
         kind: WeightKind,
-        relay_weight: &netstatus::RelayWeight,
+        relay_weight: &netstatus::RelayBandwidth,
         role: WeightRole,
     ) -> u64 {
         let ws = &self.w[kind.idx()];
@@ -261,13 +261,13 @@ impl WeightSet {
 
     /// Compute the correct WeightSet for a provided MdConsensus.
     pub(crate) fn from_consensus(consensus: &MdConsensus, params: &NetParameters) -> Self {
-        let bandwidth_fn = pick_bandwidth_fn(consensus.c_relays().iter().map(|rs| rs.weight()));
+        let bandwidth_fn = pick_bandwidth_fn(consensus.c_relays().iter().map(|rs| rs.bandwidth()));
         let weight_scale = params.bw_weight_scale.into();
 
         let total_bw = consensus
             .c_relays()
             .iter()
-            .map(|rs| u64::from(bandwidth_fn.apply(rs.weight())))
+            .map(|rs| u64::from(bandwidth_fn.apply(rs.bandwidth())))
             .sum();
         let p = consensus.bandwidth_weights();
 
@@ -422,7 +422,7 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use netstatus::RelayWeight as RW;
+    use netstatus::RelayBandwidth as RW;
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
@@ -500,7 +500,7 @@ mod test {
     #[test]
     fn t_apply_bwfn() {
         use BandwidthFn::*;
-        use netstatus::RelayWeight::*;
+        use netstatus::RelayBandwidth::*;
 
         assert_eq!(Uniform.apply(&Measured(7)), 1);
         assert_eq!(Uniform.apply(&Unmeasured(0)), 1);
