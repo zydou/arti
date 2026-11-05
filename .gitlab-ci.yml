@@ -390,10 +390,11 @@ rust-recent-arti-extra-features:
   image: $RECENT_RUST_IMAGE
   script:
     - *rust-recent-arti-extra-features-script
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
-    - mv artifacts/target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti artifacts/target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti-extra
+    # Give it a new name before we save it as an artifact.
+    - mv target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/{arti,arti-extra}
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti-extra
   artifacts:
     paths:
       - artifacts
