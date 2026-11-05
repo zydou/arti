@@ -5,6 +5,7 @@ pub(crate) use std::cmp::{self, Ordering};
 pub(crate) use std::collections::{BTreeMap, HashMap, HashSet};
 pub(crate) use std::fmt::{self, Debug};
 pub(crate) use std::hash::Hash;
+pub(crate) use std::marker::PhantomData;
 pub(crate) use std::net::Ipv4Addr;
 pub(crate) use std::ops::{RangeBounds, RangeInclusive};
 pub(crate) use std::sync::Arc;
@@ -17,7 +18,7 @@ pub(crate) use itertools::{Itertools, chain};
 pub(crate) use paste::paste;
 pub(crate) use rangemap::RangeInclusiveMap;
 pub(crate) use static_assertions::const_assert;
-pub(crate) use tracing::info;
+pub(crate) use tracing::{debug, info};
 pub(crate) use typed_index_collections::{TiSlice, TiVec, ti_vec};
 
 pub(crate) use tor_basic_utils::intern::GloballyInternable as _;
@@ -29,10 +30,15 @@ pub(crate) use tor_netdoc::{
     encode::encode_netdoc_unsigned,
     rangemap_mutate_range,
     types::family::{RelayFamily, RelayFamilyIds},
-    types::{Base64Fingerprint, Ed25519Public, Iso8601TimeSp, Nickname},
+    types::{Base64Fingerprint, Ed25519Public, FixedB64, Iso8601TimeSp, Nickname},
 };
 
 pub(crate) use crate::utils::*;
 
+#[cfg(test)]
+pub(crate) use tor_netdoc::{
+    derive_deftly_template_NetdocParseable,
+    parse2::{ParseInput, parse_netdoc_multiple},
+};
 #[cfg(test)]
 pub(crate) use tracing_test::traced_test;
