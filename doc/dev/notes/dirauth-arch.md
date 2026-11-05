@@ -8,6 +8,28 @@ spec, etc. as the implementation proceeds.)
 
 ## Fundamental approach
 
+### dirmirror/dirauth split
+
+The whole authority consists of two parts:
+
+ * auth part, which handles routerdescs and generates votes and 
+   microdescs.
+
+ * proxy part, which is a lightly enhanced dirmirror.
+ 
+Ultimately we expect the dirmirror proxy to be deployed on a separate host,
+so that the actual authorities aren't exposed directly.
+The authority part will deal only with parts that are necessary for voting.
+
+These two parts will always run as separate instances.
+In the initial version, they'll be combined into the same single
+dirauth process, but with separate databases
+(so separate copies of data that both need to have).
+
+They will share code as much as possible,
+including much of the database schema.
+So, dirauth will reuse as much of the dirmirror code as possible.
+
 ### State management
 
 There will be a sqlite database.
@@ -63,22 +85,29 @@ within the dirauth implementation.
 
  * Router identity key pinning.
  * Routerdescs.  Similar requirements to dirmirror, but:
-   - we can insert things other than via the fetcher
+   - we can insert routerdescs via upload
    - expiry is handled differently.
    - routerdesc fetches must be triggered by mentions in votes,
      not just in consensuses.
- * Microdescs.  Almost identical to the dirmirror.
-   But we must be able to retain multiple microdescs
-   for each router (for different consensus methods).
+ * Microdescs.  We retain only our own locally-generated microdescs,
+   and do not download microdescs from anywhere.
+   We retain multiple microdescs for each router (for different consensus methods).
  * Extra-info.  TBD.
-   Will probably be a dirauth-specific wrapper around shared dirserver code.
+   Not clear if authorities need to check extra-info documents
+   before incorporating a routerdesc in the consensus.
+   If not, then an authority never needs to have routerdescs at all.
+   Otherwise, will probably be a dirauth-specific wrapper around shared dirserver code.
  * Votes for the current voting period (other authorities', and our own).
  * Previous and current consensus,
    So we have three network statuses in play: previous consensus,
    current consensus, and the consensus currently being built and
    voted on ("nascent consensus").
+
+The database will **not** contain:
+
  * Consensus diffs.
-   Computed and managed with code shared with dirmirror.
+   These are computed and managed by the authority's dirmirror proxy.
+ * Microdescs from other authorities.
 
 ### dirauth-dirauth data pump(s)
 
@@ -89,7 +118,7 @@ Documents that need to be transferred include:
 
  * Our votes (outbound)
  * Their votes (inbound)
- * Routerdescs, microdescs and extra-infos (both directions)
+ * Routerdescs and maybe extra-infos (both directions)
  * Consensus documents and their signatures (both directions)
 
 **Data**:
@@ -100,6 +129,18 @@ and also futile transfers (apparently invalid documents).
 **In-memory status**:
 Just a short queue of todo list items
 and maybe stats/times for retries.
+
+### dirmirror enhancements
+
+Unlike a dirmirror dirport, a public dirauth dirport also
+accepts uploads, of routerdescs and extra-info docs.
+We will enhance the dirmirror code to be able to pass through such uploads.
+(In the future, the dirmirror could buffer incoming routerdescs
+in its own database, and they could be copied to the authority asynchronously,
+giving better DoS resistance etc.)
+
+And, a dirauth proxy dirmirror ought to attempt to maintain copies of
+recent votes, for transparency etc.
 
 ### voter
 
@@ -121,6 +162,10 @@ We record our own shared random state
 
 Scans each known relay by making a 2-hop connection back to itself.
 (Maintains the dirauth's ORport which is used only for this purpose.)
+
+In the future we might split the network-facing part into a separate program;
+maybe it could run on the same host as the dirmirror proxy,
+and report results to its authority.
 
 **Data**:
 See `dirauth-sketch.md`.
@@ -181,11 +226,10 @@ We run in the general case, two dirports -
 a public one, and one for other dirauths.
 (See below.)
 
+The public dirport is actually owned by the proxy.
+
 These are thin HTTP endpoints which access our database.
 (Documents we receive via the dirport are checked at reception time.)
-
-Unlike a dirmirror dirport, a public dirauth dirport also
-accepts uploads, of routerdescs and extra-info docs.
 
 ## Exposure, defence in depth
 
@@ -194,20 +238,24 @@ with other entities as follows:
 
  1. **relays**:
     Receiving routerdescs uploaded by routers.
- 2. **public**:
-    Providing rds, mds, and consensuses to relays' dirmirrors.
-    Providing votes etc. to monitoring and audit systems (eg, metrics).
- 3. **dirauths**:
+ 2. **dirauths**:
     Exchanging information with other dirauths
     (votes, mds, rds, consensuses, and consensus signatures).
- 5. **stability**:
+ 3. **stability**:
     A dirauth has a stability scanner which acts like a client on the
     Tor network, and therefore talks to relays.
- 6. **bandwith**:
+ 4. **bandwith**:
     A dirauth has a bandwidth scanner, which again acts like a client.
     But, this is not done in an arti process.  See below.
 
 Insofar as possible these functions will use separate endpoints.
+
+The dirauth's dirmirror has this public-facing entrypoint:
+
+ 1. **public**:
+    Providing rds, mds, and consensuses to relays' dirmirrors.
+    Providing votes etc. to monitoring and audit systems (eg, metrics).
+    This part 
 
 ### Specific mitigations
 
@@ -225,12 +273,15 @@ so would not necessarily need to be the dirauth's real IP address.
 
 #### Separate dirauth-to-dirauth communications
 
-Arti dirauth will have the capability to use different addresses for
+Arti dirauth will use different addresses for
 its peer dirauths, to the `dirport` appearing in public network docs.
 
 The mechanism for distributing these addresses is TBD,
 but it will be the configuration, or the `dir-config.git`
 operational data.
+
+It will also be possible to exchange votes with the dirauth
+via its dirmirror proxy.
 
 Until C Tor dirauths are retired,
 Arti dirauth will need to accept voting protocol communications
@@ -240,25 +291,6 @@ the expected transactions via each endpoint.
 
 At some point we will probably want to set up a
 (conventional) VPN between the dirauths.
-
-#### dirport proxy (future)
-
-It will often be desirable to run a separate dirmirror,
-to serve public requests.
-
-Currently there is only one dirport advertised,
-and anyway, the upload port is a vulnerable attack surface
-and can't be hidden.
-
-So in the initial veersion of arti dirauth,
-the dirauth's real dirport will be exposed
-(as with C Tor).
-
-As a future improvement, we could add a
-"pass through rd and extra-info uploads"
-function to dirmirror, with suitable DoS mitigations, rate limits, etc.
-Then we could put a dirmirror in front of each dirauth,
-so the dirauth's real dirport wouldn't need to be on the open internet.
 
 #### bandwidth scanner
 
