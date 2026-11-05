@@ -8,6 +8,7 @@ mod bandwidth;
 mod dns;
 mod listen;
 mod relay;
+mod testing;
 
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -38,6 +39,7 @@ pub(crate) use dns::{DnsConfig, DnsConfigBuilder};
 pub(crate) use listen::Listen;
 pub(crate) use relay::Advertise;
 pub(crate) use relay::{RelayConfig, RelayConfigBuilder};
+pub(crate) use testing::{TestingConfig, TestingConfigBuilder};
 
 /// Paths used for default configuration files.
 pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {

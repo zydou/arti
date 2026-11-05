@@ -121,6 +121,10 @@ pub struct ChanMgrConfig {
     /// Bandwidth pools shared by all channels for global rate limiting.
     #[cfg(feature = "relay")]
     pub(crate) bw_pools: Option<ChannelBandwidthPools>,
+    /// Allow outgoing relay channels to all addresses, including local and private
+    /// addresses.
+    #[cfg(feature = "relay")]
+    pub(crate) allow_local_addrs: bool,
     // TODO: Would be good to add more things such as NetParameters and Dormancy maybe?
 }
 
@@ -135,7 +139,19 @@ impl ChanMgrConfig {
             my_addrs: Vec::new(),
             #[cfg(feature = "relay")]
             bw_pools: None,
+            #[cfg(feature = "relay")]
+            allow_local_addrs: false,
         }
+    }
+
+    /// Set whether outgoing relay channels may connect to all addresses, including local
+    /// and private addresses.
+    ///
+    /// This is should only be used in a testing network.
+    #[cfg(feature = "relay")]
+    pub fn with_allow_local_addrs(mut self, allow_local_addrs: bool) -> Self {
+        self.allow_local_addrs = allow_local_addrs;
+        self
     }
 
     /// Set the relay channel authentication key material and return itself.

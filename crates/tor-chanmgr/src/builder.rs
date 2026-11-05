@@ -69,6 +69,10 @@ where
     /// Bandwidth pools shared by all channels for global rate limiting.
     #[cfg(feature = "relay")]
     bw_pools: Option<ChannelBandwidthPools>,
+    /// Allow outgoing relay channels to all addresses, including local and private
+    /// addresses.
+    #[cfg(feature = "relay")]
+    allow_local_addrs: bool,
 }
 
 impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
@@ -92,6 +96,8 @@ where
             create_request_handler: None,
             #[cfg(feature = "relay")]
             bw_pools: None,
+            #[cfg(feature = "relay")]
+            allow_local_addrs: false,
         }
     }
 
@@ -130,6 +136,14 @@ where
         self
     }
 
+    /// Set whether outgoing relay channels may connect to all addresses, including local
+    /// and private addresses.
+    #[cfg(feature = "relay")]
+    pub(crate) fn with_allow_local_addrs(mut self, allow_local_addrs: bool) -> Self {
+        self.allow_local_addrs = allow_local_addrs;
+        self
+    }
+
     /// Build a new `ChanBuilder` with the given `auth_material`,
     /// cloning everything else.
     ///
@@ -149,7 +163,10 @@ where
             self.my_addrs.clone(),
             self.create_request_handler.as_ref().map(Arc::clone),
         )
-        .map(|b| b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share)))
+        .map(|b| {
+            b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share))
+                .with_allow_local_addrs(self.allow_local_addrs)
+        })
     }
 
     /// Build a new `ChanBuilder` with the given CREATE* request `handler`,
@@ -176,7 +193,10 @@ where
             self.my_addrs.clone(),
             Some(handler),
         )
-        .map(|b| b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share)))
+        .map(|b| {
+            b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share))
+                .with_allow_local_addrs(self.allow_local_addrs)
+        })
     }
 
     /// Return `stream` rate limited by our bandwidth pools, or unlimited if we have none.
@@ -487,7 +507,7 @@ where
         // scanning by measuring latency between successful connect() and failures.
         //
         // If no addresses, it returns true and thus no error.
-        if !target.all_addrs_allowed_for_outgoing_channels() {
+        if !self.allow_local_addrs && !target.all_addrs_allowed_for_outgoing_channels() {
             return Err(Error::Proto {
                 source: tor_proto::Error::ChanProto(
                     "Target address is not allowed for outgoing channels".into(),
