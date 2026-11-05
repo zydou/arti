@@ -119,16 +119,16 @@ def _rev_exists(git_rev: str) -> bool:
     return True
 
 
-def get_required_prev_rev(args: argparse.Namespace, dependent_arg: str) -> str:
-    rev = args.prev_rev
+def get_required_last_rev(args: argparse.Namespace, dependent_arg: str) -> str:
+    rev = args.last_rev
     if rev is None:
         print(
-            f"Error: PREV_REV must be set when using {dependent_arg}", file=sys.stderr
+            f"Error: --last-rev must be set when using {dependent_arg}", file=sys.stderr
         )
         sys.exit(1)
     assert isinstance(rev, str)
     if not _rev_exists(rev):
-        print(f"Error: PREV_REV={rev} appears to be invalid", file=sys.stderr)
+        print(f"Error: LAST_REV={rev} appears to be invalid", file=sys.stderr)
         sys.exit(1)
     return rev
 
@@ -152,16 +152,16 @@ def print_crates(args: argparse.Namespace) -> None:
         if args.only_unstable is True and not c.version.startswith("0."):
             continue
         if args.only_changed is True:
-            prev_rev = get_required_prev_rev(args, "--only-changed")
-            if not c.is_changed_since(prev_rev):
+            last_rev = get_required_last_rev(args, "--only-changed")
+            if not c.is_changed_since(last_rev):
                 continue
         if args.only_unchanged is True:
-            prev_rev = get_required_prev_rev(args, "--only-unchanged")
-            if c.is_changed_since(prev_rev):
+            last_rev = get_required_last_rev(args, "--only-unchanged")
+            if c.is_changed_since(last_rev):
                 continue
         if args.only_unbumped is True:
-            prev_rev = get_required_prev_rev(args, "--only-unbumped")
-            if c.is_bumped_since(prev_rev):
+            last_rev = get_required_last_rev(args, "--only-unbumped")
+            if c.is_bumped_since(last_rev):
                 continue
         if args.version:
             print("%-23s %s" % (c.name, c.version))
@@ -180,22 +180,24 @@ if __name__ == "__main__":
         "--all", action="store_true", help="list even unpublished crates"
     )
     parser.add_argument(
-        "--prev-rev", help="set PREV_REV, which is required for some other arguments."
+        "--last-rev",
+        metavar="LAST_REV",
+        help="set LAST_REV, which is required for some other arguments.",
     )
     parser.add_argument(
         "--only-changed",
         action="store_true",
-        help="only show crates changed since PREV_REV",
+        help="only show crates changed since LAST_REV",
     )
     parser.add_argument(
         "--only-unchanged",
         action="store_true",
-        help="only show crates that HAVEN'T changed since PREV_REV",
+        help="only show crates that HAVEN'T changed since LAST_REV",
     )
     parser.add_argument(
         "--only-unbumped",
         action="store_true",
-        help="only show crates whose version hasn't been bumped since PREV_REV",
+        help="only show crates whose version hasn't been bumped since LAST_REV",
     )
     parser.add_argument(
         "--only-unstable",
