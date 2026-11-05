@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import re
 import subprocess
 import sys
 import toml.decoder
@@ -133,7 +134,17 @@ def get_required_prev_rev(args: argparse.Namespace, dependent_arg: str) -> str:
 
 
 def print_crates(args: argparse.Namespace) -> None:
+    package_regex = None
+    if args.only_matching_regex is not None:
+        try:
+            package_regex = re.compile(args.only_matching_regex)
+        except re.PatternError as e:
+            print(f"--only-matching-regex had bad regex: {e}")
+            sys.exit(1)
     for c in list_crates():
+        if package_regex is not None:
+            if not package_regex.match(c.name):
+                continue
         if args.package is not None and args.package != c.name:
             continue
         if not args.all and not c.publish:
@@ -190,6 +201,10 @@ if __name__ == "__main__":
         "--only-unstable",
         action="store_true",
         help="only show crates whose version is 0.*",
+    )
+    parser.add_argument(
+        "--only-matching-regex",
+        help="only show crates whose name matches the given regex",
     )
     parser.add_argument("--version", action="store_true", help="print versions")
     parser.add_argument(
