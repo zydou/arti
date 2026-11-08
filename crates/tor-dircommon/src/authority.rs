@@ -77,7 +77,6 @@ fn default_v3idents() -> Vec<RsaIdentity> {
     }
 
     vec![
-        rsa("27102BC123E7AF1D4741AE047E160C91ADC76B21"), // bastet
         rsa("0232AF901C31A04EE9848595AF9BB7620D4C5B2E"), // dannenberg
         rsa("E8A9C45EDE6D711294FADF8E7951F4DE6CA56B58"), // dizum
         rsa("70849B868D606BAECFB6128C5E3D782029AA394F"), // faravahar
@@ -100,11 +99,6 @@ fn default_uploads() -> Vec<Vec<SocketAddr>> {
     }
 
     vec![
-        // bastet
-        vec![
-            sa("204.13.164.118:80"),
-            sa("[2620:13:4000:6000::1000:118]:80"),
-        ],
         // dannenberg
         vec![sa("193.23.244.244:80"), sa("[2001:678:558:1000::244]:80")],
         // dizum
