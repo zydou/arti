@@ -46,16 +46,176 @@ RUSTDOC_ROOT = "https://tpo.pages.torproject.net/core/doc/rust/private/"
 # (Case-insensitive.)
 MAGIC_HEADING = "In The Arti RPC System"
 
+CSS = """\
+:root {
+    color-scheme: light dark;
+}
+
+/* font lists from the Tor UI styleguide */
+h1,h2,h3,h4,h5,h6,.navbar {
+    font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+body {
+    font-family: "Source Serif Pro", -apple-system, "Georgia", serif,
+      "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+tt,code {
+    font-family: "Source Code Pro", Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+}
+
+a code {
+    font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+/*
+ * Tweak header sizes
+ */
+#methods > h2, #objects > h2 {
+    font-size: 2.3em;
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.method-index h3, .object-index h3 {
+    font-size: 2em;
+}
+/* Kludge: the documentation we pull from rustdoc
+ * may itself contain headers, but we don't want their headers to be
+ * larger than the headers for invidual methods and objects.
+ * So we make the headers tha appear in actual entries smaller. */
+.entry-body h1 {
+    font-size: 1.33em;
+}
+.entry-body h2 {
+    font-size: 1.17em;
+}
+.entry-body h3 {
+    font-size: 1em;
+}
+.entry-body h4 {
+    font-size: 0.83em;
+}
+.entry-body h5 {
+    font-size: 0.75em;
+}
+.entry-body h6 {
+    font-size: 0.60em;
+}
+
+
+/* Use tor standard green for the header of each entry, and make it a nice oval */
+.entry-header {
+    inline-size: fit-content;
+}
+.entry-header h3 {
+    /* This dark green color is technically not in the UI styleguide,
+       but we need it for contrast. */
+    background-color: light-dark(#68B030, #3A631D);
+    padding: 0.5em 1em 0.5em 1em;
+    border-radius: 1em;
+    margin-top: 0.5em;
+}
+
+/* Style the text and indentation for our indices. */
+.method-index dt,.object-index dt  {
+    margin: 1em 0.5em 0.5em 0.5em;
+    font-weight: bold;
+    font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol";
+}
+.method-index dl, div.object-index dl {
+    padding-left: 2em;
+}
+
+/* Indent the text inside each entry to make it stand out. */
+div.entry-body {
+    padding-left: 2em;
+}
+
+/* Put a box around the entry footer. */
+.entry-footer {
+    border: 1px;
+    border-style: solid;
+    padding: 0 1em 0 1.5em;
+    margin: 0 0 2em 4em;
+    inline-size: fit-content;
+}
+.entry-footer > ul { padding: 0; }
+
+/* Define the navbar style at the top of the document */
+ul.navbar {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    height: 3em;
+    overflow: hidden;
+    position: sticky;
+    top:0;
+    width:100%;
+    z-index:100;
+    border-bottom: 1px;
+    opacity:1;
+    border-bottom-style: solid;
+    border-color: #adb5bd;
+    background-color: light-dark(#fff, #000);
+}
+html {
+    scroll-padding-top: 3em;
+}
+.navbar li {
+    float: left;
+    background:initial;
+}
+.navbar a:link, .navbar a:visited, .navbar a:active {
+    display: block;
+    padding: 10px 13px;
+    text-decoration: none;
+    text-align: center;
+    text-decoration: none;
+    font-size: 1.3em;
+    font-weight: bold;
+    color: inherit;
+}
+.navbar a:hover {
+    color: light-dark(#fff, #000);
+    background-color: #7D4698;
+}
+"""
+# Strip comments.
+# (If we don't, I feel uncomfortable writing nice big comments in the CSS.)
+CSS = re.sub(r"/\*(?:[^\*]|\*+[^/])*\*+/", " ", CSS)
+# strip duplicate space
+CSS = re.sub(r"\s+", " ", CSS)
+
 # HTML that we'll use to decorate our markdown output.
-HTML_HEADER = """\
+HTML_HEADER = f"""\
 <!DOCTYPE html>
 <html lang="en">
+<!--
+     THIS IS AN AUTOMATICALLY GENERATED FILE.  DO NOT EDIT.
+     Instead edit maint/rpc-docs-tool in the arti repository.
+  -->
 <head>
 <meta charset="UTF-8">
 <title>Arti RPC: methods and objects</title>
+<style>{CSS}</style>
 </head>
+<body>
+<ul class="navbar">
+<li><a href="#methods">Method index</a>
+<li><a href="#objects">Object index</a>
+</ul>
 """
 HTML_FOOTER = """\
+</body>
 </html>
 """
 
@@ -125,13 +285,18 @@ def add_additional_methods(methods):
     }
 
 
-def mdheader(s, anchor):
+def mdheader(s, anchor, html_class=None):
     """
     Return Text for a markdown header with
     text `s` (including the ##### header prefix), marking it with a given HTML anchor.
     """
+    if html_class is None:
+        class_attribute = ""
+    else:
+        class_attribute = f" class={html_class}"
+
     return f"""
-<div id="{anchor}">
+<div id="{anchor}"{class_attribute}>
 
 {s}
 
@@ -485,14 +650,17 @@ class RpcUniverse:
         """
         Write to `f` an index of all known RPC methods.
         """
+        f.write('<div class="method-index" id="method-index">\n')
         f.write(mdheader("### Method index", "idx:methods"))
+        f.write("\n\n<dl>\n")
         for m, obj in sorted(self.methods.items()):
             m_str = m
             m_anchor = "method:" + m_str
             m_ident = obj["method_type"]
             m_summary = doc_subject(self.get_doc(m_ident))
-            f.write(f"- [`{m_str}`](#{m_anchor}) — {m_summary}\n")
-        f.write("\n\n")
+            f.write(f'<dt><a href="#{m_anchor}">{m_str}</a></dt>\n')
+            f.write(f"<dd>{m_summary}</dd>\n")
+        f.write("\n\n</dl></div>\n\n")
 
     def emit_single_method(self, f, m_str, obj):
         """
@@ -504,11 +672,13 @@ class RpcUniverse:
         link_table = self.get_link_table(m_ident)
         m_summary = doc_subject(m_doc)
         m_anchor = "method:" + m_str
-        header = f"### `{m_str}` — {m_summary}"
-        f.write(mdheader(header, m_anchor))
-        f.write(adjust_doc(m_doc, link_table))
-        f.write("\n\n")
+        header = f"### {m_str} — {m_summary}"
 
+        f.write('<div class="method-doc">\n')
+        f.write(mdheader(header, m_anchor, "entry-header"))
+        f.write('\n\n<div class="entry-body">\n\n')
+        f.write(adjust_doc(m_doc, link_table))
+        f.write('\n\n</div><div class="entry-footer">\n\n')
         rustdoc_url = self.get_rustdoc_url(m_ident)
         f.write(f"- [Rustdoc]({rustdoc_url})\n")
         if self.rustdoc[m_ident.crate()].type_has_no_fields(m_ident):
@@ -534,7 +704,7 @@ class RpcUniverse:
                 anchor = f"object:{itype}"
                 f.write(f"    - [`{itype}`](#{anchor}) ([Rustdoc]({itype_url}))\n")
 
-        f.write("\n\n")
+        f.write("\n\n</div></div>\n\n")
 
     def emit_methods(self, f):
         """
@@ -547,13 +717,15 @@ class RpcUniverse:
         """
         Write to `f` an index of all known RPC object types.
         """
+        f.write('<div class="object-index" id="object-index">\n')
         f.write(mdheader("### Object index", "idx:objects"))
-
+        f.write("\n\n<dl>\n")
         for o_name in sorted(self.object_types()):
             o_anchor = f"object:{o_name}"
             o_summary = doc_subject(self.get_doc(o_name))
-            f.write(f"- [`{o_name}`](#{o_anchor}) — {o_summary}\n")
-        f.write("\n\n")
+            f.write(f'<dt><a href="#{o_anchor}">{o_name}</a></dt>\n')
+            f.write(f"<dd>{o_summary}</dd>\n")
+        f.write("\n\n</dl></div>\n\n")
 
     def emit_single_object(self, f, o_name):
         """
@@ -564,9 +736,11 @@ class RpcUniverse:
         link_table = self.get_link_table(o_name)
         o_summary = doc_subject(o_doc)
         header = f"### `{o_name}` — {o_summary}"
-        f.write(mdheader(header, o_anchor))
+        f.write('<div class="object-doc">\n\n')
+        f.write(mdheader(header, o_anchor, "entry-header"))
+        f.write('\n\n<div class="entry-body">\n\n')
         f.write(adjust_doc(o_doc, link_table))
-        f.write("\n\n")
+        f.write('\n\n</div><div class="entry-footer">\n\n')
         rustdoc_url = self.get_rustdoc_url(o_name)
         f.write(f"- [Rustdoc]({rustdoc_url})\n")
         f.write("- **Implements methods**\n")
@@ -574,7 +748,7 @@ class RpcUniverse:
         for m_name in sorted(list(self.get_methods_for_obj(o_name))):
             m_anchor = "method:" + m_name
             f.write(f"   - [`{m_name}`](#{m_anchor})\n")
-        f.write("\n\n")
+        f.write("\n\n</div></div>\n\n")
 
     def emit_objects(self, f):
         """
@@ -587,14 +761,16 @@ class RpcUniverse:
         """
         Write all markdown documentation to `f`
         """
+        f.write('<div id="methods-sec">\n')
         f.write(mdheader("## Methods", "methods"))
         self.emit_method_index(f)
         self.emit_methods(f)
-        f.write("\n----\n")
 
+        f.write('</div><div id="objects-sec">\n')
         f.write(mdheader("## Objects", "objects"))
         self.emit_object_index(f)
         self.emit_objects(f)
+        f.write("</div>")
 
 
 have_warned_about_json_version = False
