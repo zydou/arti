@@ -199,6 +199,10 @@ CSS = re.sub(r"\s+", " ", CSS)
 HTML_HEADER = f"""\
 <!DOCTYPE html>
 <html lang="en">
+<!--
+     THIS IS AN AUTOMATICALLY GENERATED FILE.  DO NOT EDIT.
+     Instead edit maint/rpc-docs-tool in the arti repository.
+  -->
 <head>
 <meta charset="UTF-8">
 <title>Arti RPC: methods and objects</title>
