@@ -155,6 +155,7 @@ ul.navbar {
     list-style-type: none;
     margin: 0;
     padding: 0;
+    height: 3em;
     overflow: hidden;
     position: sticky;
     top:0;
@@ -165,6 +166,9 @@ ul.navbar {
     border-bottom-style: solid;
     border-color: #adb5bd;
     background-color: light-dark(#fff, #000);
+}
+html {
+    scroll-padding-top: 3em;
 }
 .navbar li {
     float: left;
