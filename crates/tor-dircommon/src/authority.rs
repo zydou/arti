@@ -164,19 +164,23 @@ mod test {
         assert_eq!(dflt.uploads, default_uploads());
         assert_eq!(dflt.downloads, default_downloads());
         assert_eq!(dflt.votes, default_votes());
+        assert_eq!(dflt.v3idents.len(), dflt.uploads.len());
 
+        // Use tor26's entry for this test. Note that this depends on tor26
+        // being listed last in default_v3idents() and default_uploads().
+        let last = dflt.v3idents.len() - 1;
         assert_eq!(
-            dflt.v3idents[8],
+            dflt.v3idents[last],
             RsaIdentity::from_hex("2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C").unwrap()
         );
         assert_eq!(
-            dflt.uploads[8],
+            dflt.uploads[last],
             vec![
                 "217.196.147.77:80".parse().unwrap(),
                 "[2a02:16a8:662:2203::1]:80".parse().unwrap()
             ]
         );
-        assert_eq!(dflt.uploads[8], dflt.downloads[8]);
-        assert_eq!(dflt.uploads[8], dflt.votes[8]);
+        assert_eq!(dflt.uploads[last], dflt.downloads[last]);
+        assert_eq!(dflt.uploads[last], dflt.votes[last]);
     }
 }
