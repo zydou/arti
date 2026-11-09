@@ -49,6 +49,9 @@
 #![allow(recursion_depth_exceeding_limit)] // arti#2715, rust/issues/159228
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
+
 /// Declare an integer type with some named elements.
 ///
 /// This macro declares a struct that wraps an integer

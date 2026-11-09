@@ -62,6 +62,8 @@
 // If this crate grows some other reason to want some unsafe, it is OK to remove this,
 // subject to all the usual considerations when writing unsafe.
 #![forbid(unsafe_code)]
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
 
 mod dir;
 mod disable;

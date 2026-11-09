@@ -98,7 +98,11 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 #![allow(clippy::print_stderr)] // Allowed in this crate only.
-#![allow(clippy::print_stdout)] // Allowed in this crate only.
+#![allow(clippy::print_stdout)]
+// Allowed in this crate only.
+
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
 
 mod config;
 mod dirfilter;

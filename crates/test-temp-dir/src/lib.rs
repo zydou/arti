@@ -51,6 +51,8 @@
 
 // We have a nonstandard test lint block
 #![allow(clippy::print_stdout)]
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
 
 use std::env::{self, VarError};
 use std::fs;

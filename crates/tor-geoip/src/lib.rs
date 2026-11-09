@@ -51,6 +51,8 @@
 
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full")), allow(unused))]
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
 
 use crate::dense_range_map::DenseRangeMap;
 pub use crate::err::Error;

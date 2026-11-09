@@ -54,6 +54,8 @@
 // This file uses `unwrap()` a fair deal, but this is fine in test/bench code
 // because it's OK if tests and benchmarks simply crash if things go wrong.
 #![allow(clippy::unwrap_used)]
+// TODO: add to the list maintained by maint/add_warning once it's available on all crates
+#![warn(unnameable_types)]
 
 use anyhow::{Result, anyhow};
 use arti::cfg::ArtiCombinedConfig;
