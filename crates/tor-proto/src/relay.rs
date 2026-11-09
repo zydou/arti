@@ -90,14 +90,17 @@ impl RelayCirc {
         stream_id: StreamId,
         rate: XonKBpsEwma,
     ) -> crate::Result<()> {
-        let msg = backward::CtrlMsg::FlowCtrlUpdate {
+        // Inform the stream reactor which will then take the decision on sending the
+        // XON/XOFF. That is why we need to send it to the forward reactor as it will
+        // re-route it to the stream reactor.
+        let cmd = forward::CtrlCmd::StreamDrainRateUpdate {
             hop: None,
-            msg: backward::FlowCtrlMsg::Xon(rate),
             stream_id,
+            rate,
         };
         self.0
-            .control
-            .unbounded_send(msg.into())
+            .command
+            .unbounded_send(CtrlCmd::Forward(cmd))
             .map_err(|_| Error::CircuitClosed)?;
 
         Ok(())

@@ -18,16 +18,16 @@ use {
     crate::stream::incoming::{
         IncomingStreamRequestFilter, IncomingStreamRequestHandler, StreamReqSender,
     },
-    tor_cell::relaycell::StreamId,
 };
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::PaddingController;
 
 use tor_cell::chancell::{CircId, msg::AnyChanMsg};
+use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
 use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, UnparsedRelayMsg,
+    AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
 };
 use tor_error::internal;
 use tor_linkspec::HasRelayIds;
@@ -37,9 +37,8 @@ use derive_deftly::Deftly;
 use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt, select_biased};
-use tracing::debug;
-
 use std::result::Result as StdResult;
+use tracing::debug;
 
 use crate::circuit::CircuitRxReceiver;
 
@@ -151,6 +150,22 @@ pub(crate) enum CtrlCmd<C> {
         message: CloseStreamBehavior,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
+    },
+    /// Inform the stream reactor that the drain rate of a stream has changed so that it
+    /// can send an XON if needed.
+    ///
+    /// This is routed to the stream reactor because the it owns the stream map and the
+    /// XON/XOFF state. It is also the reactor that decides to send an XOFF or not. It is
+    /// in charge of sending the XON to the backward reactor if need be.
+    StreamDrainRateUpdate {
+        /// The hop number the stream is on.
+        ///
+        /// Set to None if we are a relay.
+        hop: Option<HopNum>,
+        /// The stream ID to send the XON on.
+        stream_id: StreamId,
+        /// The drain rate to advertise in the XON.
+        rate: XonKBpsEwma,
     },
     /// An implementation-dependent control command.
     #[allow(unused)] // TODO(relay)
@@ -356,6 +371,14 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 let _ = done.send(ret); // don't care if the corresponding receiver goes away.
 
                 Ok(())
+            }
+            CtrlCmd::StreamDrainRateUpdate {
+                hop,
+                stream_id,
+                rate,
+            } => {
+                let msg = stream::CtrlMsg::DrainRateUpdate { stream_id, rate };
+                self.hop_mgr.send(hop, msg).await
             }
             CtrlCmd::Custom(c) => self.inner.handle_cmd(c),
         }
