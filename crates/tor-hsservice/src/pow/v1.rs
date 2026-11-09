@@ -1168,7 +1168,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                         }
                     }
                 }
-                if inner.queue.len() >= config_rx.borrow().pow_rend_queue_depth {
+
+                inner.queue.insert(rend_request);
+                if inner.queue.len() > config_rx.borrow().pow_rend_queue_depth {
                     let dropped_request = inner.queue.pop_first();
                     #[cfg(feature = "metrics")]
                     counter_rend_queue_overflow.increment(1);
@@ -1177,7 +1179,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                         "RendRequest queue full, dropping request."
                     );
                 }
-                inner.queue.insert(rend_request);
+
                 #[cfg(feature = "metrics")]
                 counter_rendrequest_enqueued.increment(1);
                 if let Some(waker) = &inner.waker {
