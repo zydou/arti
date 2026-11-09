@@ -8,6 +8,7 @@ mod bandwidth;
 mod dns;
 mod listen;
 mod relay;
+mod testing;
 
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -38,6 +39,7 @@ pub(crate) use dns::{DnsConfig, DnsConfigBuilder};
 pub(crate) use listen::Listen;
 pub(crate) use relay::Advertise;
 pub(crate) use relay::{RelayConfig, RelayConfigBuilder};
+pub(crate) use testing::{TestingConfig, TestingConfigBuilder};
 
 /// Paths used for default configuration files.
 pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {
@@ -124,6 +126,7 @@ fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
 #[derive(Clone, Deftly, Debug, Eq, PartialEq, AsRef)]
 #[derive_deftly(TorConfig)]
 #[deftly(tor_config(no_default_trait))]
+#[deftly(tor_config(post_build = "TorRelayConfig::post_build_validate"))]
 #[non_exhaustive]
 pub(crate) struct TorRelayConfig {
     /// Configuration for the "relay" part of the relay.
@@ -186,10 +189,41 @@ pub(crate) struct TorRelayConfig {
 
     /// Information about preemptive circuits.
     // We don't expose this field in the config.
-    #[deftly(tor_config(skip, build = "|_| Default::default()"))]
+    #[deftly(tor_config(skip, build = "|_| disabled_preemptive_circuits()"))]
     // Needed to implement `CircMgrConfig`.
     #[as_ref]
     pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
+}
+
+/// Return a [`PreemptiveCircuitConfig`] that disables preemptive circuits.
+///
+/// A threshold of 0 disables them since the relay has no use for them.
+fn disabled_preemptive_circuits() -> PreemptiveCircuitConfig {
+    PreemptiveCircuitConfig::builder()
+        .disable_at_threshold(0)
+        .build()
+        .expect("Could not build a disabled `PreemptiveCircuitConfig`")
+}
+
+impl TorRelayConfig {
+    /// Validate the config after building it.
+    fn post_build_validate(self) -> Result<Self, ConfigBuildError> {
+        // The testing options are refused on the real/main network. If a single testing
+        // value is set, then we require custom authorities.
+        if self.relay.testing != TestingConfig::default()
+            && *self.tor_network.authorities()
+                == tor_dircommon::authority::AuthorityContacts::default()
+        {
+            return Err(ConfigBuildError::Inconsistent {
+                fields: vec![
+                    "relay.testing".to_owned(),
+                    "tor_network.authorities".to_owned(),
+                ],
+                problem: "Testing options require custom directory authorities".to_owned(),
+            });
+        }
+        Ok(self)
+    }
 }
 
 impl tor_config::load::TopLevel for TorRelayConfig {

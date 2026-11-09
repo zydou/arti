@@ -116,13 +116,21 @@ impl InertTorRelay {
         let keymgr = Self::create_keymgr(&state_path, config.storage.permissions())
             .context("Failed to create key manager")?;
 
+        // Disable CBT learning as the relay has no use for this. It prevents the client
+        // to continously open testing circuits.
+        //
+        // TODO(relay): We disable this via an override of the consensus parameter. Could
+        // be that the future we can do that explicitly?
+        let mut override_net_params = tor_netdoc::doc::netstatus::NetParamValues::default();
+        override_net_params.set("cbtdisabled".to_string(), 1);
+
         let dirmgr_config = DirMgrConfig {
             cache_dir: cache_path,
             cache_trust: config.storage.permissions().clone(),
             network: config.tor_network.clone(),
             schedule: Default::default(),
             tolerance: Default::default(),
-            override_net_params: Default::default(),
+            override_net_params,
             extensions: Default::default(),
         };
 
@@ -248,6 +256,7 @@ impl<R: Runtime> TorRelay<R> {
         // Init the channel manager.
         let mut config = ChanMgrConfig::new(inert.config.channel.clone())
             .with_my_addrs(inert.config.relay.advertise.all_addr())
+            .allow_any_addrs(inert.config.relay.testing.allow_channels_to_all_addrs)
             .with_auth_material(Arc::new(init_key_material.chan_auth_keys));
 
         // Global bandwidth rate limiting with one pool per direction. This is what C-tor
@@ -290,6 +299,7 @@ impl<R: Runtime> TorRelay<R> {
             nickname: inert.config.relay.nickname.clone(),
             contact: inert.config.relay.contact.clone(),
             advertise: inert.config.relay.advertise.clone(),
+            bandwidth: inert.config.relay.bandwidth.clone(),
         };
 
         // Init the relay's client.

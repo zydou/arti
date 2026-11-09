@@ -3,9 +3,11 @@
 use anyhow::Context;
 use std::net::SocketAddr;
 
+use tor_basic_utils::ByteQty;
 use tor_key_forge::ToEncodableKey as _;
 use tor_netdoc::doc::routerdesc::{
-    RelayPlatform, RouterDesc, RouterDescConstructor, RouterDescIntroItemConstructor,
+    BandwidthConstructor, RelayPlatform, RouterDesc, RouterDescConstructor,
+    RouterDescIntroItemConstructor,
 };
 use tor_netdoc::types::Curve25519Public;
 use web_time_compat::SystemTime;
@@ -13,6 +15,20 @@ use web_time_compat::SystemTime;
 use crate::tasks::crypto::RouterDescKeyMaterial;
 
 use super::{RouterDescInfo, cert};
+
+/// Maximum bandwidth value in a descriptor and also it is the value used to signal
+/// unlimited bandwidth. This comes from C-tor where the parser restricts this to
+/// 0..=INT_MAX.
+const MAX_DESC_BANDWIDTH: u64 = i32::MAX as u64;
+
+/// Helper: Return the descriptor value of a configured bandwidth limit.
+///
+/// It is capped to our `MAX_DESC_BANDWIDTH`.
+fn cap_desc_bandwidth(limit: Option<ByteQty>) -> u64 {
+    limit.map_or(MAX_DESC_BANDWIDTH, |qty| {
+        (qty.as_usize() as u64).min(MAX_DESC_BANDWIDTH)
+    })
+}
 
 /// Encode and sign a [`RouterDesc`] with the given descriptor info and key material.
 ///
@@ -26,8 +42,7 @@ pub(super) fn encode_and_sign_router_desc(
     // flag in the config or just parsing the available IPs is enough.
     let primary_addr = info.advertise.primary_ipv4();
     let identity_ed25519 = cert::build_identity_cert(keys.ed_signing_cert, keys.ed_identity, now)?;
-    // TODO(relay): Need bandwidth, uptime, extrainfo, family, overload general and exit
-    // policy.
+    // TODO(relay): Need uptime, extrainfo, family, overload general and exit policy.
     //
     // tor-netdoc "Constructor" pattern holds only the required fields and `construct()`
     // fills the rest with default values.
@@ -40,6 +55,13 @@ pub(super) fn encode_and_sign_router_desc(
         fingerprint: Some(keys.rsa_identity_kp.to_rsa_identity().into()),
         tunnelled_dir_server: Some(Default::default()),
         proto: crate::supported_protocols(),
+        bandwidth: BandwidthConstructor {
+            average: cap_desc_bandwidth(info.bandwidth.rate),
+            burst: cap_desc_bandwidth(info.bandwidth.burst),
+            // TODO(relay): Use the value from our non-existent "history" subsystem.
+            observed: cap_desc_bandwidth(info.bandwidth.rate),
+        }
+        .construct(),
         // These are all other IPs except the primary one.
         or_address: info
             .advertise
@@ -118,6 +140,10 @@ mod test {
             nickname: "Compassion".parse().unwrap(),
             contact: Some("Abed Nadir<abed.nadir@foo.bar>".parse().unwrap()),
             advertise,
+            bandwidth: config::BandwidthConfig {
+                rate: None,
+                burst: None,
+            },
         };
         let rng = &mut tor_llcrypto::rng::CautiousRng;
         let now = SystemTime::UNIX_EPOCH;
