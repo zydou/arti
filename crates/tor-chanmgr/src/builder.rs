@@ -72,7 +72,7 @@ where
     /// Allow outgoing relay channels to all addresses, including local and private
     /// addresses.
     #[cfg(feature = "relay")]
-    allow_local_addrs: bool,
+    allow_any_addrs: bool,
 }
 
 impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
@@ -97,7 +97,7 @@ where
             #[cfg(feature = "relay")]
             bw_pools: None,
             #[cfg(feature = "relay")]
-            allow_local_addrs: false,
+            allow_any_addrs: false,
         }
     }
 
@@ -139,8 +139,8 @@ where
     /// Set whether outgoing relay channels may connect to all addresses, including local
     /// and private addresses.
     #[cfg(feature = "relay")]
-    pub(crate) fn with_allow_local_addrs(mut self, allow_local_addrs: bool) -> Self {
-        self.allow_local_addrs = allow_local_addrs;
+    pub(crate) fn allow_any_addrs(mut self, allow_any_addrs: bool) -> Self {
+        self.allow_any_addrs = allow_any_addrs;
         self
     }
 
@@ -165,7 +165,7 @@ where
         )
         .map(|b| {
             b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share))
-                .with_allow_local_addrs(self.allow_local_addrs)
+                .allow_any_addrs(self.allow_any_addrs)
         })
     }
 
@@ -195,7 +195,7 @@ where
         )
         .map(|b| {
             b.with_bandwidth_pools(self.bw_pools.as_ref().map(ChannelBandwidthPools::share))
-                .with_allow_local_addrs(self.allow_local_addrs)
+                .allow_any_addrs(self.allow_any_addrs)
         })
     }
 
@@ -507,7 +507,7 @@ where
         // scanning by measuring latency between successful connect() and failures.
         //
         // If no addresses, it returns true and thus no error.
-        if !self.allow_local_addrs && !target.all_addrs_allowed_for_outgoing_channels() {
+        if !self.allow_any_addrs && !target.all_addrs_allowed_for_outgoing_channels() {
             return Err(Error::Proto {
                 source: tor_proto::Error::ChanProto(
                     "Target address is not allowed for outgoing channels".into(),

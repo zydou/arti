@@ -124,7 +124,7 @@ pub struct ChanMgrConfig {
     /// Allow outgoing relay channels to all addresses, including local and private
     /// addresses.
     #[cfg(feature = "relay")]
-    pub(crate) allow_local_addrs: bool,
+    pub(crate) allow_any_addrs: bool,
     // TODO: Would be good to add more things such as NetParameters and Dormancy maybe?
 }
 
@@ -140,7 +140,7 @@ impl ChanMgrConfig {
             #[cfg(feature = "relay")]
             bw_pools: None,
             #[cfg(feature = "relay")]
-            allow_local_addrs: false,
+            allow_any_addrs: false,
         }
     }
 
@@ -149,8 +149,8 @@ impl ChanMgrConfig {
     ///
     /// This is should only be used in a testing network.
     #[cfg(feature = "relay")]
-    pub fn with_allow_local_addrs(mut self, allow_local_addrs: bool) -> Self {
-        self.allow_local_addrs = allow_local_addrs;
+    pub fn allow_any_addrs(mut self, allow_any_addrs: bool) -> Self {
+        self.allow_any_addrs = allow_any_addrs;
         self
     }
 

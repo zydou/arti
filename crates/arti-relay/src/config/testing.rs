@@ -18,5 +18,5 @@ pub(crate) struct TestingConfig {
     /// Should we allow outgoing channels to all addresses, including local and private
     /// addresses?
     #[deftly(tor_config(default))]
-    pub(crate) allow_local_addrs: bool,
+    pub(crate) allow_channels_to_all_addrs: bool,
 }

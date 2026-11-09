@@ -256,7 +256,7 @@ impl<R: Runtime> TorRelay<R> {
         // Init the channel manager.
         let mut config = ChanMgrConfig::new(inert.config.channel.clone())
             .with_my_addrs(inert.config.relay.advertise.all_addr())
-            .with_allow_local_addrs(inert.config.relay.testing.allow_local_addrs)
+            .allow_any_addrs(inert.config.relay.testing.allow_channels_to_all_addrs)
             .with_auth_material(Arc::new(init_key_material.chan_auth_keys));
 
         // Global bandwidth rate limiting with one pool per direction. This is what C-tor
