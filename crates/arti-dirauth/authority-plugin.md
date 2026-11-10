@@ -159,7 +159,8 @@ Invocation
 ```
 plugin compute-consensus --ids <KEYFILE> \
        --votes <VOTEFILE> [--votes <VOTEFILE>...]
-       -o <OUTFILE>
+       --plain-out <PLAIN-OUT-FILE> \
+       --md-out <MD-OUT-FILE>
 ```
 
 The `KEYFILE` file will contain zero or more lines, of the form:
@@ -206,7 +207,9 @@ is less than 100.
 > if the plugin exits with the error code.
 
 On success, the plugin writes
-a consensus to the file at `OUTFILE`,
+a plain consensus to the file at `PLAIN-OUT-FILE`,
+and a microdescriptor flavored consensusto the file at `MD-OUT-FILE`,
+in each case
 _without its signature_.
 
 
