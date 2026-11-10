@@ -15,7 +15,7 @@ from typing_extensions import override
 # non-stdlib imports
 import chutney.TorNet as TorNet
 import chutney.network_tests.verify
-from chutney.Util import addr_and_port_str
+from chutney.util.ipaddress import addr_and_port_str
 
 # local imports
 import common

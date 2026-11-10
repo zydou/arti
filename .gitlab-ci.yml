@@ -40,8 +40,8 @@ variables:
   # For static website deployment job
   SITE_URL: arti.torproject.org
   # Pinned chutney version.
-  # main @ 2026-07-01
-  CHUTNEY_COMMIT: "d6659ac34c36122ed2590714e37269d1b983c336"
+  # main @ 2026-11-18
+  CHUTNEY_COMMIT: "54c9481bb3d01d1c4f65df9c4944d22a08cd68f6"
   # Rust doesn't do backtraces on panic by default, but we do want them in CI
   RUST_BACKTRACE: 1
   # Disable Cargo's incremental compilation to hopefully reduce load on CI runners.
