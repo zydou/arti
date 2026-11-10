@@ -1499,7 +1499,7 @@ example config file {which:?}, uncommented={uncommented:?}
             bld_set.listener_options().enable(true);
             bld_set
                 .file_options()
-                .insert("bad_file.json".to_string(), bld_opts);
+                .insert("bad_file.toml".to_string(), bld_opts);
 
             let mut bld = RpcConfigBuilder::default();
             bld.listen().insert("label".to_string(), bld_set);
