@@ -10,7 +10,6 @@ use crate::{HopNum, Result};
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
-use futures::task::AtomicWaker;
 use smallvec::SmallVec;
 
 use tor_cell::relaycell::RelayCellDecoder;
@@ -29,16 +28,6 @@ pub(crate) struct CircHop {
     // TODO(DEDUP): the Arc is not actually needed in the new generic circuit reactor
     // (it only exists because CircHopOutbound/CircHop needs it).
     pub(crate) ccontrol: Arc<Mutex<CongestionControl>>,
-    /// Wakes this hop's [`super::stream::StreamReactor`] when `ccontrol` becomes able to
-    /// send again as in after processing a SENDME cell.
-    ///
-    /// This is atomic because different threads call register() and wake(). It gets
-    /// modified when the ccontrol changes.
-    //
-    // TODO(relay): We could scope this cc_waker with the ccontrol mutex so when
-    // CongestionControl is modified, it could automatically wake this. For now, there is
-    // only one callsite for wake() so it has not been over engineered.
-    pub(crate) cc_waker: Arc<AtomicWaker>,
     /// The inbound hop state of this hop.
     pub(crate) inbound: CircHopInbound,
     /// Settings negotiated with this hop.
@@ -93,7 +82,6 @@ impl CircHopList {
         self.hops.push(CircHop {
             inbound,
             ccontrol,
-            cc_waker: Arc::new(AtomicWaker::new()),
             settings,
             tx: None,
         });

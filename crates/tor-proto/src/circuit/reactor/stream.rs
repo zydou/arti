@@ -31,14 +31,13 @@ use tor_rtcompat::{DynTimeProvider, Runtime, SleepProvider as _};
 use derive_deftly::Deftly;
 use futures::SinkExt;
 use futures::channel::mpsc;
-use futures::task::AtomicWaker;
 use futures::{FutureExt as _, StreamExt as _, future, select_biased};
 use tracing::debug;
 
 use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
-use std::task::Poll;
+use std::task::{ready, Poll};
 use std::time::Duration;
 
 /// Trait for customizing the behavior of the stream reactor.
@@ -81,12 +80,6 @@ pub(crate) struct StreamReactor {
     hopnum: Option<HopNum>,
     /// The state of this circuit hop.
     hop: CircHopOutbound,
-    /// Waker woken by the [`BackwardReactor`](super::BackwardReactor)
-    /// after it processes a circuit SENDME for this hop.
-    ///
-    /// We register on it when congestion control says we can't send,
-    /// so that we get polled again once the window reopens.
-    cc_waker: Arc<AtomicWaker>,
     /// The time provider.
     time_provider: DynTimeProvider,
     /// An identifier for logging about this reactor's circuit.
@@ -139,7 +132,6 @@ impl StreamReactor {
         runtime: R,
         hopnum: Option<HopNum>,
         hop: CircHopOutbound,
-        cc_waker: Arc<AtomicWaker>,
         unique_id: UniqId,
         circ_id: CircId,
         cell_rx: mpsc::Receiver<CtrlMsg>,
@@ -152,7 +144,6 @@ impl StreamReactor {
         Self {
             hopnum,
             hop,
-            cc_waker,
             time_provider: DynTimeProvider::new(runtime),
             unique_id,
             circ_id,
@@ -187,22 +178,7 @@ impl StreamReactor {
 
         let streams = Arc::clone(self.hop.stream_map());
         let ccontrol = Arc::clone(self.hop.ccontrol());
-        let cc_waker = Arc::clone(&self.cc_waker);
         let ready_streams_fut = future::poll_fn(move |cx| {
-            let blocked = {
-                let cc = ccontrol.lock().expect("poisoned lock");
-                if cc.can_send() {
-                    false
-                } else {
-                    // Hold the lock through registration so the congestion control state
-                    // doesn't change between can_send() calls. Alternative would be to
-                    // lock twice the mutex which is not great.
-                    cc_waker.register(cx.waker());
-                    true
-                }
-            };
-
-            if blocked {
                 // We can't send anything on this hop that counts towards SENDME windows.
                 //
                 // Note: this does not block outgoing flow-control messages:
@@ -220,9 +196,8 @@ impl StreamReactor {
                 //     by sending a control message to the reactor
                 //     (TODO(relay): not yet implemented)
                 //
-                // We'll be woken up via `cc_waker` once we get a SENDME.
-                return Poll::Pending;
-            }
+                // We'll be woken up via `cx.waker()` once we get a SENDME.
+               ready!(ccontrol.lock().expect("poisoned lock").poll_can_send(cx));
 
             let mut streams = streams.lock().expect("lock poisoned");
             let Some((sid, msg)) = streams.poll_ready_streams_iter(cx).next() else {

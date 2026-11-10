@@ -771,12 +771,6 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             .expect("poisoned lock")
             .note_sendme_received(&self.time_provider, tag, signals)?;
 
-        // The SENDME might have changed the congestion window and so wake up the stream
-        // reactor in case it is waiting to send. Without this, it would only notice on
-        // the next message it gets from the forward reactor which might have an
-        // arbitrary long waiting time.
-        hop.cc_waker.wake();
-
         Ok(())
     }
 
