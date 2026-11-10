@@ -77,7 +77,6 @@ fn default_v3idents() -> Vec<RsaIdentity> {
     }
 
     vec![
-        rsa("27102BC123E7AF1D4741AE047E160C91ADC76B21"), // bastet
         rsa("0232AF901C31A04EE9848595AF9BB7620D4C5B2E"), // dannenberg
         rsa("E8A9C45EDE6D711294FADF8E7951F4DE6CA56B58"), // dizum
         rsa("70849B868D606BAECFB6128C5E3D782029AA394F"), // faravahar
@@ -100,11 +99,6 @@ fn default_uploads() -> Vec<Vec<SocketAddr>> {
     }
 
     vec![
-        // bastet
-        vec![
-            sa("204.13.164.118:80"),
-            sa("[2620:13:4000:6000::1000:118]:80"),
-        ],
         // dannenberg
         vec![sa("193.23.244.244:80"), sa("[2001:678:558:1000::244]:80")],
         // dizum
@@ -164,19 +158,23 @@ mod test {
         assert_eq!(dflt.uploads, default_uploads());
         assert_eq!(dflt.downloads, default_downloads());
         assert_eq!(dflt.votes, default_votes());
+        assert_eq!(dflt.v3idents.len(), dflt.uploads.len());
 
+        // Use tor26's entry for this test. Note that this depends on tor26
+        // being listed last in default_v3idents() and default_uploads().
+        let last = dflt.v3idents.len() - 1;
         assert_eq!(
-            dflt.v3idents[8],
+            dflt.v3idents[last],
             RsaIdentity::from_hex("2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C").unwrap()
         );
         assert_eq!(
-            dflt.uploads[8],
+            dflt.uploads[last],
             vec![
                 "217.196.147.77:80".parse().unwrap(),
                 "[2a02:16a8:662:2203::1]:80".parse().unwrap()
             ]
         );
-        assert_eq!(dflt.uploads[8], dflt.downloads[8]);
-        assert_eq!(dflt.uploads[8], dflt.votes[8]);
+        assert_eq!(dflt.uploads[last], dflt.downloads[last]);
+        assert_eq!(dflt.uploads[last], dflt.votes[last]);
     }
 }
