@@ -747,11 +747,7 @@ integration-chutney-shadow:
     # Install shadowtools, built in build-shadow
     - python3 -m pip install --no-index --find-links="$CI_PROJECT_DIR"/opt/shadow/wheels shadowtools
 
-    # Select a random simulation seed to avoid "dooming"
-    # an unlucky MR that hits a low-probability bug.
-    - SEED=$(date +%s)
-
-    - tests/chutney/integration-e2e-shadow --seed="$SEED"
+    - tests/chutney/integration-e2e-shadow
   artifacts:
     paths:
       # chutney network including tor logs etc

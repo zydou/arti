@@ -10,127 +10,26 @@ vs running it directly for several reasons.
   than when running natively.
 """
 
-import atexit
 import argparse
+import chutney.shadow
+import chutney.network_tests.verify
+import ipaddress
+import json
 import shadowtools.config as scfg
 import shadowtools.shadow_exec as shadow_exec
 import os
 import pathlib
 import subprocess
 import sys
-import yaml
 
 from pathlib import Path
 from chutney import TorNet
-from typing import Final
 
 import common
 from config import Config
 
 assert __name__ == "__main__", "Can't determine _SCRIPT_DIR"
 _SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
-
-
-def _shadow_config_path(n: TorNet.Network) -> Path:
-    return n.dir.joinpath("shadow.yaml")
-
-
-def _integration_e2e(args: argparse.Namespace) -> None:
-    """Run the test (from inside shadow)"""
-    config = Config.load_json(Path(_SCRIPT_DIR).joinpath("arti.run.json"))
-    config.export_env()
-
-    # Try to ensure we tear down the network on exit, including failure, ctrl-c, etc.
-    atexit.register(lambda: subprocess.check_call([_SCRIPT_DIR.joinpath("teardown")]))
-
-    # bootstrap the network
-    subprocess.check_call([config.chutney, "bootstrap"])
-
-    # test the network
-    subprocess.check_call([_SCRIPT_DIR.joinpath("test"), "-v"])
-
-
-def gen_shadow_config(*, seed: int, controller_hostname: str) -> scfg.Config:
-    """
-    Generate a shadow config file, as a string, for the given parameters.
-    """
-
-    current_script = os.path.abspath(__file__)
-
-    env = {
-        common.RUNNING_IN_SHADOW_ENV: "yes",
-        # re-export PATH. The test scripts assume that
-        # usual shell utilities are on it.
-        "PATH": os.getenv("PATH", ""),
-    }
-
-    return scfg.Config(
-        general=scfg.General(
-            stop_time="10m",
-            model_unblocked_syscall_latency=True,
-            seed=seed,
-        ),
-        network=scfg.Network(
-            graph=scfg.Graph(type="1_gbit_switch"),
-        ),
-        experimental=scfg.Experimental(
-            # shadow only actually increments simulated time (and potentially
-            # switches threads) if this much time would have been consumed by an
-            # unbroken sequence of unblocked syscalls. Using a relatively large
-            # value here (vs the default 1us) makes the simulation scheduling
-            # more stable and predictable; e.g. adding additional logging to
-            # debug an issue is less likely to make the issue disappear.
-            #
-            # The primary tradeoffs are:
-            # * Larger values can result in managed processes measuring elapsed
-            #   time where not much happens as *zero*, which may not be handled
-            #   gracefully. e.g. in c-tor, using values of 1 ms or more here can
-            #   result in a flood of warnings "compute_drain_rate(): Bug:
-            #   Computing stream drain rate with zero time delta".
-            # * Time will move forward at a larger granularity when unblocked syscall
-            #   latency is applied. 10ms is still small enough though that this
-            #   shouldn't be terribly strange; e.g. larger time jumps are likely
-            #   to be observed on over-loaded systems with normal preemptive
-            #   scheduling.
-            # * when the simulation does hit a
-            #   busy loop, it may spend a bit longer "spinning" before moving
-            #   time forward, potentially causing the simulation to take a bit
-            #   longer to run. (if it would have otherwise timed out earlier than 10ms)
-            max_unapplied_cpu_latency="100us",
-            # In CI, attempting to pin to particular CPU cores may result in
-            # conflicts with other instances of shadow trying to do the same
-            # thing.
-            use_cpu_pinning=False,
-            # Likewise, shadow's default behavior of spin-looping is bad
-            # behavior in a shared environment.
-            use_worker_spinning=False,
-        ),
-        hosts={
-            controller_hostname: scfg.Host(
-                network_node_id=0,
-                processes=[
-                    scfg.Process(
-                        path="sh",
-                        args=f"-c '{current_script} integration-e2e 2>&1'",
-                        environment=env,
-                        # Give the web server below a little time to start.
-                        start_time="5s",
-                    )
-                ],
-            ),
-            common.TEST_DOMAIN: scfg.Host(
-                network_node_id=0,
-                processes=[
-                    scfg.Process(
-                        path="python3",
-                        args="-m http.server 80",
-                        start_time=0,
-                        expected_final_state="running",
-                    )
-                ],
-            ),
-        },
-    )
 
 
 def _configure_and_run_shadow(args: argparse.Namespace) -> None:
@@ -150,36 +49,97 @@ def _configure_and_run_shadow(args: argparse.Namespace) -> None:
     # initialize the network
     subprocess.check_call(
         [_SCRIPT_DIR.joinpath("init")],
-        env=(
-            os.environ
-            | dict(
-                # AF_UNIX sockets aren't supported in shadow
-                CHUTNEY_ENABLE_CONTROLSOCKET="no",
-                # ipv6 isn't supported in shadow
-                CHUTNEY_DISABLE_IPV6="yes",
-                # sandboxing isn't supported in shadow
-                CHUTNEY_TOR_SANDBOX="no",
-            )
-        ),
     )
 
     # Load the network we just initialized
     network = TorNet.Network.from_data_dir()
 
-    # Write out shadow config. We could just pipe it directly to the shadow
-    # process below, but writing it out is useful for debugging.
-    controller_hostname: Final = "host"
-    shadow_config = gen_shadow_config(
-        seed=args.seed, controller_hostname=controller_hostname
+    ip_network: ipaddress.IPv4Network = ipaddress.IPv4Network("192.168.0.0/24")
+    host_ips = iter(ip_network.hosts())
+    controller_ip = next(host_ips)
+    test_domain_ip = next(host_ips)
+    starting_ip = next(host_ips)
+    network = chutney.shadow.rewrite_network_for_shadow_multihost(
+        network,
+        ip_network=ip_network,
+        controller_ip=controller_ip,
+        starting_ip=starting_ip,
     )
-    with _shadow_config_path(network).open("w") as f:
-        f.write(yaml.safe_dump(shadow_config))
 
+    # Init the *new* network, creating a new nodes directory as usual.
+    # In principle it might be nice to support overwriting the
+    # previous nodes directory in-place, to avoid creating an "extra" one
+    # when the previous was generated specifically for this purpose, but
+    # would probably open the door to subtle bugs and footguns.
+    network.init(data_dir=Path(config.chutney_data_dir))
+
+    controller_hostname = "controller-host"
+    network_graph = chutney.shadow.generate_shadow_network_graph(
+        network,
+        controller_ip=controller_ip,
+        controller_hostname=controller_hostname,
+        node_latency="1 ms",
+        node_bandwidth="1 Gbit",
+        node_packet_loss=0.0,
+    )
+    shadow_config = chutney.shadow.generate_shadow_config(
+        network,
+        controller_hostname=controller_hostname,
+        controller_ip=controller_ip,
+        controller_args=chutney.shadow.wrap_cmd_in_running_network(
+            [
+                "env",
+                # tell our test script that it's running in shadow,
+                # primarily so that it skips DNS resolution through tor proxy tests.
+                f"{common.RUNNING_IN_SHADOW_ENV}=1",
+                # tell "chutney verify" to listen on and connect back to the
+                # controller's ip address.
+                (
+                    f"{chutney.network_tests.verify.VerifyConfig._LISTEN_ADDRESS_ENV.varname()}"
+                    f"={str(controller_ip)}"
+                ),
+                str(_SCRIPT_DIR.joinpath("test")),
+                "-v",
+            ]
+        ),
+        network_graph=network_graph,
+    )
+    # Add the TEST_DOMAIN web server
+    shadow_config["hosts"][common.TEST_DOMAIN] = scfg.Host(
+        network_node_id=network_graph.default_node_id(),
+        ip_addr=str(test_domain_ip),
+        processes=[
+            scfg.Process(
+                path="python3",
+                args="-m http.server 80",
+                start_time=0,
+                expected_final_state="running",
+            )
+        ],
+    )
+
+    # write out the shadow config file
+    shadow_config_path = network.dir.joinpath("shadow.yaml")
+    with shadow_config_path.open("w") as shadow_yaml:
+        # We avoid the 'pyyaml' serializer because shadow parses as yaml
+        # 1.2, and pyyaml generates output compliant with yaml 1.1, but not
+        # always yaml 1.2.
+        # <https://github.com/yaml/pyyaml/issues/860>
+        #
+        # yaml 1.2 is designed to be a strict superset of json, so we can
+        # use the json encoder instead.
+        json.dump(
+            shadow_config,
+            shadow_yaml,
+            indent=4,
+        )
+
+    shadow_path = Path("shadow")
     shadow_exec.run_shadow_watching_process(
+        shadow_bin=shadow_path,
+        shadow_config_path=shadow_config_path,
         watch_host=controller_hostname,
-        shadow_bin=Path("shadow"),
         dstdir=network.dir,
-        shadow_config_path=_shadow_config_path(network),
     )
 
 
@@ -188,22 +148,7 @@ def main() -> None:
         prog="integration-e2e-shadow",
         description="Runs integration-e2e inside a shadow simulation",
     )
-    parser.add_argument(
-        "-s", "--seed", type=int, default=1, help="Simulation PRNG seed"
-    )
     parser.set_defaults(func=_configure_and_run_shadow)
-
-    subparsers = parser.add_subparsers()
-
-    integration_e2e_parser = subparsers.add_parser(
-        "integration-e2e",
-        help=(
-            "Run the e2e integration test, from inside shadow."
-            " Intended only for this script to recursively launch itself inside shadow."
-        ),
-    )
-    integration_e2e_parser.set_defaults(func=_integration_e2e)
-
     args = parser.parse_args()
     args.func(args)
 
