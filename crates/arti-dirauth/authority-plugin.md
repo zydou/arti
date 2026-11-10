@@ -187,7 +187,7 @@ Each `VOTEFILE` contains zero or more concatenated vote documents.
 > In C tor, I think this is just the `v3-status-votes` file.
 > ahf/dgoulet please confirm?
 
-The plugin MUST reject any votes that cannot be parsed,
+The plugin MUST ignore (logging a warning) any votes that cannot be parsed,
 or which come from an unrecognized authority,
 or which are not correctly signed.
 
