@@ -5,10 +5,14 @@ use super::*;
 /// "Already computed" for footer calculoations
 ///
 /// The footer can depend on all the previous consensus, notably the preamble and the routers.
-type FooterAC<'r> = (
-    &'r netstatus::plain::Preamble,
-    &'r [netstatus::plain::RouterStatus],
-);
+#[derive(Debug, Clone, Copy)]
+#[allow(unused)] // TODO DIRAUTH
+pub(super) struct FooterAC<'r> {
+    /// Preamble
+    pub preamble: &'r netstatus::plain::Preamble,
+    /// Routerstatuses
+    pub routers: &'r [netstatus::plain::RouterStatus],
+}
 
 impl<'f> ConsensusesFromVotes<FooterAC<'f>> for netstatus::vote::Footer {
     type PlainOutput = netstatus::plain::Footer;

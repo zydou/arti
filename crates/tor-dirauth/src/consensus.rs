@@ -42,6 +42,7 @@ mod rs_select;
 mod shared_random;
 mod toplevel;
 
+use footer::*;
 pub use framework::*;
 use functions::ComponentInVotesOptionExt;
 pub use method::*;
