@@ -76,9 +76,12 @@ async fn handle_circuit_incoming_streams<R: Runtime>(
 
         let resolver = resolver.clone();
         // Spawn a new task for each individual stream
+        let runtime_clone = runtime.clone();
         if let Err(e) = runtime.spawn(async move {
             let res = match tor_stream.request() {
-                IncomingStreamRequest::Begin(_) => exit::handle_begin(tor_stream).await,
+                IncomingStreamRequest::Begin(_) => {
+                    exit::handle_begin(runtime_clone, tor_stream).await
+                }
                 IncomingStreamRequest::BeginDir(_) => {
                     directory::handle_begin_dir(tor_stream, begin_dir_tx).await
                 }

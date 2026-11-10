@@ -395,6 +395,7 @@ dependencies = [
  "either",
  "fs-mistrust",
  "futures",
+ "futures-copy",
  "hickory-net",
  "hickory-proto",
  "hickory-resolver",
