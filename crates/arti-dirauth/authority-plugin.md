@@ -181,7 +181,7 @@ This should be parsed in accordance with the regular
 > DirServer configuration line.
 
 
-Each VOTEFILE contains zero or more concatenated vote documents.
+Each `VOTEFILE` contains zero or more concatenated vote documents.
 
 > In C tor, I think this is just the `v3-status-votes` file.
 > ahf/dgoulet please confirm?
