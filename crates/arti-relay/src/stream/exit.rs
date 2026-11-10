@@ -1,5 +1,6 @@
 //! Exit streams
 
+use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr as _;
 use std::time::Duration;
@@ -8,8 +9,8 @@ use futures::io::BufReader;
 use tor_cell::relaycell::msg::{BeginFlags, Connected, End, EndReason};
 use tor_error::warn_report;
 use tor_proto::stream::{IncomingStream, IncomingStreamRequest};
-use tor_rtcompat::Runtime;
 use tor_rtcompat::SleepProviderExt as _;
+use tor_rtcompat::{NetStreamProvider, Runtime, TimeoutError};
 use tracing::{debug, info, trace};
 
 /// Handle an incoming exit stream.
@@ -67,40 +68,12 @@ pub(super) async fn handle_begin<R: Runtime>(
         return Ok(());
     };
 
+    // A future for everything we want to include within the timeout.
+    // Returns the TCP stream, and on error returns the END reason.
     let exit_stream_fut = match IpAddr::from_str(addr) {
         Ok(addr) => {
-            if addr.is_ipv4() && flags.contains(BeginFlags::IPV4_NOT_OKAY) {
-                // TODO(relay): Should we use `NOROUTE` here?
-                incoming.reject(End::new_misc()).await?;
-                trace!(
-                    "Rejecting incoming stream to IPv4 address since flags contains IPV4_NOT_OKAY",
-                );
-                return Ok(());
-            }
-
-            if addr.is_ipv6() && !flags.contains(BeginFlags::IPV6_OKAY) {
-                // TODO(relay): Should we use `NOROUTE` here?
-                incoming.reject(End::new_misc()).await?;
-                trace!(
-                    "Rejecting incoming stream to IPv6 address since flags did not contain IPV6_OKAY",
-                );
-                return Ok(());
-            }
-
-            // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
-            // basic loopback checks) for testing purposes.
-            if addr.to_canonical().is_loopback() || addr.to_canonical().is_unspecified() {
-                incoming
-                    .reject(End::new_with_reason(EndReason::EXITPOLICY))
-                    .await?;
-                trace!("Rejecting incoming stream to loopback address");
-                return Ok(());
-            }
-
             let addr = SocketAddr::new(addr, port);
-
-            let runtime = &runtime;
-            async move { runtime.connect(&addr, &connect_options).await }
+            connect_ip(&runtime, addr, flags, &connect_options)
         }
         Err(_) => {
             // TODO(relay): Once we can look up hostnames,
@@ -115,7 +88,19 @@ pub(super) async fn handle_begin<R: Runtime>(
 
     // TODO(relay-tuning): timeout chosen arbitrarily
     let timeout = Duration::from_secs(30);
-    let exit_stream = runtime.timeout(timeout, exit_stream_fut).await??;
+    let exit_stream = match runtime.timeout(timeout, exit_stream_fut).await {
+        Ok(Ok(stream)) => stream,
+        Ok(Err(end_reason)) => {
+            incoming.reject(End::new_with_reason(end_reason)).await?;
+            return Ok(());
+        }
+        Err(TimeoutError) => {
+            incoming
+                .reject(End::new_with_reason(EndReason::TIMEOUT))
+                .await?;
+            return Ok(());
+        }
+    };
 
     let tor_stream = incoming.accept_data(Connected::new_empty()).await?;
 
@@ -147,4 +132,47 @@ pub(super) async fn handle_begin<R: Runtime>(
     }
 
     Ok(())
+}
+
+/// For a BEGIN message containing the socket address and flags,
+/// attempt to connect to the address.
+async fn connect_ip<R: Runtime>(
+    runtime: &R,
+    addr: SocketAddr,
+    flags: BeginFlags,
+    connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
+) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
+    if addr.ip().is_ipv4() && flags.contains(BeginFlags::IPV4_NOT_OKAY) {
+        trace!("Rejecting incoming stream to IPv4 address since flags contains IPV4_NOT_OKAY");
+        // TODO(relay): Should we use `NOROUTE` here?
+        return Err(EndReason::MISC);
+    }
+
+    if addr.ip().is_ipv6() && !flags.contains(BeginFlags::IPV6_OKAY) {
+        trace!("Rejecting incoming stream to IPv6 address since flags did not contain IPV6_OKAY");
+        // TODO(relay): Should we use `NOROUTE` here?
+        return Err(EndReason::MISC);
+    }
+
+    // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
+    // basic loopback checks) for testing purposes.
+    if addr.ip().to_canonical().is_loopback() || addr.ip().to_canonical().is_unspecified() {
+        trace!("Rejecting incoming stream to loopback address");
+        return Err(EndReason::EXITPOLICY);
+    }
+
+    match runtime.connect(&addr, connect_options).await {
+        Ok(x) => Ok(x),
+        Err(e) => Err(io_error_kind_to_end_reason(e.kind())),
+    }
+}
+
+/// For a TCP error, get the reason we should use in the END message.
+fn io_error_kind_to_end_reason(e: ErrorKind) -> EndReason {
+    // TODO(relay): Check if there are other error kinds to map to end reasons.
+    match e {
+        ErrorKind::ConnectionRefused => EndReason::CONNECTREFUSED,
+        ErrorKind::ConnectionReset => EndReason::CONNRESET,
+        _ => EndReason::MISC,
+    }
 }
