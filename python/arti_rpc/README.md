@@ -17,13 +17,13 @@ But if you're brave, and you're on a Unix-like platform...
 Build arti with RPC support:
 
 ```
-cargo build --release --all-features -p arti
+cargo build --release --features=full -p arti
 ```
 
 Build `arti-rpc-client-core` with FFI support:
 
 ```
-cargo build --release --all-features -p arti-rpc-client-core
+cargo build --release --features=full -p arti-rpc-client-core
 ```
 
 Tell this library where to find `arti-rpc-client-core`:
