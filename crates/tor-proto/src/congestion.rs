@@ -37,6 +37,8 @@ use self::{
 use tor_cell::relaycell::msg::SendmeTag;
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
+use std::task::{Context, Poll, Waker};
+
 /// This trait defines what a congestion control algorithm must implement in order to interface
 /// with the circuit reactor.
 ///
@@ -272,6 +274,16 @@ pub(crate) struct CongestionControl {
     rtt: RoundtripTimeEstimator,
     /// The congestion control algorithm.
     algorithm: Box<dyn CongestionControlAlgorithm>,
+    /// The waker of the last [`poll_can_send`](Self::poll_can_send) invocation.
+    ///
+    /// We only remember the latest waker, because `poll_can_send()` is expected
+    /// to be called from the `StreamReactor`, where there is only ever a single
+    /// task waiting to be woken when `can_send()` is `true`.
+    ///
+    // Note: if the implementation grows more complex, and we end up using this
+    // from multiple places, or find ourselves needing to store multiple wakers,
+    // we should consider replacing this with something less hacky.
+    waker: Option<Waker>,
 }
 
 impl CongestionControl {
@@ -291,6 +303,7 @@ impl CongestionControl {
             rtt: RoundtripTimeEstimator::new(params.rtt_params()),
             sendme_validator: SendmeValidator::new(),
             state,
+            waker: None,
         }
     }
 
@@ -306,6 +319,27 @@ impl CongestionControl {
         self.algorithm.uses_xon_xoff()
     }
 
+    /// Helper for checking if [`can_send()`](Self::can_send) is `true` from
+    /// an asynchronous context.
+    ///
+    /// This function arranges for the waker to be woken when a SENDME cell
+    /// is received.
+    ///
+    /// Important: only one waker can be registered at a time.
+    /// If a waker is already registered, calling this function again
+    /// will cause the existing waker to be dropped.
+    ///
+    /// Returns `Poll::Pending` if `can_send` is false `false`.
+    pub(crate) fn poll_can_send(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        if self.can_send() {
+            Poll::Ready(())
+        } else {
+            // Note: this discards the previous waker, if there was one
+            self.waker = Some(cx.waker().clone());
+            Poll::Pending
+        }
+    }
+
     /// Return true iff a DATA cell is allowed to be sent based on the congestion control state.
     pub(crate) fn can_send(&self) -> bool {
         self.algorithm.can_send()
@@ -314,6 +348,9 @@ impl CongestionControl {
     /// Called when a SENDME cell is received.
     ///
     /// An error is returned if there is a protocol violation with regards to congestion control.
+    ///
+    /// This wakes the waker registered with [`poll_can_send`](Self::poll_can_send),
+    /// if there is one.
     pub(crate) fn note_sendme_received(
         &mut self,
         runtime: &DynTimeProvider,
@@ -338,7 +375,15 @@ impl CongestionControl {
 
         // Notify the algorithm that we've received a SENDME.
         self.algorithm
-            .sendme_received(&mut self.state, &mut self.rtt, signals, clock_stall)
+            .sendme_received(&mut self.state, &mut self.rtt, signals, clock_stall)?;
+
+        // The SENDME might have changed the congestion window and so wake up any wakers
+        // that might be waiting on this update.
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
+
+        Ok(())
     }
 
     /// Called when a SENDME cell is sent.
