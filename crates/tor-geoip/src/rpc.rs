@@ -1,6 +1,5 @@
 //! RPC APIs for geoip functionality.
 
-use std::net::IpAddr;
 use std::{collections::HashMap, sync::Arc};
 
 use tor_rpcbase as rpc;
@@ -21,8 +20,14 @@ use crate::{CountryCode, GeoipDb};
 #[non_exhaustive]
 struct GeoipLookupCountries {
     /// The addresses to look countries for.
+    ///
+    /// It is an error to include an entry here that is not an IP address.
+    //
+    // Note: we take these arguments as strings so that we can preserve
+    // them exactly as keys in the output map.  Otherwise, it would get
+    // confusing for any clients that provided non-normalized IPs.
     #[serde(default)]
-    addresses: Vec<IpAddr>,
+    addresses: Vec<String>,
 }
 
 impl rpc::RpcMethod for GeoipLookupCountries {
@@ -38,18 +43,28 @@ struct GeoipLookupResult {
     /// A map from addresses to country codes.
     ///
     /// Countries without known addresses are omitted.
-    countries: HashMap<IpAddr, CountryCode>,
+    countries: HashMap<String, CountryCode>,
 }
 
 impl GeoipDb {
     /// Actually perform the geoip lookup for a given [`GeoipLookupCountries`] request.
-    fn rpc_lookup_countries(&self, request: GeoipLookupCountries) -> GeoipLookupResult {
-        let countries = request
+    fn rpc_lookup_countries(
+        &self,
+        request: GeoipLookupCountries,
+    ) -> Result<GeoipLookupResult, std::net::AddrParseError> {
+        let countries: Result<HashMap<_, _>, _> = request
             .addresses
             .into_iter()
-            .filter_map(|a| Some((a, *self.lookup_country_code(a)?)))
+            .filter_map(|s| {
+                s.parse()
+                    .map(|ip| Some((s, *self.lookup_country_code(ip)?)))
+                    .transpose()
+            })
             .collect();
-        GeoipLookupResult { countries }
+
+        Ok(GeoipLookupResult {
+            countries: countries?,
+        })
     }
 }
 
@@ -59,7 +74,8 @@ async fn geoip_lookup_on_geoipdb(
     method: Box<GeoipLookupCountries>,
     _ctx: Arc<dyn rpc::Context>,
 ) -> Result<GeoipLookupResult, rpc::RpcError> {
-    Ok(db.rpc_lookup_countries(*method))
+    db.rpc_lookup_countries(*method)
+        .map_err(|e| rpc::RpcError::new(e.to_string(), rpc::RpcErrorKind::RequestError))
 }
 
 rpc::static_rpc_invoke_fn! {
