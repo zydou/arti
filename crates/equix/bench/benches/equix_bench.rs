@@ -153,7 +153,7 @@ fn bench_solve<F: FnMut([u8; 4]) -> T + Copy, T>(
     // full solve.
 
     let mut choices = Vec::<[u8; 4]>::new();
-    let mut rng = StdRng::from_entropy();
+    let mut rng = StdRng::from_os_rng();
 
     for _ in 0..1000 {
         let challenge_bytes = rng.next_u32().to_le_bytes();
@@ -197,7 +197,7 @@ fn bench_verify<F: FnMut(([u8; 4], [u8; 16])) -> T + Copy, T>(
     // This phase is not timed and we just want something fast and easy.
 
     let mut choices = Vec::<([u8; 4], SolutionByteArray)>::new();
-    let mut rng = StdRng::from_entropy();
+    let mut rng = StdRng::from_os_rng();
 
     // This is doing a full solve, keep this short
     for _ in 0..100 {
