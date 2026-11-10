@@ -1,6 +1,7 @@
 //! General functions for use in consensus calculations
 //!
-//! Eg with signatures like [`Aggregate::aggregate`]
+//! Most functions here have signatures like [`Aggregate::aggregate`], for use with `calc!`,
+//! for the precise types found in netstatus field(s).
 
 use super::*;
 

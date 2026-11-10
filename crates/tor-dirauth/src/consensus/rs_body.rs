@@ -344,6 +344,9 @@ impl Aggregate<RouterStatusAC<'_>> for Option<netstatus::SoftwareVersion> {
 }
 
 /// Calculate the `a` item(s) in the consensus
+///
+/// Has the signature of [`Aggregate::aggregate`] for `RouterStatus.a`.
+/// Not `impl Aggregate for ..SocketAddr..` because the behaviour is quite special.
 #[allow(clippy::ref_option_ref)] // clippy complains about the type annotation in the closure
 fn aggregate_a_items<'i>(
     _context: ConsensusContextRefs<SameStatusTupleAC>,
