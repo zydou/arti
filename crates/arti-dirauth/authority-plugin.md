@@ -194,7 +194,7 @@ The plugin MUST return an error if more than one vote appears for any
 authority.
 
 The plugin MUST return an error if the votes do not have identical
-time ranges.
+time ranges (`valid-after`, `fresh-until`, `valid-until`.)
 
 The plugin MUST exit with error code 10 ("Fall back to C tor Consensus")
 if it finds that the consensus method that should be used
