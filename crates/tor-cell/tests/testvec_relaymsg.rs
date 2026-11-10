@@ -149,14 +149,6 @@ fn test_begin() {
         msg::BeginAddr::Ip(IpAddr::V6("2001:db8::1".parse().unwrap())),
     );
 
-    // hand-generated test, with something that has square brackets like an IPv6 address.
-    msg_begin(
-        cmd,
-        "5b617364665d3a323200",
-        msg::Begin::new(hostname("[asdf]"), port(22), 0),
-        msg::BeginAddr::Hostname(msg::BeginHostname::new("[asdf]").unwrap()),
-    );
-
     // hand-generated test, with something that has non-lowercase characters.
     msg_begin(
         cmd,
@@ -194,13 +186,43 @@ fn test_begin() {
     // the address check is deferred until we want the address
     assert_eq!(
         decoded.addr().decode().unwrap_err(),
-        BytesError::InvalidMessage("hostname was not ascii".into()),
+        BytesError::InvalidMessage("hostname had invalid characters".into()),
+    );
+
+    // hand-generated failure case: something that has square brackets like an IPv6 address.
+    let body = unhex("5B617364665D 3A 343433 00"); // [asdf]:443
+    let decoded: msg::Begin = decode_into(cmd, &body[..]).unwrap();
+    // the address check is deferred until we want the address
+    assert_eq!(
+        decoded.addr().decode().unwrap_err(),
+        BytesError::InvalidMessage("hostname had invalid characters".into()),
+    );
+
+    // hand-generated failure case: a hostname with a comma.
+    let body = unhex("6578616D706C652C636F6D 3A 343433 00"); // example,com:443
+    let decoded: msg::Begin = decode_into(cmd, &body[..]).unwrap();
+    // the address check is deferred until we want the address
+    assert_eq!(
+        decoded.addr().decode().unwrap_err(),
+        BytesError::InvalidMessage("hostname had invalid characters".into()),
     );
 
     // failure on construction: bad address.
     assert!(matches!(
         msg::BeginHostname::new("www.torproject™.org"),
         Err(tor_cell::Error::BadStreamAddress)
+    ));
+
+    // failure on construction: bad address.
+    assert!(matches!(
+        msg::BeginHostname::new("[asdf].org"),
+        Err(tor_cell::Error::BadStreamAddress),
+    ));
+
+    // failure on construction: bad address.
+    assert!(matches!(
+        msg::BeginHostname::new("example,com"),
+        Err(tor_cell::Error::BadStreamAddress),
     ));
 }
 

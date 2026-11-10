@@ -489,16 +489,40 @@ pub struct BeginHostname(Vec<u8>);
 impl BeginHostname {
     /// A new hostname for a [`Begin`] message.
     ///
-    /// The hostname must have entirely ASCII characters.
+    /// The hostname must have only alphanumeric (upper and lower case),
+    /// ".", "-", and "_" ascii characters.
+    /// The length must be at most 255 bytes.
     pub fn new(hostname: impl Into<Vec<u8>>) -> crate::Result<Self> {
         Self::new_with_useful_error_msg(hostname.into()).map_err(|_| crate::Error::BadStreamAddress)
     }
 
     /// See [`BeginHostname::new()`].
     fn new_with_useful_error_msg(hostname: Vec<u8>) -> Result<Self> {
-        // TODO: This ascii requirement isn't in torspec, so we should probably add it.
-        if !hostname.is_ascii() {
-            return Err(Error::InvalidMessage("hostname was not ascii".into()));
+        // torspec:
+        //
+        // > When used as a DNS hostname ADDRESS MUST only have alphanumeric
+        // > (upper and lower case), ".", "-", and "_" characters,
+        // > and be at most 255 characters long.
+        //
+        // We only do the validation that's specified in torspec.
+        // Other possible addresses are invalid (for example a hostname of just '-'),
+        // but these addresses are allowed by torspec and we expect that Arti's DNS code will handle
+        // these reasonably.
+        //
+        // Another edge case is an empty hostname string,
+        // but (1) this is allowed by torspec,
+        // and (2) this is needed by onion services which do use an empty hostname.
+
+        if hostname.len() > 255 {
+            return Err(Error::InvalidMessage("hostname was too long".into()));
+        }
+
+        let is_allowed = |c: &u8| c.is_ascii_alphanumeric() || b".-_".contains(c);
+
+        if !hostname.iter().all(is_allowed) {
+            return Err(Error::InvalidMessage(
+                "hostname had invalid characters".into(),
+            ));
         }
 
         Ok(Self(hostname))
