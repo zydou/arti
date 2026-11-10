@@ -37,7 +37,7 @@ use tracing::debug;
 use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
-use std::task::{ready, Poll};
+use std::task::{Poll, ready};
 use std::time::Duration;
 
 /// Trait for customizing the behavior of the stream reactor.
@@ -179,25 +179,25 @@ impl StreamReactor {
         let streams = Arc::clone(self.hop.stream_map());
         let ccontrol = Arc::clone(self.hop.ccontrol());
         let ready_streams_fut = future::poll_fn(move |cx| {
-                // We can't send anything on this hop that counts towards SENDME windows.
-                //
-                // Note: this does not block outgoing flow-control messages:
-                //
-                //   * circuit SENDMEs are initiated by the forward reactor,
-                //     by sending a BackwardReactorCmd::SendRelayMsg to BWD,
-                //   * stream SENDMEs will be initiated by StreamTarget::send_sendme(),
-                //     by sending a control message to the reactor
-                //     (TODO(relay): not yet implemented)
-                //   * XOFFs are sent in response to messages on streams
-                //     (i.e. RELAY messages with non-zero stream IDs).
-                //     These messages are delivered to us by the forward reactor
-                //     inside BackwardReactorCmd::HandleMsg
-                //   * XON will be initiated by StreamTarget::drain_rate_update(),
-                //     by sending a control message to the reactor
-                //     (TODO(relay): not yet implemented)
-                //
-                // We'll be woken up via `cx.waker()` once we get a SENDME.
-               ready!(ccontrol.lock().expect("poisoned lock").poll_can_send(cx));
+            // We can't send anything on this hop that counts towards SENDME windows.
+            //
+            // Note: this does not block outgoing flow-control messages:
+            //
+            //   * circuit SENDMEs are initiated by the forward reactor,
+            //     by sending a BackwardReactorCmd::SendRelayMsg to BWD,
+            //   * stream SENDMEs will be initiated by StreamTarget::send_sendme(),
+            //     by sending a control message to the reactor
+            //     (TODO(relay): not yet implemented)
+            //   * XOFFs are sent in response to messages on streams
+            //     (i.e. RELAY messages with non-zero stream IDs).
+            //     These messages are delivered to us by the forward reactor
+            //     inside BackwardReactorCmd::HandleMsg
+            //   * XON will be initiated by StreamTarget::drain_rate_update(),
+            //     by sending a control message to the reactor
+            //     (TODO(relay): not yet implemented)
+            //
+            // We'll be woken up via `cx.waker()` once we get a SENDME.
+            ready!(ccontrol.lock().expect("poisoned lock").poll_can_send(cx));
 
             let mut streams = streams.lock().expect("lock poisoned");
             let Some((sid, msg)) = streams.poll_ready_streams_iter(cx).next() else {
