@@ -205,8 +205,9 @@ is less than 100.
 > once they have decided to vote, and only compute a vote themselves
 > if the plugin exits with the error code.
 
-On success, the plugin writes a consensus,
-_without its signature_, to the file at `OUTFILE`.
+On success, the plugin writes
+a consensus to the file at `OUTFILE`,
+_without its signature_.
 
 
 ## Sketch of C tor authority behavior
