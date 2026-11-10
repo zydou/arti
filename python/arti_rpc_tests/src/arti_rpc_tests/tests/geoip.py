@@ -2,26 +2,27 @@ from arti_rpc_tests import arti_test
 
 
 @arti_test
-def test_get_config(context):
+def test_rpc_lookup(context):
     conn = context.open_rpc_connection()
 
     db = conn.session().invoke("arti:get_geoip_db")
     db = conn.make_object(db["id"])
 
-    addrs = [
-        "8.8.8.8",  # google's public dns.
-        "95.216.163.36",  # one of the current torproject.org webservers
-        "2001:500:2d::d",  # one of the .us nameservers
-    ]
-    results = db.invoke("arti:geoip_lookup_countries", addresses=addrs)
+    addrs = {
+        # google's public dns.
+        "8.8.8.8": "US",
+        # one of the current torproject.org webservers
+        "95.216.163.36": "FI",
+        # one of the .us nameservers, denormalized.
+        "2001:500:2d::000d": "US",
+    }
+    results = db.invoke("arti:geoip_lookup_countries", addresses=list(addrs.keys()))
 
-    # We can't actually guarantee what countries the above addrs are in...
+    # We can't actually guarantee what countries the above addrs are in;
+    # but since tor-geoip-db is static, we know that this won't break
+    # except when we change it.
+    #
+    # If this breaks frequently, we should choose a different set of test
+    # addresses, or a different strategy.
     c = results["countries"]
-    assert isinstance(c, dict)
-    # but we can make sure that we got at least 2...
-    assert len(c) >= 2
-    for k, v in c.items():
-        # and that we didn't get an answer for anything we didn't ask for...
-        assert k in addrs
-        # and that every answer is a CC.
-        assert len(v) == 2
+    assert c == addrs
