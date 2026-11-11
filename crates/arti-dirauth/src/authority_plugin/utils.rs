@@ -284,6 +284,11 @@ impl EntireInput {
     pub(crate) fn description(&self) -> &str {
         &self.description
     }
+
+    /// Return a `parse2::ParseInput` for this input file
+    pub(crate) fn netdoc_parse2(&self) -> parse2::ParseInput {
+        parse2::ParseInput::new(self, self.description())
+    }
 }
 
 impl io::Write for Writing {
