@@ -159,7 +159,8 @@ Invocation
 ```
 plugin compute-consensus --ids <KEYFILE> \
        --votes <VOTEFILE> [--votes <VOTEFILE>...]
-       -o <OUTFILE>
+       --plain-out <PLAIN-OUT-FILE> \
+       --md-out <MD-OUT-FILE>
 ```
 
 The `KEYFILE` file will contain zero or more lines, of the form:
@@ -181,12 +182,12 @@ This should be parsed in accordance with the regular
 > DirServer configuration line.
 
 
-Each VOTEFILE contains zero or more concatenated vote documents.
+Each `VOTEFILE` contains zero or more concatenated vote documents.
 
 > In C tor, I think this is just the `v3-status-votes` file.
 > ahf/dgoulet please confirm?
 
-The plugin MUST reject any votes that cannot be parsed,
+The plugin MUST ignore (logging a warning) any votes that cannot be parsed,
 or which come from an unrecognized authority,
 or which are not correctly signed.
 
@@ -194,7 +195,7 @@ The plugin MUST return an error if more than one vote appears for any
 authority.
 
 The plugin MUST return an error if the votes do not have identical
-time ranges.
+time ranges (`valid-after`, `fresh-until`, `valid-until`.)
 
 The plugin MUST exit with error code 10 ("Fall back to C tor Consensus")
 if it finds that the consensus method that should be used
@@ -205,8 +206,11 @@ is less than 100.
 > once they have decided to vote, and only compute a vote themselves
 > if the plugin exits with the error code.
 
-On success, the plugin writes a consensus,
-_without its signature_, to the file at `OUTFILE`.
+On success, the plugin writes
+a plain consensus to the file at `PLAIN-OUT-FILE`,
+and a microdescriptor flavored consensusto the file at `MD-OUT-FILE`,
+in each case
+_without its signature_.
 
 
 ## Sketch of C tor authority behavior
