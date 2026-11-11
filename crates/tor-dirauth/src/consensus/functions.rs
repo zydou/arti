@@ -1,6 +1,7 @@
 //! General functions for use in consensus calculations
 //!
-//! Eg with signatures like [`Aggregate::aggregate`]
+//! Most functions here have signatures like [`Aggregate::aggregate`], for use with `calc!`,
+//! for the precise types found in netstatus field(s).
 
 use super::*;
 
@@ -19,6 +20,32 @@ pub(super) fn low_median_raw<'i, T: Ord + 'i>(inputs: impl Iterator<Item = T>) -
     all.sort();
     let i = all.len().checked_sub(1)? / 2;
     all.into_iter().nth(i)
+}
+
+/// Return the value which is most popular, without cloning, and without context
+///
+/// See [`choose_most_popular_amongst_votes`].
+#[allow(clippy::needless_pass_by_value, clippy::unnecessary_wraps)]
+pub(super) fn choose_most_popular_amongst_votes_raw<T, K>(
+    inputs: impl ComponentInVotes<T>,
+    ord_key: impl for<'i> Fn(&'i T) -> K,
+) -> Result<Option<T>, ConsensusError>
+where
+    T: Eq + Hash,
+    K: Ord,
+{
+    let counts = inputs.votes().counts();
+
+    let Some(best) = counts.values().copied().max() else {
+        return Ok(None);
+    };
+
+    Ok(counts
+        .into_iter()
+        .filter(|(_v, count)| count == &best)
+        .map(|(v, _count)| v)
+        .at_most_one()
+        .unwrap_or_else(|several| several.min_by_key(ord_key)))
 }
 
 /// Return the value which is most popular
@@ -40,19 +67,7 @@ where
     T: Eq + Hash + Clone + 'i,
     K: Ord,
 {
-    let counts = inputs.votes().counts();
-
-    let Some(best) = counts.values().copied().max() else {
-        return Ok(None);
-    };
-
-    Ok(counts
-        .into_iter()
-        .filter(|&(_v, count)| count == best)
-        .map(|(v, _count)| v)
-        .at_most_one()
-        .unwrap_or_else(|several| several.min_by_key(|v| ord_key(*v)))
-        .cloned())
+    Ok(choose_most_popular_amongst_votes_raw(inputs, |v| ord_key(v))?.cloned())
 }
 
 /// Helper for choosing the lexically last by string representation

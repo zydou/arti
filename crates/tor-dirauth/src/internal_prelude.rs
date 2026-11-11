@@ -6,7 +6,7 @@ pub(crate) use std::collections::{BTreeMap, HashMap, HashSet};
 pub(crate) use std::fmt::{self, Debug};
 pub(crate) use std::hash::Hash;
 pub(crate) use std::marker::PhantomData;
-pub(crate) use std::net::Ipv4Addr;
+pub(crate) use std::net::{Ipv4Addr, SocketAddr};
 pub(crate) use std::ops::{RangeBounds, RangeInclusive};
 pub(crate) use std::sync::Arc;
 
@@ -21,7 +21,7 @@ pub(crate) use static_assertions::const_assert;
 pub(crate) use tracing::{debug, info};
 pub(crate) use typed_index_collections::{TiSlice, TiVec, ti_vec};
 
-pub(crate) use tor_basic_utils::intern::GloballyInternable as _;
+pub(crate) use tor_basic_utils::intern::{GloballyInternable as _, Intern};
 pub(crate) use tor_error::{Bug, internal, into_internal};
 pub(crate) use tor_netdoc::{
     doc::microdesc::{Microdesc, MicrodescConstructor},
@@ -30,6 +30,7 @@ pub(crate) use tor_netdoc::{
     encode::encode_netdoc_unsigned,
     rangemap_mutate_range,
     types::family::{RelayFamily, RelayFamilyIds},
+    types::policy::PortPolicy,
     types::{Base64Fingerprint, Ed25519Public, FixedB64, Iso8601TimeSp, Nickname},
 };
 

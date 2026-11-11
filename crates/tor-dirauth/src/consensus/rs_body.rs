@@ -8,6 +8,19 @@ use rs_common::*;
 // TODO arguably this should be in tor-netdoc somewhere, but where?
 type MdDigest = FixedB64<{ tor_netdoc::doc::microdesc::DOC_DIGEST_LEN }>;
 
+/// AC that indicates a promise that `inputs` is only votes with the same status-tuple
+///
+/// Used in trait impls etc. to ensure that we use the correct subset of the votes.
+///
+/// For background, contrast the wording in
+///
+///  * <https://spec.torproject.org/dir-spec/computing-consensus.html#choosing-relay-ids>
+///  * <https://spec.torproject.org/dir-spec/computing-consensus.html#choosing-relay-descs>
+#[derive(Debug, Clone, Copy)]
+struct SameStatusTupleAC {
+    // nothing actually needed here yet
+}
+
 impl<'i> ResolvedRouterStatusInputs<'i> {
     /// Calculate the plain and md routerstatuses
     ///
@@ -83,10 +96,6 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
         calc! { md.port_policy = NotPresent }
         calc! { both.stats = NotPresent }
 
-        // TODO DIRAUTH replace dummy values
-        calc! { both.a = Default:: default() }
-        calc! { plain.port_policy = Default:: default() }
-
         let md_m = md_none_defer.handle(
             {
                 calc! { md.m }
@@ -95,7 +104,20 @@ impl<'i> ResolvedRouterStatusInputs<'i> {
             || [0; 32].into(),
         )?;
 
-        // TODO DIRAUTH replace routerstatus dummy values
+        //---------- inputs are same status-tuple ----------
+
+        let inputs = inputs
+            .iter()
+            .filter(|(_, rs_v)| StatusTuple::from_rs(rs_v) == self.status_tuple)
+            .collect_vec()
+            .into_iter();
+        let computed = SameStatusTupleAC {};
+        let context = context.with_computed(&computed);
+
+        calc! { plain,md .a <+ aggregate_a_items }
+        calc! { plain.port_policy }
+
+        //---------- assemble the output ----------
 
         let (plain, md) = construct_both! {
             netstatus::plain::RouterStatus, netstatus::md::RouterStatus {
@@ -308,6 +330,46 @@ impl Aggregate<RouterStatusAC<'_>> for Option<netstatus::SoftwareVersion> {
 
     fn aggregate<'i>(
         context: ConsensusContextRefs<RouterStatusAC<'_>>,
+        inputs: impl ComponentInVotes<&'i Self>,
+    ) -> Result<Self::Output, ConsensusError>
+    where
+        Self: 'i,
+    {
+        functions::choose_most_popular_amongst_votes(
+            context,
+            inputs.with_opinions(),
+            functions::ord_string_reverse_choose_lexically_latest,
+        )
+    }
+}
+
+/// Calculate the `a` item(s) in the consensus
+///
+/// Has the signature of [`Aggregate::aggregate`] for `RouterStatus.a`.
+/// Not `impl Aggregate for ..SocketAddr..` because the behaviour is quite special.
+#[allow(clippy::ref_option_ref)] // clippy complains about the type annotation in the closure
+fn aggregate_a_items<'i>(
+    _context: ConsensusContextRefs<SameStatusTupleAC>,
+    inputs: impl ComponentInVotes<&'i Vec<SocketAddr>>,
+) -> Result<Vec<SocketAddr>, ConsensusError> {
+    let inputs = inputs.map(|(vnum, v)| (vnum, v.first()));
+
+    let output = functions::choose_most_popular_amongst_votes_raw(
+        inputs,
+        // fallback ordering is "natural" according to Rust, which matches the spec
+        |a: &Option<&SocketAddr>| std::cmp::Reverse(*a),
+    )?
+    .flatten()
+    .cloned();
+
+    Ok(output.into_iter().collect())
+}
+
+impl Aggregate<SameStatusTupleAC> for Option<Intern<PortPolicy>> {
+    type Output = Self;
+
+    fn aggregate<'i>(
+        context: ConsensusContextRefs<SameStatusTupleAC>,
         inputs: impl ComponentInVotes<&'i Self>,
     ) -> Result<Self::Output, ConsensusError>
     where

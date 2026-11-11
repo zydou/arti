@@ -192,9 +192,10 @@ impl Aggregate<()> for Arc<netstatus::ProtoStatuses> {
 }
 
 /// Calculate the `{recommended,required}-*-protocols` items in a consensus
-//
-// Not `impl Aggregate` because `ProtoStatus` wants to be
-// handled quite differently in a routerstatus.
+///
+/// Has the signature of [`Aggregate::aggregate`] for [`netstatus::ProtoStatus`].
+/// Not `impl Aggregate` because `ProtoStatus` wants to be
+/// handled quite differently in a routerstatus.
 fn protostatus_preamble_aggregate<'i>(
     context: ConsensusContextRefs<()>,
     inputs: impl ComponentInVotes<&'i netstatus::ProtoStatus>,
