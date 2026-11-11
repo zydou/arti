@@ -358,7 +358,7 @@ fn aggregate_a_items<'i>(
         inputs,
         // fallback ordering is "natural" according to Rust, which matches the spec
         |a: &Option<&SocketAddr>| std::cmp::Reverse(*a),
-    )?
+    )
     .flatten()
     .cloned();
 
