@@ -2,7 +2,6 @@
 //! global as in sharable accross multiple thread/tasks.
 //!
 //! Available in this module is:
-//!     * A [`sink::GlobalRateLimitedSink`] that implements [`futures::Sink`].
 //!     * A [`writer::GlobalRateLimitedWriter`] that implements [`futures::AsyncWrite`].
 //!     * A [`reader::GlobalRateLimitedReader`] that implements [`futures::AsyncRead`].
 //!     * A [`conn::GlobalRateLimitedConn`] that implements both [`futures::AsyncRead`] and
@@ -13,12 +12,10 @@
 
 mod conn;
 mod reader;
-mod sink;
 mod writer;
 
 pub use conn::GlobalRateLimitedConn;
 pub use reader::GlobalRateLimitedReader;
-pub use sink::GlobalRateLimitedSink;
 pub use writer::GlobalRateLimitedWriter;
 
 use std::io::Error;
@@ -97,19 +94,4 @@ impl DirectionState {
             permit.claim_all();
         }
     }
-}
-
-/// Error returned by the rate limiters in this module.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum GlobalRateLimitedError<E> {
-    /// The bandwidth pool is on error. No more refiller.
-    #[error("bandwidth pool error")]
-    Pool(#[from] crate::bw_pool::BwPoolError),
-    /// The underlying sink failed.
-    #[error("underlying sink error")]
-    Sink(#[source] E),
-    /// No permit
-    #[error("no permit when sending")]
-    MissingPermit,
 }

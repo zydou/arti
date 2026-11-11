@@ -1,6 +1,7 @@
 //! Entry point of a Tor relay that is the [`TorRelay`] objects
 
 use std::net::SocketAddr;
+use std::num::NonZero;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Weak};
 
@@ -41,6 +42,11 @@ use futures::channel::mpsc;
 
 // TODO(relay): this is in the client module, but not client-specific
 use tor_proto::client::stream::DataStream;
+
+/// Smallest grant of a bandwidth pool which is one cell max payload.
+// TODO(relay): Should this be here? I wonder if we should have a file solely holding
+// these magic constant for the relay or getting it from tor-proto?
+const BW_MIN_GRANT: u64 = 514;
 
 /// An initialized but unbootstrapped relay.
 ///
@@ -268,8 +274,9 @@ impl<R: Runtime> TorRelay<R> {
             info!("Bandwidth rate limit per direction: rate {rate}/s, burst {burst}");
             let rate = u64::try_from(*rate).expect("bw rate to u64");
             let burst = u64::try_from(*burst).expect("bw burst to u64");
-            let (read_pool, read_refiller) = BandwidthPool::new(burst);
-            let (write_pool, write_refiller) = BandwidthPool::new(burst);
+            let burst = NonZero::new(burst).expect("bw burst is zero");
+            let (read_pool, read_refiller) = BandwidthPool::new(burst, BW_MIN_GRANT);
+            let (write_pool, write_refiller) = BandwidthPool::new(burst, BW_MIN_GRANT);
             config = config.with_bandwidth_pools(read_pool, write_pool);
             Some(BandwidthRefillers {
                 read: read_refiller,

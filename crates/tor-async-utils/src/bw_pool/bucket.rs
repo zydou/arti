@@ -32,32 +32,50 @@ pub(super) struct AtomicTokenBucket {
     /// This is atomic because it can be set during runtime. For instance, a config
     /// option reconfigure of a bandwidth rate.
     capacity: u64,
+    /// The smallest partial claim the bucket grants.
+    ///
+    /// Below it, the bucket is considered empty on claims.
+    min_grant: u64,
 }
 
 impl AtomicTokenBucket {
-    /// A new bucket capped at `capacity` tokens.
+    /// A new bucket capped at `capacity` tokens that never grants a partial claim below
+    /// `min_grant` tokens.
     ///
     /// It starts full.
-    pub(super) fn new(capacity: u64) -> Self {
+    pub(super) fn new(capacity: u64, min_grant: u64) -> Self {
         AtomicTokenBucket {
             available: AtomicU64::new(capacity),
             capacity,
+            min_grant,
         }
     }
 
-    /// Claim all `tokens` from the bucket or nothing if not enough available.
+    /// Claim up to `tokens` from the bucket.
     ///
-    /// The request is first clamped to the capacity because the bucket can never hold
-    /// more than its burst.
+    /// This is a partial claim: if the bucket holds less than `tokens`, everything it
+    /// holds is claimed as long as it is at least the minimum grant. The minimum grant is
+    /// lowered to `tokens` or the capacity if smaller.
     ///
-    /// Returns `Some(claimed)` if the bucket held at least the clamped request which indicates
-    /// that they are now granted to the caller. Note that `claimed` can be lower than `tokens`
-    /// hence why the caller needs to use that value and not what it asked for.
+    /// Return `None` if something is not right as in `tokens` is 0 or below `min_grant`
+    /// or above the pool capacity. In other words, the caller should be aware that
+    /// something wrong happened.
     ///
-    /// Returns `None` otherwise, nothing is taken.
+    /// Return `Some(0)` indicate that the pool is empty or disabled. This tells the
+    /// caller to come back safely where `None` would indicate the caller to change
+    /// something to its original request.
+    ///
+    /// Returns `Some(claimed)` with the number of tokens now granted to the caller. Note
+    /// that `claimed` can be lower than `tokens` hence why the caller needs to use that
+    /// value and not what it asked for.
     #[must_use]
     pub(super) fn claim(&self, tokens: u64) -> Option<u64> {
-        let tokens = tokens.min(self.capacity);
+        // Never claim a zero amount.
+        if tokens == 0 {
+            return None;
+        }
+        // Never below min_grant and the pool capacity. Hard limit at 1 token.
+        let floor = self.min_grant.min(tokens).min(self.capacity).max(1);
 
         // NOTE: fetch_update() is deprecated in 1.99.0 and replaced by try_update()
         // starting in 1.95.0. Our current MSRV is 1.89.0.
@@ -65,10 +83,10 @@ impl AtomicTokenBucket {
         // Relaxed: only the atomic subtract matters, the counter gates no other memory.
         self.available
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |cur| {
-                cur.checked_sub(tokens)
+                (cur >= floor).then(|| cur.saturating_sub(tokens))
             })
-            .is_ok()
-            .then_some(tokens)
+            .ok()
+            .map(|prev| prev.min(tokens))
     }
 
     /// Add `tokens` to the bucket which is capped at the capacity.
@@ -142,17 +160,19 @@ mod test {
 
     use super::*;
 
+    /// Minimum partial grant used by the tests.
+    const MIN_GRANT: u64 = 10;
+
     #[test]
     fn claim_and_refill() {
-        let b = AtomicTokenBucket::new(100);
+        let b = AtomicTokenBucket::new(100, MIN_GRANT);
         assert_eq!(b.available(), 100);
         assert_eq!(b.capacity(), 100);
 
         assert_eq!(b.claim(60), Some(60));
-        // Only 40 left. All or nothing.
-        assert_eq!(b.claim(50), None);
-        assert_eq!(b.available(), 40);
-        assert_eq!(b.claim(40), Some(40));
+        // Only 40 left. Partial claim takes them all.
+        assert_eq!(b.claim(50), Some(40));
+        assert_eq!(b.available(), 0);
         assert_eq!(b.claim(1), None);
 
         // Refill is capped at capacity.
@@ -162,21 +182,40 @@ mod test {
 
     #[test]
     fn claim_above_capacity() {
-        let b = AtomicTokenBucket::new(100);
+        let b = AtomicTokenBucket::new(100, MIN_GRANT);
 
-        // A claim above the burst is clamped to it and not refused.
+        // A claim above the burst gets what the bucket holds and is not refused.
         assert_eq!(b.claim(1000), Some(100));
         assert_eq!(b.available(), 0);
 
-        // Even clamped, it is all or nothing.
+        // Same when the bucket is partially filled.
         b.refill(50);
-        assert_eq!(b.claim(1000), None);
-        assert_eq!(b.available(), 50);
+        assert_eq!(b.claim(1000), Some(50));
+        assert_eq!(b.available(), 0);
+    }
+
+    #[test]
+    fn claim_min_grant() {
+        let b = AtomicTokenBucket::new(100, MIN_GRANT);
+        assert_eq!(b.claim(95), Some(95));
+        // Now 5 tokens remains and MIN_GRANT is higher.
+
+        // Below the minimum grant, a partial claim gets nothing.
+        assert_eq!(b.claim(50), None);
+        assert_eq!(b.available(), 5);
+
+        // A claim below the minimum grant is granted in full.
+        assert_eq!(b.claim(5), Some(5));
+        assert_eq!(b.available(), 0);
+
+        // A capacity below the minimum grant still grants partial claims.
+        let b = AtomicTokenBucket::new(5, MIN_GRANT);
+        assert_eq!(b.claim(50), Some(5));
     }
 
     #[test]
     fn drain() {
-        let b = AtomicTokenBucket::new(100);
+        let b = AtomicTokenBucket::new(100, MIN_GRANT);
         assert_eq!(b.claim(90), Some(90)); // 10 tokens left
 
         assert_eq!(b.drain(), 10);
