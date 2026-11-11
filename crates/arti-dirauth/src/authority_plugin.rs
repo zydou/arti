@@ -152,6 +152,8 @@ pub fn plugin_main() {
             .context("invalid arguments")
             .map_err(CliError::InvalidInputs)?;
 
+        // TODO DIRAUTH set up logging
+
         plugin_impl(args)
     })() {
         Ok(()) => {}
