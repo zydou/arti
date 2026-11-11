@@ -21,7 +21,6 @@ use tor_rtcompat::Runtime;
 
 use futures::SinkExt;
 use futures::channel::mpsc;
-use futures::task::AtomicWaker;
 
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex, RwLock};
@@ -258,12 +257,8 @@ impl<R: Runtime> HopMgr<R> {
             None => {
                 // If we don't have a handle to the stream reactor,
                 // it means it hasn't been spawned yet, so we have to spawn it now.
-                let tx = self.spawn_stream_reactor(
-                    hopnum,
-                    &hop.settings,
-                    Arc::clone(&hop.ccontrol),
-                    Arc::clone(&hop.cc_waker),
-                )?;
+                let tx =
+                    self.spawn_stream_reactor(hopnum, &hop.settings, Arc::clone(&hop.ccontrol))?;
 
                 hop.tx = Some(tx.clone());
 
@@ -283,7 +278,6 @@ impl<R: Runtime> HopMgr<R> {
         hopnum: Option<HopNum>,
         settings: &HopSettings,
         ccontrol: Arc<Mutex<CongestionControl>>,
-        cc_waker: Arc<AtomicWaker>,
     ) -> StdResult<mpsc::Sender<CtrlMsg>, Error> {
         use tor_rtcompat::SpawnExt as _;
 
@@ -309,7 +303,6 @@ impl<R: Runtime> HopMgr<R> {
             self.runtime.clone(),
             hopnum,
             outbound,
-            cc_waker,
             self.ctx.unique_id,
             self.ctx.circ_id,
             fwd_stream_rx,
