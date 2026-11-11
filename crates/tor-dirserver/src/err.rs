@@ -3,20 +3,6 @@
 use thiserror::Error;
 use tor_netdoc::parse2::VerifyFailed;
 
-/// Indicates that an error variant is fatal.
-///
-/// A fatal error means that the application should abort execution and may
-/// not retry again in the future.
-///
-/// This trait should only be implemented for error variants where some error
-/// variants are fatal and others are not.  In other words: An error where all
-/// variants are either fatal or non-fatal does not qualify for this trait.
-// TODO DIRMIRROR: Move this to tor_error.
-pub(crate) trait IsFatal: std::error::Error {
-    /// Checks whether the current error is considered to be fatal.
-    fn is_fatal(&self) -> bool;
-}
-
 /// An error while performing a request at a directory authority.
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -60,16 +46,6 @@ pub(crate) enum AuthorityRequestError {
 impl From<tor_dirclient::RequestFailedError> for AuthorityRequestError {
     fn from(value: tor_dirclient::RequestFailedError) -> Self {
         Self::Request(Box::new(value))
-    }
-}
-
-impl IsFatal for AuthorityRequestError {
-    /// The [`AuthorityRequestError`] is considered to be fatal.
-    ///
-    /// Right now, the following variants are considered to be fatal:
-    /// * [`AuthorityRequestError::Bug`]
-    fn is_fatal(&self) -> bool {
-        matches!(&self, Self::Bug(_))
     }
 }
 
@@ -141,20 +117,4 @@ pub(crate) enum OperationError {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
-}
-
-impl IsFatal for OperationError {
-    /// The [`OperationError`] is considered to be fatal.
-    ///
-    /// Right now, the following variants are considered to be fatal:
-    /// * [`OperationError::Database`]
-    /// * [`OperationError::Bug`]
-    /// * [`OperationError::AuthorityRequest`] if [`IsFatal`]
-    fn is_fatal(&self) -> bool {
-        match self {
-            Self::Database(_) | Self::Bug(_) => true,
-            Self::AuthorityRequest(e) => e.is_fatal(),
-            _ => false,
-        }
-    }
 }

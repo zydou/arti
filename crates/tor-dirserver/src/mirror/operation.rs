@@ -390,13 +390,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 
     /// Executes a single state iteration in the finite state machine.
-    ///
-    /// The return value is of type [`Result<(), OperationError>`].
-    /// The success type is not of much interest for calling applications.
-    /// However, the error case itself should be passed towards
-    /// [`crate::err::IsFatal::is_fatal()`] in order to either abort the
-    /// application or retry with an appropriate timeout.
-    ///
+    // TODO 2881: Explain how this is called externally.
     // TODO: Use tracing instrumentation here.
     // TODO DIRMIRROR: Document the state transition check which we have to do
     // because of database invariances no longer holding true.
