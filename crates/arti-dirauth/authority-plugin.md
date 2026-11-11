@@ -168,7 +168,7 @@ The `KEYFILE` file will contain zero or more lines, of the form:
 * `NICKNAME` is an arbitrary ASCII string without spaces to identify an
 authority when producing error messages.
 
-* `DIGEST` is a hex-encoded SHA256 digest of an authority's `KP_auth_id_rsa`
+* `DIGEST` is a hex-encoded SHA-1 digest of an authority's `KP_auth_id_rsa`
   identity key.
 
 Each entry represents a single valid voting authority.  The number of
