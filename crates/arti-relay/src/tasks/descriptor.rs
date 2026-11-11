@@ -186,8 +186,33 @@ impl RelayDescriptorPublisherTask {
             .collect()
     }
 
+    /// Return true iff any configured authority identity or upload address is a default one.
+    fn has_default_authority(&self) -> bool {
+        let default_auth = AuthorityContacts::default();
+        let default_auth_v3idents = default_auth.v3idents();
+        let has_default_v3ident = self
+            .authorities
+            .v3idents()
+            .iter()
+            .any(|id| default_auth_v3idents.contains(id));
+        let has_default_upload = self
+            .authorities
+            .uploads()
+            .iter()
+            .flatten()
+            .any(|addr| default_auth.uploads().iter().flatten().any(|d| d == addr));
+        has_default_v3ident || has_default_upload
+    }
+
     /// Rebuild the descriptor (and refresh targets) and hand it to the publisher.
     async fn rebuild_and_publish(&mut self) -> anyhow::Result<()> {
+        // TODO(relay): Never upload to any default real network authorities. Only use
+        // custom ones so testing works. arti-relay MUST not join the network just yet.
+        if self.has_default_authority() {
+            info!("Descriptor publishing skipped: At least one authority is a default one");
+            return Ok(());
+        }
+
         // Adjust the targets onto our publisher if we have any targets. An empty set
         // means something has gone wrong somehow so don't touch the publisher in an
         // attempt to use what was there before.
@@ -205,13 +230,6 @@ impl RelayDescriptorPublisherTask {
         // Turn the encoded descriptor into a request and erase its concrete type for the
         // generic HTTP publisher.
         let doc = desc.map(|desc| Arc::new(UploadRouterDesc::new(desc)) as Arc<dyn Requestable>);
-
-        // TODO(relay): Temporary gate so a default run doesn't upload to the authorities.
-        if std::env::var("ARTI_PUBLISH_DESC").as_deref() != Ok("1") {
-            info!("Descriptor publishing disabled; set ARTI_PUBLISH_DESC=1 to enable");
-            return Ok(());
-        }
-
         // Tell the publisher to publish the new document. Failing to build the descriptor, as in a
         // None value, will make the publisher wait and do nothing.
         self.publisher.set_document(doc, false);
