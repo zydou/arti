@@ -23,7 +23,6 @@ pub(crate) struct AtLeastTwoThirds;
 /// Used only for selecting the best consensus method,
 /// <https://spec.torproject.org/dir-spec/computing-consensus.html#consensus-method-list>
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[allow(unused)] // XXXX
 pub(crate) struct StrictlyMoreThanTwoThirds;
 
 /// Threshold rule, such as "at least two thirds"
