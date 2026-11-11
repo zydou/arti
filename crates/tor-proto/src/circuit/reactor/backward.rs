@@ -200,7 +200,6 @@ pub(crate) enum BackwardCellDisposition {
     Forward(AnyChanMsg),
 }
 
-#[allow(unused)] // TODO(relay)
 impl<B: BackwardHandler> BackwardReactor<B> {
     /// Create a new [`BackwardReactor`].
     #[allow(clippy::too_many_arguments)] // TODO
