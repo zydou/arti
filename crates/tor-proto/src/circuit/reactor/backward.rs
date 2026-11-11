@@ -607,6 +607,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
 
     /// Determine how exactly to handle a request to handle padding.
     #[cfg(feature = "circ-padding")]
+    #[allow(unused)] // TODO(relay)
     fn padding_disposition(&self, send_padding: &padding::SendPadding) -> CircPaddingDisposition {
         crate::circuit::padding::padding_disposition(
             send_padding,
