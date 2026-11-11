@@ -725,7 +725,9 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             .await?;
 
         if cmd == RelayCmd::SENDME {
-            ccontrol.lock().expect("poisoned lock").note_sendme_sent();
+            // TODO: does note_sendme_sent() need to be fallible?
+            // Neither Vegas nor the fixed-window impl ever return Err
+            ccontrol.lock().expect("poisoned lock").note_sendme_sent()?;
         }
 
         Ok(())
