@@ -37,10 +37,7 @@ where
     K: Ord,
 {
     let counts = inputs.votes().counts();
-
-    let Some(best) = counts.values().copied().max() else {
-        return None;
-    };
+    let best = counts.values().copied().max()?;
 
     counts
         .into_iter()
