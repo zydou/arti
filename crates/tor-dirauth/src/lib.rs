@@ -56,6 +56,7 @@
 #![warn(unnameable_types)]
 
 mod internal_prelude;
+mod shared_random;
 
 pub mod consensus;
 pub mod utils;

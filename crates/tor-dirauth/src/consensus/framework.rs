@@ -202,9 +202,19 @@ pub enum ConsensusError {
     #[error("tried to calculate a consensus from no votes!")]
     NoVotes,
 
+    /// Input votes implied unreasonable values
+    #[error("votes imply unreasonable consensus contents")]
+    Unreasonable(String),
+
     /// Internal error in calculation algorithm
     #[error("bug calculating a consensus")]
     Internal(#[from] Bug),
+}
+
+impl From<crate::shared_random::UnreasonableTime> for ConsensusError {
+    fn from(e: crate::shared_random::UnreasonableTime) -> Self {
+        ConsensusError::Unreasonable(e.to_string())
+    }
 }
 
 #[ext(name = TiSliceExt)]

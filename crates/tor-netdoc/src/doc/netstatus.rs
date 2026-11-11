@@ -457,6 +457,14 @@ impl<T> ParamValues<T> {
     pub fn set(&mut self, k: String, v: T) {
         self.params.insert(k, v);
     }
+    /// Clear a network parameter from this set.
+    ///
+    /// The actual eventual value used will then be the default, or un-overridden parameter.
+    ///
+    /// There is no safeguard against getting parameter names wrong.
+    pub fn clear(&mut self, k: &str) {
+        self.params.remove(k);
+    }
 }
 
 impl<K: Into<String>, T> FromIterator<(K, T)> for ParamValues<T> {
@@ -530,6 +538,16 @@ impl NetParams {
     /// There is no safeguard against getting parameter names wrong.
     pub fn set(&mut self, k: String, v: i32) {
         self.params.set(k, v);
+    }
+
+    /// Reset a network parameter back to the default.
+    ///
+    /// If this set is later correctly used as an actual netparams set,
+    /// the actual eventual value used will then be the default.
+    ///
+    /// There is no safeguard against getting parameter names wrong.
+    pub fn clear(&mut self, k: &str) {
+        self.params.clear(k);
     }
 }
 
@@ -1103,32 +1121,38 @@ pub enum VoteVerifyFailed {
 }
 
 /// A shared random value produced by the directory authorities.
-#[derive(
-    Debug, Clone, Copy, Eq, PartialEq, derive_more::From, derive_more::Into, derive_more::AsRef,
-)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)] //
+#[derive(derive_more::From, derive_more::Into, derive_more::AsRef)]
 // (This doesn't need to use CtByteArray; we don't really need to compare these.)
 pub struct SharedRandVal([u8; 32]);
 
 /// A shared-random value produced by the directory authorities,
 /// along with meta-information about that value.
-#[derive(Debug, Clone, Deftly)]
-#[non_exhaustive]
-#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq, Hash)]
+#[derive_deftly(Constructor, ItemValueEncodable, ItemValueParseable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
+    #[deftly(constructor)]
     pub n_reveals: u8,
+
     /// The current random value.
     ///
     /// The properties of the secure shared-random system guarantee
     /// that this value isn't predictable before it first becomes
     /// live, and that a hostile party could not have forced it to
     /// have any more than a small number of possible random values.
+    #[deftly(constructor)]
     pub value: SharedRandVal,
 
     /// The time when this SharedRandVal becomes (or became) the latest.
     ///
     /// (This is added per proposal 342, assuming that gets accepted.)
     pub timestamp: Option<Iso8601TimeNoSp>,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 /// The two shared random values, `shared-rand-*-value`
@@ -1889,6 +1913,7 @@ impl SharedRandStatus {
             n_reveals,
             value,
             timestamp,
+            __non_exhaustive: (),
         })
     }
 
