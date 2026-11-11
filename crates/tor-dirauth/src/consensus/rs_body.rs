@@ -289,7 +289,7 @@ impl Aggregate<RouterStatusAC<'_>> for Vec<netstatus::RouterStatusMdDigestsVote>
             .iter()
             .filter_map(|(vnum, v)| {
                 md_digest_from_vote(context, v).unwrap_or_else(|e: String| {
-                    bad_vote!(vnum, "{e}");
+                    bad_vote!(context, vnum, "{e}");
                     None
                 })
             })

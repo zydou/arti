@@ -122,6 +122,7 @@ pub fn compute_consensus_from_votes<'v>(
     votes: impl Iterator<
         Item = (
             &'v netstatus::vote::NetworkStatus,
+            &'v Nickname,
             &'v netstatus::DirectorySignaturesHashesAccu,
         ),
     >,
@@ -132,11 +133,12 @@ pub fn compute_consensus_from_votes<'v>(
     ),
     ConsensusError,
 > {
-    let (votes, sig_hashes) = votes.collect();
+    let (votes, nicknames, sig_hashes) = votes.collect();
     let context = ConsensusCommonContext {
         method,
         n_authorities,
         votes,
+        nicknames,
         sig_hashes,
     };
     let context = ConsensusContextRefs {
@@ -259,14 +261,15 @@ pub(crate) mod test {
                 let mut vote = vote_base.clone();
                 populate_md_digests_for_method(method, &mut vote);
                 edit_vote(vnum, &mut vote).expect("vote edit failed");
-                vote
+                let nick: Nickname = format!("A{vnum}").parse().unwrap();
+                (vote, nick)
             })
             .collect_vec();
 
         let output = compute_consensus_from_votes(
             method,
             n_authorities,
-            votes.iter().map(|v| (v, hashes))
+            votes.iter().map(|(v, n)| (v, n, hashes)),
         )
         .expect("compute consensus");
 
