@@ -15,6 +15,15 @@ pub struct VoteInput<'v> {
     pub sig_hashes: &'v netstatus::DirectorySignaturesHashesAccu,
 }
 
+/// Outputs from consensus calculation
+#[non_exhaustive]
+pub struct Consensuses {
+    /// plain consensus
+    pub plain: netstatus::plain::NetworkStatus,
+    /// md consensus
+    pub md: netstatus::md::NetworkStatus,
+}
+
 impl ConsensusesFromVotes<()> for netstatus::vote::NetworkStatus {
     type PlainOutput = netstatus::plain::NetworkStatus;
     type MdOutput = netstatus::md::NetworkStatus;
@@ -134,10 +143,7 @@ pub fn compute_consensus_from_votes_method<'v>(
     n_authorities: usize,
     votes: impl Iterator<Item = VoteInput<'v>>,
 ) -> Result<
-    (
-        netstatus::plain::NetworkStatus,
-        netstatus::md::NetworkStatus,
-    ),
+    Consensuses,
     ConsensusError,
 > {
     let (votes, nicknames, sig_hashes) = votes
@@ -154,13 +160,14 @@ pub fn compute_consensus_from_votes_method<'v>(
         context: &context,
         computed: &(),
     };
-    <netstatus::vote::NetworkStatus as ConsensusesFromVotes<()>>::consensuses(
+    let (plain, md) = <netstatus::vote::NetworkStatus as ConsensusesFromVotes<()>>::consensuses(
         context,
         context
             .votes
             .iter_enumerated()
             .map(|(vnum, vote)| (vnum, *vote)),
-    )
+    )?;
+    Ok(Consensuses { plain, md })
 }
 
 #[cfg(test)]
@@ -251,10 +258,7 @@ pub(crate) mod test {
         n_authorities: usize,
         mut edit_vote: impl FnMut(usize, &mut netstatus::vote::NetworkStatus) -> anyhow::Result<()>,
         check_output: impl FnOnce(
-            (
-                netstatus::plain::NetworkStatus,
-                netstatus::md::NetworkStatus,
-            ),
+            Consensuses
         ) -> anyhow::Result<()>,
     ) {
         assert!(n_votes <= n_authorities);
@@ -296,7 +300,7 @@ pub(crate) mod test {
             3,
             4,
             |_, _| Ok(()),
-            |(plain, md)| {
+            |Consensuses { plain, md }| {
                 dbg!(&plain);
                 dbg!(&md);
                 Ok(())

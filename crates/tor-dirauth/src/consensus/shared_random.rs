@@ -160,7 +160,7 @@ pub(crate) mod test {
 
                     Ok(())
                 },
-                |(plain, md)| {
+                |Consensuses { plain, md }| {
                     let chk_out = |ss: &SharedRandStatuses| {
                         assert_eq!(
                             ss.shared_rand_current_value,

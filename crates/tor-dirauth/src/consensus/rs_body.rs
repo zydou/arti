@@ -541,7 +541,7 @@ m 1,2,3 sha256=PSFWDSIK+sMS6+fkLrc7PSZ6L0Rkscbz2WcmKCDIdOQ
                     .m = votes[i].m.clone();
                 Ok(())
             },
-            |(_plain, md)| {
+            |Consensuses { plain: _, md }| {
                 let m = &md
                     .routers
                     .iter()
@@ -579,7 +579,7 @@ m 1,2,3 sha256=PSFWDSIK+sMS6+fkLrc7PSZ6L0Rkscbz2WcmKCDIdOQ
                 vote.routers[0].protos = inputs[vnum].clone();
                 Ok(())
             },
-            |(plain, md)| {
+            |Consensuses { plain, md }| {
                 assert_eq!(plain.routers[0].protos, inputs[0].clone());
                 assert_eq!(md.routers[0].protos, inputs[0].clone());
                 Ok(())
