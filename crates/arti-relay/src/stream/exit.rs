@@ -5,6 +5,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr as _;
 use std::time::Duration;
 
+use either::Either;
 use futures::io::BufReader;
 use tor_cell::relaycell::msg::{BeginFlags, Connected, End, EndReason};
 use tor_error::warn_report;
@@ -12,6 +13,8 @@ use tor_proto::stream::{IncomingStream, IncomingStreamRequest};
 use tor_rtcompat::SleepProviderExt as _;
 use tor_rtcompat::{NetStreamProvider, Runtime, TimeoutError};
 use tracing::{debug, info, trace};
+
+use crate::stream::dns::resolver::{DnsResolver, RecordData};
 
 /// Handle an incoming exit stream.
 ///
@@ -21,6 +24,7 @@ use tracing::{debug, info, trace};
 pub(super) async fn handle_begin<R: Runtime>(
     runtime: R,
     incoming: IncomingStream,
+    resolver: DnsResolver,
 ) -> anyhow::Result<()> {
     let connect_options = Default::default();
 
@@ -73,16 +77,19 @@ pub(super) async fn handle_begin<R: Runtime>(
     let exit_stream_fut = match IpAddr::from_str(addr) {
         Ok(addr) => {
             let addr = SocketAddr::new(addr, port);
-            connect_ip(&runtime, addr, flags, &connect_options)
+            let fut = connect_ip(&runtime, addr, flags, &connect_options);
+            Either::Left(fut)
         }
         Err(_) => {
-            // TODO(relay): Once we can look up hostnames,
-            // we'll probably (maybe?) want to be able to do happy eyeballs with both addresses.
-            // We should find a way to resuse our existing happy eyeballs code.
-            // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2510
-            // TODO(relay): Need to take `BeginFlags::IPV6_PREFERRED` (and other flags) into account here.
-            // https://spec.torproject.org/tor-spec/opening-streams.html
-            todo!()
+            let fut = connect_hostname(
+                &runtime,
+                addr.as_bytes(),
+                port,
+                flags,
+                resolver,
+                &connect_options,
+            );
+            Either::Right(fut)
         }
     };
 
@@ -153,6 +160,69 @@ async fn connect_ip<R: Runtime>(
         // TODO(relay): Should we use `NOROUTE` here?
         return Err(EndReason::MISC);
     }
+
+    // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
+    // basic loopback checks) for testing purposes.
+    if addr.ip().to_canonical().is_loopback() || addr.ip().to_canonical().is_unspecified() {
+        trace!("Rejecting incoming stream to loopback address");
+        return Err(EndReason::EXITPOLICY);
+    }
+
+    match runtime.connect(&addr, connect_options).await {
+        Ok(x) => Ok(x),
+        Err(e) => Err(io_error_kind_to_end_reason(e.kind())),
+    }
+}
+
+/// For a BEGIN message containing a hostname and flags,
+/// attempt to connect to the hostname.
+async fn connect_hostname<R: Runtime>(
+    runtime: &R,
+    hostname: &[u8],
+    port: u16,
+    _flags: BeginFlags,
+    mut resolver: DnsResolver,
+    connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
+) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
+    // TODO(relay): We should inspect the error type more closely here.
+    // For example `LookupError::NonAsciiHostname` should probably result in a
+    // `EndReason::TORPROTOCOL` instead.
+    let answers = match resolver.resolve(hostname).await {
+        Ok(x) => x,
+        Err(e) => {
+            // TODO: Use `trace_report!()` once it's usable with `LookupError`.
+            trace!("Name resolution for exit stream failed: {e}");
+            return Err(EndReason::RESOLVEFAILED);
+        }
+    };
+
+    // Remove any hostname answers.
+    // We could instead error if any answers were hostnames,
+    // but I don't see a reason to do that.
+    let mut answers = answers.iter().filter_map(|x| match x {
+        RecordData::Ip(x) => Some(x),
+        RecordData::Hostname(_) => None,
+    });
+
+    // TODO(relay): We probably (maybe?) want to be able to do happy eyeballs
+    // with the first IPv4 and first IPv6 addresses listed.
+    // We should find a way to resuse our existing happy eyeballs code.
+    // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2510
+    // TODO(relay): Need to take `BeginFlags::IPV6_PREFERRED`
+    // (and other flags) into account here.
+    // https://spec.torproject.org/tor-spec/opening-streams.html
+
+    // Until we implement the above TODOs, just take the first answer.
+    // TODO(relay): Don't just use the first answer.
+    let addr = match answers.next() {
+        Some(ip) => ip,
+        None => {
+            trace!("Rejecting incoming stream since the domain resolution had no IP answers");
+            return Err(EndReason::RESOLVEFAILED);
+        }
+    };
+
+    let addr = SocketAddr::new(*addr, port);
 
     // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
     // basic loopback checks) for testing purposes.
