@@ -125,12 +125,11 @@ fn plugin_impl(args: CliArgs) -> Result<(), CliError> {
             let mut processor =
                 compute_mds::Processor::new(*nominal_time, &mut mds_out, &mut meta_out);
             for i in input {
-                let i = i.start_reading()?;
-                let desc = i.description().to_owned();
+                let i = i.read_entire()?;
                 processor.process_input(parse2::ParseInput::new(
                     //
-                    &i.read_entire_string()?,
-                    &desc,
+                    &i,
+                    i.description(),
                 ))?;
             }
             mds_out.finish()?;
