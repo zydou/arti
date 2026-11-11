@@ -67,8 +67,6 @@ use crate::{
     },
 };
 
-mod poc;
-
 /// The duration to try verifying an unverified consensus.
 ///
 /// This exists primarily to properly handle the
