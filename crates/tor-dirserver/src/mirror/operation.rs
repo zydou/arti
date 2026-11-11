@@ -30,6 +30,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::Transaction;
+use thiserror::Error;
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_checkable::TimeBound;
@@ -57,10 +58,9 @@ use tracing::{debug, warn};
 
 use crate::{
     database::{
-        self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, DescriptorMeta, Sha1, Sha256,
-        Timestamp,
+        self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, DatabaseError, DescriptorMeta,
+        Sha1, Sha256, Timestamp,
     },
-    err::{AuthorityRequestError, DatabaseError, OperationError},
     types::{
         FlavoredConsensusUnverified, FlavoredDescriptor, FlavoredDescriptorMd,
         FlavoredDescriptorPlain,
@@ -85,6 +85,80 @@ const DESCRIPTOR_LIMIT: Option<u64> = Some(92);
 
 /// The endpoint(s) of a download authority identifying it.
 type DownloadAuthority = [SocketAddr];
+
+/// An error while performing a request at a directory authority.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum AuthorityRequestError {
+    /// TCP connection to the endpoint failed.
+    #[error("tcp connection error: {0}")]
+    TcpConnect(std::io::Error),
+
+    /// [`tor_dirclient`] failed at performing the request.
+    ///
+    /// This usually indicates some failures in HTTP/1.0, such as the response
+    /// not being valid HTTP/1.0; although Tor generally has some specialities
+    /// here and there with regard to this, hence why we have dirclient in the
+    /// first place.
+    #[error("dirclient error: {0}")]
+    Request(Box<tor_dirclient::RequestFailedError>),
+
+    /// A response does not make semantic sense.
+    ///
+    /// This for example may include cases where we got more netdocs than we
+    /// requested for.
+    #[error("response error: {0}")]
+    Response(&'static str),
+
+    /// A request led to no progress being made.
+    ///
+    /// This is the case if the response only consists of netdocs we did not
+    /// request or no netdocs at all, leading to no progress.
+    ///
+    /// The correct error handling strategy for this case is to pick a different
+    /// endpoint, as the current one is either not useful for us anymore or
+    /// is maliciously tricking us into something that should not happen.
+    #[error("request resulted in no progress")]
+    NoRequestedDocumentsReturned,
+
+    /// An internal error.
+    #[error("internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+impl From<tor_dirclient::RequestFailedError> for AuthorityRequestError {
+    fn from(value: tor_dirclient::RequestFailedError) -> Self {
+        Self::Request(Box::new(value))
+    }
+}
+
+/// An error related to an operation in the dirmirror FSM.
+//
+// TODO: Rename this to MirrorOperationError.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum OperationError {
+    /// Request to a directory authority failed.
+    #[error("authority request error: {0}")]
+    AuthorityRequest(#[from] AuthorityRequestError),
+
+    /// Access to the database failed for good.
+    #[error("database error: {0}")]
+    Database(#[from] DatabaseError),
+
+    /// Verificaton of a network document has failed.
+    ///
+    /// This also includes checks for timeliness.
+    ///
+    /// We do not consider this fatal but simply discard the unverified network
+    /// document.
+    #[error("verification error: {0}")]
+    VerifyFailed(#[from] VerifyFailed),
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
 
 /// The various states for the [`StaticEngine`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
