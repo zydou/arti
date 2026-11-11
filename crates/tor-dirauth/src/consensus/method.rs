@@ -62,8 +62,7 @@ impl PartialEq<u32> for SupportedConsensusMethod {
 
 impl SupportedConsensusMethod {
     /// Most recent method supported here
-    #[cfg(test)]
-    pub(crate) const MAX: SupportedConsensusMethod =
+    pub const MAX: SupportedConsensusMethod =
         SupportedConsensusMethod(*SUPPORTED_METHODS.last().unwrap().end());
 
     /// Make a `SupportedConsensusMethod` out of a possibly-unsupported `ConsensusMethod`
