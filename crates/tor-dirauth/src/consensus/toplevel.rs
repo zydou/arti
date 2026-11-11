@@ -123,13 +123,13 @@ impl<AC> Aggregate<AC> for netstatus::VoteAuthoritySection {
     }
 }
 
-/// Computes a consensus from the input votes
+/// Computes a consensus from the input votes, for a specific method
 ///
 /// ### Security
 ///
 /// It is the caller's responsibility to check that each of the `votes`
 /// came from a recognised authority.
-pub fn compute_consensus_from_votes<'v>(
+pub fn compute_consensus_from_votes_method<'v>(
     method: SupportedConsensusMethod,
     n_authorities: usize,
     votes: impl Iterator<Item = VoteInput<'v>>,
@@ -275,7 +275,7 @@ pub(crate) mod test {
             })
             .collect_vec();
 
-        let output = compute_consensus_from_votes(
+        let output = compute_consensus_from_votes_method(
             method,
             n_authorities,
             votes.iter().map(|(vote, nickname)| VoteInput {
