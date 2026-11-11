@@ -260,8 +260,6 @@ impl<B: BackwardHandler> BackwardReactor<B> {
     /// and so this will only really drive Tor stream data,
     /// delivering at most 2 cells per call.
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
-        use postage::prelude::{Sink as _, Stream as _};
-
         /// The maximum number of events we expect to handle per reactor loop.
         ///
         /// This is bounded by the number of futures we push into the PollAll.
