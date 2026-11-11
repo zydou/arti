@@ -28,7 +28,7 @@ use tor_netdir::params::NetParameters;
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::relay::{CircuitIncomingStreamReceiver, CreateRequestHandler};
-use tor_rtcompat::{DynTimeProvider, NetStreamProvider, Runtime};
+use tor_rtcompat::{NetStreamProvider, Runtime};
 
 use crate::client::RelayClient;
 use crate::config::{DnsConfig, TorRelayConfig};
@@ -502,8 +502,7 @@ impl<R: Runtime> TorRelay<R> {
         //
         // Note: the hickory resolver spawns various background tasks
 
-        let (reactor, resolver) =
-            DnsResolverReactor::new(DynTimeProvider::new(self.runtime.clone()), self.resolver);
+        let (reactor, resolver) = DnsResolverReactor::new(self.runtime.clone(), self.resolver)?;
         // Spawn the DNS reactor
         //
         // TODO(relay): only spawn this if we're configured to run as an exit

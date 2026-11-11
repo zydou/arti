@@ -15,14 +15,16 @@ use futures::FutureExt as _;
 use futures::channel::mpsc;
 use futures::select_biased;
 use futures::stream::StreamExt as _;
+use futures::task::SpawnError;
 use hickory_resolver::lookup::Lookup;
 use hickory_resolver::net::runtime::TokioRuntimeProvider;
 use smallvec::SmallVec;
-use tokio::task::JoinSet;
+use tracing::debug;
 
 use tor_async_utils::oneshot_broadcast;
 use tor_error::{Bug, internal, into_internal};
-use tor_rtcompat::{DynTimeProvider, SleepProvider as _, SleepProviderExt as _};
+use tor_log_ratelim::log_ratelim;
+use tor_rtcompat::{JoinSet, JoinSetProvider, Runtime, SleepProviderExt as _};
 
 use crate::stream::dns::resolver::{
     DnsRequest, DnsResolver, DnsResponseReceiver, LookupAnswers, LookupError, RecordData,
@@ -58,6 +60,31 @@ const MAX_DNS_TTL: Duration = Duration::from_mins(60);
 /// See "The effect of DNS on Tor's Anonymity" by Greschbach et al.
 const FUZZY_DNS_TTL: Duration = Duration::from_mins(4);
 
+/// How frequently do we want to garbage-collect the expired entries?
+///
+/// Note(gabi): doing this every 1h seems sensible, although we could
+/// probably do it even less frequently.
+///
+/// Eventually, we might want a more principled approach here.
+/// For example, we might want to remove the expired entries
+/// from the cache as soon as their TTL runs out,
+/// but there are some trade-offs:
+///
+///   * we would need some sort of data structure for determining
+///     when the next cache entry is due to expire.
+///     This would likely be a min-heap, so it would be an additional
+///     O(n) space to store
+///   * in addition to the extra memory usage, removing the expired
+///     entries right away will likely have an impact on performance too.
+///     If our cache regularly fills up with lots of short-lived (TTL = 5 min)
+///     unpopular entries (possibly tracking domains?), the reactor will
+///     have to a bunch of frequent removals, essentially interrupting
+///     its incoming request handling
+///
+/// For these reasons, right now, it seems better to remove the expired
+/// entries in batches.
+const CACHE_PURGE_INTERVAL: Duration = Duration::from_mins(60);
+
 /// A reactor that performs DNS lookups on behalf of incoming streams (RESOLVE, BEGIN).
 ///
 /// De-duplicates queries, and uses hickory-resolver under the hood.
@@ -65,13 +92,13 @@ const FUZZY_DNS_TTL: Duration = Duration::from_mins(4);
 /// Queries are de-duplicated using [`PendingQueries`], which keeps track
 /// of all the currently running lookup tasks.
 #[must_use = "the reactor doesn't do anything unless you run it"]
-pub(crate) struct DnsResolverReactor<M: MockableAsyncResolver = HickoryResolver> {
+pub(crate) struct DnsResolverReactor<R: Runtime, M: MockableAsyncResolver = HickoryResolver> {
     /// The async stub resolver.
     resolver: Arc<M>,
-    /// The time provider.
-    runtime: DynTimeProvider,
+    /// The runtime.
+    runtime: R,
     /// The DNS lookups we have launched that we are still waiting on.
-    pending: PendingQueries,
+    pending: PendingQueries<<R as JoinSetProvider>::JoinSet<(Query, DnsResponse)>>,
     /// The DNS cache.
     cache: DnsCache,
     /// MPSC channel for receiving DNS queries.
@@ -278,31 +305,6 @@ impl DnsCache {
 
     /// When remove_expired() should be called next to purge leftover expired entries.
     fn next_expired_purge(now: Instant) -> Instant {
-        /// How frequently do we want to garbage-collect the expired entries?
-        ///
-        /// Note(gabi): doing this every 1h seems sensible, although we could
-        /// probably do it even less frequently.
-        ///
-        /// Eventually, we might want a more principled approach here.
-        /// For example, we might want to remove the expired entries
-        /// from the cache as soon as their TTL runs out,
-        /// but there are some trade-offs:
-        ///
-        ///   * we would need some sort of data structure for determining
-        ///     when the next cache entry is due to expire.
-        ///     This would likely be a min-heap, so it would be an additional
-        ///     O(n) space to store
-        ///   * in addition to the extra memory usage, removing the expired
-        ///     entries right away will likely have an impact on performance too.
-        ///     If our cache regularly fills up with lots of short-lived (TTL = 5 min)
-        ///     unpopular entries (possibly tracking domains?), the reactor will
-        ///     have to a bunch of frequent removals, essentially interrupting
-        ///     its incoming request handling
-        ///
-        /// For these reasons, right now, it seems better to remove the expired
-        /// entries in batches.
-        const CACHE_PURGE_INTERVAL: Duration = Duration::from_mins(60);
-
         now + CACHE_PURGE_INTERVAL
     }
 }
@@ -310,7 +312,7 @@ impl DnsCache {
 /// A collection of in-flight DNS queries.
 ///
 /// Used by the [`DnsResolverReactor`] to prevent launching multiple lookups for the same query.
-struct PendingQueries {
+struct PendingQueries<J: JoinSet<(Query, DnsResponse)>> {
     // TODO(relay): investigate if it would make sense to use the InternCache
     // from tor-basic-utils for the for the hostnames
     /// A list of streams that are waiting on responses to the DNS queries.
@@ -319,15 +321,10 @@ struct PendingQueries {
     /// Keyed by the ASCII-encoded hostname from the RESOLVE, in canonical form.
     pending_response: HashMap<Query, oneshot_broadcast::Sender<DnsResponse>>,
     /// DNS queries we're currently waiting a response for.
-    //
-    // TODO(relay): this uses a tokio JoinSet, as opposed to a runtime-agnotic
-    // tor-rtcompat thing. Eventually, we might want to eventually replace this
-    // with an equivalent tor-rtcompat type, so that we can control the execution
-    // of these tasks in the tests.
-    inflight: JoinSet<(Query, DnsResponse)>,
+    inflight: J,
 }
 
-impl PendingQueries {
+impl<J: JoinSet<(Query, DnsResponse)>> PendingQueries<J> {
     /// Returns a [`DnsResponseReceiver`] for the specified `query`
     /// if there is currently an in-flight lookup for it,
     /// or spawn a new lookup, returning the [`DnsResponseReceiver`] for awaiting the response.
@@ -371,19 +368,34 @@ impl PendingQueries {
         // (used for deduplicating queries)
         let (res_tx, res_rx) = oneshot_broadcast::channel();
 
-        let previous = self.pending_response.insert(Arc::clone(&query), res_tx);
-
-        // This should be impossible, because we remove any dangling channels above
-        debug_assert!(previous.is_none());
-
         if should_spawn_lookup {
             let resolver = Arc::clone(resolver);
 
             // Time to launch a new lookup
-            self.inflight.spawn(async move {
-                let res = resolve_query(Arc::clone(&query), resolver, now).await;
-                (query, res)
+            let res = self.inflight.spawn({
+                let query = Arc::clone(&query);
+                async move {
+                    let res = resolve_query(Arc::clone(&query), resolver, now).await;
+                    (query, res)
+                }
             });
+
+            if res.is_ok() {
+                let previous = self.pending_response.insert(query, res_tx);
+
+                // This should be impossible, because we remove any dangling channels above
+                debug_assert!(previous.is_none());
+            }
+
+            // If we failed to spawn the task, we drop the res_tx channel,
+            // which will cause its receiver to error.
+
+            // This roundabout way of reporting the error is because SpawnError is not cloneable,
+            // but log_ratelim! expects an owned Result.
+            //
+            // See also https://gitlab.torproject.org/tpo/core/arti/-/work_items/2632
+            let report_outcome: Result<(), _> = res.map_err(into_internal!("spawn failed"));
+            log_ratelim!("spawning DNS task"; report_outcome);
         }
 
         DnsResponseReceiver::from(res_rx)
@@ -483,7 +495,7 @@ fn clip_dns_fuzzy_ttl<R: rand::Rng + rand::CryptoRng>(ttl: Duration, rng: &mut R
     Duration::from_secs(fuzzed_ttl_secs)
 }
 
-impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
+impl<R: Runtime, M: MockableAsyncResolver> DnsResolverReactor<R, M> {
     /// Build a new reactor that uses the specified mockable resolver.
     ///
     /// Note: for per-circuit caches (option 3),
@@ -494,7 +506,7 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
     // Question: should we try to make to make this generic over
     // the runtime? If so, we will need to add a (hickory) RuntimeProvider
     // trait bound to tor_rtcompat::Runtime.
-    pub(crate) fn new(runtime: DynTimeProvider, resolver: Arc<M>) -> (Self, DnsResolver) {
+    pub(crate) fn new(runtime: R, resolver: Arc<M>) -> Result<(Self, DnsResolver), SpawnError> {
         // TODO(relay-tuning): pick an appropriate buffer size here
         //
         // Alternatively, we might want to rework this so that this cannot becomes a bottleneck
@@ -505,10 +517,10 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
         #[allow(clippy::disallowed_methods)]
         let (query_tx, query_rx) = mpsc::channel(DNS_QUERY_BUF_SIZE);
 
-        let mut inflight = JoinSet::new();
+        let mut inflight = runtime.new_join_set();
         // The inflight list has an always-pending task to prevent it from
         // yielding None when empty
-        inflight.spawn(std::future::pending());
+        inflight.spawn(std::future::pending())?;
 
         let pending = PendingQueries {
             pending_response: Default::default(),
@@ -526,15 +538,16 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
 
         let handle = DnsResolver::new(query_tx);
 
-        (reactor, handle)
+        Ok((reactor, handle))
     }
 
     /// Run the reactor.
     pub(crate) async fn run(mut self) -> Result<(), Bug> {
-        let now = self.runtime.now();
         loop {
             select_biased! {
                 () = self.runtime.sleep_until(self.cache.purge_expired_at).fuse() => {
+                    let now = self.runtime.now();
+                    debug!("Purging expired entries from DNS cache...");
                     self.cache.remove_expired(now);
                 },
                 res = self.pending.inflight.join_next().fuse() => {
@@ -544,7 +557,7 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
 
                     // This can only happen if a task panics, or is aborted.
                     // We never abort tasks, so this can only happen on panic.
-                    let (query, response) = res.map_err(into_internal!("A DNS lookup panicked?!"))?;
+                    let (query, response) = res.map_err(|_| internal!("A DNS lookup panicked?!"))?;
 
                     self.handle_response(query, response)?;
                 },
@@ -555,14 +568,6 @@ impl<M: MockableAsyncResolver> DnsResolverReactor<M> {
                     };
                     self.handle_request(query);
                 }
-
-                // TODO: periodically garbage-collect the expired cache entries?
-                // get_or_remove_expired() helps a little bit, but
-                // we will still accumulate expired entries unless
-                // we remove them periodically
-                //
-                // Alternatively, we can make DnsCache a fixed-sized LRU cache,
-                // and let the LRU policy take care of any stale records
             }
         }
     }
@@ -620,4 +625,407 @@ fn canonicalize_hostname(hostname: &str) -> String {
     hostname
 }
 
-// TODO(relay): tests!
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    #![allow(clippy::string_slice)] // See arti#2571
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    use async_trait::async_trait;
+    use smallvec::smallvec;
+    use tor_basic_utils::test_rng::{TestingRng, testing_rng};
+    use tor_rtcompat::{Runtime, SpawnExt as _};
+    use tor_rtmock::MockRuntime;
+    use tracing_test::traced_test;
+
+    use crate::stream::dns::resolver::reactor::{AnswerRecord, MockableAsyncResolver};
+
+    use std::net::IpAddr;
+    use std::str::FromStr;
+    use std::sync::{Arc, Mutex};
+
+    type Ans = Result<LookupAnswers<AnswerRecord>, LookupError>;
+
+    /// A mock resolver, for testing
+    ///
+    /// The mock resolver returns a list of pre-configured answers
+    /// (see [`MockResolverInner`]).
+    struct MockResolver {
+        /// The mutable state of the resolver.
+        inner: Mutex<MockResolverInner>,
+    }
+
+    #[derive(Default)]
+    struct MockResolverInner {
+        /// A list of replies to return from [`MockableAsyncResolver::lookup_ip`].
+        lookup_ip_replies: Vec<Ans>,
+        /// A list of replies to return from [`MockableAsyncResolver::reverse_lookup`].
+        reverse_lookup_replies: Vec<Ans>,
+        /// The number of times lookup_with_ip() was called.
+        query_count: usize,
+        /// The number of times reverse_lookup() was called.
+        reverse_query_count: usize,
+    }
+
+    impl MockResolver {
+        /// Build a new mock resolver.
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                inner: Mutex::new(Default::default()),
+            })
+        }
+
+        fn with_lookup_ip_replies(
+            self: Arc<Self>,
+            replies: impl IntoIterator<Item = Ans>,
+        ) -> Arc<Self> {
+            self.inner.lock().unwrap().lookup_ip_replies = replies.into_iter().collect();
+            self
+        }
+
+        fn with_reverse_lookup_replies(
+            self: Arc<Self>,
+            replies: impl IntoIterator<Item = Ans>,
+        ) -> Arc<Self> {
+            self.inner.lock().unwrap().reverse_lookup_replies = replies.into_iter().collect();
+            self
+        }
+
+        /// Spawns the reactor and returns the DnsResolver handle,
+        /// and a handle to `MockResolver` for controlling
+        /// the values returned by the resolver.
+        fn launch<R: Runtime>(self: &Arc<Self>, rt: R) -> DnsResolver {
+            let (reactor, resolver) =
+                DnsResolverReactor::new(rt.clone(), Arc::clone(self)).unwrap();
+
+            rt.spawn(async move {
+                reactor.run().await.unwrap();
+            })
+            .unwrap();
+
+            resolver
+        }
+
+        fn query_count(&self) -> usize {
+            self.inner.lock().unwrap().query_count
+        }
+
+        fn reverse_query_count(&self) -> usize {
+            self.inner.lock().unwrap().reverse_query_count
+        }
+    }
+
+    #[async_trait]
+    impl MockableAsyncResolver for MockResolver {
+        type Rng = TestingRng;
+
+        async fn lookup_ip(
+            &self,
+            _query: &str,
+        ) -> Result<LookupAnswers<AnswerRecord>, LookupError> {
+            let mut inner = self.inner.lock().unwrap();
+            inner.query_count += 1;
+            if !inner.lookup_ip_replies.is_empty() {
+                inner.lookup_ip_replies.remove(0)
+            } else {
+                Err(internal!("mock resolver is out of replies").into())
+            }
+        }
+
+        async fn reverse_lookup(
+            &self,
+            _query: &str,
+        ) -> Result<LookupAnswers<AnswerRecord>, LookupError> {
+            let mut inner = self.inner.lock().unwrap();
+            inner.reverse_query_count += 1;
+            if !inner.reverse_lookup_replies.is_empty() {
+                inner.reverse_lookup_replies.remove(0)
+            } else {
+                Ok(smallvec![])
+            }
+        }
+
+        fn thread_rng(&self) -> Self::Rng {
+            testing_rng()
+        }
+    }
+
+    // Convenience impls to more easily build test RecordData
+    impl From<IpAddr> for RecordData {
+        fn from(addr: IpAddr) -> Self {
+            Self::Ip(addr)
+        }
+    }
+
+    impl From<String> for RecordData {
+        fn from(host: String) -> Self {
+            Self::Hostname(host)
+        }
+    }
+
+    impl From<(IpAddr, u32)> for AnswerRecord {
+        fn from((addr, ttl): (IpAddr, u32)) -> Self {
+            AnswerRecord {
+                data: addr.into(),
+                ttl,
+            }
+        }
+    }
+
+    impl From<(String, u32)> for AnswerRecord {
+        fn from((host, ttl): (String, u32)) -> Self {
+            AnswerRecord {
+                data: host.into(),
+                ttl,
+            }
+        }
+    }
+
+    /// Build a `lookup_ip` response out of some addresses
+    #[allow(clippy::unnecessary_wraps)]
+    fn addrs_to_response(addrs: impl IntoIterator<Item = impl Into<AnswerRecord>>) -> Ans {
+        let mut ans = smallvec![];
+        for addr in addrs {
+            ans.push(addr.into());
+        }
+        Ok(ans)
+    }
+
+    #[test]
+    fn canonicalize_hostname() {
+        use super::canonicalize_hostname as ch;
+
+        assert_eq!(ch("example.com"), "example.com.");
+        assert_eq!(ch("example.com."), "example.com.");
+        assert_eq!(ch("eXaMple.com"), "example.com.");
+        assert_eq!(ch("   \t  eXaMple.com \t\r\n"), "example.com.");
+        assert_eq!(
+            ch("   \t  1.2.3.4.in-addr.arpa \t\r\n"),
+            "1.2.3.4.in-addr.arpa."
+        );
+    }
+
+    #[test]
+    fn clip_ttl() {
+        assert_eq!(clip_dns_ttl(Duration::from_mins(0)), Duration::from_mins(5));
+        assert_eq!(clip_dns_ttl(Duration::from_mins(1)), Duration::from_mins(5));
+        assert_eq!(
+            clip_dns_ttl(Duration::from_mins(5)),
+            Duration::from_mins(60)
+        );
+        assert_eq!(
+            clip_dns_ttl(Duration::from_mins(15)),
+            Duration::from_mins(60)
+        );
+    }
+
+    /// Assert that `fuzzy` is within the range
+    /// [clip_dns_ttl(ttl) - FUZZY_DNS_TTL, clip_dns_ttl(ttl) + FUZZY_DNS_TTL]
+    fn assert_in_fuzzy_range(fuzzy: Duration, ttl: Duration) {
+        let clipped = clip_dns_ttl(ttl);
+        assert!(fuzzy >= clipped - FUZZY_DNS_TTL);
+        assert!(fuzzy <= clipped + FUZZY_DNS_TTL);
+    }
+
+    #[test]
+    fn clip_and_fuzz_ttl() {
+        let mut rng = testing_rng();
+
+        for ttl_mins in [0, 5, 15, 60, 120] {
+            let ttl = Duration::from_mins(ttl_mins);
+            let fuzzy_ttl = clip_dns_fuzzy_ttl(ttl, &mut rng);
+            assert_in_fuzzy_range(fuzzy_ttl, ttl);
+        }
+    }
+
+    #[test]
+    fn reject_nonascii_hostname() {
+        MockRuntime::test_with_various(|rt| async move {
+            let mock = MockResolver::new();
+            let mut resolver = mock.launch(rt);
+            // Non-ASCII domains aren't allowed
+            let err = resolver
+                .resolve("example👍️.com".as_bytes())
+                .await
+                .unwrap_err();
+            assert!(matches!(err, LookupError::NonAsciiHostname));
+        });
+    }
+
+    #[test]
+    fn simple_dns_query() {
+        MockRuntime::test_with_various(|rt| async move {
+            /// The TTL of the mock answer records, in seconds.
+            const TTL: u32 = 300;
+
+            let ipv4 = IpAddr::from_str("1.2.3.4").unwrap();
+            let ipv6 = IpAddr::from_str("::1").unwrap();
+            let ip_replies = addrs_to_response(vec![(ipv4, TTL), (ipv6, TTL)]);
+            let mock = MockResolver::new().with_lookup_ip_replies(vec![ip_replies]);
+            let mut resolver = mock.launch(rt);
+            let records = resolver.resolve(b"example.com").await.unwrap();
+
+            // Expect two answers (one IPv4 and one IPv6)
+            assert_eq!(records.len(), 2);
+            assert!(records.contains(&ipv4.into()));
+            assert!(records.contains(&ipv6.into()));
+
+            // The mock resolver has no answers for our reverse lookup
+            let records = resolver.resolve(b"1.2.3.4.in-addr.arpa.").await.unwrap();
+            assert!(records.is_empty());
+
+            let ip_replies = addrs_to_response(vec![("example.com".to_string(), TTL)]);
+            let _ = mock.with_reverse_lookup_replies(vec![ip_replies]);
+            // The next reverse lookup should *not* yield the mock result we set above,
+            // because the DnsResolver cached the negative response
+            let records = resolver.resolve(b"1.2.3.4.in-addr.arpa.").await.unwrap();
+            assert!(records.is_empty());
+        });
+    }
+
+    #[test]
+    fn simple_cached_response() {
+        MockRuntime::test_with_various(|rt| async move {
+            /// The TTL of the mock answer records, in seconds.
+            const TTL: u32 = 30;
+
+            /// The address to do a reverse lookup for
+            const ADDR: &[u8] = b"1.2.3.4.in-addr.arpa.";
+
+            let reply1 = addrs_to_response(vec![
+                ("example.com".to_string(), TTL),
+                ("sub.example.com".to_string(), TTL),
+            ]);
+            let reply2 = addrs_to_response(vec![("foo.com".to_string(), TTL)]);
+            let mock = MockResolver::new().with_reverse_lookup_replies(vec![reply1, reply2]);
+            let mut resolver = mock.launch(rt.clone());
+
+            // We can query the resolver a bunch of times,
+            // and it will keep returning the cached example.com answer.
+            // It won't make any additional queries until we advance
+            // the mocked time, causing the cached answer to expire.
+            for _ in 0..10 {
+                let records = resolver.resolve(ADDR).await.unwrap();
+                // The DnsResolver reactor has sent out one query
+                assert_eq!(mock.reverse_query_count(), 1);
+                assert_eq!(records.len(), 2);
+                assert_eq!(records[0], RecordData::from("example.com".to_string()));
+                assert_eq!(records[1], RecordData::from("sub.example.com".to_string()));
+            }
+
+            rt.advance_by(MIN_DNS_TTL + FUZZY_DNS_TTL).await;
+
+            let records = resolver.resolve(ADDR).await.unwrap();
+            // The DnsResolver reactor has sent a second query!
+            assert_eq!(mock.reverse_query_count(), 2);
+            assert_eq!(records.len(), 1);
+            assert_eq!(records[0], RecordData::from("foo.com".to_string()));
+        });
+    }
+
+    #[traced_test]
+    #[test]
+    fn periodic_cache_purges() {
+        MockRuntime::test_with_various(|rt| async move {
+            /// The number of lookup_ip() queries we will make in between cache purges
+            const QUERY_COUNT: usize = 5;
+            /// The number of cache purge intervals we will simulate in this test
+            const CACHE_PURGE_INTERVALS: usize = 5;
+            /// The TTL of the mock responses, in seconds.
+            const TTL: u32 = 60;
+
+            let mut responses = vec![];
+            // This is multiplied by CACHE_PURGE_INTERVALS,
+            // because we will make a total of QUERY_COUNT * CACHE_PURGE_INTERVALS
+            // queries that will cause the reactor to reach out to the (mock) resolver
+            for _ in 0..QUERY_COUNT * CACHE_PURGE_INTERVALS {
+                responses.push(addrs_to_response(vec![(
+                    IpAddr::from_str("1.2.3.4").unwrap(),
+                    TTL,
+                )]));
+            }
+
+            let mock = MockResolver::new().with_lookup_ip_replies(responses);
+            let mut resolver = mock.launch(rt.clone());
+
+            for i in 0..CACHE_PURGE_INTERVALS {
+                // Make a bunch of queries, causing them to be cached
+                for j in 0..QUERY_COUNT {
+                    let records = resolver
+                        .resolve(format!("{j}.example.com").as_bytes())
+                        .await
+                        .unwrap();
+                    // The DnsResolver reactor sends out one query per request
+                    assert_eq!(mock.query_count(), i * QUERY_COUNT + j + 1);
+                    // One record per dummy response
+                    assert_eq!(records.len(), 1);
+                    assert_eq!(
+                        records[0],
+                        RecordData::from(IpAddr::from_str("1.2.3.4").unwrap())
+                    );
+                }
+
+                let current_query_count = mock.query_count();
+                // No matter how many times we try to re-reresolve the same domains again,
+                // the reactor won't reach out to our resolver (because it continues
+                // serving the responses from the cache)
+                for _ in 0..10 {
+                    for j in 0..QUERY_COUNT {
+                        let _ = resolver
+                            .resolve(format!("{j}.example.com").as_bytes())
+                            .await
+                            .unwrap();
+                        // The query count measured at the mock resolver remains stable,
+                        // because the resolver is able to respond from the cache
+                        assert_eq!(mock.query_count(), current_query_count);
+                    }
+                }
+
+                // Advance time such that the expired entries are purged once per interval
+                rt.advance_by(CACHE_PURGE_INTERVAL).await;
+            }
+
+            // Unfortunately we can't test how many times this appears in the logs,
+            // because MockRuntime::test_with_various runs this test runs in a loop,
+            // and the logs are preserved across runs (each test would need to know
+            // its position in the MockRuntime::test_with_various's loop to be able
+            // to accurately assert how many of these logs there should be)
+            assert!(logs_contain("Purging expired entries from DNS cache"));
+        });
+    }
+
+    #[traced_test]
+    #[test]
+    fn query_deduplication() {
+        MockRuntime::test_with_various(|rt| async move {
+            /// The number of concurrent queries to send
+            const QUERY_COUNT: usize = 5;
+            let mock = MockResolver::new();
+            let resolver = mock.launch(rt.clone());
+
+            // Make a bunch of queries, all at the same time
+            let mut queries = vec![];
+            for _ in 0..QUERY_COUNT {
+                let mut resolver = resolver.clone();
+                queries.push(async move { resolver.resolve(b"example.com").await });
+            }
+
+            let _ = futures::future::join_all(queries).await;
+            // The reactor only reached out to the resolver once
+            assert_eq!(mock.query_count(), 1);
+        });
+    }
+}

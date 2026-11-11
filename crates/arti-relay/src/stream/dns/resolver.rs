@@ -28,7 +28,7 @@ pub(crate) type LookupAnswers<T> = SmallVec<[T; 10]>;
 /// Note: we need our own record type here, because the hickory Record type
 /// is quite big (272 bytes) and includes various fields we don't actually use
 /// (such as the domain name that was looked up and the DNS record class).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum RecordData {
     /// An A or AAAA record.
     Ip(IpAddr),
@@ -105,9 +105,7 @@ impl DnsResponseReceiver {
                 // from [0, rolling_avg_lookup_time].
                 Ok(res)
             }
-            Either::Right(watch_rx) => watch_rx
-                .await
-                .map_err(into_internal!("DNS reactor task exited?!")),
+            Either::Right(watch_rx) => watch_rx.await.map_err(into_internal!("DNS task exited?!")),
         }
     }
 }
