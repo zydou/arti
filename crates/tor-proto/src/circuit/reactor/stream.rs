@@ -20,6 +20,7 @@ use crate::stream::incoming::{
 
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::CircId;
+use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Begin, BeginDir, End, EndReason, Resolve};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
@@ -32,7 +33,7 @@ use derive_deftly::Deftly;
 use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt as _, future, select_biased};
-use tracing::debug;
+use tracing::{debug, trace};
 
 use std::pin::Pin;
 use std::result::Result as StdResult;
@@ -261,7 +262,34 @@ impl StreamReactor {
                 self.close_stream(stream_id, behav, streammap::TerminateReason::ExplicitEnd)
                     .await
             }
+            CtrlMsg::DrainRateUpdate { stream_id, rate } => {
+                self.maybe_send_xon(stream_id, rate).await
+            }
         }
+    }
+
+    /// Maybe send an XON for the `stream_id` with the given `rate`.
+    async fn maybe_send_xon(
+        &mut self,
+        stream_id: StreamId,
+        rate: XonKBpsEwma,
+    ) -> StdResult<(), ReactorError> {
+        let Some(xon) = self.hop.maybe_send_xon(rate, stream_id)? else {
+            // Nothing to do. This can happen if stream is closed, XON/XOFF are not in
+            // use or or the stream is still above its XOFF limit.
+            return Ok(());
+        };
+
+        trace!(
+            circ_id = %self.unique_id,
+            stream_id = %stream_id,
+            "Sending XON with rate {rate}",
+        );
+
+        // Deliver the XON to the backward reactor which will send it back to the client
+        // (if we're a relay), or exit (if we're a client).
+        let msg = AnyRelayMsgOuter::new(Some(stream_id), xon.into());
+        self.send_msg_to_bwd(msg).await
     }
 
     /// Deliver `msg` to the specified stream
@@ -688,5 +716,13 @@ pub(crate) enum CtrlMsg {
         stream_id: StreamId,
         /// The END message to send, if any.
         behav: CloseStreamBehavior,
+    },
+
+    /// Indicate that the drain rate of a specific stream has changed to the given value.
+    DrainRateUpdate {
+        /// The stream ID to send the XON on.
+        stream_id: StreamId,
+        /// The drain rate to advertise in the XON.
+        rate: XonKBpsEwma,
     },
 }

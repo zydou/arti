@@ -20,7 +20,6 @@ use crate::client::circuit::padding::{
 
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
-use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId};
 use tor_error::internal;
@@ -501,9 +500,6 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                         ccontrol: Arc::clone(&cc),
                     }))
                 }
-                FlowCtrlMsg::Xon(rate) => {
-                    todo!()
-                }
             },
         }
     }
@@ -969,6 +965,4 @@ pub(crate) enum BackwardReactorCmd {
 pub(crate) enum FlowCtrlMsg {
     /// Send a SENDME message on this stream.
     Sendme,
-    /// Send an XON message on this stream with the given rate.
-    Xon(XonKBpsEwma),
 }
