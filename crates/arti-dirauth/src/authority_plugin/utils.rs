@@ -333,6 +333,15 @@ impl Writing {
             .unwrap_or_else(|| "write to stdout".into());
         move |e| convert_output_error(anyhow::Error::from(e).context(msg))
     }
+
+    /// Write some netdoc(s)
+    pub(super) fn write_netdocs<'d, D: NetdocEncodable + ?Sized + 'd>(
+        &mut self,
+        doc: impl IntoIterator<Item = &'d D>,
+    ) -> Result<(), CliError> {
+        let doc = encode_netdoc_unsigned(doc)?;
+        self.append_with(|w| write!(w, "{doc}"))
+    }
 }
 
 /// Helper to convert an error encountered while writing to CliError

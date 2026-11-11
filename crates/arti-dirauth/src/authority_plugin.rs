@@ -19,7 +19,7 @@ use tor_llcrypto::d::Sha256;
 use tor_netdoc::{
     doc::netstatus::ConsensusMethod,
     doc::routerdesc::{RouterDesc, RouterDescUnverified},
-    encode::encode_netdoc_unsigned,
+    encode::{NetdocEncodable, encode_netdoc_unsigned},
     parse2::{self, NetdocParseable},
     types::{Base64Fingerprint, Ed25519Public, FixedB64, Iso8601TimeNoSp},
 };
