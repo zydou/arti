@@ -2,6 +2,19 @@
 
 use super::*;
 
+/// One vote input to `compute_consensus_from_votes`
+#[allow(clippy::exhaustive_structs)] // this is an aggregation of a function input argument
+pub struct VoteInput<'v> {
+    /// The vote; signature must have been verified
+    pub vote: &'v netstatus::vote::NetworkStatus,
+
+    /// The voter nickname, used only for logging/reporting
+    pub nickname: &'v Nickname,
+
+    /// Signature hashes, from document parsing
+    pub sig_hashes: &'v netstatus::DirectorySignaturesHashesAccu,
+}
+
 impl ConsensusesFromVotes<()> for netstatus::vote::NetworkStatus {
     type PlainOutput = netstatus::plain::NetworkStatus;
     type MdOutput = netstatus::md::NetworkStatus;
@@ -120,11 +133,7 @@ pub fn compute_consensus_from_votes<'v>(
     method: SupportedConsensusMethod,
     n_authorities: usize,
     votes: impl Iterator<
-        Item = (
-            &'v netstatus::vote::NetworkStatus,
-            &'v Nickname,
-            &'v netstatus::DirectorySignaturesHashesAccu,
-        ),
+        Item = VoteInput<'v>,
     >,
 ) -> Result<
     (
@@ -133,7 +142,9 @@ pub fn compute_consensus_from_votes<'v>(
     ),
     ConsensusError,
 > {
-    let (votes, nicknames, sig_hashes) = votes.collect();
+    let (votes, nicknames, sig_hashes) = votes
+        .map(|vi| (vi.vote, vi.nickname, vi.sig_hashes))
+        .collect();
     let context = ConsensusCommonContext {
         method,
         n_authorities,
@@ -253,7 +264,7 @@ pub(crate) mod test {
 
         let (vote_base, sigs) =
             tor_netdoc::testdata_live::netstatus_vote_unverified().inspect_unverified();
-        let hashes = &sigs.hashes;
+        let sig_hashes = &sigs.hashes;
 
         let votes = (0..n_votes)
             .into_iter()
@@ -269,7 +280,7 @@ pub(crate) mod test {
         let output = compute_consensus_from_votes(
             method,
             n_authorities,
-            votes.iter().map(|(v, n)| (v, n, hashes)),
+            votes.iter().map(|(vote, nickname)| VoteInput { vote, nickname, sig_hashes }),
         )
         .expect("compute consensus");
 
