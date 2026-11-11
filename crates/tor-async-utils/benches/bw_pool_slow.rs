@@ -6,6 +6,7 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use futures::task::noop_waker_ref;
 use std::hint::black_box;
+use std::num::NonZero;
 use std::task::{Context, Poll};
 
 use tor_async_utils::bw_pool::{BandwidthAcquirer, BandwidthPool, BandwidthRefiller, Permit};
@@ -68,7 +69,8 @@ fn slow_path(c: &mut Criterion) {
     let mut group = c.benchmark_group(BENCH_GROUP_NAME);
 
     // Capacity only needs to cover a single claim.
-    let (pool, mut refiller) = BandwidthPool::new(CLAIM, CLAIM);
+    let (pool, mut refiller) =
+        BandwidthPool::new(NonZero::new(CLAIM).expect("zero capacity"), CLAIM);
     let mut acq = pool.new_acquirer();
     let mut cx = Context::from_waker(noop_waker_ref());
     // Empty the pool before we start.

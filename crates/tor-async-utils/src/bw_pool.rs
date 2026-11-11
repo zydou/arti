@@ -57,6 +57,7 @@ mod bucket;
 mod refiller;
 
 use futures::channel::mpsc;
+use std::num::NonZero;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -196,8 +197,7 @@ impl BandwidthAcquirer {
     /// Returns a [`BwPoolError::PoolClosed`] error if the [`BandwidthRefiller`] has been
     /// dropped.
     ///
-    /// Returns a [`BwPoolError::ZeroTokens`] error if `tokens` or the pool capacity is
-    /// zero.
+    /// Returns a [`BwPoolError::ZeroTokens`] error if `tokens` is zero.
     pub fn poll_acquire(
         &mut self,
         cx: &mut Context<'_>,
@@ -279,10 +279,10 @@ impl BandwidthAcquirer {
     ///
     /// Return a [`BwPoolError::PoolClosed`] error if the refiller is gone.
     ///
-    /// Return a [`BwPoolError::ZeroTokens`] error if the request would be clamped to zero.
+    /// Return a [`BwPoolError::ZeroTokens`] error if `tokens` is zero.
     fn enqueue_request(&mut self, cx: &mut Context<'_>, tokens: u64) -> Result<(), BwPoolError> {
-        // Never enqueue a request the refiller would grant zero tokens.
-        if tokens.min(self.pool.capacity()) == 0 {
+        // Never enqueue a request for zero tokens.
+        if tokens == 0 {
             return Err(BwPoolError::ZeroTokens);
         }
         // Prepare the waiter for this new request.
@@ -338,9 +338,9 @@ impl BandwidthPool {
     /// path.
     ///
     /// The fast path never grants a partial [`Permit`] below `min_grant` tokens.
-    pub fn new(capacity: u64, min_grant: u64) -> (BandwidthPool, BandwidthRefiller) {
+    pub fn new(capacity: NonZero<u64>, min_grant: u64) -> (BandwidthPool, BandwidthRefiller) {
         let (tx, rx) = mpsc::unbounded();
-        let bucket = Arc::new(AtomicTokenBucket::new(capacity, min_grant));
+        let bucket = Arc::new(AtomicTokenBucket::new(capacity.get(), min_grant));
         let pool = BandwidthPool {
             bucket: Arc::clone(&bucket),
             requests: tx,
@@ -452,7 +452,7 @@ mod test {
 
     /// Build a [`BandwidthPool`] and drain it so 0 tokens are available.
     fn drained_pool(cap: u64) -> (BandwidthPool, BandwidthRefiller) {
-        let (pool, refiller) = BandwidthPool::new(cap, MIN_GRANT);
+        let (pool, refiller) = BandwidthPool::new(NonZero::new(cap).unwrap(), MIN_GRANT);
         let mut permit = pool.try_acquire(cap).expect("a fresh pool starts full");
         permit.claim_all();
         (pool, refiller)
@@ -468,7 +468,7 @@ mod test {
 
     #[test]
     fn fast_path() {
-        let (pool, _refiller) = BandwidthPool::new(100, MIN_GRANT);
+        let (pool, _refiller) = BandwidthPool::new(NonZero::new(100).unwrap(), MIN_GRANT);
         assert_eq!(pool.available(), 100);
 
         let mut permit = pool.acquire(40).now_or_never().unwrap().unwrap();
@@ -589,7 +589,7 @@ mod test {
             Poll::Ready(Err(BwPoolError::PoolClosed)),
         ));
 
-        let (pool, mut refiller) = BandwidthPool::new(0, MIN_GRANT);
+        let (pool, mut refiller) = BandwidthPool::new(NonZero::new(100).unwrap(), MIN_GRANT);
         drop(pool);
         // No senders left, wait should report closure.
         assert_eq!(refiller.wait().now_or_never(), Some(false));
@@ -624,7 +624,7 @@ mod test {
 
     #[test]
     fn permit_claim() {
-        let (pool, _refiller) = BandwidthPool::new(100, MIN_GRANT);
+        let (pool, _refiller) = BandwidthPool::new(NonZero::new(100).unwrap(), MIN_GRANT);
 
         // Grab 40 and drop. Should be fully refunded.
         let permit = pool.try_acquire(40).unwrap();
@@ -661,7 +661,7 @@ mod test {
 
     #[test]
     fn refund_newcomer() {
-        let (pool, mut refiller) = BandwidthPool::new(100, MIN_GRANT);
+        let (pool, mut refiller) = BandwidthPool::new(NonZero::new(100).unwrap(), MIN_GRANT);
         let mut cx = noop_cx();
 
         // Get 60 on the fast path and only use 10 so we keep holding 50.

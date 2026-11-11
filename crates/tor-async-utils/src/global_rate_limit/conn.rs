@@ -195,8 +195,8 @@ mod test {
 
     #[test]
     fn basic_conn() {
-        let (read_pool, _rr) = BandwidthPool::new(100, MIN_GRANT);
-        let (write_pool, _wr) = BandwidthPool::new(100, MIN_GRANT);
+        let (read_pool, _rr) = BandwidthPool::new(NonZero::new(100).unwrap(), MIN_GRANT);
+        let (write_pool, _wr) = BandwidthPool::new(NonZero::new(100).unwrap(), MIN_GRANT);
         let mut conn = new_conn(&read_pool, &write_pool);
 
         // A read of 30 only spends from the read pool.
@@ -213,8 +213,8 @@ mod test {
 
     #[test]
     fn write_no_read_block() {
-        let (read_pool, _rr) = BandwidthPool::new(50, MIN_GRANT);
-        let (write_pool, _wr) = BandwidthPool::new(50, MIN_GRANT);
+        let (read_pool, _rr) = BandwidthPool::new(NonZero::new(50).unwrap(), MIN_GRANT);
+        let (write_pool, _wr) = BandwidthPool::new(NonZero::new(50).unwrap(), MIN_GRANT);
         let mut conn = new_conn(&read_pool, &write_pool);
 
         // Drain the write pool.
