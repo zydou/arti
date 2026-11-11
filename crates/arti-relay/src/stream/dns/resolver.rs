@@ -127,7 +127,9 @@ impl DnsResolver {
         Self { query_tx }
     }
 
-    /// Asynchronously resolve the specified query
+    /// Asynchronously resolve the specified query.
+    ///
+    /// The future returned from this method is cancellation-safe.
     pub(crate) async fn resolve(
         &mut self,
         query: &[u8],
