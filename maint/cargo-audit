@@ -66,18 +66,6 @@ IGNORE=(
     # So if we gain more uses of non-CT crypto-bigint, in places where we would care more,
     # we wouldn't notice.  Still, I don't see anything better we can do :-/.
     --ignore RUSTSEC-2026-0387
-
-    # TEMPORARILY ignore "libsqlite3-sys via C SQLite CVE-2026-119375".
-    #
-    # To solve this, we need to upgrade to a newer version of libsqlite3-sys,
-    # which means we need to upgrade to a newer version of rusqlite (0.41).
-    # But r2d2_sqlite currendly does not have a version that supports
-    # rusqlite 0.41, so we can't do that yet.
-    #
-    # See #2849; we ought to remove this exception before our next release.
-    #
-    # <https://rustsec.org/advisories/RUSTSEC-2026-0459>
-    --ignore RUSTSEC-2026-0459
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
@@ -235,5 +223,20 @@ OBSOLETE_IGNORE=(
     #
     # See https://gitlab.torproject.org/tpo/core/arti/-/issues/2474
     --ignore RUSTSEC-2026-0097
+
+    # TEMPORARILY ignore "libsqlite3-sys via C SQLite CVE-2026-119375".
+    #
+    # To solve this, we needed to upgrade to a newer version of libsqlite3-sys,
+    # which means we needed to upgrade to a newer version of rusqlite (0.41).
+    # But r2d2_sqlite didn't have a version that supports
+    # rusqlite 0.41, so we couldn't do that yet.
+    #
+    # See #2849; we managed to remove this exception before our next release
+    # since the r2d2_sqlite release came out on 2026-11-09.
+    # (We might not be affectd by this issue at all, but it's better to
+    # patch than to make an exception.)
+    #
+    # <https://rustsec.org/advisories/RUSTSEC-2026-0459>
+    --ignore RUSTSEC-2026-0459
 )
 _="${OBSOLETE_IGNORE[0]}"
