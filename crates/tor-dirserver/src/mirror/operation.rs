@@ -161,80 +161,31 @@ pub(crate) enum OperationError {
 }
 
 /// The various states for the [`StaticEngine`].
+// TODO 2881: Document the state transitions once the refactoring is done.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
 enum State {
     /// Loads the most recent valid (and verified) consensus from the database
     /// into memory.
-    ///
-    /// Transitions from:
-    /// * Start, if a recent valid consensus exists in the database.
-    /// * [`State::StoreConsensus`], if successfully finished.
-    ///
-    /// Transitions into:
-    /// * [`State::Descriptors`]
     LoadConsensus,
 
     /// Downloads the most recent consensus from a directory authority.
-    ///
-    /// Transitions from:
-    /// * Start, if no recent valid consensus exists in the database.
-    /// * [`State::Descriptors`], if ttl is over.
-    /// * [`State::Hibernate`], if ttl is over.
-    ///
-    /// Transitions into:
-    /// * [`State::AuthCerts`], if we miss authority certificates.
-    /// * [`State::StoreConsensus`], if all authority certificates exist in the
-    ///   database.
-    /// * [`State::Hibernate`], if we have insufficient trusted authorities.
     // TODO DIRMIRROR: What to do in the case of getting an invalid consensus
     // such as junk data?  The normal retry logic sounds reasonable here.
     FetchConsensus,
 
     /// Downloads, validates, and stores the missing authority certificates from
     /// the downloaded unvalidated consensus into the database.
-    ///
-    /// Transitions from:
-    /// * [`State::FetchConsensus`], if we miss authority certificates.
-    /// * [`State::AuthCerts`], if we still miss authority certificates.
-    ///
-    /// Transitions into:
-    /// * [`State::AuthCerts`], if we still miss authority certificates.
-    /// * [`State::StoreConsensus`], if we got all authority certificates.
     AuthCerts,
 
     /// Validates and stores the downloaded unvalidated consensus into the
     /// database.
-    ///
-    /// Transitions from:
-    /// * [`State::FetchConsensus`], if we have all authority certificates.
-    /// * [`State::AuthCerts`], if we have all authority certificates.
-    ///
-    /// Transitions into:
-    /// * [`State::LoadConsensus`]
     StoreConsensus,
 
     /// Downloads missing network documents (descriptors) from a directory
     /// authority.
-    ///
-    /// Transitions from:
-    /// * [`State::LoadConsensus`], if we initialize.
-    /// * [`State::Descriptors`], if we still have missing descriptors left.
-    ///
-    /// Transitions into:
-    /// * [`State::FetchConsensus`], if ttl is over.
-    /// * [`State::Descriptors`], if we still have missing descriptors left.
-    /// * [`State::Hibernate`], if nothing is left.
     Descriptors,
 
     /// Hibernate because nothing is left.
-    ///
-    /// Transitions from:
-    /// * [`State::FetchConsensus`], if we have insufficient trusted
-    ///   authorities.
-    /// * [`State::Descriptors`], if we have downloaded all descriptors.
-    ///
-    /// Transitions into:
-    /// * [`State::FetchConsensus`], if the ttl is over.
     Hibernate,
 }
 
