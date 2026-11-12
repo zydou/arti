@@ -48,6 +48,13 @@ impl Listen {
         Self::new_localhost(port.unwrap_or_default())
     }
 
+    /// Create a new `Listen` specifying an arbitrarily chosen IPv4 or IPv6 port.
+    pub fn new_auto() -> Listen {
+        CustomizableListen::One(ListenItem::Auto)
+            .try_into()
+            .expect("An auto port should always be valid")
+    }
+
     /// Return true if no listening addresses have been configured
     pub fn is_empty(&self) -> bool {
         self.ip_addrs_internal().count() == 0
