@@ -10,6 +10,7 @@ use crate::{
     ExternalActivity, GuardParams, GuardUsage, GuardUsageKind, PickGuardError, ids::GuardId,
 };
 use crate::{FirstHop, GuardSetSelector};
+use saturating_time::SaturatingTime as _;
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
 use tor_basic_utils::onionperf_types::{OnionperfEvent, OnionperfGuardStatus};
 use tor_error::{internal, warn_report};
@@ -847,9 +848,9 @@ impl GuardSet {
         // _rather_ use are either down, or have had their circuit
         // attempts pending for too long.
 
-        let cutoff = now
-            .checked_sub(params.np_connect_timeout)
-            .expect("Can't subtract connect timeout from now.");
+        // We treat a more-preferred guard with an exploratory circuit created
+        // _after_ this cutoff as preventing us from using `guard_id`.
+        let cutoff = now.saturating_sub(params.np_connect_timeout);
 
         for (src, guard) in self.preference_order() {
             if guard.guard_id() == guard_id {

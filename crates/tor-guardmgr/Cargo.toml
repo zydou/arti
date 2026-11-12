@@ -77,6 +77,7 @@ pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.10.3"
 safelog = { path = "../safelog", version = "0.10.1" }
+saturating-time = { path = "../saturating-time", version = "0.6.0" }
 serde = { version = "1.0.229", features = ["derive"] }
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2"
