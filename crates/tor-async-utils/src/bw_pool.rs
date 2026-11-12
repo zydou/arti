@@ -55,14 +55,16 @@
 
 mod bucket;
 mod refiller;
+mod reusable_oneshot;
 
 use futures::channel::mpsc;
 use std::num::NonZero;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use tracing::warn;
 
 use crate::bw_pool::bucket::AtomicTokenBucket;
-use crate::bw_pool::refiller::{BwRequest, RefillWaiter};
+use crate::bw_pool::refiller::BwRequest;
 
 // Public export as the outside world needs this.
 pub use crate::bw_pool::refiller::BandwidthRefiller;
@@ -80,6 +82,9 @@ pub enum BwPoolError {
     /// A request that can only be granted zero tokens.
     #[error("bandwidth request of zero tokens")]
     ZeroTokens,
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(&'static str),
 }
 
 /// Proof that the requested number of tokens were granted.
@@ -147,11 +152,7 @@ impl Drop for Permit {
 #[derive(Debug)]
 pub struct BandwidthAcquirer {
     /// The shared waiter. Reused for every acquire.
-    waiter: Arc<RefillWaiter>,
-    /// Whether this acquirer currently has a request enqueued with the refiller.
-    ///
-    /// Prevent multi poll to avoid queuing a duplicate request with a different waker.
-    in_flight: bool,
+    waiter: reusable_oneshot::Receiver<NonZero<u64>>,
     /// The bandwidth pool attached to this acquirer.
     pool: BandwidthPool,
 }
@@ -165,8 +166,7 @@ impl BandwidthAcquirer {
     /// The number of tokens to acquire is chosen per [`Self::poll_acquire`] call.
     fn new(pool: BandwidthPool) -> Self {
         Self {
-            waiter: Arc::new(RefillWaiter::new()),
-            in_flight: false,
+            waiter: reusable_oneshot::Receiver::new(),
             pool,
         }
     }
@@ -175,9 +175,7 @@ impl BandwidthAcquirer {
     ///
     /// This sets the `in-flight` to false and takes the granted tokens out of the waiter,
     /// resetting it, as we now hand them to the permit.
-    fn grant_permit(&mut self) -> Permit {
-        let granted = self.waiter.take_granted();
-        self.in_flight = false;
+    fn grant_permit(&mut self, granted: u64) -> Permit {
         Permit::new(Arc::clone(&self.pool.bucket), granted)
     }
 
@@ -203,7 +201,8 @@ impl BandwidthAcquirer {
         cx: &mut Context<'_>,
         tokens: u64,
     ) -> Poll<Result<Permit, BwPoolError>> {
-        if !self.in_flight {
+        // If we can't get a new sender, then we have a request in flight.
+        if let Some(sender_guarantee) = self.waiter.guarantee_new_sender() {
             // No request in flight. This is the fast path! The thundering herd is allowed,
             // that is, all tasks race to this and their fairness is sub-contracted to their
             // task scheduler.
@@ -238,37 +237,52 @@ impl BandwidthAcquirer {
                 return Poll::Ready(Ok(permit));
             }
 
+            // We want to get a sender just before we enqueue the request.
+            let sender = sender_guarantee.into_sender();
+
             // Enqueue the request as it is not in flight and our bw pool is depleted.
             // This is where the caller gets to wait on bw availability and the refilling
             // process is triggered.
-            match self.enqueue_request(cx, tokens) {
-                Ok(()) => return Poll::Pending,
-                Err(e) => return Poll::Ready(Err(e)),
+            match self.enqueue_request(tokens, sender) {
+                // We've enqueued the request, but we also need to poll() the waiter at least once
+                // to register the waker. We do this below.
+                Ok(()) => {}
+                Err(e) => {
+                    // Failed to enqueue the request, so the sender should have been dropped.
+                    // Let's make sure that the waiter is aware of this.
+                    match self.waiter.try_recv() {
+                        // The waiter is effectively reset now that it has informed us about
+                        // the dropped sender.
+                        Err(reusable_oneshot::RecvError::SenderDropped) => {}
+                        // We shouldn't ever get any of these return values.
+                        Ok(Some(_)) | Ok(None) | Err(reusable_oneshot::RecvError::NoSender) => {
+                            warn!("Unexpected return val from `waiter.try_recv()`; ignoring");
+                        }
+                    }
+                    // Return the original error.
+                    return Poll::Ready(Err(e));
+                }
             };
         }
 
+        let recv_fut = match self.waiter.recv() {
+            Ok(x) => x,
+            Err(reusable_oneshot::NoSender) => {
+                // There's no sender so we won't ever receive a result.
+                // This shouldn't happen since we created the sender above if there wasn't one.
+                return Poll::Ready(Err(BwPoolError::Bug("recv() returned `NoSender`")));
+            }
+        };
+
         // Register our current waker and check if we were granted.
-        if self.waiter.poll_granted(cx.waker()) {
-            return Poll::Ready(Ok(self.grant_permit()));
+        match std::pin::pin!(recv_fut).poll(cx) {
+            Poll::Ready(Ok(granted)) => Poll::Ready(Ok(self.grant_permit(granted.get()))),
+            Poll::Ready(Err(reusable_oneshot::SenderDropped)) => {
+                // The refiller is gone; nobody will ever serve us.
+                Poll::Ready(Err(BwPoolError::PoolClosed))
+            }
+            Poll::Pending => Poll::Pending,
         }
-
-        // Check if the refiller is gone. Reason this is done at the end is because we
-        // want to avoid this issue:
-        //
-        //      refiller: grant tokens. waker.wake()
-        //      refiller: drop() as in dropped
-        //      sink:     poll_acquire() is called and notices the grant.
-        //
-        // The race shows that we would miss the grant even if the refiller is gone. The
-        // end result is that we get to at least send these bytes before the whole arti
-        // relay collapses.
-        if self.pool.is_closed() {
-            // The refiller is gone; nobody will ever serve us.
-            self.in_flight = false;
-            return Poll::Ready(Err(BwPoolError::PoolClosed));
-        }
-
-        Poll::Pending
     }
 
     /// Enqueue a request for `tokens` tokens that is NOT in flight.
@@ -280,28 +294,25 @@ impl BandwidthAcquirer {
     /// Return a [`BwPoolError::PoolClosed`] error if the refiller is gone.
     ///
     /// Return a [`BwPoolError::ZeroTokens`] error if `tokens` is zero.
-    fn enqueue_request(&mut self, cx: &mut Context<'_>, tokens: u64) -> Result<(), BwPoolError> {
+    fn enqueue_request(
+        &mut self,
+        tokens: u64,
+        sender: reusable_oneshot::Sender<NonZero<u64>>,
+    ) -> Result<(), BwPoolError> {
         // Never enqueue a request for zero tokens.
         if tokens == 0 {
             return Err(BwPoolError::ZeroTokens);
         }
-        // Prepare the waiter for this new request.
-        self.waiter.prepare(cx.waker());
+
         // Send the requested amount along with the waiter. The amount never changes for
         // the lifetime of the request so it doesn't need to live in the shared waiter.
         //
         // Notice, this is the only dynamic allocation in this path because it is sent on
         // an unbounded MPSC queue.
-        if self
-            .pool
-            .requests
-            .unbounded_send((tokens, Arc::clone(&self.waiter)))
-            .is_err()
-        {
+        if self.pool.requests.unbounded_send((tokens, sender)).is_err() {
             // The refiller is gone, the pool is closed.
             return Err(BwPoolError::PoolClosed);
         }
-        self.in_flight = true;
         Ok(())
     }
 }
@@ -375,11 +386,6 @@ impl BandwidthPool {
     /// The maximum number of tokens this pool can hold (its burst).
     pub fn capacity(&self) -> u64 {
         self.bucket.capacity()
-    }
-
-    /// Return true iff the refiller is gone, meaning this pool is closed.
-    fn is_closed(&self) -> bool {
-        self.requests.is_closed()
     }
 
     /// Try to take `tokens` from the pool without waiting.
