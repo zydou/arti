@@ -668,7 +668,7 @@ fn test_establish_rendezvous() {
 #[cfg(feature = "hs")]
 #[test]
 fn test_establish_intro() {
-    use tor_cell::relaycell::hs::{UnrecognizedExt, est_intro::*};
+    use tor_cell::relaycell::{UnrecognizedExt, hs::est_intro::*};
 
     let cmd = RelayCmd::ESTABLISH_INTRO;
     let auth_key = [0x33; 32].into();

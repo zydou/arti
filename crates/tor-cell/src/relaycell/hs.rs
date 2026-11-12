@@ -14,8 +14,6 @@ pub mod est_intro;
 pub mod intro_payload;
 pub mod pow;
 
-pub use crate::relaycell::extlist::UnrecognizedExt;
-
 caret_int! {
     /// The type of the introduction point auth key
     #[derive(Deftly)]

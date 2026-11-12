@@ -24,6 +24,8 @@ pub mod msg;
 #[cfg(feature = "experimental-udp")]
 pub mod udp;
 
+pub use extlist::UnrecognizedExt;
+
 caret_int! {
     /// A command that identifies the type of a relay cell
     #[derive(Deftly)]

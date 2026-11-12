@@ -63,7 +63,8 @@ caret_int! {
 /// A proof of work with unknown scheme
 ///
 /// The reader needs a way to represent future schemes when we can't fail to parse.
-/// This is similar to [`super::UnrecognizedExt`], but specific to an unrecognized scheme
+/// This is similar to [`crate::relaycell::UnrecognizedExt`],
+/// but specific to an unrecognized scheme
 /// within a known type of extension.
 ///
 #[derive(Debug, Clone, Eq, PartialEq, amplify::Getters, derive_more::Constructor)]
