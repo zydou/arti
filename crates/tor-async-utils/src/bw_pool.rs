@@ -201,7 +201,7 @@ impl BandwidthAcquirer {
         tokens: u64,
     ) -> Poll<Result<Permit, BwPoolError>> {
         // If a sender exists and we haven't read its message yet, then we have a request in flight.
-        if !self.waiter.has_sender() {
+        if !self.waiter.is_waiting_for_msg() {
             // No request in flight. This is the fast path! The thundering herd is allowed,
             // that is, all tasks race to this and their fairness is sub-contracted to their
             // task scheduler.
@@ -239,7 +239,7 @@ impl BandwidthAcquirer {
             let Some(sender) = self.waiter.new_sender() else {
                 // Above we checked that we don't have a sender.
                 return Poll::Ready(Err(BwPoolError::Bug(
-                    "!has_sender() but new_sender() failed",
+                    "!is_waiting_for_msg() but new_sender() failed",
                 )));
             };
 

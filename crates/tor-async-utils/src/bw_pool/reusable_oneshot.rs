@@ -67,8 +67,13 @@ impl<T> Receiver<T> {
         }
     }
 
-    /// Does this receiver have a [`Sender`]?
-    pub(crate) fn has_sender(&self) -> bool {
+    /// Is this receiver waiting for a message?
+    ///
+    /// This is true if the receiver has a [`Sender`] that it has not read a message from yet.
+    ///
+    /// If this returns false, then a
+    /// [new `Sender`](Receiver::new_sender) can be successfully created.
+    pub(crate) fn is_waiting_for_msg(&self) -> bool {
         self.is_waiting_for_msg
     }
 
