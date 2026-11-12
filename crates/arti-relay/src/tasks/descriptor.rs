@@ -186,29 +186,11 @@ impl RelayDescriptorPublisherTask {
             .collect()
     }
 
-    /// Return true iff any configured authority identity or upload address is a default one.
-    fn has_default_authority(&self) -> bool {
-        let default_auth = AuthorityContacts::default();
-        let default_auth_v3idents = default_auth.v3idents();
-        let has_default_v3ident = self
-            .authorities
-            .v3idents()
-            .iter()
-            .any(|id| default_auth_v3idents.contains(id));
-        let has_default_upload = self
-            .authorities
-            .uploads()
-            .iter()
-            .flatten()
-            .any(|addr| default_auth.uploads().iter().flatten().any(|d| d == addr));
-        has_default_v3ident || has_default_upload
-    }
-
     /// Rebuild the descriptor (and refresh targets) and hand it to the publisher.
     async fn rebuild_and_publish(&mut self) -> anyhow::Result<()> {
         // TODO(relay): Never upload to any default real network authorities. Only use
         // custom ones so testing works. arti-relay MUST not join the network just yet.
-        if self.has_default_authority() {
+        if self.authorities.intersects(&AuthorityContacts::default()) {
             info!("Descriptor publishing skipped: At least one authority is a default one");
             return Ok(());
         }

@@ -70,6 +70,57 @@ define_list_builder_accessors! {
     }
 }
 
+impl AuthorityContacts {
+    /// Do any identity or IP address entries intersect with `other`?
+    ///
+    /// This compares the flattened lists of entries field-by-field.
+    ///
+    /// This is intended to be used to compare an `AuthorityContacts` as
+    /// configured by the user with the default `AuthorityContacts`,
+    /// to detect if the configured authority contacts use any of
+    /// the authorities from the "live" Tor network.
+    pub fn intersects(&self, other: &Self) -> bool {
+        /// Check for an intersection between two lists of lists of `SocketAddr`s,
+        /// but flatten them once first.
+        fn flatten_addrs_intersect<'a, I>(a: I, b: I) -> bool
+        where
+            I: IntoIterator,
+            I::Item: IntoIterator<Item = &'a SocketAddr>,
+        {
+            let mut a = a.into_iter().flatten();
+            let mut b = b.into_iter().flatten();
+            a.any(|x| b.any(|y| x == y))
+        }
+
+        // Destructure so that we ensure we consider each field.
+        #[deny(unused)]
+        let Self {
+            v3idents,
+            uploads,
+            downloads,
+            votes,
+        } = self;
+
+        if v3idents.iter().any(|id| other.v3idents.contains(id)) {
+            return true;
+        }
+
+        if flatten_addrs_intersect(uploads, &other.uploads) {
+            return true;
+        }
+
+        if flatten_addrs_intersect(downloads, &other.downloads) {
+            return true;
+        }
+
+        if flatten_addrs_intersect(votes, &other.votes) {
+            return true;
+        }
+
+        false
+    }
+}
+
 /// Returns a list of the default [`RsaIdentity`]s for the directory authorities.
 fn default_v3idents() -> Vec<RsaIdentity> {
     fn rsa(hex: &str) -> RsaIdentity {

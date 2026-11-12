@@ -26,6 +26,7 @@ use tor_config::{
 };
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_config_shared::metrics::{MetricsConfig, MetricsConfigBuilder};
+use tor_dircommon::authority::AuthorityContacts;
 use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
 use tor_dircommon::fallback::FallbackList;
 use tor_guardmgr::bridge::BridgeConfig;
@@ -208,12 +209,15 @@ fn disabled_preemptive_circuits() -> PreemptiveCircuitConfig {
 impl TorRelayConfig {
     /// Validate the config after building it.
     fn post_build_validate(self) -> Result<Self, ConfigBuildError> {
+        let testing_options_changed = self.relay.testing != TestingConfig::default();
+        let default_authorities_used = self
+            .tor_network
+            .authorities()
+            .intersects(&AuthorityContacts::default());
+
         // The testing options are refused on the real/main network. If a single testing
         // value is set, then we require custom authorities.
-        if self.relay.testing != TestingConfig::default()
-            && *self.tor_network.authorities()
-                == tor_dircommon::authority::AuthorityContacts::default()
-        {
+        if testing_options_changed && default_authorities_used {
             return Err(ConfigBuildError::Inconsistent {
                 fields: vec![
                     "relay.testing".to_owned(),
