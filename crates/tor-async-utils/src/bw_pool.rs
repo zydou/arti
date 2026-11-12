@@ -276,32 +276,13 @@ impl BandwidthAcquirer {
 
         // Register our current waker and check if we were granted.
         match std::pin::pin!(recv_fut).poll(cx) {
-            Poll::Ready(Ok(granted)) => {
-                return Poll::Ready(Ok(self.grant_permit(granted.get())));
-            }
+            Poll::Ready(Ok(granted)) => Poll::Ready(Ok(self.grant_permit(granted.get()))),
             Poll::Ready(Err(reusable_oneshot::SenderDropped)) => {
                 // The refiller is gone; nobody will ever serve us.
-                return Poll::Ready(Err(BwPoolError::PoolClosed));
+                Poll::Ready(Err(BwPoolError::PoolClosed))
             }
-            Poll::Pending => {}
+            Poll::Pending => Poll::Pending,
         }
-
-        // Check if the refiller is gone. Reason this is done at the end is because we
-        // want to avoid this issue:
-        //
-        //      refiller: grant tokens. waker.wake()
-        //      refiller: drop() as in dropped
-        //      sink:     poll_acquire() is called and notices the grant.
-        //
-        // The race shows that we would miss the grant even if the refiller is gone. The
-        // end result is that we get to at least send these bytes before the whole arti
-        // relay collapses.
-        if self.pool.is_closed() {
-            // The refiller is gone; nobody will ever serve us.
-            return Poll::Ready(Err(BwPoolError::PoolClosed));
-        }
-
-        Poll::Pending
     }
 
     /// Enqueue a request for `tokens` tokens that is NOT in flight.
@@ -405,11 +386,6 @@ impl BandwidthPool {
     /// The maximum number of tokens this pool can hold (its burst).
     pub fn capacity(&self) -> u64 {
         self.bucket.capacity()
-    }
-
-    /// Return true iff the refiller is gone, meaning this pool is closed.
-    fn is_closed(&self) -> bool {
-        self.requests.is_closed()
     }
 
     /// Try to take `tokens` from the pool without waiting.
