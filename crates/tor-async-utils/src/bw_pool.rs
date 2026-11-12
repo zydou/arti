@@ -200,8 +200,8 @@ impl BandwidthAcquirer {
         cx: &mut Context<'_>,
         tokens: u64,
     ) -> Poll<Result<Permit, BwPoolError>> {
-        // If a sender exists and we haven't read its message yet, then we have a request in flight.
-        if !self.waiter.is_waiting_for_msg() {
+        // If we can't get a new sender, then we have a request in flight.
+        if let Some(sender_guarantee) = self.waiter.guarantee_new_sender() {
             // No request in flight. This is the fast path! The thundering herd is allowed,
             // that is, all tasks race to this and their fairness is sub-contracted to their
             // task scheduler.
@@ -236,12 +236,8 @@ impl BandwidthAcquirer {
                 return Poll::Ready(Ok(permit));
             }
 
-            let Some(sender) = self.waiter.new_sender() else {
-                // Above we checked that we don't have a sender.
-                return Poll::Ready(Err(BwPoolError::Bug(
-                    "!is_waiting_for_msg() but new_sender() failed",
-                )));
-            };
+            // We want to get a sender just before we enqueue the request.
+            let sender = sender_guarantee.into_sender();
 
             // Enqueue the request as it is not in flight and our bw pool is depleted.
             // This is where the caller gets to wait on bw availability and the refilling

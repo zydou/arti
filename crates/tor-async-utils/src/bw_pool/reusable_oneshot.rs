@@ -73,6 +73,8 @@ impl<T> Receiver<T> {
     ///
     /// If this returns false, then a
     /// [new `Sender`](Receiver::new_sender) can be successfully created.
+    // Is currently unused.
+    #[expect(unused)]
     pub(crate) fn is_waiting_for_msg(&self) -> bool {
         self.is_waiting_for_msg
     }
@@ -81,20 +83,26 @@ impl<T> Receiver<T> {
     /// Can only have one sender at a time.
     ///
     /// Returns `None` if we've previously created a sender and we haven't read its message yet.
+    // Is currently only used in tests.
+    #[cfg_attr(not(test), expect(unused))]
     pub(crate) fn new_sender(&mut self) -> Option<Sender<T>> {
+        Some(self.guarantee_new_sender()?.into_sender())
+    }
+
+    /// Provides a type that can be converted into a new [`Sender`].
+    ///
+    /// This can be useful if you don't want a new `Sender` yet,
+    /// but you want a guarantee that a sender can be created later.
+    ///
+    /// Returns `None` if we've previously created a sender and we haven't read its message yet.
+    pub(crate) fn guarantee_new_sender(&mut self) -> Option<SenderGuarantee<'_, T>> {
         // If we're still waiting for a message from the last sender,
         // don't allow the creation of a new sender.
         if self.is_waiting_for_msg {
             return None;
         }
 
-        // Now we're creating a new sender,
-        // which we'll be waiting for a message from.
-        self.is_waiting_for_msg = true;
-
-        Some(Sender {
-            shared: Some(Arc::downgrade(&self.shared)),
-        })
+        Some(SenderGuarantee(self))
     }
 
     /// Receive the message.
@@ -264,6 +272,29 @@ impl<T> Drop for Sender<T> {
     }
 }
 
+/// A guarantee that a new sender can be created.
+///
+/// Returned from [`Receiver::guarantee_new_sender()`].
+/// The guarantee will be voided if this handle is dropped.
+///
+/// Note: Due to non-lexical lifetimes,
+/// it's possible to have multiple different `SenderGuarantee`s at the same time.
+/// But this is okay since the compiler will only allow you to use the latest one.
+pub(crate) struct SenderGuarantee<'a, T>(&'a mut Receiver<T>);
+
+impl<'a, T> SenderGuarantee<'a, T> {
+    /// Convert the guarantee into a new [`Sender`].
+    pub(crate) fn into_sender(self) -> Sender<T> {
+        // Now we're creating a new sender,
+        // which we'll be waiting for a message from.
+        self.0.is_waiting_for_msg = true;
+
+        Sender {
+            shared: Some(Arc::downgrade(&self.0.shared)),
+        }
+    }
+}
+
 /// A sender existed, but was dropped before sending a message.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct SenderDropped;
@@ -406,6 +437,24 @@ mod tests {
         let sender = receiver.new_sender().unwrap();
         sender.send(10);
         assert_eq!(receiver.try_recv(), Ok(Some(10)));
+    }
+
+    #[test]
+    fn sender_guarantee() {
+        // New receiver.
+        let mut receiver = Receiver::<u8>::new();
+
+        // We don't have a sender, so we should get a guarantee.
+        let _sender_guarantee_1 = receiver.guarantee_new_sender().unwrap();
+
+        // Due to non-lexical lifetimes, rust allows us to get another guarantee.
+        // But this is okay because it won't allow us to use the first again.
+        let sender_guarantee_2 = receiver.guarantee_new_sender().unwrap();
+
+        let _sender = sender_guarantee_2.into_sender();
+
+        // Now that we have a sender, we can't get a new guarantee.
+        assert!(receiver.guarantee_new_sender().is_none());
     }
 
     #[test]
