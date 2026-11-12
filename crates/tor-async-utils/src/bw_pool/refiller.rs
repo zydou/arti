@@ -241,7 +241,8 @@ impl BandwidthRefiller {
             }
 
             // Commit the permit first and then wake. If the waker (acquirer) was torn
-            // down, the grant is forfeited but that is a documented limitation.
+            // down, or is later torn down after we grant the tokens, the grant is
+            // forfeited but that is a documented limitation.
             self.held -= needed;
             // Grant what we took which could be a clamped value.
             waiter.send(NonZero::new(needed).expect("BW request is 0 tokens"));
