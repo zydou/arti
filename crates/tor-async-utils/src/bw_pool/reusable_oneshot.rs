@@ -116,8 +116,6 @@ impl<T> Receiver<T> {
     }
 
     /// Try to receive a message without blocking.
-    // Is currently only used in tests.
-    #[cfg_attr(not(test), expect(unused))]
     pub(crate) fn try_recv(&mut self) -> Result<Option<T>, RecvError> {
         // If we're not waiting for a message, then there will never be a message.
         if !self.is_waiting_for_msg {

@@ -61,6 +61,7 @@ use futures::channel::mpsc;
 use std::num::NonZero;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use tracing::warn;
 
 use crate::bw_pool::bucket::AtomicTokenBucket;
 use crate::bw_pool::refiller::BwRequest;
@@ -246,7 +247,21 @@ impl BandwidthAcquirer {
                 // We've enqueued the request, but we also need to poll() the waiter at least once
                 // to register the waker. We do this below.
                 Ok(()) => {}
-                Err(e) => return Poll::Ready(Err(e)),
+                Err(e) => {
+                    // Failed to enqueue the request, so the sender should have been dropped.
+                    // Let's make sure that the waiter is aware of this.
+                    match self.waiter.try_recv() {
+                        // The waiter is effectively reset now that it has informed us about
+                        // the dropped sender.
+                        Err(reusable_oneshot::RecvError::SenderDropped) => {}
+                        // We shouldn't ever get any of these return values.
+                        Ok(Some(_)) | Ok(None) | Err(reusable_oneshot::RecvError::NoSender) => {
+                            warn!("Unexpected return val from `waiter.try_recv()`; ignoring");
+                        }
+                    }
+                    // Return the original error.
+                    return Poll::Ready(Err(e));
+                }
             };
         }
 
