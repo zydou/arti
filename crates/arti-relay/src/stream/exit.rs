@@ -151,13 +151,11 @@ async fn connect_ip<R: Runtime>(
 ) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
     if addr.ip().is_ipv4() && flags.contains(BeginFlags::IPV4_NOT_OKAY) {
         trace!("Rejecting incoming stream to IPv4 address since flags contains IPV4_NOT_OKAY");
-        // TODO(relay): Should we use `NOROUTE` here?
         return Err(EndReason::MISC);
     }
 
     if addr.ip().is_ipv6() && !flags.contains(BeginFlags::IPV6_OKAY) {
         trace!("Rejecting incoming stream to IPv6 address since flags did not contain IPV6_OKAY");
-        // TODO(relay): Should we use `NOROUTE` here?
         return Err(EndReason::MISC);
     }
 
