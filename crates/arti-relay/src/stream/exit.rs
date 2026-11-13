@@ -8,13 +8,13 @@ use std::time::Duration;
 use either::Either;
 use futures::io::BufReader;
 use tor_cell::relaycell::msg::{BeginFlags, Connected, End, EndReason};
-use tor_error::warn_report;
+use tor_error::{internal, trace_report, warn_report};
 use tor_proto::stream::{IncomingStream, IncomingStreamRequest};
 use tor_rtcompat::SleepProviderExt as _;
 use tor_rtcompat::{NetStreamProvider, Runtime, TimeoutError};
 use tracing::{debug, info, trace};
 
-use crate::stream::dns::resolver::{DnsResolver, LookupAnswers, RecordData};
+use crate::stream::dns::resolver::{DnsResolver, LookupAnswers, LookupError, RecordData};
 
 /// Handle an incoming exit stream.
 ///
@@ -182,15 +182,22 @@ async fn connect_hostname<R: Runtime>(
     mut resolver: DnsResolver,
     connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
 ) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
-    // TODO(relay): We should inspect the error type more closely here.
-    // For example `LookupError::NonAsciiHostname` should probably result in a
-    // `EndReason::TORPROTOCOL` instead.
     let answers = match resolver.resolve(hostname).await {
         Ok(x) => x,
-        Err(e) => {
-            // TODO: Use `trace_report!()` once it's usable with `LookupError`.
-            trace!("Name resolution for exit stream failed: {e}");
+        Err(LookupError::NonAsciiHostname) => {
+            // `Begin::decode_from_reader()` does not allow non-ascii addresses,
+            // so if we get here something has gone wrong and we should probably investigate.
+            let bug = internal!("the `Begin` type should have prevented this");
+            trace_report!(bug, "Hostname for BEGIN message had non-ascii hostname");
+            return Err(EndReason::TORPROTOCOL);
+        }
+        Err(LookupError::Hickory(e)) => {
+            trace!("Name resolution for exit stream failed due to hickory error: {e}");
             return Err(EndReason::RESOLVEFAILED);
+        }
+        Err(LookupError::Bug(e)) => {
+            trace_report!(e, "Name resolution for exit stream failed due to bug");
+            return Err(EndReason::INTERNAL);
         }
     };
 
