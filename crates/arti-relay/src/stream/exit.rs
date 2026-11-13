@@ -14,7 +14,7 @@ use tor_rtcompat::SleepProviderExt as _;
 use tor_rtcompat::{NetStreamProvider, Runtime, TimeoutError};
 use tracing::{debug, info, trace};
 
-use crate::stream::dns::resolver::{DnsResolver, RecordData};
+use crate::stream::dns::resolver::{DnsResolver, LookupAnswers, RecordData};
 
 /// Handle an incoming exit stream.
 ///
@@ -180,7 +180,7 @@ async fn connect_hostname<R: Runtime>(
     runtime: &R,
     hostname: &[u8],
     port: u16,
-    _flags: BeginFlags,
+    flags: BeginFlags,
     mut resolver: DnsResolver,
     connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
 ) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
@@ -199,22 +199,44 @@ async fn connect_hostname<R: Runtime>(
     // Remove any hostname answers.
     // We could instead error if any answers were hostnames,
     // but I don't see a reason to do that.
-    let mut answers = answers.iter().filter_map(|x| match x {
+    let answers = answers.into_iter().filter_map(|x| match x {
         RecordData::Ip(x) => Some(x),
         RecordData::Hostname(_) => None,
     });
 
-    // TODO(relay): We probably (maybe?) want to be able to do happy eyeballs
-    // with the first IPv4 and first IPv6 addresses listed.
-    // We should find a way to resuse our existing happy eyeballs code.
-    // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2510
-    // TODO(relay): Need to take `BeginFlags::IPV6_PREFERRED`
-    // (and other flags) into account here.
-    // https://spec.torproject.org/tor-spec/opening-streams.html
+    // Filter the addresses based on provided flags.
+    let answers = answers.filter(|ip| {
+        if ip.is_ipv4() && flags.contains(BeginFlags::IPV4_NOT_OKAY) {
+            return false;
+        }
 
-    // Until we implement the above TODOs, just take the first answer.
-    // TODO(relay): Don't just use the first answer.
-    let addr = match answers.next() {
+        if ip.is_ipv6() && !flags.contains(BeginFlags::IPV6_OKAY) {
+            return false;
+        }
+
+        true
+    });
+
+    // Reuse the `LookupAnswers` type because we know that the inline size is a good estimate.
+    let mut answers: LookupAnswers<IpAddr> = answers.collect();
+
+    // torspec:
+    // > 3 -- IPv6 preferred. If there are both IPv4 and IPv6 addresses,
+    // >      we want to connect to the IPv6 one. (By default, we connect
+    // >      to the IPv4 address.)
+    if flags.contains(BeginFlags::IPV6_PREFERRED) {
+        // `false` is sorted before `true`, and `!ip.is_ipv6()` is false for ipv6 addresses
+        answers.sort_by_key(|ip| !ip.is_ipv6());
+    } else {
+        // `false` is sorted before `true`, and `!ip.is_ipv4()` is false for ipv4 addresses
+        answers.sort_by_key(|ip| !ip.is_ipv4());
+    }
+
+    // TODO: We maybe want to do happy eyeballs in the future.
+    // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2878
+
+    // Use the first address in the list.
+    let addr = match answers.first() {
         Some(ip) => ip,
         None => {
             trace!("Rejecting incoming stream since the domain resolution had no IP answers");
