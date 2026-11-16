@@ -16,30 +16,6 @@ pub(crate) fn map_range<T, U>(
     f(r.start())..=f(r.end())
 }
 
-/// Is `predicate` true for more than half the values in `iterator`?
-//
-// The signature of this function is complicated, compared to the alternative
-//   fn is_for_more_than_half_of(some: usize, all: usize)
-// but makes it impossible to accidentally swap the arguments, or get the wrong
-// total value, or some such.
-pub(super) fn is_true_for_more_than_half_of<I, E>(
-    iterator: impl IntoIterator<Item = I>,
-    predicate: impl Fn(I) -> Result<bool, E>,
-) -> Result<bool, E>
-where
-    E: From<Bug>,
-{
-    let mut all = 0;
-    let mut yes = 0;
-    for i in iterator {
-        all.try_add_assign(1)?;
-        if predicate(i)? {
-            yes.try_add_assign(1)?;
-        }
-    }
-    Ok(MoreThanHalf::is_enough_of(yes, all))
-}
-
 #[ext(name = IteratorExtUnzip)]
 pub(crate) impl<AI, BI, I> I
 where
@@ -226,7 +202,7 @@ mod test {
                     })
                 };
                 assert_eq! {
-                    is_true_for_more_than_half_of(0..n_all, predicate)?,
+                    MoreThanHalf::is_true_for_enough_of(0..n_all, predicate)?,
                     t >= minimum_that_is_more_than_half,
                 }
             }

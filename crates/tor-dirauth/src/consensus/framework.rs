@@ -248,9 +248,9 @@ pub(super) struct ConsensusCommonContext<'r> {
 }
 
 impl<'r> ConsensusCommonContext<'r> {
-    /// Is `n_some_voters` strictly more than half of all the authorities?
-    pub(super) fn is_more_than_half_all_auths(&self, n_some_voters: usize) -> bool {
-        MoreThanHalf::is_enough_of(n_some_voters, self.n_authorities)
+    /// Is `n_some_voters` a big enough proprtion of all the authorities, according to `rule`?
+    pub(super) fn is_enough_of_all_auths<Rule: ThresholdRule>(&self, n_some_voters: usize) -> bool {
+        Rule::is_enough_of(n_some_voters, self.n_authorities)
     }
 
     /// Is `n_some_voters` strictly more than half of all the authorities?
@@ -309,7 +309,7 @@ pub(crate) mod test {
             context.n_authorities = n_authorities;
             for t in 0..=(n_authorities + 1) {
                 assert_eq!(
-                    context.is_more_than_half_all_auths(t),
+                    context.is_enough_of_all_auths::<MoreThanHalf>(t),
                     t >= minimum_that_is_more_than_half,
                 );
             }

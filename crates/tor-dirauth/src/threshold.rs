@@ -39,15 +39,39 @@ pub(crate) trait ThresholdRule {
     /// or
     /// `ConsensusesCommonContext::is_enough_of_all_auths`
     /// because those functions eliminate that possible error.
-    // ^ XXXX these functions don't exist yet
     fn is_enough_of(n_y: usize, n_total: usize) -> bool;
+
+    /// Is `predicate` true for more than half the values in `iterator`?
+    //
+    // The signature of this function is complicated, compared to the alternative
+    //   fn is_for_more_than_half_of(some: usize, all: usize)
+    // but makes it impossible to accidentally swap the arguments, or get the wrong
+    // total value, or some such.
+    fn is_true_for_enough_of<I, E>(
+        iterator: impl IntoIterator<Item = I>,
+        predicate: impl Fn(I) -> Result<bool, E>,
+    ) -> Result<bool, E>
+    where
+        Self: Sized,
+        E: From<Bug>,
+    {
+        let mut all = 0;
+        let mut yes = 0;
+        for i in iterator {
+            all.try_add_assign(1)?;
+            if predicate(i)? {
+                yes.try_add_assign(1)?;
+            }
+        }
+        Ok(Self::is_enough_of(yes, all))
+    }
 }
 
 impl ThresholdRule for MoreThanHalf {
     fn is_enough_of(n_y: usize, n_total: usize) -> bool {
         // This way of writing it avoids any possibility of over/under-flow
         //
-        // Tested via ConsensusCommonContext.is_more_than_half_all_auths.
+        // Tested in framework::test::is_more_than_half_all_auths.
         //
         n_y > n_total / 2
     }
