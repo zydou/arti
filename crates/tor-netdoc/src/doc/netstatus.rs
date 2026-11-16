@@ -3248,6 +3248,20 @@ mod test {
             );
         }
 
+        // duplicate authorities
+        {
+            let mut trusted = trusted();
+            assert_matches!(
+                //
+                doc.clone().verify(&mut trusted),
+                Ok(_)
+            );
+            assert_matches!(
+                doc.clone().verify(&mut trusted),
+                Err(VVF::DuplicateAuthority(_))
+            );
+        }
+
         Ok(())
     }
 
