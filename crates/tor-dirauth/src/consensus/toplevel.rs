@@ -132,9 +132,7 @@ impl<AC> Aggregate<AC> for netstatus::VoteAuthoritySection {
 pub fn compute_consensus_from_votes<'v>(
     method: SupportedConsensusMethod,
     n_authorities: usize,
-    votes: impl Iterator<
-        Item = VoteInput<'v>,
-    >,
+    votes: impl Iterator<Item = VoteInput<'v>>,
 ) -> Result<
     (
         netstatus::plain::NetworkStatus,
@@ -280,7 +278,11 @@ pub(crate) mod test {
         let output = compute_consensus_from_votes(
             method,
             n_authorities,
-            votes.iter().map(|(vote, nickname)| VoteInput { vote, nickname, sig_hashes }),
+            votes.iter().map(|(vote, nickname)| VoteInput {
+                vote,
+                nickname,
+                sig_hashes,
+            }),
         )
         .expect("compute consensus");
 
