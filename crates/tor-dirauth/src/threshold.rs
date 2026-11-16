@@ -62,6 +62,9 @@ pub(crate) trait ThresholdRule {
     //   fn is_for_more_than_half_of(some: usize, all: usize)
     // but makes it impossible to accidentally swap the arguments, or get the wrong
     // total value, or some such.
+    //
+    // We can't have an infallible version of this, because it needs to throw `Bug`
+    // on arithmetic overflow.
     fn is_true_for_enough_of<I, E>(
         iterator: impl IntoIterator<Item = I>,
         predicate: impl Fn(I) -> Result<bool, E>,
