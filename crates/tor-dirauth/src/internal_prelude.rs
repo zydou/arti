@@ -35,6 +35,7 @@ pub(crate) use tor_netdoc::{
     types::{Base64Fingerprint, Ed25519Public, FixedB64, Iso8601TimeSp, Nickname},
 };
 
+pub(crate) use crate::threshold::*;
 pub(crate) use crate::utils::*;
 
 #[cfg(test)]
