@@ -61,7 +61,8 @@ impl NetworkStatusUnverified {
             authcert.dangerously_assume_timely() // we just checked it ^ there
         };
 
-        if body.authority.authority.dir_source.identity != authcert.fingerprint {
+        let authority = body.authority.authority.dir_source.identity;
+        if authority != authcert.fingerprint {
             return Err(VVF::AuthCertWrongAuthority);
         }
 
