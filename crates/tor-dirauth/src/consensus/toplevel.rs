@@ -142,10 +142,7 @@ pub fn compute_consensus_from_votes_method<'v>(
     method: SupportedConsensusMethod,
     n_authorities: usize,
     votes: impl Iterator<Item = VoteInput<'v>>,
-) -> Result<
-    Consensuses,
-    ConsensusError,
-> {
+) -> Result<Consensuses, ConsensusError> {
     let (votes, nicknames, sig_hashes) = votes
         .map(|vi| (vi.vote, vi.nickname, vi.sig_hashes))
         .collect();
@@ -257,9 +254,7 @@ pub(crate) mod test {
         n_votes: usize,
         n_authorities: usize,
         mut edit_vote: impl FnMut(usize, &mut netstatus::vote::NetworkStatus) -> anyhow::Result<()>,
-        check_output: impl FnOnce(
-            Consensuses
-        ) -> anyhow::Result<()>,
+        check_output: impl FnOnce(Consensuses) -> anyhow::Result<()>,
     ) {
         assert!(n_votes <= n_authorities);
         let method = SupportedConsensusMethod::MAX;
