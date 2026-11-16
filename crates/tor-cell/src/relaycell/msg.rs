@@ -339,6 +339,11 @@ pub struct EncodedBeginAddr(Vec<u8>);
 
 impl EncodedBeginAddr {
     /// Decode the address of a [`Begin`] message, if valid.
+    ///
+    /// If an IP address was provided in the message,
+    /// you probably want to [`to_canonical()`](IpAddr::to_canonical)ize the address
+    /// to convert a possible IPv4-mapped IPv6 address to an IPv4 address
+    /// before considering the exit policy.
     pub fn decode(&self) -> Result<BeginAddr> {
         let addr = std::str::from_utf8(&self.0)
             .map_err(|_| Error::InvalidMessage("target addr in begin cell is not utf8".into()))?;
