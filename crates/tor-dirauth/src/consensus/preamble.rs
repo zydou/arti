@@ -142,7 +142,8 @@ pub(super) fn netparams_preamble_aggregate<'i>(
                 .filter_map(|i| i.without_defaults().get(k))
                 .copied();
             let n_opinions = opinions.clone().count();
-            let want = context.is_enough_of_all_auths::<MoreThanHalf>(n_opinions) || n_opinions >= MIN_THRESH;
+            let want = context.is_enough_of_all_auths::<MoreThanHalf>(n_opinions)
+                || n_opinions >= MIN_THRESH;
             if !want {
                 return None;
             }
