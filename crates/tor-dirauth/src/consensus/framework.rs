@@ -285,6 +285,7 @@ pub(crate) mod test {
     #![allow(clippy::needless_pass_by_value)]
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::arithmetic_side_effects)]
     use super::*;
 
     impl ConsensusCommonContext<'static> {
@@ -299,21 +300,31 @@ pub(crate) mod test {
         }
     }
 
-    #[test]
-    fn is_more_than_half_all_auths() {
-        // This test case is rather like is_for_more_than_half_of_t in functions.rs
-
+    /// Check that `Rule` is `true` for `total` iff `y` >= `minimum`
+    //
+    // XXXX currently this does something more complicated, testing ConsensusCommonContext too
+    //
+    // XXXX move to threshold.rs
+    fn check_minimum<Rule: ThresholdRule>(total: usize, minimum: usize) {
         let mut context = ConsensusCommonContext::new_for_test();
 
         let mut check = |n_authorities, minimum_that_is_more_than_half| {
             context.n_authorities = n_authorities;
             for t in 0..=(n_authorities + 1) {
                 assert_eq!(
-                    context.is_enough_of_all_auths::<MoreThanHalf>(t),
+                    context.is_enough_of_all_auths::<Rule>(t),
                     t >= minimum_that_is_more_than_half,
                 );
             }
         };
+
+        check(total, minimum);
+    }
+
+    #[test]
+    fn is_more_than_half_all_auths() {
+        // This test case is rather like is_for_more_than_half_of_t in functions.rs
+        let check = check_minimum::<MoreThanHalf>;
 
         check(0, 1);
         check(1, 1);
