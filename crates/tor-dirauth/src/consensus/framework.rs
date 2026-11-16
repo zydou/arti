@@ -285,15 +285,22 @@ pub(crate) mod test {
         }
     }
 
-    #[test]
-    fn is_at_least_two_thirds_all_auths() {
+    /// Checks that `Rule` gives the same answers as `reference`
+    ///
+    /// Unlike `Rule`'s impl, `reference` doesn't need to use panic-free arithmetic,
+    /// so it can be simple and obvious.
+    //
+    // XXXX currently this does something more complicated, testing ConsensusCommonContext too
+    //
+    // XXXX move to threshold.rs
+    fn check_against_reference<Rule: ThresholdRule>(reference: impl Fn(usize, usize) -> bool) {
         let mut context = ConsensusCommonContext::new_for_test();
 
         let mut check = |t, n_authorities| {
             context.n_authorities = n_authorities;
             assert_eq!(
-                context.is_enough_of_all_auths::<AtLeastTwoThirds>(t),
-                t * 3 >= 2 * n_authorities,
+                context.is_enough_of_all_auths::<Rule>(t),
+                reference(t, n_authorities),
                 "{t} out of {n_authorities}",
             );
         };
@@ -303,6 +310,12 @@ pub(crate) mod test {
                 check(t, n_authorities);
             }
         }
+    }
+
+    // XXXX move to threshold.rs
+    #[test]
+    fn is_at_least_two_thirds_all_auths() {
+        check_against_reference::<AtLeastTwoThirds>(|y, total| 3 * y >= 2 * total);
     }
 
     #[test]
