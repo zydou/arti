@@ -1,5 +1,6 @@
 //! The InternalError type, macro for generating it, etc.
 
+use std::convert::Infallible;
 use std::fmt::{self, Debug, Display};
 use std::panic;
 use std::sync::Arc;
@@ -279,6 +280,12 @@ macro_rules! into_bad_api_usage {
 impl HasKind for Bug {
     fn kind(&self) -> ErrorKind {
         self.0.kind
+    }
+}
+
+impl From<Infallible> for Bug {
+    fn from(i: Infallible) -> Self {
+        match i {}
     }
 }
 
