@@ -71,8 +71,45 @@ impl ThresholdRule for MoreThanHalf {
     fn is_enough_of(n_y: usize, n_total: usize) -> bool {
         // This way of writing it avoids any possibility of over/under-flow
         //
-        // Tested in framework::test::is_more_than_half_all_auths.
-        //
         n_y > n_total / 2
+    }
+}
+#[cfg(test)]
+pub(crate) mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    #![allow(clippy::string_slice)] // See arti#2571
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::arithmetic_side_effects)]
+    use super::*;
+
+    /// Threshold rule for testing, with exciting behaviour
+    ///
+    /// Asserts that we were asked "is 1 out of 2 enough?".
+    ///
+    /// The return value is not interesting.
+    pub(crate) struct ExpectOneOutOfTwo;
+
+    impl ThresholdRule for ExpectOneOutOfTwo {
+        fn is_enough_of(y: usize, total: usize) -> bool {
+            assert_eq!(y, 1);
+            assert_eq!(total, 2);
+            true
+        }
+    }
+
+    #[test]
+    fn enough_of_iter() {
+        ExpectOneOutOfTwo::is_true_for_enough_of(0..2, |i| Ok::<_, Bug>(i < 1)).unwrap();
     }
 }

@@ -302,30 +302,21 @@ pub(crate) mod test {
 
     /// Check that `Rule` is `true` for `total` iff `y` >= `minimum`
     //
-    // XXXX currently this does something more complicated, testing ConsensusCommonContext too
-    //
     // XXXX move to threshold.rs
     fn check_minimum<Rule: ThresholdRule>(total: usize, minimum: usize) {
-        let mut context = ConsensusCommonContext::new_for_test();
-
-        let mut check = |n_authorities, minimum_that_is_more_than_half| {
-            context.n_authorities = n_authorities;
-            for t in 0..=(n_authorities + 1) {
-                assert_eq!(
-                    context.is_enough_of_all_auths::<Rule>(t),
-                    t >= minimum_that_is_more_than_half,
-                );
-            }
-        };
-
-        check(total, minimum);
+        for y in 0..=(total + 1) {
+            assert_eq!(
+                Rule::is_enough_of(y, total),
+                y >= minimum,
+                "{y}/{total} {minimum}",
+            );
+        }
     }
 
+    // XXXX move to threshold.rs
     #[test]
-    fn is_more_than_half_all_auths() {
-        // This test case is rather like is_for_more_than_half_of_t in functions.rs
+    fn more_than_half() {
         let check = check_minimum::<MoreThanHalf>;
-
         check(0, 1);
         check(1, 1);
         check(2, 2);
@@ -352,5 +343,14 @@ pub(crate) mod test {
                 check(t, n_authorities);
             }
         }
+    }
+
+    #[test]
+    fn threshold_of_all_auths() {
+        use crate::threshold::test::ExpectOneOutOfTwo;
+
+        let mut context = ConsensusCommonContext::new_for_test();
+        context.n_authorities = 2;
+        context.is_enough_of_all_auths::<ExpectOneOutOfTwo>(1);
     }
 }
