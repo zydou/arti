@@ -299,7 +299,7 @@ pub(crate) mod test {
         };
 
         for n_authorities in 0..20 {
-            for t in 0..n_authorities {
+            for t in 0..=n_authorities {
                 check(t, n_authorities);
             }
         }
