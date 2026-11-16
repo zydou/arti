@@ -4,6 +4,7 @@ use std::convert::Infallible;
 use std::fmt::{self, Debug, Display};
 use std::panic;
 use std::sync::Arc;
+use void::Void;
 
 use super::*;
 
@@ -286,6 +287,12 @@ impl HasKind for Bug {
 impl From<Infallible> for Bug {
     fn from(i: Infallible) -> Self {
         match i {}
+    }
+}
+
+impl From<Void> for Bug {
+    fn from(v: Void) -> Self {
+        match v {}
     }
 }
 
