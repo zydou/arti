@@ -95,6 +95,8 @@ pub(crate) trait ReplayLogType {
 pub(crate) struct PersistFile {
     /// A file logging fingerprints of the messages we have seen.
     file: BufWriter<File>,
+    /// The path to the file for this [`ReplayLog`]
+    path: PathBuf,
     /// Whether we had a possible partial write
     ///
     /// See the comment inside [`ReplayLog::check_for_replay`].
@@ -164,7 +166,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
                 options.mode(0o600);
             }
 
-            options.open(path)?
+            options.open(&path)?
         };
 
         // If the file is new, we need to write the magic string. Else we must
@@ -203,6 +205,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
 
         let file = PersistFile {
             file: BufWriter::new(file),
+            path: path.as_ref().to_owned(),
             needs_resynch: Ok(()),
             lock,
         };
@@ -295,6 +298,15 @@ impl<T: ReplayLogType> ReplayLog<T> {
     /// as a plain string (for logging).
     pub(crate) fn parse_log_leafname(leaf: &OsStr) -> Result<T::Name, Cow<'static, str>> {
         T::parse_log_leafname(leaf)
+    }
+
+    /// Remove the file backing this [`ReplayLog`].
+    pub(crate) fn delete(self) -> Result<(), std::io::Error> {
+        if let Some(file) = self.file {
+            std::fs::remove_file(file.path)?;
+        }
+
+        Ok(())
     }
 }
 
