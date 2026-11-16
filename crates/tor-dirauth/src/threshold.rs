@@ -57,7 +57,6 @@ pub(crate) trait ThresholdRule {
         predicate: impl Fn(I) -> Result<bool, E>,
     ) -> Result<bool, E>
     where
-        Self: Sized,
         E: From<Bug>,
     {
         let mut all = 0;
