@@ -134,7 +134,9 @@ impl<AC> Aggregate<AC> for netstatus::VoteAuthoritySection {
 /// ### Security
 ///
 /// It is the caller's responsibility to check that each of the `votes`
-/// came from a recognised authority.
+/// came from a distinct recognised authority.
+/// Normally this will be assured by the APIs in `tor-netdoc`,
+/// particularly [`netstatus::vote::NetworkStatusUnverified::verify`].
 pub fn compute_consensus_from_votes_method<'v>(
     method: SupportedConsensusMethod,
     n_authorities: usize,
