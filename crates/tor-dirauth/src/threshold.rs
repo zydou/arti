@@ -106,13 +106,13 @@ pub(crate) mod test {
 
     #[test]
     fn more_than_half() {
-        let check = check_minimum::<MoreThanHalf>;
-        check(0, 1);
-        check(1, 1);
-        check(2, 2);
-        check(3, 2);
-        check(4, 3);
-        check(5, 3);
+        let minimum = check_minimum::<MoreThanHalf>;
+        minimum(0, 1);
+        minimum(1, 1);
+        minimum(2, 2);
+        minimum(3, 2);
+        minimum(4, 3);
+        minimum(5, 3);
     }
 
     /// Threshold rule for testing, with exciting behaviour
