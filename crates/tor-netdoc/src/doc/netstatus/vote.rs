@@ -44,7 +44,9 @@ impl NetworkStatusUnverified {
             );
             let authcert = parse2::parse_netdoc::<AuthCertUnverified>(&input)
                 .map_err(VVF::AuthCertParseError)?;
-            let authcert = authcert.verify(&trusted.trusted).map_err(VVF::InvalidSignature)?;
+            let authcert = authcert
+                .verify(&trusted.trusted)
+                .map_err(VVF::InvalidSignature)?;
 
             // We do the authcert validity time check here, with reference to
             // the vote's declared validity period, not the current time or whatever.
@@ -71,7 +73,9 @@ impl NetworkStatusUnverified {
             signatures: vec![sigs.sigs.directory_signature],
         }
         .verify_general(
-            VerifyGeneralTrustedAuthorities::AnyOneOfThese { trusted: &trusted.trusted },
+            VerifyGeneralTrustedAuthorities::AnyOneOfThese {
+                trusted: &trusted.trusted,
+            },
             slice::from_ref(&authcert),
             |tv| tv.verify().map_err(VVF::InvalidSignature),
         )?;

@@ -3446,7 +3446,12 @@ mod test {
     fn roundtrip_netstatus_vote() -> anyhow::Result<()> {
         roundtrip_netstatus::<vote::NetworkStatusUnverified, _, _>(
             "testdata2/v3-status-votes--1",
-            |doc, trusted, _| vote::NetworkStatusUnverified::verify(doc, &mut VoteVerifier::new(trusted.iter().copied())),
+            |doc, trusted, _| {
+                vote::NetworkStatusUnverified::verify(
+                    doc,
+                    &mut VoteVerifier::new(trusted.iter().copied()),
+                )
+            },
             Duration::from_secs(20),
         )
     }
