@@ -259,7 +259,7 @@ fn protostatus_preamble_aggregate<'i>(
     }
     calc! {
         out.required <+ aggregate_by_threshold;
-        , ConsensusCommonContext::is_at_least_two_thirds_all_auths
+        , ConsensusCommonContext::is_enough_of_all_auths::<AtLeastTwoThirds>
     }
 
     Ok(construct! {

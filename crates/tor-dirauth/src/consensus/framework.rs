@@ -252,24 +252,6 @@ impl<'r> ConsensusCommonContext<'r> {
     pub(super) fn is_enough_of_all_auths<Rule: ThresholdRule>(&self, n_some_voters: usize) -> bool {
         Rule::is_enough_of(n_some_voters, self.n_authorities)
     }
-
-    /// Is `n_some_voters` strictly more than half of all the authorities?
-    pub(super) fn is_at_least_two_thirds_all_auths(&self, n_y: usize) -> bool {
-        let n_total = self.n_authorities;
-
-        // Overflow ought to be impossible since it would involve an unreasonable number
-        // of authorities, but in that case return `fale`.
-        //
-        // The alternative would be to suppress the rule against possibly-panicking arithmetic,
-        // which would impose an additional review burden.
-        let thresh = match n_total.checked_mul(2) {
-            Some(y) => y,
-            None => return false,
-        }
-        .div_ceil(3);
-
-        n_y >= thresh
-    }
 }
 
 #[cfg(test)]
@@ -310,7 +292,7 @@ pub(crate) mod test {
         let mut check = |t, n_authorities| {
             context.n_authorities = n_authorities;
             assert_eq!(
-                context.is_at_least_two_thirds_all_auths(t),
+                context.is_enough_of_all_auths::<AtLeastTwoThirds>(t),
                 t * 3 >= 2 * n_authorities,
                 "{t} out of {n_authorities}",
             );

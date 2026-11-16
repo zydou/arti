@@ -10,10 +10,15 @@ use crate::internal_prelude::*;
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct MoreThanHalf;
 
+/// `>=2/3`: `n_y` is at least two thirds of `n_total`
+///
+/// Threshold rule token, implementing [`ThresholdRule`].
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) struct AtLeastTwoThirds;
+
 /// Threshold rule, such as "at least two thirds"
 ///
 /// Implemented for unit token types [`MoreThanHalf`] [`AtLeastTwoThirds`].
-// ^ XXXX AtLeastTwoThirds doesn't exist yet
 ///
 /// Use these token types, instead of open-coding,
 /// to avoid rounding and off-by-one bugs.
@@ -74,6 +79,24 @@ impl ThresholdRule for MoreThanHalf {
         n_y > n_total / 2
     }
 }
+
+impl ThresholdRule for AtLeastTwoThirds {
+    fn is_enough_of(n_y: usize, n_total: usize) -> bool {
+        // Overflow ought to be impossible since it would involve an unreasonable number
+        // of authorities, but in that case return `fale`.
+        //
+        // The alternative would be to suppress the rule against possibly-panicking arithmetic,
+        // which would impose an additional review burden.
+        let thresh = match n_total.checked_mul(2) {
+            Some(y) => y,
+            None => return false,
+        }
+        .div_ceil(3);
+
+        n_y >= thresh
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
