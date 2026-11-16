@@ -300,31 +300,6 @@ pub(crate) mod test {
         }
     }
 
-    /// Check that `Rule` is `true` for `total` iff `y` >= `minimum`
-    //
-    // XXXX move to threshold.rs
-    fn check_minimum<Rule: ThresholdRule>(total: usize, minimum: usize) {
-        for y in 0..=(total + 1) {
-            assert_eq!(
-                Rule::is_enough_of(y, total),
-                y >= minimum,
-                "{y}/{total} {minimum}",
-            );
-        }
-    }
-
-    // XXXX move to threshold.rs
-    #[test]
-    fn more_than_half() {
-        let check = check_minimum::<MoreThanHalf>;
-        check(0, 1);
-        check(1, 1);
-        check(2, 2);
-        check(3, 2);
-        check(4, 3);
-        check(5, 3);
-    }
-
     #[test]
     fn is_at_least_two_thirds_all_auths() {
         let mut context = ConsensusCommonContext::new_for_test();

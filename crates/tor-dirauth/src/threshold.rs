@@ -93,6 +93,28 @@ pub(crate) mod test {
     #![allow(clippy::arithmetic_side_effects)]
     use super::*;
 
+    /// Check that `Rule` is `true` for `total` iff `y` >= `minimum`
+    fn check_minimum<Rule: ThresholdRule>(total: usize, minimum: usize) {
+        for y in 0..=(total + 1) {
+            assert_eq!(
+                Rule::is_enough_of(y, total),
+                y >= minimum,
+                "{y}/{total} {minimum}",
+            );
+        }
+    }
+
+    #[test]
+    fn more_than_half() {
+        let check = check_minimum::<MoreThanHalf>;
+        check(0, 1);
+        check(1, 1);
+        check(2, 2);
+        check(3, 2);
+        check(4, 3);
+        check(5, 3);
+    }
+
     /// Threshold rule for testing, with exciting behaviour
     ///
     /// Asserts that we were asked "is 1 out of 2 enough?".
