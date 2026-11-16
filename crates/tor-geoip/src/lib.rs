@@ -305,7 +305,7 @@ impl GeoipDb {
 
     /// Get a 2-letter country code for the given IP address, if this data is available.
     pub fn lookup_country_code(&self, ip: IpAddr) -> Option<&CountryCode> {
-        match ip {
+        match ip.to_canonical() {
             IpAddr::V4(v4) => self.map_v4.get1(&v4.into()),
             IpAddr::V6(v6) => self.map_v6.get1(&v6.into()),
         }
@@ -339,7 +339,7 @@ impl GeoipDb {
 
     /// Return the ASN the IP address is in, if this data is available.
     pub fn lookup_asn(&self, ip: IpAddr) -> Option<u32> {
-        let cc = match ip {
+        let cc = match ip.to_canonical() {
             IpAddr::V4(v4) => self.map_v4.get2(&v4.into()),
             IpAddr::V6(v6) => self.map_v6.get2(&v6.into()),
         };
@@ -518,7 +518,7 @@ mod test {
     #[test]
     fn basic_lookups() {
         let src_v4 = r#"
-        16909056,16909311,GB
+        16909056,16909311,GB,64496
         "#;
         let src_v6 = r#"
         dead:beef::,dead:ffff::,??
@@ -551,6 +551,16 @@ mod test {
             db.lookup_country_code("dead:beef::1".parse().unwrap()),
             None
         );
+
+        let mapped: IpAddr = "::ffff:1.2.3.4".parse().unwrap();
+        assert_eq!(
+            db.lookup_country_code(mapped).map(|x| x.as_ref()),
+            Some("GB")
+        );
+        assert_eq!(db.lookup_asn(mapped), Some(64496));
+
+        let compatible: IpAddr = "::1.2.3.4".parse().unwrap();
+        assert_eq!(db.lookup_country_code(compatible), None);
     }
 
     #[test]
