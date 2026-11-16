@@ -145,6 +145,8 @@ pub(crate) mod test {
 
     #[test]
     fn more_than_half() {
+        check_against_reference::<MoreThanHalf>(|y, total| y * 2 > total);
+
         let minimum = check_minimum::<MoreThanHalf>;
         minimum(0, 1);
         minimum(1, 1);
@@ -157,6 +159,18 @@ pub(crate) mod test {
     #[test]
     fn at_least_two_thirds() {
         check_against_reference::<AtLeastTwoThirds>(|y, total| 3 * y >= 2 * total);
+
+        let minimum = check_minimum::<AtLeastTwoThirds>;
+        minimum(0, 0);
+        minimum(1, 1);
+        minimum(2, 2);
+        minimum(3, 2);
+        minimum(4, 3);
+        minimum(5, 4);
+        minimum(6, 4);
+        minimum(7, 5);
+        minimum(8, 6);
+        minimum(9, 6);
     }
 
     /// Threshold rule for testing, with exciting behaviour
