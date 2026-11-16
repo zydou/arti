@@ -285,30 +285,6 @@ pub(crate) mod test {
         }
     }
 
-    /// Checks that `Rule` gives the same answers as `reference`
-    ///
-    /// Unlike `Rule`'s impl, `reference` doesn't need to use panic-free arithmetic,
-    /// so it can be simple and obvious.
-    //
-    // XXXX move to threshold.rs
-    fn check_against_reference<Rule: ThresholdRule>(reference: impl Fn(usize, usize) -> bool) {
-        for total in 0..20 {
-            for y in 0..=total {
-                assert_eq!(
-                    Rule::is_enough_of(y, total),
-                    reference(y, total),
-                    "{y}/{total}",
-                );
-            }
-        }
-    }
-
-    // XXXX move to threshold.rs
-    #[test]
-    fn at_least_two_thirds() {
-        check_against_reference::<AtLeastTwoThirds>(|y, total| 3 * y >= 2 * total);
-    }
-
     #[test]
     fn threshold_of_all_auths() {
         use crate::threshold::test::ExpectOneOutOfTwo;

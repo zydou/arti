@@ -116,6 +116,22 @@ pub(crate) mod test {
     #![allow(clippy::arithmetic_side_effects)]
     use super::*;
 
+    /// Checks that `Rule` gives the same answers as `reference`
+    ///
+    /// Unlike `Rule`'s impl, `reference` doesn't need to use panic-free arithmetic,
+    /// so it can be simple and obvious.
+    fn check_against_reference<Rule: ThresholdRule>(reference: impl Fn(usize, usize) -> bool) {
+        for total in 0..20 {
+            for y in 0..=total {
+                assert_eq!(
+                    Rule::is_enough_of(y, total),
+                    reference(y, total),
+                    "{y}/{total}",
+                );
+            }
+        }
+    }
+
     /// Check that `Rule` is `true` for `total` iff `y` >= `minimum`
     fn check_minimum<Rule: ThresholdRule>(total: usize, minimum: usize) {
         for y in 0..=(total + 1) {
@@ -136,6 +152,11 @@ pub(crate) mod test {
         minimum(3, 2);
         minimum(4, 3);
         minimum(5, 3);
+    }
+
+    #[test]
+    fn at_least_two_thirds() {
+        check_against_reference::<AtLeastTwoThirds>(|y, total| 3 * y >= 2 * total);
     }
 
     /// Threshold rule for testing, with exciting behaviour
