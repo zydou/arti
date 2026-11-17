@@ -81,9 +81,7 @@ split-file cached-certs dir-key-certificate-version
 
 patch_atline () {
     local f=$1
-
-    # use sed(1) with `-i ''` because that is a macOS compat thing.
-    sed -i '' '/^@/d' "$f"
+    perl -i -ne 'print unless /^\@/' "$f"
 }
 
 patch_atline cached-descriptors.new
