@@ -297,7 +297,7 @@ impl RelayCellDecoder {
     ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed
-    pub fn decode(&mut self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
+    pub fn decode(&self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
         let msg_internal = match &self.internal {
             RelayCellDecoderInternal::V0 => UnparsedRelayMsgInternal::V0(cell),
             RelayCellDecoderInternal::V1 => UnparsedRelayMsgInternal::V1(cell),
@@ -524,7 +524,7 @@ impl UnparsedRelayMsg {
     // to use it in integration tests.
     // https://github.com/rust-lang/rust/issues/84629
     pub fn from_singleton_body(version: RelayCellFormat, body: BoxedCellBody) -> Result<Self> {
-        let mut decoder = RelayCellDecoder::new(version);
+        let decoder = RelayCellDecoder::new(version);
         let res = decoder.decode(body)?;
         let (mut msgs, incomplete) = res.into_parts();
         let Some(msg) = msgs.next() else {
