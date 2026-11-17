@@ -200,6 +200,10 @@ impl Forward {
     }
 
     /// Handle a RELAY or RELAY_EARLY cell.
+    //
+    // XXX: None of these APIs should require a mutable HopMgr ref.
+    // The only reason we need mut here is because RelayCellDecoder::decode
+    // takes &mut self.
     fn handle_relay_cell<R: Runtime>(
         &mut self,
         hop_mgr: &mut HopMgr<R>,
