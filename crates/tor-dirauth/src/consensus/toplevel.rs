@@ -339,4 +339,44 @@ pub(crate) mod test {
             },
         );
     }
+
+    #[test]
+    #[traced_test]
+    fn select_method() {
+        const N_VOTES: usize = 4;
+        let max: u32 = SupportedConsensusMethod::MAX.0;
+
+        fn check(exp: Result<u32, u32>, methods_and_counts: &[(u32, usize)]) {
+            let votes = (0..N_VOTES)
+                .map(|vnum| {
+                    let methods = methods_and_counts
+                        .iter()
+                        .filter_map(|&(method, count)| {
+                            (vnum < count).then_some(ConsensusMethod(method))
+                        })
+                        .collect();
+                    netstatus::ConsensusMethods { methods }
+                })
+                .collect_vec();
+
+            println!("votes = {votes:#?}");
+
+            let exp = exp
+                .map(|n| SupportedConsensusMethod::try_from(ConsensusMethod(n)).unwrap())
+                .map_err(|n| SupportedConsensusMethod::try_from(ConsensusMethod(n)).unwrap_err());
+
+            let got = compute_method(votes.iter()).map_err(|e| match e {
+                ConsensusError::UnsupportedMethodChosen(u) => u,
+                other => panic!("unexpected error {other:?}"),
+            });
+
+            assert_eq!(got, exp);
+        }
+
+        check(Err(10), &[(10, 4)]);
+        check(Err(20), &[(10, 4), (20, 3), (max, 1)]);
+        check(Err(20), &[(10, 4), (20, 3), (max, 2)]);
+        check(Ok(max), &[(10, 4), (20, 3), (max, 3)]);
+        check(Ok(max), &[(10, 2), (20, 2), (max, 2)]);
+    }
 }
