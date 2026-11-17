@@ -40,9 +40,9 @@ rm -rf tmp
 mkdir tmp
 cd tmp
 
-wget -O ci.zip "$url"
+wget -O artifacts.zip "$url"
 
-unzip -q ci.zip shadow.chutney.data/hosts/host/nodes.\*
+unzip -q artifacts.zip shadow.chutney.data/hosts/host/nodes.\*
 
 cd shadow.chutney.data/hosts/host
 cd nodes.* # will give "too many arguments" if there were several
