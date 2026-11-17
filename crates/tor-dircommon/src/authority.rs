@@ -135,6 +135,7 @@ fn default_v3idents() -> Vec<RsaIdentity> {
         rsa("23D15D965BC35114467363C165C4F724B64B4F66"), // longclaw
         rsa("49015F787433103580E3B66A1707A00E60F2D15B"), // maatuska
         rsa("F533C81CEF0BC0267857C99B2F471ADF249FA232"), // moria1
+        rsa("E30CF7B3DFA63FBDC5FC9E46EC75C543AB6D7403"), // sekhmet
         rsa("2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C"), // tor26
     ]
 }
@@ -167,6 +168,11 @@ fn default_uploads() -> Vec<Vec<SocketAddr>> {
         vec![sa("91.223.231.13:443"), sa("[2001:67c:8a4:1::13]:443")],
         // moria1
         vec![sa("128.31.0.39:9231")],
+        // sekhmet
+        vec![
+            sa("204.13.164.118:80"),
+            sa("[2620:13:4000:6000::1000:118]:80"),
+        ],
         // tor26
         vec![sa("217.196.147.77:80"), sa("[2a02:16a8:662:2203::1]:80")],
     ]
