@@ -713,20 +713,18 @@ mod test {
             Microdesc {
                 onion_key: MicrodescIntroItem(rsa::PublicKey::from_der(
                     pem::parse(dbg!(raw_find_object(md, "onion-key")))
-                    .unwrap()
-                    .contents()
+                        .unwrap()
+                        .contents()
                 )),
                 ntor_onion_key: curve25519::PublicKey::from(<[u8; 32]>::from(
-                    FixedB64::<32>::from_str(raw_find_item_rhs(md, "ntor-onion-key"))
-                        .unwrap()
+                    FixedB64::<32>::from_str(raw_find_item_rhs(md, "ntor-onion-key")).unwrap()
                 ))
                 .into(),
                 family: Default::default(),
                 ipv4_policy: Default::default(),
                 ipv6_policy: Default::default(),
                 ed25519_id: Ed25519Identity::from(<[u8; 32]>::from(
-                    FixedB64::<32>::from_str(raw_find_item_rhs(md, "id ed25519"))
-                        .unwrap()
+                    FixedB64::<32>::from_str(raw_find_item_rhs(md, "id ed25519")).unwrap()
                 ))
                 .into(),
                 family_ids: Default::default(),

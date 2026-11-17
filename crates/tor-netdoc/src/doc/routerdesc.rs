@@ -1711,10 +1711,7 @@ mod test {
     #[test]
     fn test_parse2_simple() {
         let text = include_str!("../../testdata2/cached-descriptors.new");
-        let input = ParseInput::new(
-            text,
-            "cached-descriptors.new",
-        );
+        let input = ParseInput::new(text, "cached-descriptors.new");
         let rd = parse2::parse_netdoc_multiple::<RouterDescUnverified>(&input)
             .unwrap()
             .into_iter()
@@ -1739,9 +1736,7 @@ mod test {
         );
         assert_eq!(
             rd[0].0.fingerprint.unwrap(),
-            raw_find_item_rhs(text, "fingerprint")
-                .parse()
-                .unwrap()
+            raw_find_item_rhs(text, "fingerprint").parse().unwrap()
         );
 
         // Round-trip encoding by verifying that decoding it equals the original.
