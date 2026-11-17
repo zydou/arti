@@ -984,21 +984,30 @@ impl NormalItemArgument for DirectorySignatureHashAlgo {}
 /// Implements `ItemValueParseable` which parses without hashing anything;
 /// this is mostly useful for use by the `SignatureItemParseable` implementation.
 #[derive(Debug, Clone, Deftly)]
-#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueEncodable, ItemValueParseable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct Signature {
     /// The name of the digest algorithm used to make the signature.
     ///
     /// Currently sha1 and sh256 are recognized.  Here we only support
     /// sha256.
+    #[deftly(constructor)]
     pub digest_algo: DigestAlgoInSignature,
+
     /// Fingerprints of the keys for the authority that made
     /// this signature.
     #[deftly(netdoc(with = authcert::keyids_directory_signature_args))]
+    #[deftly(constructor)]
     pub key_ids: AuthCertKeyIds,
+
     /// The signature itself.
     #[deftly(netdoc(object(label = "SIGNATURE"), with = types::raw_data_object))]
+    #[deftly(constructor)]
     pub signature: Vec<u8>,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 impl SignatureItemParseable for Signature {
@@ -2464,6 +2473,7 @@ impl Signature {
             digest_algo,
             key_ids,
             signature,
+            __non_exhaustive: (),
         })
     }
 
@@ -2722,6 +2732,7 @@ impl SignatureGroup {
                     },
                 // Used by Signature::check_signature
                 signature: _,
+                __non_exhaustive: (),
             } = sig;
 
             match trusted_authorities {
