@@ -76,6 +76,11 @@ mod test2;
 #[cfg(any(test, feature = "testing"))]
 pub mod testdata_live;
 
+#[cfg(feature = "testing")]
+#[path = "../testdata2/generated_consts.rs"]
+#[rustfmt::skip]
+pub mod testdata2;
+
 #[doc(hidden)]
 pub use derive_deftly;
 

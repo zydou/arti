@@ -68,7 +68,7 @@ chmod a+r keys/*
 cat >README.md <<END
 Test data from a CI run using chutney (checked-in constants, occasionally updated)
 
-All files in this directory are automatically maintained.
+All files in this directory/module are automatically maintained.
 
 Downloaded and massaged by $0
 From CI data at <$url>
@@ -103,6 +103,67 @@ patch_atline cached-descriptors.new
 patch_atline cached-microdescs.new
 
 #----- install -----
+
+exec 4>generated_consts.rs
+cat <<'END' >&4
+#![doc = include_str!("README.md")]
+//!
+//! Constants are the file contents from CI, with names converted to SHOUTING_SNAKE_CASE.
+//! TODO it would be nice if this data were more structured, like `testdata-live` is.
+
+END
+
+# Some of the files are binary, and so can't be &str.  We deal with that ad-hoc, here.
+# Syntax: will be substituted into Perl, inside m{}.
+binaries_re='^ed25519|secret_onion_key_ntor'
+
+# shellcheck disable=SC2016 # complains about non-expansion of $-things in the perl script
+find . -type f					\
+     -name '[a-z]*'				\
+     ! -name \*.md				\
+     ! -name \*.rs				\
+     -print0					\
+| sort -z | xargs -0 perl >&4 -mautodie -we '
+    use strict;
+    our %files;
+    foreach my $f (@ARGV) {
+	$f =~ s{^\./}{};
+	my $d = \%files;
+        while ($f =~ s{^([^/]+)/}{}) {
+            $d = $d->{$1} //= {};
+        }
+        $d->{$f} = 1;
+    }
+
+    #use Data::Dumper;
+    #print STDERR Dumper(\%files);
+
+    # Write a Rust module containing constants for files collected in %$d.
+    sub pr ($$);
+    sub pr ($$) {
+        my ($dirpath, $d) = @_;
+        foreach my $k (sort keys %$d) {
+            my $path = $dirpath.$k;
+	    my $v = $d->{$k};
+            my $name = $k;
+            $name =~ y/-./__/;
+            my $const = $name;
+            $const =~ y/-a-z/_A-Z/;
+            print "/// `testdata2/$path`\n";
+            if (ref $v) {
+                print "pub mod $name {\n";
+                pr("$path/", $v);
+                print "}\n";
+            } elsif ($k =~ m{'"$binaries_re"'}) { # binaries!
+	        print "pub const $const: &[u8] = include_bytes!(\"$path\");\n" or die $!;
+            } else {
+	        print "pub const $const: &str = include_str!(\"$path\");\n" or die $!;
+	    }
+	}
+    }
+    pr("", \%files);
+    flush STDOUT or die $!; # detect ENOSPC, bugs.debian.org/28250, from 1998, still unfixed
+'
 
 chmod -R a+r,u+w .
 
