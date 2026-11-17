@@ -92,9 +92,9 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for
     /// sending cell over the inbound channel.
     backward_reactor_tx: mpsc::Sender<BackwardReactorCmd>,
-    /// Hop manager, storing per-hop state, and handles to the stream reactors.
+    /// The per-hop state of the circuit.
     ///
-    /// Contains the `CircHopList`.
+    /// Contains the `CircHopList` and handles to the corresponding stream reactors.
     circ_state: CircuitState<R>,
     /// An implementation-specific event stream.
     ///

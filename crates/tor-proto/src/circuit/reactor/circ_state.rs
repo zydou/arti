@@ -26,7 +26,7 @@ use futures::channel::mpsc;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex, RwLock};
 
-/// The hop manager of a reactor.
+/// The state of a circuit.
 ///
 /// This contains the per-hop state (e.g. congestion control information),
 /// and a handle to the stream reactor of the hop.
@@ -194,7 +194,7 @@ impl<R: Runtime> CircuitState<R> {
     // However, for now, the implementation is intentionally kept similar to that
     // in the client reactor (to make it easier to migrate it to the new reactor design).
     //
-    /// Returns an error if the hop manager already has a stream handler.
+    /// Returns an error if a stream handler was already installed.
     ///
     /// Since the handler is shared with every hop's stream reactor,
     /// this function will update the handler for all of them.
