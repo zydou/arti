@@ -8062,7 +8062,6 @@ name = "tor-keymgr"
 version = "0.48.0"
 dependencies = [
  "amplify",
- "arrayvec",
  "cfg-if",
  "data-encoding",
  "derive-deftly",
