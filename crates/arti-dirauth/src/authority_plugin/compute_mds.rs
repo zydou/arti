@@ -258,6 +258,8 @@ mod test {
                 .to_owned();
             let mds_f = format!("{tmp}/mds");
             let meta_f = format!("{tmp}/meta");
+            let input_empty_f = format!("{tmp}/input-empty");
+            fs::write(&input_empty_f, "").context("write empty file")?;
             let input_f = format!("{tmp}/input");
             (|| {
                 let mut input = fs::File::create(&input_f)?;
@@ -274,7 +276,9 @@ mod test {
             test_invocation(chain!(
                 ["compute-mds"],
                 ["-t", &nominal_time_arg],
+                ["-i", &input_empty_f],
                 ["-i", &input_f],
+                ["-i", &input_empty_f],
                 ["--mds-out", &mds_f],
                 ["--meta-out", &meta_f],
             ))?;
