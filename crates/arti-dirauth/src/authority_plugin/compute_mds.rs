@@ -234,6 +234,7 @@ mod test {
     use crate::authority_plugin::test::test_invocation;
     use itertools::chain;
     use std::fs;
+    use std::io::Write as _;
     use test_temp_dir::test_temp_dir;
     use tor_dirauth::consensus::SupportedConsensusMethod;
     use tor_netdoc::{
@@ -258,13 +259,16 @@ mod test {
             let mds_f = format!("{tmp}/mds");
             let meta_f = format!("{tmp}/meta");
             let input_f = format!("{tmp}/input");
-
-            // XXXX simplify by not collecting to a string
-            let concatenated_descs = testdata_live::RELAY_DESCRIPTORS
-                .iter()
-                .map(|desc| format!("@ nick={}\n{}", desc.nick, desc.data.plain))
-                .collect::<String>();
-            fs::write(&input_f, concatenated_descs).context("write input")?;
+            (|| {
+                let mut input = fs::File::create(&input_f)?;
+                for desc in testdata_live::RELAY_DESCRIPTORS {
+                    writeln!(input, "@ nick={}", desc.nick)?;
+                    write!(input, "{}", desc.data.plain)?;
+                }
+                input.flush()?;
+                Ok::<_, anyhow::Error>(())
+            })()
+            .context("write input")?;
 
             let nominal_time_arg = Iso8601TimeNoSp(nominal_time).to_string();
             test_invocation(chain!(
