@@ -182,6 +182,15 @@ pub fn raw_item_start_regex(kw: &str) -> regex::Regex {
 /// Finds the item with keyword `kw` in a raw document, using raw strings, not the parser
 ///
 /// Returns the keyword line, and the rest of the doc.
+///
+/// If there are several items, finds the first.
+pub fn raw_item_count<'d>(doc: &'d str, kw: &str) -> usize {
+    raw_item_start_regex(kw).find_iter(doc).count()
+}
+
+/// Finds the item with keyword `kw` in a raw document, using raw strings, not the parser
+///
+/// Returns the keyword line, and the rest of the doc.
 pub fn raw_find_item<'d>(doc: &'d str, kw: &str) -> (&'d str, &'d str) {
     let p = raw_item_start_regex(kw).find(doc).expect(kw).start();
 

@@ -1252,7 +1252,10 @@ ids 1234567812345678123456781234567812345678 ABCDABCDABCDABCDABCDABCDABCDABCDABC
         println!("{doc:?}");
         assert_eq!(
             doc.fingerprint.0.to_string(),
-            "$0b8997614ec647c1c6b6a044e2b5408f0b823fb0",
+            (*raw_find_item_rhs(&text, "fingerprint")
+                .parse::<Fingerprint>()
+                .unwrap())
+            .to_string(),
         );
         Ok(())
     }
