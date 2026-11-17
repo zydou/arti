@@ -2,12 +2,17 @@
 #
 # usage:
 #   testdata2-download \
-#       https://gitlab.torproject.org/tpo/core/arti/-/jobs/1060037/artifacts/download
+#       https://gitlab.torproject.org/tpo/core/arti/-/jobs/1060037/artifacts/download \
+#       [artifacts.zip]
 #
 # The URL is the "download artifacts archive link"
 # for an integration-chutney-shadow job.
 #
 # This has to be run inside the git repository!
+#
+# If gitlab won't let you download this with wget (perhaps due to DDoS/scraper defences),
+# log into gitlab and use your browser to download the file, and then
+# pass the filename (artifacts.zip) as a 2nd argument.  The URL is then just recorded, not used.
 #
 # Note!  It is quite possible that this will break if the structure of
 # the shadow tests in CI changes.  If that happens, you need to adjust this
@@ -22,11 +27,12 @@
 set -euo pipefail
 
 case "$#.$1" in
-1.[^-]*) ;;
+[12].[^-]*) ;;
 *) echo >&2 'bad usage'; exit 8 ;;
 esac
 
 url="$1"; shift
+override_source="${1-}"
 
 root="$(git rev-parse --show-toplevel)"
 out="$root/crates/tor-netdoc/testdata2"
@@ -38,9 +44,14 @@ cd "$root"
 
 rm -rf tmp
 mkdir tmp
-cd tmp
 
-wget -O artifacts.zip "$url"
+case "$override_source" in
+    '') wget -O tmp/artifacts.zip "$url" ;;
+    /*|./*) cp "$override_source" tmp/artifacts.zip ;;
+    *) fail 'bad source override, should be a path' ;;
+esac
+
+cd tmp
 
 unzip -q artifacts.zip shadow.chutney.data/hosts/host/nodes.\*
 
