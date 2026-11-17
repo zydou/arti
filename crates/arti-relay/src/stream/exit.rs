@@ -154,10 +154,9 @@ async fn connect_ip<R: Runtime>(
     // torspec:
     // > Flags 1 through 3 are ignored if ADDRESS is an IP address.
 
-    // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
-    // basic loopback checks) for testing purposes.
-    if addr.ip().to_canonical().is_loopback() || addr.ip().to_canonical().is_unspecified() {
-        trace!("Rejecting incoming stream to loopback address");
+    // Apply the exit policy filter.
+    if !exit_policy_allows(addr) {
+        trace!("Rejecting incoming stream due to the exit policy");
         return Err(EndReason::EXITPOLICY);
     }
 
@@ -251,10 +250,9 @@ async fn connect_hostname<R: Runtime>(
 
     let addr = SocketAddr::new(*addr, port);
 
-    // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
-    // basic loopback checks) for testing purposes.
-    if addr.ip().to_canonical().is_loopback() || addr.ip().to_canonical().is_unspecified() {
-        trace!("Rejecting incoming stream to loopback address");
+    // Apply the exit policy filter.
+    if !exit_policy_allows(addr) {
+        trace!("Rejecting incoming stream due to the exit policy");
         return Err(EndReason::EXITPOLICY);
     }
 
@@ -262,6 +260,16 @@ async fn connect_hostname<R: Runtime>(
         Ok(x) => Ok(x),
         Err(e) => Err(io_error_kind_to_end_reason(e.kind())),
     }
+}
+
+/// Does our exit policy allow the given address?
+//
+// TODO: Later we will probably have some sort of exit policy object,
+// and we can remove this function and just call `exit_policy.allows(addr)` or something.
+fn exit_policy_allows(addr: SocketAddr) -> bool {
+    // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
+    // basic loopback checks) for testing purposes.
+    !addr.ip().to_canonical().is_loopback() && !addr.ip().to_canonical().is_unspecified()
 }
 
 /// For a TCP error, get the reason we should use in the END message.
