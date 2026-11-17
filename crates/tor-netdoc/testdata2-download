@@ -65,11 +65,13 @@ chmod a+r keys/*
 
 #----- manual adjustments -----
 
-cat >README <<END
+cat >README.md <<END
+Test data from a CI run using chutney (checked-in constants, occasionally updated)
+
 All files in this directory are automatically maintained.
 
 Downloaded and massaged by $0
-From CI data at "$url"
+From CI data at <$url>
 END
 
 # v3-status-votes is the votes concatenated, etc.
