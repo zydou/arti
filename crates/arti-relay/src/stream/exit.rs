@@ -8,13 +8,13 @@ use std::time::Duration;
 use either::Either;
 use futures::io::BufReader;
 use tor_cell::relaycell::msg::{BeginFlags, Connected, End, EndReason};
-use tor_error::warn_report;
+use tor_error::{internal, trace_report, warn_report};
 use tor_proto::stream::{IncomingStream, IncomingStreamRequest};
 use tor_rtcompat::SleepProviderExt as _;
 use tor_rtcompat::{NetStreamProvider, Runtime, TimeoutError};
 use tracing::{debug, info, trace};
 
-use crate::stream::dns::resolver::{DnsResolver, RecordData};
+use crate::stream::dns::resolver::{DnsResolver, LookupAnswers, LookupError, RecordData};
 
 /// Handle an incoming exit stream.
 ///
@@ -146,20 +146,13 @@ pub(super) async fn handle_begin<R: Runtime>(
 async fn connect_ip<R: Runtime>(
     runtime: &R,
     addr: SocketAddr,
-    flags: BeginFlags,
+    _flags: BeginFlags,
     connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
 ) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
-    if addr.ip().is_ipv4() && flags.contains(BeginFlags::IPV4_NOT_OKAY) {
-        trace!("Rejecting incoming stream to IPv4 address since flags contains IPV4_NOT_OKAY");
-        // TODO(relay): Should we use `NOROUTE` here?
-        return Err(EndReason::MISC);
-    }
-
-    if addr.ip().is_ipv6() && !flags.contains(BeginFlags::IPV6_OKAY) {
-        trace!("Rejecting incoming stream to IPv6 address since flags did not contain IPV6_OKAY");
-        // TODO(relay): Should we use `NOROUTE` here?
-        return Err(EndReason::MISC);
-    }
+    // We ignore the `IPV4_NOT_OKAY`, `IPV6_OKAY`, and `IPV6_PREFERRED` flags.
+    //
+    // torspec:
+    // > Flags 1 through 3 are ignored if ADDRESS is an IP address.
 
     // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
     // basic loopback checks) for testing purposes.
@@ -180,41 +173,75 @@ async fn connect_hostname<R: Runtime>(
     runtime: &R,
     hostname: &[u8],
     port: u16,
-    _flags: BeginFlags,
+    flags: BeginFlags,
     mut resolver: DnsResolver,
     connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
 ) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
-    // TODO(relay): We should inspect the error type more closely here.
-    // For example `LookupError::NonAsciiHostname` should probably result in a
-    // `EndReason::TORPROTOCOL` instead.
     let answers = match resolver.resolve(hostname).await {
         Ok(x) => x,
-        Err(e) => {
-            // TODO: Use `trace_report!()` once it's usable with `LookupError`.
-            trace!("Name resolution for exit stream failed: {e}");
+        Err(LookupError::NonAsciiHostname) => {
+            // `Begin::decode_from_reader()` does not allow non-ascii addresses,
+            // so if we get here something has gone wrong and we should probably investigate.
+            let bug = internal!("the `Begin` type should have prevented this");
+            trace_report!(bug, "Hostname for BEGIN message had non-ascii hostname");
+            return Err(EndReason::TORPROTOCOL);
+        }
+        Err(LookupError::Hickory(e)) => {
+            trace!("Name resolution for exit stream failed due to hickory error: {e}");
             return Err(EndReason::RESOLVEFAILED);
+        }
+        Err(LookupError::Bug(e)) => {
+            trace_report!(e, "Name resolution for exit stream failed due to bug");
+            return Err(EndReason::INTERNAL);
         }
     };
 
     // Remove any hostname answers.
     // We could instead error if any answers were hostnames,
     // but I don't see a reason to do that.
-    let mut answers = answers.iter().filter_map(|x| match x {
+    let answers = answers.into_iter().filter_map(|x| match x {
         RecordData::Ip(x) => Some(x),
         RecordData::Hostname(_) => None,
     });
 
-    // TODO(relay): We probably (maybe?) want to be able to do happy eyeballs
-    // with the first IPv4 and first IPv6 addresses listed.
-    // We should find a way to resuse our existing happy eyeballs code.
-    // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2510
-    // TODO(relay): Need to take `BeginFlags::IPV6_PREFERRED`
-    // (and other flags) into account here.
-    // https://spec.torproject.org/tor-spec/opening-streams.html
+    // Filter the addresses based on provided flags.
+    // I prefer it how it's written to how clippy wants it.
+    #[allow(clippy::needless_bool)]
+    let answers = answers.filter(|ip| {
+        if ip.is_ipv4() && flags.contains(BeginFlags::IPV4_NOT_OKAY) {
+            return false;
+        }
 
-    // Until we implement the above TODOs, just take the first answer.
-    // TODO(relay): Don't just use the first answer.
-    let addr = match answers.next() {
+        // torspec:
+        // > 3 -- IPv6 preferred. [...] This flag implies the flag at bit "1" (IPv6 okay).
+        let ipv6_okay = flags.intersects(BeginFlags::IPV6_OKAY | BeginFlags::IPV6_PREFERRED);
+        if ip.is_ipv6() && !ipv6_okay {
+            return false;
+        }
+
+        true
+    });
+
+    // Reuse the `LookupAnswers` type because we know that the inline size is a good estimate.
+    let mut answers: LookupAnswers<IpAddr> = answers.collect();
+
+    // torspec:
+    // > 3 -- IPv6 preferred. If there are both IPv4 and IPv6 addresses,
+    // >      we want to connect to the IPv6 one. (By default, we connect
+    // >      to the IPv4 address.)
+    if flags.contains(BeginFlags::IPV6_PREFERRED) {
+        // `false` is sorted before `true`, and `!ip.is_ipv6()` is false for ipv6 addresses
+        answers.sort_by_key(|ip| !ip.is_ipv6());
+    } else {
+        // `false` is sorted before `true`, and `!ip.is_ipv4()` is false for ipv4 addresses
+        answers.sort_by_key(|ip| !ip.is_ipv4());
+    }
+
+    // TODO: We maybe want to do happy eyeballs in the future.
+    // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2878
+
+    // Use the first address in the list.
+    let addr = match answers.first() {
         Some(ip) => ip,
         None => {
             trace!("Rejecting incoming stream since the domain resolution had no IP answers");
