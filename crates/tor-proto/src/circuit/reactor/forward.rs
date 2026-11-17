@@ -543,25 +543,28 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         relay_cell_format: RelayCellFormat,
     ) -> StdResult<(), ReactorError> {
         match msg.cmd() {
-            RelayCmd::SENDME => {
-                let sendme = msg
-                    .decode::<Sendme>()
-                    .map_err(|e| Error::from_bytes_err(e, "sendme message"))?
-                    .into_msg();
-
-                let cmd = BackwardReactorCmd::HandleSendme {
-                    hop: hopnum,
-                    sendme,
-                };
-
-                self.send_reactor_cmd(cmd).await
-            }
+            RelayCmd::SENDME => self.handle_sendme(hopnum, msg).await,
             _ => {
                 self.inner
                     .handle_meta_msg(&self.runtime, early, hopnum, msg, relay_cell_format)
                     .await
             }
         }
+    }
+
+    /// Handle a circuit SENDME coming from the specified `hopnum`.
+    async fn handle_sendme(&mut self, hopnum: Option<HopNum>, msg: UnparsedRelayMsg) -> StdResult<(), ReactorError> {
+        let sendme = msg
+            .decode::<Sendme>()
+            .map_err(|e| Error::from_bytes_err(e, "sendme message"))?
+            .into_msg();
+
+        let cmd = BackwardReactorCmd::HandleSendme {
+            hop: hopnum,
+            sendme,
+        };
+
+        self.send_reactor_cmd(cmd).await
     }
 
     /// Send a command to the backward reactor.
