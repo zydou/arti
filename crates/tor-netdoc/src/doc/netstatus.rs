@@ -977,6 +977,22 @@ impl DigestAlgoInSignature {
     }
 }
 
+impl DigestAlgoInSignature {
+    /// Represent a known algorithm in the form used for the actual signature item
+    pub fn from_algo(algo: DirectorySignatureHashAlgo) -> Self {
+        DigestAlgoInSignature(match algo {
+            DirectorySignatureHashAlgo::Sha1 => None,
+            other => Some(KeywordOrString::Known(other)),
+        })
+    }
+}
+
+impl From<DirectorySignatureHashAlgo> for DigestAlgoInSignature {
+    fn from(algo: DirectorySignatureHashAlgo) -> Self {
+        Self::from_algo(algo)
+    }
+}
+
 impl NormalItemArgument for DirectorySignatureHashAlgo {}
 
 /// The signature of a single directory authority on a networkstatus document.
