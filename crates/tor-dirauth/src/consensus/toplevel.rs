@@ -20,7 +20,10 @@ impl ConsensusesFromVotes<()> for netstatus::vote::NetworkStatus {
         calc! { both.routers }
         calc! { both.authority }
 
-        let computed = (&plain_preamble, &*plain_routers);
+        let computed = FooterAC {
+            preamble: &plain_preamble,
+            routers: &plain_routers,
+        };
         let context = context.with_computed(&computed);
 
         calc! { both.footer }

@@ -2060,7 +2060,7 @@ impl RelayBandwidthItem {
 
         let params = item.args_as_str().parse()?;
         let effective =
-            RelayBandwidth::from_net_params(&params).map_err(|e| e.at_pos(item.pos()))?;
+            RelayBandwidth::from_param_values(&params).map_err(|e| e.at_pos(item.pos()))?;
 
         Ok(RelayBandwidthItem {
             effective,
@@ -2083,6 +2083,14 @@ impl Default for RelayBandwidthItem {
 }
 
 impl RelayBandwidth {
+    /// Return the value, whether measured or not
+    pub fn value(&self) -> u32 {
+        match *self {
+            RelayBandwidth::Measured(v) => v,
+            RelayBandwidth::Unmeasured(v) => v,
+        }
+    }
+
     /// Return true if this bandwidth is the result of a successful measurement
     pub fn is_measured(&self) -> bool {
         matches!(self, RelayBandwidth::Measured(_))
@@ -2090,16 +2098,13 @@ impl RelayBandwidth {
 
     /// Return true if this bandwidth is nonzero
     pub fn is_nonzero(&self) -> bool {
-        !matches!(
-            self,
-            RelayBandwidth::Unmeasured(0) | RelayBandwidth::Measured(0)
-        )
+        self.value() != 0
     }
 
     /// Parse a routerbandwidth from partially-parsed `w` line in the form of a `NetParams`
     ///
     /// This function is the common part shared between `parse2` and `parse`.
-    fn from_net_params(params: &ParamValues<u32>) -> crate::Result<RelayBandwidth> {
+    fn from_param_values(params: &ParamValues<u32>) -> crate::Result<RelayBandwidth> {
         params
             .try_into()
             .map_err(|e: InvalidRelayBandwidth| EK::BadArgument.with_msg(e.to_string()))
