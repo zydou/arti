@@ -906,10 +906,23 @@ mod test {
         raw_find_item_rhs(AUTHCERT_RAW, "fingerprint")
     }
 
-    /// Different authcert, from `../../testdata2/cached-certs--1`
+    /// Different authcert, from `../../testdata2/cached-certs--*`
     ///
     /// A different authority certificate different from the one above.
-    const ALTERNATIVE_AUTHCERT_RAW: &str = include_str!("../../testdata2/cached-certs--1");
+    fn t_alternative_authcert_raw() -> &'static str {
+        // Our "main" cert is `keys/authority_certificate` which is the one the test simulation
+        // thinks of as the first or primary, I guess?  But to get another auth cert
+        // we need to look in `cached-certs`, which is *all* the certs, and their sort
+        // order doesn't seem stable.  Maybe they are sorted by *key*?  (The keys vary.)
+        // So sometimes, the first cert (which gets split out into `--1`) is the same one!
+        // In that case, use the 2nd.
+        let t1 = include_str!("../../testdata2/cached-certs--1");
+        if t1.as_bytes() != AUTHCERT_RAW.as_bytes() {
+            t1
+        } else {
+            include_str!("../../testdata2/cached-certs--2")
+        }
+    }
 
     /// Converts a PEM encoded RSA Public key to an [`rsa::PublicKey`].
     ///
@@ -1137,7 +1150,7 @@ mod test {
 
         // Alternative (different) cert we use for generating broken certs for testing
         let alternative_cert = parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(
-            ALTERNATIVE_AUTHCERT_RAW,
+            t_alternative_authcert_raw(),
             "",
         ))
         .unwrap();
