@@ -1725,11 +1725,11 @@ mod test {
         assert_eq!(
             rd[0].0.router,
             RouterDescIntroItem {
-                dirport: 7102,
+                dirport: 7100,
                 ..RouterDescIntroItemConstructor {
-                    nickname: "test002a".parse().unwrap(),
+                    nickname: "test000a".parse().unwrap(),
                     address: net::Ipv4Addr::LOCALHOST,
-                    orport: 5102,
+                    orport: 5100,
                 }
                 .construct()
             }

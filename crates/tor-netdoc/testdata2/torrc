@@ -1,30 +1,8 @@
 
 TestingTorNetwork 1
 
-## Rapid Bootstrap Testing Options ##
-# These typically launch a working minimal Tor network in ~20s
-# These parameters make tor networks bootstrap fast,
-# but can cause consensus instability and network unreliability
-# (Some are also bad for security.)
-#
-# We need at least 3 descriptors to build circuits.
-# In a 3 relay network, 0.67 > 2/3, so we try hard to get 3 descriptors.
-# In larger networks, 0.67 > 2/N, so we try hard to get >=3 descriptors.
-PathsNeededToBuildCircuits 0.67
-TestingDirAuthVoteExit *
-TestingDirAuthVoteHSDir *
-V3AuthNIntervalsValid 2
-
-## Always On Testing Options ##
-# We enable TestingDirAuthVoteGuard to avoid Guard stability requirements
-TestingDirAuthVoteGuard *
-# We set TestingMinExitFlagThreshold to 0 to avoid Exit bandwidth requirements
-TestingMinExitFlagThreshold 0
-# VoteOnHidServDirectoriesV2 needs to be set for HSDirs to get the HSDir flag
-#Default VoteOnHidServDirectoriesV2 1
-
 ## Options that we always want to test ##
-DataDirectory /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a
+DataDirectory /builds/tpo/core/arti/chutney-net/nodes.1794917209/000a
 ConnLimit 60
 Nickname test000a
 # Let tor close connections gracefully before exiting
@@ -35,12 +13,11 @@ AddressDisableIPv6 1
 # Use ControlSocket rather than ControlPort unix: to support older tors
 ControlSocket 0
 CookieAuthentication 1
-PidFile /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a/pid
 
-Log notice file /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a/notice.log
-Log info file /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a/info.log
+Log notice file /builds/tpo/core/arti/chutney-net/nodes.1794917209/000a/notice.log
+Log info file /builds/tpo/core/arti/chutney-net/nodes.1794917209/000a/info.log
 # Turn this off to save space
-#Log debug file /builds/tpo/core/arti/shadow.chutney.data/hosts/host/nodes.946684805/000a/debug.log
+#Log debug file /builds/tpo/core/arti/chutney-net/nodes.1794917209/000a/debug.log
 ProtocolWarnings 1
 SafeLogging 0
 LogTimeGranularity 1
@@ -52,43 +29,32 @@ LogTimeGranularity 1
 # your glibc.
 Sandbox 0
 
-# Ask all child tor processes to exit when chutney's test-network.sh exits
-# (if the CHUTNEY_*_TIME options leave the network running, this option is
-# disabled)
-#__OwningControllerProcess 0
-
 UseMicrodescriptors 1
 SocksPort 0
 DnsPort 0
 ControlPort 127.0.0.1:8000
-RunAsDaemon 1
+RunAsDaemon 0
 Address 127.0.0.1
 OrPort 127.0.0.1:5100
-AlternateDirAuthority test000a no-v2 orport=5100 v3ident=D190BF3B00E311A9AEB6D62B51980E9B2109BAD1 127.0.0.1:7100 27B266A22CF681C0BBAB6405EE5D758C55E71A0E
-AlternateDirAuthority test001a no-v2 orport=5101 v3ident=0B8997614EC647C1C6B6A044E2B5408F0B823FB0 127.0.0.1:7101 E4F20D06750C715AD9F5E2D680A2C184160F9E8A
-AlternateDirAuthority test002a no-v2 orport=5102 v3ident=5B591AD684C1AB8E0AB76C839E93FD097526A4BC 127.0.0.1:7102 257D06F0360BB2246388724F109EC0895A1D41FB
-AlternateDirAuthority test003a no-v2 orport=5103 v3ident=8A1777F0BF97344A7ABB97530EEEE38A5BDE8A4D 127.0.0.1:7103 36FAE655AF6AEC5DBF2A4C515E474BF516DACB2F
-AlternateBridgeAuthority test009ba no-v2 orport=5109 bridge 127.0.0.1:7109 C743616FB4AF4AE4430E4F36AD75E6531F5CAE45
-
-ExitRelay 0
-
-# These options are set here so they apply to IPv4 and IPv6 Exits
-#
-# Tell Exits to avoid using DNS: otherwise, chutney will fail if DNS fails
-# (Chutney only accesses 127.0.0.1 and ::1, so it doesn't need DNS)
-ServerDNSDetectHijacking 0
-ServerDNSTestAddresses
-# If this option is /dev/null, or any other empty or unreadable file, tor exits
-# will not use DNS. Otherwise, DNS is enabled with this config.
-# (If the following line is commented out, tor uses /etc/resolv.conf.)
-ServerDNSResolvConfFile /etc/resolv.conf
+AlternateDirAuthority test000a no-v2 orport=5100 v3ident=3B28D2119433CEB14E42202D8340C9E9AF8E0E99 127.0.0.1:7100 DCF019078A3B76D16709F2875EDB886228600FCE
+AlternateDirAuthority test001a no-v2 orport=5101 v3ident=7F365A27F55E8776D01CD56459EAA6EA7DD07D76 127.0.0.1:7101 2FED6298979A8E569F9ECB731B64E5282429CBD7
+AlternateDirAuthority test002a no-v2 orport=5102 v3ident=BDDD51949E0E01503690689DCA923954F75CBE16 127.0.0.1:7102 D57695C1998E28281620B904D91348CB6CDCF162
+AlternateDirAuthority test003a no-v2 orport=5103 v3ident=B1B81EAE037C56142652C609B89281CBED094FEB 127.0.0.1:7103 815E469291C0C6DB2304A3A5824C26C3D77B66AD
+AlternateBridgeAuthority test015ba no-v2 orport=5115 bridge 127.0.0.1:7115 892B522ACB087CF85788D57DA6C11616027CEE93
 
 DirPort 7100
+ExitRelay 0
 
 AuthoritativeDirectory 1
 ContactInfo auth0@test.test
 
 V3AuthoritativeDirectory 1
+
+## Rapid Bootstrap Testing Options ##
+# These typically launch a working minimal Tor network in ~20s
+# These parameters make tor networks bootstrap fast,
+# but can cause consensus instability and network unreliability
+# (Some are also bad for security.)
 
 # Disable authority to relay/bridge reachability checks
 # These checks happen every half hour, even in testing networks
@@ -115,9 +81,22 @@ TestingV3AuthInitialDistDelay 4
 # Vote + Dist must be less than Interval/2, because when there's no consensus,
 # tor uses Interval/2 as the voting interval
 #
-V3AuthVotingInterval 20.0
+V3AuthVotingInterval 20 seconds
 V3AuthVoteDelay 4
 V3AuthDistDelay 4
 
+# We enable TestingDirAuthVoteGuard to avoid Guard stability requirements
+TestingDirAuthVoteGuard *
+TestingDirAuthVoteHSDir *
+
+# We set TestingMinExitFlagThreshold to 0 to avoid Exit bandwidth requirements
+TestingMinExitFlagThreshold 0
+V3AuthNIntervalsValid 2
+
+# Ensure all relays get Stable flag, despite having low uptimes
+AuthDirVoteStableGuaranteeMinUptime 0
+
 ConsensusParams cc_alg=2
+V3BandwidthsFile /builds/tpo/core/arti/chutney-net/nodes.1794917209/v3bandwidths
+TestingDirAuthVoteExit CF525C241E91DA032EFE619F92D0EFCF972E5696,3E16A08A08451B598685F351B552626500AD7BF2
 
