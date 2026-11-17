@@ -915,7 +915,6 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
     fn t_dir_key_expires() -> SystemTime {
         *DIR_KEY_EXPIRES.parse::<Iso8601TimeSp>().unwrap()
     }
-
     /// A system time in the range of [`DIR_KEY_PUBLISHED`] and [`DIR_KEY_EXPIRES`].
     ///
     /// Constructed by ourselves to have a time point we can use for testing
@@ -923,6 +922,10 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
     const VALID_SYSTEM_TIME: &str = "2000-06-01 00:00:00";
     fn t_valid_system_time() -> SystemTime {
         *VALID_SYSTEM_TIME.parse::<Iso8601TimeSp>().unwrap()
+    }
+
+    fn t_fingerprint() -> &'static str {
+        FINGERPRINT
     }
 
     /// Different authcert, from `../../testdata2/cached-certs--1`
@@ -1035,7 +1038,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             AuthCert {
                 dir_key_certificate_version: AuthCertVersion::V3,
                 dir_address: Some(DIR_ADDRESS),
-                fingerprint: types::Fingerprint(to_rsa_id(FINGERPRINT)),
+                fingerprint: types::Fingerprint(to_rsa_id(t_fingerprint())),
                 dir_key_published: Iso8601TimeSp(t_dir_key_published()),
                 dir_key_expires: Iso8601TimeSp(t_dir_key_expires()),
                 dir_identity_key: pem_to_rsa_pk(t_dir_identity_key()),
@@ -1061,7 +1064,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // Test a valid signature.
         let _: AuthCert = res
             .clone()
-            .verify(&[to_rsa_id(FINGERPRINT)])
+            .verify(&[to_rsa_id(t_fingerprint())])
             .unwrap()
             .if_valid_at(&t_valid_system_time())
             .unwrap();
@@ -1075,7 +1078,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // Test a key too far in the future.
         assert_eq!(
             res.clone()
-                .verify(&[to_rsa_id(FINGERPRINT)],)
+                .verify(&[to_rsa_id(t_fingerprint())],)
                 .unwrap()
                 .if_valid_at(&SystemTime::UNIX_EPOCH,)
                 .map_err(VerifyFailed::from)
@@ -1086,7 +1089,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // Test an almost too new.
         let _: AuthCert = res
             .clone()
-            .verify(&[to_rsa_id(FINGERPRINT)])
+            .verify(&[to_rsa_id(t_fingerprint())])
             .unwrap()
             .if_valid_at(&t_dir_key_published())
             .unwrap();
@@ -1094,7 +1097,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // Now fail when we are 1s below ...
         assert_eq!(
             res.clone()
-                .verify(&[to_rsa_id(FINGERPRINT)],)
+                .verify(&[to_rsa_id(t_fingerprint())],)
                 .unwrap()
                 .if_valid_at(&(t_dir_key_published() - Duration::from_secs(1)),)
                 .map_err(VerifyFailed::from)
@@ -1105,7 +1108,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // ... but succeed again with a clock skew tolerance.
         let _: AuthCert = res
             .clone()
-            .verify(&[to_rsa_id(FINGERPRINT)])
+            .verify(&[to_rsa_id(t_fingerprint())])
             .unwrap()
             .extend_start_bound(Duration::from_secs(1))
             .if_valid_at(&(t_dir_key_published() - Duration::from_secs(1)))
@@ -1114,7 +1117,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // Test a key too old.
         assert_eq!(
             res.clone()
-                .verify(&[to_rsa_id(FINGERPRINT)],)
+                .verify(&[to_rsa_id(t_fingerprint())],)
                 .unwrap()
                 .if_valid_at(
                     &SystemTime::UNIX_EPOCH
@@ -1129,7 +1132,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // Test an almost too old.
         let _: AuthCert = res
             .clone()
-            .verify(&[to_rsa_id(FINGERPRINT)])
+            .verify(&[to_rsa_id(t_fingerprint())])
             .unwrap()
             .if_valid_at(&t_dir_key_expires())
             .unwrap();
@@ -1137,7 +1140,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // Now fail when we are 1s above ...
         assert_eq!(
             res.clone()
-                .verify(&[to_rsa_id(FINGERPRINT)],)
+                .verify(&[to_rsa_id(t_fingerprint())],)
                 .unwrap()
                 .if_valid_at(&(t_dir_key_expires() + Duration::from_secs(1)),)
                 .map_err(VerifyFailed::from)
@@ -1148,7 +1151,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // ... but succeed again with a clock skew tolerance.
         let _: AuthCert = res
             .clone()
-            .verify(&[to_rsa_id(FINGERPRINT)])
+            .verify(&[to_rsa_id(t_fingerprint())])
             .unwrap()
             .extend_end_bound(Duration::from_secs(1))
             .if_valid_at(&(t_dir_key_expires() + Duration::from_secs(1)))
@@ -1166,7 +1169,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
         res.body.dir_identity_key = alternative_cert.body.dir_identity_key.clone();
         assert_eq!(
-            res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
+            res.verify(&[to_rsa_id(t_fingerprint())],).unwrap_err(),
             VerifyFailed::Inconsistent
         );
 
@@ -1175,7 +1178,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
         res.body.dir_key_crosscert = alternative_cert.body.dir_key_crosscert.clone();
         assert_eq!(
-            res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
+            res.verify(&[to_rsa_id(t_fingerprint())],).unwrap_err(),
             VerifyFailed::VerifyFailed
         );
 
@@ -1184,7 +1187,7 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
             parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(AUTHCERT_RAW, "")).unwrap();
         res.sigs = alternative_cert.sigs.clone();
         assert_eq!(
-            res.verify(&[to_rsa_id(FINGERPRINT)],).unwrap_err(),
+            res.verify(&[to_rsa_id(t_fingerprint())],).unwrap_err(),
             VerifyFailed::VerifyFailed
         );
     }
