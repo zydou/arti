@@ -146,18 +146,13 @@ pub(super) async fn handle_begin<R: Runtime>(
 async fn connect_ip<R: Runtime>(
     runtime: &R,
     addr: SocketAddr,
-    flags: BeginFlags,
+    _flags: BeginFlags,
     connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
 ) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
-    if addr.ip().is_ipv4() && flags.contains(BeginFlags::IPV4_NOT_OKAY) {
-        trace!("Rejecting incoming stream to IPv4 address since flags contains IPV4_NOT_OKAY");
-        return Err(EndReason::MISC);
-    }
-
-    if addr.ip().is_ipv6() && !flags.contains(BeginFlags::IPV6_OKAY) {
-        trace!("Rejecting incoming stream to IPv6 address since flags did not contain IPV6_OKAY");
-        return Err(EndReason::MISC);
-    }
+    // We ignore the `IPV4_NOT_OKAY`, `IPV6_OKAY`, and `IPV6_PREFERRED` flags.
+    //
+    // torspec:
+    // > Flags 1 through 3 are ignored if ADDRESS is an IP address.
 
     // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
     // basic loopback checks) for testing purposes.
