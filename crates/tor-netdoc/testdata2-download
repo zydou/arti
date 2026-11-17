@@ -53,13 +53,13 @@ esac
 
 cd tmp
 
-unzip -q artifacts.zip shadow.chutney.data/hosts/host/nodes.\*
+unzip -q artifacts.zip chutney-net/nodes.\*
 
-cd shadow.chutney.data/hosts/host
+cd chutney-net
 cd nodes.* # will give "too many arguments" if there were several
 cd 000a
 
-rm -rf -- *.log diff-cache
+rm -rf -- *.log diff-cache pid.* *.stderr *.stdout
 
 #----- manual adjustments -----
 
