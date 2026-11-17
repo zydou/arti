@@ -205,12 +205,17 @@ async fn connect_hostname<R: Runtime>(
     });
 
     // Filter the addresses based on provided flags.
+    // I prefer it how it's written to how clippy wants it.
+    #[allow(clippy::needless_bool)]
     let answers = answers.filter(|ip| {
         if ip.is_ipv4() && flags.contains(BeginFlags::IPV4_NOT_OKAY) {
             return false;
         }
 
-        if ip.is_ipv6() && !flags.contains(BeginFlags::IPV6_OKAY) {
+        // torspec:
+        // > 3 -- IPv6 preferred. [...] This flag implies the flag at bit "1" (IPv6 okay).
+        let ipv6_okay = flags.intersects(BeginFlags::IPV6_OKAY | BeginFlags::IPV6_PREFERRED);
+        if ip.is_ipv6() && !ipv6_okay {
             return false;
         }
 
