@@ -60,6 +60,8 @@ cd nodes.* # will give "too many arguments" if there were several
 cd 000a
 
 rm -rf -- *.log diff-cache pid.* *.stderr *.stdout
+chmod a+rx keys
+chmod a+r keys/*
 
 #----- manual adjustments -----
 
