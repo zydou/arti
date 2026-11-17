@@ -896,7 +896,7 @@ define_derive_deftly! {
         ///
         /// `None` if the value wasn't computed.
         /// That shouldn't happen.
-        fn hash_slice_for_verification(
+        fn hash_slice(
             &self,
             algo: &DigestAlgoInSignature,
         ) -> Option<&[u8]> {
@@ -2752,7 +2752,7 @@ impl SignatureGroup {
                 continue;
             }
 
-            let Some(d) = self.hashes.hash_slice_for_verification(digest_algo) else {
+            let Some(d) = self.hashes.hash_slice(digest_algo) else {
                 // We don't support this kind of digest for this kind
                 // of document.
                 continue;
