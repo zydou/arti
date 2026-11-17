@@ -1480,6 +1480,14 @@ mod rsa {
         /// and the keyword is covered by the signature (an annoying is a layering violation).
         /// See <https://gitlab.torproject.org/tpo/core/torspec/-/issues/322>.
         ///
+        /// For more complex or anomalous situations, open-coding may be necessary.
+        /// If it's the hashing that is complex,
+        /// [`parse2::SignatureHashInputs::new_for_signature`]
+        /// can be used in conjunction with the document type's parsing/verification
+        /// hash accumulator
+        /// ([`parse2::NetdocParseableSignatures::HashesAccu`], ie
+        /// `<DocUnverified as NetdocParseableUnverified>::Signatures::HashesAccu`).
+        ///
         /// # Example
         ///
         /// ```

@@ -18,3 +18,4 @@ BREAKING: `vote::NetworkStatusUnverified` now takes an `&mut VoteVerifier`
 ADDED: `NetworkStatusSignaturesConstructor`
 BREAKING: Removed legacy family support from microdescriptors.
 ADDED: `netstatus::SignatureConstructor`
+ADDED: `SignatureHashInputs::new_for_signature`
