@@ -180,7 +180,7 @@ impl SignatureItemParseable for RouterSignature {
 
         let mut h = tor_llcrypto::d::Sha1::new();
         h.update(hash_inputs.document_sofar);
-        h.update(hash_inputs.signature_item_line);
+        h.update(hash_inputs.signature_item_kw_line);
         h.update("\n");
         hash.sha1 = Some(h.finalize().into());
 

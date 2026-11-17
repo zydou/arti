@@ -269,14 +269,14 @@ pub struct SignatureHashInputs<'s> {
     pub(crate) signature_item_kw_spc: &'s str,
     /// The whole signature item keyword line not including the final newline
     #[getter(skip)]
-    pub(crate) signature_item_line: &'s str,
+    pub(crate) signature_item_kw_line: &'s str,
 }
 
 impl<'s> SignatureHashInputs<'s> {
     /// Hash into `h` the body and the whole of the signature item's keyword line
     pub(crate) fn hash_whole_keyword_line(&self, h: &mut impl Digest) {
         h.update(self.body().body());
-        h.update(self.signature_item_line);
+        h.update(self.signature_item_kw_line);
         h.update("\n");
     }
 }
