@@ -66,6 +66,16 @@ IGNORE=(
     # So if we gain more uses of non-CT crypto-bigint, in places where we would care more,
     # we wouldn't notice.  Still, I don't see anything better we can do :-/.
     --ignore RUSTSEC-2026-0387
+
+    # chrono and humantime are unmaintained.
+    #
+    # Eventual resolution: we replace these with one of the
+    # suggested alternatives (jiff or time)
+    #
+    # See #2882
+    --ignore RUSTSEC-2026-0542
+    --ignore RUSTSEC-2026-0543
+
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
