@@ -760,6 +760,7 @@ mod test {
         Pos,
         encode::encode_netdoc_unsigned,
         parse2::{ErrorProblem, ParseError, ParseInput, VerifyFailed, parse_netdoc},
+        test_support::{raw_find_item_rhs, raw_find_object},
         types,
     };
     use humantime::parse_rfc3339;
@@ -868,64 +869,41 @@ mod test {
         assert_eq!(res.len(), 2);
     }
 
-    // === AUTHCERT D190BF3B00E311A9AEB6D62B51980E9B2109BAD1 ===
-    // These values come from testdata2/keys/authority_certificate.
-    const DIR_KEY_PUBLISHED: &str = "2000-01-01 00:00:05";
-    const DIR_KEY_EXPIRES: &str = "2001-01-01 00:00:05";
-    const FINGERPRINT: &str = "D190BF3B00E311A9AEB6D62B51980E9B2109BAD1";
     const DIR_ADDRESS: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7100);
-    fn t_dir_identity_key() -> &'static str { "
------BEGIN RSA PUBLIC KEY-----
-MIIBigKCAYEAt0rXD+1gYwKFAxrO4uNHQ9dQVUOGx5FxkioYNSct5Z3JU00dTKNJ
-jt4OGkFYwixWwk6KLDOiB+I/q9YIdA1NlQ5R3Hz8jjvFPVl0JQQm2LYzdSzv7/CZ
-U1qq5rYeeoYKx8qMQg4q3WgR251GEnOG+rVqzFSs0oyC+SDfYn9iMt00/pmN3HXf
-wmasY6BescVrYoDbnpkwKATizd4lzx5K8V8aXUXtd8qnYzSyHLlhiO1eufVX07YC
-+AVHV7W7qCTY/4I5Sm0dQ9jF/r04JBHnpH+aae48JOjWDCZj9AINi3rCKS8XClGb
-BB/LJidoQAZraQEEtu3Ql1mjdLreeyWfXpfZFvwKuYn44FtQsOT2TVAVNqNF8N4v
-yfwfiPN6FQWlPyMCEB81HerCn03Zi5WgQLGo7PAeO4LFrLrU16DUC5/oJENeHs0T
-27FZQyrlf0rAxiHh7TJKcjLmzeyxCQVQlr2AXXs28gKHV0AQnEcdrVOpTrquSCQQ
-hWBehR+ct4OJAgMBAAE=
------END RSA PUBLIC KEY-----
-    " }
-    fn t_dir_signing_key() -> &'static str { "
------BEGIN RSA PUBLIC KEY-----
-MIIBCgKCAQEAtPF94+bThLI28kn6e+MmUECMMJ5UBlnQ+Mvwn8Zd85awPQTDz5Wu
-13sZDN3nWnhgSuP5q/WDYc5GPPtQdSWBiG1nJA2XLgEHTHf29iGZ+jAoGfIMJvBV
-1xN8baTnsha5LGx5BQ4UqzlUmoaPzwbjehnPd00FgVkpcCvKZu1HU7fGMVwn4MMh
-zuxJTqTgfcuFWTEu0H0ukOFX+51ih6WO3GWYqRiqgU0Q5/Ets8ccCTq7ND9d2u1P
-d7kQzUHbVP0KmYGK4qYntGDfP4g9SmpBoUUHyP3j9en9S6PMYv8m1YFO7M7JKu6Q
-dQZfGTxj9C/0b/jRklgn5JlKAl9eJQvCdwIDAQAB
------END RSA PUBLIC KEY-----
-" }
-    fn t_dir_cross_cert_object() -> &'static str { "
------BEGIN ID SIGNATURE-----
-NBaPdBNCNMah6cklrALzj0RdHymF/jPGOv9NmeqaXc0uTN06S/BlVM/xTjilu+dj
-sjPuT0BQL4/ZWyZR+R+gJJojKYILSId4IQ1elzRSxpFN+u2u/ZEmS6SR2SwpA05A
-btOYBKAmYkY6rLsTCbXGx3lAH2kAXfcrltCNKZXV6gqW7X379fiOnSId1OWhKPe1
-/1p3pQGZxgb8FOT1kpHxOMRBClF9Ulm3d9fQZr80Wn73gZ2Bp1RXn9c7c/71HD1c
-mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
-8HK5TzuknWlkRv3hCyRX+g==
------END ID SIGNATURE-----
-" }
     const AUTHCERT_RAW: &str = include_str!("../../testdata2/keys/authority_certificate");
 
+    fn raw_authcert_time(kw: &str) -> SystemTime {
+        let t: Iso8601TimeSp = raw_find_item_rhs(AUTHCERT_RAW, kw).parse().expect(kw);
+        t.0
+    }
     fn t_dir_key_published() -> SystemTime {
-        *DIR_KEY_PUBLISHED.parse::<Iso8601TimeSp>().unwrap()
+        raw_authcert_time("dir-key-published")
     }
     fn t_dir_key_expires() -> SystemTime {
-        *DIR_KEY_EXPIRES.parse::<Iso8601TimeSp>().unwrap()
+        raw_authcert_time("dir-key-expires")
     }
     /// A system time in the range of [`DIR_KEY_PUBLISHED`] and [`DIR_KEY_EXPIRES`].
     ///
     /// Constructed by ourselves to have a time point we can use for testing
     /// timestamp verification.
-    const VALID_SYSTEM_TIME: &str = "2000-06-01 00:00:00";
     fn t_valid_system_time() -> SystemTime {
-        *VALID_SYSTEM_TIME.parse::<Iso8601TimeSp>().unwrap()
+        let a = t_dir_key_published();
+        let b = t_dir_key_expires();
+        a + (b.duration_since(a).unwrap() / 2)
+    }
+
+    fn t_dir_identity_key() -> &'static str {
+        raw_find_object(AUTHCERT_RAW, "dir-identity-key")
+    }
+    fn t_dir_signing_key() -> &'static str {
+        raw_find_object(AUTHCERT_RAW, "dir-signing-key")
+    }
+    fn t_dir_cross_cert_object() -> &'static str {
+        raw_find_object(AUTHCERT_RAW, "dir-key-crosscert")
     }
 
     fn t_fingerprint() -> &'static str {
-        FINGERPRINT
+        raw_find_item_rhs(AUTHCERT_RAW, "fingerprint")
     }
 
     /// Different authcert, from `../../testdata2/cached-certs--1`
