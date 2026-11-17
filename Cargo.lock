@@ -369,6 +369,7 @@ dependencies = [
  "anyhow",
  "clap",
  "derive-deftly",
+ "derive_more",
  "digest 0.11.3",
  "educe",
  "test-temp-dir",

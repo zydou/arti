@@ -19,7 +19,7 @@ use tor_llcrypto::d::Sha256;
 use tor_netdoc::{
     doc::netstatus::ConsensusMethod,
     doc::routerdesc::{RouterDesc, RouterDescUnverified},
-    encode::encode_netdoc_unsigned,
+    encode::{NetdocEncodable, encode_netdoc_unsigned},
     parse2::{self, NetdocParseable},
     types::{Base64Fingerprint, Ed25519Public, FixedB64, Iso8601TimeNoSp},
 };
@@ -125,13 +125,7 @@ fn plugin_impl(args: CliArgs) -> Result<(), CliError> {
             let mut processor =
                 compute_mds::Processor::new(*nominal_time, &mut mds_out, &mut meta_out);
             for i in input {
-                let i = i.start_reading()?;
-                let desc = i.description().to_owned();
-                processor.process_input(parse2::ParseInput::new(
-                    //
-                    &i.read_entire_string()?,
-                    &desc,
-                ))?;
+                processor.process_input(i.read_entire()?.netdoc_parse2())?;
             }
             mds_out.finish()?;
             meta_out.finish()?;
@@ -151,6 +145,8 @@ pub fn plugin_main() {
         let args = <CliArgs as clap::Parser>::try_parse()
             .context("invalid arguments")
             .map_err(CliError::InvalidInputs)?;
+
+        // TODO DIRAUTH set up logging
 
         plugin_impl(args)
     })() {

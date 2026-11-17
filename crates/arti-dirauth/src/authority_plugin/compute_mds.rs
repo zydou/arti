@@ -196,7 +196,7 @@ impl<'o> Processor<'o> {
             }
 
             for method in methods.methods {
-                let meta = encode_netdoc_unsigned(&[MetaFileEntry {
+                self.meta_out.write_netdocs(&[MetaFileEntry {
                     m: MetaItem {
                         method,
                         h_md: h_md.clone(),
@@ -205,8 +205,6 @@ impl<'o> Processor<'o> {
                         hk_relayid_rsa: rd.rd.signing_key.to_rsa_identity().into(),
                     },
                 }])?;
-
-                self.meta_out.append_with(|w| write!(w, "{meta}"))?;
             }
         }
 

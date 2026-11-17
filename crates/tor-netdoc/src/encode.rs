@@ -142,7 +142,7 @@ pub trait ItemArgument {
 /// To encode just one document, write `encode_netdoc_unsigned([&doc])`.
 pub fn encode_netdoc_unsigned<'d, 'i, D, I>(docs: I) -> Result<String, Bug>
 where
-    D: NetdocEncodable + 'd,
+    D: NetdocEncodable + ?Sized + 'd,
     I: IntoIterator<Item = &'d D> + 'i,
 {
     let mut encoder = NetdocEncoder::new();
