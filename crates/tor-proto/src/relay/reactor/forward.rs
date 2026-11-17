@@ -145,7 +145,7 @@ impl Forward {
     /// Decode `cell`, returning its corresponding hop number, tag and decoded body.
     fn decode_relay_cell<R: Runtime>(
         &mut self,
-        hop_mgr: &mut HopMgr<R>,
+        hop_mgr: &HopMgr<R>,
         cell: RelayMaybeEarlyChanMsg,
     ) -> Result<(Option<HopNum>, CellDecodeResult)> {
         // Note: the client reactor will return the actual source hopnum
@@ -200,13 +200,9 @@ impl Forward {
     }
 
     /// Handle a RELAY or RELAY_EARLY cell.
-    //
-    // XXX: None of these APIs should require a mutable HopMgr ref.
-    // The only reason we need mut here is because RelayCellDecoder::decode
-    // takes &mut self.
     fn handle_relay_cell<R: Runtime>(
         &mut self,
-        hop_mgr: &mut HopMgr<R>,
+        hop_mgr: &HopMgr<R>,
         cell: RelayMaybeEarlyChanMsg,
     ) -> StdResult<Option<ForwardCellDisposition>, ReactorError> {
         let early = matches!(cell, RelayMaybeEarlyChanMsg::RelayEarly(_));
@@ -332,7 +328,7 @@ impl ForwardHandler for Forward {
 
     async fn handle_forward_cell<R: Runtime>(
         &mut self,
-        hop_mgr: &mut HopMgr<R>,
+        hop_mgr: &HopMgr<R>,
         cell: RelayCircChanMsg,
     ) -> StdResult<Option<ForwardCellDisposition>, ReactorError> {
         use RelayCircChanMsg::*;

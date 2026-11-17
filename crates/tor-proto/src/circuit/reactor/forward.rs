@@ -218,7 +218,7 @@ pub(crate) trait ForwardHandler: ControlHandler {
     /// Returns `None` if the cell was handled internally by this handler.
     async fn handle_forward_cell<R: Runtime>(
         &mut self,
-        hop_mgr: &mut HopMgr<R>,
+        hop_mgr: &HopMgr<R>,
         cell: Self::CircChanMsg,
     ) -> StdResult<Option<ForwardCellDisposition>, ReactorError>;
 
@@ -323,7 +323,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 };
 
                 let cell: F::CircChanMsg = cell.try_into()?;
-                let Some(disp) = self.inner.handle_forward_cell(&mut self.hop_mgr, cell).await? else {
+                let Some(disp) = self.inner.handle_forward_cell(&self.hop_mgr, cell).await? else {
                     return Ok(());
                 };
 
