@@ -37,6 +37,13 @@ pub(super) struct ExtendRequestHandler {
     // outbound into a new state machine type
     // (with states Initial -> Extending -> Extended(Outbound))?
     // But should not do this if it turns out more convoluted than the bool-based approach.
+    //
+    // XXX: it's time to abolish this bool in favor of a less brittle approach
+    // (this is about to grow more complicated, as there will be new cases
+    // where EXTEND2 is not supported. For instance, we'll soon add support for circuit splicing,
+    // for conflux and rendezvous circuits, and spliced circuits can't be EXTENDed)
+    //
+    // See also the examples from arti#2855
     have_seen_extend2: bool,
     /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
     ///
