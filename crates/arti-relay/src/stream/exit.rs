@@ -221,8 +221,24 @@ async fn connect_hostname<R: Runtime>(
         true
     });
 
-    // Reuse the `LookupAnswers` type because we know that the inline size is a good estimate.
+    // Collect to check the length before we apply the exit policy.
+    let answers: LookupAnswers<IpAddr> = answers.collect();
+    if answers.is_empty() {
+        trace!("Rejecting incoming stream since the domain resolution had no usable IP answers");
+        return Err(EndReason::RESOLVEFAILED);
+    }
+
+    // Apply the exit policy filter.
+    let answers = answers
+        .into_iter()
+        .filter(|ip| exit_policy_allows(SocketAddr::new(*ip, port)));
+
+    // Collect so that we can sort them.
     let mut answers: LookupAnswers<IpAddr> = answers.collect();
+    if answers.is_empty() {
+        trace!("Rejecting incoming stream due to the exit policy");
+        return Err(EndReason::EXITPOLICY);
+    }
 
     // torspec:
     // > 3 -- IPv6 preferred. If there are both IPv4 and IPv6 addresses,
@@ -243,18 +259,13 @@ async fn connect_hostname<R: Runtime>(
     let addr = match answers.first() {
         Some(ip) => ip,
         None => {
-            trace!("Rejecting incoming stream since the domain resolution had no IP answers");
+            let bug = internal!("we checked above before sorting that the list is non-empty");
+            trace_report!(bug, "No address answers for BEGIN hostname lookup");
             return Err(EndReason::RESOLVEFAILED);
         }
     };
 
     let addr = SocketAddr::new(*addr, port);
-
-    // Apply the exit policy filter.
-    if !exit_policy_allows(addr) {
-        trace!("Rejecting incoming stream due to the exit policy");
-        return Err(EndReason::EXITPOLICY);
-    }
 
     match runtime.connect(&addr, connect_options).await {
         Ok(x) => Ok(x),
