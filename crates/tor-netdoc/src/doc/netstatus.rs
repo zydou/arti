@@ -1040,6 +1040,65 @@ impl SignatureItemParseable for Signature {
     }
 }
 
+/// Error when trying to sign a network status
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SigningError {
+    /// Error making the actual RSA signature
+    #[error("signing netdoc: rsa")]
+    Rsa(#[from] ll::pk::rsa::Error),
+    /// Internal error
+    #[error("signing netdoc: internal error")]
+    Internal(#[from] Bug),
+}
+
+impl Signature {
+    /// Make a network status document `Signature`, given the document text
+    //
+    // We provide this rather uncooked API, rather than (say) encode_sign,
+    // because we need to excitingly manipulate consensus signatures,
+    // adding them to existing documents, etc.
+    //
+    // The cooked encode_sign would have only one call site (dirauth voting),
+    // so maybe we won't bother with it.
+    pub fn sign_text(
+        key: &ll::pk::rsa::KeyPair,
+        text: &str,
+        algo: DirectorySignatureHashAlgo,
+        key_ids: AuthCertKeyIds,
+    ) -> Result<Self, SigningError> {
+        // We take AuthCertKeyIds since that seems better than taking a single loose
+        // fingerprint for KP_auth_id_rsa and making it easy to pass KP_auth_sign_rsa
+        // instead.  But this does mean we should probably check that KP_auth_sign_rsa
+        // is right.
+        if key_ids.sk_fingerprint != key.to_public_key().to_rsa_identity() {
+            Err(bad_api_usage!(
+                "incorrect KP_auth_sign_rsa passed in to netdoc signing"
+            ))?;
+        }
+
+        let digest_algo = DigestAlgoInSignature::from_algo(algo);
+
+        let mut accu = DirectorySignaturesHashesAccu::default();
+        accu.update_from(
+            &digest_algo,
+            &SignatureHashInputs::new_for_signature(text, "directory-signature "),
+        );
+        let hash_slice = accu
+            .hash_slice(&digest_algo)
+            .ok_or_else(|| internal!("somehow failed to record hash of the in-use algo"))?;
+
+        let signature = key.sign(hash_slice)?;
+
+        Ok(SignatureConstructor {
+            digest_algo,
+            key_ids,
+            signature,
+        }
+        .construct())
+    }
+}
+
 /// A collection of signatures that can be checked on a networkstatus document
 ///
 /// This is derived from the signatures section of a netstatus,
