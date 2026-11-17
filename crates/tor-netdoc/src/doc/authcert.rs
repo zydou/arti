@@ -875,7 +875,7 @@ mod test {
     const DIR_KEY_EXPIRES: &str = "2001-01-01 00:00:05";
     const FINGERPRINT: &str = "D190BF3B00E311A9AEB6D62B51980E9B2109BAD1";
     const DIR_ADDRESS: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7100);
-    const DIR_IDENTITY_KEY: &str = "
+    fn t_dir_identity_key() -> &'static str { "
 -----BEGIN RSA PUBLIC KEY-----
 MIIBigKCAYEAt0rXD+1gYwKFAxrO4uNHQ9dQVUOGx5FxkioYNSct5Z3JU00dTKNJ
 jt4OGkFYwixWwk6KLDOiB+I/q9YIdA1NlQ5R3Hz8jjvFPVl0JQQm2LYzdSzv7/CZ
@@ -887,8 +887,8 @@ yfwfiPN6FQWlPyMCEB81HerCn03Zi5WgQLGo7PAeO4LFrLrU16DUC5/oJENeHs0T
 27FZQyrlf0rAxiHh7TJKcjLmzeyxCQVQlr2AXXs28gKHV0AQnEcdrVOpTrquSCQQ
 hWBehR+ct4OJAgMBAAE=
 -----END RSA PUBLIC KEY-----
-    ";
-    const DIR_SIGNING_KEY: &str = "
+    " }
+    fn t_dir_signing_key() -> &'static str { "
 -----BEGIN RSA PUBLIC KEY-----
 MIIBCgKCAQEAtPF94+bThLI28kn6e+MmUECMMJ5UBlnQ+Mvwn8Zd85awPQTDz5Wu
 13sZDN3nWnhgSuP5q/WDYc5GPPtQdSWBiG1nJA2XLgEHTHf29iGZ+jAoGfIMJvBV
@@ -897,8 +897,8 @@ zuxJTqTgfcuFWTEu0H0ukOFX+51ih6WO3GWYqRiqgU0Q5/Ets8ccCTq7ND9d2u1P
 d7kQzUHbVP0KmYGK4qYntGDfP4g9SmpBoUUHyP3j9en9S6PMYv8m1YFO7M7JKu6Q
 dQZfGTxj9C/0b/jRklgn5JlKAl9eJQvCdwIDAQAB
 -----END RSA PUBLIC KEY-----
-";
-    const DIR_CROSS_CERT_OBJECT: &str = "
+" }
+    fn t_dir_cross_cert_object() -> &'static str { "
 -----BEGIN ID SIGNATURE-----
 NBaPdBNCNMah6cklrALzj0RdHymF/jPGOv9NmeqaXc0uTN06S/BlVM/xTjilu+dj
 sjPuT0BQL4/ZWyZR+R+gJJojKYILSId4IQ1elzRSxpFN+u2u/ZEmS6SR2SwpA05A
@@ -907,7 +907,7 @@ btOYBKAmYkY6rLsTCbXGx3lAH2kAXfcrltCNKZXV6gqW7X379fiOnSId1OWhKPe1
 mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
 8HK5TzuknWlkRv3hCyRX+g==
 -----END ID SIGNATURE-----
-";
+" }
     const AUTHCERT_RAW: &str = include_str!("../../testdata2/keys/authority_certificate");
     /// A system time in the range of [`DIR_KEY_PUBLISHED`] and [`DIR_KEY_EXPIRES`].
     ///
@@ -953,12 +953,12 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
         // "Encodes" a DIR_CROSS_CERT_OBJECT by simply removing the lines
         // indicating the BEGIN and END, as the purpose is to test multiple
         // labels.
-        let encoded = DIR_CROSS_CERT_OBJECT
+        let encoded = t_dir_cross_cert_object()
             .lines()
             .filter(|line| !line.starts_with("-----"))
             .collect::<Vec<_>>()
             .join("\n");
-        let decoded = pem::parse(DIR_CROSS_CERT_OBJECT)
+        let decoded = pem::parse(t_dir_cross_cert_object())
             .unwrap()
             .contents()
             .to_vec();
@@ -1035,11 +1035,11 @@ mzMT023bleZ574az+117yNAr6XbIgqQfzbySzVLPXM8ZN9BrGR40KDZ2638ZJjRu
                 fingerprint: types::Fingerprint(to_rsa_id(FINGERPRINT)),
                 dir_key_published: Iso8601TimeSp(to_system_time(DIR_KEY_PUBLISHED)),
                 dir_key_expires: Iso8601TimeSp(to_system_time(DIR_KEY_EXPIRES)),
-                dir_identity_key: pem_to_rsa_pk(DIR_IDENTITY_KEY),
-                dir_signing_key: pem_to_rsa_pk(DIR_SIGNING_KEY),
+                dir_identity_key: pem_to_rsa_pk(t_dir_identity_key()),
+                dir_signing_key: pem_to_rsa_pk(t_dir_signing_key()),
                 dir_key_crosscert: CrossCert {
                     signature: CrossCertObject(
-                        pem::parse(DIR_CROSS_CERT_OBJECT)
+                        pem::parse(t_dir_cross_cert_object())
                             .unwrap()
                             .contents()
                             .to_vec()
