@@ -164,7 +164,7 @@ fn default_uploads() -> Vec<Vec<SocketAddr>> {
         // longclaw
         vec![sa("199.58.81.140:80")],
         // maatuska
-        vec![sa("171.25.193.9:443"), sa("[2001:67c:289c::9]:443")],
+        vec![sa("91.223.231.13:443"), sa("[2001:67c:8a4:1::13]:443")],
         // moria1
         vec![sa("128.31.0.39:9231")],
         // tor26
