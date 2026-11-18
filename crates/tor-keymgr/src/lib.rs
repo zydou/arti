@@ -84,7 +84,7 @@ pub use key_specifier::{
     KeyPathInfo, KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeySpecifier,
     KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
 };
-#[cfg(feature = "onion-service-cli-extra")]
+#[cfg(any(feature = "onion-service-cli-extra", feature = "experimental-api"))]
 pub use raw::RawEntryId;
 
 #[cfg(feature = "experimental-api")]
