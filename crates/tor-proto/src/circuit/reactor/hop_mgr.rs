@@ -149,8 +149,6 @@ impl<R: Runtime> HopMgr<R> {
         >,
         memquota: CircuitAccount,
     ) -> Self {
-        // We don't spawn any stream reactors ahead of time.
-        // Instead we spawn them lazily, when opening streams.
         let hops = Arc::new(RwLock::new(hops));
         let ctx = StreamReactorContext {
             unique_id,
