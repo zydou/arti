@@ -802,7 +802,6 @@ define_derive_deftly! {
     export NetdocParseableSignatures for struct, meta_quoted rigorous, expect items, beta_deftly:
 
     ${defcond T_SIGNATURES true}
-    ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
 
     // NetdocParseableSignatures::HashesAccu
     ${define SIGS_HASHES_ACCU_TYPE { ${tmeta(netdoc(signatures(hashes_accu))) as ty} }}
@@ -889,7 +888,6 @@ define_derive_deftly! {
     export NetdocParseableFields for struct , meta_quoted rigorous, expect items, beta_deftly:
 
     ${defcond T_SIGNATURES false}
-    ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
     ${define ITEM_STREAM items}
     ${define THIS_ITEM item}
     ${define F_ACCUMULATE_VAR { (&mut acc.$fname) }}

@@ -394,6 +394,8 @@ define_derive_deftly_module! {
     ${defcond F_FLATTEN fmeta(netdoc(flatten))}
     // Is this field `skip`?
     ${defcond F_SKIP fmeta(netdoc(skip))}
+    // signatures section documents have only signature fields
+    ${defcond F_SIGNATURE T_SIGNATURES}
     // Is this field normal (non-structural)?
     ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC, F_SKIP))}
 
@@ -434,7 +436,6 @@ define_derive_deftly_module! {
     // Predicates for the field kinds
     ${defcond F_INTRO approx_equal($findex, 0)}
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
-    ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
 
     // compile-time check that fields are in the right order in the struct
     ${define FIELD_ORDERING_CHECK {
