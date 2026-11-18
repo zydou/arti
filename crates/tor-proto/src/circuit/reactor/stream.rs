@@ -90,7 +90,7 @@ pub(crate) struct StreamReactor {
     circ_id: CircId,
     /// Receiver for Tor stream data that need to be delivered to a Tor stream.
     ///
-    /// The sender is in the [`HopMgr`](super::hop_mgr::HopMgr) of the
+    /// The sender is in the [`CircuitState`](super::circ_state::CircuitState) of the
     /// [`ForwardReactor`](super::ForwardReactor), which will forward all cells
     /// carrying Tor stream data to us.
     ///
@@ -114,7 +114,7 @@ pub(crate) struct StreamReactor {
     ///
     /// Set to `None` if incoming streams are not allowed on this circuit.
     ///
-    /// This handler is shared with the [`HopMgr`](super::hop_mgr::HopMgr) of this reactor,
+    /// This handler is shared with the [`CircuitState`](super::circ_state::CircuitState) of this reactor,
     /// which can install a new handler at runtime (for example, in response to a CtrlMsg).
     /// The ability to update the handler after the reactor is launched is needed
     /// for onion services, where the incoming stream request handler only gets installed

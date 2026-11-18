@@ -99,8 +99,8 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     // But for the sake of simplicity, I made the BWD consult the CircHopList in all cases.
     //
     // TODO: the backward reactor only ever reads from this.
-    // Conceptually, it is the forward reactor's HopMgr that owns this list:
-    // only HopMgr can add hops to the list.
+    // Conceptually, it is the forward reactor's CircuitState that owns this list:
+    // only CircuitState can add hops to the list.
     //
     // Perhaps we need a specialized abstraction that only allows reading here.
     // This could be a wrapper over RwLock, providing a read-only API.

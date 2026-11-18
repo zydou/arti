@@ -228,7 +228,7 @@ pub(crate) mod circhop;
 
 pub(crate) mod backward;
 pub(crate) mod forward;
-pub(crate) mod hop_mgr;
+pub(crate) mod circ_state;
 pub(crate) mod macros;
 pub(crate) mod stream;
 
@@ -248,7 +248,7 @@ use crate::channel::Channel;
 use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::backward::BackwardHandler;
 use crate::circuit::reactor::forward::ForwardHandler;
-use crate::circuit::reactor::hop_mgr::HopMgr;
+use crate::circuit::reactor::circ_state::CircuitState;
 use crate::circuit::reactor::stream::ReadyStreamMsg;
 use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::memquota::CircuitAccount;
@@ -428,10 +428,10 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         inbound_chan_rx: CircuitRxReceiver,
         forward_impl: F,
         backward_impl: B,
-        hop_mgr: HopMgr<R>,
+        circ_state: CircuitState<R>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
-        // The sending end of this channel should be in HopMgr
+        // The sending end of this channel should be in CircuitState
         bwd_rx: mpsc::Receiver<ReadyStreamMsg>,
         fwd_events: mpsc::Receiver<F::CircEvent>,
         fwd_events_tx: mpsc::Sender<F::CircEvent>,
@@ -465,13 +465,13 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         };
 
         /// Grab a handle to the hop list (it's needed by the BWD)
-        let hops = Arc::clone(hop_mgr.hops());
+        let hops = Arc::clone(circ_state.hops());
         let forward = ForwardReactor::new(
             runtime.clone(),
             unique_id,
             circ_id,
             forward_impl,
-            hop_mgr,
+            circ_state,
             inbound_chan_rx,
             fwd_control_rx,
             fwd_command_rx,

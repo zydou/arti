@@ -32,8 +32,10 @@ use std::sync::{Arc, Mutex, RwLock};
 /// and a handle to the stream reactor of the hop.
 ///
 /// The stream reactor of the hop is launched lazily,
-/// when the first [`CtrlMsg`] is sent via [`HopMgr::send`].
-pub(crate) struct HopMgr<R: Runtime> {
+/// when the first [`CtrlMsg`] is sent via [`CircuitState::send`].
+///
+/// This is owned by the forward reactor.
+pub(crate) struct CircuitState<R: Runtime> {
     /// A handle to the runtime.
     runtime: R,
     /// Context used when spawning a stream reactor.
@@ -54,8 +56,8 @@ pub(crate) struct HopMgr<R: Runtime> {
     /// (it never mutates the list).
     ///
     // TODO: the backward reactor only ever reads from this.
-    // Conceptually, it is the HopMgr that owns this list,
-    // because only HopMgr can add hops to the list.
+    // Conceptually, it is the CircuitState that owns this list,
+    // because only CircuitState can add hops to the list.
     //
     // Perhaps we need a specialized abstraction that only allows reading here.
     // This could be a wrapper over RwLock, providing a read-only API for the BWD.
@@ -83,8 +85,8 @@ struct StreamReactorContext {
     metrics: Arc<CircuitMetrics>,
 }
 
-impl<R: Runtime> HopMgr<R> {
-    /// Create a new [`HopMgr`] consisting of a single CircHop
+impl<R: Runtime> CircuitState<R> {
+    /// Create a new [`CircuitState`] consisting of a single CircHop
     /// (built using the specified `settings),
     /// setting the incoming stream request handler to `incoming_handler`.
     #[cfg(feature = "relay")]
@@ -115,9 +117,9 @@ impl<R: Runtime> HopMgr<R> {
         )
     }
 
-    /// Create a new [`HopMgr`] with an empty hop list.
+    /// Create a new [`CircuitState`] with an empty hop list.
     ///
-    /// Hops are added with [`HopMgr::add_hop`].
+    /// Hops are added with [`CircuitState::add_hop`].
     #[expect(unused)] // TODO(dedup): clients will use this
     pub(crate) fn new_client<S: StreamHandler>(
         runtime: R,
