@@ -395,7 +395,7 @@ define_derive_deftly_module! {
     // Is this field `skip`?
     ${defcond F_SKIP fmeta(netdoc(skip))}
     // signatures section documents have only signature fields
-    ${defcond F_SIGNATURE T_SIGNATURES}
+    ${defcond F_SIGNATURE all(T_SIGNATURES, not(F_SKIP))}
     // Is this field normal (non-structural)?
     ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC, F_SKIP))}
 
