@@ -289,9 +289,12 @@ define_derive_deftly! {
     /// but:
     ///
     ///  * Derives [`NetdocEncodableFields`]
+    $DOC_NETDOC_FIELDS_NORMAL_ONLY
     $DOC_NETDOC_FIELDS_DERIVE_SUPPORTED
     ///
     export NetdocEncodableFields beta_deftly, for struct, meta_quoted rigorous, expect items:
+
+    ${defcond F_SIGNATURE false}
 
     ${impl $P::NetdocEncodableFields} {
         fn encode_fields(

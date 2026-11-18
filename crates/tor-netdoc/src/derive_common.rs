@@ -467,11 +467,12 @@ define_derive_deftly_module! {
     // Predicates for the field kinds, used by NetdocSomeItemsDeriveCommon etc.
     ${defcond F_INTRO false}
     ${defcond F_SUBDOC false}
-    ${defcond F_SIGNATURE false}
 
-    ${define DOC_NETDOC_FIELDS_DERIVE_SUPPORTED {
+    ${define DOC_NETDOC_FIELDS_NORMAL_ONLY {
         ///  * The input struct can contain only normal non-structural items
         ///    (so it's not a sub-document with an intro item).
+    }}
+    ${define DOC_NETDOC_FIELDS_DERIVE_SUPPORTED {
         ///  * The only attributes supported are the field attributes
         ///    `#[deftly(netdoc(keyword = STR))]`
         ///    `#[deftly(netdoc(default))]`

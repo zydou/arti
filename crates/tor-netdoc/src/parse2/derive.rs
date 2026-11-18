@@ -866,10 +866,12 @@ define_derive_deftly! {
     /// but:
     ///
     ///  * Derives [`NetdocParseableFields`]
+    $DOC_NETDOC_FIELDS_NORMAL_ONLY
     $DOC_NETDOC_FIELDS_DERIVE_SUPPORTED
     ///
     export NetdocParseableFields for struct , meta_quoted rigorous, expect items, beta_deftly:
 
+    ${defcond F_SIGNATURE false}
     ${define ITEM_STREAM items}
     ${define THIS_ITEM item}
     ${define F_ACCUMULATE_VAR { (&mut acc.$fname) }}
