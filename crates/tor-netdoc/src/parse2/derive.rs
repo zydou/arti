@@ -48,7 +48,6 @@ define_derive_deftly_module! {
 
 define_derive_deftly_module! {
     /// Common definitions for `NetdocParseableFields` and `NetdocParseableSignatures`
-    // XXXX NetdocParseableSignatures doesn't use this yet
     NetdocFieldsParseableCommon beta_deftly:
 
     ${define DEFINE_IS_ITEM_KEYWORD {
@@ -723,6 +722,7 @@ define_derive_deftly! {
     use NetdocDeriveAnyCommon;
     use NetdocParseAnyCommon;
     use NetdocFieldsDeriveCommon;
+    use NetdocFieldsParseableCommon;
     use NetdocSomeItemsDeriveCommon;
     use NetdocSomeItemsParseableCommon;
 
@@ -813,13 +813,7 @@ define_derive_deftly! {
     ${impl $P::NetdocParseableSignatures} {
         type HashesAccu = $SIGS_HASHES_ACCU_TYPE;
 
-        fn is_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
-            use $P::*;
-            ${for fields {
-                kw == $F_KEYWORD ||
-            }}
-                false
-        }
+        $DEFINE_IS_ITEM_KEYWORD
 
         #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
         fn from_items<'s>(
