@@ -7,9 +7,15 @@ use super::*;
 // TODO DIRAUTH this should be rate limited or something maybe?
 // TODO DIRAUTH voter number is not very useful to log here!
 // TODO DIRAUTH arguably this is more serious than debug, but what about compatibility?
-macro_rules! bad_vote { { $vnum:expr, $($msg:tt)* } => { {
+macro_rules! bad_vote { { $context:expr, $vnum:expr, $($msg:tt)* } => { {
     let vnum: VoterNum = $vnum;
-    debug!("bad vote from {vnum:?}: {}", format_args!($($msg)*));
+    debug!(
+        "bad vote from {}: {}",
+        $context.nicknames.get(vnum)
+            .map(|n| n as &dyn Display)
+            .unwrap_or(&format_args!("{vnum:?}")),
+        format_args!($($msg)*),
+    );
 } } }
 
 /// Voter number
@@ -243,6 +249,9 @@ pub(super) struct ConsensusCommonContext<'r> {
     /// The input votes (in their entirity)
     pub votes: TiVec<VoterNum, &'r netstatus::vote::NetworkStatus>,
 
+    /// The nicknames of the authorities, used only for logging/reporting
+    pub nicknames: TiVec<VoterNum, &'r Nickname>,
+
     /// The votes' digests (in the same `VoterNum` order)
     pub sig_hashes: TiVec<VoterNum, &'r netstatus::DirectorySignaturesHashesAccu>,
 }
@@ -294,6 +303,7 @@ pub(crate) mod test {
                 method: SupportedConsensusMethod::MAX,
                 n_authorities: 0,
                 votes: ti_vec![],
+                nicknames: ti_vec![],
                 sig_hashes: ti_vec![],
             }
         }

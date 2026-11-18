@@ -3,7 +3,7 @@
 pub(crate) use std::cell::Cell;
 pub(crate) use std::cmp::{self, Ordering};
 pub(crate) use std::collections::{BTreeMap, HashMap, HashSet};
-pub(crate) use std::fmt::{self, Debug};
+pub(crate) use std::fmt::{self, Debug, Display};
 pub(crate) use std::hash::Hash;
 pub(crate) use std::marker::PhantomData;
 pub(crate) use std::net::{Ipv4Addr, SocketAddr};

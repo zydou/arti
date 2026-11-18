@@ -289,7 +289,7 @@ impl Aggregate<RouterStatusAC<'_>> for Vec<netstatus::RouterStatusMdDigestsVote>
             .iter()
             .filter_map(|(vnum, v)| {
                 md_digest_from_vote(context, v).unwrap_or_else(|e: String| {
-                    bad_vote!(vnum, "{e}");
+                    bad_vote!(context, vnum, "{e}");
                     None
                 })
             })
@@ -358,7 +358,7 @@ fn aggregate_a_items<'i>(
         inputs,
         // fallback ordering is "natural" according to Rust, which matches the spec
         |a: &Option<&SocketAddr>| std::cmp::Reverse(*a),
-    )?
+    )
     .flatten()
     .cloned();
 
@@ -541,7 +541,7 @@ m 1,2,3 sha256=PSFWDSIK+sMS6+fkLrc7PSZ6L0Rkscbz2WcmKCDIdOQ
                     .m = votes[i].m.clone();
                 Ok(())
             },
-            |(_plain, md)| {
+            |Consensuses { plain: _, md }| {
                 let m = &md
                     .routers
                     .iter()
@@ -579,7 +579,7 @@ m 1,2,3 sha256=PSFWDSIK+sMS6+fkLrc7PSZ6L0Rkscbz2WcmKCDIdOQ
                 vote.routers[0].protos = inputs[vnum].clone();
                 Ok(())
             },
-            |(plain, md)| {
+            |Consensuses { plain, md }| {
                 assert_eq!(plain.routers[0].protos, inputs[0].clone());
                 assert_eq!(md.routers[0].protos, inputs[0].clone());
                 Ok(())

@@ -24,28 +24,27 @@ pub(super) fn low_median_raw<'i, T: Ord + 'i>(inputs: impl Iterator<Item = T>) -
 
 /// Return the value which is most popular, without cloning, and without context
 ///
+/// Returns `None` iff the input iterator is empty.
+///
 /// See [`choose_most_popular_amongst_votes`].
-#[allow(clippy::needless_pass_by_value, clippy::unnecessary_wraps)]
+#[allow(clippy::needless_pass_by_value)]
 pub(super) fn choose_most_popular_amongst_votes_raw<T, K>(
     inputs: impl ComponentInVotes<T>,
     ord_key: impl for<'i> Fn(&'i T) -> K,
-) -> Result<Option<T>, ConsensusError>
+) -> Option<T>
 where
     T: Eq + Hash,
     K: Ord,
 {
     let counts = inputs.votes().counts();
+    let best = counts.values().copied().max()?;
 
-    let Some(best) = counts.values().copied().max() else {
-        return Ok(None);
-    };
-
-    Ok(counts
+    counts
         .into_iter()
         .filter(|(_v, count)| count == &best)
         .map(|(v, _count)| v)
         .at_most_one()
-        .unwrap_or_else(|several| several.min_by_key(ord_key)))
+        .unwrap_or_else(|several| several.min_by_key(ord_key))
 }
 
 /// Return the value which is most popular
@@ -67,7 +66,7 @@ where
     T: Eq + Hash + Clone + 'i,
     K: Ord,
 {
-    Ok(choose_most_popular_amongst_votes_raw(inputs, |v| ord_key(v))?.cloned())
+    Ok(choose_most_popular_amongst_votes_raw(inputs, |v| ord_key(v)).cloned())
 }
 
 /// Helper for choosing the lexically last by string representation

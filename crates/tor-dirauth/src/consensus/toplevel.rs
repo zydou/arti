@@ -2,6 +2,28 @@
 
 use super::*;
 
+/// One vote input to `compute_consensus_from_votes`
+#[allow(clippy::exhaustive_structs)] // this is an aggregation of a function input argument
+pub struct VoteInput<'v> {
+    /// The vote; signature must have been verified
+    pub vote: &'v netstatus::vote::NetworkStatus,
+
+    /// The voter nickname, used only for logging/reporting
+    pub nickname: &'v Nickname,
+
+    /// Signature hashes, from document parsing
+    pub sig_hashes: &'v netstatus::DirectorySignaturesHashesAccu,
+}
+
+/// Outputs from consensus calculation
+#[non_exhaustive]
+pub struct Consensuses {
+    /// plain consensus
+    pub plain: netstatus::plain::NetworkStatus,
+    /// md consensus
+    pub md: netstatus::md::NetworkStatus,
+}
+
 impl ConsensusesFromVotes<()> for netstatus::vote::NetworkStatus {
     type PlainOutput = netstatus::plain::NetworkStatus;
     type MdOutput = netstatus::md::NetworkStatus;
@@ -113,46 +135,39 @@ impl<AC> Aggregate<AC> for netstatus::VoteAuthoritySection {
     }
 }
 
-/// Computes a consensus from the input votes
+/// Computes a consensus from the input votes, for a specific method
 ///
 /// ### Security
 ///
 /// It is the caller's responsibility to check that each of the `votes`
 /// came from a recognised authority.
-pub fn compute_consensus_from_votes<'v>(
+pub fn compute_consensus_from_votes_method<'v>(
     method: SupportedConsensusMethod,
     n_authorities: usize,
-    votes: impl Iterator<
-        Item = (
-            &'v netstatus::vote::NetworkStatus,
-            &'v netstatus::DirectorySignaturesHashesAccu,
-        ),
-    >,
-) -> Result<
-    (
-        netstatus::plain::NetworkStatus,
-        netstatus::md::NetworkStatus,
-    ),
-    ConsensusError,
-> {
-    let (votes, sig_hashes) = votes.collect();
+    votes: impl Iterator<Item = VoteInput<'v>>,
+) -> Result<Consensuses, ConsensusError> {
+    let (votes, nicknames, sig_hashes) = votes
+        .map(|vi| (vi.vote, vi.nickname, vi.sig_hashes))
+        .collect();
     let context = ConsensusCommonContext {
         method,
         n_authorities,
         votes,
+        nicknames,
         sig_hashes,
     };
     let context = ConsensusContextRefs {
         context: &context,
         computed: &(),
     };
-    <netstatus::vote::NetworkStatus as ConsensusesFromVotes<()>>::consensuses(
+    let (plain, md) = <netstatus::vote::NetworkStatus as ConsensusesFromVotes<()>>::consensuses(
         context,
         context
             .votes
             .iter_enumerated()
             .map(|(vnum, vote)| (vnum, *vote)),
-    )
+    )?;
+    Ok(Consensuses { plain, md })
 }
 
 #[cfg(test)]
@@ -242,19 +257,14 @@ pub(crate) mod test {
         n_votes: usize,
         n_authorities: usize,
         mut edit_vote: impl FnMut(usize, &mut netstatus::vote::NetworkStatus) -> anyhow::Result<()>,
-        check_output: impl FnOnce(
-            (
-                netstatus::plain::NetworkStatus,
-                netstatus::md::NetworkStatus,
-            ),
-        ) -> anyhow::Result<()>,
+        check_output: impl FnOnce(Consensuses) -> anyhow::Result<()>,
     ) {
         assert!(n_votes <= n_authorities);
         let method = SupportedConsensusMethod::MAX;
 
         let (vote_base, sigs) =
             tor_netdoc::testdata_live::netstatus_vote_unverified().inspect_unverified();
-        let hashes = &sigs.hashes;
+        let sig_hashes = &sigs.hashes;
 
         let votes = (0..n_votes)
             .into_iter()
@@ -262,13 +272,21 @@ pub(crate) mod test {
                 let mut vote = vote_base.clone();
                 populate_md_digests_for_method(method, &mut vote);
                 edit_vote(vnum, &mut vote).expect("vote edit failed");
-                vote
+                let nick: Nickname = format!("A{vnum}").parse().unwrap();
+                (vote, nick)
             })
             .collect_vec();
 
-        let output =
-            compute_consensus_from_votes(method, n_authorities, votes.iter().map(|v| (v, hashes)))
-                .expect("compute consensus");
+        let output = compute_consensus_from_votes_method(
+            method,
+            n_authorities,
+            votes.iter().map(|(vote, nickname)| VoteInput {
+                vote,
+                nickname,
+                sig_hashes,
+            }),
+        )
+        .expect("compute consensus");
 
         check_output(output).expect("check output");
     }
@@ -280,7 +298,7 @@ pub(crate) mod test {
             3,
             4,
             |_, _| Ok(()),
-            |(plain, md)| {
+            |Consensuses { plain, md }| {
                 dbg!(&plain);
                 dbg!(&md);
                 Ok(())

@@ -322,7 +322,7 @@ mod test {
                     vote.preamble.proto_statuses = ps.into();
                     Ok(())
                 },
-                |(plain, _md)| {
+                |Consensuses { plain, md: _ }| {
                     let got = &plain.preamble.proto_statuses.$cs.$field;
                     let exp = &[< exp_ $field >];
                     assert_eq!(
