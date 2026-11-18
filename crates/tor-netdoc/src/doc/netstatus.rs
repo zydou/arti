@@ -3691,4 +3691,58 @@ $2
             Duration::ZERO,
         )
     }
+
+    #[cfg(feature = "retain-unknown")]
+    #[test]
+    fn sign_vote() -> anyhow::Result<()> {
+        use crate::{
+            encode::{encode_netdoc_fields, encode_netdoc_unsigned},
+            test_support, testdata2,
+        };
+        use tor_llcrypto::pk::rsa;
+
+        let authcert = parse_netdoc::<AuthCertUnverified>(
+            &ParseInput::new(testdata2::keys::AUTHORITY_CERTIFICATE, "authcert")
+                .retain_unknown_values(),
+        )?;
+        let authcert = authcert.unwrap_unverified().0;
+        let authority_id = authcert.fingerprint;
+
+        let doc = test_support::find_vote_by_authority_id(
+            &ParseInput::new(testdata2::V3_STATUS_VOTES, "v3-status-votes").retain_unknown_values(),
+            *authority_id,
+        )
+        .0
+        .unwrap_unverified()
+        .0;
+
+        let body = encode_netdoc_unsigned([&doc])?;
+
+        let sk =
+            rsa::KeyPair::from_der(pem::parse(testdata2::keys::AUTHORITY_SIGNING_KEY)?.contents())
+                .unwrap();
+
+        for hash_algo in [
+            DirectorySignatureHashAlgo::Sha1,
+            DirectorySignatureHashAlgo::Sha256,
+        ] {
+            let directory_signature =
+                Signature::sign_text(&sk, &body, hash_algo, authcert.key_ids())?;
+
+            let sig = encode_netdoc_fields(&vote::NetworkStatusSignatures {
+                directory_signature,
+                __non_exhaustive: (),
+            })?;
+
+            let signed = body.clone() + &sig;
+
+            let _: vote::NetworkStatus = parse_netdoc::<vote::NetworkStatusUnverified>(
+                &ParseInput::new(&signed, "<signed>"),
+            )?
+            .verify(&mut VoteVerifier::new([*authority_id]))?
+            .dangerously_assume_timely();
+        }
+
+        Ok(())
+    }
 }
