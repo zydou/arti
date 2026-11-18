@@ -69,6 +69,8 @@ pub mod tracing;
 #[cfg(feature = "http")]
 mod http;
 
+pub use void;
+
 /// Classification of an error arising from Arti's Tor operations
 ///
 /// This `ErrorKind` should suffice for programmatic handling by most applications embedding Arti:
