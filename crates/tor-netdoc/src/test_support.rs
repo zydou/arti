@@ -15,7 +15,10 @@
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
 use crate::doc::netstatus::vote::NetworkStatusUnverified as NetworkStatusVoteUnverified;
-use crate::parse2::{NetdocParseable, NetdocParseableFields, NetdocParseableUnverified as _, ParseInput, parse_netdoc, parse_netdoc_multiple_with_offsets};
+use crate::parse2::{
+    NetdocParseable, NetdocParseableFields, NetdocParseableUnverified as _, ParseInput,
+    parse_netdoc, parse_netdoc_multiple_with_offsets,
+};
 use derive_deftly::Deftly;
 use itertools::chain;
 use std::any::{Any, TypeId};
