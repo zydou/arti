@@ -694,6 +694,7 @@ define_derive_deftly! {
 define_derive_deftly! {
     use NetdocDeriveAnyCommon;
     use NetdocParseAnyCommon;
+    use NetdocFieldsDeriveCommon;
     use NetdocSomeItemsDeriveCommon;
     use NetdocSomeItemsParseableCommon;
 
@@ -719,13 +720,7 @@ define_derive_deftly! {
     ///  * The following top-level attributes are supported:
     ///    `#[deftly(netdoc(debug))]`
     ///
-    ///  * The following field-level attributes are supported:
-    ///    `#[deftly(netdoc(keyword = STR))]`
-    ///    `#[deftly(netdoc(default))]`
-    ///    `#[deftly(netdoc(single_arg))]`
-    ///    `#[deftly(netdoc(with = MODULE))]`
-    ///    `#[deftly(netdoc(flatten))]`
-    ///    `#[deftly(netdoc(skip))]`
+    $DOC_NETDOC_FIELDS_DERIVE_SUPPORTED
     ///
     /// ### Signature item ordering, and signatures covering signatures
     ///
@@ -778,8 +773,6 @@ define_derive_deftly! {
     /// signature item ordering checks.
     export NetdocParseableSignatures for struct, meta_quoted rigorous, expect items, beta_deftly:
 
-    ${defcond F_INTRO false}
-    ${defcond F_SUBDOC false}
     ${defcond F_SIGNATURE true}
 
     // NetdocParseableSignatures::HashesAccu

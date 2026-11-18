@@ -459,9 +459,11 @@ define_derive_deftly_module! {
 define_derive_deftly_module! {
     /// Common definitions for derives of flattenable network document fields structs
     ///
-    /// Used by `NetdocParseableFields` and `NetdocEncodableFields`.
+    /// Used by `NetdocParseableFields`, `NetdocEncodableFields`,
+    /// and `NetdocParseableSignatures`.
     ///
-    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
+    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`,
+    /// and defcond `F_SIGNATURE`.
     NetdocFieldsDeriveCommon beta_deftly:
 
     // Predicates for the field kinds, used by NetdocSomeItemsDeriveCommon etc.
