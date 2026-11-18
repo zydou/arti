@@ -15,7 +15,7 @@ from typing_extensions import override
 # non-stdlib imports
 import chutney.TorNet as TorNet
 import chutney.network_tests.verify
-from chutney.Util import addr_and_port_str
+from chutney.util.ipaddress import addr_and_port_str
 
 # local imports
 import common
@@ -72,7 +72,11 @@ class TestNetwork(unittest.TestCase):
                     else:
                         # Do DNS resolution locally
                         curl_socks_flag = "--socks5"
-                    subprocess.check_call(
+                    # We're testing *all* exposed socksport endpoints, some of
+                    # which are normally loopback (127.0.0.1). We use the node's
+                    # process launcher to run curl from the same "location"
+                    # (e.g. shadow virtual host) as the chutney node itself.
+                    cp = client.launcher().run(
                         [
                             "curl",
                             f"http://{common.TEST_DOMAIN}",
@@ -81,8 +85,15 @@ class TestNetwork(unittest.TestCase):
                             addr_and_port_str(ip, port),
                             "-o",
                             "/dev/null",
-                        ]
+                        ],
+                        capture_strategy=chutney.launcher.Capture.MERGED,
+                        check=False,
+                        known_bin=None,
+                        text=True,
+                        timeout=60.0,
                     )
+                    print(cp.stdout)
+                    self.assertEqual(cp.returncode, 0)
 
     def test_dig(self) -> None:
         """Test DNS lookups, using `dig` with the dns port"""
@@ -144,18 +155,27 @@ class TestNetwork(unittest.TestCase):
             f"Running arti bench with tor client {client.nick} via {ip}:{port}",
             flush=True,
         )
-        subprocess.check_call(
+        cp = client.launcher().run(
             [
                 self._config.arti_bench,
                 "-c",
                 os.path.join(self._config.chutney_data_dir, "nodes", "arti.toml"),
                 "--socks5",
                 addr_and_port_str(ip, port),
+                "--listen",
+                f"{ip}:0",
                 "-o",
                 str(self._network.dir.joinpath("benchmark_results.json")),
             ],
             env=dict(os.environ) | dict(RUST_LOG="debug"),
+            timeout=120.0,
+            check=False,
+            text=True,
+            known_bin=None,
+            capture_strategy=chutney.launcher.Capture.MERGED,
         )
+        print(cp.stdout)
+        self.assertEqual(cp.returncode, 0)
 
 
 if __name__ == "__main__":

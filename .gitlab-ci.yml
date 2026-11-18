@@ -40,8 +40,8 @@ variables:
   # For static website deployment job
   SITE_URL: arti.torproject.org
   # Pinned chutney version.
-  # main @ 2026-07-01
-  CHUTNEY_COMMIT: "d6659ac34c36122ed2590714e37269d1b983c336"
+  # main @ 2026-11-18
+  CHUTNEY_COMMIT: "54c9481bb3d01d1c4f65df9c4944d22a08cd68f6"
   # Rust doesn't do backtraces on panic by default, but we do want them in CI
   RUST_BACKTRACE: 1
   # Disable Cargo's incremental compilation to hopefully reduce load on CI runners.
@@ -647,8 +647,8 @@ build-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    # Last updated 2026-09-01
-    JOB_SHADOW_COMMIT: "412c4700bcc69a7610dda4dec86b2c034a058186"
+    # Last updated 2026-11-17
+    JOB_SHADOW_COMMIT: "b8e8ef680198b027b45d607938d4e60b98e42def"
   artifacts:
     paths:
       - opt/shadow
@@ -747,11 +747,7 @@ integration-chutney-shadow:
     # Install shadowtools, built in build-shadow
     - python3 -m pip install --no-index --find-links="$CI_PROJECT_DIR"/opt/shadow/wheels shadowtools
 
-    # Select a random simulation seed to avoid "dooming"
-    # an unlucky MR that hits a low-probability bug.
-    - SEED=$(date +%s)
-
-    - tests/chutney/integration-e2e-shadow --seed="$SEED"
+    - tests/chutney/integration-e2e-shadow
   artifacts:
     paths:
       # chutney network including tor logs etc
