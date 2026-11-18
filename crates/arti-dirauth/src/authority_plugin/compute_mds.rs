@@ -80,10 +80,7 @@ struct InputDescriptor {
 
 impl<'o> Processor<'o> {
     /// Process one input file
-    pub(crate) fn process_input(
-        &mut self,
-        input: parse2::ParseInput<'_>,
-    ) -> Result<(), CliError> {
+    pub(crate) fn process_input(&mut self, input: parse2::ParseInput<'_>) -> Result<(), CliError> {
         let input = input.retain_unknown_values();
 
         let router_descs = parse2::parse_netdoc_multiple_sophisticated::<
