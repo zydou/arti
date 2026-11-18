@@ -218,7 +218,7 @@ impl<R: Runtime> Reactor<R> {
             cmd_checker,
             filter: incoming_filter,
         };
-        let mut hop_mgr = HopMgr::new_with_incoming_handler(
+        let mut hop_mgr = HopMgr::new_relay(
             runtime.clone(),
             unique_id,
             circ_id,

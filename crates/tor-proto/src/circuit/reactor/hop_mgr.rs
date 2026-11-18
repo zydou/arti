@@ -86,7 +86,7 @@ impl<R: Runtime> HopMgr<R> {
     ///
     /// Hops are added with [`HopMgr::add_hop`].
     #[cfg(feature = "relay")]
-    pub(crate) fn new_with_incoming_handler<S: StreamHandler>(
+    pub(crate) fn new_relay<S: StreamHandler>(
         runtime: R,
         unique_id: UniqId,
         circ_id: CircId,
