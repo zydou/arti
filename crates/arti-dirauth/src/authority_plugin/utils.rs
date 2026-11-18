@@ -54,6 +54,7 @@ define_derive_deftly! {
 //   - consider whether we should preserve file permissions
 //   - see the comment about leftover `.tmp` files in `write`, below
 //   - fix the locking problem (see the two TODO locking/hang)
+//   - consider whether to keep the unconditional setting of retain_unknown_values in parse2
 #[derive(Debug, Clone)]
 pub(super) enum FilenameOrStdio {
     /// Filename
@@ -287,7 +288,7 @@ impl EntireInput {
 
     /// Return a `parse2::ParseInput` for this input file
     pub(crate) fn netdoc_parse2(&self) -> parse2::ParseInput {
-        parse2::ParseInput::new(self, self.description())
+        parse2::ParseInput::new(self, self.description()).retain_unknown_values()
     }
 }
 
