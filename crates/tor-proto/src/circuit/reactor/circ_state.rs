@@ -1,15 +1,19 @@
 //! Channel for sending messages to [`StreamReactor`].
 
+// TODO(DEDUP): this will replace CircHopList when we rewrite the client reactor
+// to use the new reactor architecture
+mod circhop;
+
 use crate::circuit::UniqId;
 use crate::circuit::circhop::{CircHopOutbound, HopSettings};
 use crate::circuit::metrics::CircuitMetrics;
-use crate::circuit::reactor::circhop::CircHopList;
 use crate::circuit::reactor::stream::{CtrlMsg, ReadyStreamMsg, StreamHandler, StreamReactor};
 use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::cell::RelayCellBody;
 use crate::memquota::CircuitAccount;
 use crate::util::err::ReactorError;
 use crate::{Error, HopNum, Result};
+use circhop::CircHopList;
 
 #[cfg(any(feature = "hs-service", feature = "relay"))]
 use {

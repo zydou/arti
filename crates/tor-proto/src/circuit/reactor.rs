@@ -222,10 +222,6 @@
 //! [multi-reactor circuit subsystem]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/notes/relay-conflux.md
 //! [`StreamReactor`]: stream::StreamReactor
 
-// TODO(DEDUP): this will replace CircHopList when we rewrite the client reactor
-// to use the new reactor architecture
-pub(crate) mod circhop;
-
 pub(crate) mod backward;
 pub(crate) mod circ_state;
 pub(crate) mod forward;

@@ -17,22 +17,22 @@ use tor_error::{Bug, internal};
 use std::result::Result as StdResult;
 
 /// Per-hop state.
-pub(crate) struct CircHop {
+pub(super) struct CircHop {
     /// A sender for sending relay messages to this hop's stream reactor.
     ///
     /// Set to `None` if we haven't yet spawned a stream reactor for this hop.
-    pub(crate) tx: Option<mpsc::Sender<CtrlMsg>>,
+    pub(super) tx: Option<mpsc::Sender<CtrlMsg>>,
     /// The congestion control state.
     ///
     /// This is shared with `CircHopOutbound`.
     ///
     // TODO(DEDUP): the Arc is not actually needed in the new generic circuit reactor
     // (it only exists because CircHopOutbound/CircHop needs it).
-    pub(crate) ccontrol: Arc<Mutex<CongestionControl>>,
+    pub(super) ccontrol: Arc<Mutex<CongestionControl>>,
     /// The inbound hop state of this hop.
-    pub(crate) inbound: CircHopInbound,
+    pub(super) inbound: CircHopInbound,
     /// Settings negotiated with this hop.
-    pub(crate) settings: HopSettings,
+    pub(super) settings: HopSettings,
 }
 
 impl CircHop {
