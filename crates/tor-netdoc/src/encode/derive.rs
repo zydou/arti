@@ -294,7 +294,8 @@ define_derive_deftly! {
     ///
     export NetdocEncodableFields beta_deftly, for struct, meta_quoted rigorous, expect items:
 
-    ${defcond F_SIGNATURE false}
+    ${defcond T_SIGNATURES false}
+    ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
 
     ${impl $P::NetdocEncodableFields} {
         fn encode_fields(
