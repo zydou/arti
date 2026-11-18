@@ -47,6 +47,34 @@ define_derive_deftly_module! {
 }
 
 define_derive_deftly_module! {
+    /// Common definitions for `NetdocParseableFields` and `NetdocParseableSignatures`
+    // XXXX NetdocParseableSignatures doesn't use this yet
+    NetdocFieldsParseableCommon beta_deftly:
+
+    ${define DEFINE_IS_ITEM_KEYWORD {
+        fn is_item_keyword(
+            #[allow(unused_variables)] // If there are no fields, this is unused
+            kw: $P::KeywordRef<'_>,
+        ) -> bool {
+            #[allow(unused_imports)] // false positives in some situations
+            use $P::*;
+
+          ${for fields {
+            ${when not(F_FLATTEN)}
+            ${when not(F_SKIP)}
+            kw == $F_KEYWORD ||
+          }}
+          ${for fields {
+            ${when F_FLATTEN}
+            ${when not(F_SKIP)}
+            <$ftype as NetdocParseableFields>::is_item_keyword(kw) ||
+          }}
+            false
+        }
+    }}
+}
+
+define_derive_deftly_module! {
     /// Common definitions for `NetdocParseable`, `NetdocParseableFields`,
     /// and `NetdocParseableSignatures`
     ///
@@ -846,6 +874,7 @@ define_derive_deftly! {
     use NetdocDeriveAnyCommon;
     use NetdocParseAnyCommon;
     use NetdocFieldsDeriveCommon;
+    use NetdocFieldsParseableCommon;
     use NetdocSomeItemsDeriveCommon;
     use NetdocSomeItemsParseableCommon;
 
@@ -880,25 +909,7 @@ define_derive_deftly! {
     ${impl $P::NetdocParseableFields} {
         type Accumulator = $<$ttype NetdocParseAccumulator>;
 
-        fn is_item_keyword(
-            #[allow(unused_variables)] // If there are no fields, this is unused
-            kw: $P::KeywordRef<'_>,
-        ) -> bool {
-            #[allow(unused_imports)] // false positives in some situations
-            use $P::*;
-
-          ${for fields {
-            ${when not(F_FLATTEN)}
-            ${when not(F_SKIP)}
-            kw == $F_KEYWORD ||
-          }}
-          ${for fields {
-            ${when F_FLATTEN}
-            ${when not(F_SKIP)}
-            <$ftype as NetdocParseableFields>::is_item_keyword(kw) ||
-          }}
-            false
-        }
+        $DEFINE_IS_ITEM_KEYWORD
 
         #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
         fn accumulate_item(
