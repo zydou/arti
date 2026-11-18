@@ -229,7 +229,10 @@ mod test {
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::authority_plugin::test::test_invocation;
+    use itertools::chain;
     use std::fs;
+    use std::io::Write as _;
     use test_temp_dir::test_temp_dir;
     use tor_dirauth::consensus::SupportedConsensusMethod;
     use tor_netdoc::{
@@ -253,21 +256,30 @@ mod test {
                 .to_owned();
             let mds_f = format!("{tmp}/mds");
             let meta_f = format!("{tmp}/meta");
-            let mk_out = |f: &str| FilenameOrStdio::Path(f.to_owned()).start_writing();
-            let mut mds_out = mk_out(&mds_f)?;
-            let mut meta_out = mk_out(&meta_f)?;
+            let input_empty_f = format!("{tmp}/input-empty");
+            fs::write(&input_empty_f, "").context("write empty file")?;
+            let input_f = format!("{tmp}/input");
+            (|| {
+                let mut input = fs::File::create(&input_f)?;
+                for desc in testdata_live::RELAY_DESCRIPTORS {
+                    writeln!(input, "@ nick={}", desc.nick)?;
+                    write!(input, "{}", desc.data.plain)?;
+                }
+                input.flush()?;
+                Ok::<_, anyhow::Error>(())
+            })()
+            .context("write input")?;
 
-            let mut processor = Processor::new(nominal_time, &mut mds_out, &mut meta_out);
-
-            let concatenated_descs = testdata_live::RELAY_DESCRIPTORS
-                .iter()
-                .map(|desc| format!("@ nick={}\n{}", desc.nick, desc.data.plain))
-                .collect::<String>();
-
-            processor.process_input(ParseInput::new(&concatenated_descs, "<input descriptors>"))?;
-
-            mds_out.finish()?;
-            meta_out.finish()?;
+            let nominal_time_arg = Iso8601TimeNoSp(nominal_time).to_string();
+            test_invocation(chain!(
+                ["compute-mds"],
+                ["-t", &nominal_time_arg],
+                ["-i", &input_empty_f],
+                ["-i", &input_f],
+                ["-i", &input_empty_f],
+                ["--mds-out", &mds_f],
+                ["--meta-out", &meta_f],
+            ))?;
 
             let meta_made = fs::read_to_string(&meta_f)?;
             let mds_made = fs::read_to_string(&mds_f)?;
