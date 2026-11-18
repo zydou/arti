@@ -85,6 +85,7 @@ impl<R: Runtime> HopMgr<R> {
     /// (built using the specified `settings),
     /// setting the incoming stream request handler to `incoming_handler`.
     #[cfg(feature = "relay")]
+    #[allow(clippy::too_many_arguments)] // this is an internal function with 1 call site
     pub(crate) fn new_relay<S: StreamHandler>(
         runtime: R,
         settings: HopSettings,
@@ -136,6 +137,7 @@ impl<R: Runtime> HopMgr<R> {
     }
 
     /// Helper for the new*() functions.
+    #[allow(clippy::too_many_arguments)] // this is an internal function with 2 call sites
     fn new_inner<S: StreamHandler>(
         runtime: R,
         hops: CircHopList,
