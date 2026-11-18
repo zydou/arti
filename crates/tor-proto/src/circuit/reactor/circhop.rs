@@ -34,6 +34,22 @@ pub(crate) struct CircHop {
     pub(crate) settings: HopSettings,
 }
 
+impl CircHop {
+    /// Create a new [`CircHop`] from the specified settings.
+    fn new(settings: HopSettings) -> Self {
+        let relay_format = settings.relay_crypt_protocol().relay_cell_format();
+        let inbound = CircHopInbound::new(RelayCellDecoder::new(relay_format), &settings);
+        let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
+
+        Self {
+            inbound,
+            ccontrol,
+            settings,
+            tx: None,
+        }
+    }
+}
+
 /// Represents the reactor's view of a circuit's hops.
 #[derive(Default)]
 pub(crate) struct CircHopList {
@@ -75,16 +91,7 @@ impl CircHopList {
             return Err(internal!("cannot add more hops to a circuit with `u8::MAX` hops").into());
         }
 
-        let relay_format = settings.relay_crypt_protocol().relay_cell_format();
-        let inbound = CircHopInbound::new(RelayCellDecoder::new(relay_format), &settings);
-        let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
-
-        self.hops.push(CircHop {
-            inbound,
-            ccontrol,
-            settings,
-            tx: None,
-        });
+        self.hops.push(CircHop::new(settings));
 
         Ok(())
     }
