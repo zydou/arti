@@ -23,6 +23,7 @@ _TEST_MODS = [
     "configuration",
     "connpt",
     "connect",
+    "geoip",
     "meta_features",
     "nb_request",
     "poll",

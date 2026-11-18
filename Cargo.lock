@@ -244,6 +244,7 @@ dependencies = [
  "tor-config-shared",
  "tor-error",
  "tor-general-addr",
+ "tor-geoip",
  "tor-hsclient",
  "tor-hscrypto",
  "tor-hsrproxy",
@@ -7787,11 +7788,15 @@ dependencies = [
 name = "tor-geoip"
 version = "0.48.0"
 dependencies = [
+ "derive-deftly",
  "derive_more",
  "proptest",
  "rangemap",
+ "serde",
+ "serde_with",
  "thiserror 2.0.21",
  "tor-geoip-db",
+ "tor-rpcbase",
 ]
 
 [[package]]

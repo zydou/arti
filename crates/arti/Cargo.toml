@@ -41,6 +41,7 @@ full = [
     "syslog",
     "arti-client/full",
     "dns-proxy",
+    "geoip",
     "harden",
     "compression",
     "bridge-client",
@@ -65,6 +66,7 @@ full = [
     "tor-hsservice?/full",
     "tor-async-utils/full",
     "tor-config-path/full",
+    "tor-geoip?/full",
     "tor-basic-utils/full",
     "tor-rpc-connect?/full",
     "tor-key-forge/full",
@@ -87,6 +89,7 @@ async-std = [
     "tor-rtcompat/async-std",
     "async-ctrlc",
     "async-signal",
+    # (this comment is here to prevent reformatting)
 ]
 bridge-client = ["arti-client/bridge-client"]
 default-runtime = ["tokio", "native-tls"]
@@ -101,6 +104,7 @@ tokio = [
     "tor-async-utils/tokio",
     "tor-rtcompat/tokio",
     "tokio-util",
+    # (this comment is here to prevent reformatting)
 ]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
@@ -118,6 +122,10 @@ restricted-discovery = ["tor-hsservice/restricted-discovery"]
 vanguards = ["arti-client/vanguards"]
 hs-pow-full = ["arti-client/hs-pow-full", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
+
+# Currently this feature flag only adds geoip support for use with RPC;
+# there is not currently any other kind of client-visible geoip support.
+geoip = ["dep:tor-geoip"]
 
 # This feature flag does nothing; CC flow control is always on.
 # We are leaving this feature flag here so as not to break backward compatibility.
@@ -147,6 +155,8 @@ rpc = [
     "dep:tor-rpc-connect",
     "arti-client/rpc",
     "derive-deftly",
+    "tor-geoip?/rpc",
+    # (this comment is here to prevent reformatting)
 ]
 
 # These are not nonadditive from a software POV, but we mark them as such because
@@ -209,6 +219,7 @@ metrics = [
     "tor-hsservice?/metrics",
     "tor-hsrproxy?/metrics",
     "__is_experimental",
+    # (this comment is here to prevent reformatting)
 ]
 http-connect = ["base64ct", "http", "hyper", "tor-error/http", "tor-cell"]
 hsc = [
@@ -282,6 +293,7 @@ tor-config-path = { path = "../tor-config-path", version = "0.48.0" }
 tor-config-shared = { path = "../tor-config-shared", version = "0.48.0" }
 tor-error = { path = "../tor-error", version = "0.48.0", default-features = false, features = ["tracing"] }
 tor-general-addr = { path = "../tor-general-addr", version = "0.48.0" }
+tor-geoip = { path = "../tor-geoip", version = "0.48.0", optional = true }
 tor-hsclient = { path = "../tor-hsclient", version = "0.48.0", optional = true }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.48.0", optional = true }
 tor-hsrproxy = { path = "../tor-hsrproxy", version = "0.48.0", optional = true }

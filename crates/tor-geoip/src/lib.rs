@@ -66,6 +66,9 @@ use std::sync::{Arc, OnceLock};
 mod dense_range_map;
 mod err;
 
+#[cfg(feature = "rpc")]
+pub mod rpc;
+
 /// A parsed copy of the embedded database.
 #[cfg(feature = "embedded-db")]
 static EMBEDDED_DB_PARSED: OnceLock<Arc<GeoipDb>> = OnceLock::new();
@@ -85,6 +88,10 @@ static EMBEDDED_DB_PARSED: OnceLock<Arc<GeoipDb>> = OnceLock::new();
 /// "anonymous proxies", since doing so would mean putting nearly all Tor relays
 /// into one of those countries.
 #[derive(Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_with::DeserializeFromStr, serde_with::SerializeDisplay)
+)]
 #[repr(transparent)]
 pub struct CountryCode {
     /// The underlying value (two printable ASCII characters, stored uppercase).
@@ -224,6 +231,8 @@ type Asn = NonZeroU32;
 
 /// A database of IP addresses to country codes.
 #[derive(Clone, Eq, PartialEq, Debug)]
+#[cfg_attr(feature = "rpc", derive(derive_deftly::Deftly))]
+#[cfg_attr(feature = "rpc", derive_deftly(tor_rpcbase::Object))]
 pub struct GeoipDb {
     /// The IPv4 subset of the database, with v4 addresses stored as 32-bit integers.
     map_v4: DenseRangeMap<u32, CountryCode, Asn>,
