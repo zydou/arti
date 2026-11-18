@@ -10,7 +10,6 @@ use crate::{HopNum, Result};
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
-use smallvec::SmallVec;
 
 use tor_cell::relaycell::RelayCellDecoder;
 use tor_error::internal;
@@ -55,13 +54,18 @@ pub(crate) enum CircHopList {
     /// A relay's view of the circuit hop it represents.
     Relay(CircHop),
     /// A client's view of the circuit hops.
-    Client(Box<SmallVec<[CircHop; HOPS]>>),
+    Client(Vec<CircHop>),
 }
 
 impl CircHopList {
     /// Create a new [`CircHopList`] for a relay circuit.
     pub(crate) fn new_relay(settings: HopSettings) -> Self {
         Self::Relay(CircHop::new(settings))
+    }
+
+    /// Create a new [`CircHopList`] for a client circuit.
+    pub(crate) fn new_client() -> Self {
+        Self::Client(Vec::with_capacity(HOPS))
     }
 
     /// Return a reference to the hop corresponding to `hopnum`, if there is one.

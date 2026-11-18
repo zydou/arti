@@ -122,7 +122,7 @@ impl<R: Runtime> HopMgr<R> {
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         memquota: CircuitAccount,
     ) -> Self {
-        let hops = CircHopList::Client(Default::default());
+        let hops = CircHopList::new_client();
         Self::new_inner(
             runtime,
             hops,
