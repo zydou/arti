@@ -81,13 +81,13 @@ struct StreamReactorContext {
 }
 
 impl<R: Runtime> HopMgr<R> {
-    /// Create a new [`HopMgr`] with an empty hop list,
-    /// settings the incoming stream request handler to `incoming_handler`.
-    ///
-    /// Hops are added with [`HopMgr::add_hop`].
+    /// Create a new [`HopMgr`] consisting of a single CircHop
+    /// (built using the specified `settings),
+    /// setting the incoming stream request handler to `incoming_handler`.
     #[cfg(feature = "relay")]
     pub(crate) fn new_relay<S: StreamHandler>(
         runtime: R,
+        settings: HopSettings,
         unique_id: UniqId,
         circ_id: CircId,
         handler: S,
@@ -95,8 +95,12 @@ impl<R: Runtime> HopMgr<R> {
         incoming_handler: IncomingStreamRequestHandler,
         memquota: CircuitAccount,
     ) -> Self {
+        let mut hops = CircHopList::default();
+        // XXX the .expect() is ugly, but this code is temporary
+        hops.add_hop(settings).expect("cannot add a single hop?!");
         Self::new_inner(
             runtime,
+            hops,
             unique_id,
             circ_id,
             handler,
@@ -118,8 +122,10 @@ impl<R: Runtime> HopMgr<R> {
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         memquota: CircuitAccount,
     ) -> Self {
+        let hops = Default::default();
         Self::new_inner(
             runtime,
+            hops,
             unique_id,
             circ_id,
             handler,
@@ -133,6 +139,7 @@ impl<R: Runtime> HopMgr<R> {
     /// Helper for the new*() functions.
     fn new_inner<S: StreamHandler>(
         runtime: R,
+        hops: CircHopList,
         unique_id: UniqId,
         circ_id: CircId,
         handler: S,
@@ -144,7 +151,7 @@ impl<R: Runtime> HopMgr<R> {
     ) -> Self {
         // We don't spawn any stream reactors ahead of time.
         // Instead we spawn them lazily, when opening streams.
-        let hops = Arc::new(RwLock::new(Default::default()));
+        let hops = Arc::new(RwLock::new(hops));
         let ctx = StreamReactorContext {
             unique_id,
             circ_id,
