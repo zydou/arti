@@ -10,10 +10,11 @@ use crate::{HopNum, Result};
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
-use smallvec::SmallVec;
 
 use tor_cell::relaycell::RelayCellDecoder;
-use tor_error::internal;
+use tor_error::{Bug, internal};
+
+use std::result::Result as StdResult;
 
 /// Per-hop state.
 pub(crate) struct CircHop {
@@ -34,29 +35,71 @@ pub(crate) struct CircHop {
     pub(crate) settings: HopSettings,
 }
 
+impl CircHop {
+    /// Create a new [`CircHop`] from the specified settings.
+    fn new(settings: HopSettings) -> Self {
+        let relay_format = settings.relay_crypt_protocol().relay_cell_format();
+        let inbound = CircHopInbound::new(RelayCellDecoder::new(relay_format), &settings);
+        let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
+
+        Self {
+            inbound,
+            ccontrol,
+            settings,
+            tx: None,
+        }
+    }
+}
+
 /// Represents the reactor's view of a circuit's hops.
-#[derive(Default)]
-pub(crate) struct CircHopList {
-    /// The list of hops.
-    ///
-    /// Relays have only one.
-    /// Clients have one entry per circuit hop.
-    hops: SmallVec<[CircHop; HOPS]>,
+pub(crate) enum CircHopList {
+    /// A relay's view of the circuit hop it represents.
+    Relay(CircHop),
+    /// A client's view of the circuit hops.
+    Client(Vec<CircHop>),
 }
 
 impl CircHopList {
+    /// Create a new [`CircHopList`] for a relay circuit.
+    pub(crate) fn new_relay(settings: HopSettings) -> Self {
+        Self::Relay(CircHop::new(settings))
+    }
+
+    /// Create a new [`CircHopList`] for a client circuit.
+    pub(crate) fn new_client() -> Self {
+        Self::Client(Vec::with_capacity(HOPS))
+    }
+
     /// Return a reference to the hop corresponding to `hopnum`, if there is one.
     ///
     /// Relays pass `None` for the `hopnum`.
-    pub(crate) fn get(&self, hop: Option<HopNum>) -> Option<&CircHop> {
-        self.hops.get(Self::index(hop))
+    pub(crate) fn get(&self, hop: Option<HopNum>) -> StdResult<&CircHop, Bug> {
+        use CircHopList::*;
+
+        let res = match (self, hop) {
+            (Relay(circhop), None) => Some(circhop),
+            (Client(hops), Some(hop)) => hops.get(usize::from(hop)),
+            (Relay(_), Some(_)) => None,
+            (Client(_), None) => None,
+        };
+
+        res.ok_or_else(|| internal!("tried to use non-existent hop {hop:?}?!"))
     }
 
     /// Return a mutable reference to the hop corresponding to `hopnum`, if there is one.
     ///
     /// Relays pass `None` for the `hopnum`.
-    pub(crate) fn get_mut(&mut self, hop: Option<HopNum>) -> Option<&mut CircHop> {
-        self.hops.get_mut(Self::index(hop))
+    pub(crate) fn get_mut(&mut self, hop: Option<HopNum>) -> StdResult<&mut CircHop, Bug> {
+        use CircHopList::*;
+
+        let res = match (self, hop) {
+            (Relay(circhop), None) => Some(circhop),
+            (Client(hops), Some(hop)) => hops.get_mut(usize::from(hop)),
+            (Relay(_), Some(_)) => None,
+            (Client(_), None) => None,
+        };
+
+        res.ok_or_else(|| internal!("tried to use non-existent hop {hop:?}?!"))
     }
 
     /// Push a new hop to our hop list.
@@ -65,48 +108,38 @@ impl CircHopList {
     ///
     /// Will return an error if the circuit already has [`u8::MAX`] hops.
     pub(crate) fn add_hop(&mut self, settings: HopSettings) -> Result<()> {
-        let hop_num = self.hops.len();
-        debug_assert_eq!(hop_num, usize::from(self.num_hops()));
+        match self {
+            CircHopList::Relay(_) => {
+                Err(internal!("tried to add another hop to a relay CircHopList?!").into())
+            }
+            CircHopList::Client(hops) => {
+                let hop_num = hops.len();
+                debug_assert_eq!(hop_num, usize::from(Self::num_hops(hops)));
 
-        // There are several places in the code that assume that a `usize` hop number
-        // can be cast or converted to a `u8` hop number,
-        // so this check is important to prevent panics or incorrect behaviour.
-        if hop_num == usize::from(u8::MAX) {
-            return Err(internal!("cannot add more hops to a circuit with `u8::MAX` hops").into());
+                // There are several places in the code that assume that a `usize` hop number
+                // can be cast or converted to a `u8` hop number,
+                // so this check is important to prevent panics or incorrect behaviour.
+                if hop_num == usize::from(u8::MAX) {
+                    return Err(
+                        internal!("cannot add more hops to a circuit with `u8::MAX` hops").into(),
+                    );
+                }
+
+                hops.push(CircHop::new(settings));
+
+                Ok(())
+            }
         }
-
-        let relay_format = settings.relay_crypt_protocol().relay_cell_format();
-        let inbound = CircHopInbound::new(RelayCellDecoder::new(relay_format), &settings);
-        let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
-
-        self.hops.push(CircHop {
-            inbound,
-            ccontrol,
-            settings,
-            tx: None,
-        });
-
-        Ok(())
     }
 
     /// The number of hops in this circuit.
-    fn num_hops(&self) -> u8 {
+    fn num_hops(hops: &[CircHop]) -> u8 {
         // `Self::add_hop` checks to make sure that we never have more than `u8::MAX` hops,
         // so `self.hops.len()` should be safe to cast to a `u8`.
         // If that assumption is violated,
         // we choose to panic rather than silently use the wrong hop due to an `as` cast.
-        self.hops
-            .len()
+        hops.len()
             .try_into()
             .expect("`hops.len()` has more than `u8::MAX` hops")
-    }
-
-    /// Return the index of the specified `hop`.
-    ///
-    /// Returns 0 if the `hop` is `None`.
-    fn index(hop: Option<HopNum>) -> usize {
-        // unwrap_or_default(), because for relays, hop is None,
-        // and we just want to use the first slot of the vec
-        hop.map(usize::from).unwrap_or_default()
     }
 }

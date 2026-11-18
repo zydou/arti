@@ -29,7 +29,6 @@ use tor_cell::relaycell::msg::{Sendme, SendmeTag};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
 };
-use tor_error::internal;
 use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
 
@@ -400,9 +399,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         c_t_w: bool,
     ) -> Result<(RelayCellFormat, bool)> {
         let mut hops = self.hop_mgr.hops().write().expect("poisoned lock");
-        let hop = hops
-            .get_mut(hopnum)
-            .ok_or_else(|| internal!("msg from non-existent hop???"))?;
+        let hop = hops.get_mut(hopnum)?;
 
         // Check whether we are allowed to receive more data for this circuit hop.
         hop.inbound.decrement_cell_limit()?;

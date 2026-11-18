@@ -218,8 +218,9 @@ impl<R: Runtime> Reactor<R> {
             cmd_checker,
             filter: incoming_filter,
         };
-        let mut hop_mgr = HopMgr::new_with_incoming_handler(
+        let hop_mgr = HopMgr::new_relay(
             runtime.clone(),
+            settings.clone(),
             unique_id,
             circ_id,
             StreamHandler,
@@ -227,12 +228,6 @@ impl<R: Runtime> Reactor<R> {
             incoming_handler,
             memquota.clone(),
         );
-
-        // On the relay side, we always have one "hop" (ourselves).
-        //
-        // Clients will need to call this function in response to CtrlMsg::Create
-        // (TODO: for clients, we probably will need to store a bunch more state here)
-        hop_mgr.add_hop(settings.clone())?;
 
         // TODO(relay): currently we don't need buffering on this channel,
         // but we might need it if we start using it for more than just EXTENDED2 events

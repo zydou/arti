@@ -158,11 +158,7 @@ impl Forward {
 
         // The message is addressed to us! Now it's time to handle it...
         let hops = hop_mgr.hops().read().expect("poisoned lock");
-        let decode_res = hops
-            .get(hopnum)
-            .ok_or_else(|| internal!("msg from non-existent hop???"))?
-            .inbound
-            .decode(body.into())?;
+        let decode_res = hops.get(hopnum)?.inbound.decode(body.into())?;
 
         Ok((hopnum, CellDecodeResult::Recognized(tag, decode_res)))
     }

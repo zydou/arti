@@ -81,13 +81,14 @@ struct StreamReactorContext {
 }
 
 impl<R: Runtime> HopMgr<R> {
-    /// Create a new [`HopMgr`] with an empty hop list,
-    /// settings the incoming stream request handler to `incoming_handler`.
-    ///
-    /// Hops are added with [`HopMgr::add_hop`].
+    /// Create a new [`HopMgr`] consisting of a single CircHop
+    /// (built using the specified `settings),
+    /// setting the incoming stream request handler to `incoming_handler`.
     #[cfg(feature = "relay")]
-    pub(crate) fn new_with_incoming_handler<S: StreamHandler>(
+    #[allow(clippy::too_many_arguments)] // this is an internal function with 1 call site
+    pub(crate) fn new_relay<S: StreamHandler>(
         runtime: R,
+        settings: HopSettings,
         unique_id: UniqId,
         circ_id: CircId,
         handler: S,
@@ -95,8 +96,11 @@ impl<R: Runtime> HopMgr<R> {
         incoming_handler: IncomingStreamRequestHandler,
         memquota: CircuitAccount,
     ) -> Self {
+        let hops = CircHopList::new_relay(settings);
+
         Self::new_inner(
             runtime,
+            hops,
             unique_id,
             circ_id,
             handler,
@@ -110,7 +114,7 @@ impl<R: Runtime> HopMgr<R> {
     ///
     /// Hops are added with [`HopMgr::add_hop`].
     #[expect(unused)] // TODO(dedup): clients will use this
-    pub(crate) fn new<S: StreamHandler>(
+    pub(crate) fn new_client<S: StreamHandler>(
         runtime: R,
         unique_id: UniqId,
         circ_id: CircId,
@@ -118,8 +122,10 @@ impl<R: Runtime> HopMgr<R> {
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         memquota: CircuitAccount,
     ) -> Self {
+        let hops = CircHopList::new_client();
         Self::new_inner(
             runtime,
+            hops,
             unique_id,
             circ_id,
             handler,
@@ -131,8 +137,10 @@ impl<R: Runtime> HopMgr<R> {
     }
 
     /// Helper for the new*() functions.
+    #[allow(clippy::too_many_arguments)] // this is an internal function with 2 call sites
     fn new_inner<S: StreamHandler>(
         runtime: R,
+        hops: CircHopList,
         unique_id: UniqId,
         circ_id: CircId,
         handler: S,
@@ -142,9 +150,7 @@ impl<R: Runtime> HopMgr<R> {
         >,
         memquota: CircuitAccount,
     ) -> Self {
-        // We don't spawn any stream reactors ahead of time.
-        // Instead we spawn them lazily, when opening streams.
-        let hops = Arc::new(RwLock::new(Default::default()));
+        let hops = Arc::new(RwLock::new(hops));
         let ctx = StreamReactorContext {
             unique_id,
             circ_id,
@@ -203,6 +209,7 @@ impl<R: Runtime> HopMgr<R> {
     /// Prepares a cc object for the hop, but does not spawn a stream reactor.
     ///
     /// Will return an error if the circuit already has [`u8::MAX`] hops.
+    #[expect(unused)] // TODO(dedup): clients will use this
     pub(crate) fn add_hop(&mut self, settings: HopSettings) -> Result<()> {
         let mut hops = self.hops.write().expect("poisoned lock");
         hops.add_hop(settings)
@@ -248,9 +255,7 @@ impl<R: Runtime> HopMgr<R> {
         hopnum: Option<HopNum>,
     ) -> StdResult<mpsc::Sender<CtrlMsg>, Error> {
         let mut hops = self.hops.write().expect("poisoned lock");
-        let hop = hops
-            .get_mut(hopnum)
-            .ok_or_else(|| internal!("tried to send cell to nonexistent hop?!"))?;
+        let hop = hops.get_mut(hopnum)?;
 
         let tx = match &hop.tx {
             Some(tx) => tx.clone(),

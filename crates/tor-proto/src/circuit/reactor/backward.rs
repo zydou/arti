@@ -22,7 +22,6 @@ use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId};
-use tor_error::internal;
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use derive_deftly::Deftly;
@@ -659,9 +658,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         hopnum: Option<HopNum>,
     ) -> Result<(RelayCellFormat, Arc<Mutex<CongestionControl>>)> {
         let hops = self.hops.read().expect("poisoned lock");
-        let hop = hops
-            .get(hopnum)
-            .ok_or_else(|| internal!("tried to send padding to non-existent hop?!"))?;
+        let hop = hops.get(hopnum)?;
         let relay_cell_format = hop.settings.relay_crypt_protocol().relay_cell_format();
         let ccontrol = Arc::clone(&hop.ccontrol);
 
@@ -756,9 +753,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         let signals = self.inbound_chan_tx.congestion_signals().await;
 
         let hops = self.hops.read().expect("poisoned lock");
-        let hop = hops
-            .get(hopnum)
-            .ok_or_else(|| internal!("tried to send padding to non-existent hop?!"))?;
+        let hop = hops.get(hopnum)?;
 
         // Update the CC object that we received a SENDME along
         // with possible congestion signals.
