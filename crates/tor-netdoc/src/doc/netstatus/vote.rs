@@ -63,8 +63,8 @@ impl NetworkStatusUnverified {
             authcert.dangerously_assume_timely() // we just checked it ^ there
         };
 
-        let authority = body.authority.authority.dir_source.identity;
-        if authority != authcert.fingerprint {
+        let authority_id = body.authority.authority.dir_source.identity;
+        if authority_id != authcert.fingerprint {
             return Err(VVF::AuthCertWrongAuthority);
         }
 
@@ -80,8 +80,8 @@ impl NetworkStatusUnverified {
             |tv| tv.verify().map_err(VVF::InvalidSignature),
         )?;
 
-        if !trusted.remaining_good.remove(&*authority) {
-            return Err(VVF::DuplicateAuthority(*authority));
+        if !trusted.remaining_good.remove(&*authority_id) {
+            return Err(VVF::DuplicateAuthority(*authority_id));
         }
 
         body.authority.cert.set_verified(authcert);
