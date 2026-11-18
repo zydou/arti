@@ -80,10 +80,10 @@ struct InputDescriptor {
 
 impl<'o> Processor<'o> {
     /// Process one input file
-    pub(crate) fn process_input(&mut self, input: parse2::ParseInput<'_>) -> Result<(), CliError> {
+    pub(crate) fn process_input(&mut self, input: &parse2::ParseInput<'_>) -> Result<(), CliError> {
         let router_descs = parse2::parse_netdoc_multiple_sophisticated::<
             CTorAnnotated<RouterDescUnverified>,
-        >(&input)?;
+        >(input)?;
 
         for (rd, start, end) in router_descs {
             let rd = rd.map(|CTorAnnotated(rd)| rd);
