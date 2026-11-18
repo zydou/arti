@@ -438,7 +438,7 @@ impl CircHopInbound {
     ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed
-    pub(crate) fn decode(&mut self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
+    pub(crate) fn decode(&self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
         self.decoder
             .decode(cell)
             .map_err(|e| Error::from_bytes_err(e, "relay cell"))
