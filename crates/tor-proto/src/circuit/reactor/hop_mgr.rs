@@ -210,6 +210,7 @@ impl<R: Runtime> HopMgr<R> {
     /// Prepares a cc object for the hop, but does not spawn a stream reactor.
     ///
     /// Will return an error if the circuit already has [`u8::MAX`] hops.
+    #[expect(unused)] // TODO(dedup): clients will use this
     pub(crate) fn add_hop(&mut self, settings: HopSettings) -> Result<()> {
         let mut hops = self.hops.write().expect("poisoned lock");
         hops.add_hop(settings)
