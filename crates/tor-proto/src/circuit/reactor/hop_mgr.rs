@@ -95,9 +95,8 @@ impl<R: Runtime> HopMgr<R> {
         incoming_handler: IncomingStreamRequestHandler,
         memquota: CircuitAccount,
     ) -> Self {
-        let mut hops = CircHopList::default();
-        // XXX the .expect() is ugly, but this code is temporary
-        hops.add_hop(settings).expect("cannot add a single hop?!");
+        let hops = CircHopList::new_relay(settings);
+
         Self::new_inner(
             runtime,
             hops,
@@ -122,7 +121,7 @@ impl<R: Runtime> HopMgr<R> {
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         memquota: CircuitAccount,
     ) -> Self {
-        let hops = Default::default();
+        let hops = CircHopList::Client(Default::default());
         Self::new_inner(
             runtime,
             hops,
