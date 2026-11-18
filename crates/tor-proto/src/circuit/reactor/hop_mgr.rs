@@ -110,7 +110,7 @@ impl<R: Runtime> HopMgr<R> {
     ///
     /// Hops are added with [`HopMgr::add_hop`].
     #[expect(unused)] // TODO(dedup): clients will use this
-    pub(crate) fn new<S: StreamHandler>(
+    pub(crate) fn new_client<S: StreamHandler>(
         runtime: R,
         unique_id: UniqId,
         circ_id: CircId,
