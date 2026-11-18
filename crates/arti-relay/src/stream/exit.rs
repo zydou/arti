@@ -154,10 +154,9 @@ async fn connect_ip<R: Runtime>(
     // torspec:
     // > Flags 1 through 3 are ignored if ADDRESS is an IP address.
 
-    // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
-    // basic loopback checks) for testing purposes.
-    if addr.ip().to_canonical().is_loopback() || addr.ip().to_canonical().is_unspecified() {
-        trace!("Rejecting incoming stream to loopback address");
+    // Apply the exit policy filter.
+    if !exit_policy_allows(addr) {
+        trace!("Rejecting incoming stream due to the exit policy");
         return Err(EndReason::EXITPOLICY);
     }
 
@@ -222,8 +221,24 @@ async fn connect_hostname<R: Runtime>(
         true
     });
 
-    // Reuse the `LookupAnswers` type because we know that the inline size is a good estimate.
+    // Collect to check the length before we apply the exit policy.
+    let answers: LookupAnswers<IpAddr> = answers.collect();
+    if answers.is_empty() {
+        trace!("Rejecting incoming stream since the domain resolution had no usable IP answers");
+        return Err(EndReason::RESOLVEFAILED);
+    }
+
+    // Apply the exit policy filter.
+    let answers = answers
+        .into_iter()
+        .filter(|ip| exit_policy_allows(SocketAddr::new(*ip, port)));
+
+    // Collect so that we can sort them.
     let mut answers: LookupAnswers<IpAddr> = answers.collect();
+    if answers.is_empty() {
+        trace!("Rejecting incoming stream due to the exit policy");
+        return Err(EndReason::EXITPOLICY);
+    }
 
     // torspec:
     // > 3 -- IPv6 preferred. If there are both IPv4 and IPv6 addresses,
@@ -244,24 +259,28 @@ async fn connect_hostname<R: Runtime>(
     let addr = match answers.first() {
         Some(ip) => ip,
         None => {
-            trace!("Rejecting incoming stream since the domain resolution had no IP answers");
+            let bug = internal!("we checked above before sorting that the list is non-empty");
+            trace_report!(bug, "No address answers for BEGIN hostname lookup");
             return Err(EndReason::RESOLVEFAILED);
         }
     };
 
     let addr = SocketAddr::new(*addr, port);
 
-    // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
-    // basic loopback checks) for testing purposes.
-    if addr.ip().to_canonical().is_loopback() || addr.ip().to_canonical().is_unspecified() {
-        trace!("Rejecting incoming stream to loopback address");
-        return Err(EndReason::EXITPOLICY);
-    }
-
     match runtime.connect(&addr, connect_options).await {
         Ok(x) => Ok(x),
         Err(e) => Err(io_error_kind_to_end_reason(e.kind())),
     }
+}
+
+/// Does our exit policy allow the given address?
+//
+// TODO: Later we will probably have some sort of exit policy object,
+// and we can remove this function and just call `exit_policy.allows(addr)` or something.
+fn exit_policy_allows(addr: SocketAddr) -> bool {
+    // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
+    // basic loopback checks) for testing purposes.
+    !addr.ip().to_canonical().is_loopback() && !addr.ip().to_canonical().is_unspecified()
 }
 
 /// For a TCP error, get the reason we should use in the END message.
