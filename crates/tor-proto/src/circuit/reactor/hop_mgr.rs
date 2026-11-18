@@ -255,8 +255,7 @@ impl<R: Runtime> HopMgr<R> {
         hopnum: Option<HopNum>,
     ) -> StdResult<mpsc::Sender<CtrlMsg>, Error> {
         let mut hops = self.hops.write().expect("poisoned lock");
-        let hop = hops
-            .get_mut(hopnum)?;
+        let hop = hops.get_mut(hopnum)?;
 
         let tx = match &hop.tx {
             Some(tx) => tx.clone(),

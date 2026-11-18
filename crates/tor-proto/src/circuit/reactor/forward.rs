@@ -399,8 +399,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         c_t_w: bool,
     ) -> Result<(RelayCellFormat, bool)> {
         let mut hops = self.hop_mgr.hops().write().expect("poisoned lock");
-        let hop = hops
-            .get_mut(hopnum)?;
+        let hop = hops.get_mut(hopnum)?;
 
         // Check whether we are allowed to receive more data for this circuit hop.
         hop.inbound.decrement_cell_limit()?;
