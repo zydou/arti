@@ -12,7 +12,9 @@ use std::sync::{Arc, Mutex};
 use futures::channel::mpsc;
 
 use tor_cell::relaycell::RelayCellDecoder;
-use tor_error::internal;
+use tor_error::{Bug, internal};
+
+use std::result::Result as StdResult;
 
 /// Per-hop state.
 pub(crate) struct CircHop {
@@ -71,29 +73,33 @@ impl CircHopList {
     /// Return a reference to the hop corresponding to `hopnum`, if there is one.
     ///
     /// Relays pass `None` for the `hopnum`.
-    pub(crate) fn get(&self, hop: Option<HopNum>) -> Option<&CircHop> {
+    pub(crate) fn get(&self, hop: Option<HopNum>) -> StdResult<&CircHop, Bug> {
         use CircHopList::*;
 
-        match (self, hop) {
+        let res = match (self, hop) {
             (Relay(circhop), None) => Some(circhop),
             (Client(hops), Some(hop)) => hops.get(usize::from(hop)),
             (Relay(_), Some(_)) => None,
             (Client(_), None) => None,
-        }
+        };
+
+        res.ok_or_else(|| internal!("tried to use non-existent hop {hop:?}?!"))
     }
 
     /// Return a mutable reference to the hop corresponding to `hopnum`, if there is one.
     ///
     /// Relays pass `None` for the `hopnum`.
-    pub(crate) fn get_mut(&mut self, hop: Option<HopNum>) -> Option<&mut CircHop> {
+    pub(crate) fn get_mut(&mut self, hop: Option<HopNum>) -> StdResult<&mut CircHop, Bug> {
         use CircHopList::*;
 
-        match (self, hop) {
+        let res = match (self, hop) {
             (Relay(circhop), None) => Some(circhop),
             (Client(hops), Some(hop)) => hops.get_mut(usize::from(hop)),
             (Relay(_), Some(_)) => None,
             (Client(_), None) => None,
-        }
+        };
+
+        res.ok_or_else(|| internal!("tried to use non-existent hop {hop:?}?!"))
     }
 
     /// Push a new hop to our hop list.
