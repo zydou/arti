@@ -46,7 +46,7 @@ pub(crate) trait ThresholdRule {
     /// because those functions eliminate that possible error.
     fn is_enough_of(n_y: usize, n_total: usize) -> bool;
 
-    /// Is `predicate` true for more than half the values in `iterator`?
+    /// Is `predicate` true for enough of the values in `iterator`?
     //
     // The signature of this function is complicated, compared to the alternative
     //   fn is_for_more_than_half_of(some: usize, all: usize)
