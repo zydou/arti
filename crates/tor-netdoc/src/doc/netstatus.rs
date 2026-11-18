@@ -3223,9 +3223,7 @@ mod test {
         let text = fs::read_to_string(file).with_context(|| file.to_owned())?;
         let now = parse_rfc3339("2000-01-01T00:02:25Z")?;
 
-        let mut input = ParseInput::new(&text, file);
-        input.retain_unknown_values();
-
+        let input = ParseInput::new(&text, file).retain_unknown_values();
         let doc: UV = parse_netdoc(&input)?;
 
         let certs = {

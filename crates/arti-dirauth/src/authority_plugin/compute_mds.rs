@@ -82,9 +82,9 @@ impl<'o> Processor<'o> {
     /// Process one input file
     pub(crate) fn process_input(
         &mut self,
-        mut input: parse2::ParseInput<'_>,
+        input: parse2::ParseInput<'_>,
     ) -> Result<(), CliError> {
-        input.retain_unknown_values();
+        let input = input.retain_unknown_values();
 
         let router_descs = parse2::parse_netdoc_multiple_sophisticated::<
             CTorAnnotated<RouterDescUnverified>,
