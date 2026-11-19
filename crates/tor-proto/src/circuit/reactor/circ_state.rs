@@ -283,13 +283,6 @@ impl<R: Runtime> CircuitState<R> {
         }
     }
 
-    /// Return a reference to our hop list.
-    ///
-    // XXX remove this function
-    pub(crate) fn hops(&self) -> &RwLock<CircHopList> {
-        &self.shared.hops
-    }
-
     /// Return a reference to our shared state.
     pub(crate) fn shared(&self) -> &Arc<CircuitStateShared> {
         &self.shared
