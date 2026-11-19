@@ -67,13 +67,6 @@ pub(crate) struct CircuitState<R: Runtime> {
 /// which needs access to the congestion control objects.
 /// The backward reactor only ever *reads* from this
 /// (it never mutates the circ hop list).
-///
-// TODO: the backward reactor only ever reads from this.
-// Conceptually, it is the CircuitState that owns this list,
-// because only CircuitState can add hops to the list.
-//
-// Perhaps we need a specialized abstraction that only allows reading here.
-// This could be a wrapper over RwLock, providing a read-only API for the BWD.
 pub(crate) struct CircuitStateShared {
     /// The underlying senders, indexed by [`HopNum`].
     ///
