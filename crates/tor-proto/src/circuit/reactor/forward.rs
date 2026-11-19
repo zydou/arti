@@ -27,9 +27,7 @@ use crate::client::circuit::padding::PaddingController;
 use tor_cell::chancell::{CircId, msg::AnyChanMsg};
 use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
-use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoderResult, RelayCmd, StreamId, UnparsedRelayMsg,
-};
+use tor_cell::relaycell::{RelayCellDecoderResult, RelayCmd, StreamId, UnparsedRelayMsg};
 use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
 
@@ -429,19 +427,13 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         }
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
-        let send_circ_sendme = self
+        let sendme = self
             .circ_state
             .shared()
-            .note_relay_cell_received(hopnum, c_t_w)?;
+            .note_relay_cell_received(hopnum, c_t_w, tag)?;
 
         // If we do need to send a circuit-level SENDME cell, do so.
-        if send_circ_sendme {
-            // This always sends a V1 (tagged) sendme cell, and thereby assumes
-            // that SendmeEmitMinVersion is no more than 1.  If the authorities
-            // every increase that parameter to a higher number, this will
-            // become incorrect.  (Higher numbers are not currently defined.)
-            let sendme = Sendme::from(tag);
-            let msg = AnyRelayMsgOuter::new(None, sendme.into());
+        if let Some(msg) = sendme {
             let forward = BackwardReactorCmd::SendRelayMsg { hop: hopnum, msg };
 
             // NOTE: sending the SENDME to the backward reactor for handling

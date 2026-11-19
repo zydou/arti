@@ -17,8 +17,8 @@ use {
 };
 
 use tor_cell::chancell::CircId;
-use tor_cell::relaycell::RelayCellFormat;
-use tor_cell::relaycell::msg::SendmeTag;
+use tor_cell::relaycell::msg::{Sendme, SendmeTag};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat};
 use tor_error::internal;
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
@@ -118,13 +118,12 @@ impl CircuitStateShared {
     /// Returns whether we need to send back a SENDME.
     ///
     /// Updates the padding and CC state.
-    ///
-    // XXX returning a bool here is a bit ugly
     pub(crate) fn note_relay_cell_received(
         &self,
         hopnum: Option<HopNum>,
         c_t_w: bool,
-    ) -> Result<bool> {
+        tag: SendmeTag,
+    ) -> Result<Option<AnyRelayMsgOuter>> {
         let mut hops = self.hops.write().expect("poisoned lock");
         let hop = hops.get_mut(hopnum)?;
 
@@ -142,7 +141,17 @@ impl CircuitStateShared {
             false
         };
 
-        Ok(send_circ_sendme)
+        // If we do need to send a circuit-level SENDME cell, do so.
+        if send_circ_sendme {
+            // This always sends a V1 (tagged) sendme cell, and thereby assumes
+            // that SendmeEmitMinVersion is no more than 1.  If the authorities
+            // every increase that parameter to a higher number, this will
+            // become incorrect.  (Higher numbers are not currently defined.)
+            let sendme = Sendme::from(tag);
+            Ok(Some(AnyRelayMsgOuter::new(None, sendme.into())))
+        } else {
+            Ok(None)
+        }
     }
 }
 
