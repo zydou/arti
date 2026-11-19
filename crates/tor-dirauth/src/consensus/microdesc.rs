@@ -24,7 +24,7 @@ pub fn compute_microdesc(
     }
     let family = family.intern(); // also normalises
 
-    let family_ids: RelayFamilyIds = rd
+    let family_ids: HappyFamilyIds = rd
         .family_cert
         .iter()
         .map(|cert| Ok::<_, Bug>(cert.get()?.family_ed25519.into()))

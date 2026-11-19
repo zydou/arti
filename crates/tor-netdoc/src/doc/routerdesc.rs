@@ -35,7 +35,7 @@ use crate::parse2::{
     ArgumentError, ErrorProblem, ItemValueParseable, SignaturesData, UnparsedItem, VerifyFailed,
 };
 use crate::types::descriptor::*;
-use crate::types::family::{RelayFamily, RelayFamilyIds};
+use crate::types::family::{RelayFamily, HappyFamilyIds};
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
 use crate::types::{EmbeddedCert, misc::*};
@@ -862,8 +862,8 @@ impl RouterDesc {
     }
 
     /// Return the authenticated family IDs of this descriptor.
-    pub fn family_ids(&self) -> RelayFamilyIds {
-        RelayFamilyIds::from_iter(
+    pub fn family_ids(&self) -> HappyFamilyIds {
+        HappyFamilyIds::from_iter(
             self.family_cert
                 .iter()
                 .map(|cert| cert.get().expect("unverified family cert?"))
