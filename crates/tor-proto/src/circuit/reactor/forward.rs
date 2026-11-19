@@ -392,11 +392,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     /// Note that we have received a RELAY cell.
     ///
     /// Updates the padding and CC state.
-    fn note_relay_cell_received(
-        &self,
-        hopnum: Option<HopNum>,
-        c_t_w: bool,
-    ) -> Result<bool> {
+    fn note_relay_cell_received(&self, hopnum: Option<HopNum>, c_t_w: bool) -> Result<bool> {
         let mut hops = self.hop_mgr.hops().write().expect("poisoned lock");
         let hop = hops.get_mut(hopnum)?;
 
@@ -437,8 +433,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         }
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
-        let send_circ_sendme =
-            self.note_relay_cell_received(hopnum, c_t_w)?;
+        let send_circ_sendme = self.note_relay_cell_received(hopnum, c_t_w)?;
 
         // If we do need to send a circuit-level SENDME cell, do so.
         if send_circ_sendme {
