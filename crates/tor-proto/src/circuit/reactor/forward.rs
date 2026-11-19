@@ -439,7 +439,8 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         }
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
-        let (_relay_cell_format, send_circ_sendme) = self.note_relay_cell_received(hopnum, c_t_w)?;
+        let (_relay_cell_format, send_circ_sendme) =
+            self.note_relay_cell_received(hopnum, c_t_w)?;
 
         // If we do need to send a circuit-level SENDME cell, do so.
         if send_circ_sendme {
@@ -468,10 +469,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
 
         let (mut msgs, incomplete) = decode_res.into_parts();
         while let Some(msg) = msgs.next() {
-            match self
-                .handle_relay_msg(early, hopnum, msg, c_t_w)
-                .await
-            {
+            match self.handle_relay_msg(early, hopnum, msg, c_t_w).await {
                 Ok(()) => continue,
                 Err(e) => {
                     for m in msgs {
@@ -516,9 +514,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             self.handle_stream_msg(early, hop, msg, sid, cell_counts_toward_windows)
                 .await
         } else {
-            self
-                .handle_meta_msg(early, hop, msg)
-                .await
+            self.handle_meta_msg(early, hop, msg).await
         }
     }
 
