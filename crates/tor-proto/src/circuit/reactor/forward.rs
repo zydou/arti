@@ -122,7 +122,7 @@ pub(crate) enum CtrlCmd<C> {
     //
     // TODO(DEDUP): this is very similar to its client-side counterpart,
     // except the hop is a Option<HopNum> instead of a TargetHop.
-    #[cfg(any(feature = "hs-service", feature = "relay"))]
+    #[cfg(feature = "hs-service")]
     #[allow(unused)] // TODO(dedup): this will be used by hs services
     AwaitStreamRequests {
         /// A channel for sending information about an incoming stream request.
@@ -354,10 +354,10 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     }
 
     /// Handle a control command.
-    #[allow(clippy::unused_async)] // used if any(feature = "hs-service", feature = "relay")
+    #[allow(clippy::unused_async)] // used if feature = "hs-service"
     async fn handle_cmd(&mut self, cmd: CtrlCmd<F::CtrlCmd>) -> StdResult<(), ReactorError> {
         match cmd {
-            #[cfg(any(feature = "hs-service", feature = "relay"))]
+            #[cfg(feature = "hs-service")]
             CtrlCmd::AwaitStreamRequests {
                 incoming_sender,
                 cmd_checker,
