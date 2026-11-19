@@ -299,7 +299,7 @@ impl Aggregate<RouterStatusAC<'_>> for Vec<netstatus::RouterStatusMdDigestsVote>
 
         let selected = counts
             .into_iter()
-            .find(|(_md, count)| is_more_than_half_of(*count, n_opinions))
+            .find(|(_md, count)| MoreThanHalf::is_enough_of(*count, n_opinions))
             .map(|(md, _count)| md);
 
         Ok(selected)

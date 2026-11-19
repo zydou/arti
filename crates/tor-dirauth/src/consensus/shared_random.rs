@@ -70,7 +70,7 @@ impl Aggregate<SrvAC<'_>> for Option<SharedRandStatus> {
             let counts = inputs.votes().filter_map(|srv| srv.as_ref()).counts();
             let (srv, n_in_favour) = counts.into_iter().max_by_key(|(_, n)| *n)?;
             context
-                .is_more_than_half_all_auths(n_in_favour)
+                .is_enough_of_all_auths::<MoreThanHalf>(n_in_favour)
                 .then_some(())?;
             if phase == shared_random::Phase::NEW_SRV {
                 if let Some(reqd) = ac.params.without_defaults().get(NEW_SRV_MIN_VOTERS_PARAM) {

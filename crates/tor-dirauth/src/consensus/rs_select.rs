@@ -32,7 +32,9 @@ impl ConsensusesFromVotes<PlainPreamble> for Vec<RouterStatusVote> {
 
             output_ids = voters_per_id
                 .iter()
-                .filter(|(_id, voters)| context.is_more_than_half_all_auths(voters.len()))
+                .filter(|(_id, voters)| {
+                    context.is_enough_of_all_auths::<MoreThanHalf>(voters.len())
+                })
                 .map(|(id, _voters)| id)
                 .collect::<HashSet<&IdTuple>>();
 
