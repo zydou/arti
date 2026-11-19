@@ -105,7 +105,7 @@ pub struct Microdesc {
 /// rather than the new one
 /// (`Microdesc as `[`NetdocParseable`](crate::parse2::NetdocParseable)).
 #[derive(Clone, Debug, Deftly, PartialEq, Eq, derive_more::Deref, derive_more::DerefMut)]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_structs)]
 pub struct MicrodescAndHash {
     /// The microdescriptor
     #[deref]
