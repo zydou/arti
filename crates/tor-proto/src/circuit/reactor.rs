@@ -227,8 +227,8 @@
 pub(crate) mod circhop;
 
 pub(crate) mod backward;
-pub(crate) mod forward;
 pub(crate) mod circ_state;
+pub(crate) mod forward;
 pub(crate) mod macros;
 pub(crate) mod stream;
 
@@ -247,8 +247,8 @@ use tor_rtcompat::{DynTimeProvider, Runtime};
 use crate::channel::Channel;
 use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::backward::BackwardHandler;
-use crate::circuit::reactor::forward::ForwardHandler;
 use crate::circuit::reactor::circ_state::CircuitState;
+use crate::circuit::reactor::forward::ForwardHandler;
 use crate::circuit::reactor::stream::ReadyStreamMsg;
 use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::memquota::CircuitAccount;
