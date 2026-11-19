@@ -28,8 +28,6 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 // TODO (cve, Diziet): Overhaul or remove LegacyFamily, HappyFamilyId, HappyFamilyIds:
 //   - Possibly, these don't all warrant newtype wrappers
 //   - Where they do warrant newtype wrappers the API should be appropriate for that
-//   - The names are fairly confusing
-//     (especially that HappyFamilyId is not the id of a LegacyFamily)
 // See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4117#note_3428678>
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Deftly)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable, GloballyInternable)]
