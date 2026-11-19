@@ -837,8 +837,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         let (msg, tag) = self.encode_relay_cell(relay_cell_format, hop, early, msg)?;
         let cell = AnyChanCell::new(Some(self.circ_id), msg);
 
-        // TODO: we use HopNum(0) if we're a relay (i.e. if the hop is None).
-        // Is that ok?
+        // NOTE: we use HopNum(0) if we're a relay (i.e. if the hop is None).
         let hop = hop.unwrap_or_else(|| HopNum::from(0));
         // Remember that we've enqueued this cell.
         let padding_info = padding_info.or_else(|| self.padding_ctrl.queued_data(hop));

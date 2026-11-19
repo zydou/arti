@@ -25,7 +25,7 @@ pub(crate) struct ClientConfluxMsgHandler {
     nonce: V1Nonce,
     /// The expected conflux join point.
     join_point: HopNum,
-    //// The initial round-trip time measurement,
+    /// The initial round-trip time measurement,
     /// measured during the conflux handshake.
     ///
     /// On the client side, this is the RTT between
