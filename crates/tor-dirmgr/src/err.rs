@@ -93,6 +93,24 @@ pub enum Error {
         #[source]
         cause: tor_netdoc::Error,
     },
+    /// We were unable to parse a document.
+    #[error("Parsing error in document from {source}")]
+    ParseError {
+        /// Where the document came from.
+        source: DocSource,
+        /// What error we got.
+        #[source]
+        cause: tor_netdoc::parse2::ParseError,
+    },
+    /// We were unable to verify a parsed document.
+    #[error("Invalid document from {source}")]
+    VerifyError {
+        /// Where the document came from.
+        source: DocSource,
+        /// What error we got.
+        #[source]
+        cause: tor_netdoc::parse2::VerifyFailed,
+    },
     /// An error indicating that the consensus could not be validated.
     ///
     /// This kind of error is only returned during the certificate fetching
@@ -212,6 +230,13 @@ impl Error {
         Error::NetDocError { source, cause }
     }
 
+    /// Construct a new `Error` from `ParseError`.
+    ///
+    /// Also takes a source so that we can keep track of where the document came from.
+    pub(crate) fn from_parse(source: DocSource, cause: tor_netdoc::parse2::ParseError) -> Error {
+        Error::ParseError { source, cause }
+    }
+
     /// Construct a new `Error` from `std::io::Error` for an error that occurred
     /// while locking a file.
     pub(crate) fn from_lockfile(err: std::io::Error) -> Error {
@@ -265,7 +290,9 @@ impl Error {
             // object that we know.  That case might need special handling to
             // avoid erroneously avoiding a good cache... especially if the document
             // is one that the cache could be tricked into serving us.
-            Error::NetDocError { .. } => true,
+            Error::NetDocError { .. } | Error::ParseError { .. } | Error::VerifyError { .. } => {
+                true
+            }
 
             // We can never see this kind of error from within the crate.
             Error::ExternalDirProvider { .. } => false,
@@ -302,7 +329,9 @@ impl Error {
             | Error::UntimelyObject(_)
             | Error::DirClientError(_)
             | Error::SignatureError(_)
-            | Error::NetDocError { .. } => BootstrapAction::Nonfatal,
+            | Error::NetDocError { .. }
+            | Error::ParseError { .. }
+            | Error::VerifyError { .. } => BootstrapAction::Nonfatal,
 
             Error::ConsensusInvalid { .. } | Error::CantAdvanceState => BootstrapAction::Reset,
 
@@ -369,7 +398,9 @@ impl HasKind for Error {
             E::LockFile { .. } => EK::CacheAccessFailed,
             E::CacheFile { .. } => EK::CacheAccessFailed,
             E::ConsensusDiffError(_) => EK::TorProtocolViolation,
-            E::NetDocError { source, .. } => match source {
+            E::NetDocError { source, .. }
+            | E::ParseError { source, .. }
+            | E::VerifyError { source, .. } => match source {
                 DocSource::LocalCache => EK::CacheCorrupted,
                 DocSource::DirServer { .. } => EK::TorProtocolViolation,
             },
