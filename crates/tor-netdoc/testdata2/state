@@ -1,33 +1,33 @@
-# Tor state file last generated on 2000-01-01 00:02:28 local time
+# Tor state file last generated on 2000-01-01 00:04:14 local time
 # Other times below are in UTC
 # You *do not* need to edit this file.
 
-BWHistoryDirReadEnds 2000-01-02 00:00:05
+BWHistoryDirReadEnds 2000-01-02 00:01:03
 BWHistoryDirReadInterval 86400
 BWHistoryDirReadMaxima 7168
-BWHistoryDirReadValues 462848
-BWHistoryDirWriteEnds 2000-01-02 00:00:05
+BWHistoryDirReadValues 605184
+BWHistoryDirWriteEnds 2000-01-02 00:01:03
 BWHistoryDirWriteInterval 86400
-BWHistoryDirWriteMaxima 3072
-BWHistoryDirWriteValues 137216
-BWHistoryIPv6ReadEnds 2000-01-02 00:00:05
+BWHistoryDirWriteMaxima 5120
+BWHistoryDirWriteValues 188416
+BWHistoryIPv6ReadEnds 2000-01-02 00:01:03
 BWHistoryIPv6ReadInterval 86400
 BWHistoryIPv6ReadMaxima 0
 BWHistoryIPv6ReadValues 0
-BWHistoryIPv6WriteEnds 2000-01-02 00:00:05
+BWHistoryIPv6WriteEnds 2000-01-02 00:01:03
 BWHistoryIPv6WriteInterval 86400
 BWHistoryIPv6WriteMaxima 0
 BWHistoryIPv6WriteValues 0
-BWHistoryReadEnds 2000-01-02 00:00:05
+BWHistoryReadEnds 2000-01-02 00:01:03
 BWHistoryReadInterval 86400
-BWHistoryReadMaxima 189440
-BWHistoryReadValues 3009536
-BWHistoryWriteEnds 2000-01-02 00:00:05
+BWHistoryReadMaxima 242688
+BWHistoryReadValues 3681280
+BWHistoryWriteEnds 2000-01-02 00:01:03
 BWHistoryWriteInterval 86400
-BWHistoryWriteMaxima 188416
-BWHistoryWriteValues 3004416
+BWHistoryWriteMaxima 241664
+BWHistoryWriteValues 3716096
 Dormant 0
-LastRotatedOnionKey 2000-01-01 00:00:05
-LastWritten 2000-01-01 00:02:28
-MinutesSinceUserActivity 2
+LastRotatedOnionKey 2000-01-01 00:01:03
+LastWritten 2000-01-01 00:04:14
+MinutesSinceUserActivity 3
 TorVersion Tor 0.4.9.17
