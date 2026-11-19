@@ -520,6 +520,21 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 .await;
         };
 
+        self.handle_stream_msg(early, hop, msg, sid, cell_counts_toward_windows)
+            .await
+    }
+
+    /// Handle a stream message arriving on this circuit.
+    async fn handle_stream_msg(
+        &mut self,
+        _early: bool,
+        hop: Option<HopNum>,
+        msg: UnparsedRelayMsg,
+        sid: StreamId,
+        cell_counts_toward_windows: bool,
+    ) -> StdResult<(), ReactorError> {
+        // TODO(relay): return an error if this arrived in an RELAY_EARLY?
+
         let msg = stream::CtrlMsg::DeliverStreamMsg {
             sid,
             msg,
@@ -553,7 +568,11 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     }
 
     /// Handle a circuit SENDME coming from the specified `hopnum`.
-    async fn handle_sendme(&mut self, hopnum: Option<HopNum>, msg: UnparsedRelayMsg) -> StdResult<(), ReactorError> {
+    async fn handle_sendme(
+        &mut self,
+        hopnum: Option<HopNum>,
+        msg: UnparsedRelayMsg,
+    ) -> StdResult<(), ReactorError> {
         let sendme = msg
             .decode::<Sendme>()
             .map_err(|e| Error::from_bytes_err(e, "sendme message"))?
