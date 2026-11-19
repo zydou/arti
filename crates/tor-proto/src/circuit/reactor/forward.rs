@@ -27,7 +27,7 @@ use tor_cell::chancell::{CircId, msg::AnyChanMsg};
 use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
 use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
+    AnyRelayMsgOuter, RelayCellDecoderResult, RelayCmd, StreamId, UnparsedRelayMsg,
 };
 use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
@@ -396,7 +396,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         &self,
         hopnum: Option<HopNum>,
         c_t_w: bool,
-    ) -> Result<(RelayCellFormat, bool)> {
+    ) -> Result<bool> {
         let mut hops = self.hop_mgr.hops().write().expect("poisoned lock");
         let hop = hops.get_mut(hopnum)?;
 
@@ -414,9 +414,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             false
         };
 
-        let relay_cell_format = hop.settings.relay_crypt_protocol().relay_cell_format();
-
-        Ok((relay_cell_format, send_circ_sendme))
+        Ok(send_circ_sendme)
     }
 
     /// Handle a RELAY cell.
@@ -439,7 +437,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         }
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
-        let (_relay_cell_format, send_circ_sendme) =
+        let send_circ_sendme =
             self.note_relay_cell_received(hopnum, c_t_w)?;
 
         // If we do need to send a circuit-level SENDME cell, do so.
