@@ -25,20 +25,20 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 //
 // TODO: This type probably belongs in a different crate.
 //
-// TODO (cve, Diziet): Overhaul or remove RelayFamily, HappyFamilyId, HappyFamilyIds:
+// TODO (cve, Diziet): Overhaul or remove LegacyFamily, HappyFamilyId, HappyFamilyIds:
 //   - Possibly, these don't all warrant newtype wrappers
 //   - Where they do warrant newtype wrappers the API should be appropriate for that
 //   - The names are fairly confusing
-//     (especially that HappyFamilyId is not the id of a RelayFamily)
+//     (especially that HappyFamilyId is not the id of a LegacyFamily)
 // See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4117#note_3428678>
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Deftly)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable, GloballyInternable)]
-pub struct RelayFamily(Vec<LongIdent>);
+pub struct LegacyFamily(Vec<LongIdent>);
 
-impl RelayFamily {
-    /// Return a new empty RelayFamily.
+impl LegacyFamily {
+    /// Return a new empty LegacyFamily.
     pub fn new() -> Self {
-        RelayFamily::default()
+        LegacyFamily::default()
     }
 
     /// Add `rsa_id` to this family.
@@ -76,7 +76,7 @@ impl RelayFamily {
     }
 }
 
-impl std::str::FromStr for RelayFamily {
+impl std::str::FromStr for LegacyFamily {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
         let v: Result<Vec<LongIdent>> = s
@@ -84,7 +84,7 @@ impl std::str::FromStr for RelayFamily {
             .map(|e| e.parse::<LongIdent>())
             .filter(Result::is_ok)
             .collect();
-        Ok(RelayFamily(v?))
+        Ok(LegacyFamily(v?))
     }
 }
 
@@ -226,7 +226,7 @@ mod test {
     use crate::Result;
     #[test]
     fn family() -> Result<()> {
-        let f = "nickname1 nickname2 $ffffffffffffffffffffffffffffffffffffffff=foo eeeeeeeeeeeeeeeeeeeEEEeeeeeeeeeeeeeeeeee ddddddddddddddddddddddddddddddddd  $cccccccccccccccccccccccccccccccccccccccc~blarg ".parse::<RelayFamily>()?;
+        let f = "nickname1 nickname2 $ffffffffffffffffffffffffffffffffffffffff=foo eeeeeeeeeeeeeeeeeeeEEEeeeeeeeeeeeeeeeeee ddddddddddddddddddddddddddddddddd  $cccccccccccccccccccccccccccccccccccccccc~blarg ".parse::<LegacyFamily>()?;
         let v = vec![
             RsaIdentity::from_bytes(
                 &hex::decode("ffffffffffffffffffffffffffffffffffffffff").unwrap()[..],
@@ -249,7 +249,7 @@ mod test {
     fn test_contains() -> Result<()> {
         let family =
             "ffffffffffffffffffffffffffffffffffffffff eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                .parse::<RelayFamily>()?;
+                .parse::<LegacyFamily>()?;
         let in_family = RsaIdentity::from_bytes(
             &hex::decode("ffffffffffffffffffffffffffffffffffffffff").unwrap()[..],
         )
@@ -268,7 +268,7 @@ mod test {
 
     #[test]
     fn mutable() {
-        let mut family = RelayFamily::default();
+        let mut family = LegacyFamily::default();
         let key = RsaIdentity::from_hex("ffffffffffffffffffffffffffffffffffffffff").unwrap();
         assert!(!family.contains(&key));
         family.push(key);
@@ -296,7 +296,7 @@ mod test {
         #[derive(Debug, PartialEq, Eq, derive_deftly::Deftly)]
         #[derive_deftly(NetdocParseable)]
         struct Wrapper {
-            family: RelayFamily,
+            family: LegacyFamily,
         }
 
         const LINE: &str = "family $0000000000000000000000000000000000000000 $FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
@@ -306,7 +306,7 @@ mod test {
         assert_eq!(
             parsed,
             Wrapper {
-                family: RelayFamily(vec![
+                family: LegacyFamily(vec![
                     RsaIdentity::from_hex("0000000000000000000000000000000000000000")
                         .unwrap()
                         .into(),

@@ -18,7 +18,7 @@ pub fn compute_microdesc(
     rd: &RouterDesc,
     meth: &TrackedConsensusMethod,
 ) -> Result<Microdesc, MicrodescError> {
-    let mut family = RelayFamily::clone(&rd.family); // avoids Arc::Clone
+    let mut family = LegacyFamily::clone(&rd.family); // avoids Arc::Clone
     if !family.is_empty() {
         family.push(rd.signing_key.to_rsa_identity());
     }

@@ -15,7 +15,7 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::SectionRules;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::family::{RelayFamily, HappyFamilyId, HappyFamilyIds};
+use crate::types::family::{LegacyFamily, HappyFamilyId, HappyFamilyIds};
 use crate::types::misc::*;
 use crate::types::policy::PortPolicy;
 use crate::util;
@@ -73,7 +73,7 @@ pub struct Microdesc {
 
     /// Declared family for this relay.
     #[deftly(netdoc(default(skip)))]
-    pub family: Intern<RelayFamily>,
+    pub family: Intern<LegacyFamily>,
 
     /// Family identities for this relay.
     #[deftly(netdoc(default(skip)))]
@@ -137,7 +137,7 @@ impl Microdesc {
         &self.ipv6_policy
     }
     /// Return the relay family for this microdesc
-    pub fn family(&self) -> &RelayFamily {
+    pub fn family(&self) -> &LegacyFamily {
         self.family.as_ref()
     }
     /// Return the ed25519 identity for this microdesc, if its
@@ -359,8 +359,8 @@ impl MicrodescAndHash {
         // RouterDescs: the authorities already took care of that for us.)
         let family = body
             .maybe(FAMILY)
-            .parse_args_as_str::<RelayFamily>()?
-            .unwrap_or_else(RelayFamily::new)
+            .parse_args_as_str::<LegacyFamily>()?
+            .unwrap_or_else(LegacyFamily::new)
             .intern();
 
         // Family ids (happy families case).

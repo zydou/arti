@@ -35,7 +35,7 @@ use crate::parse2::{
     ArgumentError, ErrorProblem, ItemValueParseable, SignaturesData, UnparsedItem, VerifyFailed,
 };
 use crate::types::descriptor::*;
-use crate::types::family::{RelayFamily, HappyFamilyIds};
+use crate::types::family::{LegacyFamily, HappyFamilyIds};
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
 use crate::types::{EmbeddedCert, misc::*};
@@ -219,7 +219,7 @@ pub struct RouterDesc {
     ///
     /// <https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:family>
     #[deftly(netdoc(default(skip)))]
-    pub family: Intern<RelayFamily>,
+    pub family: Intern<LegacyFamily>,
 
     /// `family-cert` --- Prove membership in a relay family.
     ///
@@ -857,7 +857,7 @@ impl RouterDesc {
     }
 
     /// Return the declared family of this descriptor.
-    pub fn family(&self) -> Intern<RelayFamily> {
+    pub fn family(&self) -> Intern<LegacyFamily> {
         Intern::clone(&self.family)
     }
 
@@ -1155,8 +1155,8 @@ impl RouterDesc {
         let family = {
             let mut family = body
                 .maybe(FAMILY)
-                .parse_args_as_str::<RelayFamily>()?
-                .unwrap_or_else(RelayFamily::new);
+                .parse_args_as_str::<LegacyFamily>()?
+                .unwrap_or_else(LegacyFamily::new);
             if !family.is_empty() {
                 // If this family is nonempty, we add our own RSA id to it, on
                 // the theory that doing so will improve the odds of having a
@@ -1496,7 +1496,7 @@ mod test {
         assert_eq!(rd.uptime, Some(1036923));
         assert_eq!(
             rd.family.as_ref(),
-            &RelayFamily::from_str(
+            &LegacyFamily::from_str(
                 "$303509ab910ef207b7438c27435c4a2fd579f1b1 \
                  $56927e61b51e6f363fb55498150a6ddfcf7077f2"
             )

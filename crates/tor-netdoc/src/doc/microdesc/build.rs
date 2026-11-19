@@ -5,7 +5,7 @@
 
 use super::{Microdesc, MicrodescAndHash};
 
-use crate::types::family::{RelayFamily, HappyFamilyId, HappyFamilyIds};
+use crate::types::family::{LegacyFamily, HappyFamilyId, HappyFamilyIds};
 use crate::types::policy::PortPolicy;
 use crate::{BuildError as Error, BuildResult as Result, Error as ParseError};
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -28,7 +28,7 @@ pub struct MicrodescBuilder {
     /// The relay family we'll be using.
     ///
     /// See [`Microdesc::family`].
-    family: RelayFamily,
+    family: LegacyFamily,
     /// See [`Microdesc::family_ids`]
     family_ids: HappyFamilyIds,
     /// See [`Microdesc::ipv4_policy`]
@@ -44,7 +44,7 @@ impl MicrodescBuilder {
     pub(crate) fn new() -> Self {
         MicrodescBuilder {
             ntor_onion_key: None,
-            family: RelayFamily::new(),
+            family: LegacyFamily::new(),
             family_ids: HappyFamilyIds::new(),
             ipv4_policy: PortPolicy::new_reject_all(),
             ipv6_policy: PortPolicy::new_reject_all(),
@@ -71,7 +71,7 @@ impl MicrodescBuilder {
     /// Set the family of this relay.
     ///
     /// By default, this family is empty.
-    pub fn family(&mut self, family: RelayFamily) -> &mut Self {
+    pub fn family(&mut self, family: LegacyFamily) -> &mut Self {
         self.family = family;
         self
     }
