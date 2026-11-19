@@ -4,7 +4,7 @@
 //! used to avoid building insecure circuits.
 
 use crate::types::misc::LongIdent;
-use crate::{Error, NetdocErrorKind, NormalItemArgument, Pos, Result};
+use crate::{NetdocErrorKind, NormalItemArgument, Pos};
 use base64ct::Encoding;
 use derive_deftly::Deftly;
 use tor_basic_utils::derive_deftly_template_GloballyInternable;
@@ -75,9 +75,9 @@ impl LegacyFamily {
 }
 
 impl std::str::FromStr for LegacyFamily {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<Self> {
-        let v: Result<Vec<LongIdent>> = s
+    type Err = crate::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let v: Result<Vec<LongIdent>, _> = s
             .split(crate::parse::tokenize::is_sp)
             .map(|e| e.parse::<LongIdent>())
             .filter(Result::is_ok)
@@ -106,7 +106,7 @@ pub enum HappyFamilyId {
 const ED25519_ID_PREFIX: &str = "ed25519:";
 
 impl std::str::FromStr for HappyFamilyId {
-    type Err = Error;
+    type Err = crate::Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let mut buf = [0_u8; ED25519_ID_LEN];
