@@ -117,12 +117,7 @@ impl<AC> Aggregate<AC> for netstatus::VoteAuthoritySection {
 
         let (authorities, superseded_keys) = inputs
             .map(|(vnum, vas)| {
-                let (cae, lkey) = vote2consensus(
-                    &vas.authority,
-                    context
-                        .sig_hashes
-                        .vote(vnum)?,
-                )?;
+                let (cae, lkey) = vote2consensus(&vas.authority, context.sig_hashes.vote(vnum)?)?;
                 Ok::<_, Bug>((Some(cae), lkey))
             })
             .process_results(|i| i.filter_collect_unzip())?;
