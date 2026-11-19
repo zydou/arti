@@ -14,6 +14,7 @@ use digest::Digest;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem;
+use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
@@ -21,7 +22,7 @@ use tor_basic_utils::RngExt as _;
 use tor_dircommon::retry::DownloadSchedule;
 use tor_error::{internal, warn_report};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
-use tor_netdoc::doc::authcert::UncheckedAuthCert;
+use tor_netdoc::doc::authcert::AuthCertUnverified;
 use tor_netdoc::doc::netstatus::{Lifetime, ProtoStatuses};
 use tor_netdoc::parse2::ParseInput;
 use tracing::{debug, warn};
@@ -35,7 +36,7 @@ use crate::{
     event,
 };
 use crate::{DocSource, SharedMutArc};
-use tor_checkable::{ExternallySigned, SelfSigned, TimeBound};
+use tor_checkable::{ExternallySigned, TimeBound};
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -482,24 +483,27 @@ impl<R: Runtime> GetCertsState<R> {
     ///
     /// On success return the `AuthCert` and the string that represents it within the string `within`.
     /// On failure, return an error.
-    fn check_parsed_certificate<'s>(
+    fn check_parsed_certificate(
         &self,
-        parsed: tor_netdoc::Result<UncheckedAuthCert>,
+        parsed: StdResult<AuthCertUnverified, parse2::ParseError>,
         source: &DocSource,
-        within: &'s str,
-    ) -> Result<(AuthCert, &'s str)> {
-        let parsed = parsed.map_err(|e| Error::from_netdoc(source.clone(), e))?;
-        let cert_text = parsed
-            .within(within)
-            .expect("Certificate was not in input as expected");
-        let wellsigned = parsed.check_signature()?;
+    ) -> Result<AuthCert> {
+        let parsed = parsed.map_err(|e| Error::from_parse(source.clone(), e))?;
+        let recognized_authorities = self.config.authorities().v3idents();
+        let wellsigned =
+            parsed
+                .verify(&recognized_authorities[..])
+                .map_err(|e| Error::VerifyError {
+                    source: source.clone(),
+                    cause: e,
+                })?;
         let now = self.rt.wallclock();
         let timely_cert = self
             .config
             .tolerance
             .extend_tolerance(wellsigned)
             .if_valid_at(&now)?;
-        Ok((timely_cert, cert_text))
+        Ok(timely_cert)
     }
 
     /// If we have enough certificates, and we have not yet checked the
@@ -610,9 +614,10 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         for id in &self.missing_docs() {
             if let Some(cert) = docs.get(id) {
                 let text = cert.as_str().map_err(Error::BadUtf8InCache)?;
-                let parsed = AuthCert::parse(text);
-                match self.check_parsed_certificate(parsed, &source, text) {
-                    Ok((cert, _text)) => {
+                let parsed =
+                    parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(text, "<cache>"));
+                match self.check_parsed_certificate(parsed, &source) {
+                    Ok(cert) => {
                         self.missing_certs.remove(&cert.key_ids());
                         self.certs.push(cert);
                         *changed = true;
@@ -643,11 +648,14 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
         let mut nonfatal_error = None;
         let mut newcerts = Vec::new();
-        for cert in
-            AuthCert::parse_multiple(text).map_err(|e| Error::from_netdoc(source.clone(), e))?
-        {
-            match self.check_parsed_certificate(cert, &source, text) {
-                Ok((cert, cert_text)) => {
+        let filename = format!("download from {}", source);
+        let input = ParseInput::new(text, &filename);
+        for (cert, startpos, endpos) in parse2::parse_netdoc_multiple_sophisticated(&input)? {
+            let cert_text = text
+                .get(startpos..endpos)
+                .ok_or_else(|| internal!("parser returned invalid string boundary"))?;
+            match self.check_parsed_certificate(cert, &source) {
+                Ok(cert) => {
                     newcerts.push((cert, cert_text));
                 }
                 Err(e) => {
