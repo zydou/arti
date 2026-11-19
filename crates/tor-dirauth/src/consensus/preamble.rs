@@ -2,8 +2,6 @@
 
 use super::*;
 
-// TODO DIRAUTH integration tests of consensus calculation
-
 impl ConsensusesFromVotes<()> for netstatus::vote::Preamble {
     type PlainOutput = netstatus::plain::Preamble;
     type MdOutput = netstatus::md::Preamble;
