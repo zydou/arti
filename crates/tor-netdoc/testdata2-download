@@ -48,7 +48,7 @@ mkdir tmp
 case "$override_source" in
     '') wget -O tmp/artifacts.zip "$url" ;;
     /*|./*) cp "$override_source" tmp/artifacts.zip ;;
-    *) fail 'bad source override, should be a path' ;;
+    *) echo >&2 'bad source override, should be a path'; exit 4 ;;
 esac
 
 cd tmp
