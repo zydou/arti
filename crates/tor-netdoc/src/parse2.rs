@@ -185,8 +185,10 @@ impl<'s> ParseInput<'s> {
     /// [`.options_mut().retain_unknown_values`](ParseOptions::retain_unknown_values)
     /// to [`Unknown::Retained`].
     #[cfg(feature = "retain-unknown")]
-    pub fn retain_unknown_values(&mut self) {
+    #[must_use = "retain_unknown_values returns a new ParseInput, which should then be used"]
+    pub fn retain_unknown_values(mut self) -> Self {
         self.options_mut().retain_unknown_values = Unknown::Retained(());
+        self
     }
 }
 

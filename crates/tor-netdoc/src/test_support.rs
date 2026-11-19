@@ -159,10 +159,10 @@ where
     let key = (text, TypeId::of::<D>());
 
     let map_entry = memo.get_or_insert_default().entry(key).or_insert_with(|| {
-        let mut input = ParseInput::new(text, "<test document>");
+        let input = ParseInput::new(text, "<test document>");
 
         #[cfg(feature = "retain-unknown")]
-        input.retain_unknown_values();
+        let input = input.retain_unknown_values();
 
         let doc = parse_netdoc::<D>(&input).expect(text);
 
