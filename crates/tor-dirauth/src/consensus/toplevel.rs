@@ -52,10 +52,10 @@ impl ConsensusesFromVotes<()> for netstatus::vote::NetworkStatus {
 
         Ok(construct_both! {
             netstatus::plain::NetworkStatus, netstatus::md::NetworkStatus {
-                both. authority, footer, preamble;
+                both. preamble, authority, footer;
             } {
+                // `network_status_version` and `vote_status`: unit tokens, Default is fine
                 both. routers;
-                // TODO DIRAUTH NetworkStatus fields missing
             }
         })
     }
