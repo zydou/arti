@@ -107,7 +107,6 @@ impl<AC> Aggregate<AC> for netstatus::VotingDelay {
 }
 
 /// Calculate the union of two `DocRelayFlags`z
-#[allow(clippy::needless_pass_by_value)]
 pub(super) fn doc_relay_flags_union<'i>(
     _context: ConsensusContextRefs<()>,
     inputs: impl ComponentInVotes<&'i DocRelayFlags>,

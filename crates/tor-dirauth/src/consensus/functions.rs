@@ -6,7 +6,6 @@
 use super::*;
 
 /// Return the low median of the inputs
-#[allow(clippy::needless_pass_by_value)]
 pub(super) fn low_median<'i, T: Ord + Clone + 'i, AC>(
     _context: ConsensusContextRefs<AC>,
     inputs: impl ComponentInVotes<&'i T>,
@@ -27,7 +26,6 @@ pub(super) fn low_median_raw<'i, T: Ord + 'i>(inputs: impl Iterator<Item = T>) -
 /// Returns `None` iff the input iterator is empty.
 ///
 /// See [`choose_most_popular_amongst_votes`].
-#[allow(clippy::needless_pass_by_value)]
 pub(super) fn choose_most_popular_amongst_votes_raw<T, K>(
     inputs: impl ComponentInVotes<T>,
     ord_key: impl for<'i> Fn(&'i T) -> K,
@@ -56,7 +54,6 @@ where
 /// This is used for `v` and `pr` items in routerstatuses:
 ///  * <https://spec.torproject.org/dir-spec/computing-consensus.html>
 ///  * <https://spec.torproject.org/dir-spec/consensus-formats.html#item:pr>
-#[allow(clippy::needless_pass_by_value, clippy::unnecessary_wraps)]
 pub(super) fn choose_most_popular_amongst_votes<'i, T, K, AC>(
     _context: ConsensusContextRefs<AC>,
     inputs: impl ComponentInVotes<&'i T>,

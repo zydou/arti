@@ -4,10 +4,6 @@
 // This annoys clippy because it can't see they have to be that way.
 //
 // These lints are generally not all that useful anyway.  Suppress them in this whole code area.
-//
-// TODO DIRAUTH drop the individual allows from code in in-flight branches, once merged
-// ie, at some point(s) do this:
-//     git-grep -P '\#\[.*clippy::(?:needless_pass_by_value|unnecessary_wraps)' crates/tor-dirauth/src/consensus*
 #![allow(clippy::needless_pass_by_value, clippy::unnecessary_wraps)]
 
 use crate::internal_prelude::*;
