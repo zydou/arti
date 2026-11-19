@@ -202,7 +202,6 @@ pub(crate) trait ForwardHandler: ControlHandler {
         early: bool,
         hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
-        relay_cell_format: RelayCellFormat,
     ) -> StdResult<(), ReactorError>;
 
     /// Handle a forward (TODO terminology) cell.
@@ -440,7 +439,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         }
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
-        let (relay_cell_format, send_circ_sendme) = self.note_relay_cell_received(hopnum, c_t_w)?;
+        let (_relay_cell_format, send_circ_sendme) = self.note_relay_cell_received(hopnum, c_t_w)?;
 
         // If we do need to send a circuit-level SENDME cell, do so.
         if send_circ_sendme {
@@ -470,7 +469,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         let (mut msgs, incomplete) = decode_res.into_parts();
         while let Some(msg) = msgs.next() {
             match self
-                .handle_relay_msg(early, hopnum, msg, relay_cell_format, c_t_w)
+                .handle_relay_msg(early, hopnum, msg, c_t_w)
                 .await
             {
                 Ok(()) => continue,
@@ -505,7 +504,6 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         early: bool,
         hop: Option<HopNum>,
         msg: UnparsedRelayMsg,
-        relay_cell_format: RelayCellFormat,
         cell_counts_toward_windows: bool,
     ) -> StdResult<(), ReactorError> {
         // If this msg wants/refuses to have a Stream ID, does it
@@ -519,7 +517,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 .await
         } else {
             self
-                .handle_meta_msg(early, hop, msg, relay_cell_format)
+                .handle_meta_msg(early, hop, msg)
                 .await
         }
     }
@@ -555,13 +553,12 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         early: bool,
         hopnum: Option<HopNum>,
         msg: UnparsedRelayMsg,
-        relay_cell_format: RelayCellFormat,
     ) -> StdResult<(), ReactorError> {
         match msg.cmd() {
             RelayCmd::SENDME => self.handle_sendme(hopnum, msg).await,
             _ => {
                 self.inner
-                    .handle_meta_msg(&self.runtime, early, hopnum, msg, relay_cell_format)
+                    .handle_meta_msg(&self.runtime, early, hopnum, msg)
                     .await
             }
         }
