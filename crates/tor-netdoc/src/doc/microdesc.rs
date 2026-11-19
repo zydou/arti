@@ -15,7 +15,7 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::SectionRules;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::family::{LegacyFamily, HappyFamilyId, HappyFamilyIds};
+use crate::types::family::{HappyFamilyId, HappyFamilyIds, LegacyFamily};
 use crate::types::misc::*;
 use crate::types::policy::PortPolicy;
 use crate::util;

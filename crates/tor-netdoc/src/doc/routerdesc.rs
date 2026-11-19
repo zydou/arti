@@ -35,7 +35,7 @@ use crate::parse2::{
     ArgumentError, ErrorProblem, ItemValueParseable, SignaturesData, UnparsedItem, VerifyFailed,
 };
 use crate::types::descriptor::*;
-use crate::types::family::{LegacyFamily, HappyFamilyIds};
+use crate::types::family::{HappyFamilyIds, LegacyFamily};
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
 use crate::types::{EmbeddedCert, misc::*};

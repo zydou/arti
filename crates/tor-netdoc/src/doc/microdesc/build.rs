@@ -5,7 +5,7 @@
 
 use super::{Microdesc, MicrodescAndHash};
 
-use crate::types::family::{LegacyFamily, HappyFamilyId, HappyFamilyIds};
+use crate::types::family::{HappyFamilyId, HappyFamilyIds, LegacyFamily};
 use crate::types::policy::PortPolicy;
 use crate::{BuildError as Error, BuildResult as Result, Error as ParseError};
 use tor_llcrypto::pk::{curve25519, ed25519};
