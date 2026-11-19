@@ -2833,7 +2833,7 @@ mod test {
     use crate::doc::authcert::AuthCertUnverified;
     use crate::encode::{NetdocEncodable, NetdocEncodableFields};
     use crate::parse2::{ParseInput, parse_netdoc, parse_netdoc_multiple};
-    use crate::test_support::regsub;
+    use crate::test_support::{raw_find_item_rhs, regsub};
     use anyhow::Context as _;
     use assert_matches::assert_matches;
     use hex_literal::hex;
@@ -3271,7 +3271,14 @@ mod test {
         file: &str,
     ) -> anyhow::Result<(UV, String, Vec<AuthCert>, Vec<RsaIdentity>, SystemTime)> {
         let text = fs::read_to_string(file).with_context(|| file.to_owned())?;
-        let now = parse_rfc3339("2000-01-01T00:02:25Z")?;
+
+        let now = *raw_find_item_rhs(
+            include_str!("../../testdata2/cached-microdesc-consensus"),
+            "valid-after",
+        )
+        .parse::<Iso8601TimeSp>()
+        .unwrap()
+            + Duration::from_secs(25);
 
         let input = ParseInput::new(&text, file).retain_unknown_values();
         let doc: UV = parse_netdoc(&input)?;
