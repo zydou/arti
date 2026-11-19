@@ -15,7 +15,7 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::SectionRules;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::family::{RelayFamily, RelayFamilyId, RelayFamilyIds};
+use crate::types::family::{HappyFamilyId, HappyFamilyIds, LegacyFamily};
 use crate::types::misc::*;
 use crate::types::policy::PortPolicy;
 use crate::util;
@@ -73,11 +73,11 @@ pub struct Microdesc {
 
     /// Declared family for this relay.
     #[deftly(netdoc(default(skip)))]
-    pub family: Intern<RelayFamily>,
+    pub family: Intern<LegacyFamily>,
 
     /// Family identities for this relay.
     #[deftly(netdoc(default(skip)))]
-    pub family_ids: RelayFamilyIds,
+    pub family_ids: HappyFamilyIds,
 
     /// List of IPv4 ports to which this relay will exit
     #[deftly(netdoc(keyword = "p", default(skip)))]
@@ -137,7 +137,7 @@ impl Microdesc {
         &self.ipv6_policy
     }
     /// Return the relay family for this microdesc
-    pub fn family(&self) -> &RelayFamily {
+    pub fn family(&self) -> &LegacyFamily {
         self.family.as_ref()
     }
     /// Return the ed25519 identity for this microdesc, if its
@@ -146,7 +146,7 @@ impl Microdesc {
         &self.ed25519_id.pk.0
     }
     /// Return a list of family ids for this microdesc.
-    pub fn family_ids(&self) -> &[RelayFamilyId] {
+    pub fn family_ids(&self) -> &[HappyFamilyId] {
         self.family_ids.as_ref()
     }
 }
@@ -359,8 +359,8 @@ impl MicrodescAndHash {
         // RouterDescs: the authorities already took care of that for us.)
         let family = body
             .maybe(FAMILY)
-            .parse_args_as_str::<RelayFamily>()?
-            .unwrap_or_else(RelayFamily::new)
+            .parse_args_as_str::<LegacyFamily>()?
+            .unwrap_or_else(LegacyFamily::new)
             .intern();
 
         // Family ids (happy families case).
@@ -369,8 +369,8 @@ impl MicrodescAndHash {
             .args_as_str()
             .unwrap_or("")
             .split_ascii_whitespace()
-            .map(RelayFamilyId::from_str)
-            .collect::<Result<RelayFamilyIds>>()?;
+            .map(HappyFamilyId::from_str)
+            .collect::<Result<HappyFamilyIds>>()?;
 
         // exit policies.
         let ipv4_policy = body
@@ -631,7 +631,7 @@ mod test {
                 "other:Example".parse().unwrap()
             ]
         );
-        assert!(matches!(md1.family_ids()[0], RelayFamilyId::Ed25519(_)));
+        assert!(matches!(md1.family_ids()[0], HappyFamilyId::Ed25519(_)));
 
         Ok(())
     }
@@ -771,7 +771,7 @@ id ed25519 /MU/FVKRGcZAy8XFnzLS6Dgcg6s1VpYeFjkwb6+CVhw
         let md = parse2::parse_netdoc::<Microdesc>(&ParseInput::new(MICRODESC, "")).unwrap();
         assert_eq!(
             md.family_ids,
-            RelayFamilyIds::from_iter(iter::once(RelayFamilyId::Ed25519(
+            HappyFamilyIds::from_iter(iter::once(HappyFamilyId::Ed25519(
                 Ed25519Identity::from_base64("b54cKgML0ykRyhdIRcq1xtW19iEVsMYnGNbdY+vvcas")
                     .unwrap()
             )))

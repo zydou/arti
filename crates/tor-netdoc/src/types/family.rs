@@ -25,20 +25,18 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 //
 // TODO: This type probably belongs in a different crate.
 //
-// TODO (cve, Diziet): Overhaul or remove RelayFamily, RelayFamilyId, RelayFamilyIds:
+// TODO (cve, Diziet): Overhaul or remove LegacyFamily, HappyFamilyId, HappyFamilyIds:
 //   - Possibly, these don't all warrant newtype wrappers
 //   - Where they do warrant newtype wrappers the API should be appropriate for that
-//   - The names are fairly confusing
-//     (especially that RelayFamilyId is not the id of a RelayFamily)
 // See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4117#note_3428678>
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Deftly)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable, GloballyInternable)]
-pub struct RelayFamily(Vec<LongIdent>);
+pub struct LegacyFamily(Vec<LongIdent>);
 
-impl RelayFamily {
-    /// Return a new empty RelayFamily.
+impl LegacyFamily {
+    /// Return a new empty LegacyFamily.
     pub fn new() -> Self {
-        RelayFamily::default()
+        LegacyFamily::default()
     }
 
     /// Add `rsa_id` to this family.
@@ -76,7 +74,7 @@ impl RelayFamily {
     }
 }
 
-impl std::str::FromStr for RelayFamily {
+impl std::str::FromStr for LegacyFamily {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
         let v: Result<Vec<LongIdent>> = s
@@ -84,7 +82,7 @@ impl std::str::FromStr for RelayFamily {
             .map(|e| e.parse::<LongIdent>())
             .filter(Result::is_ok)
             .collect();
-        Ok(RelayFamily(v?))
+        Ok(LegacyFamily(v?))
     }
 }
 
@@ -94,20 +92,20 @@ impl std::str::FromStr for RelayFamily {
 /// microdescriptors will no longer have to contain a list of relay members,
 /// but will instead contain these identifiers.
 ///
-/// If two relays have a `RelayFamilyId` in common, they belong to the same family.
+/// If two relays have a `HappyFamilyId` in common, they belong to the same family.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
-pub enum RelayFamilyId {
+pub enum HappyFamilyId {
     /// An identifier derived from an Ed25519 relay family key. (`KP_familyid_ed`)
     Ed25519(Ed25519Identity),
     /// An unrecognized string.
     Unrecognized(String),
 }
 
-/// Prefix for a RelayFamilyId derived from an ed25519 `KP_familyid_ed`.
+/// Prefix for a HappyFamilyId derived from an ed25519 `KP_familyid_ed`.
 const ED25519_ID_PREFIX: &str = "ed25519:";
 
-impl std::str::FromStr for RelayFamilyId {
+impl std::str::FromStr for HappyFamilyId {
     type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
@@ -115,73 +113,73 @@ impl std::str::FromStr for RelayFamilyId {
         if let Some(s) = s.strip_prefix(ED25519_ID_PREFIX) {
             if let Ok(decoded) = base64ct::Base64Unpadded::decode(s, &mut buf) {
                 if let Some(ed_id) = Ed25519Identity::from_bytes(decoded) {
-                    return Ok(RelayFamilyId::Ed25519(ed_id));
+                    return Ok(HappyFamilyId::Ed25519(ed_id));
                 }
             }
             return Err(NetdocErrorKind::BadArgument
                 .with_msg("Invalid ed25519 family ID")
                 .at_pos(Pos::at(s)));
         }
-        Ok(RelayFamilyId::Unrecognized(s.to_string()))
+        Ok(HappyFamilyId::Unrecognized(s.to_string()))
     }
 }
 
-impl std::fmt::Display for RelayFamilyId {
+impl std::fmt::Display for HappyFamilyId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RelayFamilyId::Ed25519(id) => write!(f, "{}{}", ED25519_ID_PREFIX, id),
-            RelayFamilyId::Unrecognized(s) => write!(f, "{}", s),
+            HappyFamilyId::Ed25519(id) => write!(f, "{}{}", ED25519_ID_PREFIX, id),
+            HappyFamilyId::Unrecognized(s) => write!(f, "{}", s),
         }
     }
 }
 
-impl PartialOrd for RelayFamilyId {
+impl PartialOrd for HappyFamilyId {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(Ord::cmp(self, other))
     }
 }
-impl Ord for RelayFamilyId {
+impl Ord for HappyFamilyId {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        // We sort RelayFamilyId values by string representation.
+        // We sort HappyFamilyId values by string representation.
         // This is not super-efficient, but we don't need to do it very often.
         Ord::cmp(&self.to_string(), &other.to_string())
     }
 }
 
-impl From<Ed25519Identity> for RelayFamilyId {
+impl From<Ed25519Identity> for HappyFamilyId {
     fn from(value: Ed25519Identity) -> Self {
         Self::Ed25519(value)
     }
 }
 
-impl NormalItemArgument for RelayFamilyId {}
+impl NormalItemArgument for HappyFamilyId {}
 
-/// A list of multiple [`RelayFamilyId`] entries as found in microdescs.
+/// A list of multiple [`HappyFamilyId`] entries as found in microdescs.
 ///
-/// Using the [`FromIterator`] implementation for [`RelayFamilyId`] leads the
+/// Using the [`FromIterator`] implementation for [`HappyFamilyId`] leads the
 /// result to get deduplicated and sorted automatically using
-/// [`RelayFamilyIds::dedup()`] and [`RelayFamilyIds::sort()`], as those calls
+/// [`HappyFamilyIds::dedup()`] and [`HappyFamilyIds::sort()`], as those calls
 /// are effectively required for a useful use of this type.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deftly, derive_more::AsRef)]
 #[derive_deftly(ItemValueEncodable, ItemValueParseable)]
-pub struct RelayFamilyIds(
+pub struct HappyFamilyIds(
     // TODO DIRMIRROR: Replace with BTreeSet at one point.
     // TODO could/should this be a type alias instead?
-    Vec<RelayFamilyId>,
+    Vec<HappyFamilyId>,
 );
 
-impl RelayFamilyIds {
-    /// Return a new empty [`RelayFamilyIds`].
+impl HappyFamilyIds {
+    /// Return a new empty [`HappyFamilyIds`].
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Push `family_id` onto this instance.
-    pub fn push(&mut self, family_id: RelayFamilyId) {
+    pub fn push(&mut self, family_id: HappyFamilyId) {
         self.0.push(family_id);
     }
 
-    /// Sort entries ascending by their [`RelayFamilyId`].
+    /// Sort entries ascending by their [`HappyFamilyId`].
     pub fn sort(&mut self) {
         self.0.sort();
     }
@@ -192,8 +190,8 @@ impl RelayFamilyIds {
     }
 }
 
-impl FromIterator<RelayFamilyId> for RelayFamilyIds {
-    fn from_iter<T: IntoIterator<Item = RelayFamilyId>>(iter: T) -> Self {
+impl FromIterator<HappyFamilyId> for HappyFamilyIds {
+    fn from_iter<T: IntoIterator<Item = HappyFamilyId>>(iter: T) -> Self {
         let mut res = Self(iter.into_iter().collect());
         // TODO: We should really reconsider this because it does not achieve
         // the same as subsequent calls to push.  As outlined above, we probably
@@ -226,7 +224,7 @@ mod test {
     use crate::Result;
     #[test]
     fn family() -> Result<()> {
-        let f = "nickname1 nickname2 $ffffffffffffffffffffffffffffffffffffffff=foo eeeeeeeeeeeeeeeeeeeEEEeeeeeeeeeeeeeeeeee ddddddddddddddddddddddddddddddddd  $cccccccccccccccccccccccccccccccccccccccc~blarg ".parse::<RelayFamily>()?;
+        let f = "nickname1 nickname2 $ffffffffffffffffffffffffffffffffffffffff=foo eeeeeeeeeeeeeeeeeeeEEEeeeeeeeeeeeeeeeeee ddddddddddddddddddddddddddddddddd  $cccccccccccccccccccccccccccccccccccccccc~blarg ".parse::<LegacyFamily>()?;
         let v = vec![
             RsaIdentity::from_bytes(
                 &hex::decode("ffffffffffffffffffffffffffffffffffffffff").unwrap()[..],
@@ -249,7 +247,7 @@ mod test {
     fn test_contains() -> Result<()> {
         let family =
             "ffffffffffffffffffffffffffffffffffffffff eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                .parse::<RelayFamily>()?;
+                .parse::<LegacyFamily>()?;
         let in_family = RsaIdentity::from_bytes(
             &hex::decode("ffffffffffffffffffffffffffffffffffffffff").unwrap()[..],
         )
@@ -268,7 +266,7 @@ mod test {
 
     #[test]
     fn mutable() {
-        let mut family = RelayFamily::default();
+        let mut family = LegacyFamily::default();
         let key = RsaIdentity::from_hex("ffffffffffffffffffffffffffffffffffffffff").unwrap();
         assert!(!family.contains(&key));
         family.push(key);
@@ -278,13 +276,13 @@ mod test {
     #[test]
     fn family_ids() {
         let ed_str_rep = "ed25519:7sToQRuge1bU2hS0CG0ViMndc4m82JhO4B4kdrQey80";
-        let ed_id = RelayFamilyId::from_str(ed_str_rep).unwrap();
-        assert!(matches!(ed_id, RelayFamilyId::Ed25519(_)));
+        let ed_id = HappyFamilyId::from_str(ed_str_rep).unwrap();
+        assert!(matches!(ed_id, HappyFamilyId::Ed25519(_)));
         assert_eq!(ed_id.to_string().as_str(), ed_str_rep);
 
         let other_str_rep = "hello-world";
-        let other_id = RelayFamilyId::from_str(other_str_rep).unwrap();
-        assert!(matches!(other_id, RelayFamilyId::Unrecognized(_)));
+        let other_id = HappyFamilyId::from_str(other_str_rep).unwrap();
+        assert!(matches!(other_id, HappyFamilyId::Unrecognized(_)));
         assert_eq!(other_id.to_string().as_str(), other_str_rep);
 
         assert_eq!(ed_id, ed_id);
@@ -296,7 +294,7 @@ mod test {
         #[derive(Debug, PartialEq, Eq, derive_deftly::Deftly)]
         #[derive_deftly(NetdocParseable)]
         struct Wrapper {
-            family: RelayFamily,
+            family: LegacyFamily,
         }
 
         const LINE: &str = "family $0000000000000000000000000000000000000000 $FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
@@ -306,7 +304,7 @@ mod test {
         assert_eq!(
             parsed,
             Wrapper {
-                family: RelayFamily(vec![
+                family: LegacyFamily(vec![
                     RsaIdentity::from_hex("0000000000000000000000000000000000000000")
                         .unwrap()
                         .into(),

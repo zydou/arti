@@ -8,7 +8,7 @@ use tor_basic_utils::intern::{GloballyInternable, Intern};
 use tor_dirmgr::filter::DirFilter;
 use tor_netdoc::{
     doc::{microdesc::MicrodescAndHash, netstatus::UncheckedMdConsensus},
-    types::{Curve25519Public, family::RelayFamily, policy::PortPolicy},
+    types::{Curve25519Public, family::LegacyFamily, policy::PortPolicy},
 };
 
 /// Return a new directory filter as configured by a specified string.
@@ -70,7 +70,7 @@ struct OneBigFamilyFilter {
     /// (This filter won't do a very good job of ensuring consistency between
     /// this family and the MDs we attach it to, but that's okay for the kind of
     /// testing we want to do.)
-    new_family: Mutex<Intern<RelayFamily>>,
+    new_family: Mutex<Intern<LegacyFamily>>,
 }
 
 impl DirFilter for OneBigFamilyFilter {
@@ -78,12 +78,12 @@ impl DirFilter for OneBigFamilyFilter {
         &self,
         consensus: UncheckedMdConsensus,
     ) -> tor_dirmgr::Result<UncheckedMdConsensus> {
-        let mut new_family = RelayFamily::new();
+        let mut new_family = LegacyFamily::new();
         for r in consensus.dangerously_peek().consensus.relays() {
             new_family.push(*r.rsa_identity());
         }
 
-        *self.new_family.lock().expect("poisoned lock") = RelayFamily::into_intern(new_family);
+        *self.new_family.lock().expect("poisoned lock") = LegacyFamily::into_intern(new_family);
 
         Ok(consensus)
     }

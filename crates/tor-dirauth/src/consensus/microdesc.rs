@@ -18,13 +18,13 @@ pub fn compute_microdesc(
     rd: &RouterDesc,
     meth: &TrackedConsensusMethod,
 ) -> Result<Microdesc, MicrodescError> {
-    let mut family = RelayFamily::clone(&rd.family); // avoids Arc::Clone
+    let mut family = LegacyFamily::clone(&rd.family); // avoids Arc::Clone
     if !family.is_empty() {
         family.push(rd.signing_key.to_rsa_identity());
     }
     let family = family.intern(); // also normalises
 
-    let family_ids: RelayFamilyIds = rd
+    let family_ids: HappyFamilyIds = rd
         .family_cert
         .iter()
         .map(|cert| Ok::<_, Bug>(cert.get()?.family_ed25519.into()))
