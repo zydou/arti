@@ -61,7 +61,7 @@ pub type MicrodescsErrors = Vec<(SupportedConsensusMethod, MicrodescError)>;
 ///
 /// This unusual error handling is so that a handful of strange routerdescs,
 /// that trigger bugs in our code, do not cause the whole algorithm to collapse.
-/// See torspec!522  TODO DIRAUTH turn this into a proper spec ref when that's merged.
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#microdescriptor-generation-error-handling>
 pub fn compute_supported_microdescs(
     rd: &RouterDesc,
 ) -> Result<MicrodescsForRouterDesc, (MicrodescsErrors, MicrodescsForRouterDesc)> {

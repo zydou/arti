@@ -40,7 +40,6 @@ impl<'f> ConsensusesFromVotes<FooterAC<'f>> for netstatus::vote::Footer {
 ///
 /// Not `Aggregate` and doesn't take any inputs, because votes don't have footers
 /// (so that field in a vote is `NotPresent`.)
-#[allow(clippy::unnecessary_wraps)] // for uniformity
 fn make_footer_fields<'f>(
     _context: ConsensusContextRefs<FooterAC<'f>>,
 ) -> Result<netstatus::ConsensusFooterFields, ConsensusError> {
