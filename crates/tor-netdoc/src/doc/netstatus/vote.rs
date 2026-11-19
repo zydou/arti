@@ -31,7 +31,7 @@ impl NetworkStatusUnverified {
     /// ensuring that the caller does that check.
     pub fn verify(
         self,
-        trusted: &[RsaIdentity],
+        trusted: &mut VoteVerifier,
     ) -> Result<TimeRangeBound<NetworkStatus>, VoteVerifyFailed> {
         use VoteVerifyFailed as VVF;
 
@@ -44,7 +44,9 @@ impl NetworkStatusUnverified {
             );
             let authcert = parse2::parse_netdoc::<AuthCertUnverified>(&input)
                 .map_err(VVF::AuthCertParseError)?;
-            let authcert = authcert.verify(trusted).map_err(VVF::InvalidSignature)?;
+            let authcert = authcert
+                .verify(&trusted.trusted)
+                .map_err(VVF::InvalidSignature)?;
 
             // We do the authcert validity time check here, with reference to
             // the vote's declared validity period, not the current time or whatever.
@@ -61,7 +63,8 @@ impl NetworkStatusUnverified {
             authcert.dangerously_assume_timely() // we just checked it ^ there
         };
 
-        if body.authority.authority.dir_source.identity != authcert.fingerprint {
+        let authority_id = body.authority.authority.dir_source.identity;
+        if authority_id != authcert.fingerprint {
             return Err(VVF::AuthCertWrongAuthority);
         }
 
@@ -70,10 +73,16 @@ impl NetworkStatusUnverified {
             signatures: vec![sigs.sigs.directory_signature],
         }
         .verify_general(
-            VerifyGeneralTrustedAuthorities::AnyOneOfThese { trusted },
+            VerifyGeneralTrustedAuthorities::AnyOneOfThese {
+                trusted: &trusted.trusted,
+            },
             slice::from_ref(&authcert),
             |tv| tv.verify().map_err(VVF::InvalidSignature),
         )?;
+
+        if !trusted.remaining_good.remove(&*authority_id) {
+            return Err(VVF::DuplicateAuthority(*authority_id));
+        }
 
         body.authority.cert.set_verified(authcert);
 

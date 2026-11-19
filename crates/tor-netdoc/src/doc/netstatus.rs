@@ -1087,6 +1087,36 @@ pub enum ConsensusVerifyFailed {
     InvalidSignature(#[source] VerifyFailed),
 }
 
+/// Context for verifying one or more votes intended for the same consensus period
+///
+/// Construct this from a set of trusted identities with [`VoteVerifier::new`]
+/// and then call [`vote::NetworkStatusUnverified::verify`] for each vote.
+///
+/// Tracks which authorities' votes have already been verified, and throws
+/// [`VoteVerifyFailed::DuplicateAuthority`] if one is repeated.
+///
+/// To verify a vote in isolation, use `vote.verify(&mut VoteVerifier::new(..))`,
+/// but note that then any detection of duplicates in a set of votes is up to you.
+pub struct VoteVerifier {
+    /// The trusted authorites (including ones we've already seen).
+    trusted: Vec<RsaIdentity>,
+
+    /// The authorities whose votes we haven't yet verified, so we can still verify.
+    remaining_good: HashSet<RsaIdentity>,
+}
+
+impl VoteVerifier {
+    /// Start verifying votes: construct a new `VoteVerifier` from a set of trusted authorities
+    pub fn new(trusted: impl IntoIterator<Item = RsaIdentity>) -> Self {
+        let trusted = trusted.into_iter().collect_vec();
+        let remaining_good = trusted.iter().copied().collect();
+        VoteVerifier {
+            trusted,
+            remaining_good,
+        }
+    }
+}
+
 /// Error encountered while verifying a vote
 ///
 /// Thrown by
@@ -1118,6 +1148,12 @@ pub enum VoteVerifyFailed {
     /// Authcert is for a different authority
     #[error("wrong authcert")]
     AuthCertWrongAuthority,
+
+    /// Two or more votes from the same authority
+    ///
+    /// Often, this will be the result of a bug.
+    #[error("duplicate authority {_0}")]
+    DuplicateAuthority(RsaIdentity),
 }
 
 /// A shared random value produced by the directory authorities.
@@ -3145,7 +3181,7 @@ mod test {
         let text = fs::read_to_string(file).with_context(|| file.to_owned())?;
         let input = ParseInput::new(&text, file);
         let doc: UV = parse_netdoc(&input)?;
-        let trusted = [doc.peek_alleged_authority()];
+        let trusted = || VoteVerifier::new([doc.peek_alleged_authority()]);
 
         let edit_body = |f: &dyn Fn(&mut _)| {
             let (mut body, sigs) = doc.clone().unwrap_unverified();
@@ -3158,7 +3194,7 @@ mod test {
             let mut doc = doc.clone();
             doc.sigs.sigs.directory_signature.signature.fill(0xff);
             assert_matches!(
-                doc.verify(&trusted),
+                doc.verify(&mut trusted()),
                 Err(VVF::InvalidSignature(VF::VerifyFailed))
             );
         }
@@ -3167,7 +3203,7 @@ mod test {
         {
             let doc = doc.clone();
             assert_matches!(
-                doc.verify(&[[0x55; _].into()]),
+                doc.verify(&mut VoteVerifier::new([[0x55; _].into()])),
                 Err(VVF::InvalidSignature(VF::InsufficientTrustedSigners))
             );
         }
@@ -3179,7 +3215,7 @@ mod test {
             });
             assert_matches!(
                 //
-                doc.verify(&trusted),
+                doc.verify(&mut trusted()),
                 Err(VVF::AuthCertWrongAuthority)
             );
         }
@@ -3189,7 +3225,7 @@ mod test {
             let doc = edit_body(&|body| f(&mut body.preamble.lifetime));
             assert_matches!(
                 //
-                doc.verify(&trusted),
+                doc.verify(&mut trusted()),
                 Err(VVF::AuthCertWrongValidity(_))
             );
         };
@@ -3207,8 +3243,22 @@ mod test {
             let doc: UV = parse_netdoc(&input)?;
             assert_matches!(
                 //
-                doc.verify(&trusted),
+                doc.verify(&mut trusted()),
                 Err(VVF::AuthCertParseError(..))
+            );
+        }
+
+        // duplicate authorities
+        {
+            let mut trusted = trusted();
+            assert_matches!(
+                //
+                doc.clone().verify(&mut trusted),
+                Ok(_)
+            );
+            assert_matches!(
+                doc.clone().verify(&mut trusted),
+                Err(VVF::DuplicateAuthority(_))
             );
         }
 
@@ -3410,7 +3460,12 @@ mod test {
     fn roundtrip_netstatus_vote() -> anyhow::Result<()> {
         roundtrip_netstatus::<vote::NetworkStatusUnverified, _, _>(
             "testdata2/v3-status-votes--1",
-            |doc, trusted, _| vote::NetworkStatusUnverified::verify(doc, trusted),
+            |doc, trusted, _| {
+                vote::NetworkStatusUnverified::verify(
+                    doc,
+                    &mut VoteVerifier::new(trusted.iter().copied()),
+                )
+            },
             Duration::from_secs(20),
         )
     }
