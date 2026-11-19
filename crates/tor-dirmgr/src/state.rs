@@ -10,6 +10,7 @@
 //! [`bootstrap`](crate::bootstrap) module for functions that actually
 //! load or download directory information.
 
+use digest::Digest;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem;
@@ -22,6 +23,7 @@ use tor_error::{internal, warn_report};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::authcert::UncheckedAuthCert;
 use tor_netdoc::doc::netstatus::{Lifetime, ProtoStatuses};
+use tor_netdoc::parse2::ParseInput;
 use tracing::{debug, warn};
 
 use crate::event::DirProgress;
@@ -42,12 +44,12 @@ use tor_netdoc::doc::{
     netstatus::MdConsensus,
 };
 use tor_netdoc::{
-    AllowAnnotations,
     doc::{
         authcert::{AuthCert, AuthCertKeyIds},
-        microdesc::MicrodescReader,
+        microdesc::Microdesc,
         netstatus::{ConsensusFlavor, UnvalidatedMdConsensus},
     },
+    parse2,
 };
 use tor_rtcompat::Runtime;
 
@@ -969,13 +971,17 @@ impl<R: Runtime> GetMicrodescsState<R> {
     /// Add a bunch of microdescriptors to the in-progress netdir.
     fn register_microdescs<I>(&mut self, mds: I, _source: &DocSource, changed: &mut bool)
     where
-        I: IntoIterator<Item = MicrodescAndHash>,
+        I: IntoIterator<Item = (Microdesc, MdDigest)>,
     {
-        #[cfg(feature = "dirfilter")]
-        let mds: Vec<MicrodescAndHash> = mds
+        let md_iter = mds
             .into_iter()
-            .filter_map(|m| self.filter.filter_md(m).ok())
-            .collect();
+            .map(|(md, sha256)| MicrodescAndHash { md, sha256 });
+
+        #[cfg(feature = "dirfilter")]
+        let md_iter = md_iter.filter_map(|md| self.filter.filter_md(md).ok());
+
+        let mds: Vec<MicrodescAndHash> = md_iter.collect();
+
         let is_partial = matches!(self.partial, PendingNetDir::Partial(..));
         for md in mds {
             if is_partial {
@@ -1055,11 +1061,12 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let mut microdescs = Vec::new();
         for (id, text) in docs {
             if let DocId::Microdesc(digest) = id {
-                if let Ok(md) =
-                    MicrodescAndHash::parse(text.as_str().map_err(Error::BadUtf8InCache)?)
-                {
-                    if md.digest() == &digest {
-                        microdescs.push(md);
+                let input =
+                    ParseInput::new(text.as_str().map_err(Error::BadUtf8InCache)?, "<cache>");
+                if let Ok(md) = parse2::parse_netdoc::<Microdesc>(&input) {
+                    let digest_found: MdDigest = tor_llcrypto::d::Sha256::digest(text).into();
+                    if digest == digest_found {
+                        microdescs.push((md, digest));
                         continue;
                     }
                 }
@@ -1087,30 +1094,33 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let mut new_mds = Vec::new();
         let mut nonfatal_err = None;
 
-        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed)
-            .map_err(|e| Error::from_netdoc(source.clone(), e))?
+        let file = format!("download from {}", source);
+        let input = ParseInput::new(text, &file);
+        for (microdesc, start, end) in
+            parse2::parse_netdoc_multiple_sophisticated::<Microdesc>(&input)?
         {
-            let anno = match anno {
+            let md = match microdesc {
                 Err(e) => {
-                    nonfatal_err.get_or_insert_with(|| Error::from_netdoc(source.clone(), e));
+                    nonfatal_err.get_or_insert_with(|| Error::from_parse(source.clone(), e));
                     continue;
                 }
                 Ok(a) => a,
             };
-            let txt = anno
-                .within(text)
-                .expect("microdesc not from within text as expected");
-            let md = anno.into_microdesc();
-            if !requested.contains(md.digest()) {
+
+            let txt = text
+                .get(start..end)
+                .ok_or_else(|| internal!("Parser returned invalid string indices"))?;
+            let digest: MdDigest = tor_llcrypto::d::Sha256::digest(txt).into();
+
+            if !requested.contains(&digest) {
                 warn!(
                     "Received microdescriptor from {} we did not ask for: {:?}",
-                    source,
-                    md.digest()
+                    source, digest
                 );
                 nonfatal_err.get_or_insert(Error::Unwanted("un-requested microdescriptor"));
                 continue;
             }
-            new_mds.push((txt, md));
+            new_mds.push((txt, md, digest));
         }
 
         let mark_listed = self.meta.lifetime().valid_after();
@@ -1127,14 +1137,18 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
                 s.store_microdescs(
                     &new_mds
                         .iter()
-                        .map(|(text, md)| (*text, md.digest()))
+                        .map(|(text, _md, digest)| (*text, digest))
                         .collect::<Vec<_>>(),
                     mark_listed,
                 )?;
             }
         }
 
-        self.register_microdescs(new_mds.into_iter().map(|(_, md)| md), &source, changed);
+        self.register_microdescs(
+            new_mds.into_iter().map(|(_text, md, digest)| (md, digest)),
+            &source,
+            changed,
+        );
 
         opt_err_to_result(nonfatal_err)
     }
@@ -1312,7 +1326,10 @@ mod test {
         authority::{AuthorityContacts, AuthorityContactsBuilder},
         config::{DownloadScheduleConfig, NetworkConfig},
     };
-    use tor_netdoc::doc::authcert::AuthCertKeyIds;
+    use tor_netdoc::{
+        AllowAnnotations,
+        doc::{authcert::AuthCertKeyIds, microdesc::MicrodescReader},
+    };
     use tor_rtcompat::RuntimeSubstExt as _;
     use tor_rtmock::simple_time::SimpleMockTimeProvider;
 
