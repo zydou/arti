@@ -30,7 +30,7 @@ pub(crate) use tor_netdoc::{
     doc::routerdesc::RouterDesc,
     encode::encode_netdoc_unsigned,
     rangemap_mutate_range,
-    types::family::{HappyFamilyIds, LegacyFamily},
+    types::family::HappyFamilyIds,
     types::policy::PortPolicy,
     types::{Base64Fingerprint, Ed25519Public, FixedB64, Iso8601TimeSp, Nickname},
 };

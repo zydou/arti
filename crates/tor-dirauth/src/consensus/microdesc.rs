@@ -18,12 +18,6 @@ pub fn compute_microdesc(
     rd: &RouterDesc,
     meth: &TrackedConsensusMethod,
 ) -> Result<Microdesc, MicrodescError> {
-    let mut family = LegacyFamily::clone(&rd.family); // avoids Arc::Clone
-    if !family.is_empty() {
-        family.push(rd.signing_key.to_rsa_identity());
-    }
-    let family = family.intern(); // also normalises
-
     let family_ids: HappyFamilyIds = rd
         .family_cert
         .iter()
@@ -34,7 +28,6 @@ pub fn compute_microdesc(
         ip_summary::summarise_policy_v4_approximate(&rd.ipv4_policy, meth)?.into_intern();
 
     let m = Microdesc {
-        family,
         family_ids,
         ipv4_policy,
         ipv6_policy: rd.ipv6_policy.clone(),
@@ -200,6 +193,8 @@ mod test {
                 "#,
                 "onion-key\n",
             );
+            // test data may be from method 36 or earlier
+            regsub(&mut exp_md, r#"(?x) ^ family \ .* \n"#, "");
 
             assert_eq_or_diff!(md_txt, exp_md, "for relay {}", relay.nick);
         }
