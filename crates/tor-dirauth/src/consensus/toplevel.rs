@@ -121,8 +121,7 @@ impl<AC> Aggregate<AC> for netstatus::VoteAuthoritySection {
                     &vas.authority,
                     context
                         .sig_hashes
-                        .get(vnum)
-                        .ok_or_else(|| internal!("{vnum:?}"))?,
+                        .vote(vnum)?,
                 )?;
                 Ok::<_, Bug>((Some(cae), lkey))
             })

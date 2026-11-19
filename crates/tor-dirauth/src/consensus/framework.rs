@@ -227,9 +227,6 @@ pub(super) impl<V> TiSlice<VoterNum, V> {
     /// Get the value from one of the votes
     ///
     /// Convenience method for `.get(vnum)` which avoids recapitulating the error handling.
-    //
-    // TODO DIRAUTH after !4463 use this in toplevel.rs in
-    //  impl<AC> Aggregate<AC> for netstatus::VoteAuthoritySection
     fn vote(&self, vnum: VoterNum) -> Result<&V, Bug> {
         self.get(vnum)
             .ok_or_else(|| internal!("{vnum:?} out of range"))
