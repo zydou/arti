@@ -2,7 +2,7 @@
 #
 # usage:
 #   testdata2-download \
-#       https://gitlab.torproject.org/tpo/core/arti/-/jobs/1060037/artifacts/download \
+#       https://gitlab.torproject.org/tpo/core/arti/-/jobs/NNNN/artifacts/download \
 #       [artifacts.zip]
 #
 # The URL is the "download artifacts archive link"
