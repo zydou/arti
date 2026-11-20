@@ -21,7 +21,7 @@ ns_use_this_variety! {
 /// A Builder object for creating a RouterStatus and adding it to a
 /// consensus.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RouterStatusBuilder {
     /// See [`RouterStatus::nickname`].
     nickname: Option<String>,
@@ -43,17 +43,8 @@ pub struct RouterStatusBuilder {
 
 impl RouterStatusBuilder {
     /// Construct a new RouterStatusBuilder.
-    pub(crate) fn new() -> Self {
-        RouterStatusBuilder {
-            nickname: None,
-            identity: None,
-            addrs: Vec::new(),
-            doc_digest: None,
-            flags: RelayFlags::empty(),
-            version: None,
-            protos: None,
-            weight: None,
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Set the nickname for this routerstatus.

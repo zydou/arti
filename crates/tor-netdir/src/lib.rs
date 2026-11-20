@@ -78,7 +78,7 @@ use tor_linkspec::{
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, MicrodescAndHash};
-use tor_netdoc::doc::netstatus::{self, MdConsensus, MdRouterStatus};
+use tor_netdoc::doc::netstatus::{self, MdRouterStatus, md::NetworkStatus as MdConsensus};
 #[cfg(feature = "hs-common")]
 use {hsdir_ring::HsDirRing, std::iter};
 
@@ -147,7 +147,7 @@ pub(crate) trait ConsensusRelays {
 }
 impl ConsensusRelays for MdConsensus {
     fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdRouterStatus> {
-        TiSlice::from_ref(MdConsensus::relays(self))
+        TiSlice::from_ref(&self.routers)
     }
 }
 impl ConsensusRelays for NetDir {
@@ -893,7 +893,7 @@ impl PartialNetDir {
         // there.)
         //
         // TODO this is rather duplicative of NetParameters::from_netstatus
-        let _ = params.saturating_update(consensus.params().without_defaults().iter());
+        let _ = params.saturating_update(consensus.preamble.params.without_defaults().iter());
 
         // Now see if the user has any parameters to override.
         // (We have to do this now, or else changes won't be reflected in our
@@ -1039,7 +1039,7 @@ impl MdReceiver for PartialNetDir {
 impl NetDir {
     /// Return the declared lifetime of this NetDir.
     pub fn lifetime(&self) -> &netstatus::Lifetime {
-        self.consensus.lifetime()
+        &self.consensus.preamble.lifetime
     }
 
     /// Add `md` to this NetDir.
@@ -1167,7 +1167,8 @@ impl NetDir {
     pub fn replace_overridden_parameters(&mut self, new_replacement: &netstatus::NetParamValues) {
         // TODO(nickm): This is largely duplicate code from PartialNetDir::new().
         let mut new_params = NetParameters::default();
-        let _ = new_params.saturating_update(self.consensus.params().without_defaults().iter());
+        let _ =
+            new_params.saturating_update(self.consensus.preamble.params.without_defaults().iter());
         for u in new_params.saturating_update(new_replacement.iter()) {
             warn!("Unrecognized option: override_net_params.{}", u);
         }
@@ -1474,7 +1475,7 @@ impl NetDir {
     // to put it behind the `hs-common` feature to give us time to consider more.
     #[cfg(feature = "hs-common")]
     pub fn relay_protocol_status(&self) -> &netstatus::ProtoStatus {
-        self.consensus.relay_protocol_status()
+        self.consensus.preamble.proto_statuses.relay()
     }
 
     /// Return a [`ProtoStatus`](netstatus::ProtoStatus) that lists the
@@ -1484,7 +1485,7 @@ impl NetDir {
     // TODO HS: See notes on relay_protocol_status above.
     #[cfg(feature = "hs-common")]
     pub fn client_protocol_status(&self) -> &netstatus::ProtoStatus {
-        self.consensus.client_protocol_status()
+        self.consensus.preamble.proto_statuses.client()
     }
 
     /// Construct a `CircTarget` from an externally provided list of link specifiers,

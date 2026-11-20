@@ -2337,12 +2337,25 @@ mod test {
     }
 
     fn construct_netdir() -> NetDir {
+        use tor_netdoc::doc::netstatus::SharedRandStatusConstructor;
         const SRV1: [u8; 32] = *b"The door refused to open.       ";
         const SRV2: [u8; 32] = *b"It said, 'Five cents, please.'  ";
 
         let dir = testnet::construct_custom_netdir(|_, _, bld| {
-            bld.shared_rand_cur(7, SRV1.into(), None)
-                .shared_rand_prev(7, SRV2.into(), None);
+            bld.preamble.shared_rand.shared_rand_previous_value = Some(
+                SharedRandStatusConstructor {
+                    n_reveals: 7,
+                    value: SRV1.into(),
+                }
+                .construct(),
+            );
+            bld.preamble.shared_rand.shared_rand_current_value = Some(
+                SharedRandStatusConstructor {
+                    n_reveals: 7,
+                    value: SRV2.into(),
+                }
+                .construct(),
+            );
         })
         .unwrap();
 

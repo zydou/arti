@@ -23,7 +23,7 @@ use tor_dircommon::retry::DownloadSchedule;
 use tor_error::{internal, warn_report};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::authcert::AuthCertUnverified;
-use tor_netdoc::doc::netstatus::{Lifetime, ProtoStatuses};
+use tor_netdoc::doc::netstatus::{ConsensusVerifiabilityError, Lifetime, ProtoStatuses};
 use tor_netdoc::parse2::ParseInput;
 use tracing::{debug, warn};
 
@@ -36,19 +36,19 @@ use crate::{
     event,
 };
 use crate::{DocSource, SharedMutArc};
-use tor_checkable::{ExternallySigned, TimeBound};
+use tor_checkable::TimeBound;
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_llcrypto::pk::rsa::RsaIdentity;
-use tor_netdoc::doc::{
-    microdesc::{MdDigest, MicrodescAndHash},
-    netstatus::MdConsensus,
-};
+use tor_netdoc::doc::microdesc::{MdDigest, MicrodescAndHash};
 use tor_netdoc::{
     doc::{
         authcert::{AuthCert, AuthCertKeyIds},
         microdesc::Microdesc,
-        netstatus::{ConsensusFlavor, UnvalidatedMdConsensus},
+        netstatus::{
+            ConsensusFlavor, md::NetworkStatus as MdConsensus,
+            md::NetworkStatusUnverified as MdConsensusUnverified,
+        },
     },
     parse2,
 };
@@ -360,42 +360,47 @@ impl<R: Runtime> GetConsensusState<R> {
         cutoff: Option<SystemTime>,
         changed: &mut bool,
     ) -> Result<&ConsensusMeta> {
+        use parse2::NetdocParseableUnverified as _;
         // Try to parse it and get its metadata.
         let (consensus_meta, unvalidated) = {
-            let (signedval, remainder, parsed) =
-                MdConsensus::parse(text).map_err(|e| Error::from_netdoc(source.clone(), e))?;
-            #[cfg(feature = "dirfilter")]
-            let parsed = self.filter.filter_consensus(parsed)?;
-            let parsed = self.config.tolerance.extend_tolerance(parsed);
-            let now = self.rt.wallclock();
-            let timely = parsed.if_valid_at(&now)?;
+            let filename = source.to_string();
+            let input = ParseInput::new(text, &filename);
+            let parsed = parse2::parse_netdoc::<MdConsensusUnverified>(&input)
+                .map_err(|e| Error::from_parse(source.clone(), e))?;
+            let (signedval, remainder) = text
+                .split_at_checked(parsed.sigs.unsigned_body_len)
+                .ok_or_else(|| internal!("parser returned invalid string index"))?;
+
+            let lifetime = &parsed.inspect_unverified().0.preamble.lifetime;
             if let Some(cutoff) = cutoff {
-                if timely.peek_lifetime().valid_after() < cutoff {
+                if lifetime.valid_after() < cutoff {
                     return Err(Error::Unwanted("consensus was older than requested"));
                 }
             }
-            let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
-            (meta, timely)
+
+            let meta =
+                ConsensusMeta::from_text_and_lifetime(signedval, remainder, lifetime.clone());
+
+            (meta, parsed)
         };
 
         // Check out what authorities we believe in, and see if enough
         // of them are purported to have signed this consensus.
-        let unvalidated = unvalidated.set_n_authorities(self.authority_ids.len());
+        let desired_certs = match unvalidated.can_verify(&self.authority_ids, &[]) {
+            Ok(_) => {
+                return Err(internal!(
+                    "consensus seemed verifiable, even though we provided no certs"
+                )
+                .into());
+            }
+            Err(ConsensusVerifiabilityError::InsufficientTrustedSigners) => {
+                return Err(Error::UnrecognizedAuthorities);
+            }
+            Err(ConsensusVerifiabilityError::MissingAuthCerts { missing, .. }) => missing,
+        };
 
-        let id_refs: Vec<_> = self.authority_ids.iter().collect();
-        if !unvalidated.authorities_are_correct(&id_refs[..]) {
-            return Err(Error::UnrecognizedAuthorities);
-        }
         // Yes, we've added the consensus.  That's a change.
         *changed = true;
-
-        // Make a set of all the certificates we want -- the subset of
-        // those listed on the consensus that we would indeed accept as
-        // authoritative.
-        let desired_certs = unvalidated
-            .signing_cert_ids()
-            .filter(|m| self.recognizes_authority(&m.id_fingerprint))
-            .collect();
 
         self.next = Some(GetCertsState {
             cache_usage: self.cache_usage,
@@ -416,11 +421,6 @@ impl<R: Runtime> GetConsensusState<R> {
         #[allow(clippy::unwrap_used)]
         Ok(&self.next.as_ref().unwrap().consensus_meta)
     }
-
-    /// Return true if `id` is an authority identity we recognize
-    fn recognizes_authority(&self, id: &RsaIdentity) -> bool {
-        self.authority_ids.iter().any(|auth| auth == id)
-    }
 }
 
 /// One of two possible internal states for the consensus in a GetCertsState.
@@ -429,7 +429,7 @@ impl<R: Runtime> GetConsensusState<R> {
 #[derive(Clone, Debug)]
 enum GetCertsConsensus {
     /// We have an unvalidated consensus; we haven't checked its signatures.
-    Unvalidated(UnvalidatedMdConsensus),
+    Unvalidated(MdConsensusUnverified),
     /// A validated consensus: the signatures are fine and we can advance.
     Validated(MdConsensus),
     /// We failed to validate the consensus, even after getting enough certificates.
@@ -521,34 +521,56 @@ impl<R: Runtime> GetCertsState<R> {
         std::mem::swap(&mut consensus, &mut self.consensus);
 
         let unvalidated = match consensus {
-            C::Unvalidated(uv) if uv.key_is_correct(&self.certs[..]).is_ok() => uv,
+            C::Unvalidated(uv) => {
+                match uv.can_verify(self.config.authorities().v3idents(), &self.certs) {
+                    Ok(()) => uv,
+                    Err(ConsensusVerifiabilityError::InsufficientTrustedSigners) => {
+                        self.consensus = C::Failed;
+                        return Err(internal!(
+                            "Previously we thought that this consensus had enough authorities, \
+                            but now we don't!"
+                        )
+                        .into());
+                    }
+                    Err(ConsensusVerifiabilityError::MissingAuthCerts { .. }) => {
+                        // Still can't check.
+                        self.consensus = C::Unvalidated(uv);
+                        return Ok(());
+                    }
+                }
+            }
             _ => {
-                // nothing to check at this point.  Either we already checked the consensus, or we don't yet have enough certificates.
+                // nothing to check at this point.  Either we already checked the consensus, or we
+                // have an error.
                 self.consensus = consensus;
                 return Ok(());
             }
         };
 
-        let (new_consensus, outcome) = match unvalidated.check_signature(&self.certs[..]) {
-            Ok(validated) => (C::Validated(validated), Ok(())),
-            Err(cause) => (
-                C::Failed,
-                Err(Error::ConsensusInvalid {
-                    source: self.consensus_source.clone(),
-                    cause,
-                }),
-            ),
-        };
+        let (new_consensus, outcome) =
+            match unvalidated.verify(self.config.authorities().v3idents(), &self.certs) {
+                Ok(validated) => {
+                    let timely = self.config.tolerance.extend_tolerance(validated);
+                    let consensus = timely.if_valid_at(&self.rt.wallclock())?;
+                    (C::Validated(consensus), Ok(()))
+                }
+                Err(cause) => (
+                    C::Failed,
+                    Err(Error::ConsensusInvalid {
+                        source: self.consensus_source.clone(),
+                        cause,
+                    }),
+                ),
+            };
         self.consensus = new_consensus;
 
         // Update our protocol recommendations if we have a validated consensus,
         // and if we haven't already updated our recommendations.
         if let GetCertsConsensus::Validated(v) = &self.consensus {
             if self.protocol_statuses.is_none() {
-                let protoset: &Arc<ProtoStatuses> = v.protocol_statuses();
                 self.protocol_statuses = Some((
                     self.consensus_meta.lifetime().valid_after(),
-                    Arc::clone(protoset),
+                    Arc::clone(&v.preamble.proto_statuses),
                 ));
             }
         }
@@ -939,9 +961,9 @@ impl<R: Runtime> GetMicrodescsState<R> {
         prev_netdir: Option<Arc<dyn PreviousNetDir>>,
         #[cfg(feature = "dirfilter")] filter: Arc<dyn crate::filter::DirFilter>,
     ) -> Self {
-        let reset_time =
-            consensus.lifetime().valid_until() + config.tolerance.post_valid_tolerance();
-        let n_microdescs = consensus.relays().len();
+        let reset_time = SystemTime::from(consensus.preamble.lifetime.valid_until)
+            + config.tolerance.post_valid_tolerance();
+        let n_microdescs = consensus.routers.len();
 
         let params = &config.override_net_params;
         #[cfg(not(feature = "geoip"))]
@@ -1519,7 +1541,7 @@ mod test {
                 Some(&store),
                 &mut changed,
             );
-            assert!(matches!(outcome, Err(Error::NetDocError { .. })));
+            assert!(matches!(outcome, Err(Error::ParseError { .. })));
             assert!(!changed);
             // make sure it wasn't stored...
             assert!(
@@ -1749,16 +1771,23 @@ mod test {
 
     #[test]
     fn get_microdescs_state() {
+        use parse2::NetdocParseableUnverified as _;
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
             /// Construct a GetCertsState with our test data
             fn new_getmicrodescs_state(rt: impl Runtime) -> GetMicrodescsState<impl Runtime> {
                 let rt = make_time_shifted_runtime(test_time(), rt);
                 let cfg = make_dirmgr_config(Some(test_authorities()));
-                let (signed, rest, consensus) = MdConsensus::parse(CONSENSUS2).unwrap();
-                let consensus = consensus
-                    .dangerously_assume_timely()
-                    .dangerously_assume_wellsigned();
-                let meta = ConsensusMeta::from_consensus(signed, rest, &consensus);
+                let consensus = parse2::parse_netdoc::<MdConsensusUnverified>(&ParseInput::new(
+                    CONSENSUS2, "~",
+                ))
+                .unwrap();
+                let consensus = consensus.unwrap_unverified().0;
+                // (Using junk values for hashes here, but that's ok in the context of this test)
+                let meta = ConsensusMeta::from_text_and_lifetime(
+                    "",
+                    "",
+                    consensus.preamble.lifetime.clone(),
+                );
                 GetMicrodescsState::new(
                     CacheUsage::CacheOkay,
                     consensus,

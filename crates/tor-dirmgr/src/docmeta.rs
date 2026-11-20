@@ -9,7 +9,7 @@ use digest::Digest;
 use tor_llcrypto as ll;
 use tor_netdoc::doc::{
     authcert::{AuthCert, AuthCertKeyIds},
-    netstatus::{Lifetime, MdConsensus, UnvalidatedMdConsensus},
+    netstatus::{Lifetime, MdConsensus},
 };
 
 use std::time::SystemTime;
@@ -43,17 +43,18 @@ impl ConsensusMeta {
             sha3_256_of_whole,
         }
     }
-    /// Derive a new ConsensusMeta from an UnvalidatedMdConsensus and the
-    /// text of its signed portion.
-    pub(crate) fn from_unvalidated(
+
+    /// Derive a new ConsensusMeta from a [`Lifetime`] and the
+    /// text of its signed  and unsigned portions
+    pub(crate) fn from_text_and_lifetime(
         signed_part: &str,
         remainder: &str,
-        con: &UnvalidatedMdConsensus,
+        lifetime: Lifetime,
     ) -> Self {
-        let lifetime = con.peek_lifetime().clone();
         let (sd, wd) = sha3_dual(signed_part, remainder);
         ConsensusMeta::new(lifetime, sd, wd)
     }
+
     /// Derive a new ConsensusMeta from a MdConsensus and the text of its
     /// signed portion.
     #[allow(unused)]

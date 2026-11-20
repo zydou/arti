@@ -84,6 +84,7 @@ pub enum Error {
     /// Invalid json value in the cache
     #[error("Invalid JSON in directory cache")]
     BadJsonInCache(#[source] Arc<serde_json::Error>),
+    // XXXX This is no longer used.
     /// An error given by the network document crate.
     #[error("Invalid document from {source}")]
     NetDocError {
@@ -122,7 +123,7 @@ pub enum Error {
         source: DocSource,
         /// What error we got.
         #[source]
-        cause: tor_netdoc::Error,
+        cause: tor_netdoc::doc::netstatus::ConsensusVerifyFailed,
     },
     /// An error caused by an expired or not-yet-valid object.
     #[error("Directory object expired or not yet valid")]
@@ -221,13 +222,6 @@ impl Error {
             spawning,
             cause: Arc::new(err),
         }
-    }
-
-    /// Construct a new `Error` from `tor_netdoc::Error`.
-    ///
-    /// Also takes a source so that we can keep track of where the document came from.
-    pub(crate) fn from_netdoc(source: DocSource, cause: tor_netdoc::Error) -> Error {
-        Error::NetDocError { source, cause }
     }
 
     /// Construct a new `Error` from `ParseError`.
