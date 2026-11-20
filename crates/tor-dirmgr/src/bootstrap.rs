@@ -138,17 +138,7 @@ fn note_cache_error<R: Runtime>(
     //
     // (This can happen if we notice a problem while downloading a certificate,
     // but the real problem is that the consensus was no good.)
-    let real_source = match problem {
-        Error::VerifyError {
-            source: DocSource::DirServer { source: Some(info) },
-            ..
-        }
-        | Error::ParseError {
-            source: DocSource::DirServer { source: Some(info) },
-            ..
-        } => info,
-        _ => source,
-    };
+    let real_source = problem.cache_info().unwrap_or(source);
 
     info_report!(problem, "Marking {:?} as failed", real_source);
     circmgr.note_external_failure(real_source.cache_id(), ExternalActivity::DirCache);

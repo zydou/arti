@@ -281,6 +281,50 @@ impl Error {
         }
     }
 
+    /// If this operation is associated with a particular directory cache server,
+    /// return a [`tor_dirclient::SourceInfo`] describing which one.
+    pub(crate) fn cache_info(&self) -> Option<&tor_dirclient::SourceInfo> {
+        #[allow(deprecated)]
+        match self {
+            Error::Unwanted(_)
+            | Error::NetDirOlder
+            | Error::NoDownloadSupport
+            | Error::CacheCorruption(_)
+            | Error::SqliteError(_)
+            | Error::ReadOnlyStorage(_)
+            | Error::UnrecognizedSchema { .. }
+            | Error::DirectoryNotPresent
+            | Error::UnrecognizedAuthorities
+            | Error::ManagerDropped
+            | Error::CantAdvanceState
+            | Error::LockFile(_)
+            | Error::CacheFile { .. }
+            | Error::ConsensusDiffError(_)
+            | Error::BadUtf8FromDirectory(_)
+            | Error::BadUtf8InCache(_)
+            | Error::BadHexInCache(_)
+            | Error::BadJsonInCache(_)
+            | Error::UntimelyObject(_)
+            | Error::SignatureError(_)
+            | Error::OfflineMode
+            | Error::CacheAccess(_)
+            | Error::CachePermissions(_)
+            | Error::Spawn { .. }
+            | Error::ExternalDirProvider { .. }
+            | Error::Bug(_) => None,
+
+            Error::DirClientError(tor_dirclient::Error::RequestFailed(e)) => e.source.as_ref(),
+            Error::DirClientError(_) => None,
+
+            Error::ConsensusInvalid { source, .. }
+            | Error::ParseError { source, .. }
+            | Error::VerifyError { source, .. } => match source {
+                DocSource::LocalCache => None,
+                DocSource::DirServer { source } => source.as_ref(),
+            },
+        }
+    }
+
     /// Return information about which directory cache caused this error, if
     /// this error contains one.
     pub(crate) fn responsible_cache(&self) -> Option<&tor_dirclient::SourceInfo> {
