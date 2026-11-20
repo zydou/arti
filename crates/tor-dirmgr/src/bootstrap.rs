@@ -139,7 +139,11 @@ fn note_cache_error<R: Runtime>(
     // (This can happen if we notice a problem while downloading a certificate,
     // but the real problem is that the consensus was no good.)
     let real_source = match problem {
-        Error::NetDocError {
+        Error::VerifyError {
+            source: DocSource::DirServer { source: Some(info) },
+            ..
+        }
+        | Error::ParseError {
             source: DocSource::DirServer { source: Some(info) },
             ..
         } => info,

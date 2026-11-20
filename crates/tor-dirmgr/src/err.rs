@@ -84,16 +84,6 @@ pub enum Error {
     /// Invalid json value in the cache
     #[error("Invalid JSON in directory cache")]
     BadJsonInCache(#[source] Arc<serde_json::Error>),
-    // XXXX This is no longer used.
-    /// An error given by the network document crate.
-    #[error("Invalid document from {source}")]
-    NetDocError {
-        /// Where the document came from.
-        source: DocSource,
-        /// What error we got.
-        #[source]
-        cause: tor_netdoc::Error,
-    },
     /// We were unable to parse a document.
     #[error("Parsing error in document from {source}")]
     ParseError {
@@ -284,9 +274,7 @@ impl Error {
             // object that we know.  That case might need special handling to
             // avoid erroneously avoiding a good cache... especially if the document
             // is one that the cache could be tricked into serving us.
-            Error::NetDocError { .. } | Error::ParseError { .. } | Error::VerifyError { .. } => {
-                true
-            }
+            Error::ParseError { .. } | Error::VerifyError { .. } => true,
 
             // We can never see this kind of error from within the crate.
             Error::ExternalDirProvider { .. } => false,
@@ -297,10 +285,6 @@ impl Error {
     /// this error contains one.
     pub(crate) fn responsible_cache(&self) -> Option<&tor_dirclient::SourceInfo> {
         match self {
-            Error::NetDocError {
-                source: DocSource::DirServer { source },
-                ..
-            } => source.as_ref(),
             Error::ConsensusInvalid {
                 source: DocSource::DirServer { source },
                 ..
@@ -323,7 +307,6 @@ impl Error {
             | Error::UntimelyObject(_)
             | Error::DirClientError(_)
             | Error::SignatureError(_)
-            | Error::NetDocError { .. }
             | Error::ParseError { .. }
             | Error::VerifyError { .. } => BootstrapAction::Nonfatal,
 
@@ -392,9 +375,7 @@ impl HasKind for Error {
             E::LockFile { .. } => EK::CacheAccessFailed,
             E::CacheFile { .. } => EK::CacheAccessFailed,
             E::ConsensusDiffError(_) => EK::TorProtocolViolation,
-            E::NetDocError { source, .. }
-            | E::ParseError { source, .. }
-            | E::VerifyError { source, .. } => match source {
+            E::ParseError { source, .. } | E::VerifyError { source, .. } => match source {
                 DocSource::LocalCache => EK::CacheCorrupted,
                 DocSource::DirServer { .. } => EK::TorProtocolViolation,
             },
