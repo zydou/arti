@@ -16,17 +16,18 @@ use futures::future;
 use futures::select;
 use futures::stream::{BoxStream, StreamExt};
 use futures::task::SpawnError;
+use tor_netdoc::parse2::ParseInput;
 use tracing::{debug, info, trace};
 
 use safelog::sensitive;
 use tor_basic_utils::retry::RetryDelay;
-use tor_checkable::{SelfSigned, TimeBound};
+use tor_checkable::TimeBound;
 use tor_circmgr::CircMgr;
 use tor_error::{AbsRetryTime, HasRetryTime, RetryTime};
 use tor_error::{ErrorKind, HasKind, error_report, internal};
 use tor_guardmgr::bridge::{BridgeConfig, BridgeDesc};
 use tor_guardmgr::bridge::{BridgeDescError, BridgeDescEvent, BridgeDescList, BridgeDescProvider};
-use tor_netdoc::doc::routerdesc::RouterDesc;
+use tor_netdoc::{doc::routerdesc::RouterDescUnverified, parse2};
 use tor_rtcompat::{Runtime, SpawnExt as _};
 use web_time_compat::{Duration, Instant, SystemTime};
 
@@ -1131,22 +1132,16 @@ fn process_document<R: Runtime>(
     config: &BridgeDescDownloadConfig,
     text: &str,
 ) -> Result<Downloaded, Error> {
-    let desc = RouterDesc::parse(text)?;
+    // TODO: We should say whether it is a download or a cached object, at least.
+    let desc = parse2::parse_netdoc::<RouterDescUnverified>(&ParseInput::new(text, "bridge"))?;
 
-    // We *could* just trust this because we have trustworthy provenance
-    // we know that the channel machinery authenticated the identity keys in `bridge`.
-    // But let's do some cross-checking anyway.
-    // `check_signature` checks the self-signature.
-    let desc = desc.check_signature().map_err(Arc::new)?;
+    let desc = desc.verify()?;
+    // TODO: We should in theory extend this by our tolerance:
+    // let desc = dir_config.tolerance.extend_bounds(desc);
+    let expires = desc.bounds().end();
 
     let now = runtime.wallclock();
-    desc.check_valid_at(&now)?;
-
-    // Justification that use of "dangerously" is correct:
-    // 1. We have checked this just above, so it is valid now.
-    // 2. We are extracting the timeout and implement our own refetch logic using expires.
-    let (desc, expires) = desc.dangerously_into_parts();
-    let expires = expires.end();
+    let desc = desc.if_valid_at(&now)?;
 
     // Our refetch schedule, and enforcement of descriptor expiry, is somewhat approximate.
     // The following situations can result in a nominally-expired descriptor being used:
@@ -1332,11 +1327,11 @@ pub enum Error {
 
     /// Failed to parse descriptor in response
     #[error("Failed to parse descriptor in response")]
-    ParseFailed(#[from] tor_netdoc::Error),
+    ParseFailed(#[from] parse2::ParseError),
 
     /// Signature check failed
     #[error("Signature check failed")]
-    SignatureCheckFailed(#[from] Arc<signature::Error>),
+    SignatureCheckFailed(#[from] parse2::VerifyFailed),
 
     /// Obtained descriptor but it is outside its validity time
     #[error("Descriptor is outside its validity time, as supplied")]
