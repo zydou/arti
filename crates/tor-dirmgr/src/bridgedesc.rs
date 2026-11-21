@@ -23,7 +23,7 @@ use safelog::sensitive;
 use tor_basic_utils::retry::RetryDelay;
 use tor_checkable::TimeBound;
 use tor_circmgr::CircMgr;
-use tor_error::{AbsRetryTime, HasRetryTime, RetryTime};
+use tor_error::{AbsRetryTime, HasRetryTime, RetryTime, debug_report};
 use tor_error::{ErrorKind, HasKind, error_report, internal};
 use tor_guardmgr::bridge::{BridgeConfig, BridgeDesc};
 use tor_guardmgr::bridge::{BridgeDescError, BridgeDescEvent, BridgeDescList, BridgeDescProvider};
@@ -855,7 +855,9 @@ impl State {
                                 });
                         match &got {
                             Ok(_) => debug!(r#"download succeeded for "{}""#, bridge),
-                            Err(err) => debug!(r#"download failed for "{}": {}"#, bridge, err),
+                            Err(err) => {
+                                debug_report!(err, r#"download failed for "{}"#, bridge);
+                            }
                         };
                         let mut state = inner.lock_then_process();
                         state.record_download_outcome(bridge, got);
