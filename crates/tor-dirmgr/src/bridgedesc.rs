@@ -1134,6 +1134,10 @@ fn process_document<R: Runtime>(
     config: &BridgeDescDownloadConfig,
     text: &str,
 ) -> Result<Downloaded, Error> {
+    // Some Tor bridges like to serve their routerdesc with an extra newline;
+    // we strip that off here.
+    let text = text.trim_ascii_end();
+
     // TODO: We should say whether it is a download or a cached object, at least.
     let desc = parse2::parse_netdoc::<RouterDescUnverified>(&ParseInput::new(text, "bridge"))?;
 
