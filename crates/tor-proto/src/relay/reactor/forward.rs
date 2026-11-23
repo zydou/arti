@@ -171,8 +171,7 @@ impl Forward {
         };
 
         // The message is addressed to us! Now it's time to handle it...
-        let hops = circ_state.hops().read().expect("poisoned lock");
-        let decode_res = hops.get(hopnum)?.inbound.decode(body.into())?;
+        let decode_res = circ_state.shared().decode(hopnum, body)?;
 
         Ok((hopnum, CellDecodeResult::Recognized(tag, decode_res)))
     }

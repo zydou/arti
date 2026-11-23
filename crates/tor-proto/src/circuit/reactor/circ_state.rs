@@ -6,6 +6,7 @@ use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::circhop::CircHopList;
 use crate::circuit::reactor::stream::{CtrlMsg, ReadyStreamMsg, StreamHandler, StreamReactor};
 use crate::congestion::{CongestionControl, CongestionSignals};
+use crate::crypto::cell::RelayCellBody;
 use crate::memquota::CircuitAccount;
 use crate::util::err::ReactorError;
 use crate::{Error, HopNum, Result};
@@ -18,7 +19,7 @@ use {
 
 use tor_cell::chancell::CircId;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat};
 use tor_error::internal;
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
@@ -111,6 +112,18 @@ impl CircuitStateShared {
             .note_sendme_received(runtime, tag, signals)?;
 
         Ok(())
+    }
+
+    /// Try to parse a RELAY or RELAY_EARLY cell body.
+    ///
+    /// Relays pass `None` for the hopnum.
+    pub(crate) fn decode(
+        &self,
+        hopnum: Option<HopNum>,
+        body: RelayCellBody,
+    ) -> Result<RelayCellDecoderResult> {
+        let hops = self.hops.read().expect("poisoned lock");
+        hops.get(hopnum)?.inbound.decode(body.into())
     }
 
     /// Note that we have received a RELAY cell.
