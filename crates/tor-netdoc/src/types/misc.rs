@@ -2551,6 +2551,14 @@ mod contact_info {
             item.check_no_object()?;
             item.args_mut()
                 .into_remaining()
+                // spec says:
+                //     info is starts with the first non-whitespace after the whitespace
+                //     after contact, and is the whole rest of the line up to but not
+                //     including the newline.
+                // So we must strip any leading WS.  The definition of "whitespace" here
+                // is unclear, but to be consistent with our `FromStr` impl we strip
+                // all unicode whitespace, not just SPC and TAB.
+                .trim_start()
                 .parse()
                 .map_err(|_e| item.args().handle_error("info", ArgumentError::Invalid))
         }
