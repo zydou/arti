@@ -995,6 +995,9 @@ mod test {
         fn peer_matches_chan_method(&self, _method: &tor_linkspec::ChannelMethod) -> bool {
             unimplemented!()
         }
+        fn age(&self) -> Duration {
+            unimplemented!()
+        }
         fn is_usable(&self) -> bool {
             self.usable
         }

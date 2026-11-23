@@ -175,7 +175,12 @@ pub(crate) fn choose_best_allowed_channel<'a, C: AbstractChannel>(
                     return Choice::Second;
                 }
 
-                // TODO: prefer older channels
+                // Prefer the older channel.
+                match a.channel.age().cmp(&b.channel.age()) {
+                    Ordering::Greater => return Choice::First,
+                    Ordering::Less => return Choice::Second,
+                    Ordering::Equal => {}
+                }
 
                 // TODO: use number of circuits as tie-breaker?
 
@@ -266,6 +271,9 @@ mod test {
             unimplemented!()
         }
         fn peer_matches_chan_method(&self, _method: &tor_linkspec::ChannelMethod) -> bool {
+            unimplemented!()
+        }
+        fn age(&self) -> Duration {
             unimplemented!()
         }
         fn is_usable(&self) -> bool {
