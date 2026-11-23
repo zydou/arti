@@ -86,8 +86,8 @@ pub(crate) fn pending_channel_maybe_allowed(
         // - If the built channel gains additional ids that `target` doesn't have, that's fine and
         //   we can still use the channel for `target`.
         .filter(|entry| target.has_all_relay_ids_from(&entry.ids))
-        // TODO: Only channels which have the exact same address list as `target` (the two sets of
-        // addresses must match exactly).
+        // Only channels which have the exact same address (IP + Port) list as `target`
+        // (the two sets of addresses must match exactly).
         // - While an EXTEND2 message usually only contains one IPv4 and IPv6 address, `target`
         //   (which is a `HasAddrs`) may have more addresses. According to tor-spec, an EXTEND2
         //   message can contain multiple IPv4 and IPv6 addresses:
@@ -104,7 +104,7 @@ pub(crate) fn pending_channel_maybe_allowed(
         // - If the pending channel had fewer addresses compared to `target`, the channel would have
         //   a lower possibility of building successfully compared to a newly created channel to
         //   `target`, so this would not be a good channel for us to return.
-        .filter(|_entry| true)
+        .filter(|entry| entry.method.has_same_addrs(&target.chan_method()))
         // Don't allow a pending channel that has no relay ids. I don't have a good reason for
         // excluding this, other than "it seems weird".
         .filter(|entry| entry.ids != EMPTY_IDS)
@@ -385,7 +385,8 @@ mod test {
         }
     }
 
-    /// Create a pending channel entry with the given IDs.
+    /// Create a pending channel entry with the given IDs and a channel method that
+    /// always use `ADDR_A`.
     fn pending_channel(ids: RelayIds) -> PendingEntry {
         use crate::mgr::state::UniqPendingChanId;
         use futures::FutureExt;
@@ -393,6 +394,7 @@ mod test {
 
         PendingEntry {
             ids,
+            method: ChannelMethod::Direct(vec![ADDR_A]),
             pending: oneshot::channel().1.shared(),
             unique_id: UniqPendingChanId::new(),
         }

@@ -1134,7 +1134,7 @@ mod test {
 
             assert_eq!(ch3a, ch3b);
             assert_eq!(ch44a, ch44b);
-            assert_eq!(ch50a, ch50b);
+            assert_ne!(ch50a, ch50b);
             assert_ne!(ch44a, ch3a);
 
             assert!(matches!(err_a, Error::UnusableTarget(_)));

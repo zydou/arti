@@ -15,7 +15,7 @@ use tor_basic_utils::RngExt as _;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{error_report, internal, into_internal};
-use tor_linkspec::{HasRelayIds, ListByRelayIds, RelayIds};
+use tor_linkspec::{ChannelMethod, HasChanMethod, HasRelayIds, ListByRelayIds, RelayIds};
 use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, params::NetParameters};
 use tor_proto::ChannelPaddingInstructions;
 use tor_proto::channel::ChannelPaddingInstructionsUpdates;
@@ -152,6 +152,9 @@ impl std::fmt::Display for UniqPendingChanId {
 pub(crate) struct PendingEntry {
     /// The keys of the relay to which we're trying to open a channel.
     pub(crate) ids: RelayIds,
+
+    /// The method used to open this channel at launch.
+    pub(crate) method: ChannelMethod,
 
     /// A future we can clone and listen on to learn when this channel attempt
     /// is successful or failed.
@@ -510,7 +513,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             .next()
             .ok_or_else(|| internal!("relay target had no id"))?
             .to_owned();
-        let (new_state, send, unique_id) = setup_launch(RelayIds::from_relay_ids(target));
+        let (new_state, send, unique_id) = setup_launch(target);
         inner
             .channels
             .try_insert(ChannelState::Building(new_state))?;
@@ -748,12 +751,15 @@ impl std::ops::Drop for PendingChannelHandle {
 }
 
 /// Helper: return the objects used to inform pending tasks about a newly open or failed channel.
-fn setup_launch(ids: RelayIds) -> (PendingEntry, Sending, UniqPendingChanId) {
+fn setup_launch(
+    target: &(impl HasRelayIds + HasChanMethod),
+) -> (PendingEntry, Sending, UniqPendingChanId) {
     let (snd, rcv) = oneshot::channel();
     let pending = rcv.shared();
     let unique_id = UniqPendingChanId::new();
     let entry = PendingEntry {
-        ids,
+        ids: RelayIds::from_relay_ids(target),
+        method: target.chan_method(),
         pending,
         unique_id,
     };

@@ -690,6 +690,24 @@ impl ChannelMethod {
         }
     }
 
+    /// Return true if this method and `other` have the same set of addresses.
+    ///
+    /// For [`Self::Direct`] methods, the order of the addresses or duplicates are
+    /// ignored. That is where it differs from `Eq` derive which needs same ordering.
+    pub fn has_same_addrs(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Direct(a), Self::Direct(b)) => {
+                a.iter().all(|addr| b.contains(addr)) && b.iter().all(|addr| a.contains(addr))
+            }
+            #[cfg(feature = "pt-client")]
+            (Self::Pluggable(our_target), Self::Pluggable(their_target)) => {
+                our_target == their_target
+            }
+            #[cfg(feature = "pt-client")]
+            (_, _) => false,
+        }
+    }
+
     /// Return true if this is a method for a direct connection.
     pub fn is_direct(&self) -> bool {
         matches!(self, ChannelMethod::Direct(_))
