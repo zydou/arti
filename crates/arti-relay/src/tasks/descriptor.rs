@@ -26,6 +26,7 @@ use tor_dirpublish::{Publisher, http::DirectHttpUploader};
 use tor_netdir::{DirEvent, NetDirProvider};
 use tor_netdoc::types::{ContactInfo, Nickname};
 use tor_rtcompat::{DynTimeProvider, Runtime, SleepProvider as _};
+use web_time_compat::Instant;
 
 use crate::config;
 use crate::tasks::crypto::{CryptoCommand, CryptoCommandSender};
@@ -100,6 +101,9 @@ pub(crate) struct RelayDescriptorPublisherTask {
 
     /// Relay information used to build our descriptor.
     desc_info: RouterDescInfo,
+
+    /// Monotonic time at which this relay started. Needed for the descriptor uptime.
+    started_at: Instant,
 }
 
 impl RelayDescriptorPublisherTask {
@@ -140,6 +144,7 @@ impl RelayDescriptorPublisherTask {
             publisher,
             crypto_tx,
             desc_info,
+            started_at: runtime.now(),
         })
     }
 
@@ -161,6 +166,9 @@ impl RelayDescriptorPublisherTask {
             &self.desc_info,
             key_material,
             self.runtime.wallclock(),
+            self.runtime
+                .now()
+                .saturating_duration_since(self.started_at),
         )?;
         Ok(Some(encoded.into()))
     }
