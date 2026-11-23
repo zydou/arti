@@ -36,7 +36,7 @@ pub(crate) trait AbstractChannel: HasRelayIds {
     fn is_canonical(&self) -> bool;
     /// Return true if we think the peer considers this channel as canonical.
     fn is_canonical_to_peer(&self) -> bool;
-    /// Return true iff the address of this channel's peer matches the given method.
+    /// Return true iff the IP address of this channel's peer matches the given method.
     fn peer_matches_chan_method(&self, method: &ChannelMethod) -> bool;
     /// Return true if this channel is usable.
     ///
@@ -882,7 +882,7 @@ mod test {
 
     impl AbstractChannel for FakeChannel {
         fn is_canonical(&self) -> bool {
-            unimplemented!()
+            true
         }
         fn is_canonical_to_peer(&self) -> bool {
             unimplemented!()

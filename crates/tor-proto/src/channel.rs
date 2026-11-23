@@ -818,7 +818,7 @@ impl Channel {
         self.canonicity.canonical_to_peer
     }
 
-    /// Return true iff the address of this channel's peer matches the given
+    /// Return true iff the IP address of this channel's peer matches the given
     /// [`ChannelMethod`] in `method`.
     ///
     /// See [`PeerInfo::matches_chan_method`].

@@ -987,7 +987,7 @@ mod test {
     }
     impl AbstractChannel for FakeChannel {
         fn is_canonical(&self) -> bool {
-            unimplemented!()
+            true
         }
         fn is_canonical_to_peer(&self) -> bool {
             unimplemented!()
