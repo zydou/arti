@@ -3278,7 +3278,7 @@ mod test {
         )
         .parse::<Iso8601TimeSp>()
         .unwrap()
-            + Duration::from_secs(25);
+            + Duration::from_secs(1);
 
         let input = ParseInput::new(&text, file).retain_unknown_values();
         let doc: UV = parse_netdoc(&input)?;
