@@ -30,21 +30,6 @@ pub(super) struct ExtendRequestHandler {
     unique_id: UniqId,
     /// The circuit identifier on the inbound Tor channel.
     circ_id: CircId,
-    /// Whether we have received an EXTEND2 on this circuit.
-    ///
-    // TODO(relay): bools can be finicky.
-    // Maybe we should combine this bool and the optional
-    // outbound into a new state machine type
-    // (with states Initial -> Extending -> Extended(Outbound))?
-    // But should not do this if it turns out more convoluted than the bool-based approach.
-    //
-    // XXX: it's time to abolish this bool in favor of a less brittle approach
-    // (this is about to grow more complicated, as there will be new cases
-    // where EXTEND2 is not supported. For instance, we'll soon add support for circuit splicing,
-    // for conflux and rendezvous circuits, and spliced circuits can't be EXTENDed)
-    //
-    // See also the examples from arti#2855
-    have_seen_extend2: bool,
     /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
     ///
     /// Note: all circuit reactors of a relay need to be initialized
@@ -72,7 +57,6 @@ impl ExtendRequestHandler {
         Self {
             unique_id,
             circ_id,
-            have_seen_extend2: false,
             chan_provider,
             inbound_peer,
             event_tx,
@@ -99,13 +83,6 @@ impl ExtendRequestHandler {
         if !early {
             return Err(Error::CircProto("got EXTEND2 in a RELAY cell?!".into()).into());
         }
-
-        // Check if we're in the right state before parsing the EXTEND2
-        if self.have_seen_extend2 {
-            return Err(Error::CircProto("got 2 EXTEND2 on the same circuit?!".into()).into());
-        }
-
-        self.have_seen_extend2 = true;
 
         let to_bytes_err = |e| Error::from_bytes_err(e, "EXTEND2 message");
 
