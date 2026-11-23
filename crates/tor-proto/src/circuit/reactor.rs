@@ -431,6 +431,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         // The sending end of this channel should be in HopMgr
         bwd_rx: mpsc::Receiver<ReadyStreamMsg>,
         fwd_events: mpsc::Receiver<F::CircEvent>,
+        fwd_events_tx: mpsc::Sender<F::CircEvent>,
         memquota: &CircuitAccount,
     ) -> (Self, CircReactorHandle<F, B>) {
         // NOTE: not registering this channel with the memquota subsystem is okay,
@@ -472,6 +473,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             fwd_command_rx,
             backward_reactor_tx,
             fwd_events,
+            fwd_events_tx,
             padding_ctrl.clone(),
         );
 
