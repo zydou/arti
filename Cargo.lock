@@ -5974,9 +5974,9 @@ dependencies = [
 
 [[package]]
 name = "secmem-proc"
-version = "0.3.8"
+version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca48b73b5429ef7a6e951cd0f215ef2c3c7eb60a852bda40fe41b6a6846422bb"
+checksum = "1cfaf56b712c0a2ee1f03202d1574dad337206f42ec0f4d8aba9f225733bbace"
 dependencies = [
  "anyhow",
  "cfg-if",
