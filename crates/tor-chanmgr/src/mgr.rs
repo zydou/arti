@@ -11,7 +11,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
 use tor_error::{error_report, internal};
-use tor_linkspec::{HasChanMethod, HasRelayIds};
+use tor_linkspec::{ChannelMethod, HasChanMethod, HasRelayIds};
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
@@ -36,6 +36,8 @@ pub(crate) trait AbstractChannel: HasRelayIds {
     fn is_canonical(&self) -> bool;
     /// Return true if we think the peer considers this channel as canonical.
     fn is_canonical_to_peer(&self) -> bool;
+    /// Return true iff the address of this channel's peer matches the given method.
+    fn peer_matches_chan_method(&self, method: &ChannelMethod) -> bool;
     /// Return true if this channel is usable.
     ///
     /// A channel might be unusable because it is closed, because it has
@@ -883,6 +885,9 @@ mod test {
             unimplemented!()
         }
         fn is_canonical_to_peer(&self) -> bool {
+            unimplemented!()
+        }
+        fn peer_matches_chan_method(&self, _method: &ChannelMethod) -> bool {
             unimplemented!()
         }
         fn is_usable(&self) -> bool {

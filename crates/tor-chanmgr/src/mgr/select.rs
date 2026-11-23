@@ -271,6 +271,9 @@ mod test {
         fn is_canonical_to_peer(&self) -> bool {
             unimplemented!()
         }
+        fn peer_matches_chan_method(&self, _method: &tor_linkspec::ChannelMethod) -> bool {
+            unimplemented!()
+        }
         fn is_usable(&self) -> bool {
             self.usable
         }
