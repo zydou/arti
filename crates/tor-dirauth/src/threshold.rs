@@ -16,6 +16,15 @@ pub(crate) struct MoreThanHalf;
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct AtLeastTwoThirds;
 
+/// `>2/3`: `n_y` is strictly more than two thirds of `n_total`
+///
+/// Threshold rule token, implementing [`ThresholdRule`].
+///
+/// Used only for selecting the best consensus method,
+/// <https://spec.torproject.org/dir-spec/computing-consensus.html#consensus-method-list>
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) struct StrictlyMoreThanTwoThirds;
+
 /// Threshold rule, such as "at least two thirds"
 ///
 /// Implemented for unit token types [`MoreThanHalf`] [`AtLeastTwoThirds`].
@@ -52,6 +61,9 @@ pub(crate) trait ThresholdRule {
     //   fn is_for_more_than_half_of(some: usize, all: usize)
     // but makes it impossible to accidentally swap the arguments, or get the wrong
     // total value, or some such.
+    //
+    // We can't have an infallible version of this, because it needs to throw `Bug`
+    // on arithmetic overflow.
     fn is_true_for_enough_of<I, E>(
         iterator: impl IntoIterator<Item = I>,
         predicate: impl Fn(I) -> Result<bool, E>,
@@ -93,6 +105,18 @@ impl ThresholdRule for AtLeastTwoThirds {
         .div_ceil(3);
 
         n_y >= thresh
+    }
+}
+
+impl ThresholdRule for StrictlyMoreThanTwoThirds {
+    fn is_enough_of(n_y: usize, n_total: usize) -> bool {
+        // Very similar to `AtLeastTwoThirds::is_enough_of`, but needs different rounding.
+        let thresh = match n_total.checked_mul(2) {
+            Some(y) => y,
+            None => return false,
+        } / 3;
+
+        n_y > thresh
     }
 }
 
@@ -170,6 +194,23 @@ pub(crate) mod test {
         minimum(7, 5);
         minimum(8, 6);
         minimum(9, 6);
+    }
+
+    #[test]
+    fn strictly_more_than_two_thirds() {
+        check_against_reference::<StrictlyMoreThanTwoThirds>(|y, total| 3 * y > 2 * total);
+
+        let minimum = check_minimum::<StrictlyMoreThanTwoThirds>;
+        minimum(0, 1);
+        minimum(1, 1);
+        minimum(2, 2);
+        minimum(3, 3);
+        minimum(4, 3);
+        minimum(5, 4);
+        minimum(6, 5);
+        minimum(7, 5);
+        minimum(8, 6);
+        minimum(9, 7);
     }
 
     /// Threshold rule for testing, with exciting behaviour

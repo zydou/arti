@@ -212,6 +212,10 @@ pub enum ConsensusError {
     Unreasonable(String),
 
     /// Internal error in calculation algorithm
+    #[error("chosen consensus method is unsupported")]
+    UnsupportedMethodChosen(#[from] UnsupportedConsensusMethod),
+
+    /// Internal error in calculation algorithm
     #[error("bug calculating a consensus")]
     Internal(#[from] Bug),
 }

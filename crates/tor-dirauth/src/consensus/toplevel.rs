@@ -129,7 +129,7 @@ impl<AC> Aggregate<AC> for netstatus::VoteAuthoritySection {
     }
 }
 
-/// Computes a consensus from the input votes, for a specific method
+/// Computes a consensus from the input votes
 ///
 /// ### Security
 ///
@@ -137,6 +137,44 @@ impl<AC> Aggregate<AC> for netstatus::VoteAuthoritySection {
 /// came from a distinct recognised authority.
 /// Normally this will be assured by the APIs in `tor-netdoc`,
 /// particularly [`netstatus::vote::NetworkStatusUnverified::verify`].
+pub fn compute_consensus_from_votes<'v>(
+    n_authorities: usize,
+    votes: impl Iterator<Item = VoteInput<'v>> + Clone,
+) -> Result<Consensuses, ConsensusError> {
+    let method = compute_method(votes.clone().map(|v| &v.vote.preamble.consensus_methods))?;
+    compute_consensus_from_votes_method(method, n_authorities, votes)
+}
+
+/// Select the consensus method
+///
+/// <https://spec.torproject.org/dir-spec/computing-consensus.html#consensus-method-list>
+fn compute_method<'v>(
+    votes: impl Iterator<Item = &'v netstatus::ConsensusMethods> + Clone,
+) -> Result<SupportedConsensusMethod, ConsensusError> {
+    let all_methods: HashSet<ConsensusMethod> =
+        votes.clone().flat_map(|s| s.iter().copied()).collect();
+
+    Ok(all_methods
+        .into_iter()
+        .try_filter(|m| {
+            StrictlyMoreThanTwoThirds::is_true_for_enough_of(votes.clone(), |v| {
+                Ok::<_, Bug>(v.contains(m))
+            })
+        })
+        .process_results(|candidates| candidates.max())?
+        .unwrap_or_else(|| {
+            let m: ConsensusMethod = SupportedConsensusMethod::MAX.into();
+            warn!("no consensus method in common amongst >2/3 of authorities, using {m}!");
+            m
+        })
+        .try_into()?)
+}
+
+/// Computes a consensus from the input votes, for a specific method
+///
+/// ### Security
+///
+/// See [`compute_consensus_from_votes`].
 pub fn compute_consensus_from_votes_method<'v>(
     method: SupportedConsensusMethod,
     n_authorities: usize,
@@ -300,5 +338,45 @@ pub(crate) mod test {
                 Ok(())
             },
         );
+    }
+
+    #[test]
+    #[traced_test]
+    fn select_method() {
+        const N_VOTES: usize = 4;
+        let max: u32 = SupportedConsensusMethod::MAX.0;
+
+        fn check(exp: Result<u32, u32>, methods_and_counts: &[(u32, usize)]) {
+            let votes = (0..N_VOTES)
+                .map(|vnum| {
+                    let methods = methods_and_counts
+                        .iter()
+                        .filter_map(|&(method, count)| {
+                            (vnum < count).then_some(ConsensusMethod(method))
+                        })
+                        .collect();
+                    netstatus::ConsensusMethods { methods }
+                })
+                .collect_vec();
+
+            println!("votes = {votes:#?}");
+
+            let exp = exp
+                .map(|n| SupportedConsensusMethod::try_from(ConsensusMethod(n)).unwrap())
+                .map_err(|n| SupportedConsensusMethod::try_from(ConsensusMethod(n)).unwrap_err());
+
+            let got = compute_method(votes.iter()).map_err(|e| match e {
+                ConsensusError::UnsupportedMethodChosen(u) => u,
+                other => panic!("unexpected error {other:?}"),
+            });
+
+            assert_eq!(got, exp);
+        }
+
+        check(Err(10), &[(10, 4)]);
+        check(Err(20), &[(10, 4), (20, 3), (max, 1)]);
+        check(Err(20), &[(10, 4), (20, 3), (max, 2)]);
+        check(Ok(max), &[(10, 4), (20, 3), (max, 3)]);
+        check(Ok(max), &[(10, 2), (20, 2), (max, 2)]);
     }
 }
