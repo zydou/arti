@@ -2,6 +2,7 @@
 
 use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
+use std::num::NonZero;
 use std::time::Duration;
 
 use either::Either;
@@ -62,14 +63,11 @@ pub(super) async fn handle_begin<R: Runtime>(
         }
     };
 
-    // TODO: Use the `NonZero` throughout.
-    let port = port.get();
-
     // A future for everything we want to include within the timeout.
     // Returns the TCP stream, and on error returns the END reason.
     let exit_stream_fut = match addr {
         BeginAddr::Ip(addr) => {
-            let addr = SocketAddr::new(addr, port);
+            let addr = SocketAddr::new(addr, port.get());
             let fut = connect_ip(&runtime, addr, flags, &connect_options);
             Either::Left(fut)
         }
@@ -164,11 +162,13 @@ async fn connect_ip<R: Runtime>(
 async fn connect_hostname<R: Runtime>(
     runtime: &R,
     hostname: &[u8],
-    port: u16,
+    port: NonZero<u16>,
     flags: BeginFlags,
     mut resolver: DnsResolver,
     connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
 ) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
+    let port = port.get();
+
     let answers = match resolver.resolve(hostname).await {
         Ok(x) => x,
         Err(LookupError::NonAsciiHostname) => {
