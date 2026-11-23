@@ -74,6 +74,23 @@ pub(crate) struct Forward {
     extend_handler: ExtendRequestHandler,
 }
 
+/// Whether we have extended this relay circuit
+///
+// XXX: replace Forward::extend_handler and Forward::outbound with this
+enum ExtendStatus {
+    /// Helper for handling circuit extension requests.
+    ///
+    /// Used for performing the CREATE2 handshake with the next hop,
+    /// and preparing the EXTENDED2 response to send back to the client.
+    CanExtend(ExtendRequestHandler),
+    /// We have sent forward a CREATE2 cell, but we are still waiting for a response.
+    Pending,
+    /// The outbound view of this circuit, if we are not the last hop.
+    ///
+    /// Delivers cells towards the exit.
+    Extended(Outbound),
+}
+
 /// A type of event issued by the relay forward reactor.
 pub(crate) enum CircEvent {
     /// The outcome of an EXTEND2 request.
