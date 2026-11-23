@@ -216,12 +216,17 @@ pub struct Footer {
 
 /// Signatures on a network status document
 #[derive(Deftly, Clone, Debug)]
-#[derive_deftly(NetdocEncodableFields, NetdocParseableSignatures)]
+#[derive_deftly(Constructor, NetdocEncodableFields, NetdocParseableSignatures)]
 #[deftly(netdoc(signatures(hashes_accu = "DirectorySignaturesHashesAccu")))]
-#[non_exhaustive]
+#[allow(clippy::exhaustive_structs)]
 pub struct NetworkStatusSignatures {
     /// `directory-signature`s
+    #[deftly(constructor)]
     pub directory_signature: ns_type!(Vec<Signature>, Vec<Signature>, Signature),
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 impl Preamble {

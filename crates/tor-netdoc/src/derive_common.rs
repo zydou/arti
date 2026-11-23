@@ -394,6 +394,8 @@ define_derive_deftly_module! {
     ${defcond F_FLATTEN fmeta(netdoc(flatten))}
     // Is this field `skip`?
     ${defcond F_SKIP fmeta(netdoc(skip))}
+    // signatures section documents have only signature fields
+    ${defcond F_SIGNATURE all(T_SIGNATURES, not(F_SKIP))}
     // Is this field normal (non-structural)?
     ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC, F_SKIP))}
 
@@ -434,7 +436,6 @@ define_derive_deftly_module! {
     // Predicates for the field kinds
     ${defcond F_INTRO approx_equal($findex, 0)}
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
-    ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
 
     // compile-time check that fields are in the right order in the struct
     ${define FIELD_ORDERING_CHECK {
@@ -459,19 +460,22 @@ define_derive_deftly_module! {
 define_derive_deftly_module! {
     /// Common definitions for derives of flattenable network document fields structs
     ///
-    /// Used by `NetdocParseableFields` and `NetdocEncodableFields`.
+    /// Used by `NetdocParseableFields`, `NetdocEncodableFields`,
+    /// and `NetdocParseableSignatures`.
     ///
-    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
+    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`,
+    /// and defcond `F_SIGNATURE`.
     NetdocFieldsDeriveCommon beta_deftly:
 
     // Predicates for the field kinds, used by NetdocSomeItemsDeriveCommon etc.
     ${defcond F_INTRO false}
     ${defcond F_SUBDOC false}
-    ${defcond F_SIGNATURE false}
 
-    ${define DOC_NETDOC_FIELDS_DERIVE_SUPPORTED {
+    ${define DOC_NETDOC_FIELDS_NORMAL_ONLY {
         ///  * The input struct can contain only normal non-structural items
         ///    (so it's not a sub-document with an intro item).
+    }}
+    ${define DOC_NETDOC_FIELDS_DERIVE_SUPPORTED {
         ///  * The only attributes supported are the field attributes
         ///    `#[deftly(netdoc(keyword = STR))]`
         ///    `#[deftly(netdoc(default))]`
