@@ -270,10 +270,14 @@ async fn connect_hostname<R: Runtime>(
 //
 // TODO: Later we will probably have some sort of exit policy object,
 // and we can remove this function and just call `exit_policy.allows(addr)` or something.
-fn exit_policy_allows(addr: SocketAddr) -> bool {
+fn exit_policy_allows(mut addr: SocketAddr) -> bool {
+    // Canonicalize the IP address to ensure that we handle IPv4-mapped IPv6 addresses.
+    // For example if an exit policy disallows `a.b.c.d`, we should also disallow `::ffff:a.b.c.d`.
+    addr.set_ip(addr.ip().to_canonical());
+
     // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
     // basic loopback checks) for testing purposes.
-    !addr.ip().to_canonical().is_loopback() && !addr.ip().to_canonical().is_unspecified()
+    !addr.ip().is_loopback() && !addr.ip().is_unspecified()
 }
 
 /// For a TCP error, get the reason we should use in the END message.
