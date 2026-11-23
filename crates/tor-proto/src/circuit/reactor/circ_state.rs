@@ -112,6 +112,38 @@ impl CircuitStateShared {
 
         Ok(())
     }
+
+    /// Note that we have received a RELAY cell.
+    ///
+    /// Returns whether we need to send back a SENDME.
+    ///
+    /// Updates the padding and CC state.
+    ///
+    // XXX returning a bool here is a bit ugly
+    pub(crate) fn note_relay_cell_received(
+        &self,
+        hopnum: Option<HopNum>,
+        c_t_w: bool,
+    ) -> Result<bool> {
+        let mut hops = self.hops.write().expect("poisoned lock");
+        let hop = hops.get_mut(hopnum)?;
+
+        // Check whether we are allowed to receive more data for this circuit hop.
+        hop.inbound.decrement_cell_limit()?;
+
+        // Decrement the circuit sendme windows, and see if we need to
+        // send a sendme cell.
+        let send_circ_sendme = if c_t_w {
+            hop.ccontrol
+                .lock()
+                .expect("poisoned lock")
+                .note_data_received()?
+        } else {
+            false
+        };
+
+        Ok(send_circ_sendme)
+    }
 }
 
 /// State needed to build a stream reactor.

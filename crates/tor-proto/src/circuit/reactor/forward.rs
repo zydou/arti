@@ -409,30 +409,6 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         }
     }
 
-    /// Note that we have received a RELAY cell.
-    ///
-    /// Updates the padding and CC state.
-    fn note_relay_cell_received(&self, hopnum: Option<HopNum>, c_t_w: bool) -> Result<bool> {
-        let mut hops = self.circ_state.hops().write().expect("poisoned lock");
-        let hop = hops.get_mut(hopnum)?;
-
-        // Check whether we are allowed to receive more data for this circuit hop.
-        hop.inbound.decrement_cell_limit()?;
-
-        // Decrement the circuit sendme windows, and see if we need to
-        // send a sendme cell.
-        let send_circ_sendme = if c_t_w {
-            hop.ccontrol
-                .lock()
-                .expect("poisoned lock")
-                .note_data_received()?
-        } else {
-            false
-        };
-
-        Ok(send_circ_sendme)
-    }
-
     /// Handle a RELAY cell.
     ///
     // TODO(DEDUP): very similar to Client::handle_relay_cell()
@@ -453,7 +429,10 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         }
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
-        let send_circ_sendme = self.note_relay_cell_received(hopnum, c_t_w)?;
+        let send_circ_sendme = self
+            .circ_state
+            .shared()
+            .note_relay_cell_received(hopnum, c_t_w)?;
 
         // If we do need to send a circuit-level SENDME cell, do so.
         if send_circ_sendme {
