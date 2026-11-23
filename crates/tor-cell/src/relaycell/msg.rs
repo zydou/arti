@@ -12,10 +12,11 @@ use crate::chancell::msg::{
 use caret::caret_int;
 use derive_deftly::Deftly;
 use std::fmt::Write;
-use std::net::{IpAddr, Ipv4Addr};
-use std::num::NonZeroU8;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::num::{NonZero, NonZeroU8};
 use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
+use tor_error::internal;
 use tor_linkspec::EncodedLinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_llcrypto::util::ct::CtByteArray;
@@ -200,39 +201,51 @@ impl From<IpVersionPreference> for BeginFlags {
 #[derive(Debug, Clone, PartialEq, Deftly)]
 #[derive_deftly(HasMemoryCost)]
 pub struct Begin {
-    /// Ascii string describing target address
-    addr: Vec<u8>,
+    /// Target address.
+    ///
+    /// We don't attempt to immediately decode the address since
+    /// (1) it requires parsing which may be a little slow, and
+    /// (2) onion services are supposed to ignore the value.
+    addr: EncodedBeginAddr,
     /// Target port
-    port: u16,
+    port: NonZero<u16>,
     /// Flags that describe how to resolve the address
     flags: BeginFlags,
 }
 
 impl Begin {
-    /// Construct a new Begin cell
-    pub fn new<F>(addr: &str, port: u16, flags: F) -> crate::Result<Self>
+    /// Construct a new Begin cell.
+    ///
+    /// ```
+    /// # use std::num::NonZero;
+    /// # use tor_cell::relaycell::msg::*;
+    /// let hostname = BeginHostname::new("example.com").unwrap();
+    /// let addr = BeginAddr::Hostname(hostname);
+    /// let begin = Begin::new(addr.encode(), NonZero::new(80).unwrap(), 0);
+    /// ```
+    pub fn new<F>(addr: EncodedBeginAddr, port: NonZero<u16>, flags: F) -> Self
     where
         F: Into<BeginFlags>,
     {
-        if !addr.is_ascii() {
-            return Err(crate::Error::BadStreamAddress);
-        }
-        let mut addr = addr.to_string();
-        addr.make_ascii_lowercase();
-        Ok(Begin {
-            addr: addr.into_bytes(),
+        Begin {
+            addr,
             port,
             flags: flags.into(),
-        })
+        }
     }
 
     /// Return the address requested in this message.
-    pub fn addr(&self) -> &[u8] {
-        &self.addr[..]
+    ///
+    /// Onion services should not use this:
+    ///
+    /// > When \[an onion\] service receives a BEGIN message, it should check its port, *and ignore
+    /// > all other fields in the begin message*, including its address and flags.
+    pub fn addr(&self) -> &EncodedBeginAddr {
+        &self.addr
     }
 
     /// Return the port requested by this message.
-    pub fn port(&self) -> u16 {
+    pub fn port(&self) -> NonZero<u16> {
         self.port
     }
 
@@ -244,51 +257,17 @@ impl Begin {
 
 impl Body for Begin {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        let addr = {
-            if r.peek(1)? == b"[" {
-                // IPv6 address
-                r.advance(1)?;
-                let a = r.take_until(b']')?;
-                let colon = r.take_u8()?;
-                if colon != b':' {
-                    return Err(Error::InvalidMessage("missing port in begin cell".into()));
-                }
-                a
-            } else {
-                // IPv4 address, or hostname.
-                r.take_until(b':')?
-            }
-        };
-        let port = r.take_until(0)?;
+        let BeginAddrPort(addr, port) = r.extract()?;
         let flags = if r.remaining() >= 4 { r.take_u32()? } else { 0 };
 
-        if !addr.is_ascii() {
-            return Err(Error::InvalidMessage(
-                "target address in begin cell not ascii".into(),
-            ));
-        }
-
-        let port = std::str::from_utf8(port)
-            .map_err(|_| Error::InvalidMessage("port in begin cell not utf8".into()))?;
-
-        let port = port
-            .parse()
-            .map_err(|_| Error::InvalidMessage("port in begin cell not a valid port".into()))?;
-
         Ok(Begin {
-            addr: addr.into(),
+            addr,
             port,
             flags: flags.into(),
         })
     }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        if self.addr.contains(&b':') {
-            w.write_u8(b'[');
-            w.write_all(&self.addr[..]);
-            w.write_u8(b']');
-        } else {
-            w.write_all(&self.addr[..]);
-        }
+        w.write_all(&self.addr.0);
         w.write_u8(b':');
         w.write_all(self.port.to_string().as_bytes());
         w.write_u8(0);
@@ -296,6 +275,268 @@ impl Body for Begin {
             w.write_u32(self.flags.bits());
         }
         Ok(())
+    }
+}
+
+/// Helper type for reading the NUL-terminated [`BeginAddr`] and port string from a [`Begin`]
+/// message.
+struct BeginAddrPort(EncodedBeginAddr, NonZero<u16>);
+
+impl Readable for BeginAddrPort {
+    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+        // TODO(nightly: slice_split_once): In the future we will hopefully be able to use
+        // `.rsplit_once(':')` here instead, which would make this a lot cleaner.
+        // (Alternatively, the bstr crate also has this functionality.)
+        let mut addr_port_iter = r.take_until(0)?.rsplitn(2, |c| *c == b':');
+
+        // The `rsplitn(2, ...)` seems to always return at least one item,
+        // so this error should never happen.
+        // But we return an error instead of panicking just in case that changes since
+        // the behaviour for edge cases like an empty string isn't documented.
+        let port = addr_port_iter
+            .next()
+            .ok_or_else(|| internal!("expected at least one item from rsplitn()"))?;
+        let addr = addr_port_iter
+            .next()
+            .ok_or_else(|| Error::InvalidMessage("target address in begin cell missing".into()))?;
+
+        // The later `u16::parse()` allows a leading `+` which we don't want to allow.
+        if let Some(first_byte) = port.first()
+            && !first_byte.is_ascii_digit()
+        {
+            return Err(Error::InvalidMessage(
+                "port in begin cell has non-digit character".into(),
+            ));
+        }
+
+        let port = std::str::from_utf8(port)
+            .map_err(|_| Error::InvalidMessage("port in begin cell not utf8".into()))?;
+
+        // TODO(nightly: int_from_ascii): In the future we will hopefully be able to skip the utf-8
+        // conversion and use `u16::from_ascii()` instead of `parse()`.
+        let port = port
+            .parse()
+            .map_err(|_| Error::InvalidMessage("port in begin cell not a valid port".into()))?;
+
+        // torspec:
+        //
+        // > PORT is a decimal integer between 1 and 65535, inclusive
+        let port = NonZero::new(port)
+            .ok_or_else(|| Error::InvalidMessage("port in begin cell is zero".into()))?;
+
+        Ok(Self(EncodedBeginAddr(addr.to_owned()), port))
+    }
+}
+
+/// Target address of a [`Begin`] message exactly as it was read,
+/// or should be written, over the wire.
+///
+/// This can only be constructed through [`BeginAddr::encode()`]
+/// or [`Begin::decode_from_reader()`].
+#[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+pub struct EncodedBeginAddr(Vec<u8>);
+
+impl EncodedBeginAddr {
+    /// Decode the address of a [`Begin`] message, if valid.
+    ///
+    /// If an IP address was provided in the message,
+    /// you probably want to [`to_canonical()`](IpAddr::to_canonical)ize the address
+    /// to convert a possible IPv4-mapped IPv6 address to an IPv4 address
+    /// before considering the exit policy.
+    pub fn decode(&self) -> Result<BeginAddr> {
+        let addr = std::str::from_utf8(&self.0)
+            .map_err(|_| Error::InvalidMessage("target addr in begin cell is not utf8".into()))?;
+
+        // torspec:
+        //
+        // > an IPv4 address in dotted-quad format
+        //
+        // rust docs:
+        //
+        // > Textual representation
+        // >
+        // > `Ipv4Addr` provides a `FromStr` implementation. The four octets are in decimal
+        // > notation, divided by `.` (this is called "dot-decimal notation"). Notably, octal
+        // > numbers (which are indicated with a leading `0`) and hexadecimal numbers (which are
+        // > indicated with a leading `0x`) are not allowed per IETF RFC 6943.
+        //
+        // TODO(nightly: addr_parse_ascii): In the future we will hopefully be able to skip the
+        // utf-8 conversion here and use `Ipv4Addr::parse_ascii()` instead of `parse()`.
+        if let Ok(addr) = addr.parse() {
+            return Ok(BeginAddr::Ip(IpAddr::V4(addr)));
+        }
+
+        // torspec:
+        //
+        // > an IPv6 address surrounded by square brackets
+        //
+        // rust docs:
+        //
+        // > Textual representation
+        // >
+        // > `Ipv6Addr` provides a `FromStr` implementation. There are many ways to represent an
+        // > IPv6 address in text, but in general, each segments is written in hexadecimal notation,
+        // > and segments are separated by `:`. For more information, see IETF RFC 5952.
+        //
+        // TODO(nightly: addr_parse_ascii): In the future we will hopefully be able to skip the
+        // utf-8 conversion here and use `Ipv6Addr::parse_ascii()` instead of `parse()`.
+        if let Some(addr) = addr.strip_prefix('[')
+            && let Some(addr) = addr.strip_suffix(']')
+            && let Ok(addr) = addr.parse()
+        {
+            return Ok(BeginAddr::Ip(IpAddr::V6(addr)));
+        }
+
+        // Anything that we don't parse as an IP address, we consider a hostname.
+        let addr = BeginHostname::new_with_useful_error_msg(addr.to_owned().into_bytes())?;
+        Ok(BeginAddr::Hostname(addr))
+    }
+}
+
+/// An address in a [`Begin`] message.
+#[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+// This is a low-level crate and we want users to handle every variant.
+// And I don't see us adding more variants in the future without introducing a new cell type.
+#[allow(clippy::exhaustive_enums)]
+pub enum BeginAddr {
+    /// An IP address.
+    Ip(IpAddr),
+    /// A non-ipv4/ipv6 address.
+    Hostname(BeginHostname),
+}
+
+impl BeginAddr {
+    /// A [`BeginAddr`] with an empty hostname.
+    pub fn empty() -> Self {
+        Self::Hostname(BeginHostname::default())
+    }
+
+    /// Encode the [`BeginAddr`] as it should be written in a [`Begin`] message.
+    ///
+    /// NOTE: A `begin_addr.encode().decode()` will not necessarily round-trip to the same value.
+    /// For example, we convert to lower-case when encoding.
+    /// Or a `BeginAddr::Hostname(BeginHostname::new("127.0.0.1").unwrap()).encode().decode()`
+    /// would result in a `BeginAddr::Ip(_)`.
+    pub fn encode(&self) -> EncodedBeginAddr {
+        let mut encoded = self.encode_raw();
+
+        // torspec:
+        //
+        // > The ADDRPORT string SHOULD be sent in lower case, to avoid fingerprinting.
+        encoded.0.make_ascii_lowercase();
+
+        encoded
+    }
+
+    /// Encode the [`BeginAddr`] without making any changes.
+    ///
+    /// WARNING: This is probably not what you want.
+    /// You should use [`BeginAddr::encode()`] instead.
+    pub fn encode_raw(&self) -> EncodedBeginAddr {
+        let mut w = Vec::new();
+
+        match self {
+            Self::Ip(IpAddr::V4(addr)) => {
+                // TODO: It might be nicer to encode to a stack buffer instead of allocating new
+                // memory just to discard it. But it would be good to do that without adding new
+                // dependencies. (And for ipv6 addresses below.)
+                w.write_all(addr.to_string().as_bytes());
+            }
+            Self::Ip(IpAddr::V6(addr)) => {
+                w.write_u8(b'[');
+                w.write_all(addr.to_string().as_bytes());
+                w.write_u8(b']');
+            }
+            Self::Hostname(addr) => w.write_all(addr.as_ref()),
+        }
+
+        EncodedBeginAddr(w)
+    }
+}
+
+impl From<IpAddr> for BeginAddr {
+    fn from(x: IpAddr) -> Self {
+        Self::Ip(x)
+    }
+}
+
+impl From<Ipv4Addr> for BeginAddr {
+    fn from(x: Ipv4Addr) -> Self {
+        Self::Ip(IpAddr::V4(x))
+    }
+}
+
+impl From<Ipv6Addr> for BeginAddr {
+    fn from(x: Ipv6Addr) -> Self {
+        Self::Ip(IpAddr::V6(x))
+    }
+}
+
+impl From<BeginHostname> for BeginAddr {
+    fn from(x: BeginHostname) -> Self {
+        Self::Hostname(x)
+    }
+}
+
+/// A hostname in a [`Begin`] message.
+///
+/// This is meant for hostnames specifically,
+/// not IP address strings like "127.0.0.1".
+/// But since `Begin` messages don't encode the type of address that they contain,
+/// using a `BeginHostname` of "127.0.0.1" will be interpreted by the decoder
+/// as an IP address and not a hostname.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+pub struct BeginHostname(Vec<u8>);
+
+impl BeginHostname {
+    /// A new hostname for a [`Begin`] message.
+    ///
+    /// The hostname must have only alphanumeric (upper and lower case),
+    /// ".", "-", and "_" ascii characters.
+    /// The length must be at most 255 bytes.
+    pub fn new(hostname: impl Into<Vec<u8>>) -> crate::Result<Self> {
+        Self::new_with_useful_error_msg(hostname.into()).map_err(|_| crate::Error::BadStreamAddress)
+    }
+
+    /// See [`BeginHostname::new()`].
+    fn new_with_useful_error_msg(hostname: Vec<u8>) -> Result<Self> {
+        // torspec:
+        //
+        // > When used as a DNS hostname ADDRESS MUST only have alphanumeric
+        // > (upper and lower case), ".", "-", and "_" characters,
+        // > and be at most 255 characters long.
+        //
+        // We only do the validation that's specified in torspec.
+        // Other possible addresses are invalid (for example a hostname of just '-'),
+        // but these addresses are allowed by torspec and we expect that Arti's DNS code will handle
+        // these reasonably.
+        //
+        // Another edge case is an empty hostname string,
+        // but (1) this is allowed by torspec,
+        // and (2) this is needed by onion services which do use an empty hostname.
+
+        if hostname.len() > 255 {
+            return Err(Error::InvalidMessage("hostname was too long".into()));
+        }
+
+        let is_allowed = |c: &u8| c.is_ascii_alphanumeric() || b".-_".contains(c);
+
+        if !hostname.iter().all(is_allowed) {
+            return Err(Error::InvalidMessage(
+                "hostname had invalid characters".into(),
+            ));
+        }
+
+        Ok(Self(hostname))
+    }
+}
+
+impl AsRef<[u8]> for BeginHostname {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
     }
 }
 

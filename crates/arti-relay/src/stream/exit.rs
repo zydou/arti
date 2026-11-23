@@ -2,17 +2,16 @@
 
 use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr as _;
 use std::time::Duration;
 
 use either::Either;
 use futures::io::BufReader;
-use tor_cell::relaycell::msg::{BeginFlags, Connected, End, EndReason};
+use tor_cell::relaycell::msg::{BeginAddr, BeginFlags, Connected, End, EndReason};
 use tor_error::{internal, trace_report, warn_report};
 use tor_proto::stream::{IncomingStream, IncomingStreamRequest};
 use tor_rtcompat::SleepProviderExt as _;
 use tor_rtcompat::{NetStreamProvider, Runtime, TimeoutError};
-use tracing::{debug, info, trace};
+use tracing::{info, trace};
 
 use crate::stream::dns::resolver::{DnsResolver, LookupAnswers, LookupError, RecordData};
 
@@ -52,38 +51,32 @@ pub(super) async fn handle_begin<R: Runtime>(
     // Assign these to local variables to ensure we use all of them.
     let (addr, port, flags) = (msg.addr(), msg.port(), msg.flags());
 
-    if port == 0 {
-        incoming
-            .reject(End::new_with_reason(EndReason::EXITPOLICY))
-            .await?;
-        debug!("Rejecting incoming stream with 0 port");
-        return Ok(());
-    }
-
-    // TODO(relay): It would be good to parse this in a more principled way.
-    // More specifically, the parsing/decoding should probably be handled by `Begin` in tor-cell
-    // that ensures that it's parsed according to the spec.
-    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4421.
-    let Ok(addr) = std::str::from_utf8(addr) else {
-        incoming
-            .reject(End::new_with_reason(EndReason::TORPROTOCOL))
-            .await?;
-        debug!("Rejecting incoming stream with non-utf8 address");
-        return Ok(());
+    let addr = match addr.decode() {
+        Ok(x) => x,
+        Err(e) => {
+            trace!("Rejecting incoming stream with invalid address: {e}");
+            incoming
+                .reject(End::new_with_reason(EndReason::TORPROTOCOL))
+                .await?;
+            return Ok(());
+        }
     };
+
+    // TODO: Use the `NonZero` throughout.
+    let port = port.get();
 
     // A future for everything we want to include within the timeout.
     // Returns the TCP stream, and on error returns the END reason.
-    let exit_stream_fut = match IpAddr::from_str(addr) {
-        Ok(addr) => {
+    let exit_stream_fut = match addr {
+        BeginAddr::Ip(addr) => {
             let addr = SocketAddr::new(addr, port);
             let fut = connect_ip(&runtime, addr, flags, &connect_options);
             Either::Left(fut)
         }
-        Err(_) => {
+        BeginAddr::Hostname(ref addr) => {
             let fut = connect_hostname(
                 &runtime,
-                addr.as_bytes(),
+                addr.as_ref(),
                 port,
                 flags,
                 resolver,

@@ -77,7 +77,7 @@ async fn main() {
 
 async fn handle_stream_request(stream_request: StreamRequest, router: Router) -> Result<()> {
     match stream_request.request() {
-        IncomingStreamRequest::Begin(begin) if begin.port() == 80 => {
+        IncomingStreamRequest::Begin(begin) if begin.port().get() == 80 => {
             let onion_service_stream = stream_request.accept(Connected::new_empty()).await?;
             let io = TokioIo::new(onion_service_stream);
 

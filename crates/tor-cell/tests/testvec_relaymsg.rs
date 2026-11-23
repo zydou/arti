@@ -13,6 +13,7 @@ use tor_linkspec::LinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::num::NonZero;
 
 use hex_literal::hex;
 
@@ -33,6 +34,20 @@ fn unhex(s: &str) -> Vec<u8> {
 fn decode(cmd: RelayCmd, body: &[u8]) -> Result<msg::AnyRelayMsg, BytesError> {
     let mut r = tor_bytes::Reader::from_slice_for_test(body);
     msg::AnyRelayMsg::decode_from_reader(cmd, &mut r)
+}
+
+fn decode_into<T: TryFrom<msg::AnyRelayMsg>>(cmd: RelayCmd, body: &[u8]) -> Result<T, BytesError>
+where
+    <T as TryFrom<msg::AnyRelayMsg>>::Error: std::fmt::Debug,
+{
+    let msg = decode(cmd, body)?;
+    Ok(T::try_from(msg).expect("unable"))
+}
+
+fn encode(msg: msg::AnyRelayMsg) -> Vec<u8> {
+    let mut encoded = Vec::new();
+    msg.encode_onto(&mut encoded).expect("Encoding error.");
+    encoded
 }
 
 /// Assert that, when treated as a cell of type `cmd`, the hexadecimal
@@ -79,44 +94,135 @@ fn test_begin() {
     let cmd = RelayCmd::BEGIN;
     assert_eq!(Into::<u8>::into(cmd), 1_u8);
 
-    msg(
+    // Helpers for building a `EncodedBeginAddr`.
+    // They assume the input is well formed.
+    fn hostname(hostname: &str) -> msg::EncodedBeginAddr {
+        msg::BeginAddr::Hostname(msg::BeginHostname::new(hostname).unwrap()).encode()
+    }
+    fn hostname_raw(hostname: &str) -> msg::EncodedBeginAddr {
+        msg::BeginAddr::Hostname(msg::BeginHostname::new(hostname).unwrap()).encode_raw()
+    }
+    fn ipv4(ip: &str) -> msg::EncodedBeginAddr {
+        msg::BeginAddr::Ip(IpAddr::V4(ip.parse().unwrap())).encode()
+    }
+    fn ipv6(ip: &str) -> msg::EncodedBeginAddr {
+        msg::BeginAddr::Ip(IpAddr::V6(ip.parse().unwrap())).encode()
+    }
+
+    /// Helper for shortening the building of a non-zero port.
+    fn port(p: u16) -> NonZero<u16> {
+        NonZero::new(p).unwrap()
+    }
+
+    /// Extended `msg()` test with an additional test to check that the address decodes to the
+    /// expected value/variant.
+    fn msg_begin(cmd: RelayCmd, s: &str, begin: msg::Begin, decodes_to_addr: msg::BeginAddr) {
+        msg(cmd, s, &begin.clone().into());
+        assert_eq!(&begin.addr().decode(), &Ok(decodes_to_addr));
+    }
+
+    // check that we convert to lowercase when encoding
+    let addr = msg::BeginAddr::Hostname(msg::BeginHostname::new("EFF.org").unwrap());
+    let begin = msg::Begin::new(addr.encode(), port(22), 0);
+    assert_eq!(encode(begin.into()), b"eff.org:22\0");
+
+    msg_begin(
         cmd,
         "3132372E302E302E313A3730303300",
-        &msg::Begin::new("127.0.0.1", 7003, 0).unwrap().into(),
+        msg::Begin::new(ipv4("127.0.0.1"), port(7003), 0),
+        msg::BeginAddr::Ip(Ipv4Addr::LOCALHOST.into()),
     );
 
     // hand-generated test, with flags set.
-    msg(
+    msg_begin(
         cmd,
         "7777772e786b63642e636f6d3a34343300 00000003",
-        &msg::Begin::new("www.xkcd.com", 443, 3).unwrap().into(),
+        msg::Begin::new(hostname("www.xkcd.com"), port(443), 3),
+        msg::BeginAddr::Hostname(msg::BeginHostname::new("www.xkcd.com").unwrap()),
     );
 
     // hand-generated test, with IPv6 set.
-    msg(
+    msg_begin(
         cmd,
         "5b323030313a6462383a3a315d3a323200",
-        &msg::Begin::new("2001:db8::1", 22, 0).unwrap().into(),
+        msg::Begin::new(ipv6("2001:db8::1"), port(22), 0),
+        msg::BeginAddr::Ip(IpAddr::V6("2001:db8::1".parse().unwrap())),
+    );
+
+    // hand-generated test, with something that has non-lowercase characters.
+    msg_begin(
+        cmd,
+        "546f7250726f6a6563742e6e6574 3a 3232 00", // TorProject.net:22\0
+        msg::Begin::new(hostname_raw("TorProject.net"), port(22), 0),
+        msg::BeginAddr::Hostname(msg::BeginHostname::new("TorProject.net").unwrap()),
     );
 
     // hand-generated failure case: no port after ipv6.
     msg_error(
         cmd,
         "5b3a3a5d21", // [::]!
-        BytesError::InvalidMessage("missing port in begin cell".into()),
+        BytesError::Incomplete {
+            deficit: NonZero::new(1).unwrap().into(),
+        },
+    );
+
+    // hand-generated failure case: a zero port.
+    msg_error(
+        cmd,
+        "3132372E302E302E31 3A 30 00",
+        BytesError::InvalidMessage("port in begin cell is zero".into()),
+    );
+
+    // hand-generated failure case: a '+' port.
+    msg_error(
+        cmd,
+        "3132372E302E302E31 3A 2B3830 00", // "127.0.0.1:+80\0"
+        BytesError::InvalidMessage("port in begin cell has non-digit character".into()),
     );
 
     // hand-generated failure case: not ascii.
-    msg_error(
-        cmd,
-        "746f7270726f6a656374e284a22e6f72673a34343300", // torproject™.org:443
-        BytesError::InvalidMessage("target address in begin cell not ascii".into()),
+    let body = unhex("746f7270726f6a656374e284a22e6f72673a34343300"); // torproject™.org:443
+    let decoded: msg::Begin = decode_into(cmd, &body[..]).unwrap();
+    // the address check is deferred until we want the address
+    assert_eq!(
+        decoded.addr().decode().unwrap_err(),
+        BytesError::InvalidMessage("hostname had invalid characters".into()),
+    );
+
+    // hand-generated failure case: something that has square brackets like an IPv6 address.
+    let body = unhex("5B617364665D 3A 343433 00"); // [asdf]:443
+    let decoded: msg::Begin = decode_into(cmd, &body[..]).unwrap();
+    // the address check is deferred until we want the address
+    assert_eq!(
+        decoded.addr().decode().unwrap_err(),
+        BytesError::InvalidMessage("hostname had invalid characters".into()),
+    );
+
+    // hand-generated failure case: a hostname with a comma.
+    let body = unhex("6578616D706C652C636F6D 3A 343433 00"); // example,com:443
+    let decoded: msg::Begin = decode_into(cmd, &body[..]).unwrap();
+    // the address check is deferred until we want the address
+    assert_eq!(
+        decoded.addr().decode().unwrap_err(),
+        BytesError::InvalidMessage("hostname had invalid characters".into()),
     );
 
     // failure on construction: bad address.
     assert!(matches!(
-        msg::Begin::new("www.torproject™.org", 443, 0),
+        msg::BeginHostname::new("www.torproject™.org"),
         Err(tor_cell::Error::BadStreamAddress)
+    ));
+
+    // failure on construction: bad address.
+    assert!(matches!(
+        msg::BeginHostname::new("[asdf].org"),
+        Err(tor_cell::Error::BadStreamAddress),
+    ));
+
+    // failure on construction: bad address.
+    assert!(matches!(
+        msg::BeginHostname::new("example,com"),
+        Err(tor_cell::Error::BadStreamAddress),
     ));
 }
 
