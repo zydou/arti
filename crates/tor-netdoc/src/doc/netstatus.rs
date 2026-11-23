@@ -3378,6 +3378,13 @@ mod test {
             "$1",
         );
 
+        // C Tor sometimes writes `shared-rand-commit` with trailing space
+        regsub(
+            //
+            r#"^(shared-rand-commit .*) $"#,
+            "$1",
+        );
+
         // C Tor emits `m` in varying places: after `a` in votes,
         // and at the end of each routerstatus in md consensuses.
         // We emit it at the start of each routerstatus, right after `r`.
