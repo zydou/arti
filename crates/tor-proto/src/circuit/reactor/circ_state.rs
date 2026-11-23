@@ -5,7 +5,7 @@ use crate::circuit::circhop::{CircHopOutbound, HopSettings};
 use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::circhop::CircHopList;
 use crate::circuit::reactor::stream::{CtrlMsg, ReadyStreamMsg, StreamHandler, StreamReactor};
-use crate::congestion::CongestionControl;
+use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::memquota::CircuitAccount;
 use crate::util::err::ReactorError;
 use crate::{Error, HopNum, Result};
@@ -17,8 +17,10 @@ use {
 };
 
 use tor_cell::chancell::CircId;
+use tor_cell::relaycell::RelayCellFormat;
+use tor_cell::relaycell::msg::SendmeTag;
 use tor_error::internal;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use futures::SinkExt;
 use futures::channel::mpsc;
@@ -46,24 +48,74 @@ pub(crate) struct CircuitState<R: Runtime> {
     ///
     /// A clone of this is passed to each spawned StreamReactor
     bwd_tx: mpsc::Sender<ReadyStreamMsg>,
+    /// The shared parts of the circuit state.
+    ///
+    /// The backward reactor has a clone of this.
+    shared: Arc<CircuitStateShared>,
+    /// Memory quota account
+    memquota: CircuitAccount,
+}
+
+/// The shared parts of a [`CircuitState`].
+///
+/// Currently, this is used by the backward reactor,
+/// which needs access to the congestion control objects.
+/// The backward reactor only ever *reads* from this
+/// (it never mutates the circ hop list).
+///
+// TODO: the backward reactor only ever reads from this.
+// Conceptually, it is the CircuitState that owns this list,
+// because only CircuitState can add hops to the list.
+//
+// Perhaps we need a specialized abstraction that only allows reading here.
+// This could be a wrapper over RwLock, providing a read-only API for the BWD.
+pub(crate) struct CircuitStateShared {
     /// The underlying senders, indexed by [`HopNum`].
     ///
     /// Relays have at most one stream reactor per circuit.
     /// Clients have at most one stream reactor per circuit hop.
-    ///
-    /// This is shared with the backward reactor.
-    /// The backward reactor only ever *reads* from this
-    /// (it never mutates the list).
-    ///
-    // TODO: the backward reactor only ever reads from this.
-    // Conceptually, it is the CircuitState that owns this list,
-    // because only CircuitState can add hops to the list.
+    hops: RwLock<CircHopList>,
+}
+
+impl CircuitStateShared {
+    /// Return the RelayCellFormat and CC state of a given hop.
     //
-    // Perhaps we need a specialized abstraction that only allows reading here.
-    // This could be a wrapper over RwLock, providing a read-only API for the BWD.
-    hops: Arc<RwLock<CircHopList>>,
-    /// Memory quota account
-    memquota: CircuitAccount,
+    // XXX use this in the BWD
+    pub(crate) fn hop_info(
+        &self,
+        hopnum: Option<HopNum>,
+    ) -> Result<(RelayCellFormat, Arc<Mutex<CongestionControl>>)> {
+        let hops = self.hops.read().expect("poisoned lock");
+        let hop = hops.get(hopnum)?;
+        let relay_cell_format = hop.settings.relay_crypt_protocol().relay_cell_format();
+        let ccontrol = Arc::clone(&hop.ccontrol);
+
+        Ok((relay_cell_format, ccontrol))
+    }
+
+    /// Update the congestion control state of the specified hop
+    /// that we received a SENDME along with possible congestion signals.
+    //
+    // XXX use this in the BWD
+    pub(crate) fn note_sendme_received(
+        &self,
+        hopnum: Option<HopNum>,
+        runtime: &DynTimeProvider,
+        tag: SendmeTag,
+        signals: CongestionSignals,
+    ) -> Result<()> {
+        let hops = self.hops.read().expect("poisoned lock");
+        let hop = hops.get(hopnum)?;
+
+        // Update the CC object that we received a SENDME along
+        // with possible congestion signals.
+        hop.ccontrol
+            .lock()
+            .expect("poisoned lock")
+            .note_sendme_received(runtime, tag, signals)?;
+
+        Ok(())
+    }
 }
 
 /// State needed to build a stream reactor.
@@ -160,7 +212,7 @@ impl<R: Runtime> CircuitState<R> {
         memquota: CircuitAccount,
         metrics: Arc<CircuitMetrics>,
     ) -> Self {
-        let hops = Arc::new(RwLock::new(hops));
+        let hops = RwLock::new(hops);
         let ctx = StreamReactorContext {
             unique_id,
             circ_id,
@@ -170,9 +222,11 @@ impl<R: Runtime> CircuitState<R> {
             metrics,
         };
 
+        let shared = Arc::new(CircuitStateShared { hops });
+
         Self {
             runtime,
-            hops,
+            shared,
             ctx,
             bwd_tx,
             memquota,
@@ -180,8 +234,15 @@ impl<R: Runtime> CircuitState<R> {
     }
 
     /// Return a reference to our hop list.
-    pub(crate) fn hops(&self) -> &Arc<RwLock<CircHopList>> {
-        &self.hops
+    ///
+    // XXX remove this function
+    pub(crate) fn hops(&self) -> &RwLock<CircHopList> {
+        &self.shared.hops
+    }
+
+    /// Return a reference to our shared state.
+    pub(crate) fn shared(&self) -> &Arc<CircuitStateShared> {
+        &self.shared
     }
 
     /// Set the incoming stream handler for this reactor.
@@ -222,7 +283,7 @@ impl<R: Runtime> CircuitState<R> {
     /// Will return an error if the circuit already has [`u8::MAX`] hops.
     #[expect(unused)] // TODO(dedup): clients will use this
     pub(crate) fn add_hop(&mut self, settings: HopSettings) -> Result<()> {
-        let mut hops = self.hops.write().expect("poisoned lock");
+        let mut hops = self.shared.hops.write().expect("poisoned lock");
         hops.add_hop(settings)
     }
 
@@ -265,7 +326,7 @@ impl<R: Runtime> CircuitState<R> {
         &self,
         hopnum: Option<HopNum>,
     ) -> StdResult<mpsc::Sender<CtrlMsg>, Error> {
-        let mut hops = self.hops.write().expect("poisoned lock");
+        let mut hops = self.shared.hops.write().expect("poisoned lock");
         let hop = hops.get_mut(hopnum)?;
 
         let tx = match &hop.tx {
