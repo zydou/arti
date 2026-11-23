@@ -2,6 +2,7 @@
 
 use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
+use std::num::NonZero;
 use std::time::Duration;
 
 use either::Either;
@@ -62,14 +63,11 @@ pub(super) async fn handle_begin<R: Runtime>(
         }
     };
 
-    // TODO: Use the `NonZero` throughout.
-    let port = port.get();
-
     // A future for everything we want to include within the timeout.
     // Returns the TCP stream, and on error returns the END reason.
     let exit_stream_fut = match addr {
         BeginAddr::Ip(addr) => {
-            let addr = SocketAddr::new(addr, port);
+            let addr = SocketAddr::new(addr, port.get());
             let fut = connect_ip(&runtime, addr, flags, &connect_options);
             Either::Left(fut)
         }
@@ -153,10 +151,7 @@ async fn connect_ip<R: Runtime>(
         return Err(EndReason::EXITPOLICY);
     }
 
-    match runtime.connect(&addr, connect_options).await {
-        Ok(x) => Ok(x),
-        Err(e) => Err(io_error_kind_to_end_reason(e.kind())),
-    }
+    tcp_connect(runtime, &addr, connect_options).await
 }
 
 /// For a BEGIN message containing a hostname and flags,
@@ -164,11 +159,13 @@ async fn connect_ip<R: Runtime>(
 async fn connect_hostname<R: Runtime>(
     runtime: &R,
     hostname: &[u8],
-    port: u16,
+    port: NonZero<u16>,
     flags: BeginFlags,
     mut resolver: DnsResolver,
     connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
 ) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
+    let port = port.get();
+
     let answers = match resolver.resolve(hostname).await {
         Ok(x) => x,
         Err(LookupError::NonAsciiHostname) => {
@@ -260,9 +257,26 @@ async fn connect_hostname<R: Runtime>(
 
     let addr = SocketAddr::new(*addr, port);
 
-    match runtime.connect(&addr, connect_options).await {
+    tcp_connect(runtime, &addr, connect_options).await
+}
+
+/// Helper to establish the TCP connection and get the correct error "reason" to use in the END
+/// message if needed.
+async fn tcp_connect<R: Runtime>(
+    runtime: &R,
+    addr: &SocketAddr,
+    connect_options: &<R as NetStreamProvider<SocketAddr>>::ConnectOptions,
+) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
+    match runtime.connect(addr, connect_options).await {
         Ok(x) => Ok(x),
-        Err(e) => Err(io_error_kind_to_end_reason(e.kind())),
+        Err(e) => {
+            let reason = io_error_kind_to_end_reason(e.kind());
+            if reason == EndReason::INTERNAL {
+                let bug = internal!("Unexpected io error {}: {}", e.kind(), e);
+                trace_report!(bug, "Unexpected {reason} when connecting to TCP address");
+            }
+            Err(reason)
+        }
     }
 }
 
@@ -270,18 +284,34 @@ async fn connect_hostname<R: Runtime>(
 //
 // TODO: Later we will probably have some sort of exit policy object,
 // and we can remove this function and just call `exit_policy.allows(addr)` or something.
-fn exit_policy_allows(addr: SocketAddr) -> bool {
+fn exit_policy_allows(mut addr: SocketAddr) -> bool {
+    // Canonicalize the IP address to ensure that we handle IPv4-mapped IPv6 addresses.
+    // For example if an exit policy disallows `a.b.c.d`, we should also disallow `::ffff:a.b.c.d`.
+    addr.set_ip(addr.ip().to_canonical());
+
     // TODO(relay): Need to support an exit policy. Currently we allow exits to anywhere (except
     // basic loopback checks) for testing purposes.
-    !addr.ip().to_canonical().is_loopback() && !addr.ip().to_canonical().is_unspecified()
+    !addr.ip().is_loopback() && !addr.ip().is_unspecified()
 }
 
 /// For a TCP error, get the reason we should use in the END message.
 fn io_error_kind_to_end_reason(e: ErrorKind) -> EndReason {
-    // TODO(relay): Check if there are other error kinds to map to end reasons.
     match e {
         ErrorKind::ConnectionRefused => EndReason::CONNECTREFUSED,
         ErrorKind::ConnectionReset => EndReason::CONNRESET,
+        ErrorKind::HostUnreachable => EndReason::NOROUTE,
+        // Linux "no route to host" errors are given for EHOSTUNREACH,
+        // and "network is unreachable" errors are given for ENETUNREACH.
+        // But `EndReason` doesn't have a `ENETUNREACH`-equivalent so
+        // we just reuse `NOROUTE` here.
+        ErrorKind::NetworkUnreachable => EndReason::NOROUTE,
+        // We implement our own timeout in the async code and we don't expect to have a TCP timeout
+        // here, so this is probably a bug.
+        ErrorKind::TimedOut => EndReason::INTERNAL,
+        ErrorKind::QuotaExceeded => EndReason::RESOURCELIMIT,
+        ErrorKind::OutOfMemory => EndReason::RESOURCELIMIT,
+        // TODO(nightly: io_error_too_many_open_files): `TooManyOpenFiles` should probably return
+        // `RESOURCELIMIT`.
         _ => EndReason::MISC,
     }
 }
