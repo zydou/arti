@@ -464,7 +464,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
                 Building(x) => select::pending_channel_maybe_allowed(x, target),
             });
 
-        match select::choose_best_channel(open_channels.chain(pending_channels), target) {
+        match select::choose_best_allowed_channel(open_channels.chain(pending_channels)) {
             Some(Open(OpenEntry { channel, .. })) => {
                 // This entry is a perfect match for the target keys: we'll return the open
                 // entry.

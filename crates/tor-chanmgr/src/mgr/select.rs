@@ -111,24 +111,17 @@ pub(crate) fn pending_channel_maybe_allowed(
         .is_some()
 }
 
-/// Returns the best channel for `target`.
-// TODO: remove me when the below TODOs are implemented
-#[allow(clippy::only_used_in_recursion)]
-pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
+/// Returns the best channel among `channels`, all expected to be allowed for the target.
+pub(crate) fn choose_best_allowed_channel<'a, C: AbstractChannel>(
     channels: impl IntoIterator<Item = &'a ChannelState<C>>,
-    target: &(impl HasRelayIds + HasChanMethod),
 ) -> Option<&'a ChannelState<C>> {
     use ChannelState::*;
     use std::cmp::Ordering;
 
     let channels = channels.into_iter();
 
-    /// Compare two channels to determine the better channel for `target`.
-    fn choose_channel<C: AbstractChannel>(
-        a: &&ChannelState<C>,
-        b: &&ChannelState<C>,
-        target: &(impl HasRelayIds + HasChanMethod),
-    ) -> Choice {
+    /// Compare two channels to determine the better channel.
+    fn choose_channel<C: AbstractChannel>(a: &&ChannelState<C>, b: &&ChannelState<C>) -> Choice {
         // TODO: follow `channel_is_better` in C tor
         match (a, b) {
             // if the open channel is not usable, prefer the pending channel
@@ -137,7 +130,7 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
             (Open(_a), Building(_b)) => Choice::First,
 
             // the logic above, but reversed
-            (Building(_), Open(_)) => choose_channel(b, a, target).reverse(),
+            (Building(_), Open(_)) => choose_channel(b, a).reverse(),
 
             // not much info to help choose when both channels are pending, but this should be rare
             (Building(_a), Building(_b)) => Choice::Either,
@@ -182,8 +175,6 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
                     return Choice::Second;
                 }
 
-                // TODO: prefer a channel where the address matches the target
-
                 // TODO: prefer older channels
 
                 // TODO: use number of circuits as tie-breaker?
@@ -194,7 +185,7 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
     }
 
     // preferred channels will be ordered higher, and we choose the max
-    channels.max_by(|a, b| match choose_channel(a, b, target) {
+    channels.max_by(|a, b| match choose_channel(a, b) {
         Choice::First => Ordering::Greater,
         Choice::Second => Ordering::Less,
         Choice::Either => Ordering::Equal,
@@ -414,9 +405,8 @@ mod test {
         ];
 
         // should return the usable channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
-            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[0]));
+            assert_opt_ptr_eq!(choose_best_allowed_channel(x), Some(&channels[0]));
         });
     }
 
@@ -432,9 +422,8 @@ mod test {
         ];
 
         // should return the open channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
-            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[0]));
+            assert_opt_ptr_eq!(choose_best_allowed_channel(x), Some(&channels[0]));
         });
 
         // an unusable open channel and a pending channel
@@ -447,16 +436,15 @@ mod test {
         ];
 
         // should return the pending channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
-            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[1]));
+            assert_opt_ptr_eq!(choose_best_allowed_channel(x), Some(&channels[1]));
         });
     }
 
     #[test]
     fn best_channel_many() {
-        // some misc channels (as we make `choose_best_channel` more complex, hopeful we can add
-        // more channels here)
+        // some misc channels (as we make `choose_best_allowed_channel` more complex, hopeful we
+        // can add more channels here)
         let channels = [
             ChannelState::Open(open_channel(FakeChannel {
                 usable: false,
@@ -471,9 +459,8 @@ mod test {
         ];
 
         // should return the open+usable channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
-            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[1]));
+            assert_opt_ptr_eq!(choose_best_allowed_channel(x), Some(&channels[1]));
         });
     }
 
