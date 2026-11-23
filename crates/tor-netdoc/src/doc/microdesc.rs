@@ -552,6 +552,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::encode::encode_netdoc_unsigned;
+    use crate::test_support::{raw_find_item_rhs, raw_find_object, raw_item_count};
     use hex_literal::hex;
     const TESTDATA: &str = include_str!("../../testdata/microdesc1.txt");
     const TESTDATA2: &str = include_str!("../../testdata/microdesc2.txt");
@@ -686,9 +687,13 @@ mod test {
 
     /// Checks whether parse2 works on [`Microdesc`].
     ///
-    /// Certain values such as public keys are hardcoded and can be simply
-    /// replaced by a copy and paste in the case one replaces the testdata2
-    /// vector's in the future.
+    /// If this test fails when updating testdata2, it probably means that the assert_eq
+    /// is insufficiently sophisticated.  If there has been a one-off change in the way
+    /// the test data is generated, simply update the hardcoded values.
+    ///
+    /// If the testdata2 data is varying more interestingly, add code to extract the
+    /// values ad-hoc with a minimum of use of the existing parsing code,
+    /// eg with `raw_...` from `test_support`.
     #[test]
     fn parse2() -> anyhow::Result<()> {
         use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -702,34 +707,24 @@ mod test {
         ))
         .unwrap();
 
-        assert_eq!(mds.len(), 7);
+        assert_eq!(mds.len(), raw_item_count(md, "onion-key"));
         assert_eq!(
             mds[0],
             Microdesc {
                 onion_key: MicrodescIntroItem(rsa::PublicKey::from_der(
-                    pem::parse(
-                        "
------BEGIN RSA PUBLIC KEY-----
-MIGJAoGBANF8Zgxp8amY1esYdPj2Ada1ORiVB/A4sgKLQ5ij/wsasO3yjjLcvHRB
-UJ0mAQWql/nauvjnKUeZFcGm3t7q0v3F9uUsOGTAZ/IKh31UQAm5OS/TJyf8IHky
-Yl0wCKpUZFHs5CHsajLSfXZKHkwfqRXFEJu9aMtmQdQFfqE9JOJHAgMBAAE=
------END RSA PUBLIC KEY-----
-                        "
-                    )
-                    .unwrap()
-                    .contents()
+                    pem::parse(dbg!(raw_find_object(md, "onion-key")))
+                        .unwrap()
+                        .contents()
                 )),
                 ntor_onion_key: curve25519::PublicKey::from(<[u8; 32]>::from(
-                    FixedB64::<32>::from_str("I1S8JfcqPPHWVTxfjq/eGmGiu/OtR+fF0Z86Ge1mq3s")
-                        .unwrap()
+                    FixedB64::<32>::from_str(raw_find_item_rhs(md, "ntor-onion-key")).unwrap()
                 ))
                 .into(),
                 family: Default::default(),
                 ipv4_policy: Default::default(),
                 ipv6_policy: Default::default(),
                 ed25519_id: Ed25519Identity::from(<[u8; 32]>::from(
-                    FixedB64::<32>::from_str("yhO6nETO5AUdvJbLgPnw4mFjozGXWMCqOp30nY6nM8E")
-                        .unwrap()
+                    FixedB64::<32>::from_str(raw_find_item_rhs(md, "id ed25519")).unwrap()
                 ))
                 .into(),
                 family_ids: Default::default(),

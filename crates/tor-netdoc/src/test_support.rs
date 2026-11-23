@@ -173,3 +173,48 @@ where
         .downcast_ref::<D>()
         .expect("wrong type is impossible")
 }
+
+/// Regex for the start of the item with keyword `kw` in a raw document
+pub fn raw_item_start_regex(kw: &str) -> regex::Regex {
+    regex::Regex::new(&format!(r#"(?m)^{kw}[ \n]"#)).expect(kw)
+}
+
+/// Finds the item with keyword `kw` in a raw document, using raw strings, not the parser
+///
+/// Returns the keyword line, and the rest of the doc.
+///
+/// If there are several items, finds the first.
+pub fn raw_item_count<'d>(doc: &'d str, kw: &str) -> usize {
+    raw_item_start_regex(kw).find_iter(doc).count()
+}
+
+/// Finds the item with keyword `kw` in a raw document, using raw strings, not the parser
+///
+/// Returns the keyword line, and the rest of the doc.
+pub fn raw_find_item<'d>(doc: &'d str, kw: &str) -> (&'d str, &'d str) {
+    let p = raw_item_start_regex(kw).find(doc).expect(kw).start();
+
+    doc[p..].split_once('\n').expect(kw)
+}
+
+/// Finds the arguments to keyword `kw`, using raw strings, not the parser
+pub fn raw_find_item_rhs<'d>(doc: &'d str, kw: &str) -> &'d str {
+    let l = raw_find_item(doc, kw).0;
+    let a = l.strip_prefix(kw).expect(l);
+
+    let b = a.trim_start();
+    assert!(a.is_empty() || a != b);
+    b
+}
+/// Finds the object after keyword `kw`, using raw strings, not the parser
+pub fn raw_find_object<'d>(doc: &'d str, kw: &str) -> &'d str {
+    let l = raw_find_item(doc, kw).1;
+    let r = l
+        .split_once("\n-----END")
+        .expect("END not found")
+        .1
+        .split_once("\n")
+        .expect("no newline after END")
+        .1;
+    &l[0..(l.len() - r.len())]
+}

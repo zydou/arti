@@ -1460,6 +1460,7 @@ mod test {
     use crate::{
         encode::{NetdocEncodable, NetdocEncoder},
         parse2::{self, NetdocParseableUnverified, ParseInput},
+        test_support::{raw_find_item_rhs, raw_item_count},
     };
     use tor_basic_utils::test_rng::testing_rng;
     use tor_checkable::TimeValidityError;
@@ -1709,10 +1710,8 @@ mod test {
     /// In other words: No edge cases and such.
     #[test]
     fn test_parse2_simple() {
-        let input = ParseInput::new(
-            include_str!("../../testdata2/cached-descriptors.new"),
-            "cached-descriptors.new",
-        );
+        let text = include_str!("../../testdata2/cached-descriptors.new");
+        let input = ParseInput::new(text, "cached-descriptors.new");
         let rd = parse2::parse_netdoc_multiple::<RouterDescUnverified>(&input)
             .unwrap()
             .into_iter()
@@ -1722,24 +1721,22 @@ mod test {
             })
             .map(|(body, sig)| (body, sig.sigs))
             .collect::<Vec<(RouterDesc, RouterDescSignatures)>>();
-        assert_eq!(rd.len(), 20);
+        assert_eq!(rd.len(), raw_item_count(text, "router"));
         assert_eq!(
             rd[0].0.router,
             RouterDescIntroItem {
-                dirport: 7102,
+                dirport: 7100,
                 ..RouterDescIntroItemConstructor {
-                    nickname: "test002a".parse().unwrap(),
+                    nickname: "test000a".parse().unwrap(),
                     address: net::Ipv4Addr::LOCALHOST,
-                    orport: 5102,
+                    orport: 5100,
                 }
                 .construct()
             }
         );
         assert_eq!(
             rd[0].0.fingerprint.unwrap(),
-            "257D 06F0 360B B224 6388 724F 109E C089 5A1D 41FB"
-                .parse()
-                .unwrap()
+            raw_find_item_rhs(text, "fingerprint").parse().unwrap()
         );
 
         // Round-trip encoding by verifying that decoding it equals the original.
