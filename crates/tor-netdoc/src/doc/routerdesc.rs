@@ -1711,6 +1711,17 @@ mod test {
     #[test]
     fn test_parse2_simple() {
         let text = include_str!("../../testdata2/cached-descriptors.new");
+
+        let mut router_line = raw_find_item_rhs(text, "router").split_ascii_whitespace();
+
+        // https://spec.torproject.org/dir-spec/server-descriptor-format.html#item:router
+        macro_rules! router_line_arg { {} => { router_line.next().unwrap().parse().unwrap() } }
+        let nickname: Nickname = router_line_arg!();
+        let address: net::Ipv4Addr = router_line_arg!();
+        let orport: u16 = router_line_arg!();
+        let _socksport: String = router_line_arg!();
+        let dirport: u16 = router_line_arg!();
+
         let input = ParseInput::new(text, "cached-descriptors.new");
         let rd = parse2::parse_netdoc_multiple::<RouterDescUnverified>(&input)
             .unwrap()
@@ -1725,11 +1736,11 @@ mod test {
         assert_eq!(
             rd[0].0.router,
             RouterDescIntroItem {
-                dirport: 7100,
+                dirport,
                 ..RouterDescIntroItemConstructor {
-                    nickname: "test000a".parse().unwrap(),
-                    address: net::Ipv4Addr::LOCALHOST,
-                    orport: 5100,
+                    nickname,
+                    address,
+                    orport,
                 }
                 .construct()
             }

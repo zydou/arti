@@ -1,8 +1,22 @@
-
 TestingTorNetwork 1
 
+# These are already implicitly set if TestingTorNetwork is set;
+# we want them whether TestingTorNetwork is set or not.
+DirAllowPrivateAddresses 1
+EnforceDistinctSubnets 0
+AuthDirMaxServersPerAddr 0
+ClientBootstrapConsensusAuthorityDownloadInitialDelay 0
+ClientBootstrapConsensusFallbackDownloadInitialDelay 0
+ClientBootstrapConsensusAuthorityOnlyDownloadInitialDelay 0
+ClientDNSRejectInternalAddresses 0
+ClientRejectInternalAddresses 0
+CountPrivateBandwidth 1
+ExitPolicyRejectPrivate 0
+ExtendAllowPrivateAddresses 1
+MinUptimeHidServDirectoryV2 0 minutes
+
 ## Options that we always want to test ##
-DataDirectory /builds/tpo/core/arti/chutney-net/nodes.1794917209/000a
+DataDirectory /builds/tpo/core/arti/chutney-net/nodes.1795425926.1/000a
 ConnLimit 60
 Nickname test000a
 # Let tor close connections gracefully before exiting
@@ -14,10 +28,10 @@ AddressDisableIPv6 1
 ControlSocket 0
 CookieAuthentication 1
 
-Log notice file /builds/tpo/core/arti/chutney-net/nodes.1794917209/000a/notice.log
-Log info file /builds/tpo/core/arti/chutney-net/nodes.1794917209/000a/info.log
+Log notice file /builds/tpo/core/arti/chutney-net/nodes.1795425926.1/000a/notice.log
+Log info file /builds/tpo/core/arti/chutney-net/nodes.1795425926.1/000a/info.log
 # Turn this off to save space
-#Log debug file /builds/tpo/core/arti/chutney-net/nodes.1794917209/000a/debug.log
+#Log debug file /builds/tpo/core/arti/chutney-net/nodes.1795425926.1/000a/debug.log
 ProtocolWarnings 1
 SafeLogging 0
 LogTimeGranularity 1
@@ -32,15 +46,16 @@ Sandbox 0
 UseMicrodescriptors 1
 SocksPort 0
 DnsPort 0
+ControlPort 192.168.0.3:8000
 ControlPort 127.0.0.1:8000
 RunAsDaemon 0
-Address 127.0.0.1
-OrPort 127.0.0.1:5100
-AlternateDirAuthority test000a no-v2 orport=5100 v3ident=3B28D2119433CEB14E42202D8340C9E9AF8E0E99 127.0.0.1:7100 DCF019078A3B76D16709F2875EDB886228600FCE
-AlternateDirAuthority test001a no-v2 orport=5101 v3ident=7F365A27F55E8776D01CD56459EAA6EA7DD07D76 127.0.0.1:7101 2FED6298979A8E569F9ECB731B64E5282429CBD7
-AlternateDirAuthority test002a no-v2 orport=5102 v3ident=BDDD51949E0E01503690689DCA923954F75CBE16 127.0.0.1:7102 D57695C1998E28281620B904D91348CB6CDCF162
-AlternateDirAuthority test003a no-v2 orport=5103 v3ident=B1B81EAE037C56142652C609B89281CBED094FEB 127.0.0.1:7103 815E469291C0C6DB2304A3A5824C26C3D77B66AD
-AlternateBridgeAuthority test015ba no-v2 orport=5115 bridge 127.0.0.1:7115 892B522ACB087CF85788D57DA6C11616027CEE93
+Address 192.168.0.3
+OrPort 192.168.0.3:5100
+AlternateDirAuthority test000a no-v2 orport=5100 v3ident=E9285D619604763DC2335CBFB267A75A8E58C597 192.168.0.3:7100 A1798014080798136AC9AD00FA0554A76C561EBC
+AlternateDirAuthority test001a no-v2 orport=5101 v3ident=18DC62C959BD08734BF88696055F2AC7A4FD96E8 192.168.0.4:7101 8D6D4B93EA174B0B1EE7E82EB16C64393B70B324
+AlternateDirAuthority test002a no-v2 orport=5102 v3ident=B8589FBFB153401A336F995FE09F682A1FB49A4A 192.168.0.5:7102 4923A129CE0D135EE04C9C8734CA008238DBA176
+AlternateDirAuthority test003a no-v2 orport=5103 v3ident=C850E81B519F5DCABAA0D1B5D2B7AEB5AE9520D9 192.168.0.6:7103 F35A97F3690F423159FAF1769F7AB8E1652D82FC
+AlternateBridgeAuthority test015ba no-v2 orport=5115 bridge 192.168.0.18:7115 E39EE2785BD6478A4F6A1C2597880585E9DC0B93
 
 DirPort 7100
 ExitRelay 0
@@ -61,42 +76,29 @@ V3AuthoritativeDirectory 1
 # As of tor 0.4.3, there is no way to speed up these checks
 AssumeReachable 1
 
-# Speed up the consensus cycle as fast as it will go.
-# If clock desynchronisation is an issue, increase these voting times.
-
-# V3AuthVotingInterval and TestingV3AuthInitialVotingInterval can be:
-#   10, 12, 15, 18, 20, ...
-# TestingV3AuthInitialVotingInterval can also be:
-#    5, 6, 8, 9
-# They both need to evenly divide 24 hours.
-
-# Initial Vote + Initial Dist must be less than Initial Interval
-#
-# Mixed 0.3.3 and 0.3.4 networks are unstable, due to timing changes.
-# When all 0.3.3 and earlier versions are obsolete, we may be able to revert to
-# TestingV3AuthInitialVotingInterval 5
-TestingV3AuthInitialVotingInterval 20
-TestingV3AuthInitialVoteDelay 4
-TestingV3AuthInitialDistDelay 4
-# Vote + Dist must be less than Interval/2, because when there's no consensus,
-# tor uses Interval/2 as the voting interval
-#
 V3AuthVotingInterval 20 seconds
+
 V3AuthVoteDelay 4
 V3AuthDistDelay 4
 
+TestingV3AuthInitialVotingInterval 20 seconds
+TestingV3AuthInitialVoteDelay 4
+TestingV3AuthInitialDistDelay 4
+
 # We enable TestingDirAuthVoteGuard to avoid Guard stability requirements
-TestingDirAuthVoteGuard *
+AuthDirVoteGuard *
+
 TestingDirAuthVoteHSDir *
 
 # We set TestingMinExitFlagThreshold to 0 to avoid Exit bandwidth requirements
 TestingMinExitFlagThreshold 0
+
 V3AuthNIntervalsValid 2
 
 # Ensure all relays get Stable flag, despite having low uptimes
 AuthDirVoteStableGuaranteeMinUptime 0
 
 ConsensusParams cc_alg=2
-V3BandwidthsFile /builds/tpo/core/arti/chutney-net/nodes.1794917209/v3bandwidths
-TestingDirAuthVoteExit CF525C241E91DA032EFE619F92D0EFCF972E5696,3E16A08A08451B598685F351B552626500AD7BF2
+V3BandwidthsFile /builds/tpo/core/arti/chutney-net/nodes.1795425926.1/v3bandwidths
+TestingDirAuthVoteExit C107EC820FA27E99EB36A970641054AFCCBD5C40,6D02AB973B627A3E5122440D685413C67345AE20
 

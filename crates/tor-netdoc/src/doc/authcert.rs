@@ -765,11 +765,7 @@ mod test {
     };
     use humantime::parse_rfc3339;
     use std::result::Result;
-    use std::{
-        fs,
-        net::{Ipv4Addr, SocketAddrV4},
-        time::Duration,
-    };
+    use std::{fs, net::SocketAddrV4, time::Duration};
     use tor_basic_utils::test_rng;
 
     const TESTDATA: &str = include_str!("../../testdata/authcert1.txt");
@@ -869,7 +865,6 @@ mod test {
         assert_eq!(res.len(), 2);
     }
 
-    const DIR_ADDRESS: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7100);
     const AUTHCERT_RAW: &str = include_str!("../../testdata2/keys/authority_certificate");
 
     fn raw_authcert_time(kw: &str) -> SystemTime {
@@ -890,6 +885,12 @@ mod test {
         let a = t_dir_key_published();
         let b = t_dir_key_expires();
         a + (b.duration_since(a).unwrap() / 2)
+    }
+
+    fn t_dir_address() -> SocketAddrV4 {
+        raw_find_item_rhs(AUTHCERT_RAW, "dir-address")
+            .parse()
+            .unwrap()
     }
 
     fn t_dir_identity_key() -> &'static str {
@@ -1028,7 +1029,7 @@ mod test {
             *res.inspect_unverified().0,
             AuthCert {
                 dir_key_certificate_version: AuthCertVersion::V3,
-                dir_address: Some(DIR_ADDRESS),
+                dir_address: Some(t_dir_address()),
                 fingerprint: types::Fingerprint(to_rsa_id(t_fingerprint())),
                 dir_key_published: Iso8601TimeSp(t_dir_key_published()),
                 dir_key_expires: Iso8601TimeSp(t_dir_key_expires()),

@@ -8,6 +8,8 @@
 # The URL is the "download artifacts archive link"
 # for an integration-chutney-shadow job.
 #
+# For the actual URL most recently used (or when reviewing), see `testdata2/README.md`.
+#
 # This has to be run inside the git repository!
 #
 # If gitlab won't let you download this with wget (perhaps due to DDoS/scraper defences),
@@ -56,7 +58,7 @@ cd tmp
 unzip -q artifacts.zip chutney-net/nodes.\*
 
 cd chutney-net
-cd nodes.* # will give "too many arguments" if there were several
+cd nodes.*.* # will give "too many arguments" if there were several
 cd 000a
 
 rm -rf -- *.log diff-cache pid.* *.stderr *.stdout
