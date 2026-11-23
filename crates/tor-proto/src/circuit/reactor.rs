@@ -464,9 +464,9 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             memquota: memquota.clone(),
         };
 
-        /// Grab a handle to the hop list (it's needed by the BWD)
-        // XXX replace this with CircHopShared
-        let hops = todo!();
+        // Grab a handle to the shared part of the circuit state
+        // (it's needed by the BWD)
+        let shared = Arc::clone(circ_state.shared());
         let forward = ForwardReactor::new(
             runtime.clone(),
             unique_id,
@@ -489,7 +489,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             circ_id,
             unique_id,
             backward_impl,
-            hops,
+            shared,
             forward_reactor_rx,
             bwd_control_rx,
             bwd_command_rx,

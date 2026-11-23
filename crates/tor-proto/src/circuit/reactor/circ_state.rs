@@ -79,8 +79,6 @@ pub(crate) struct CircuitStateShared {
 
 impl CircuitStateShared {
     /// Return the RelayCellFormat and CC state of a given hop.
-    //
-    // XXX use this in the BWD
     pub(crate) fn hop_info(
         &self,
         hopnum: Option<HopNum>,
@@ -95,8 +93,6 @@ impl CircuitStateShared {
 
     /// Update the congestion control state of the specified hop
     /// that we received a SENDME along with possible congestion signals.
-    //
-    // XXX use this in the BWD
     pub(crate) fn note_sendme_received(
         &self,
         hopnum: Option<HopNum>,
