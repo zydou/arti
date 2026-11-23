@@ -765,11 +765,7 @@ mod test {
     };
     use humantime::parse_rfc3339;
     use std::result::Result;
-    use std::{
-        fs,
-        net::SocketAddrV4,
-        time::Duration,
-    };
+    use std::{fs, net::SocketAddrV4, time::Duration};
     use tor_basic_utils::test_rng;
 
     const TESTDATA: &str = include_str!("../../testdata/authcert1.txt");
