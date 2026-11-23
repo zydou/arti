@@ -366,7 +366,6 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                     filter,
                 };
 
-                // Update the HopMgr with the
                 let ret = self.hop_mgr.set_incoming_handler(handler);
                 let _ = done.send(ret); // don't care if the corresponding receiver goes away.
                 Ok(())
