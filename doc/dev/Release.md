@@ -456,6 +456,19 @@ before you continue!
    If anything was janky or didn't go as planned, and you can see how
    to improve it, please fix it - here or in the relevant tooling.
 
+   When editing this file:
+
+    * The checklist issue script takes the very first physical line of each bullet point,
+      to use as the bullet point summary.
+    * So, make sure that the first physical line is really terse
+      (and, subject to that constraint, as clear as possible).
+    * Don't use URLs defined elsewhere in the bullet point summary line; put them inline.
+      (The script is too stupid to copy URL definitions.)
+    * Be ruthless about keeping it short and removing extraneous words.
+    * You can leave out obvious conditionals; the release technician will know
+      that an inapplicable item can be simply ticked off.
+    * Try to start the bullet point summary with a verb in the imperative.
+
 [!2271]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2271
 
 <!-- ================================================== -->
