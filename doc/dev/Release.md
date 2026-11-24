@@ -60,9 +60,7 @@ THIS_VERSION=1.1.6
     ask the patch author if they should be added to the meta-issue.
     Don't add a patch without confirming with the author beforehand.
 
-4. [ ] If the above meta-issue doesn't exist,
-   there are no confidential security patches for this release,
-   so skip the remainder of this section.
+### If there is a private security meta-issue and/or confidential security patches:
 
 5. [ ] In a *private* arti repository, create an `arti-next` branch.
 
@@ -90,7 +88,7 @@ THIS_VERSION=1.1.6
 
 ## Finalize confidential security patches (~3 day before release)
 
-1. [ ] Repeat steps in "Prepare for confidential security patches" section above.
+1. [ ] Untick and repeat "Prepare for confidential security patches" above (2 subsections).
 
 ## Are we ready to release?
 
@@ -257,8 +255,7 @@ before you continue!
 1. [ ] Tell `network-team` (via email and IRC) that the tree is now frozen,
    and no MRs should be merged.
 
-2. [ ] Repeat steps in "Prepare for confidential security patches" section above
-   to ensure that no security patches were missed.
+2. [ ] Untick and repeat "Prepare for confidential security patches" above (2 subsections).
 
 3. [ ] Merge changes from the private `arti-next` branch into the arti `main` branch.
 
