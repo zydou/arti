@@ -517,7 +517,11 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
 
         let result = self.run_reactors().await;
 
-        self.metrics.circuit_closed();
+        // TODO(relay): Use a DropGuard design here to always call this even if
+        // run_reactors() above panics. I think circuit_opened() would need to send back
+        // that such guard and we would only need to set the returned result into it and
+        // then once dropped, we get our metrics all taken care of.
+        self.metrics.circuit_closed(&result);
 
         result
     }
