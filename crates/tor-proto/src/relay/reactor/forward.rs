@@ -56,22 +56,31 @@ pub(crate) struct Forward {
     unique_id: UniqId,
     /// The circuit identifier on the inbound Tor channel.
     circ_id: CircId,
-    /// The outbound view of this circuit, if we are not the last hop.
-    ///
-    /// Delivers cells towards the exit.
-    ///
-    /// Only set for middle relays.
-    outbound: Option<Outbound>,
     /// The cryptographic state for this circuit for inbound cells.
     crypto_out: Box<dyn OutboundRelayLayer + Send>,
     /// The number of RELAY_EARLY cells we have seen so far on this circuit.
     ///
     /// If we see more than [`MAX_RELAY_EARLY_CELLS_PER_CIRCUIT`] RELAY_EARLY cells, we tear down the circuit.
     relay_early_count: usize,
+    /// Typestate representing whether we have already extended this circuit,
+    /// or if we have an ExtendRequestHandler that can be used to extend it
+    /// to another hop.
+    extend_status: ExtendStatus,
+}
+
+/// Whether we have extended this relay circuit
+enum ExtendStatus {
     /// Helper for handling circuit extension requests.
     ///
-    /// Used for validating EXTEND2 cells.
-    extend_handler: ExtendRequestHandler,
+    /// Used for performing the CREATE2 handshake with the next hop,
+    /// and preparing the EXTENDED2 response to send back to the client.
+    CanExtend(ExtendRequestHandler),
+    /// We have sent forward a CREATE2 cell, but we are still waiting for a response.
+    Pending,
+    /// The outbound view of this circuit, if we are not the last hop.
+    ///
+    /// Delivers cells towards the exit.
+    Extended(Outbound),
 }
 
 /// A type of event issued by the relay forward reactor.
@@ -135,10 +144,9 @@ impl Forward {
             unique_id,
             circ_id,
             // Initially, we are the last hop in the circuit.
-            outbound: None,
+            extend_status: ExtendStatus::CanExtend(extend_handler),
             crypto_out,
             relay_early_count: 0,
-            extend_handler,
         }
     }
 
@@ -175,6 +183,26 @@ impl Forward {
         }
     }
 
+    /// Handle an EXTEND2 arriving on this circuit.
+    fn handle_extend2<R: Runtime>(
+        &mut self,
+        runtime: &R,
+        early: bool,
+        msg: UnparsedRelayMsg,
+    ) -> StdResult<(), ReactorError> {
+        let previous = std::mem::replace(&mut self.extend_status, ExtendStatus::Pending);
+
+        match previous {
+            ExtendStatus::CanExtend(mut handler) => handler.handle_extend2(runtime, early, msg),
+            ExtendStatus::Extended(_) => {
+                Err(Error::CircProto("got EXTEND2 on an already extended circuit?!".into()).into())
+            }
+            ExtendStatus::Pending => {
+                Err(Error::CircProto("got two EXTEND2 in a row?!".into()).into())
+            }
+        }
+    }
+
     /// Handle the outcome of handling an EXTEND2.
     fn handle_extend_result(
         &mut self,
@@ -186,7 +214,8 @@ impl Forward {
             outbound_chan_rx,
         } = res?;
 
-        self.outbound = Some(outbound);
+        debug_assert!(matches!(self.extend_status, ExtendStatus::Pending));
+        self.extend_status = ExtendStatus::Extended(outbound);
 
         Ok(Some(BackwardReactorCmd::HandleCircuitExtended {
             hop: None,
@@ -237,7 +266,7 @@ impl Forward {
         info: Option<QueuedCellPaddingInfo>,
         early: bool,
     ) -> StdResult<(), ReactorError> {
-        let Some(chan) = self.outbound.as_mut() else {
+        let ExtendStatus::Extended(chan) = &mut self.extend_status else {
             // The client shouldn't try to send us any cells before it gets
             // an EXTENDED2 cell from us
             return Err(Error::CircProto(
@@ -315,7 +344,7 @@ impl ForwardHandler for Forward {
     ) -> StdResult<(), ReactorError> {
         match msg.cmd() {
             RelayCmd::DROP => self.handle_drop(),
-            RelayCmd::EXTEND2 => self.extend_handler.handle_extend2(runtime, early, msg),
+            RelayCmd::EXTEND2 => self.handle_extend2(runtime, early, msg),
             RelayCmd::TRUNCATE => self.handle_truncate(),
             cmd => Err(internal!("relay cmd {cmd} not supported").into()),
         }
@@ -352,13 +381,13 @@ impl ForwardHandler for Forward {
     }
 
     async fn outbound_chan_ready(&mut self) -> Result<()> {
-        future::poll_fn(|cx| match &mut self.outbound {
-            Some(chan) => {
+        future::poll_fn(|cx| match &mut self.extend_status {
+            ExtendStatus::Extended(chan) => {
                 let _ = chan.outbound_chan_tx.poll_flush_unpin(cx);
 
                 chan.outbound_chan_tx.poll_ready_unpin(cx)
             }
-            None => {
+            ExtendStatus::CanExtend(_) | ExtendStatus::Pending => {
                 // Pedantically, if the channel doesn't exist, it can't be ready,
                 // but we have no choice here than to return Ready
                 // (returning Pending would cause the reactor to lock up).
@@ -392,9 +421,14 @@ impl ControlHandler for Forward {
 
 impl Drop for Forward {
     fn drop(&mut self) {
-        if let Some(outbound) = self.outbound.as_mut() {
-            // This will send a DESTROY down the outbound channel
-            let _ = outbound.channel.close_circuit(outbound.circ_id);
+        match &mut self.extend_status {
+            ExtendStatus::Extended(outbound) => {
+                // This will send a DESTROY down the outbound channel
+                let _ = outbound.channel.close_circuit(outbound.circ_id);
+            }
+            ExtendStatus::CanExtend(_) | ExtendStatus::Pending => {
+                // If we're the last hop, there's nothing to be done here
+            }
         }
     }
 }

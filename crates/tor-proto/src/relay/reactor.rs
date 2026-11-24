@@ -239,7 +239,7 @@ impl<R: Runtime> Reactor<R> {
             unique_id,
             crypto_out,
             chan_provider,
-            fwd_ev_tx,
+            fwd_ev_tx.clone(),
             memquota.clone(),
         );
         let backward = Backward::new(crypto_in);
@@ -257,6 +257,7 @@ impl<R: Runtime> Reactor<R> {
             padding_event_stream,
             stream_rx,
             fwd_ev_rx,
+            fwd_ev_tx,
             memquota,
         );
 

@@ -99,6 +99,17 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     /// Polled from the main loop of the reactor.
     /// Each event is passed to [`ForwardHandler::handle_event`].
     circ_events: mpsc::Receiver<F::CircEvent>,
+    /// Sender for for the circ_events MPSC.
+    ///
+    /// This is unused, but we need it here in order to keep the circ_events MPSC open,
+    /// even if this circuit has already used (and dropped) its ExtendRequestHandler
+    /// (the ExtendRequestHandler holds a sending end to this MPSC channel).
+    //
+    //
+    // TODO(relay): this whole circ_events indirection is hard to follow and brittle.
+    // It would be nice if we could replace it with a simpler approach
+    #[allow(unused)]
+    circ_events_tx: mpsc::Sender<F::CircEvent>,
     /// A padding controller to which padding-related events should be reported.
     padding_ctrl: PaddingController,
 }
@@ -264,6 +275,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         command_rx: mpsc::UnboundedReceiver<CtrlCmd<F::CtrlCmd>>,
         backward_reactor_tx: mpsc::Sender<BackwardReactorCmd>,
         circ_events: mpsc::Receiver<F::CircEvent>,
+        circ_events_tx: mpsc::Sender<F::CircEvent>,
         padding_ctrl: PaddingController,
     ) -> Self {
         Self {
@@ -277,6 +289,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             backward_reactor_tx,
             hop_mgr,
             circ_events,
+            circ_events_tx,
             padding_ctrl,
         }
     }
