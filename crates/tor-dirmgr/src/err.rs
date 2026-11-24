@@ -85,9 +85,14 @@ pub enum Error {
     #[error("Invalid JSON in directory cache")]
     BadJsonInCache(#[source] Arc<serde_json::Error>),
     /// We were unable to parse a document.
-    #[error("Parsing error in document from {source}")]
+    #[error("Parsing error in document")]
     ParseError {
         /// Where the document came from.
+        ///
+        /// (We keep this, rather than using the "file" part of
+        /// [`ParseError`](tor_netdoc::parse2::ParseError),
+        /// because we need to extract the actual mirror who gave us this document
+        /// so we can blame them if it's invalid.)
         source: DocSource,
         /// What error we got.
         #[source]
