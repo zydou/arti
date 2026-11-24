@@ -209,11 +209,16 @@ release?" above.
    and all `arti-*` crates apart from `arti` itself),
    we always bump the minor version and release,
    even if there have been no changes.
+   These can be identified with:
+   ```
+   maint/list-crates --only-unstable --only-matching-regex='^(tor|arti)-'
+   ```
+
    For other crates, things are more complicated:
 
-   You can identify crates that have no changes using `maint/changed-crates`:
+   You can identify crates that have no changes using:
    ```
-   maint/changed-crates -v "arti-v$LAST_VERSION" 2>&1 >/dev/null | grep -i "no change"
+   maint/list-crates --last-rev="arti-v$LAST_VERSION" --only-changed
    ```
 
    To see whether a crate has only non-functional changes,
@@ -265,7 +270,7 @@ before you continue!
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
-   `maint/list-crates --version  | grep -P '^tor|^arti'`
+   `./maint/list-crates --only-unstable --only-matching-regex='^(tor|arti)-' --version`
    will show you the existing versions,
    which should usually all be the same.
    Pick the next minor version, and, for each such crate:
@@ -317,8 +322,7 @@ before you continue!
    since the last version,
    but not had their versions bumped,
    with the command
-   `./maint/changed-crates -u ${LAST_VERSION}`.
-   (Note the `-u`.)
+   `./maint/list-crates --only-changed --last-rev "arti-v${LAST_VERSION}" --only-unbumped`.
 
    Run `maint/semver-checks` again:
    It should be quiet now that you bumped all the versions.
