@@ -363,7 +363,7 @@ impl<R: Runtime> GetConsensusState<R> {
         use parse2::NetdocParseableUnverified as _;
         // Try to parse it and get its metadata.
         let (consensus_meta, unvalidated) = {
-            let filename = source.to_string();
+            let filename = source.for_parse_input();
             let input = ParseInput::new(text, &filename);
             let parsed = parse2::parse_netdoc::<MdConsensusUnverified>(&input)
                 .map_err(|e| Error::from_parse(source.clone(), e))?;
@@ -636,8 +636,9 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         for id in &self.missing_docs() {
             if let Some(cert) = docs.get(id) {
                 let text = cert.as_str().map_err(Error::BadUtf8InCache)?;
+                let filename = source.for_parse_input();
                 let parsed =
-                    parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(text, "<cache>"));
+                    parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(text, &filename));
                 match self.check_parsed_certificate(parsed, &source) {
                     Ok(cert) => {
                         self.missing_certs.remove(&cert.key_ids());
@@ -670,7 +671,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
         let mut nonfatal_error = None;
         let mut newcerts = Vec::new();
-        let filename = format!("download from {}", source);
+        let filename = source.for_parse_input();
         let input = ParseInput::new(text, &filename);
         for (cert, startpos, endpos) in parse2::parse_netdoc_multiple_sophisticated(&input)? {
             let cert_text = text
@@ -1091,8 +1092,9 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let mut microdescs = Vec::new();
         for (id, text) in docs {
             if let DocId::Microdesc(digest) = id {
+                let filename = DocSource::LocalCache.for_parse_input();
                 let input =
-                    ParseInput::new(text.as_str().map_err(Error::BadUtf8InCache)?, "<cache>");
+                    ParseInput::new(text.as_str().map_err(Error::BadUtf8InCache)?, &filename);
                 if let Ok(md) = parse2::parse_netdoc::<Microdesc>(&input) {
                     let digest_found: MdDigest = tor_llcrypto::d::Sha256::digest(text).into();
                     if digest == digest_found {
@@ -1124,7 +1126,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let mut new_mds = Vec::new();
         let mut nonfatal_err = None;
 
-        let file = format!("download from {}", source);
+        let file = source.for_parse_input();
         let input = ParseInput::new(text, &file);
         for (microdesc, start, end) in
             parse2::parse_netdoc_multiple_sophisticated::<Microdesc>(&input)?
