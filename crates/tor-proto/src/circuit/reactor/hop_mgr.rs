@@ -2,6 +2,7 @@
 
 use crate::circuit::UniqId;
 use crate::circuit::circhop::{CircHopOutbound, HopSettings};
+use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::circhop::CircHopList;
 use crate::circuit::reactor::stream::{CtrlMsg, ReadyStreamMsg, StreamHandler, StreamReactor};
 use crate::congestion::CongestionControl;
@@ -78,6 +79,8 @@ struct StreamReactorContext {
     incoming: Arc<Mutex<Option<IncomingStreamRequestHandler>>>,
     /// A handler for customizing the stream reactor behavior.
     handler: Arc<dyn StreamHandler>,
+    /// The circuit metrics.
+    metrics: Arc<CircuitMetrics>,
 }
 
 impl<R: Runtime> HopMgr<R> {
@@ -95,6 +98,7 @@ impl<R: Runtime> HopMgr<R> {
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         incoming_handler: IncomingStreamRequestHandler,
         memquota: CircuitAccount,
+        metrics: Arc<CircuitMetrics>,
     ) -> Self {
         let hops = CircHopList::new_relay(settings);
 
@@ -107,6 +111,7 @@ impl<R: Runtime> HopMgr<R> {
             bwd_tx,
             Some(incoming_handler),
             memquota,
+            metrics,
         )
     }
 
@@ -121,6 +126,7 @@ impl<R: Runtime> HopMgr<R> {
         handler: S,
         bwd_tx: mpsc::Sender<ReadyStreamMsg>,
         memquota: CircuitAccount,
+        metrics: Arc<CircuitMetrics>,
     ) -> Self {
         let hops = CircHopList::new_client();
         Self::new_inner(
@@ -133,6 +139,7 @@ impl<R: Runtime> HopMgr<R> {
             #[cfg(any(feature = "hs-service", feature = "relay"))]
             None,
             memquota,
+            metrics,
         )
     }
 
@@ -149,6 +156,7 @@ impl<R: Runtime> HopMgr<R> {
             IncomingStreamRequestHandler,
         >,
         memquota: CircuitAccount,
+        metrics: Arc<CircuitMetrics>,
     ) -> Self {
         let hops = Arc::new(RwLock::new(hops));
         let ctx = StreamReactorContext {
@@ -157,6 +165,7 @@ impl<R: Runtime> HopMgr<R> {
             #[cfg(any(feature = "hs-service", feature = "relay"))]
             incoming: Arc::new(Mutex::new(incoming_handler)),
             handler: Arc::new(handler),
+            metrics,
         };
 
         Self {
@@ -316,6 +325,7 @@ impl<R: Runtime> HopMgr<R> {
             #[cfg(any(feature = "hs-service", feature = "relay"))]
             Arc::clone(&self.ctx.incoming),
             self.memquota.clone(),
+            Arc::clone(&self.ctx.metrics),
         );
 
         self.runtime

@@ -229,6 +229,7 @@ impl<R: Runtime> Reactor<R> {
             stream_tx,
             incoming_handler,
             memquota.clone(),
+            Arc::clone(&metrics),
         );
 
         // TODO(relay): currently we don't need buffering on this channel,

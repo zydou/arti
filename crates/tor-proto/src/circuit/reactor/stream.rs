@@ -1,6 +1,7 @@
 //! The stream reactor.
 
 use crate::circuit::circhop::CircHopOutbound;
+use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::macros::derive_deftly_template_CircuitReactor;
 use crate::circuit::{CircHopSyncView, UniqId};
 use crate::congestion::{CongestionControl, sendme};
@@ -124,6 +125,8 @@ pub(crate) struct StreamReactor {
     inner: Arc<dyn StreamHandler>,
     /// Memory quota account
     memquota: CircuitAccount,
+    /// The circuit metrics.
+    metrics: Arc<CircuitMetrics>,
 }
 
 impl StreamReactor {
@@ -141,6 +144,7 @@ impl StreamReactor {
         #[cfg(any(feature = "hs-service", feature = "relay"))] //
         incoming: Arc<Mutex<Option<IncomingStreamRequestHandler>>>,
         memquota: CircuitAccount,
+        metrics: Arc<CircuitMetrics>,
     ) -> Self {
         Self {
             hopnum,
@@ -154,6 +158,7 @@ impl StreamReactor {
             bwd_tx,
             inner,
             memquota,
+            metrics,
         }
     }
 
@@ -425,6 +430,8 @@ impl StreamReactor {
         }
 
         let req = parse_incoming_stream_req(msg)?;
+        self.metrics.increment_stream_requests(&req);
+
         let view = CircHopSyncView::new(&self.hop);
 
         if let Some(reject) = Self::should_reject_incoming(handler, sid, &req, &view)? {
