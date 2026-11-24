@@ -86,7 +86,7 @@ THIS_VERSION=1.1.6
 
 1. [ ] Untick and repeat "Prepare for confidential security patches" above (2 subsections).
 
-## Are we ready to release?
+## Are we ready to release? (~3 day before release)
 
 Before we can finally release, we need to check a few things
 to make sure we aren't going to break our users.
