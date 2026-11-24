@@ -46,13 +46,13 @@ THIS_VERSION=1.1.6
 
 2. [ ] Ensure the confidential meta-issue has the "Blocker" label.
 
-2. [ ] Check for [issues tagged "Security Patch Approved"][security-patch-approved]
+3. [ ] Check for [issues tagged "Security Patch Approved"][security-patch-approved]
    that are not listed in the above meta-issue,
    and add them if missing (creating the issue if necessary).
 
 [security-patch-approved]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Security%20Patch%20Approved
 
-3. [ ] Look over all remaining confidential issues for any that have patches not listed
+4. [ ] Look over all remaining confidential issues for any that have patches not listed
    in the above meta-issue.
 
     If there are any that seem like they have a patch
