@@ -38,9 +38,13 @@ THIS_VERSION=1.1.6
 
 ## Prepare for confidential security patches (~1 week before release)
 
-1. [ ] Check for the existence of a confidential meta-issue
-   titled "Private security patch tracking",
-   and ensure that it has the "Blocker" label.
+1. [ ] Find the confidential meta-issue "Private security patch tracking" #NNNN
+
+   And edit the issue number, above, for ease of finding it.
+   The issue might not exist, if there were no patches to list in it;
+   that's fine; we'll create it later if necessary.
+
+2. [ ] Ensure the confidential meta-issue has the "Blocker" label.
 
 2. [ ] Check for [issues tagged "Security Patch Approved"][security-patch-approved]
    that are not listed in the above meta-issue,
