@@ -116,13 +116,6 @@ impl<'a> RelayDetails<'a> {
         if self.0.same_relay_ids(other) {
             return true;
         }
-        if family_rules.use_family_lists {
-            if self.0.md.family().contains(other.rsa_id())
-                && other.md.family().contains(self.0.rsa_id())
-            {
-                return true;
-            }
-        }
         if family_rules.use_family_ids {
             let my_ids = self.0.md.family_ids();
             let their_ids = other.md.family_ids();
