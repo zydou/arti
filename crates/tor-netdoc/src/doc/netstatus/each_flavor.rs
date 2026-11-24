@@ -605,7 +605,7 @@ impl NetworkStatusUnverified {
         let (_body, sigs) = self.inspect_unverified();
 
         let body = match Self::verify_general(
-            &sigs,
+            sigs,
             trusted_authorities,
             certs,
             |tv| tv.verify().map_err(ConsensusVerifyFailed::InvalidSignature),
