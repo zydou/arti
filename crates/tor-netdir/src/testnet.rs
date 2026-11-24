@@ -17,9 +17,11 @@ use std::iter;
 use std::net::SocketAddr;
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
+use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdoc::doc::microdesc::{MicrodescAndHash, MicrodescBuilder};
 use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayBandwidth};
 use tor_netdoc::doc::netstatus::{MdConsensus, MdConsensusBuilder};
+use tor_netdoc::types::family::HappyFamilyId;
 use tor_netdoc::types::relay_flags::RelayFlag;
 pub use tor_netdoc::{BuildError, BuildResult};
 use web_time_compat::{Duration, SystemTime, SystemTimeExt};
@@ -229,14 +231,13 @@ where
             "reject 1-65535"
         };
         // everybody is family with the adjacent relay.
-        let fam_id = [idx ^ 1; 20];
-        let family = hex::encode(fam_id);
+        let fam_id = HappyFamilyId::Ed25519(Ed25519Identity::from([idx & !1; 32]));
 
         let mut md_builder = MicrodescAndHash::builder();
         md_builder
             .ntor_key((*b"----nothing in dirmgr uses this-").into())
             .ed25519_id([idx; 32].into())
-            .family(family.parse().unwrap())
+            .add_family_id(fam_id)
             .parse_ipv4_policy(policy)
             .unwrap();
         let protocols = if idx % 2 == 0 {

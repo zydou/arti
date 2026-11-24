@@ -426,9 +426,10 @@ mod test {
     use super::*;
 
     use tor_linkspec::{ChannelMethod, OwnedCircTarget};
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::{NetDirProvider, testnet::NodeBuilders, testprovider::TestNetDirProvider};
-    use tor_netdoc::doc::netstatus::RelayBandwidth;
     use tor_netdoc::types::relay_flags::RelayFlag;
+    use tor_netdoc::{doc::netstatus::RelayBandwidth, types::family::HappyFamilyId};
     use tor_rtcompat::SleepProvider as _;
     use tor_rtmock::MockRuntime;
 
@@ -475,14 +476,10 @@ mod test {
 
     /// Construct a test network where every relay is in the same family with everyone else.
     fn same_family_test_network(size: usize) -> NetDir {
+        let family_id = HappyFamilyId::Ed25519(Ed25519Identity::from([12; 32]));
         construct_test_network(size, |_pos, nb| {
             // Everybody is in the same family with everyone else
-            let family = (0..MAX_NET_SIZE)
-                .map(|i| hex::encode([i as u8; 20]))
-                .collect::<Vec<_>>()
-                .join(" ");
-
-            nb.md.family(family.parse().unwrap());
+            nb.md.add_family_id(family_id.clone());
         })
     }
 
@@ -666,14 +663,17 @@ mod test {
             // The target is in a family with every other relay,
             // so any circuit we might build is going to be incompatible with it
             if pos == 0 {
-                let family = (0..MAX_NET_SIZE)
-                    .map(|i| hex::encode([i as u8; 20]))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                nb.md.family(family.parse().unwrap());
+                for pp in 0..MAX_NET_SIZE {
+                    nb.md
+                        .add_family_id(HappyFamilyId::Ed25519(Ed25519Identity::from(
+                            [pp as u8; 32],
+                        )));
+                }
             } else {
-                nb.md.family(hex::encode([pos as u8; 20]).parse().unwrap());
+                nb.md
+                    .add_family_id(HappyFamilyId::Ed25519(Ed25519Identity::from(
+                        [pos as u8; 32],
+                    )));
             }
         });
         // We'll fail to select a guard, because the network doesn't have any relays compatible
@@ -721,9 +721,7 @@ mod test {
 
     #[test]
     fn hs_path_no_vanguards() {
-        let netdir = construct_test_network(20, |pos, nb| {
-            nb.md.family(hex::encode([pos as u8; 20]).parse().unwrap());
-        });
+        let netdir = construct_test_network(20, |_pos, _nb| {});
         // We target one of the relays known to be the network.
         let target = test_target();
         for _ in 0..100 {
