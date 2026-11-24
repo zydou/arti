@@ -302,7 +302,7 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
 
         let source = DocSource::LocalCache;
 
-        self.add_consensus_text(
+        self.set_unverified_consensus_text(
             source,
             text.as_str().map_err(Error::BadUtf8InCache)?,
             None,
@@ -322,7 +322,8 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
             ClientRequest::Consensus(r) => r.last_consensus_date(),
             _ => None,
         };
-        let meta = self.add_consensus_text(source, text, requested_newer_than, changed)?;
+        let meta =
+            self.set_unverified_consensus_text(source, text, requested_newer_than, changed)?;
 
         if let Some(store) = storage {
             let mut w = store.lock().expect("Directory storage lock poisoned");
@@ -353,7 +354,12 @@ impl<R: Runtime> GetConsensusState<R> {
     /// older-than-requested.
     ///
     /// Errors from this method are not fatal to the download process.
-    fn add_consensus_text(
+    ///
+    /// ## Security
+    ///
+    /// This function only partially checks the lifetime of the consensus,
+    /// and does not check signatures.
+    fn set_unverified_consensus_text(
         &mut self,
         source: DocSource,
         text: &str,
