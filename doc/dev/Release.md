@@ -50,7 +50,7 @@ THIS_VERSION=1.1.6
 
    Add them if missing (creating the meta-issue if necessary).
 
-4. [ ] Check for overlooked patches attached to to confidential issues.
+4. [ ] Check for overlooked patches attached to to [confidential issues](https://gitlab.torproject.org/tpo/core/arti/-/work_items?sort=created_date&state=opened&confidential=yes&first_page_size=20).
 
     If there are any that seem like they have a patch
     but have not been added to the meta-issue,
