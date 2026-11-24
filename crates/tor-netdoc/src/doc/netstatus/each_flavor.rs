@@ -590,14 +590,29 @@ impl NetworkStatusUnverified {
         trusted_authorities: &[RsaIdentity],
         certs: &[AuthCert],
     ) -> Result<TimeRangeBound<NetworkStatus>, ConsensusVerifyFailed> {
-        let (body, sigs) = self.unwrap_unverified();
+        self.verify_sophisticated(trusted_authorities, certs).map_err(|(e, _u)| e)
+    }
 
-        Self::verify_general(
+    /// Verifu the signature, for sophisticated callers
+    ///
+    /// Like [`verify`](NetworkStatusUnverified::verify)
+    /// but returns the input again, on error.
+    pub fn verify_sophisticated(
+        self,
+        trusted_authorities: &[RsaIdentity],
+        certs: &[AuthCert],
+    ) -> Result<TimeRangeBound<NetworkStatus>, (ConsensusVerifyFailed, NetworkStatusUnverified)> {
+        let (_body, sigs) = self.inspect_unverified();
+
+        let body = match Self::verify_general(
             &sigs,
             trusted_authorities,
             certs,
             |tv| tv.verify().map_err(ConsensusVerifyFailed::InvalidSignature),
-        )?;
+        ) {
+            Ok(()) => self.unwrap_unverified().0,
+            Err(e) => return Err((e, self)), // map_err would consume self
+        };
 
         let time_range = body.preamble.validity_time_range();
         Ok(TimeRangeBound::new(
