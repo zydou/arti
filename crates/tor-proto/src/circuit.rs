@@ -7,6 +7,7 @@ pub(crate) mod celltypes;
 pub(crate) mod circ_sender;
 pub(crate) mod circhop;
 pub(crate) mod create;
+pub(crate) mod metrics;
 pub(crate) mod padding;
 pub(crate) mod reactor;
 pub(crate) mod syncview;

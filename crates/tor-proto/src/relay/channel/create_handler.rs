@@ -8,6 +8,7 @@ use crate::ccparams::{
 use crate::channel::Channel;
 use crate::circuit::celltypes::{CreateRequest, CreateResponse};
 use crate::circuit::circhop::{HandshakeParamsError, HopSettings};
+use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::{
     CircuitRxSender, HandshakeSubprotocols, InvalidHandshakeSubprotocolError, UniqId,
 };
@@ -96,6 +97,9 @@ pub struct CreateRequestHandler {
     /// it does not participate in the memquota system (see [crate::memquota]).
     #[debug(skip)]
     circuit_stream_tx: mpsc::Sender<Box<dyn Stream<Item = IncomingStream> + Send + Sync + Unpin>>,
+    /// The circuit metrics. It is shared with every circuit reactor.
+    #[debug(skip)]
+    metrics: Arc<CircuitMetrics>,
 }
 
 // We make the CREATE-handling methods of `CreateRequestHandler` async
@@ -131,6 +135,7 @@ impl CreateRequestHandler {
             incoming_filter_factory,
             allowed_stream_cmds: allowed_stream_cmds.into(),
             circuit_stream_tx: stream_tx,
+            metrics: Arc::new(CircuitMetrics::new()),
         };
 
         let circuit_stream_rx = CircuitIncomingStreamReceiver {
@@ -273,6 +278,7 @@ impl CreateRequestHandler {
             incoming_filter,
             &self.allowed_stream_cmds,
             &memquota,
+            Arc::clone(&self.metrics),
         )
         .map_err(into_internal!("Failed to start circuit reactor"))?;
 

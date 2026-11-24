@@ -58,6 +58,7 @@ use tor_rtcompat::{DynTimeProvider, Runtime};
 use crate::channel::Channel;
 use crate::circuit::circhop::ReactorStreamComponents;
 use crate::circuit::circhop::{CircHopOutbound, HopSettings};
+use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::Reactor as BaseReactor;
 use crate::circuit::reactor::hop_mgr::HopMgr;
 use crate::circuit::reactor::stream;
@@ -180,6 +181,7 @@ impl<R: Runtime> Reactor<R> {
         incoming_filter: Box<dyn IncomingStreamRequestFilter>,
         allowed_stream_cmds: &[RelayCmd],
         memquota: &CircuitAccount,
+        metrics: Arc<CircuitMetrics>,
     ) -> crate::Result<(
         Self,
         Arc<RelayCirc>,
@@ -259,6 +261,7 @@ impl<R: Runtime> Reactor<R> {
             fwd_ev_rx,
             fwd_ev_tx,
             memquota,
+            metrics,
         );
 
         let reactor = Self(inner);
@@ -663,6 +666,7 @@ pub(crate) mod test {
                 Box::new(AllowAllStreamsFilter),
                 allowed_stream_cmds,
                 &CircuitAccount::new_noop(),
+                Arc::new(CircuitMetrics::new()),
             )
             .unwrap();
 

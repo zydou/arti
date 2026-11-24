@@ -8405,6 +8405,7 @@ dependencies = [
  "humantime",
  "itertools 0.15.0",
  "maybenot",
+ "metrics",
  "nonany",
  "oneshot-fused-workaround",
  "pin-project",

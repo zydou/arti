@@ -111,6 +111,7 @@ hkdf = "0.13.0"
 hmac = "0.13.0"
 itertools = "0.15.0"
 maybenot = { version = "2.2.2", optional = true }
+metrics = "0.24"
 nonany = "0.3"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.8.0" }
 pin-project = "1"
