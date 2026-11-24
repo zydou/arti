@@ -8,6 +8,7 @@ use crate::channel::{Channel, ChannelSender};
 use crate::circuit::CircuitRxReceiver;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayMaybeEarlyChanMsg;
+use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::ControlHandler;
 use crate::circuit::reactor::backward::BackwardReactorCmd;
 use crate::circuit::reactor::forward::{ForwardCellDisposition, ForwardHandler};
@@ -66,6 +67,8 @@ pub(crate) struct Forward {
     /// or if we have an ExtendRequestHandler that can be used to extend it
     /// to another hop.
     extend_status: ExtendStatus,
+    /// The circuit metrics.
+    metrics: Arc<CircuitMetrics>,
 }
 
 /// Whether we have extended this relay circuit
@@ -121,6 +124,7 @@ enum CellDecodeResult {
 
 impl Forward {
     /// Create a new [`Forward`].
+    #[allow(clippy::too_many_arguments)] // TODO(relay)
     pub(crate) fn new(
         inbound_chan: &Arc<Channel>,
         circ_id: CircId,
@@ -129,6 +133,7 @@ impl Forward {
         chan_provider: Arc<dyn ChannelProvider<BuildSpec = OwnedChanTarget> + Send + Sync>,
         event_tx: mpsc::Sender<CircEvent>,
         memquota: CircuitAccount,
+        metrics: Arc<CircuitMetrics>,
     ) -> Self {
         let inbound_peer = Arc::clone(inbound_chan.peer_info());
         let extend_handler = ExtendRequestHandler::new(
@@ -147,6 +152,7 @@ impl Forward {
             extend_status: ExtendStatus::CanExtend(extend_handler),
             crypto_out,
             relay_early_count: 0,
+            metrics,
         }
     }
 
@@ -295,6 +301,7 @@ impl Forward {
         // Note: this future is always `Ready`, because we checked the sink for readiness
         // before polling the input channel, so await won't block.
         chan.outbound_chan_tx.start_send_unpin((cell, info))?;
+        self.metrics.forward_cell_written();
 
         Ok(())
     }

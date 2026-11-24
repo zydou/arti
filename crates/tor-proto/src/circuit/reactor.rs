@@ -479,6 +479,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             fwd_events,
             fwd_events_tx,
             padding_ctrl.clone(),
+            Arc::clone(&metrics),
         );
 
         let backward = BackwardReactor::new(
@@ -494,6 +495,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             padding_ctrl,
             padding_event_stream,
             bwd_rx,
+            Arc::clone(&metrics),
         );
 
         let reactor = Reactor {

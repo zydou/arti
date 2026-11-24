@@ -8,6 +8,13 @@ use crate::util::err::ReactorError;
 #[cfg(any(feature = "hs-service", feature = "relay"))]
 use crate::stream::incoming::IncomingStreamRequest;
 
+/// Length in bytes of a fixed-length cell.
+///
+// TODO(relay): Take this from the Channel as it knows the link protocol version. For
+// now, even the cell codec is hardcoded to this value but it is wrong as the CircID
+// length is based on the link proto version.
+const CELL_LEN: u64 = 514;
+
 /// Name of the stream requests counter.
 const STREAM_REQUESTS_TOTAL: &str = "arti_stream_requests_total";
 
@@ -22,6 +29,14 @@ pub(crate) struct CircuitMetrics {
     circuit_opened: Counter,
     /// Number of circuits closed without an error.
     circuit_closed_no_error: Counter,
+    /// Number of cell bytes read in the forward direction.
+    circuit_read_bytes_forward: Counter,
+    /// Number of cell bytes read in the backward direction.
+    circuit_read_bytes_backward: Counter,
+    /// Number of cell bytes written in the forward direction.
+    circuit_written_bytes_forward: Counter,
+    /// Number of cell bytes written in the backward direction.
+    circuit_written_bytes_backward: Counter,
     /// Number of BEGIN stream requests received.
     stream_requests_begin: Counter,
     /// Number of BEGIN_DIR stream requests received.
@@ -40,6 +55,30 @@ impl CircuitMetrics {
                 "arti_circuits_opened_total",
             ),
             circuit_closed_no_error: closed_counter("NoError".to_string()),
+            circuit_read_bytes_forward: metrics::counter!(
+                description: "Total number of bytes of circuit cells read",
+                unit: metrics::Unit::Bytes,
+                "arti_circuit_read_bytes_total",
+                "direction" => "forward",
+            ),
+            circuit_read_bytes_backward: metrics::counter!(
+                description: "Total number of bytes of circuit cells read",
+                unit: metrics::Unit::Bytes,
+                "arti_circuit_read_bytes_total",
+                "direction" => "backward",
+            ),
+            circuit_written_bytes_forward: metrics::counter!(
+                description: "Total number of bytes of circuit cells written",
+                unit: metrics::Unit::Bytes,
+                "arti_circuit_written_bytes_total",
+                "direction" => "forward",
+            ),
+            circuit_written_bytes_backward: metrics::counter!(
+                description: "Total number of bytes of circuit cells written",
+                unit: metrics::Unit::Bytes,
+                "arti_circuit_written_bytes_total",
+                "direction" => "backward",
+            ),
             stream_requests_begin: metrics::counter!(
                 description: "Total number of exit stream requests received",
                 unit: metrics::Unit::Count,
@@ -81,6 +120,26 @@ impl CircuitMetrics {
                 closed_counter(format!("{:?}", e.kind())).increment(1);
             }
         }
+    }
+
+    /// Count the bytes of a cell read in the forward direction.
+    pub(crate) fn forward_cell_read(&self) {
+        self.circuit_read_bytes_forward.increment(CELL_LEN);
+    }
+
+    /// Count the bytes of a cell read in the backward direction.
+    pub(crate) fn backward_cell_read(&self) {
+        self.circuit_read_bytes_backward.increment(CELL_LEN);
+    }
+
+    /// Count the bytes of a cell written in the forward direction.
+    pub(crate) fn forward_cell_written(&self) {
+        self.circuit_written_bytes_forward.increment(CELL_LEN);
+    }
+
+    /// Count the bytes of a cell written in the backward direction.
+    pub(crate) fn backward_cell_written(&self) {
+        self.circuit_written_bytes_backward.increment(CELL_LEN);
     }
 
     /// Count a stream request by its type.

@@ -244,6 +244,7 @@ impl<R: Runtime> Reactor<R> {
             chan_provider,
             fwd_ev_tx.clone(),
             memquota.clone(),
+            Arc::clone(&metrics),
         );
         let backward = Backward::new(crypto_in);
 
