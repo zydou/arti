@@ -5,7 +5,7 @@
 
 use super::{Microdesc, MicrodescAndHash};
 
-use crate::types::family::{HappyFamilyId, HappyFamilyIds, LegacyFamily};
+use crate::types::family::{HappyFamilyId, HappyFamilyIds};
 use crate::types::policy::PortPolicy;
 use crate::{BuildError as Error, BuildResult as Result, Error as ParseError};
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -25,10 +25,6 @@ pub struct MicrodescBuilder {
     ///
     /// See [`Microdesc::ntor_onion_key`].
     ntor_onion_key: Option<curve25519::PublicKey>,
-    /// The relay family we'll be using.
-    ///
-    /// See [`Microdesc::family`].
-    family: LegacyFamily,
     /// See [`Microdesc::family_ids`]
     family_ids: HappyFamilyIds,
     /// See [`Microdesc::ipv4_policy`]
@@ -44,7 +40,6 @@ impl MicrodescBuilder {
     pub(crate) fn new() -> Self {
         MicrodescBuilder {
             ntor_onion_key: None,
-            family: LegacyFamily::new(),
             family_ids: HappyFamilyIds::new(),
             ipv4_policy: PortPolicy::new_reject_all(),
             ipv6_policy: PortPolicy::new_reject_all(),
@@ -68,14 +63,6 @@ impl MicrodescBuilder {
         self
     }
 
-    /// Set the family of this relay.
-    ///
-    /// By default, this family is empty.
-    pub fn family(&mut self, family: LegacyFamily) -> &mut Self {
-        self.family = family;
-        self
-    }
-
     /// Add `id` as a family ID for this relay.
     pub fn add_family_id(&mut self, id: HappyFamilyId) -> &mut Self {
         self.family_ids.push(id);
@@ -96,11 +83,6 @@ impl MicrodescBuilder {
     pub fn ipv6_policy(&mut self, policy: PortPolicy) -> &mut Self {
         self.ipv6_policy = policy;
         self
-    }
-
-    /// Set the family of this relay based on parsing a string.
-    pub fn parse_family(&mut self, family: &str) -> Result<&mut Self> {
-        Ok(self.family(family.parse()?))
     }
 
     /// Set the ipv4 exit policy of this relay based on parsing
@@ -149,7 +131,6 @@ impl MicrodescBuilder {
             // Including an empty onion_key is totally fine and valid.
             onion_key: Default::default(),
             ntor_onion_key,
-            family: self.family.clone().intern(),
             family_ids: self.family_ids.clone(),
             ipv4_policy: self.ipv4_policy.clone().intern(),
             ipv6_policy: self.ipv6_policy.clone().intern(),
@@ -191,8 +172,6 @@ mod test {
 
         assert_eq!(md.ed25519_id(), &ed);
         assert_eq!(md.ntor_key(), &ntor);
-
-        assert_eq!(md.family().members().count(), 0);
     }
 
     #[test]
@@ -205,12 +184,8 @@ mod test {
             .ntor_key(ntor)
             .parse_ipv4_policy("accept 80,443")?
             .parse_ipv6_policy("accept 22-80")?
-            .parse_family("$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa $bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")?
             .testing_md()
             .unwrap();
-
-        assert_eq!(md.family().members().count(), 2);
-        assert!(md.family().contains(&[0xaa; 20].into()));
 
         assert!(md.ipv4_policy().allows_port(443));
         assert!(md.ipv4_policy().allows_port(80));
