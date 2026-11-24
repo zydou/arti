@@ -46,14 +46,11 @@ THIS_VERSION=1.1.6
 
 2. [ ] Ensure the confidential meta-issue has the "Blocker" label.
 
-3. [ ] Check for [issues tagged "Security Patch Approved"][security-patch-approved]
-   that are not listed in the above meta-issue,
-   and add them if missing (creating the issue if necessary).
+3. [ ] Ensure it lists all patches attached to [issues tagged "Security Patch Approved"](https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Security%20Patch%20Approved).
 
-[security-patch-approved]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Security%20Patch%20Approved
+   Add them if missing (creating the meta-issue if necessary).
 
-4. [ ] Look over all remaining confidential issues for any that have patches not listed
-   in the above meta-issue.
+4. [ ] Check for overlooked patches attached to to confidential issues.
 
     If there are any that seem like they have a patch
     but have not been added to the meta-issue,
@@ -76,8 +73,7 @@ THIS_VERSION=1.1.6
 
 [tpo-core]: https://gitlab.torproject.org/groups/tpo/core/-/group_members
 
-6. [ ] For each security patch listed in the meta-issue,
-   merge it into `arti-next`.
+6. [ ] Merge each security patch (listed in the meta-issue) into `arti-next`.
 
     If there are conflicts, attempt to fix the conflicts manually,
     or ask the patch author for help.
@@ -396,10 +392,12 @@ before you continue!
 
 2. [ ] Write and publish a blog post.
 
-3. [ ] For each security patch listed in the "Private security patch tracking" meta-issue,
-   check if the issue associated with the patch should be closed.
+3. [ ] Close issue(s) for security patches as directed by the meta-issue.
 
-    Don't close an issue unless meta-issue says to close it.
+    Use the "Private security patch tracking" meta-issue.
+
+    For each security patch,, close the associated issue
+    but only if the meta-issue says so.
 
 ### In due course
 
