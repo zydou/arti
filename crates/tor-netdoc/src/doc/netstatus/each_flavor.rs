@@ -593,7 +593,7 @@ impl NetworkStatusUnverified {
         self.verify_sophisticated(trusted_authorities, certs).map_err(|(e, _u)| e)
     }
 
-    /// Verifu the signature, for sophisticated callers
+    /// Verify the signature, for sophisticated callers
     ///
     /// Like [`verify`](NetworkStatusUnverified::verify)
     /// but returns the input again, on error.
