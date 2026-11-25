@@ -58,7 +58,7 @@ THIS_VERSION=1.1.6
     ask the patch author if they should be added to the meta-issue.
     Don't add a patch without confirming with the author beforehand.
 
-### If there is a private security meta-issue and/or confidential security patches:
+### If there is a private security patches meta-issue
 
 5. [ ] In a *private* arti repository, create an `arti-next` branch.
 
