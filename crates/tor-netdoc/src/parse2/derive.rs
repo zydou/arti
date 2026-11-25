@@ -594,6 +594,10 @@ define_derive_deftly! {
     ///   With `netdoc(default)`, the field value doesn't need unwrapping.
     ///   With `Option` it is possible to see if the field was provided.
     ///
+    ///   `#[deftly(netdoc(default(skip)))]` is meaningful only for
+    ///   [NetdocEncodable](crate::derive_deftly_template_NetdocEncodable) and
+    ///   [NetdocEncodableFields](crate::derive_deftly_template_NetdocEncodableFields).
+    ///
     /// * **`#[deftly(netdoc(flatten))]`**:
     ///
     ///   This field is a struct containing further individual normal fields.

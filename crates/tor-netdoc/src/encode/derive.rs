@@ -198,7 +198,7 @@ define_derive_deftly! {
     ///
     $DOC_DEBUG_PLACEHOLDER
     ///
-    /// # **`#[deftly(netdoc(doctype_for_error = EXPRESSION))]`**:
+    /// * **`#[deftly(netdoc(doctype_for_error = EXPRESSION))]`**:
     ///
     ///   Ignored.  (The encoder does not report errors this way.)
     ///
@@ -248,13 +248,13 @@ define_derive_deftly! {
     ///   The field name is not used for parsging;
     ///   the sub-document's intro keyword is used instead.
     ///
-    /// # **`#[deftly(netdoc(default))]`**:
+    /// * **`#[deftly(netdoc(default))]`**:
     ///
     ///   Ignored.  (The encoder always encodes the field, regardless of the value.)
     ///
     ///   Accepted for alignment with `NetdocParseable`.
     ///
-    /// # **`#[deftly(netdoc(default(skip)))]`**:
+    /// * **`#[deftly(netdoc(default(skip)))]`**:
     ///
     ///   Omit encoding this item if the value is [`Eq`] to the [`Default`].
     ///   Forces the multiplicity of the field to be treated as a singleton.
