@@ -151,6 +151,10 @@ async fn connect_ip<R: Runtime>(
         return Err(EndReason::EXITPOLICY);
     }
 
+    // TODO(relay): We need to check if the IP is in the consensus
+    // to prevent exit streams from reentering the Tor network.
+    // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2841
+
     tcp_connect(runtime, &addr, connect_options).await
 }
 
@@ -230,6 +234,10 @@ async fn connect_hostname<R: Runtime>(
     let answers = answers
         .into_iter()
         .filter(|ip| exit_policy_allows(SocketAddr::new(*ip, port)));
+
+    // TODO(relay): We need to reject IPs that are in the consensus
+    // to prevent exit streams from reentering the Tor network.
+    // https://gitlab.torproject.org/tpo/core/arti/-/work_items/2841
 
     // Collect so that we can sort them.
     let mut answers: LookupAnswers<IpAddr> = answers.collect();
