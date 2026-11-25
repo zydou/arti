@@ -166,6 +166,14 @@ async fn connect_hostname<R: Runtime>(
 ) -> Result<<R as NetStreamProvider<SocketAddr>>::Stream, EndReason> {
     let port = port.get();
 
+    // We need to ensure that the case of each character in the hostname is randomized
+    // to defend against certain DNS cache poisoning attacks,
+    // but the `DnsResolver` takes care of this in `resolve()`.
+    //
+    // `DnsResolver::resolve`:
+    // > The query will be transformed before resolving, as described in torspec:
+    // > https://spec.torproject.org/tor-spec/remote-hostname-lookup.html#dns-requests
+
     let answers = match resolver.resolve(hostname).await {
         Ok(x) => x,
         Err(LookupError::NonAsciiHostname) => {

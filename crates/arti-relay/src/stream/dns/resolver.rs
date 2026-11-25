@@ -127,6 +127,9 @@ impl DnsResolver {
 
     /// Asynchronously resolve the specified query.
     ///
+    /// The query will be transformed before resolving, as described in torspec:
+    /// <https://spec.torproject.org/tor-spec/remote-hostname-lookup.html#dns-requests>
+    ///
     /// The future returned from this method is cancellation-safe.
     pub(crate) async fn resolve(
         &mut self,
