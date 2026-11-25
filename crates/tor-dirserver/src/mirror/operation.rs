@@ -30,6 +30,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::Transaction;
+use thiserror::Error;
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_checkable::TimeBound;
@@ -57,17 +58,14 @@ use tracing::{debug, warn};
 
 use crate::{
     database::{
-        self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, DescriptorMeta, Sha1, Sha256,
-        Timestamp,
+        self as db, AuthCertMeta, ConsensusMeta, ContentEncoding, DatabaseError, DescriptorMeta,
+        Sha1, Sha256, Timestamp,
     },
-    err::{AuthorityRequestError, DatabaseError, OperationError},
     types::{
         FlavoredConsensusUnverified, FlavoredDescriptor, FlavoredDescriptorMd,
         FlavoredDescriptorPlain,
     },
 };
-
-mod poc;
 
 /// The duration to try verifying an unverified consensus.
 ///
@@ -88,81 +86,106 @@ const DESCRIPTOR_LIMIT: Option<u64> = Some(92);
 /// The endpoint(s) of a download authority identifying it.
 type DownloadAuthority = [SocketAddr];
 
+/// An error while performing a request at a directory authority.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum AuthorityRequestError {
+    /// TCP connection to the endpoint failed.
+    #[error("tcp connection error: {0}")]
+    TcpConnect(std::io::Error),
+
+    /// [`tor_dirclient`] failed at performing the request.
+    ///
+    /// This usually indicates some failures in HTTP/1.0, such as the response
+    /// not being valid HTTP/1.0; although Tor generally has some specialities
+    /// here and there with regard to this, hence why we have dirclient in the
+    /// first place.
+    #[error("dirclient error: {0}")]
+    Request(Box<tor_dirclient::RequestFailedError>),
+
+    /// A response does not make semantic sense.
+    ///
+    /// This for example may include cases where we got more netdocs than we
+    /// requested for.
+    #[error("response error: {0}")]
+    Response(&'static str),
+
+    /// A request led to no progress being made.
+    ///
+    /// This is the case if the response only consists of netdocs we did not
+    /// request or no netdocs at all, leading to no progress.
+    ///
+    /// The correct error handling strategy for this case is to pick a different
+    /// endpoint, as the current one is either not useful for us anymore or
+    /// is maliciously tricking us into something that should not happen.
+    #[error("request resulted in no progress")]
+    NoRequestedDocumentsReturned,
+
+    /// An internal error.
+    #[error("internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+impl From<tor_dirclient::RequestFailedError> for AuthorityRequestError {
+    fn from(value: tor_dirclient::RequestFailedError) -> Self {
+        Self::Request(Box::new(value))
+    }
+}
+
+/// An error related to an operation in the dirmirror FSM.
+//
+// TODO: Rename this to MirrorOperationError.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum OperationError {
+    /// Request to a directory authority failed.
+    #[error("authority request error: {0}")]
+    AuthorityRequest(#[from] AuthorityRequestError),
+
+    /// Access to the database failed for good.
+    #[error("database error: {0}")]
+    Database(#[from] DatabaseError),
+
+    /// Verificaton of a network document has failed.
+    ///
+    /// This also includes checks for timeliness.
+    ///
+    /// We do not consider this fatal but simply discard the unverified network
+    /// document.
+    #[error("verification error: {0}")]
+    VerifyFailed(#[from] VerifyFailed),
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
 /// The various states for the [`StaticEngine`].
+// TODO 2881: Document the state transitions once the refactoring is done.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
 enum State {
     /// Loads the most recent valid (and verified) consensus from the database
     /// into memory.
-    ///
-    /// Transitions from:
-    /// * Start, if a recent valid consensus exists in the database.
-    /// * [`State::StoreConsensus`], if successfully finished.
-    ///
-    /// Transitions into:
-    /// * [`State::Descriptors`]
     LoadConsensus,
 
     /// Downloads the most recent consensus from a directory authority.
-    ///
-    /// Transitions from:
-    /// * Start, if no recent valid consensus exists in the database.
-    /// * [`State::Descriptors`], if ttl is over.
-    /// * [`State::Hibernate`], if ttl is over.
-    ///
-    /// Transitions into:
-    /// * [`State::AuthCerts`], if we miss authority certificates.
-    /// * [`State::StoreConsensus`], if all authority certificates exist in the
-    ///   database.
-    /// * [`State::Hibernate`], if we have insufficient trusted authorities.
     // TODO DIRMIRROR: What to do in the case of getting an invalid consensus
     // such as junk data?  The normal retry logic sounds reasonable here.
     FetchConsensus,
 
     /// Downloads, validates, and stores the missing authority certificates from
     /// the downloaded unvalidated consensus into the database.
-    ///
-    /// Transitions from:
-    /// * [`State::FetchConsensus`], if we miss authority certificates.
-    /// * [`State::AuthCerts`], if we still miss authority certificates.
-    ///
-    /// Transitions into:
-    /// * [`State::AuthCerts`], if we still miss authority certificates.
-    /// * [`State::StoreConsensus`], if we got all authority certificates.
     AuthCerts,
 
     /// Validates and stores the downloaded unvalidated consensus into the
     /// database.
-    ///
-    /// Transitions from:
-    /// * [`State::FetchConsensus`], if we have all authority certificates.
-    /// * [`State::AuthCerts`], if we have all authority certificates.
-    ///
-    /// Transitions into:
-    /// * [`State::LoadConsensus`]
     StoreConsensus,
 
     /// Downloads missing network documents (descriptors) from a directory
     /// authority.
-    ///
-    /// Transitions from:
-    /// * [`State::LoadConsensus`], if we initialize.
-    /// * [`State::Descriptors`], if we still have missing descriptors left.
-    ///
-    /// Transitions into:
-    /// * [`State::FetchConsensus`], if ttl is over.
-    /// * [`State::Descriptors`], if we still have missing descriptors left.
-    /// * [`State::Hibernate`], if nothing is left.
     Descriptors,
 
     /// Hibernate because nothing is left.
-    ///
-    /// Transitions from:
-    /// * [`State::FetchConsensus`], if we have insufficient trusted
-    ///   authorities.
-    /// * [`State::Descriptors`], if we have downloaded all descriptors.
-    ///
-    /// Transitions into:
-    /// * [`State::FetchConsensus`], if the ttl is over.
     Hibernate,
 }
 
@@ -392,13 +415,7 @@ impl<T: FlavoredConsensusUnverified> StaticEngine<T> {
     }
 
     /// Executes a single state iteration in the finite state machine.
-    ///
-    /// The return value is of type [`Result<(), OperationError>`].
-    /// The success type is not of much interest for calling applications.
-    /// However, the error case itself should be passed towards
-    /// [`crate::err::IsFatal::is_fatal()`] in order to either abort the
-    /// application or retry with an appropriate timeout.
-    ///
+    // TODO 2881: Explain how this is called externally.
     // TODO: Use tracing instrumentation here.
     // TODO DIRMIRROR: Document the state transition check which we have to do
     // because of database invariances no longer holding true.

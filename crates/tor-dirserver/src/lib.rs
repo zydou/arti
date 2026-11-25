@@ -55,7 +55,6 @@
 #![warn(unnameable_types)]
 
 mod database;
-pub mod err;
 mod http;
 pub mod mirror;
 mod types;
