@@ -393,7 +393,7 @@ before you continue!
 
 2. [ ] Write and publish a blog post.
 
-3. [ ] Close issue(s) for security patches as directed by the meta-issue.
+3. [ ] Close issue(s) for security patches if directed by the meta-issue.
 
     Use the "Private security patch tracking" meta-issue.
 
