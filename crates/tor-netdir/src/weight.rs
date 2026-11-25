@@ -15,7 +15,9 @@
 use crate::ConsensusRelays;
 use crate::params::NetParameters;
 use bitflags::bitflags;
-use tor_netdoc::doc::netstatus::{self, MdConsensus, MdRouterStatus, ParamValues};
+use tor_netdoc::doc::netstatus::{
+    self, MdRouterStatus, ParamValues, md::NetworkStatus as MdConsensus,
+};
 
 /// Helper: Calculate the function we should use to find initial relay
 /// bandwidths.
@@ -265,11 +267,11 @@ impl WeightSet {
         let weight_scale = params.bw_weight_scale.into();
 
         let total_bw = consensus
-            .c_relays()
+            .routers
             .iter()
             .map(|rs| u64::from(bandwidth_fn.apply(rs.bandwidth())))
             .sum();
-        let p = consensus.bandwidth_weights();
+        let p = &consensus.footer.consensus.bandwidth_weights;
 
         Self::from_parts(bandwidth_fn, total_bw, weight_scale, p).validate(consensus)
     }
@@ -421,6 +423,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     #![allow(clippy::string_slice)] // See arti#2571
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use crate::testnet::simple_empty_consensus;
+
     use super::*;
     use netstatus::RelayBandwidth as RW;
     use std::net::SocketAddr;
@@ -611,8 +615,7 @@ mod test {
     /// Return a routerstatus builder set up to deliver a routerstatus
     /// with most features disabled.
     fn rs_builder() -> MdRouterStatusBuilder {
-        MdConsensus::builder()
-            .rs()
+        MdRouterStatusBuilder::default()
             .identity([9; 20].into())
             .add_or_port(SocketAddr::from(([127, 0, 0, 1], 9001)))
             .doc_digest([9; 32])
@@ -647,31 +650,35 @@ mod test {
         let now = SystemTime::get();
         let one_hour = Duration::new(3600, 0);
         let mut rng = testing_rng();
-        let mut bld = MdConsensus::builder();
-        bld.consensus_method(34)
-            .lifetime(Lifetime::new(now, now + one_hour, now + 2 * one_hour).unwrap())
-            .weights(TESTVEC_PARAMS.parse().unwrap());
+        let mut consensus = simple_empty_consensus(Some(
+            Lifetime::new(now, now + one_hour, now + 2 * one_hour).unwrap(),
+        ))
+        .unwrap();
+        consensus.footer.consensus.bandwidth_weights = TESTVEC_PARAMS.parse().unwrap();
 
         // We're going to add a huge amount of unmeasured bandwidth,
         // and a reasonable amount of  measured bandwidth.
         for _ in 0..10 {
-            rs_builder()
+            let rs = rs_builder()
                 .identity(rng.random::<[u8; 20]>().into()) // random id
                 .weight(RW::Unmeasured(1_000_000))
                 .set_flags(RelayFlag::Guard | RelayFlag::Exit)
-                .build_into(&mut bld)
+                .build()
                 .unwrap();
+            consensus.routers.push(rs);
         }
         for n in 0..30 {
-            rs_builder()
+            let rs = rs_builder()
                 .identity(rng.random::<[u8; 20]>().into()) // random id
                 .weight(RW::Measured(1_000 * n))
                 .set_flags(RelayFlag::Guard | RelayFlag::Exit)
-                .build_into(&mut bld)
+                .build()
                 .unwrap();
+            consensus.routers.push(rs);
         }
 
-        let consensus = bld.testing_consensus().unwrap();
+        consensus.routers.sort_by_key(|r| *r.rsa_identity());
+
         let params = NetParameters::default();
         let ws = WeightSet::from_consensus(&consensus, &params);
 

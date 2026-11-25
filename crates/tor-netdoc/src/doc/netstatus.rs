@@ -1051,7 +1051,7 @@ pub enum ConsensusVerifiabilityError {
     InsufficientTrustedSigners,
 
     /// Insufficient trusted signers because we are missing authcerts
-    #[error("missing auth certs mean we could not verify enough consensuis signatures (need at least {deficit} more, out of {} that are missing)", missing.len())]
+    #[error("missing auth certs mean we could not verify enough consensus signatures (need at least {deficit} more, out of {} that are missing)", missing.len())]
     MissingAuthCerts {
         /// The number of additional useful authcerts that would be sufficient
         deficit: usize,

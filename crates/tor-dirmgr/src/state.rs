@@ -10,9 +10,11 @@
 //! [`bootstrap`](crate::bootstrap) module for functions that actually
 //! load or download directory information.
 
+use digest::Digest;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem;
+use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
@@ -20,8 +22,9 @@ use tor_basic_utils::RngExt as _;
 use tor_dircommon::retry::DownloadSchedule;
 use tor_error::{internal, warn_report};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
-use tor_netdoc::doc::authcert::UncheckedAuthCert;
-use tor_netdoc::doc::netstatus::{Lifetime, ProtoStatuses};
+use tor_netdoc::doc::authcert::AuthCertUnverified;
+use tor_netdoc::doc::netstatus::{ConsensusVerifiabilityError, Lifetime, ProtoStatuses};
+use tor_netdoc::parse2::ParseInput;
 use tracing::{debug, warn};
 
 use crate::event::DirProgress;
@@ -33,21 +36,21 @@ use crate::{
     event,
 };
 use crate::{DocSource, SharedMutArc};
-use tor_checkable::{ExternallySigned, SelfSigned, TimeBound};
+use tor_checkable::TimeBound;
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_llcrypto::pk::rsa::RsaIdentity;
-use tor_netdoc::doc::{
-    microdesc::{MdDigest, MicrodescAndHash},
-    netstatus::MdConsensus,
-};
+use tor_netdoc::doc::microdesc::{MdDigest, MicrodescAndHash};
 use tor_netdoc::{
-    AllowAnnotations,
     doc::{
         authcert::{AuthCert, AuthCertKeyIds},
-        microdesc::MicrodescReader,
-        netstatus::{ConsensusFlavor, UnvalidatedMdConsensus},
+        microdesc::Microdesc,
+        netstatus::{
+            ConsensusFlavor, md::NetworkStatus as MdConsensus,
+            md::NetworkStatusUnverified as MdConsensusUnverified,
+        },
     },
+    parse2,
 };
 use tor_rtcompat::Runtime;
 
@@ -299,7 +302,7 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
 
         let source = DocSource::LocalCache;
 
-        self.add_consensus_text(
+        self.set_unverified_consensus_text(
             source,
             text.as_str().map_err(Error::BadUtf8InCache)?,
             None,
@@ -319,7 +322,8 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
             ClientRequest::Consensus(r) => r.last_consensus_date(),
             _ => None,
         };
-        let meta = self.add_consensus_text(source, text, requested_newer_than, changed)?;
+        let meta =
+            self.set_unverified_consensus_text(source, text, requested_newer_than, changed)?;
 
         if let Some(store) = storage {
             let mut w = store.lock().expect("Directory storage lock poisoned");
@@ -350,49 +354,59 @@ impl<R: Runtime> GetConsensusState<R> {
     /// older-than-requested.
     ///
     /// Errors from this method are not fatal to the download process.
-    fn add_consensus_text(
+    ///
+    /// ## Security
+    ///
+    /// This function only partially checks the lifetime of the consensus,
+    /// and does not check signatures.
+    fn set_unverified_consensus_text(
         &mut self,
         source: DocSource,
         text: &str,
         cutoff: Option<SystemTime>,
         changed: &mut bool,
     ) -> Result<&ConsensusMeta> {
+        use parse2::NetdocParseableUnverified as _;
         // Try to parse it and get its metadata.
         let (consensus_meta, unvalidated) = {
-            let (signedval, remainder, parsed) =
-                MdConsensus::parse(text).map_err(|e| Error::from_netdoc(source.clone(), e))?;
-            #[cfg(feature = "dirfilter")]
-            let parsed = self.filter.filter_consensus(parsed)?;
-            let parsed = self.config.tolerance.extend_tolerance(parsed);
-            let now = self.rt.wallclock();
-            let timely = parsed.if_valid_at(&now)?;
+            let filename = source.for_parse_input();
+            let input = ParseInput::new(text, &filename);
+            let parsed = parse2::parse_netdoc::<MdConsensusUnverified>(&input)
+                .map_err(|e| Error::from_parse(source.clone(), e))?;
+            let (signedval, remainder) = text
+                .split_at_checked(parsed.sigs.unsigned_body_len)
+                .ok_or_else(|| internal!("parser returned invalid string index"))?;
+
+            let lifetime = &parsed.inspect_unverified().0.preamble.lifetime;
             if let Some(cutoff) = cutoff {
-                if timely.peek_lifetime().valid_after() < cutoff {
+                if lifetime.valid_after() < cutoff {
                     return Err(Error::Unwanted("consensus was older than requested"));
                 }
             }
-            let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
-            (meta, timely)
+
+            let meta =
+                ConsensusMeta::from_text_and_lifetime(signedval, remainder, lifetime.clone());
+
+            (meta, parsed)
         };
 
         // Check out what authorities we believe in, and see if enough
         // of them are purported to have signed this consensus.
-        let unvalidated = unvalidated.set_n_authorities(self.authority_ids.len());
+        let desired_certs = match unvalidated.can_verify(&self.authority_ids, &[]) {
+            Ok(_) => {
+                return Err(internal!(
+                    "consensus seemed verifiable, even though we provided no certs"
+                )
+                .into());
+            }
+            Err(ConsensusVerifiabilityError::InsufficientTrustedSigners) => {
+                return Err(Error::UnrecognizedAuthorities);
+            }
+            Err(ConsensusVerifiabilityError::MissingAuthCerts { missing, .. }) => missing,
+        };
 
-        let id_refs: Vec<_> = self.authority_ids.iter().collect();
-        if !unvalidated.authorities_are_correct(&id_refs[..]) {
-            return Err(Error::UnrecognizedAuthorities);
-        }
         // Yes, we've added the consensus.  That's a change.
         *changed = true;
-
-        // Make a set of all the certificates we want -- the subset of
-        // those listed on the consensus that we would indeed accept as
-        // authoritative.
-        let desired_certs = unvalidated
-            .signing_cert_ids()
-            .filter(|m| self.recognizes_authority(&m.id_fingerprint))
-            .collect();
 
         self.next = Some(GetCertsState {
             cache_usage: self.cache_usage,
@@ -413,11 +427,6 @@ impl<R: Runtime> GetConsensusState<R> {
         #[allow(clippy::unwrap_used)]
         Ok(&self.next.as_ref().unwrap().consensus_meta)
     }
-
-    /// Return true if `id` is an authority identity we recognize
-    fn recognizes_authority(&self, id: &RsaIdentity) -> bool {
-        self.authority_ids.iter().any(|auth| auth == id)
-    }
 }
 
 /// One of two possible internal states for the consensus in a GetCertsState.
@@ -426,7 +435,7 @@ impl<R: Runtime> GetConsensusState<R> {
 #[derive(Clone, Debug)]
 enum GetCertsConsensus {
     /// We have an unvalidated consensus; we haven't checked its signatures.
-    Unvalidated(UnvalidatedMdConsensus),
+    Unvalidated(MdConsensusUnverified),
     /// A validated consensus: the signatures are fine and we can advance.
     Validated(MdConsensus),
     /// We failed to validate the consensus, even after getting enough certificates.
@@ -480,24 +489,27 @@ impl<R: Runtime> GetCertsState<R> {
     ///
     /// On success return the `AuthCert` and the string that represents it within the string `within`.
     /// On failure, return an error.
-    fn check_parsed_certificate<'s>(
+    fn check_parsed_certificate(
         &self,
-        parsed: tor_netdoc::Result<UncheckedAuthCert>,
+        parsed: StdResult<AuthCertUnverified, parse2::ParseError>,
         source: &DocSource,
-        within: &'s str,
-    ) -> Result<(AuthCert, &'s str)> {
-        let parsed = parsed.map_err(|e| Error::from_netdoc(source.clone(), e))?;
-        let cert_text = parsed
-            .within(within)
-            .expect("Certificate was not in input as expected");
-        let wellsigned = parsed.check_signature()?;
+    ) -> Result<AuthCert> {
+        let parsed = parsed.map_err(|e| Error::from_parse(source.clone(), e))?;
+        let recognized_authorities = self.config.authorities().v3idents();
+        let wellsigned =
+            parsed
+                .verify(&recognized_authorities[..])
+                .map_err(|e| Error::VerifyError {
+                    source: source.clone(),
+                    cause: e,
+                })?;
         let now = self.rt.wallclock();
         let timely_cert = self
             .config
             .tolerance
             .extend_tolerance(wellsigned)
             .if_valid_at(&now)?;
-        Ok((timely_cert, cert_text))
+        Ok(timely_cert)
     }
 
     /// If we have enough certificates, and we have not yet checked the
@@ -515,34 +527,56 @@ impl<R: Runtime> GetCertsState<R> {
         std::mem::swap(&mut consensus, &mut self.consensus);
 
         let unvalidated = match consensus {
-            C::Unvalidated(uv) if uv.key_is_correct(&self.certs[..]).is_ok() => uv,
+            C::Unvalidated(uv) => {
+                match uv.can_verify(self.config.authorities().v3idents(), &self.certs) {
+                    Ok(()) => uv,
+                    Err(ConsensusVerifiabilityError::InsufficientTrustedSigners) => {
+                        self.consensus = C::Failed;
+                        return Err(internal!(
+                            "Previously we thought that this consensus had enough authorities, \
+                            but now we don't!"
+                        )
+                        .into());
+                    }
+                    Err(ConsensusVerifiabilityError::MissingAuthCerts { .. }) => {
+                        // Still can't check.
+                        self.consensus = C::Unvalidated(uv);
+                        return Ok(());
+                    }
+                }
+            }
             _ => {
-                // nothing to check at this point.  Either we already checked the consensus, or we don't yet have enough certificates.
+                // nothing to check at this point.  Either we already checked the consensus, or we
+                // have an error.
                 self.consensus = consensus;
                 return Ok(());
             }
         };
 
-        let (new_consensus, outcome) = match unvalidated.check_signature(&self.certs[..]) {
-            Ok(validated) => (C::Validated(validated), Ok(())),
-            Err(cause) => (
-                C::Failed,
-                Err(Error::ConsensusInvalid {
-                    source: self.consensus_source.clone(),
-                    cause,
-                }),
-            ),
-        };
+        let (new_consensus, outcome) =
+            match unvalidated.verify(self.config.authorities().v3idents(), &self.certs) {
+                Ok(validated) => {
+                    let timely = self.config.tolerance.extend_tolerance(validated);
+                    let consensus = timely.if_valid_at(&self.rt.wallclock())?;
+                    (C::Validated(consensus), Ok(()))
+                }
+                Err(cause) => (
+                    C::Failed,
+                    Err(Error::ConsensusInvalid {
+                        source: self.consensus_source.clone(),
+                        cause,
+                    }),
+                ),
+            };
         self.consensus = new_consensus;
 
         // Update our protocol recommendations if we have a validated consensus,
         // and if we haven't already updated our recommendations.
         if let GetCertsConsensus::Validated(v) = &self.consensus {
             if self.protocol_statuses.is_none() {
-                let protoset: &Arc<ProtoStatuses> = v.protocol_statuses();
                 self.protocol_statuses = Some((
                     self.consensus_meta.lifetime().valid_after(),
-                    Arc::clone(protoset),
+                    Arc::clone(&v.preamble.proto_statuses),
                 ));
             }
         }
@@ -608,9 +642,11 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         for id in &self.missing_docs() {
             if let Some(cert) = docs.get(id) {
                 let text = cert.as_str().map_err(Error::BadUtf8InCache)?;
-                let parsed = AuthCert::parse(text);
-                match self.check_parsed_certificate(parsed, &source, text) {
-                    Ok((cert, _text)) => {
+                let filename = source.for_parse_input();
+                let parsed =
+                    parse2::parse_netdoc::<AuthCertUnverified>(&ParseInput::new(text, &filename));
+                match self.check_parsed_certificate(parsed, &source) {
+                    Ok(cert) => {
                         self.missing_certs.remove(&cert.key_ids());
                         self.certs.push(cert);
                         *changed = true;
@@ -641,11 +677,14 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
         let mut nonfatal_error = None;
         let mut newcerts = Vec::new();
-        for cert in
-            AuthCert::parse_multiple(text).map_err(|e| Error::from_netdoc(source.clone(), e))?
-        {
-            match self.check_parsed_certificate(cert, &source, text) {
-                Ok((cert, cert_text)) => {
+        let filename = source.for_parse_input();
+        let input = ParseInput::new(text, &filename);
+        for (cert, startpos, endpos) in parse2::parse_netdoc_multiple_sophisticated(&input)? {
+            let cert_text = text
+                .get(startpos..endpos)
+                .ok_or_else(|| internal!("parser returned invalid string boundary"))?;
+            match self.check_parsed_certificate(cert, &source) {
+                Ok(cert) => {
                     newcerts.push((cert, cert_text));
                 }
                 Err(e) => {
@@ -929,9 +968,9 @@ impl<R: Runtime> GetMicrodescsState<R> {
         prev_netdir: Option<Arc<dyn PreviousNetDir>>,
         #[cfg(feature = "dirfilter")] filter: Arc<dyn crate::filter::DirFilter>,
     ) -> Self {
-        let reset_time =
-            consensus.lifetime().valid_until() + config.tolerance.post_valid_tolerance();
-        let n_microdescs = consensus.relays().len();
+        let reset_time = SystemTime::from(consensus.preamble.lifetime.valid_until)
+            + config.tolerance.post_valid_tolerance();
+        let n_microdescs = consensus.routers.len();
 
         let params = &config.override_net_params;
         #[cfg(not(feature = "geoip"))]
@@ -969,13 +1008,17 @@ impl<R: Runtime> GetMicrodescsState<R> {
     /// Add a bunch of microdescriptors to the in-progress netdir.
     fn register_microdescs<I>(&mut self, mds: I, _source: &DocSource, changed: &mut bool)
     where
-        I: IntoIterator<Item = MicrodescAndHash>,
+        I: IntoIterator<Item = (Microdesc, MdDigest)>,
     {
-        #[cfg(feature = "dirfilter")]
-        let mds: Vec<MicrodescAndHash> = mds
+        let md_iter = mds
             .into_iter()
-            .filter_map(|m| self.filter.filter_md(m).ok())
-            .collect();
+            .map(|(md, sha256)| MicrodescAndHash { md, sha256 });
+
+        #[cfg(feature = "dirfilter")]
+        let md_iter = md_iter.filter_map(|md| self.filter.filter_md(md).ok());
+
+        let mds: Vec<MicrodescAndHash> = md_iter.collect();
+
         let is_partial = matches!(self.partial, PendingNetDir::Partial(..));
         for md in mds {
             if is_partial {
@@ -1055,11 +1098,13 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let mut microdescs = Vec::new();
         for (id, text) in docs {
             if let DocId::Microdesc(digest) = id {
-                if let Ok(md) =
-                    MicrodescAndHash::parse(text.as_str().map_err(Error::BadUtf8InCache)?)
-                {
-                    if md.digest() == &digest {
-                        microdescs.push(md);
+                let filename = DocSource::LocalCache.for_parse_input();
+                let input =
+                    ParseInput::new(text.as_str().map_err(Error::BadUtf8InCache)?, &filename);
+                if let Ok(md) = parse2::parse_netdoc::<Microdesc>(&input) {
+                    let digest_found: MdDigest = tor_llcrypto::d::Sha256::digest(text).into();
+                    if digest == digest_found {
+                        microdescs.push((md, digest));
                         continue;
                     }
                 }
@@ -1087,30 +1132,33 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let mut new_mds = Vec::new();
         let mut nonfatal_err = None;
 
-        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed)
-            .map_err(|e| Error::from_netdoc(source.clone(), e))?
+        let file = source.for_parse_input();
+        let input = ParseInput::new(text, &file);
+        for (microdesc, start, end) in
+            parse2::parse_netdoc_multiple_sophisticated::<Microdesc>(&input)?
         {
-            let anno = match anno {
+            let md = match microdesc {
                 Err(e) => {
-                    nonfatal_err.get_or_insert_with(|| Error::from_netdoc(source.clone(), e));
+                    nonfatal_err.get_or_insert_with(|| Error::from_parse(source.clone(), e));
                     continue;
                 }
                 Ok(a) => a,
             };
-            let txt = anno
-                .within(text)
-                .expect("microdesc not from within text as expected");
-            let md = anno.into_microdesc();
-            if !requested.contains(md.digest()) {
+
+            let txt = text
+                .get(start..end)
+                .ok_or_else(|| internal!("Parser returned invalid string indices"))?;
+            let digest: MdDigest = tor_llcrypto::d::Sha256::digest(txt).into();
+
+            if !requested.contains(&digest) {
                 warn!(
                     "Received microdescriptor from {} we did not ask for: {:?}",
-                    source,
-                    md.digest()
+                    source, digest
                 );
                 nonfatal_err.get_or_insert(Error::Unwanted("un-requested microdescriptor"));
                 continue;
             }
-            new_mds.push((txt, md));
+            new_mds.push((txt, md, digest));
         }
 
         let mark_listed = self.meta.lifetime().valid_after();
@@ -1127,14 +1175,18 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
                 s.store_microdescs(
                     &new_mds
                         .iter()
-                        .map(|(text, md)| (*text, md.digest()))
+                        .map(|(text, _md, digest)| (*text, digest))
                         .collect::<Vec<_>>(),
                     mark_listed,
                 )?;
             }
         }
 
-        self.register_microdescs(new_mds.into_iter().map(|(_, md)| md), &source, changed);
+        self.register_microdescs(
+            new_mds.into_iter().map(|(_text, md, digest)| (md, digest)),
+            &source,
+            changed,
+        );
 
         opt_err_to_result(nonfatal_err)
     }
@@ -1312,7 +1364,10 @@ mod test {
         authority::{AuthorityContacts, AuthorityContactsBuilder},
         config::{DownloadScheduleConfig, NetworkConfig},
     };
-    use tor_netdoc::doc::authcert::AuthCertKeyIds;
+    use tor_netdoc::{
+        AllowAnnotations,
+        doc::{authcert::AuthCertKeyIds, microdesc::MicrodescReader},
+    };
     use tor_rtcompat::RuntimeSubstExt as _;
     use tor_rtmock::simple_time::SimpleMockTimeProvider;
 
@@ -1494,7 +1549,7 @@ mod test {
                 Some(&store),
                 &mut changed,
             );
-            assert!(matches!(outcome, Err(Error::NetDocError { .. })));
+            assert!(matches!(outcome, Err(Error::ParseError { .. })));
             assert!(!changed);
             // make sure it wasn't stored...
             assert!(
@@ -1724,16 +1779,23 @@ mod test {
 
     #[test]
     fn get_microdescs_state() {
+        use parse2::NetdocParseableUnverified as _;
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
             /// Construct a GetCertsState with our test data
             fn new_getmicrodescs_state(rt: impl Runtime) -> GetMicrodescsState<impl Runtime> {
                 let rt = make_time_shifted_runtime(test_time(), rt);
                 let cfg = make_dirmgr_config(Some(test_authorities()));
-                let (signed, rest, consensus) = MdConsensus::parse(CONSENSUS2).unwrap();
-                let consensus = consensus
-                    .dangerously_assume_timely()
-                    .dangerously_assume_wellsigned();
-                let meta = ConsensusMeta::from_consensus(signed, rest, &consensus);
+                let consensus = parse2::parse_netdoc::<MdConsensusUnverified>(&ParseInput::new(
+                    CONSENSUS2, "~",
+                ))
+                .unwrap();
+                let consensus = consensus.unwrap_unverified().0;
+                // (Using junk values for hashes here, but that's ok in the context of this test)
+                let meta = ConsensusMeta::from_text_and_lifetime(
+                    "",
+                    "",
+                    consensus.preamble.lifetime.clone(),
+                );
                 GetMicrodescsState::new(
                     CacheUsage::CacheOkay,
                     consensus,

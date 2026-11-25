@@ -15,12 +15,13 @@
 use crate::{MdReceiver, PartialNetDir};
 use std::iter;
 use std::net::SocketAddr;
+use std::sync::Arc;
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdoc::doc::microdesc::{MicrodescAndHash, MicrodescBuilder};
+use tor_netdoc::doc::netstatus::md::NetworkStatus as MdConsensus;
 use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayBandwidth};
-use tor_netdoc::doc::netstatus::{MdConsensus, MdConsensusBuilder};
 use tor_netdoc::types::family::HappyFamilyId;
 use tor_netdoc::types::relay_flags::RelayFlag;
 pub use tor_netdoc::{BuildError, BuildResult};
@@ -49,7 +50,7 @@ pub struct NodeBuilders {
 }
 
 /// Helper: a customization function that does nothing.
-pub fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders, _bld: &mut MdConsensusBuilder) {}
+pub fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders, _bld: &mut MdConsensus) {}
 
 /// As [`construct_network()`], but return a [`PartialNetDir`].
 pub fn construct_netdir() -> PartialNetDir {
@@ -64,7 +65,7 @@ pub fn construct_custom_netdir_with_params<F, P, PK>(
     lifetime: Option<Lifetime>,
 ) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensus),
     P: IntoIterator<Item = (PK, i32)>,
     PK: Into<String>,
 {
@@ -86,7 +87,7 @@ fn construct_custom_netdir_with_params_inner<F, P, PK>(
     #[cfg(feature = "geoip")] geoip_db: Option<&GeoipDb>,
 ) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensus),
     P: IntoIterator<Item = (PK, i32)>,
     PK: Into<String>,
 {
@@ -109,7 +110,7 @@ where
 /// As [`construct_custom_network()`], but return a [`PartialNetDir`].
 pub fn construct_custom_netdir<F>(func: F) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensus),
 {
     construct_custom_netdir_with_params(func, iter::empty::<(&str, _)>(), None)
 }
@@ -118,7 +119,7 @@ where
 /// As [`construct_custom_netdir()`], but with a `GeoipDb`.
 pub fn construct_custom_netdir_with_geoip<F>(func: F, db: &GeoipDb) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensus),
 {
     construct_custom_netdir_with_params_inner(func, iter::empty::<(&str, _)>(), None, Some(db))
 }
@@ -187,7 +188,7 @@ pub fn construct_custom_network<F>(
     lifetime: Option<Lifetime>,
 ) -> BuildResult<(MdConsensus, Vec<MicrodescAndHash>)>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensus),
 {
     let f = RelayFlag::Running
         | RelayFlag::Valid
@@ -201,19 +202,7 @@ where
         f | RelayFlag::Guard,
         f | RelayFlag::Exit | RelayFlag::Guard,
     ];
-
-    let lifetime = lifetime.map(Ok).unwrap_or_else(|| {
-        let now = SystemTime::get();
-        let one_day = Duration::new(86400, 0);
-
-        Lifetime::new(now, now + one_day / 2, now + one_day)
-    })?;
-
-    let mut bld = MdConsensus::builder();
-    bld.consensus_method(34)
-        .lifetime(lifetime)
-        .param("bwweightscale", 1)
-        .weights("".parse()?);
+    let mut consensus = simple_empty_consensus(lifetime)?;
 
     let mut microdescs = Vec::new();
     for idx in 0..40_u8 {
@@ -247,7 +236,7 @@ where
             "".parse().unwrap()
         };
         let weight = RelayBandwidth::Measured(1000 * u32::from(idx % 10 + 1));
-        let mut rs_builder = bld.rs();
+        let mut rs_builder = MdRouterStatusBuilder::new();
         rs_builder
             .identity([idx; 20].into())
             .add_or_port(SocketAddr::from(([idx % 5, 0, 0, 3], 9001)))
@@ -262,7 +251,7 @@ where
             omit_md: false,
         };
 
-        func(idx as usize, &mut node_builders, &mut bld);
+        func(idx as usize, &mut node_builders, &mut consensus);
 
         let md = node_builders.md.testing_md()?;
         let md_digest = *md.digest();
@@ -271,16 +260,61 @@ where
         }
 
         if !node_builders.omit_rs {
-            node_builders
-                .rs
-                .doc_digest(md_digest)
-                .build_into(&mut bld)?;
+            consensus
+                .routers
+                .push(node_builders.rs.doc_digest(md_digest).build()?);
         }
     }
 
-    let consensus = bld.testing_consensus()?;
+    consensus.routers.sort_by_key(|r| *r.rsa_identity());
 
     Ok((consensus, microdescs))
+}
+
+/// Return a simple MD-flavored consensus, as empty as we can make it.
+pub(crate) fn simple_empty_consensus(lifetime: Option<Lifetime>) -> BuildResult<MdConsensus> {
+    use tor_netdoc::doc::netstatus::{
+        ConsensusAuthoritySectionConstructor, ConsensusFooterFieldsConstructor,
+        ProtoStatusesConstructor, VotingDelayConstructor,
+        md::{FooterConstructor, NetworkStatusConstructor, PreambleConstructor},
+    };
+    use tor_netdoc::types::{NotPresent, relay_flags::DocRelayFlags};
+
+    let lifetime = lifetime.map(Ok).unwrap_or_else(|| {
+        let now = SystemTime::get();
+        let one_day = Duration::new(86400, 0);
+
+        Lifetime::new(now, now + one_day / 2, now + one_day)
+    })?;
+    let proto_statuses = Arc::new(ProtoStatusesConstructor {}.construct());
+    Ok(NetworkStatusConstructor {
+        preamble: PreambleConstructor {
+            consensus_methods: NotPresent,
+            published: NotPresent,
+            consensus_method: (34,),
+            lifetime,
+            params: "bwweightscale=1"
+                .parse()
+                .expect("unparsable internal param set"),
+            known_flags: DocRelayFlags::new_empty_unknown_discarded(),
+            proto_statuses,
+            voting_delay: VotingDelayConstructor {
+                dist_seconds: 600,
+                vote_seconds: 600,
+            }
+            .construct(),
+        }
+        .construct(),
+        authority: ConsensusAuthoritySectionConstructor {
+            authorities: vec![],
+        }
+        .construct(),
+        footer: FooterConstructor {
+            consensus: ConsensusFooterFieldsConstructor {}.into(),
+        }
+        .construct(),
+    }
+    .construct())
 }
 
 #[cfg(test)]

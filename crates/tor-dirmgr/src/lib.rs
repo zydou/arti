@@ -364,6 +364,18 @@ impl std::fmt::Display for DocSource {
     }
 }
 
+impl DocSource {
+    /// Format this DocSource in a way conforming to the  conventions of [`ParseInput`].
+    ///
+    /// [`ParseInput`]: tor_netdoc::parse2::ParseInput
+    //
+    // Note: This would return a ParseInput, but the String needs to be allocated,
+    // and ParseInput needs to borrow it.
+    pub(crate) fn for_parse_input(&self) -> String {
+        format!("<{}>", self)
+    }
+}
+
 impl<R: Runtime> DirMgr<R> {
     /// Try to load the directory from disk, without launching any
     /// kind of update process.

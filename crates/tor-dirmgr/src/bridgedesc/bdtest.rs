@@ -38,10 +38,13 @@ const EXAMPLE_DESCRIPTOR: &str = include_str!("../../testdata/routerdesc1.txt");
 const EXAMPLE_PORT: u16 = 9001;
 
 fn example_validity() -> (SystemTime, SystemTime) {
-    let (t, u) = RouterDesc::parse(EXAMPLE_DESCRIPTOR)
-        .unwrap()
-        .dangerously_assume_wellsigned()
-        .bounds_start_end();
+    let bounds =
+        parse2::parse_netdoc::<RouterDescUnverified>(&ParseInput::new(EXAMPLE_DESCRIPTOR, "test"))
+            .unwrap()
+            .verify()
+            .unwrap()
+            .bounds();
+    let (t, u) = (bounds.start(), bounds.end());
     let ret = |tb| match tb {
         Some(t) => t,
         None => panic!("Time range does not have a starting bound"),

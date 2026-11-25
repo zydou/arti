@@ -84,14 +84,28 @@ pub enum Error {
     /// Invalid json value in the cache
     #[error("Invalid JSON in directory cache")]
     BadJsonInCache(#[source] Arc<serde_json::Error>),
-    /// An error given by the network document crate.
+    /// We were unable to parse a document.
+    #[error("Parsing error in document")]
+    ParseError {
+        /// Where the document came from.
+        ///
+        /// (We keep this, rather than using the "file" part of
+        /// [`ParseError`](tor_netdoc::parse2::ParseError),
+        /// because we need to extract the actual mirror who gave us this document
+        /// so we can blame them if it's invalid.)
+        source: DocSource,
+        /// What error we got.
+        #[source]
+        cause: tor_netdoc::parse2::ParseError,
+    },
+    /// We were unable to verify a parsed document.
     #[error("Invalid document from {source}")]
-    NetDocError {
+    VerifyError {
         /// Where the document came from.
         source: DocSource,
         /// What error we got.
         #[source]
-        cause: tor_netdoc::Error,
+        cause: tor_netdoc::parse2::VerifyFailed,
     },
     /// An error indicating that the consensus could not be validated.
     ///
@@ -104,7 +118,7 @@ pub enum Error {
         source: DocSource,
         /// What error we got.
         #[source]
-        cause: tor_netdoc::Error,
+        cause: tor_netdoc::doc::netstatus::ConsensusVerifyFailed,
     },
     /// An error caused by an expired or not-yet-valid object.
     #[error("Directory object expired or not yet valid")]
@@ -205,11 +219,11 @@ impl Error {
         }
     }
 
-    /// Construct a new `Error` from `tor_netdoc::Error`.
+    /// Construct a new `Error` from `ParseError`.
     ///
     /// Also takes a source so that we can keep track of where the document came from.
-    pub(crate) fn from_netdoc(source: DocSource, cause: tor_netdoc::Error) -> Error {
-        Error::NetDocError { source, cause }
+    pub(crate) fn from_parse(source: DocSource, cause: tor_netdoc::parse2::ParseError) -> Error {
+        Error::ParseError { source, cause }
     }
 
     /// Construct a new `Error` from `std::io::Error` for an error that occurred
@@ -265,10 +279,54 @@ impl Error {
             // object that we know.  That case might need special handling to
             // avoid erroneously avoiding a good cache... especially if the document
             // is one that the cache could be tricked into serving us.
-            Error::NetDocError { .. } => true,
+            Error::ParseError { .. } | Error::VerifyError { .. } => true,
 
             // We can never see this kind of error from within the crate.
             Error::ExternalDirProvider { .. } => false,
+        }
+    }
+
+    /// If this operation is associated with a particular directory cache server,
+    /// return a [`tor_dirclient::SourceInfo`] describing which one.
+    pub(crate) fn cache_info(&self) -> Option<&tor_dirclient::SourceInfo> {
+        #[allow(deprecated)]
+        match self {
+            Error::Unwanted(_)
+            | Error::NetDirOlder
+            | Error::NoDownloadSupport
+            | Error::CacheCorruption(_)
+            | Error::SqliteError(_)
+            | Error::ReadOnlyStorage(_)
+            | Error::UnrecognizedSchema { .. }
+            | Error::DirectoryNotPresent
+            | Error::UnrecognizedAuthorities
+            | Error::ManagerDropped
+            | Error::CantAdvanceState
+            | Error::LockFile(_)
+            | Error::CacheFile { .. }
+            | Error::ConsensusDiffError(_)
+            | Error::BadUtf8FromDirectory(_)
+            | Error::BadUtf8InCache(_)
+            | Error::BadHexInCache(_)
+            | Error::BadJsonInCache(_)
+            | Error::UntimelyObject(_)
+            | Error::SignatureError(_)
+            | Error::OfflineMode
+            | Error::CacheAccess(_)
+            | Error::CachePermissions(_)
+            | Error::Spawn { .. }
+            | Error::ExternalDirProvider { .. }
+            | Error::Bug(_) => None,
+
+            Error::DirClientError(tor_dirclient::Error::RequestFailed(e)) => e.source.as_ref(),
+            Error::DirClientError(_) => None,
+
+            Error::ConsensusInvalid { source, .. }
+            | Error::ParseError { source, .. }
+            | Error::VerifyError { source, .. } => match source {
+                DocSource::LocalCache => None,
+                DocSource::DirServer { source } => source.as_ref(),
+            },
         }
     }
 
@@ -276,10 +334,6 @@ impl Error {
     /// this error contains one.
     pub(crate) fn responsible_cache(&self) -> Option<&tor_dirclient::SourceInfo> {
         match self {
-            Error::NetDocError {
-                source: DocSource::DirServer { source },
-                ..
-            } => source.as_ref(),
             Error::ConsensusInvalid {
                 source: DocSource::DirServer { source },
                 ..
@@ -302,7 +356,8 @@ impl Error {
             | Error::UntimelyObject(_)
             | Error::DirClientError(_)
             | Error::SignatureError(_)
-            | Error::NetDocError { .. } => BootstrapAction::Nonfatal,
+            | Error::ParseError { .. }
+            | Error::VerifyError { .. } => BootstrapAction::Nonfatal,
 
             Error::ConsensusInvalid { .. } | Error::CantAdvanceState => BootstrapAction::Reset,
 
@@ -369,7 +424,7 @@ impl HasKind for Error {
             E::LockFile { .. } => EK::CacheAccessFailed,
             E::CacheFile { .. } => EK::CacheAccessFailed,
             E::ConsensusDiffError(_) => EK::TorProtocolViolation,
-            E::NetDocError { source, .. } => match source {
+            E::ParseError { source, .. } | E::VerifyError { source, .. } => match source {
                 DocSource::LocalCache => EK::CacheCorrupted,
                 DocSource::DirServer { .. } => EK::TorProtocolViolation,
             },
