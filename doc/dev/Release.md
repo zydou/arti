@@ -397,7 +397,7 @@ before you continue!
 
     Use the "Private security patch tracking" meta-issue.
 
-    For each security patch,, close the associated issue
+    For each security patch, close the associated issue
     but only if the meta-issue says so.
 
 ### In due course
