@@ -15,15 +15,18 @@ pub(crate) fn open_channel_is_allowed<C: AbstractChannel>(
         .filter(|entry| entry.channel.is_usable())
         // only channels which have *all* the relay ids of `target`
         .filter(|entry| entry.channel.has_all_relay_ids_from(target))
-        // TODO: only channels that satisfy the torspec rules at
+        // only channels that satisfy the torspec rules at
         // https://spec.torproject.org/tor-spec/creating-circuits.html#canonical-connections
-        .filter(|_entry| {
+        .filter(|entry| {
             // Any of:
-            // - the IP matches the requested IP
             // - the relay knows that the IP of the connection it's using is canonical because it
             //   was listed in the NETINFO cell
-            // - the IP matches the relay address in the consensus
-            true
+            // - the IP address matches a requested address (port is ignored)
+            // TODO: the IP matches the relay address in the consensus
+            entry.channel.is_canonical()
+                || entry
+                    .channel
+                    .peer_matches_chan_method(&target.chan_method())
         })
         .is_some()
 }
@@ -83,8 +86,8 @@ pub(crate) fn pending_channel_maybe_allowed(
         // - If the built channel gains additional ids that `target` doesn't have, that's fine and
         //   we can still use the channel for `target`.
         .filter(|entry| target.has_all_relay_ids_from(&entry.ids))
-        // TODO: Only channels which have the exact same address list as `target` (the two sets of
-        // addresses must match exactly).
+        // Only channels which have the exact same address (IP + Port) list as `target`
+        // (the two sets of addresses must match exactly).
         // - While an EXTEND2 message usually only contains one IPv4 and IPv6 address, `target`
         //   (which is a `HasAddrs`) may have more addresses. According to tor-spec, an EXTEND2
         //   message can contain multiple IPv4 and IPv6 addresses:
@@ -101,31 +104,24 @@ pub(crate) fn pending_channel_maybe_allowed(
         // - If the pending channel had fewer addresses compared to `target`, the channel would have
         //   a lower possibility of building successfully compared to a newly created channel to
         //   `target`, so this would not be a good channel for us to return.
-        .filter(|_entry| true)
+        .filter(|entry| entry.method.has_same_addrs(&target.chan_method()))
         // Don't allow a pending channel that has no relay ids. I don't have a good reason for
         // excluding this, other than "it seems weird".
         .filter(|entry| entry.ids != EMPTY_IDS)
         .is_some()
 }
 
-/// Returns the best channel for `target`.
-// TODO: remove me when the below TODOs are implemented
-#[allow(clippy::only_used_in_recursion)]
-pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
+/// Returns the best channel among `channels`, all expected to be allowed for the target.
+pub(crate) fn choose_best_allowed_channel<'a, C: AbstractChannel>(
     channels: impl IntoIterator<Item = &'a ChannelState<C>>,
-    target: &(impl HasRelayIds + HasChanMethod),
 ) -> Option<&'a ChannelState<C>> {
     use ChannelState::*;
     use std::cmp::Ordering;
 
     let channels = channels.into_iter();
 
-    /// Compare two channels to determine the better channel for `target`.
-    fn choose_channel<C: AbstractChannel>(
-        a: &&ChannelState<C>,
-        b: &&ChannelState<C>,
-        target: &(impl HasRelayIds + HasChanMethod),
-    ) -> Choice {
+    /// Compare two channels to determine the better channel.
+    fn choose_channel<C: AbstractChannel>(a: &&ChannelState<C>, b: &&ChannelState<C>) -> Choice {
         // TODO: follow `channel_is_better` in C tor
         match (a, b) {
             // if the open channel is not usable, prefer the pending channel
@@ -134,7 +130,7 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
             (Open(_a), Building(_b)) => Choice::First,
 
             // the logic above, but reversed
-            (Building(_), Open(_)) => choose_channel(b, a, target).reverse(),
+            (Building(_), Open(_)) => choose_channel(b, a).reverse(),
 
             // not much info to help choose when both channels are pending, but this should be rare
             (Building(_a), Building(_b)) => Choice::Either,
@@ -179,9 +175,12 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
                     return Choice::Second;
                 }
 
-                // TODO: prefer a channel where the address matches the target
-
-                // TODO: prefer older channels
+                // Prefer the older channel.
+                match a.channel.age().cmp(&b.channel.age()) {
+                    Ordering::Greater => return Choice::First,
+                    Ordering::Less => return Choice::Second,
+                    Ordering::Equal => {}
+                }
 
                 // TODO: use number of circuits as tie-breaker?
 
@@ -191,7 +190,7 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
     }
 
     // preferred channels will be ordered higher, and we choose the max
-    channels.max_by(|a, b| match choose_channel(a, b, target) {
+    channels.max_by(|a, b| match choose_channel(a, b) {
         Choice::First => Ordering::Greater,
         Choice::Second => Ordering::Less,
         Choice::Either => Ordering::Equal,
@@ -266,9 +265,15 @@ mod test {
 
     impl AbstractChannel for FakeChannel {
         fn is_canonical(&self) -> bool {
-            unimplemented!()
+            true
         }
         fn is_canonical_to_peer(&self) -> bool {
+            unimplemented!()
+        }
+        fn peer_matches_chan_method(&self, _method: &tor_linkspec::ChannelMethod) -> bool {
+            unimplemented!()
+        }
+        fn age(&self) -> Duration {
             unimplemented!()
         }
         fn is_usable(&self) -> bool {
@@ -380,7 +385,8 @@ mod test {
         }
     }
 
-    /// Create a pending channel entry with the given IDs.
+    /// Create a pending channel entry with the given IDs and a channel method that
+    /// always use `ADDR_A`.
     fn pending_channel(ids: RelayIds) -> PendingEntry {
         use crate::mgr::state::UniqPendingChanId;
         use futures::FutureExt;
@@ -388,6 +394,7 @@ mod test {
 
         PendingEntry {
             ids,
+            method: ChannelMethod::Direct(vec![ADDR_A]),
             pending: oneshot::channel().1.shared(),
             unique_id: UniqPendingChanId::new(),
         }
@@ -408,9 +415,8 @@ mod test {
         ];
 
         // should return the usable channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
-            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[0]));
+            assert_opt_ptr_eq!(choose_best_allowed_channel(x), Some(&channels[0]));
         });
     }
 
@@ -426,9 +432,8 @@ mod test {
         ];
 
         // should return the open channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
-            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[0]));
+            assert_opt_ptr_eq!(choose_best_allowed_channel(x), Some(&channels[0]));
         });
 
         // an unusable open channel and a pending channel
@@ -441,16 +446,15 @@ mod test {
         ];
 
         // should return the pending channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
-            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[1]));
+            assert_opt_ptr_eq!(choose_best_allowed_channel(x), Some(&channels[1]));
         });
     }
 
     #[test]
     fn best_channel_many() {
-        // some misc channels (as we make `choose_best_channel` more complex, hopeful we can add
-        // more channels here)
+        // some misc channels (as we make `choose_best_allowed_channel` more complex, hopeful we
+        // can add more channels here)
         let channels = [
             ChannelState::Open(open_channel(FakeChannel {
                 usable: false,
@@ -465,9 +469,8 @@ mod test {
         ];
 
         // should return the open+usable channel
-        let target = FakeBuildSpec::new(ids(None, ed(b"A")), vec![ADDR_A]);
         with_permutations(&channels, |x| {
-            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[1]));
+            assert_opt_ptr_eq!(choose_best_allowed_channel(x), Some(&channels[1]));
         });
     }
 

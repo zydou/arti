@@ -138,11 +138,13 @@ impl PeerInfo {
     /// information. This is used to choose the best channel in the channel manager.
     ///
     /// A match is true if:
-    ///     * Direct: Our address is contained in the method set of addresses.
+    ///     * Direct: Our IP address (port is ignored) is the IP of one of the method's addresses.
     ///     * Pluggable: Our address is equal to the method's target.
-    pub fn matches_chan_method(&self, method: &ChannelMethod) -> bool {
+    pub fn is_usable_for_chan_method(&self, method: &ChannelMethod) -> bool {
         match (method, self.addr()) {
-            (ChannelMethod::Direct(addrs), PeerAddr::Direct(our_addr)) => addrs.contains(our_addr),
+            (ChannelMethod::Direct(addrs), PeerAddr::Direct(our_addr)) => {
+                addrs.iter().any(|addr| addr.ip() == our_addr.ip())
+            }
             #[cfg(feature = "pt-client")]
             (ChannelMethod::Pluggable(target), PeerAddr::Pt(our_target)) => our_target == target,
             _ => false,

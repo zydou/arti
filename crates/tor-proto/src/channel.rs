@@ -88,7 +88,7 @@ use tor_async_utils::oneshot_broadcast;
 use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::{AnyChanCell, CircId, msg::Netinfo, msg::PaddingNegotiate};
 use tor_error::internal;
-use tor_linkspec::{HasRelayIds, OwnedChanTarget};
+use tor_linkspec::{ChannelMethod, HasRelayIds, OwnedChanTarget};
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, Runtime, SleepProvider};
 
@@ -816,6 +816,14 @@ impl Channel {
     /// Return true if we think the peer considers this channel as canonical.
     pub fn is_canonical_to_peer(&self) -> bool {
         self.canonicity.canonical_to_peer
+    }
+
+    /// Return true iff the IP address of this channel's peer matches the given
+    /// [`ChannelMethod`] in `method`.
+    ///
+    /// See [`PeerInfo::is_usable_for_chan_method`].
+    pub fn peer_matches_chan_method(&self, method: &ChannelMethod) -> bool {
+        self.peer.is_usable_for_chan_method(method)
     }
 
     /// If the channel is not in use, return the amount of time

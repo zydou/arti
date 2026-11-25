@@ -735,6 +735,12 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
     fn is_canonical_to_peer(&self) -> bool {
         self.is_canonical_to_peer()
     }
+    fn peer_matches_chan_method(&self, method: &tor_linkspec::ChannelMethod) -> bool {
+        self.peer_matches_chan_method(method)
+    }
+    fn age(&self) -> Duration {
+        self.age()
+    }
     fn is_usable(&self) -> bool {
         !self.is_closing()
     }

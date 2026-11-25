@@ -11,7 +11,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
 use tor_error::{error_report, internal};
-use tor_linkspec::{HasChanMethod, HasRelayIds};
+use tor_linkspec::{ChannelMethod, HasChanMethod, HasRelayIds};
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
@@ -36,6 +36,10 @@ pub(crate) trait AbstractChannel: HasRelayIds {
     fn is_canonical(&self) -> bool;
     /// Return true if we think the peer considers this channel as canonical.
     fn is_canonical_to_peer(&self) -> bool;
+    /// Return true iff the IP address of this channel's peer matches the given method.
+    fn peer_matches_chan_method(&self, method: &ChannelMethod) -> bool;
+    /// Return the amount of time that has passed since this channel became open.
+    fn age(&self) -> Duration;
     /// Return true if this channel is usable.
     ///
     /// A channel might be unusable because it is closed, because it has
@@ -880,9 +884,15 @@ mod test {
 
     impl AbstractChannel for FakeChannel {
         fn is_canonical(&self) -> bool {
-            unimplemented!()
+            true
         }
         fn is_canonical_to_peer(&self) -> bool {
+            unimplemented!()
+        }
+        fn peer_matches_chan_method(&self, _method: &ChannelMethod) -> bool {
+            unimplemented!()
+        }
+        fn age(&self) -> Duration {
             unimplemented!()
         }
         fn is_usable(&self) -> bool {
@@ -1124,7 +1134,7 @@ mod test {
 
             assert_eq!(ch3a, ch3b);
             assert_eq!(ch44a, ch44b);
-            assert_eq!(ch50a, ch50b);
+            assert_ne!(ch50a, ch50b);
             assert_ne!(ch44a, ch3a);
 
             assert!(matches!(err_a, Error::UnusableTarget(_)));
