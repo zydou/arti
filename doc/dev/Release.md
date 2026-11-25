@@ -40,7 +40,8 @@ THIS_VERSION=1.1.6
 
 1. [ ] Find the confidential meta-issue "Private security patch tracking" #NNNN
 
-   And edit the issue number, above, for ease of finding it.
+   And edit the issue number into the checklist ticket's copy of the above.
+
    The issue might not exist, if there were no patches to list in it;
    that's fine; we'll create it later if necessary.
 
