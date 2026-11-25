@@ -54,7 +54,7 @@ impl CircuitMetrics {
                 unit: metrics::Unit::Count,
                 "arti_circuits_opened_total",
             ),
-            circuit_closed_no_error: closed_counter("NoError".to_string()),
+            circuit_closed_no_error: closed_counter("NoError"),
             circuit_read_bytes_forward: metrics::counter!(
                 description: "Total number of bytes of circuit cells read",
                 unit: metrics::Unit::Bytes,
@@ -115,9 +115,9 @@ impl CircuitMetrics {
                 // expensive as there is a lookup but it allows us to not keep in sync
                 // the ErrorKind with the equivalent amount of counters on our side.
                 //
-                // The Debug format is used as it is a standard CamelCase that has proper
+                // The variant name is used as it is a standard CamelCase that has proper
                 // semantic and maps nicely to ErrorKind name in the code.
-                closed_counter(format!("{:?}", e.kind())).increment(1);
+                closed_counter(e.kind().into()).increment(1);
             }
         }
     }
@@ -154,7 +154,7 @@ impl CircuitMetrics {
 }
 
 /// Helper: Return the closed circuits counter for the given `reason`.
-fn closed_counter(reason: String) -> Counter {
+fn closed_counter(reason: &'static str) -> Counter {
     metrics::counter!(
         description: "Total number of circuits closed",
         unit: metrics::Unit::Count,
