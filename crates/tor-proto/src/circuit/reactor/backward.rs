@@ -336,6 +336,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                 // Forward channel unexpectedly closed, we should close too
                 match outbound_chan_rx.next().await {
                     Some(msg) => {
+                        // TODO(relay): This assumes cells travel in the backward direction.
                         self.metrics.backward_cell_read();
                         match msg.try_into() {
                             Err(e) => CircuitEvent::ProtoViolation(e),
@@ -855,6 +856,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         Pin::new(&mut self.inbound_chan_tx)
             .send_unbounded((cell, padding_info))
             .await?;
+        // TODO(relay): This assumes cells travel in the backward direction.
         self.metrics.backward_cell_written();
 
         if c_t_w {
@@ -879,6 +881,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                     .send((cell, None))
                     .await
                     .map_err(ReactorError::Err)?;
+                // TODO(relay): This assumes cells travel in the backward direction.
                 self.metrics.backward_cell_written();
                 Ok(())
             }

@@ -338,6 +338,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
 
                     return Err(ReactorError::Shutdown);
                 };
+                // TODO(relay): This assumes cells travel in the forward direction.
                 self.metrics.forward_cell_read();
 
                 let cell: F::CircChanMsg = cell.try_into()?;

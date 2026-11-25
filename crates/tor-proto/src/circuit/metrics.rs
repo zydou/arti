@@ -24,6 +24,10 @@ const STREAM_REQUESTS_TOTAL: &str = "arti_stream_requests_total";
 //
 // TODO(relay): This is only used for relay circuits. Client circuit (for an actual arti
 // client) aren't counted nor the relay client's circuits.
+//
+// TODO(relay): When clients will use the shared reactors, we need to make it learn the
+// direction of the cell and use it when updating the read/write counters. Reason is that
+// the Forward reactor for the client is actually moving cell backward to the client.
 pub(crate) struct CircuitMetrics {
     /// Number of circuits opened.
     circuit_opened: Counter,
