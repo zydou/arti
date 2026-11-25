@@ -821,9 +821,9 @@ impl Channel {
     /// Return true iff the IP address of this channel's peer matches the given
     /// [`ChannelMethod`] in `method`.
     ///
-    /// See [`PeerInfo::matches_chan_method`].
+    /// See [`PeerInfo::is_usable_for_chan_method`].
     pub fn peer_matches_chan_method(&self, method: &ChannelMethod) -> bool {
-        self.peer.matches_chan_method(method)
+        self.peer.is_usable_for_chan_method(method)
     }
 
     /// If the channel is not in use, return the amount of time

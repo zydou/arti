@@ -140,7 +140,7 @@ impl PeerInfo {
     /// A match is true if:
     ///     * Direct: Our IP address (port is ignored) is the IP of one of the method's addresses.
     ///     * Pluggable: Our address is equal to the method's target.
-    pub fn matches_chan_method(&self, method: &ChannelMethod) -> bool {
+    pub fn is_usable_for_chan_method(&self, method: &ChannelMethod) -> bool {
         match (method, self.addr()) {
             (ChannelMethod::Direct(addrs), PeerAddr::Direct(our_addr)) => {
                 addrs.iter().any(|addr| addr.ip() == our_addr.ip())
