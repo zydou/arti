@@ -38,27 +38,27 @@ THIS_VERSION=1.1.6
 
 ## Prepare for confidential security patches (~1 week before release)
 
-1. [ ] Check for the existence of a confidential meta-issue
-   titled "Private security patch tracking",
-   and ensure that it has the "Blocker" label.
+1. [ ] Find the confidential meta-issue "Private security patch tracking" #NNNN
 
-2. [ ] Check for [issues tagged "Security Patch Approved"][security-patch-approved]
-   that are not listed in the above meta-issue,
-   and add them if missing (creating the issue if necessary).
+   And edit the issue number into the checklist ticket's copy of the above.
 
-[security-patch-approved]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Security%20Patch%20Approved
+   The issue might not exist, if there were no patches to list in it;
+   that's fine; we'll create it later if necessary.
 
-3. [ ] Look over all remaining confidential issues for any that have patches not listed
-   in the above meta-issue.
+2. [ ] Ensure the confidential meta-issue has the "Blocker" label.
+
+3. [ ] Ensure it lists all patches attached to [issues tagged "Security Patch Approved"](https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Security%20Patch%20Approved).
+
+   Add them if missing (creating the meta-issue if necessary).
+
+4. [ ] Check for overlooked patches attached to to [confidential issues](https://gitlab.torproject.org/tpo/core/arti/-/work_items?sort=created_date&state=opened&confidential=yes&first_page_size=20).
 
     If there are any that seem like they have a patch
     but have not been added to the meta-issue,
     ask the patch author if they should be added to the meta-issue.
     Don't add a patch without confirming with the author beforehand.
 
-4. [ ] If the above meta-issue doesn't exist,
-   there are no confidential security patches for this release,
-   so skip the remainder of this section.
+### If there is a private security patches meta-issue
 
 5. [ ] In a *private* arti repository, create an `arti-next` branch.
 
@@ -74,8 +74,7 @@ THIS_VERSION=1.1.6
 
 [tpo-core]: https://gitlab.torproject.org/groups/tpo/core/-/group_members
 
-6. [ ] For each security patch listed in the meta-issue,
-   merge it into `arti-next`.
+6. [ ] Merge each security patch (listed in the meta-issue) into `arti-next`.
 
     If there are conflicts, attempt to fix the conflicts manually,
     or ask the patch author for help.
@@ -86,9 +85,9 @@ THIS_VERSION=1.1.6
 
 ## Finalize confidential security patches (~3 day before release)
 
-1. [ ] Repeat steps in "Prepare for confidential security patches" section above.
+1. [ ] Untick and repeat "Prepare for confidential security patches" above (2 subsections).
 
-## Are we ready to release?
+## Are we ready to release? (~3 day before release)
 
 Before we can finally release, we need to check a few things
 to make sure we aren't going to break our users.
@@ -253,8 +252,7 @@ before you continue!
 1. [ ] Tell `network-team` (via email and IRC) that the tree is now frozen,
    and no MRs should be merged.
 
-2. [ ] Repeat steps in "Prepare for confidential security patches" section above
-   to ensure that no security patches were missed.
+2. [ ] Untick and repeat "Prepare for confidential security patches" above (2 subsections).
 
 3. [ ] Merge changes from the private `arti-next` branch into the arti `main` branch.
 
@@ -395,10 +393,12 @@ before you continue!
 
 2. [ ] Write and publish a blog post.
 
-3. [ ] For each security patch listed in the "Private security patch tracking" meta-issue,
-   check if the issue associated with the patch should be closed.
+3. [ ] Close issue(s) for security patches if directed by the meta-issue.
 
-    Don't close an issue unless meta-issue says to close it.
+    Use the "Private security patch tracking" meta-issue.
+
+    For each security patch, close the associated issue
+    but only if the meta-issue says so.
 
 ### In due course
 
@@ -455,6 +455,19 @@ before you continue!
 
    If anything was janky or didn't go as planned, and you can see how
    to improve it, please fix it - here or in the relevant tooling.
+
+   When editing this file:
+
+    * The checklist issue script takes the very first physical line of each bullet point,
+      to use as the bullet point summary.
+    * So, make sure that the first physical line is really terse
+      (and, subject to that constraint, as clear as possible).
+    * Don't use URLs defined elsewhere in the bullet point summary line; put them inline.
+      (The script is too stupid to copy URL definitions.)
+    * Be ruthless about keeping it short and removing extraneous words.
+    * You can leave out obvious conditionals; the release technician will know
+      that an inapplicable item can be simply ticked off.
+    * Try to start the bullet point summary with a verb in the imperative.
 
 [!2271]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2271
 
