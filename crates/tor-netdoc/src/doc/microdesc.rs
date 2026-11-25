@@ -15,7 +15,7 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::SectionRules;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::family::{HappyFamilyId, HappyFamilyIds, LegacyFamily};
+use crate::types::family::{HappyFamilyId, HappyFamilyIds};
 use crate::types::misc::*;
 use crate::types::policy::PortPolicy;
 use crate::util;
@@ -70,10 +70,6 @@ pub struct Microdesc {
     #[deftly(constructor)]
     #[deftly(netdoc(single_arg))]
     pub ntor_onion_key: Curve25519Public,
-
-    /// Declared family for this relay.
-    #[deftly(netdoc(default(skip)))]
-    pub family: Intern<LegacyFamily>,
 
     /// Family identities for this relay.
     #[deftly(netdoc(default(skip)))]
@@ -135,10 +131,6 @@ impl Microdesc {
     /// Return the ipv6 exit policy for this microdesc
     pub fn ipv6_policy(&self) -> &Intern<PortPolicy> {
         &self.ipv6_policy
-    }
-    /// Return the relay family for this microdesc
-    pub fn family(&self) -> &LegacyFamily {
-        self.family.as_ref()
     }
     /// Return the ed25519 identity for this microdesc, if its
     /// Ed25519 identity is well-formed.
@@ -353,16 +345,6 @@ impl MicrodescAndHash {
             .required(NTOR_ONION_KEY)?
             .parse_arg::<Curve25519Public>(0)?;
 
-        // family
-        //
-        // (We don't need to add the relay's own ID to this family, as we do in
-        // RouterDescs: the authorities already took care of that for us.)
-        let family = body
-            .maybe(FAMILY)
-            .parse_args_as_str::<LegacyFamily>()?
-            .unwrap_or_else(LegacyFamily::new)
-            .intern();
-
         // Family ids (happy families case).
         let family_ids = body
             .maybe(FAMILY_IDS)
@@ -420,7 +402,6 @@ impl MicrodescAndHash {
         let md = Microdesc {
             onion_key: Default::default(),
             ntor_onion_key,
-            family,
             ipv4_policy: ipv4_policy.intern(),
             ipv6_policy: ipv6_policy.intern(),
             ed25519_id,
@@ -720,7 +701,6 @@ mod test {
                     FixedB64::<32>::from_str(raw_find_item_rhs(md, "ntor-onion-key")).unwrap()
                 ))
                 .into(),
-                family: Default::default(),
                 ipv4_policy: Default::default(),
                 ipv6_policy: Default::default(),
                 ed25519_id: Ed25519Identity::from(<[u8; 32]>::from(

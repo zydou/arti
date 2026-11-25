@@ -516,29 +516,11 @@ mod test {
     }
 
     #[test]
-    fn exclude_families_by_list() {
-        exclude_families_impl(
-            &testnet(),
-            *FamilyRules::ignore_declared_families().use_family_lists(true),
-        );
-    }
-
-    #[test]
     fn exclude_families_by_id() {
-        // Here we construct a network that matches our default testnet,
-        // but without any family lists.
-        // Instead we use "happy family" IDs to match the families from that default testnest.
-        let netdir = construct_custom_netdir(|pos, nb, _| {
-            // Clear the family list.
-            nb.md.family("".parse().unwrap());
-            // This will create an "Unrecognized" family id such that
-            // pos:N  will be shared by nodes in positions 2N and 2N+1.
-            let fam_id = format!("pos:{}", pos / 2);
-            nb.md.add_family_id(fam_id.parse().unwrap());
-        })
-        .unwrap()
-        .unwrap_if_sufficient()
-        .unwrap();
+        let netdir = construct_custom_netdir(|_, _, _| {})
+            .unwrap()
+            .unwrap_if_sufficient()
+            .unwrap();
 
         exclude_families_impl(
             &netdir,
