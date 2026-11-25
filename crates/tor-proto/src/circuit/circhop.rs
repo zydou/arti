@@ -870,7 +870,6 @@ impl CircHopOutbound {
 
         match hop_map.get_mut(streamid) {
             Some(StreamEntMut::Open(ent)) => {
-                // Can't have a stream level SENDME when congestion control is enabled.
                 let message_closes_stream =
                     Self::deliver_msg_to_stream(streamid, ent, cell_counts_toward_windows, msg)?;
 
