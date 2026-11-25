@@ -1,6 +1,7 @@
 //! A circuit's view of the forward state of the circuit.
 
 use crate::circuit::UniqId;
+use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::backward::BackwardReactorCmd;
 use crate::circuit::reactor::hop_mgr::HopMgr;
 use crate::circuit::reactor::macros::derive_deftly_template_CircuitReactor;
@@ -37,6 +38,7 @@ use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt, select_biased};
 use std::result::Result as StdResult;
+use std::sync::Arc;
 use tracing::debug;
 
 use crate::circuit::CircuitRxReceiver;
@@ -112,6 +114,8 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     circ_events_tx: mpsc::Sender<F::CircEvent>,
     /// A padding controller to which padding-related events should be reported.
     padding_ctrl: PaddingController,
+    /// The circuit metrics.
+    metrics: Arc<CircuitMetrics>,
 }
 
 /// A control command aimed at the generic forward reactor.
@@ -277,6 +281,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         circ_events: mpsc::Receiver<F::CircEvent>,
         circ_events_tx: mpsc::Sender<F::CircEvent>,
         padding_ctrl: PaddingController,
+        metrics: Arc<CircuitMetrics>,
     ) -> Self {
         Self {
             runtime,
@@ -291,6 +296,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             circ_events,
             circ_events_tx,
             padding_ctrl,
+            metrics,
         }
     }
 
@@ -332,6 +338,8 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
 
                     return Err(ReactorError::Shutdown);
                 };
+                // TODO(relay): This assumes cells travel in the forward direction.
+                self.metrics.forward_cell_read();
 
                 let cell: F::CircChanMsg = cell.try_into()?;
                 let Some(disp) = self.inner.handle_forward_cell(&self.hop_mgr, cell).await? else {

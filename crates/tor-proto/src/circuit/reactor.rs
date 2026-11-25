@@ -245,6 +245,7 @@ use tor_cell::chancell::CircId;
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use crate::channel::Channel;
+use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::backward::BackwardHandler;
 use crate::circuit::reactor::forward::ForwardHandler;
 use crate::circuit::reactor::hop_mgr::HopMgr;
@@ -352,6 +353,8 @@ pub(crate) struct Reactor<R: Runtime, F: ForwardHandler, B: BackwardHandler> {
     ///
     /// Handles [`CtrlCmd::Backward`] and [`CtrlMsg::Backward`] messages.
     bwd_ctrl: ReactorCtrl<backward::CtrlCmd<B::CtrlCmd>, backward::CtrlMsg<B::CtrlMsg>>,
+    /// Shared circuit metrics.
+    metrics: Arc<CircuitMetrics>,
 }
 
 /// A handle for sending control/command messages to a FWD or BWD.
@@ -433,6 +436,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         fwd_events: mpsc::Receiver<F::CircEvent>,
         fwd_events_tx: mpsc::Sender<F::CircEvent>,
         memquota: &CircuitAccount,
+        metrics: Arc<CircuitMetrics>,
     ) -> (Self, CircReactorHandle<F, B>) {
         // NOTE: not registering this channel with the memquota subsystem is okay,
         // because it has no buffering (if ever decide to make the size of this buffer
@@ -475,6 +479,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             fwd_events,
             fwd_events_tx,
             padding_ctrl.clone(),
+            Arc::clone(&metrics),
         );
 
         let backward = BackwardReactor::new(
@@ -490,6 +495,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             padding_ctrl,
             padding_event_stream,
             bwd_rx,
+            Arc::clone(&metrics),
         );
 
         let reactor = Reactor {
@@ -501,6 +507,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             command: command_rx,
             fwd_ctrl,
             bwd_ctrl,
+            metrics,
         };
 
         (reactor, handle)
@@ -508,6 +515,21 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
 
     /// Helper for [`run`](Self::run).
     pub(crate) async fn run_inner(&mut self) -> StdResult<(), ReactorError> {
+        self.metrics.circuit_opened();
+
+        let result = self.run_reactors().await;
+
+        // TODO(relay): Use a DropGuard design here to always call this even if
+        // run_reactors() above panics. I think circuit_opened() would need to send back
+        // that such guard and we would only need to set the returned result into it and
+        // then once dropped, we get our metrics all taken care of.
+        self.metrics.circuit_closed(&result);
+
+        result
+    }
+
+    /// Run the forward and backward reactors, and handle the control messages and commands.
+    async fn run_reactors(&mut self) -> StdResult<(), ReactorError> {
         let (forward, backward) = (|| Some((self.forward.take()?, self.backward.take()?)))()
             .expect("relay reactor spawned twice?!");
 

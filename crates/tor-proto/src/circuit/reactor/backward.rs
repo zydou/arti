@@ -3,6 +3,7 @@
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::cell_sender::CircuitCellSender;
+use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::ControlHandler;
 use crate::circuit::reactor::circhop::CircHopList;
 use crate::circuit::reactor::macros::derive_deftly_template_CircuitReactor;
@@ -136,6 +137,8 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     /// Current rules for blocking traffic, according to the padding controller.
     #[cfg(feature = "circ-padding")]
     padding_block: Option<padding::StartBlocking>,
+    /// The circuit metrics.
+    metrics: Arc<CircuitMetrics>,
 }
 
 /// A control message aimed at the generic backward reactor.
@@ -215,6 +218,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
         stream_rx: mpsc::Receiver<ReadyStreamMsg>,
+        metrics: Arc<CircuitMetrics>,
     ) -> Self {
         let channel = Arc::clone(channel);
         let inbound_chan_tx = CircuitCellSender::from_channel_sender(channel.sender());
@@ -236,6 +240,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             padding_event_stream,
             #[cfg(feature = "circ-padding")]
             padding_block: None,
+            metrics,
         }
     }
 
@@ -330,10 +335,14 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             let event = if let Some(outbound_chan_rx) = self.outbound_chan_rx.as_mut() {
                 // Forward channel unexpectedly closed, we should close too
                 match outbound_chan_rx.next().await {
-                    Some(msg) => match msg.try_into() {
-                        Err(e) => CircuitEvent::ProtoViolation(e),
-                        Ok(cell) => CircuitEvent::Cell(cell),
-                    },
+                    Some(msg) => {
+                        // TODO(relay): This assumes cells travel in the backward direction.
+                        self.metrics.backward_cell_read();
+                        match msg.try_into() {
+                            Err(e) => CircuitEvent::ProtoViolation(e),
+                            Ok(cell) => CircuitEvent::Cell(cell),
+                        }
+                    }
                     None => {
                         // The forward reactor has crashed, so we have to shut down.
                         CircuitEvent::ForwardShutdown
@@ -847,6 +856,8 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         Pin::new(&mut self.inbound_chan_tx)
             .send_unbounded((cell, padding_info))
             .await?;
+        // TODO(relay): This assumes cells travel in the backward direction.
+        self.metrics.backward_cell_written();
 
         if c_t_w {
             ccontrol
@@ -869,7 +880,10 @@ impl<B: BackwardHandler> BackwardReactor<B> {
                 self.inbound_chan_tx
                     .send((cell, None))
                     .await
-                    .map_err(ReactorError::Err)
+                    .map_err(ReactorError::Err)?;
+                // TODO(relay): This assumes cells travel in the backward direction.
+                self.metrics.backward_cell_written();
+                Ok(())
             }
         }
     }

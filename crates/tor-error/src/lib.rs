@@ -132,7 +132,7 @@ pub use void;
 //
 // ErrorKinds should not relate to particular code paths in the Arti codebase.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Hash, strum::IntoStaticStr)]
 #[non_exhaustive]
 pub enum ErrorKind {
     /// Error connecting to the Tor network
