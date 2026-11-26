@@ -53,4 +53,5 @@ tor-netdoc = { path = "../tor-netdoc", version = "0.48.0" }
 tracing = "0.1.44"
 
 [dev-dependencies]
+itertools = "0.15.0"
 toml = "1.1.8"

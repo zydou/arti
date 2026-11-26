@@ -7598,6 +7598,7 @@ dependencies = [
  "http",
  "humantime",
  "humantime-serde",
+ "itertools 0.15.0",
  "serde",
  "thiserror 2.0.21",
  "toml 1.2.0+spec-1.1.0",
