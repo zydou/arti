@@ -5,7 +5,7 @@ use crate::circuit::UniqId;
 use crate::circuit::cell_sender::CircuitCellSender;
 use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::ControlHandler;
-use crate::circuit::reactor::circhop::CircHopList;
+use crate::circuit::reactor::circ_state::CircuitStateShared;
 use crate::circuit::reactor::macros::derive_deftly_template_CircuitReactor;
 use crate::circuit::reactor::stream::ReadyStreamMsg;
 use crate::congestion::{CongestionControl, sendme};
@@ -33,7 +33,7 @@ use tracing::{debug, trace};
 
 use std::pin::Pin;
 use std::result::Result as StdResult;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 use crate::circuit::CircuitRxReceiver;
 
@@ -97,14 +97,7 @@ pub(super) struct BackwardReactor<B: BackwardHandler> {
     // But for the padding case, we *need* the hop list, because we need
     // to work out what relay cell format to use when sending the padding cell.
     // But for the sake of simplicity, I made the BWD consult the CircHopList in all cases.
-    //
-    // TODO: the backward reactor only ever reads from this.
-    // Conceptually, it is the forward reactor's HopMgr that owns this list:
-    // only HopMgr can add hops to the list.
-    //
-    // Perhaps we need a specialized abstraction that only allows reading here.
-    // This could be a wrapper over RwLock, providing a read-only API.
-    hops: Arc<RwLock<CircHopList>>,
+    shared: Arc<CircuitStateShared>,
     /// The sending end of the backward Tor channel.
     ///
     /// Delivers cells towards the other endpoint: towards the client, if we are a relay,
@@ -211,7 +204,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         circ_id: CircId,
         unique_id: UniqId,
         inner: B,
-        hops: Arc<RwLock<CircHopList>>,
+        shared: Arc<CircuitStateShared>,
         forward_reactor_rx: mpsc::Receiver<BackwardReactorCmd>,
         control_rx: mpsc::UnboundedReceiver<CtrlMsg<B::CtrlMsg>>,
         command_rx: mpsc::UnboundedReceiver<CtrlCmd<B::CtrlCmd>>,
@@ -228,7 +221,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             outbound_chan_rx: None,
             channel,
             inner,
-            hops,
+            shared,
             inbound_chan_tx,
             unique_id,
             circ_id,
@@ -483,7 +476,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
             } => match msg {
                 FlowCtrlMsg::Sendme => {
                     // Congestion control decides if we can send stream level SENDMEs or not.
-                    let (cell_fmt, cc) = self.hop_info(hop)?;
+                    let (cell_fmt, cc) = self.shared.hop_info(hop)?;
                     let uses_stream_sendme = cc.lock().expect("poisoned").uses_stream_sendme();
 
                     if !uses_stream_sendme {
@@ -607,7 +600,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         // But for that we would need a specialized send_relay_cell_inner()-like function
         // that doesn't take a CC object, or to make the CC object optional in
         // send_relay_cell_inner().
-        let (relay_cell_format, ccontrol) = self.hop_info(hopnum)?;
+        let (relay_cell_format, ccontrol) = self.shared.hop_info(hopnum)?;
 
         self.send_relay_cell_inner(hopnum, relay_cell_format, msg, false, &ccontrol, queue_info)
             .await
@@ -661,19 +654,6 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         }
     }
 
-    /// Return the RelayCellFormat and CC state of a given hop.
-    fn hop_info(
-        &self,
-        hopnum: Option<HopNum>,
-    ) -> Result<(RelayCellFormat, Arc<Mutex<CongestionControl>>)> {
-        let hops = self.hops.read().expect("poisoned lock");
-        let hop = hops.get(hopnum)?;
-        let relay_cell_format = hop.settings.relay_crypt_protocol().relay_cell_format();
-        let ccontrol = Arc::clone(&hop.ccontrol);
-
-        Ok((relay_cell_format, ccontrol))
-    }
-
     /// Handle a command sent to us by the forward reactor.
     async fn handle_reactor_cmd(&mut self, msg: BackwardReactorCmd) -> StdResult<(), ReactorError> {
         use BackwardReactorCmd::*;
@@ -713,7 +693,7 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         hopnum: Option<HopNum>,
         msg: AnyRelayMsgOuter,
     ) -> StdResult<(), ReactorError> {
-        let (relay_cell_format, ccontrol) = self.hop_info(hopnum)?;
+        let (relay_cell_format, ccontrol) = self.shared.hop_info(hopnum)?;
         let cmd = msg.cmd();
 
         // TODO(relay): remove this log once we add some tests
@@ -761,15 +741,10 @@ impl<B: BackwardHandler> BackwardReactor<B> {
         // future which *should* resolve immediately
         let signals = self.inbound_chan_tx.congestion_signals().await;
 
-        let hops = self.hops.read().expect("poisoned lock");
-        let hop = hops.get(hopnum)?;
-
         // Update the CC object that we received a SENDME along
         // with possible congestion signals.
-        hop.ccontrol
-            .lock()
-            .expect("poisoned lock")
-            .note_sendme_received(&self.time_provider, tag, signals)?;
+        self.shared
+            .note_sendme_received(hopnum, &self.time_provider, tag, signals)?;
 
         Ok(())
     }

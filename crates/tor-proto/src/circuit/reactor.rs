@@ -222,13 +222,9 @@
 //! [multi-reactor circuit subsystem]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/notes/relay-conflux.md
 //! [`StreamReactor`]: stream::StreamReactor
 
-// TODO(DEDUP): this will replace CircHopList when we rewrite the client reactor
-// to use the new reactor architecture
-pub(crate) mod circhop;
-
 pub(crate) mod backward;
+pub(crate) mod circ_state;
 pub(crate) mod forward;
-pub(crate) mod hop_mgr;
 pub(crate) mod macros;
 pub(crate) mod stream;
 
@@ -247,8 +243,8 @@ use tor_rtcompat::{DynTimeProvider, Runtime};
 use crate::channel::Channel;
 use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::backward::BackwardHandler;
+use crate::circuit::reactor::circ_state::CircuitState;
 use crate::circuit::reactor::forward::ForwardHandler;
-use crate::circuit::reactor::hop_mgr::HopMgr;
 use crate::circuit::reactor::stream::ReadyStreamMsg;
 use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::memquota::CircuitAccount;
@@ -428,10 +424,10 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
         inbound_chan_rx: CircuitRxReceiver,
         forward_impl: F,
         backward_impl: B,
-        hop_mgr: HopMgr<R>,
+        circ_state: CircuitState<R>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
-        // The sending end of this channel should be in HopMgr
+        // The sending end of this channel should be in CircuitState
         bwd_rx: mpsc::Receiver<ReadyStreamMsg>,
         fwd_events: mpsc::Receiver<F::CircEvent>,
         fwd_events_tx: mpsc::Sender<F::CircEvent>,
@@ -464,14 +460,15 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             memquota: memquota.clone(),
         };
 
-        /// Grab a handle to the hop list (it's needed by the BWD)
-        let hops = Arc::clone(hop_mgr.hops());
+        // Grab a handle to the shared part of the circuit state
+        // (it's needed by the BWD)
+        let shared = Arc::clone(circ_state.shared());
         let forward = ForwardReactor::new(
             runtime.clone(),
             unique_id,
             circ_id,
             forward_impl,
-            hop_mgr,
+            circ_state,
             inbound_chan_rx,
             fwd_control_rx,
             fwd_command_rx,
@@ -488,7 +485,7 @@ impl<R: Runtime, F: ForwardHandler + ControlHandler, B: BackwardHandler + Contro
             circ_id,
             unique_id,
             backward_impl,
-            hops,
+            shared,
             forward_reactor_rx,
             bwd_control_rx,
             bwd_command_rx,

@@ -60,7 +60,7 @@ use crate::circuit::circhop::ReactorStreamComponents;
 use crate::circuit::circhop::{CircHopOutbound, HopSettings};
 use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::Reactor as BaseReactor;
-use crate::circuit::reactor::hop_mgr::HopMgr;
+use crate::circuit::reactor::circ_state::CircuitState;
 use crate::circuit::reactor::stream;
 use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::congestion::sendme::StreamRecvWindow;
@@ -220,7 +220,7 @@ impl<R: Runtime> Reactor<R> {
             cmd_checker,
             filter: incoming_filter,
         };
-        let hop_mgr = HopMgr::new_relay(
+        let circ_state = CircuitState::new_relay(
             runtime.clone(),
             settings.clone(),
             unique_id,
@@ -256,7 +256,7 @@ impl<R: Runtime> Reactor<R> {
             input,
             forward,
             backward,
-            hop_mgr,
+            circ_state,
             padding_ctrl,
             padding_event_stream,
             stream_rx,

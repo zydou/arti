@@ -11,8 +11,8 @@ use crate::circuit::celltypes::RelayMaybeEarlyChanMsg;
 use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::ControlHandler;
 use crate::circuit::reactor::backward::BackwardReactorCmd;
+use crate::circuit::reactor::circ_state::CircuitState;
 use crate::circuit::reactor::forward::{ForwardCellDisposition, ForwardHandler};
-use crate::circuit::reactor::hop_mgr::HopMgr;
 use crate::crypto::cell::OutboundRelayLayer;
 use crate::crypto::cell::RelayCellBody;
 use crate::relay::RelayCircChanMsg;
@@ -159,7 +159,7 @@ impl Forward {
     /// Decode `cell`, returning its corresponding hop number, tag and decoded body.
     fn decode_relay_cell<R: Runtime>(
         &mut self,
-        hop_mgr: &HopMgr<R>,
+        circ_state: &CircuitState<R>,
         cell: RelayMaybeEarlyChanMsg,
     ) -> Result<(Option<HopNum>, CellDecodeResult)> {
         // Note: the client reactor will return the actual source hopnum
@@ -171,8 +171,7 @@ impl Forward {
         };
 
         // The message is addressed to us! Now it's time to handle it...
-        let hops = hop_mgr.hops().read().expect("poisoned lock");
-        let decode_res = hops.get(hopnum)?.inbound.decode(body.into())?;
+        let decode_res = circ_state.shared().decode(hopnum, body)?;
 
         Ok((hopnum, CellDecodeResult::Recognized(tag, decode_res)))
     }
@@ -233,7 +232,7 @@ impl Forward {
     /// Handle a RELAY or RELAY_EARLY cell.
     fn handle_relay_cell<R: Runtime>(
         &mut self,
-        hop_mgr: &HopMgr<R>,
+        circ_state: &CircuitState<R>,
         cell: RelayMaybeEarlyChanMsg,
     ) -> StdResult<Option<ForwardCellDisposition>, ReactorError> {
         let early = matches!(cell, RelayMaybeEarlyChanMsg::RelayEarly(_));
@@ -248,7 +247,7 @@ impl Forward {
             }
         }
 
-        let (hopnum, res) = self.decode_relay_cell(hop_mgr, cell)?;
+        let (hopnum, res) = self.decode_relay_cell(circ_state, cell)?;
         let (tag, decode_res) = match res {
             CellDecodeResult::Unrecognizd(body) => {
                 self.handle_unrecognized_cell(body, None, early)?;
@@ -359,14 +358,14 @@ impl ForwardHandler for Forward {
 
     async fn handle_forward_cell<R: Runtime>(
         &mut self,
-        hop_mgr: &HopMgr<R>,
+        circ_state: &CircuitState<R>,
         cell: RelayCircChanMsg,
     ) -> StdResult<Option<ForwardCellDisposition>, ReactorError> {
         use RelayCircChanMsg::*;
 
         match cell {
-            Relay(r) => self.handle_relay_cell(hop_mgr, r.into()),
-            RelayEarly(r) => self.handle_relay_cell(hop_mgr, r.into()),
+            Relay(r) => self.handle_relay_cell(circ_state, r.into()),
+            RelayEarly(r) => self.handle_relay_cell(circ_state, r.into()),
             Destroy(d) => {
                 self.handle_destroy_cell(&d)?;
                 Ok(None)

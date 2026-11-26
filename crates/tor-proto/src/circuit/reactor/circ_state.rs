@@ -1,14 +1,19 @@
 //! Channel for sending messages to [`StreamReactor`].
 
+// TODO(DEDUP): this will replace CircHopList when we rewrite the client reactor
+// to use the new reactor architecture
+mod circhop;
+
 use crate::circuit::UniqId;
 use crate::circuit::circhop::{CircHopOutbound, HopSettings};
 use crate::circuit::metrics::CircuitMetrics;
-use crate::circuit::reactor::circhop::CircHopList;
 use crate::circuit::reactor::stream::{CtrlMsg, ReadyStreamMsg, StreamHandler, StreamReactor};
-use crate::congestion::CongestionControl;
+use crate::congestion::{CongestionControl, CongestionSignals};
+use crate::crypto::cell::RelayCellBody;
 use crate::memquota::CircuitAccount;
 use crate::util::err::ReactorError;
 use crate::{Error, HopNum, Result};
+use circhop::CircHopList;
 
 #[cfg(any(feature = "hs-service", feature = "relay"))]
 use {
@@ -17,8 +22,10 @@ use {
 };
 
 use tor_cell::chancell::CircId;
+use tor_cell::relaycell::msg::{Sendme, SendmeTag};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat};
 use tor_error::internal;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use futures::SinkExt;
 use futures::channel::mpsc;
@@ -26,14 +33,16 @@ use futures::channel::mpsc;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex, RwLock};
 
-/// The hop manager of a reactor.
+/// The state of a circuit.
 ///
 /// This contains the per-hop state (e.g. congestion control information),
 /// and a handle to the stream reactor of the hop.
 ///
 /// The stream reactor of the hop is launched lazily,
-/// when the first [`CtrlMsg`] is sent via [`HopMgr::send`].
-pub(crate) struct HopMgr<R: Runtime> {
+/// when the first [`CtrlMsg`] is sent via [`CircuitState::send`].
+///
+/// This is owned by the forward reactor.
+pub(crate) struct CircuitState<R: Runtime> {
     /// A handle to the runtime.
     runtime: R,
     /// Context used when spawning a stream reactor.
@@ -44,24 +53,116 @@ pub(crate) struct HopMgr<R: Runtime> {
     ///
     /// A clone of this is passed to each spawned StreamReactor
     bwd_tx: mpsc::Sender<ReadyStreamMsg>,
+    /// The shared parts of the circuit state.
+    ///
+    /// The backward reactor has a clone of this.
+    shared: Arc<CircuitStateShared>,
+    /// Memory quota account
+    memquota: CircuitAccount,
+}
+
+/// The shared parts of a [`CircuitState`].
+///
+/// Currently, this is used by the backward reactor,
+/// which needs access to the congestion control objects.
+/// The backward reactor only ever *reads* from this
+/// (it never mutates the circ hop list).
+pub(crate) struct CircuitStateShared {
     /// The underlying senders, indexed by [`HopNum`].
     ///
     /// Relays have at most one stream reactor per circuit.
     /// Clients have at most one stream reactor per circuit hop.
+    hops: RwLock<CircHopList>,
+}
+
+impl CircuitStateShared {
+    /// Return the RelayCellFormat and CC state of a given hop.
+    pub(crate) fn hop_info(
+        &self,
+        hopnum: Option<HopNum>,
+    ) -> Result<(RelayCellFormat, Arc<Mutex<CongestionControl>>)> {
+        let hops = self.hops.read().expect("poisoned lock");
+        let hop = hops.get(hopnum)?;
+        let relay_cell_format = hop.settings.relay_crypt_protocol().relay_cell_format();
+        let ccontrol = Arc::clone(&hop.ccontrol);
+
+        Ok((relay_cell_format, ccontrol))
+    }
+
+    /// Update the congestion control state of the specified hop
+    /// that we received a SENDME along with possible congestion signals.
+    pub(crate) fn note_sendme_received(
+        &self,
+        hopnum: Option<HopNum>,
+        runtime: &DynTimeProvider,
+        tag: SendmeTag,
+        signals: CongestionSignals,
+    ) -> Result<()> {
+        let hops = self.hops.read().expect("poisoned lock");
+        let hop = hops.get(hopnum)?;
+
+        // Update the CC object that we received a SENDME along
+        // with possible congestion signals.
+        hop.ccontrol
+            .lock()
+            .expect("poisoned lock")
+            .note_sendme_received(runtime, tag, signals)?;
+
+        Ok(())
+    }
+
+    /// Try to parse a RELAY or RELAY_EARLY cell body.
     ///
-    /// This is shared with the backward reactor.
-    /// The backward reactor only ever *reads* from this
-    /// (it never mutates the list).
+    /// Relays pass `None` for the hopnum.
+    pub(crate) fn decode(
+        &self,
+        hopnum: Option<HopNum>,
+        body: RelayCellBody,
+    ) -> Result<RelayCellDecoderResult> {
+        let hops = self.hops.read().expect("poisoned lock");
+        hops.get(hopnum)?.inbound.decode(body.into())
+    }
+
+    /// Note that we have received a RELAY cell.
     ///
-    // TODO: the backward reactor only ever reads from this.
-    // Conceptually, it is the HopMgr that owns this list,
-    // because only HopMgr can add hops to the list.
-    //
-    // Perhaps we need a specialized abstraction that only allows reading here.
-    // This could be a wrapper over RwLock, providing a read-only API for the BWD.
-    hops: Arc<RwLock<CircHopList>>,
-    /// Memory quota account
-    memquota: CircuitAccount,
+    /// Returns whether we need to send back a SENDME.
+    ///
+    /// Updates the padding and CC state.
+    pub(crate) fn note_relay_cell_received(
+        &self,
+        hopnum: Option<HopNum>,
+        c_t_w: bool,
+        tag: SendmeTag,
+    ) -> Result<Option<AnyRelayMsgOuter>> {
+        let mut hops = self.hops.write().expect("poisoned lock");
+        let hop = hops.get_mut(hopnum)?;
+
+        // Check whether we are allowed to receive more data for this circuit hop.
+        hop.inbound.decrement_cell_limit()?;
+
+        // Decrement the circuit sendme windows, and see if we need to
+        // send a sendme cell.
+        let send_circ_sendme = if c_t_w {
+            hop.ccontrol
+                .lock()
+                .expect("poisoned lock")
+                .note_data_received()?
+        } else {
+            false
+        };
+
+        // If we do need to send a circuit-level SENDME cell, do so.
+        if send_circ_sendme {
+            // This always sends a V1 (tagged) sendme cell, and thereby assumes
+            // that SendmeEmitMinVersion is no more than 1.  If the authorities
+            // every increase that parameter to a higher number, this will
+            // become incorrect.  (Higher numbers are not currently defined.)
+            let sendme = Sendme::from(tag);
+            Ok(Some(AnyRelayMsgOuter::new(None, sendme.into())))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 /// State needed to build a stream reactor.
@@ -83,8 +184,8 @@ struct StreamReactorContext {
     metrics: Arc<CircuitMetrics>,
 }
 
-impl<R: Runtime> HopMgr<R> {
-    /// Create a new [`HopMgr`] consisting of a single CircHop
+impl<R: Runtime> CircuitState<R> {
+    /// Create a new [`CircuitState`] consisting of a single CircHop
     /// (built using the specified `settings),
     /// setting the incoming stream request handler to `incoming_handler`.
     #[cfg(feature = "relay")]
@@ -115,9 +216,9 @@ impl<R: Runtime> HopMgr<R> {
         )
     }
 
-    /// Create a new [`HopMgr`] with an empty hop list.
+    /// Create a new [`CircuitState`] with an empty hop list.
     ///
-    /// Hops are added with [`HopMgr::add_hop`].
+    /// Hops are added with [`CircuitState::add_hop`].
     #[expect(unused)] // TODO(dedup): clients will use this
     pub(crate) fn new_client<S: StreamHandler>(
         runtime: R,
@@ -158,7 +259,7 @@ impl<R: Runtime> HopMgr<R> {
         memquota: CircuitAccount,
         metrics: Arc<CircuitMetrics>,
     ) -> Self {
-        let hops = Arc::new(RwLock::new(hops));
+        let hops = RwLock::new(hops);
         let ctx = StreamReactorContext {
             unique_id,
             circ_id,
@@ -168,18 +269,20 @@ impl<R: Runtime> HopMgr<R> {
             metrics,
         };
 
+        let shared = Arc::new(CircuitStateShared { hops });
+
         Self {
             runtime,
-            hops,
+            shared,
             ctx,
             bwd_tx,
             memquota,
         }
     }
 
-    /// Return a reference to our hop list.
-    pub(crate) fn hops(&self) -> &Arc<RwLock<CircHopList>> {
-        &self.hops
+    /// Return a reference to our shared state.
+    pub(crate) fn shared(&self) -> &Arc<CircuitStateShared> {
+        &self.shared
     }
 
     /// Set the incoming stream handler for this reactor.
@@ -192,7 +295,7 @@ impl<R: Runtime> HopMgr<R> {
     // However, for now, the implementation is intentionally kept similar to that
     // in the client reactor (to make it easier to migrate it to the new reactor design).
     //
-    /// Returns an error if the hop manager already has a stream handler.
+    /// Returns an error if a stream handler was already installed.
     ///
     /// Since the handler is shared with every hop's stream reactor,
     /// this function will update the handler for all of them.
@@ -220,7 +323,7 @@ impl<R: Runtime> HopMgr<R> {
     /// Will return an error if the circuit already has [`u8::MAX`] hops.
     #[expect(unused)] // TODO(dedup): clients will use this
     pub(crate) fn add_hop(&mut self, settings: HopSettings) -> Result<()> {
-        let mut hops = self.hops.write().expect("poisoned lock");
+        let mut hops = self.shared.hops.write().expect("poisoned lock");
         hops.add_hop(settings)
     }
 
@@ -263,7 +366,7 @@ impl<R: Runtime> HopMgr<R> {
         &self,
         hopnum: Option<HopNum>,
     ) -> StdResult<mpsc::Sender<CtrlMsg>, Error> {
-        let mut hops = self.hops.write().expect("poisoned lock");
+        let mut hops = self.shared.hops.write().expect("poisoned lock");
         let hop = hops.get_mut(hopnum)?;
 
         let tx = match &hop.tx {

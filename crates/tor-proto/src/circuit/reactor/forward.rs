@@ -3,7 +3,7 @@
 use crate::circuit::UniqId;
 use crate::circuit::metrics::CircuitMetrics;
 use crate::circuit::reactor::backward::BackwardReactorCmd;
-use crate::circuit::reactor::hop_mgr::HopMgr;
+use crate::circuit::reactor::circ_state::CircuitState;
 use crate::circuit::reactor::macros::derive_deftly_template_CircuitReactor;
 use crate::circuit::reactor::stream;
 use crate::circuit::reactor::{ControlHandler, ReactorResultChannel};
@@ -27,9 +27,7 @@ use crate::client::circuit::padding::PaddingController;
 use tor_cell::chancell::{CircId, msg::AnyChanMsg};
 use tor_cell::relaycell::flow_ctrl::XonKBpsEwma;
 use tor_cell::relaycell::msg::{Sendme, SendmeTag};
-use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoderResult, RelayCmd, StreamId, UnparsedRelayMsg,
-};
+use tor_cell::relaycell::{RelayCellDecoderResult, RelayCmd, StreamId, UnparsedRelayMsg};
 use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
 
@@ -92,10 +90,10 @@ pub(super) struct ForwardReactor<R: Runtime, F: ForwardHandler> {
     /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for
     /// sending cell over the inbound channel.
     backward_reactor_tx: mpsc::Sender<BackwardReactorCmd>,
-    /// Hop manager, storing per-hop state, and handles to the stream reactors.
+    /// The per-hop state of the circuit.
     ///
-    /// Contains the `CircHopList`.
-    hop_mgr: HopMgr<R>,
+    /// Contains the `CircHopList` and handles to the corresponding stream reactors.
+    circ_state: CircuitState<R>,
     /// An implementation-specific event stream.
     ///
     /// Polled from the main loop of the reactor.
@@ -124,7 +122,7 @@ pub(crate) enum CtrlCmd<C> {
     //
     // TODO(DEDUP): this is very similar to its client-side counterpart,
     // except the hop is a Option<HopNum> instead of a TargetHop.
-    #[cfg(any(feature = "hs-service", feature = "relay"))]
+    #[cfg(feature = "hs-service")]
     #[allow(unused)] // TODO(dedup): this will be used by hs services
     AwaitStreamRequests {
         /// A channel for sending information about an incoming stream request.
@@ -231,7 +229,7 @@ pub(crate) trait ForwardHandler: ControlHandler {
     /// Returns `None` if the cell was handled internally by this handler.
     async fn handle_forward_cell<R: Runtime>(
         &mut self,
-        hop_mgr: &HopMgr<R>,
+        circ_state: &CircuitState<R>,
         cell: Self::CircChanMsg,
     ) -> StdResult<Option<ForwardCellDisposition>, ReactorError>;
 
@@ -273,7 +271,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         unique_id: UniqId,
         circ_id: CircId,
         inner: F,
-        hop_mgr: HopMgr<R>,
+        circ_state: CircuitState<R>,
         inbound_chan_rx: CircuitRxReceiver,
         control_rx: mpsc::UnboundedReceiver<CtrlMsg<F::CtrlMsg>>,
         command_rx: mpsc::UnboundedReceiver<CtrlCmd<F::CtrlCmd>>,
@@ -292,7 +290,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
             command_rx,
             inner,
             backward_reactor_tx,
-            hop_mgr,
+            circ_state,
             circ_events,
             circ_events_tx,
             padding_ctrl,
@@ -342,7 +340,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 self.metrics.forward_cell_read();
 
                 let cell: F::CircChanMsg = cell.try_into()?;
-                let Some(disp) = self.inner.handle_forward_cell(&self.hop_mgr, cell).await? else {
+                let Some(disp) = self.inner.handle_forward_cell(&self.circ_state, cell).await? else {
                     return Ok(());
                 };
 
@@ -356,10 +354,10 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
     }
 
     /// Handle a control command.
-    #[allow(clippy::unused_async)] // used if any(feature = "hs-service", feature = "relay")
+    #[allow(clippy::unused_async)] // used if feature = "hs-service"
     async fn handle_cmd(&mut self, cmd: CtrlCmd<F::CtrlCmd>) -> StdResult<(), ReactorError> {
         match cmd {
-            #[cfg(any(feature = "hs-service", feature = "relay"))]
+            #[cfg(feature = "hs-service")]
             CtrlCmd::AwaitStreamRequests {
                 incoming_sender,
                 cmd_checker,
@@ -374,7 +372,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                     filter,
                 };
 
-                let ret = self.hop_mgr.set_incoming_handler(handler);
+                let ret = self.circ_state.set_incoming_handler(handler);
                 let _ = done.send(ret); // don't care if the corresponding receiver goes away.
                 Ok(())
             }
@@ -385,7 +383,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 message,
                 done,
             } => {
-                let ret = self.hop_mgr.close_pending(hop, stream_id, message).await;
+                let ret = self.circ_state.close_pending(hop, stream_id, message).await;
                 let _ = done.send(ret); // don't care if the corresponding receiver goes away.
 
                 Ok(())
@@ -396,7 +394,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
                 rate,
             } => {
                 let msg = stream::CtrlMsg::DrainRateUpdate { stream_id, rate };
-                self.hop_mgr.send(hop, msg).await
+                self.circ_state.send(hop, msg).await
             }
             CtrlCmd::Custom(c) => self.inner.handle_cmd(c),
         }
@@ -407,30 +405,6 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         match msg {
             CtrlMsg::Custom(c) => self.inner.handle_msg(c),
         }
-    }
-
-    /// Note that we have received a RELAY cell.
-    ///
-    /// Updates the padding and CC state.
-    fn note_relay_cell_received(&self, hopnum: Option<HopNum>, c_t_w: bool) -> Result<bool> {
-        let mut hops = self.hop_mgr.hops().write().expect("poisoned lock");
-        let hop = hops.get_mut(hopnum)?;
-
-        // Check whether we are allowed to receive more data for this circuit hop.
-        hop.inbound.decrement_cell_limit()?;
-
-        // Decrement the circuit sendme windows, and see if we need to
-        // send a sendme cell.
-        let send_circ_sendme = if c_t_w {
-            hop.ccontrol
-                .lock()
-                .expect("poisoned lock")
-                .note_data_received()?
-        } else {
-            false
-        };
-
-        Ok(send_circ_sendme)
     }
 
     /// Handle a RELAY cell.
@@ -453,21 +427,18 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         }
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
-        let send_circ_sendme = self.note_relay_cell_received(hopnum, c_t_w)?;
+        let sendme = self
+            .circ_state
+            .shared()
+            .note_relay_cell_received(hopnum, c_t_w, tag)?;
 
         // If we do need to send a circuit-level SENDME cell, do so.
-        if send_circ_sendme {
-            // This always sends a V1 (tagged) sendme cell, and thereby assumes
-            // that SendmeEmitMinVersion is no more than 1.  If the authorities
-            // every increase that parameter to a higher number, this will
-            // become incorrect.  (Higher numbers are not currently defined.)
-            let sendme = Sendme::from(tag);
-            let msg = AnyRelayMsgOuter::new(None, sendme.into());
+        if let Some(msg) = sendme {
             let forward = BackwardReactorCmd::SendRelayMsg { hop: hopnum, msg };
 
             // NOTE: sending the SENDME to the backward reactor for handling
             // might seem counterintuitive, given that we have access to
-            // the congestion control object right here (via hop_mgr).
+            // the congestion control object right here (via circ_state).
             //
             // However, the forward reactor does not have access to the
             // outbound_chan_tx part of the inbound (towards the client) Tor channel,
@@ -553,7 +524,7 @@ impl<R: Runtime, F: ForwardHandler> ForwardReactor<R, F> {
         //
         // Internally, this will spawn a StreamReactor for the target hop,
         // if not already spawned.
-        self.hop_mgr.send(hop, msg).await
+        self.circ_state.send(hop, msg).await
     }
 
     /// Handle a RELAY or RELAY_EARLY message on this circuit with stream ID 0.
