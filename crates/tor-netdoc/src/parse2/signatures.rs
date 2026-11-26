@@ -269,15 +269,62 @@ pub struct SignatureHashInputs<'s> {
     pub(crate) signature_item_kw_spc: &'s str,
     /// The whole signature item keyword line not including the final newline
     #[getter(skip)]
-    pub(crate) signature_item_line: &'s str,
+    pub(crate) signature_item_kw_line: &'s str,
 }
 
 impl<'s> SignatureHashInputs<'s> {
     /// Hash into `h` the body and the whole of the signature item's keyword line
     pub(crate) fn hash_whole_keyword_line(&self, h: &mut impl Digest) {
         h.update(self.body().body());
-        h.update(self.signature_item_line);
+        h.update(self.signature_item_kw_line);
         h.update("\n");
+    }
+
+    /// Create a new `SignatureHashInputs` given an in-progress document, for making a signature
+    ///
+    /// For use by the specific "make a signature" methods for each document type.
+    /// Prefer to use
+    /// [`crate::types::RsaSha1Signature::new_sign_netdoc`]
+    /// when applicable.
+    ///
+    ///  * `document_body` is the whole of the document body -
+    ///    ie, the whole of the unsigned part, not including any part of any signature items.
+    ///
+    ///  * `signature_item_kw_line` is the keyword line for the signature item
+    ///    that we are trying to create.
+    ///
+    /// Different signatures on the same document might need different `SignatureHashInputs`.
+    ///
+    /// ### Keyword item line
+    ///
+    /// How `signature_item_kw_line` is used, and what it must contain,
+    /// depends on the signature hashing approach.
+    /// Sometimes it does not need to be the whole item keyword line.
+    ///
+    /// If the signature hashing approach wants the whole item keyword line,
+    /// then it must indeed be that whole line, including the trailing newline.
+    ///
+    /// If the signature hashing approach only wants the item-keyword-space,
+    /// then it is OK to pass only that item-keyword-space;
+    /// a whole line can be passed, but if the same hashing code is used
+    /// as in parsing/verification, everything after the space will then be ignored,
+    /// so need not actually be present.
+    ///
+    /// It's usually difficult to avoid duplicating the knowledge of the encoding.
+    /// Passing a fixed literal string is acceptable, even though that recapitulates
+    /// the item keyword,
+    pub fn new_for_signature(document_body: &'s str, signature_item_kw_line: &'s str) -> Self {
+        SignatureHashInputs {
+            body: SignedDocumentBody {
+                body: document_body,
+            },
+            document_sofar: document_body,
+            signature_item_kw_line,
+            signature_item_kw_spc: signature_item_kw_line
+                .split_inclusive(" ")
+                .next()
+                .unwrap_or(signature_item_kw_line),
+        }
     }
 }
 

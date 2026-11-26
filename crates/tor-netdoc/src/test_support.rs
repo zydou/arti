@@ -14,7 +14,11 @@
 #![allow(clippy::string_slice)] // See arti#2571
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-use crate::parse2::{NetdocParseable, NetdocParseableFields, ParseInput, parse_netdoc};
+use crate::doc::netstatus::vote::NetworkStatusUnverified as NetworkStatusVoteUnverified;
+use crate::parse2::{
+    NetdocParseable, NetdocParseableFields, NetdocParseableUnverified as _, ParseInput,
+    parse_netdoc, parse_netdoc_multiple_with_offsets,
+};
 use derive_deftly::Deftly;
 use itertools::chain;
 use std::any::{Any, TypeId};
@@ -217,4 +221,31 @@ pub fn raw_find_object<'d>(doc: &'d str, kw: &str) -> &'d str {
         .expect("no newline after END")
         .1;
     &l[0..(l.len() - r.len())]
+}
+
+/// Given a file of votes, find the vote for a specific authority
+///
+/// Returns the parsed form, and the raw vote text.
+///
+/// Useful to pick a particular vote out of [`crate::testdata2::V3_STATUS_VOTES`].
+/// (The ordering there isn't stable, so `V3_STATUS_VOTES__1` is often not suitable.)
+pub fn find_vote_by_authority_id<'t>(
+    input: &ParseInput<'t>,
+    authority_id: tor_llcrypto::pk::rsa::RsaIdentity,
+) -> (NetworkStatusVoteUnverified, &'t str) {
+    let (doc, start, end) =
+        parse_netdoc_multiple_with_offsets::<NetworkStatusVoteUnverified>(input)
+            .expect("parse")
+            .into_iter()
+            .find(|(doc, _, _)| {
+                *doc.inspect_unverified()
+                    .0
+                    .authority
+                    .authority
+                    .dir_source
+                    .identity
+                    == authority_id
+            })
+            .expect("missing");
+    (doc, &input.input()[start..end])
 }

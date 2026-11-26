@@ -896,7 +896,7 @@ define_derive_deftly! {
         ///
         /// `None` if the value wasn't computed.
         /// That shouldn't happen.
-        fn hash_slice_for_verification(
+        fn hash_slice(
             &self,
             algo: &DigestAlgoInSignature,
         ) -> Option<&[u8]> {
@@ -977,6 +977,22 @@ impl DigestAlgoInSignature {
     }
 }
 
+impl DigestAlgoInSignature {
+    /// Represent a known algorithm in the form used for the actual signature item
+    pub fn from_algo(algo: DirectorySignatureHashAlgo) -> Self {
+        DigestAlgoInSignature(match algo {
+            DirectorySignatureHashAlgo::Sha1 => None,
+            other => Some(KeywordOrString::Known(other)),
+        })
+    }
+}
+
+impl From<DirectorySignatureHashAlgo> for DigestAlgoInSignature {
+    fn from(algo: DirectorySignatureHashAlgo) -> Self {
+        Self::from_algo(algo)
+    }
+}
+
 impl NormalItemArgument for DirectorySignatureHashAlgo {}
 
 /// The signature of a single directory authority on a networkstatus document.
@@ -984,21 +1000,30 @@ impl NormalItemArgument for DirectorySignatureHashAlgo {}
 /// Implements `ItemValueParseable` which parses without hashing anything;
 /// this is mostly useful for use by the `SignatureItemParseable` implementation.
 #[derive(Debug, Clone, Deftly)]
-#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
-#[non_exhaustive]
+#[derive_deftly(Constructor, ItemValueEncodable, ItemValueParseable)]
+#[allow(clippy::exhaustive_structs)]
 pub struct Signature {
     /// The name of the digest algorithm used to make the signature.
     ///
     /// Currently sha1 and sh256 are recognized.  Here we only support
     /// sha256.
+    #[deftly(constructor)]
     pub digest_algo: DigestAlgoInSignature,
+
     /// Fingerprints of the keys for the authority that made
     /// this signature.
     #[deftly(netdoc(with = authcert::keyids_directory_signature_args))]
+    #[deftly(constructor)]
     pub key_ids: AuthCertKeyIds,
+
     /// The signature itself.
     #[deftly(netdoc(object(label = "SIGNATURE"), with = types::raw_data_object))]
+    #[deftly(constructor)]
     pub signature: Vec<u8>,
+
+    #[doc(hidden)]
+    #[deftly(netdoc(skip))]
+    pub __non_exhaustive: (),
 }
 
 impl SignatureItemParseable for Signature {
@@ -1012,6 +1037,65 @@ impl SignatureItemParseable for Signature {
         let signature = Signature::from_unparsed(item)?;
         hash.update_from(&signature.digest_algo, body);
         Ok(signature)
+    }
+}
+
+/// Error when trying to sign a network status
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SigningError {
+    /// Error making the actual RSA signature
+    #[error("signing netdoc: rsa")]
+    Rsa(#[from] ll::pk::rsa::Error),
+    /// Internal error
+    #[error("signing netdoc: internal error")]
+    Internal(#[from] Bug),
+}
+
+impl Signature {
+    /// Make a network status document `Signature`, given the document text
+    //
+    // We provide this rather uncooked API, rather than (say) encode_sign,
+    // because we need to excitingly manipulate consensus signatures,
+    // adding them to existing documents, etc.
+    //
+    // The cooked encode_sign would have only one call site (dirauth voting),
+    // so maybe we won't bother with it.
+    pub fn sign_text(
+        key: &ll::pk::rsa::KeyPair,
+        text: &str,
+        algo: DirectorySignatureHashAlgo,
+        key_ids: AuthCertKeyIds,
+    ) -> Result<Self, SigningError> {
+        // We take AuthCertKeyIds since that seems better than taking a single loose
+        // fingerprint for KP_auth_id_rsa and making it easy to pass KP_auth_sign_rsa
+        // instead.  But this does mean we should probably check that KP_auth_sign_rsa
+        // is right.
+        if key_ids.sk_fingerprint != key.to_public_key().to_rsa_identity() {
+            Err(bad_api_usage!(
+                "incorrect KP_auth_sign_rsa passed in to netdoc signing"
+            ))?;
+        }
+
+        let digest_algo = DigestAlgoInSignature::from_algo(algo);
+
+        let mut accu = DirectorySignaturesHashesAccu::default();
+        accu.update_from(
+            &digest_algo,
+            &SignatureHashInputs::new_for_signature(text, "directory-signature "),
+        );
+        let hash_slice = accu
+            .hash_slice(&digest_algo)
+            .ok_or_else(|| internal!("somehow failed to record hash of the in-use algo"))?;
+
+        let signature = key.sign(hash_slice)?;
+
+        Ok(SignatureConstructor {
+            digest_algo,
+            key_ids,
+            signature,
+        }
+        .construct())
     }
 }
 
@@ -2464,6 +2548,7 @@ impl Signature {
             digest_algo,
             key_ids,
             signature,
+            __non_exhaustive: (),
         })
     }
 
@@ -2722,6 +2807,7 @@ impl SignatureGroup {
                     },
                 // Used by Signature::check_signature
                 signature: _,
+                __non_exhaustive: (),
             } = sig;
 
             match trusted_authorities {
@@ -2741,7 +2827,7 @@ impl SignatureGroup {
                 continue;
             }
 
-            let Some(d) = self.hashes.hash_slice_for_verification(digest_algo) else {
+            let Some(d) = self.hashes.hash_slice(digest_algo) else {
                 // We don't support this kind of digest for this kind
                 // of document.
                 continue;
@@ -3604,5 +3690,59 @@ $2
             unwrap_unverified_for_test,
             Duration::ZERO,
         )
+    }
+
+    #[cfg(feature = "retain-unknown")]
+    #[test]
+    fn sign_vote() -> anyhow::Result<()> {
+        use crate::{
+            encode::{encode_netdoc_fields, encode_netdoc_unsigned},
+            test_support, testdata2,
+        };
+        use tor_llcrypto::pk::rsa;
+
+        let authcert = parse_netdoc::<AuthCertUnverified>(
+            &ParseInput::new(testdata2::keys::AUTHORITY_CERTIFICATE, "authcert")
+                .retain_unknown_values(),
+        )?;
+        let authcert = authcert.unwrap_unverified().0;
+        let authority_id = authcert.fingerprint;
+
+        let doc = test_support::find_vote_by_authority_id(
+            &ParseInput::new(testdata2::V3_STATUS_VOTES, "v3-status-votes").retain_unknown_values(),
+            *authority_id,
+        )
+        .0
+        .unwrap_unverified()
+        .0;
+
+        let body = encode_netdoc_unsigned([&doc])?;
+
+        let sk =
+            rsa::KeyPair::from_der(pem::parse(testdata2::keys::AUTHORITY_SIGNING_KEY)?.contents())
+                .unwrap();
+
+        for hash_algo in [
+            DirectorySignatureHashAlgo::Sha1,
+            DirectorySignatureHashAlgo::Sha256,
+        ] {
+            let directory_signature =
+                Signature::sign_text(&sk, &body, hash_algo, authcert.key_ids())?;
+
+            let sig = encode_netdoc_fields(&vote::NetworkStatusSignatures {
+                directory_signature,
+                __non_exhaustive: (),
+            })?;
+
+            let signed = body.clone() + &sig;
+
+            let _: vote::NetworkStatus = parse_netdoc::<vote::NetworkStatusUnverified>(
+                &ParseInput::new(&signed, "<signed>"),
+            )?
+            .verify(&mut VoteVerifier::new([*authority_id]))?
+            .dangerously_assume_timely();
+        }
+
+        Ok(())
     }
 }

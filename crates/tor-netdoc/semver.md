@@ -17,3 +17,7 @@ BREAKING: `parse2::ParseInput::retain_unknown_values` now returns a copy rather 
 BREAKING: `vote::NetworkStatusUnverified` now takes an `&mut VoteVerifier`
 ADDED: `NetworkStatusSignaturesConstructor`
 BREAKING: Removed legacy family support from microdescriptors.
+ADDED: `netstatus::SignatureConstructor`
+ADDED: `SignatureHashInputs::new_for_signature`
+ADDED: `DigestAlgoInSignature::from_algo`, and `From<DirectorySignatureHashAlgo>`
+ADDED: `netstatus::Signature::sign_text`
