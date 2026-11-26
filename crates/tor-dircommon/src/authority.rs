@@ -210,28 +210,87 @@ mod test {
 
     #[test]
     fn default_auths() {
+        use itertools::Itertools;
+
         let dflt = AuthorityContacts::builder().build().unwrap();
         assert_eq!(dflt.v3idents, default_v3idents());
         assert_eq!(dflt.uploads, default_uploads());
         assert_eq!(dflt.downloads, default_downloads());
         assert_eq!(dflt.votes, default_votes());
         assert_eq!(dflt.v3idents.len(), dflt.uploads.len());
+        assert_eq!(dflt.uploads, dflt.downloads);
+        assert_eq!(dflt.uploads, dflt.votes);
 
-        // Use tor26's entry for this test. Note that this depends on tor26
-        // being listed last in default_v3idents() and default_uploads().
-        let last = dflt.v3idents.len() - 1;
-        assert_eq!(
-            dflt.v3idents[last],
-            RsaIdentity::from_hex("2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C").unwrap()
-        );
-        assert_eq!(
-            dflt.uploads[last],
-            vec![
-                "217.196.147.77:80".parse().unwrap(),
-                "[2a02:16a8:662:2203::1]:80".parse().unwrap()
-            ]
-        );
-        assert_eq!(dflt.uploads[last], dflt.downloads[last]);
-        assert_eq!(dflt.uploads[last], dflt.votes[last]);
+        // These entries were copied from c-tor's "auth_dir.inc" file, and
+        // IPv6 addresses added from the consensus where they were missing
+        // from c-tor.
+        let dirauths_testvec: Vec<_> = vec![
+            // moria1
+            (
+                "F533C81CEF0BC0267857C99B2F471ADF249FA232",
+                vec!["128.31.0.39:9231"],
+            ),
+            // tor26
+            (
+                "2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C",
+                vec!["217.196.147.77:80", "[2a02:16a8:662:2203::1]:80"],
+            ),
+            // dizum, v6 from consensus
+            (
+                "E8A9C45EDE6D711294FADF8E7951F4DE6CA56B58",
+                vec!["45.66.35.11:80", "[2a09:61c0::1337]:80"],
+            ),
+            // gabelmoo
+            (
+                "ED03BB616EB2F60BEC80151114BB25CEF515B226",
+                vec!["131.188.40.189:80", "[2001:638:a000:4140::ffff:189]:80"],
+            ),
+            // dannenberg
+            (
+                "0232AF901C31A04EE9848595AF9BB7620D4C5B2E",
+                vec!["193.23.244.244:80", "[2001:678:558:1000::244]:80"],
+            ),
+            // maatuska
+            (
+                "49015F787433103580E3B66A1707A00E60F2D15B",
+                vec!["91.223.231.13:443", "[2001:67c:8a4:1::13]:443"],
+            ),
+            // longclaw, v6 from consensus
+            (
+                "23D15D965BC35114467363C165C4F724B64B4F66",
+                vec!["199.58.81.140:80"],
+            ),
+            // faravahar, v6 from consensus
+            (
+                "70849B868D606BAECFB6128C5E3D782029AA394F",
+                vec!["216.218.219.41:80", "[2001:470:164:2::2]:80"],
+            ),
+            // sekhmet
+            (
+                "E30CF7B3DFA63FBDC5FC9E46EC75C543AB6D7403",
+                vec!["204.13.164.118:80", "[2620:13:4000:6000::1000:118]:80"],
+            ),
+        ]
+        .iter()
+        .map(|(id, addrs)| {
+            (
+                RsaIdentity::from_hex(id).unwrap(),
+                addrs
+                    .iter()
+                    .map(|a| a.parse::<SocketAddr>().unwrap())
+                    .collect(),
+            )
+        })
+        .sorted()
+        .collect();
+
+        let config: Vec<_> = dflt
+            .v3idents
+            .into_iter()
+            .zip(dflt.uploads)
+            .sorted()
+            .collect();
+
+        assert_eq!(config, dirauths_testvec);
     }
 }
